@@ -146,7 +146,37 @@ static const std::vector<PCB_IO_PLUGIN_CASE> BoardPluginCases = {
         "Basic Altium Designer board file",
         "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc",
         PCB_IO_MGR::ALTIUM_DESIGNER
-    }
+    },
+    {
+        "AVALON.BRD",
+        "plugins/allegro/AVALON.BRD",
+        PCB_IO_MGR::ALLEGRO
+    },
+    {
+        "BeagleBone-AI",
+        "plugins/allegro/BeagleBone-AI.BRD",
+        PCB_IO_MGR::ALLEGRO
+    },
+    {
+        "BeagleBone-AI",
+        "plugins/allegro/BeagleBone-AI.BRD",
+        PCB_IO_MGR::ALLEGRO
+    },
+    {
+        "BeagleY-AI",
+        "plugins/allegro/BeagleY-AI_PCB_V1.0_240105.brd",
+        PCB_IO_MGR::ALLEGRO
+    },
+    {
+        "Creatable Labs 3D Printer Main Board",
+        "plugins/allegro/MAINBOARD_02_20181023.brd",
+        PCB_IO_MGR::ALLEGRO
+    },
+    {
+        "OpenCellular GBC Board",
+        "plugins/allegro/OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd",
+        PCB_IO_MGR::ALLEGRO
+    },
     // Todo: Add Altium derivatives and Fabmaster tests
 };
 

@@ -37,9 +37,9 @@
 class BOARD;
 class PCB_IO;
 class FOOTPRINT;
+class STRING_UTF8_MAP;
 class PROJECT;
 class PROGRESS_REPORTER;
-class REPORTER;
 
 /**
  * A factory which returns an instance of a #PLUGIN.
@@ -70,6 +70,7 @@ public:
         SOLIDWORKS_PCB,
         IPC2581,
         ODBPP,
+        ALLEGRO,
         // add your type here.
 
         // etc.
