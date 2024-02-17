@@ -299,7 +299,7 @@ int MEANDER_SHAPE::MinAmplitude() const
 }
 
 
-int MEANDER_SHAPE::cornerRadius() const
+int MEANDER_SHAPE::cornerRadius( bool aMid ) const
 {
     if( m_amplitude == 0 )
         return 0;
@@ -311,7 +311,12 @@ int MEANDER_SHAPE::cornerRadius() const
     else
         minCr = std::abs( m_baselineOffset ) + m_width / 2 * ( 1 - tan( DEG2RAD( 22.5 ) ) );
 
-    int maxCr1 = ( m_amplitude + std::abs( m_baselineOffset ) ) / 2;
+    int maxCr1 = 0;
+    if( aMid )
+        maxCr1 = m_amplitude + std::abs( m_baselineOffset );
+    else
+        maxCr1 = ( m_amplitude + std::abs( m_baselineOffset ) ) / 2;
+
     int maxCr2 = spacing() / 2;
     int maxCr = std::min( maxCr1, maxCr2 );
 
@@ -459,7 +464,7 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
                                                  bool aSide, MEANDER_TYPE aType,
                                                  int aBaselineOffset )
 {
-    int cr = cornerRadius();
+    int cr = cornerRadius( aType == MT_TURN );
     int offset = aBaselineOffset;
     int spc = spacing();
     int amplitude = m_amplitude;
@@ -471,8 +476,16 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     VECTOR2D dir_u_b( aDir.Resize( offset ) );
     VECTOR2D dir_v_b( dir_u_b.Perpendicular() );
 
-    if( 2 * cr > amplitude + std::abs( offset ) )
-        cr = ( amplitude + std::abs( offset ) ) / 2;
+    if( aType == MT_TURN )
+    {
+        if( cr > amplitude + std::abs( offset ) )
+            cr = amplitude + std::abs( offset );
+    }
+    else
+    {
+        if( 2 * cr > amplitude + std::abs( offset ) )
+            cr = ( amplitude + std::abs( offset ) ) / 2;
+    }
 
     if( 2 * cr > spc )
         cr = spc / 2;
@@ -485,7 +498,7 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     int sCorner = cr - offset;
     int uCorner = cr + offset;
     int startSide = amplitude - 2 * cr + std::abs( offset );
-    int turnSide = amplitude - cr;
+    int turnSide = amplitude - cr + std::abs( offset );
     int top = spc - 2 * cr;
 
     SHAPE_LINE_CHAIN lc;
@@ -538,9 +551,7 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
 
         start( &lc, aP - dir_u_b, aDir );
         turn( -ANGLE_90 );
-        forward( std::abs( offset ) );
         uShape( turnSide, uCorner, top );
-        forward( std::abs( offset ) );
         break;
     }
 

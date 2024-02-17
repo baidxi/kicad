@@ -360,7 +360,7 @@ private:
     void updateBaseSegment();
 
     ///< Return sanitized corner radius value.
-    int cornerRadius() const;
+    int cornerRadius( bool aMid = true ) const;
 
     ///< Return sanitized spacing value.
     int spacing() const;
