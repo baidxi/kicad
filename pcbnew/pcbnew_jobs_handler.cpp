@@ -2645,48 +2645,62 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
 
 int PCBNEW_JOBS_HANDLER::JobExportConvert( JOB* aJob )
 {
-    auto aConvertJob = dynamic_cast<JOB_PCB_CONVERT*>( aJob );
+    JOB_PCB_CONVERT* aConvertJob = dynamic_cast<JOB_PCB_CONVERT*>( aJob );
 
     if( aConvertJob == nullptr )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
     m_reporter->Report( _( "Loading board\n" ), RPT_SEVERITY_INFO );
 
-    BOARD* brd{};
-
-    static const auto mapFromToPCBType = std::map<JOB_PCB_CONVERT::From, PCB_IO_MGR::PCB_FILE_T>{
-        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_MAKER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_MAKER },
-        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_STUDIO, PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_STUDIO },
+    static const auto converFromPCBType = std::map<JOB_PCB_CONVERT::From, PCB_IO_MGR::PCB_FILE_T>{
+        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_MAKER,
+          PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_MAKER },
+        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_STUDIO,
+          PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_STUDIO },
         { JOB_PCB_CONVERT::From::ALTIUM_DESIGNER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_DESIGNER },
     };
 
-    if( auto it = mapFromToPCBType.find( aConvertJob->m_from ); it == mapFromToPCBType.end() )
+    static const auto convertToPCBTYPE = std::map<JOB_PCB_CONVERT::To, PCB_IO_MGR::PCB_FILE_T>{
+        { JOB_PCB_CONVERT::To::KICAD_SEXP,
+          PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP }
+    };
+
+    if( auto from_type = converFromPCBType.find( aConvertJob->m_from ); from_type == converFromPCBType.end() )
     {
-        if( aConvertJob == nullptr )
-            return CLI::EXIT_CODES::ERR_UNKNOWN;
+            return CLI::EXIT_CODES::ERR_ARGS;
     }
     else
     {
+
+        if (auto to_type = convertToPCBTYPE.find( aConvertJob->m_to ); to_type == convertToPCBTYPE.end() )
+        {
+            return CLI::EXIT_CODES::ERR_ARGS;
+        }
+        else
+        {
+            BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second,
+                        true );
+            try
+            {
+                IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::PluginFind( to_type->second ) );
+                pi->SetProgressReporter( m_progressReporter );
+                pi->SaveBoard( aConvertJob->m_outputFile, brd );
+            }
+                catch( const IO_ERROR& ioe )
+            {
+                m_reporter->Report( wxString::Format( _( "Error converting pcb file '%s'.\n%s" ),
+                                                    aConvertJob->m_filename, ioe.What() ),
+                                    RPT_SEVERITY_ERROR );
+
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            m_reporter->Report( _( "Successfully convered board" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
+            return CLI::EXIT_CODES::OK;
+        }
+
     }
 
-    switch( aConvertJob->m_from )
-    {
-    case JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_MAKER:
-        brd = LoadBoard( aConvertJob->m_filename, PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_MAKER, true );
-        break;
-    case JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_STUDIO: break;
-    case JOB_PCB_CONVERT::From::ALTIUM_DESIGNER: break;
-    }
-
-
-    bool success = true;
-
-    if( success )
-        m_reporter->Report( _( "Successfully convered board" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
-    else
-        m_reporter->Report( _( "Error converting board" ) + wxS( "\n" ), RPT_SEVERITY_ERROR );
-
-    return CLI::EXIT_CODES::OK;
 }
 
 int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )

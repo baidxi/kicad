@@ -23,6 +23,9 @@
  */
 
 #include "command_pcb_convert.h"
+#include "jobs/job_pcb_convert.h"
+
+
 #include <cli/exit_codes.h>
 #include "jobs/job_pcb_render.h"
 #include <kiface_base.h>
@@ -33,26 +36,10 @@
 
 #include <macros.h>
 #include <wx/tokenzr.h>
-#include "../../3d-viewer/3d_viewer/eda_3d_viewer_settings.h"
 #include <math/vector3.h>
 
-#define ARG_BACKGROUND "--background"
-#define ARG_QUALITY "--quality"
-
-#define ARG_WIDTH "--width"
-#define ARG_WIDTH_SHORT "-w"
-
-#define ARG_HEIGHT "--height"
-#define ARG_HEIGHT_SHORT "-h"
-
-#define ARG_SIDE "--side"
-#define ARG_PRESET "--preset"
-#define ARG_PAN "--pan"
-#define ARG_PIVOT "--pivot"
-#define ARG_ROTATE "--rotate"
-#define ARG_ZOOM "--zoom"
-#define ARG_PERSPECTIVE "--perspective"
-#define ARG_FLOOR "--floor"
+#define ARG_FROM "--from"
+#define ARG_TO "--to"
 
 template <typename T>
 static wxString enumString()
@@ -103,13 +90,6 @@ static std::vector<std::string> enumChoices()
 
 
 template <typename T>
-static std::optional<T> strToEnum( std::string& aInput )
-{
-    return magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive );
-}
-
-
-template <typename T>
 static bool getToEnum( const std::string& aInput, T& aOutput )
 {
     // If not specified, leave at default
@@ -125,177 +105,42 @@ static bool getToEnum( const std::string& aInput, T& aOutput )
     return false;
 }
 
-
-static bool getToVector3( const std::string& aInput, VECTOR3D& aOutput )
-{
-    // If not specified, leave at default
-    if( aInput.empty() )
-        return true;
-
-    // Remove potential quotes
-    wxString wxStr = From_UTF8( aInput );
-
-    if( wxStr[0] == '\'' )
-        wxStr = wxStr.AfterFirst( '\'' );
-
-    if( wxStr[wxStr.length() - 1] == '\'' )
-        wxStr = wxStr.BeforeLast( '\'' );
-
-    wxArrayString arr = wxSplit( wxStr, ',', 0 );
-
-    if( arr.size() != 3 )
-        return false;
-
-    VECTOR3D vec;
-    bool     success = true;
-    success &= arr[0].Trim().ToCDouble( &vec.x );
-    success &= arr[1].Trim().ToCDouble( &vec.y );
-    success &= arr[2].Trim().ToCDouble( &vec.z );
-
-    if( !success )
-        return false;
-
-    aOutput = vec;
-    return true;
-}
-
-
-CLI::COMMAND_PCB_CONVERT::COMMAND_PCB_CONVERT() :
-        COMMAND( "pcb_convert" )
+CLI::COMMAND_PCB_CONVERT::COMMAND_PCB_CONVERT() : COMMAND( "convert" )
 {
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
-    m_argParser.add_description( UTF8STDSTR( _( "Renders the PCB in 3D view to PNG or JPEG image" ) ) );
+    m_argParser.add_description(
+            UTF8STDSTR( _( "Convert a vendor's PCB documentation to another vendor's PCB documentation" ) ) );
 
-    m_argParser.add_argument( ARG_WIDTH, ARG_WIDTH_SHORT )
-            .default_value( 1600 )
-            .scan<'i', int>()
-            .metavar( "WIDTH" )
-            .help( UTF8STDSTR( _( "Image width" ) ) );
 
-    m_argParser.add_argument( ARG_HEIGHT, ARG_HEIGHT_SHORT )
-            .default_value( 900 )
-            .scan<'i', int>()
-            .metavar( "HEIGHT" )
-            .help( UTF8STDSTR( _( "Image height" ) ) );
+    m_argParser.add_argument( ARG_FROM )
+            .default_value( std::string( "altium_designer" ) )
+            .add_choices( enumChoices<JOB_PCB_CONVERT::From>() )
+            .metavar( "FROM" )
+            .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB format. Options: %s" ),
+                                                 enumString<JOB_PCB_CONVERT::From>() ) ) );
 
-    m_argParser.add_argument( ARG_SIDE )
-            .default_value( std::string( "top" ) )
-            .add_choices( enumChoices<JOB_PCB_RENDER::SIDE>() )
-            .metavar( "SIDE" )
-            .help( UTF8STDSTR(
-                    wxString::Format( _( "Render from side. Options: %s" ), enumString<JOB_PCB_RENDER::SIDE>() ) ) );
 
-    m_argParser.add_argument( ARG_BACKGROUND )
-            .default_value( std::string( "" ) )
-            .help( UTF8STDSTR( _( "Image background. Options: transparent, opaque. Default: "
-                                  "transparent for PNG, opaque for JPEG" ) ) )
-            .metavar( "BG" );
+    m_argParser.add_argument( ARG_TO )
+            .default_value( std::string( "kicad_sexp" ) )
+            .add_choices( enumChoices<JOB_PCB_CONVERT::To>() )
+            .metavar( "TO" )
+            .help( UTF8STDSTR( wxString::Format( _( "Converted format. Options: %s" ),
+                                                 enumString<JOB_PCB_CONVERT::To>() ) ) );
 
-    m_argParser.add_argument( ARG_QUALITY )
-            .default_value( std::string( "basic" ) )
-            .add_choices( enumChoices<JOB_PCB_RENDER::QUALITY>() )
-            .metavar( "QUALITY" )
-            .help( UTF8STDSTR(
-                    wxString::Format( _( "Render quality. Options: %s" ), enumString<JOB_PCB_RENDER::QUALITY>() ) ) );
-
-    m_argParser.add_argument( ARG_PRESET )
-            .default_value( std::string( wxString( FOLLOW_PLOT_SETTINGS ) ) )
-            .metavar( "PRESET" )
-            .help( UTF8STDSTR( wxString::Format( _( "Color preset. Options: %s, %s, %s, ..." ), FOLLOW_PCB,
-                                                 FOLLOW_PLOT_SETTINGS, LEGACY_PRESET_FLAG ) ) );
-
-    m_argParser.add_argument( ARG_FLOOR )
-            .flag()
-            .help( UTF8STDSTR( _( "Enables floor, shadows and post-processing, even if disabled in "
-                                  "quality preset" ) ) );
-
-    m_argParser.add_argument( ARG_PERSPECTIVE )
-            .flag()
-            .help( UTF8STDSTR( _( "Use perspective projection instead of orthogonal" ) ) );
-
-    m_argParser.add_argument( ARG_ZOOM )
-            .default_value( 1.0 )
-            .scan<'g', double>()
-            .metavar( "ZOOM" )
-            .help( UTF8STDSTR( _( "Camera zoom" ) ) );
-
-    m_argParser.add_argument( ARG_PAN )
-            .default_value( std::string( "" ) )
-            .metavar( "VECTOR" )
-            .help( UTF8STDSTR( _( "Pan camera, format 'X,Y,Z' e.g.: '3,0,0'" ) ) );
-
-    m_argParser.add_argument( ARG_PIVOT )
-            .default_value( std::string( "" ) )
-            .metavar( "PIVOT" )
-            .help( UTF8STDSTR( _( "Set pivot point relative to the board center in centimeters, format 'X,Y,Z' "
-                                  "e.g.: '-10,2,0'" ) ) );
-
-    m_argParser.add_argument( ARG_ROTATE )
-            .default_value( std::string( "" ) )
-            .metavar( "ANGLES" )
-            .help( UTF8STDSTR( _( "Rotate board, format 'X,Y,Z' e.g.: '-45,0,45' for isometric view" ) ) );
 }
 
 
 int CLI::COMMAND_PCB_CONVERT::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_PCB_RENDER> renderJob( new JOB_PCB_RENDER( true ) );
+    std::unique_ptr<JOB_PCB_CONVERT> convertJob( new JOB_PCB_CONVERT( true ) );
 
-    renderJob->m_outputFile = m_argOutput;
-    renderJob->m_filename = m_argInput;
-    renderJob->SetVarOverrides( m_argDefineVars );
-
-    renderJob->m_colorPreset = m_argParser.get<std::string>( ARG_PRESET );
-    renderJob->m_width = m_argParser.get<int>( ARG_WIDTH );
-    renderJob->m_height = m_argParser.get<int>( ARG_HEIGHT );
-    renderJob->m_zoom = m_argParser.get<double>( ARG_ZOOM );
-    renderJob->m_perspective = m_argParser.get<bool>( ARG_PERSPECTIVE );
-    renderJob->m_floor = m_argParser.get<bool>( ARG_FLOOR );
-
-    getToEnum( m_argParser.get<std::string>( ARG_QUALITY ), renderJob->m_quality );
-    getToEnum( m_argParser.get<std::string>( ARG_SIDE ), renderJob->m_side );
-
-    if( !getToEnum( m_argParser.get<std::string>( ARG_BACKGROUND ), renderJob->m_bgStyle ) )
-    {
-        wxFprintf( stderr, _( "Invalid background\n" ) );
-        return EXIT_CODES::ERR_ARGS;
-    }
-
-    if( !getToVector3( m_argParser.get<std::string>( ARG_ROTATE ), renderJob->m_rotation ) )
-    {
-        wxFprintf( stderr, _( "Invalid rotation format\n" ) );
-        return EXIT_CODES::ERR_ARGS;
-    }
-
-    if( !getToVector3( m_argParser.get<std::string>( ARG_PAN ), renderJob->m_pan ) )
-    {
-        wxFprintf( stderr, _( "Invalid pan format\n" ) );
-        return EXIT_CODES::ERR_ARGS;
-    }
-
-    if( !getToVector3( m_argParser.get<std::string>( ARG_PIVOT ), renderJob->m_pivot ) )
-    {
-        wxFprintf( stderr, _( "Invalid pivot format\n" ) );
-        return EXIT_CODES::ERR_ARGS;
-    }
-
-    if( m_argOutput.Lower().EndsWith( wxS( ".png" ) ) )
-    {
-        renderJob->m_format = JOB_PCB_RENDER::FORMAT::PNG;
-    }
-    else if( m_argOutput.Lower().EndsWith( wxS( ".jpg" ) ) || m_argOutput.Lower().EndsWith( wxS( ".jpeg" ) ) )
-    {
-        renderJob->m_format = JOB_PCB_RENDER::FORMAT::JPEG;
-    }
-    else
-    {
-        wxFprintf( stderr, _( "Invalid image format\n" ) );
-        return EXIT_CODES::ERR_ARGS;
-    }
-
-    int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, renderJob.get() );
-
+    convertJob->m_outputFile = m_argOutput;
+    convertJob->m_filename = m_argInput;
+    convertJob->SetVarOverrides( m_argDefineVars );
+    getToEnum( m_argParser.get<std::string>( ARG_FROM ), convertJob->m_from );
+    getToEnum( m_argParser.get<std::string>( ARG_TO ), convertJob->m_to );
+    int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, convertJob.get() );
     return exitCode;
 }

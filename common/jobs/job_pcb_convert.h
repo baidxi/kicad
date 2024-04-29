@@ -46,12 +46,12 @@ public:
 
     enum class To
     {
-        KICAD
+        KICAD_SEXP
     };
 
 
     From m_from;
-    To   m_to;
+    To   m_to ;
 };
 
 #endif
