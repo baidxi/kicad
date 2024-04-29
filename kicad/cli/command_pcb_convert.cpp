@@ -27,7 +27,7 @@
 
 
 #include <cli/exit_codes.h>
-#include "jobs/job_pcb_render.h"
+#include "command_utils.h"
 #include <kiface_base.h>
 #include <layer_ids.h>
 #include <string_utils.h>
@@ -36,82 +36,19 @@
 
 #include <macros.h>
 #include <wx/tokenzr.h>
-#include <math/vector3.h>
 
 #define ARG_FROM "--from"
 #define ARG_TO "--to"
 
-template <typename T>
-static wxString enumString()
-{
-    wxString str;
-    auto     names = magic_enum::enum_names<T>();
 
-    for( size_t i = 0; i < names.size(); i++ )
-    {
-        std::string name = { names[i].begin(), names[i].end() };
-
-        if( i > 0 )
-            str << ", ";
-
-        std::transform( name.begin(), name.end(), name.begin(),
-                        []( unsigned char c )
-                        {
-                            return std::tolower( c );
-                        } );
-
-        str << name;
-    }
-
-    return str;
-}
-
-
-template <typename T>
-static std::vector<std::string> enumChoices()
-{
-    std::vector<std::string> out;
-
-    for( auto& strView : magic_enum::enum_names<T>() )
-    {
-        std::string name = { strView.begin(), strView.end() };
-
-        std::transform( name.begin(), name.end(), name.begin(),
-                        []( unsigned char c )
-                        {
-                            return std::tolower( c );
-                        } );
-
-        out.emplace_back( name );
-    }
-
-    return out;
-}
-
-
-template <typename T>
-static bool getToEnum( const std::string& aInput, T& aOutput )
-{
-    // If not specified, leave at default
-    if( aInput.empty() )
-        return true;
-
-    if( auto opt = magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive ) )
-    {
-        aOutput = *opt;
-        return true;
-    }
-
-    return false;
-}
-
-CLI::COMMAND_PCB_CONVERT::COMMAND_PCB_CONVERT() : COMMAND( "convert" )
+CLI::PCB_CONVERT_COMMAND::PCB_CONVERT_COMMAND() :
+        COMMAND( "convert" )
 {
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
     m_argParser.add_description(
-            UTF8STDSTR( _( "Convert a vendor's PCB documentation to another vendor's PCB documentation" ) ) );
+            UTF8STDSTR( _( "Convert a vendor's PCB document to another vendor's PCB document" ) ) );
 
 
     m_argParser.add_argument( ARG_FROM )
@@ -132,7 +69,7 @@ CLI::COMMAND_PCB_CONVERT::COMMAND_PCB_CONVERT() : COMMAND( "convert" )
 }
 
 
-int CLI::COMMAND_PCB_CONVERT::doPerform( KIWAY& aKiway )
+int CLI::PCB_CONVERT_COMMAND::doPerform( KIWAY& aKiway )
 {
     std::unique_ptr<JOB_PCB_CONVERT> convertJob( new JOB_PCB_CONVERT( true ) );
 

@@ -30,12 +30,13 @@
 namespace CLI
 {
 
-class COMMAND_SCH_CONVERT : public COMMAND
+class SCH_CONVERT_COMMAND : public COMMAND
 {
 public:
-    COMMAND_SCH_CONVERT();
+    SCH_CONVERT_COMMAND();
 
-private:
+protected:
+    int doPerform( KIWAY& aKiway ) override;
 };
 
 } // namespace CLI

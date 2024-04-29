@@ -30,10 +30,10 @@
 namespace CLI
 {
 
-class COMMAND_PCB_CONVERT : public COMMAND
+class PCB_CONVERT_COMMAND : public COMMAND
 {
 public:
-    COMMAND_PCB_CONVERT();
+    PCB_CONVERT_COMMAND();
 
 protected:
     int doPerform( KIWAY& aKiway ) override;

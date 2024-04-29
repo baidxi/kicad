@@ -39,12 +39,12 @@ public:
 
     enum class From
     {
-        ALTIUM
+        SCH_ALTIUM
     };
 
     enum class To
     {
-        KICAD
+        SCH_KICAD
     };
 
 

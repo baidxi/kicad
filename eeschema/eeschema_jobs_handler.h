@@ -43,6 +43,7 @@ public:
     int JobExportNetlist( JOB* aJob );
     int JobExportPlot( JOB* aJob );
     int JobSchErc( JOB* aJob );
+    int JobSchConvert( JOB* aJob );
     int JobSymUpgrade( JOB* aJob );
     int JobSymExportSvg( JOB* aJob );
     int JobUpgrade( JOB* aJob );
