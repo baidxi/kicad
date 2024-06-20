@@ -622,6 +622,39 @@ bool IbisModel::Check()
     {
         if( !m_ramp.Check() )
             Report( _( "Invalid Ramp" ), RPT_SEVERITY_ERROR );
+        }
+    }
+
+    for( IbisSubmodel sm : this->m_submodels )
+    {
+        if( this->m_type == IBIS_MODEL_TYPE::SERIES
+            || this->m_type == IBIS_MODEL_TYPE::SERIES_SWITCH )
+        {
+            Report( _( "'Switch' and 'Series switch' model types cannot have submodels" ),
+                    RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        if( ( this->m_type == IBIS_MODEL_TYPE::OUTPUT
+              || this->m_type == IBIS_MODEL_TYPE::OUTPUT_ECL )
+            && sm.m_mode == IBIS_SUBMODEL_MODE::NON_DRIVING )
+        {
+            Report( _( "Model and submodel are incompatible" ), RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        if( ( this->m_type == IBIS_MODEL_TYPE::INPUT_STD
+              || this->m_type == IBIS_MODEL_TYPE::INPUT_ECL )
+            && sm.m_mode == IBIS_SUBMODEL_MODE::DRIVING )
+        {
+            Report( _( "Model and submodel are incompatible" ), RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        // IBIS_SUBMODEL_MODE::ALL is valid for all model types, except series and series_switch
     }
 
     return status;
