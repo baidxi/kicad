@@ -1523,6 +1523,11 @@ bool IbisParser::parseModel( std::string& aKeyword )
         status = readTypMinMaxValue( m_currentModel->m_Rgnd );
     else if( compareIbisWord( aKeyword.c_str(), "Add_Submodel" ) )
         status = readAddSubmodel();
+    else if( compareIbisWord( aKeyword.c_str(), "Driver_Schedule" ) )
+    {
+        Report( _( "The [Driver Schedule] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
     else
         status = changeContext( aKeyword );
 
