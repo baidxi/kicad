@@ -61,16 +61,16 @@ C_pkg           1m              0.8m            2m
  4           5       150mV    -1ns       0ns      -2ns 
  6           7       150mV    -1ns       0ns      -2ns 
 
-[Series Pin Mapping]  pin_2    model_name      function_table_group
-|
-  4                    5       PinSeries       1    
-  6                    7       PinSeries       2   
+#[Series Pin Mapping]  pin_2    model_name      function_table_group
+#
+#  4                    5       PinSeries       1    
+#  6                    7       PinSeries       2   
 
-[Series Switch Groups]
-On 4 5 /          
-Off 4 5 /        
-On 4 5 6 7 /          
-Off 4 5 6 7 /            
+#[Series Switch Groups]
+#On 4 5 /          
+#Off 4 5 /        
+#On 4 5 6 7 /          
+#Off 4 5 6 7 /            
 
 
 [Model]         Input
@@ -87,7 +87,7 @@ Vref = 0
 C_comp          10.0pF          8.0pF          15.0pF 
 
 [Model Spec]
-|   Subparameter          typ        min        max
+#   Subparameter          typ        min        max
 Vinh                      3.5        3.15       3.85  
 Vinl                      1.5        1.35       1.65   
 Vinh+                     2.0        NA         NA      | Overrides the
@@ -105,19 +105,19 @@ Pulse_time                3n         NA         NA      | Pulse_time
 Vmeas                     3.68       3.18       4.68    | A 5 volt PECL
 
 [Add Submodel]     
-| Submodel_name        Mode
+# Submodel_name        Mode
 Bus_Hold_1             Non-Driving 
 Dynamic_clamp_1        All 
 
 [Driver Schedule]
-| Model_name     Rise_on_dly  Rise_off_dly  Fall_on_dly  Fall_off_dly
+# Model_name     Rise_on_dly  Rise_off_dly  Fall_on_dly  Fall_off_dly
   MODEL_OUT      0.0ns        NA            0.0ns        NA
   M_O_SOURCE1     0.5ns        NA            0.5ns        NA
-|              low (high-Z) to high        high to low (high-Z)
+#              low (high-Z) to high        high to low (high-Z)
   M_O_SOURCE2    0.5n         1.5n          NA           NA
-|               low to high to low           low (high-Z)
+#               low to high to low           low (high-Z)
   M_O_DRAIN1     1.0n         NA            1.5n         NA
-|              low to high (high-Z)        high (high-Z) to low
+#              low to high (high-Z)        high (high-Z) to low
   M_O_DRAIN2     NA           NA            1.5n         2.0n
 |                  high (high-Z)           high to low to high 
 

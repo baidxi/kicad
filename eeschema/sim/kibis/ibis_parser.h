@@ -551,6 +551,23 @@ enum class IBIS_MODEL_POLARITY
     NON_INVERTING
 };
 
+enum class IBIS_SUBMODEL_MODE
+{
+    DRIVING,
+    NON_DRIVING,
+    ALL
+};
+
+class IbisSubmodel : IBIS_INPUT
+{
+    public:
+        IbisSubmodel( REPORTER* aReporter ):
+            IBIS_INPUT( aReporter )
+        {};
+
+    std::string        m_name;
+    IBIS_SUBMODEL_MODE m_mode;
+};
 
 class IbisModel : IBIS_INPUT
 {
@@ -610,7 +627,7 @@ public:
     std::vector<IbisWaveform*> m_risingWaveforms;
     std::vector<IbisWaveform*> m_fallingWaveforms;
     IbisRamp                   m_ramp;
-
+    std::vector<IbisSubmodel>  m_submodels;
     bool Check() override;
 };
 
@@ -676,7 +693,8 @@ enum class IBIS_PARSER_CONTINUE
     VT_TABLE,
     RAMP,
     WAVEFORM,
-    PACKAGEMODEL_PINS
+    PACKAGEMODEL_PINS,
+    ADDSUBMODEL
 };
 
 enum class IBIS_PARSER_CONTEXT
@@ -844,6 +862,7 @@ private:
     bool readModelSelector();
     bool readModel();
     bool readPackageModelPins();
+    bool readAddSubmodel();
 
     /** @brief Ibis can change the character used for comments */
     bool changeCommentChar();

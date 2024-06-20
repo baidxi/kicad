@@ -1488,6 +1488,8 @@ bool IbisParser::parseModel( std::string& aKeyword )
         status = readTypMinMaxValue( m_currentModel->m_Rpower );
     else if( compareIbisWord( aKeyword.c_str(), "Rgnd" ) )
         status = readTypMinMaxValue( m_currentModel->m_Rgnd );
+    else if( compareIbisWord( aKeyword.c_str(), "Add_Submodel" ) )
+        status = readAddSubmodel();
     else
         status = changeContext( aKeyword );
 
@@ -2053,6 +2055,58 @@ bool IbisParser::readModel()
 }
 
 
+bool IbisParser::readAddSubmodel()
+{
+    bool               status = true;
+    std::string        name;
+    IBIS_SUBMODEL_MODE mode;
+    std::string        subparam;
+
+    m_continue = IBIS_PARSER_CONTINUE::ADDSUBMODEL;
+
+    if( readWord( subparam ) )
+    {
+        name = subparam;
+    }
+    else
+    {
+        return true; // empty line
+    }
+
+    if( status && readWord( subparam ) )
+    {
+        if( compareIbisWord( subparam.c_str(), "All" ) )
+            mode = IBIS_SUBMODEL_MODE::ALL;
+        else if( compareIbisWord( subparam.c_str(), "Driving" ) )
+            mode = IBIS_SUBMODEL_MODE::DRIVING;
+        else if( compareIbisWord( subparam.c_str(), "Non-driving" ) )
+            mode = IBIS_SUBMODEL_MODE::NON_DRIVING;
+        else
+        {
+            std::stringstream message;
+            message << _( "Unknown mode for submodel: " ) << subparam;
+            Report( message.str(), RPT_SEVERITY_ERROR );
+            status = false;
+        }
+    }
+    else
+    {
+        Report( _( "Missing mode for submodel" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+
+    if( status )
+    {
+        IbisSubmodel submodel( m_reporter );
+        submodel.m_name = name;
+        submodel.m_mode = mode;
+        m_currentModel->m_submodels.push_back( submodel );
+    }
+
+    return status;
+}
+
+
 bool IbisParser::parseHeader( std::string& aKeyword )
 {
     bool status = true;
@@ -2600,6 +2654,9 @@ bool IbisParser::onNewLine()
             break;
         case IBIS_PARSER_CONTINUE::MATRIX:
             status &= readMatrix( m_currentMatrix );
+            break;
+        case IBIS_PARSER_CONTINUE::ADDSUBMODEL:
+	    status &= readAddSubmodel();
             break;
         case IBIS_PARSER_CONTINUE::NONE:
         default:
