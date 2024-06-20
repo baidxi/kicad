@@ -1302,6 +1302,7 @@ bool IbisParser::changeContext( std::string& aKeyword )
         case IBIS_PARSER_CONTEXT::MODEL: status &= m_currentModel->Check(); break;
         case IBIS_PARSER_CONTEXT::MODELSELECTOR: status &= m_currentModelSelector->Check(); break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL: status &= m_currentPackageModel->Check(); break;
+        case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION: status &= m_currentBoardDescription->Check(); break;
         case IBIS_PARSER_CONTEXT::END:
             Report( "Cannot change context after [END]" );
             status = false;
@@ -1376,6 +1377,28 @@ bool IbisParser::changeContext( std::string& aKeyword )
                 m_continue = IBIS_PARSER_CONTINUE::NONE;
             }
         }
+        else if( compareIbisWord( aKeyword.c_str(), "Begin_Board_Description" ) )
+        {
+            IbisBoardDescription BD( m_reporter );
+            status &= storeString( BD.m_name, false );
+
+            m_ibisFile.m_boardDescriptions.push_back( BD );
+            m_currentBoardDescription = &( m_ibisFile.m_boardDescriptions.back() );
+            m_context = IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION;
+        }
+        else if( compareIbisWord( aKeyword.c_str(), "End_Board_Description" ) )
+        {
+            if( m_currentBoardDescription != nullptr )
+            {
+                m_context = IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION;
+                m_continue = IBIS_PARSER_CONTINUE::NONE;
+            }
+            else // .ebd file, we just go back to header, to get the [END] keyword
+            {    // This will cause the header to be checked twice.
+                m_context = IBIS_PARSER_CONTEXT::HEADER;
+                m_continue = IBIS_PARSER_CONTINUE::NONE;
+            }
+        }
         else
         {
             status = false;
@@ -1388,7 +1411,8 @@ bool IbisParser::changeContext( std::string& aKeyword )
             case IBIS_PARSER_CONTEXT::MODELSELECTOR:          context_string += "MODEL_SELECTOR";           break;
             case IBIS_PARSER_CONTEXT::MODEL:                  context_string += "MODEL";                    break;
             case IBIS_PARSER_CONTEXT::PACKAGEMODEL:           context_string += "PACKAGE_MODEL";            break;
-            case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA: context_string += "PACKAGE_MODEL_MODEL_DATA"; break;
+            case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION:      context_string += "BOARD_DESCRIPTION";        break;
+	    case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA: context_string += "PACKAGE_MODEL_MODEL_DATA"; break;
             default:                                          context_string += "???";                      break;
             }
 
@@ -2233,6 +2257,43 @@ bool IbisParser::parseComponent( std::string& aKeyword )
         status = false;
     }
 
+bool IbisParser::parseBoardDescription( std::string& aKeyword )
+{
+    bool status = true;
+    if( compareIbisWord( aKeyword.c_str(), "Manufacturer" ) )
+    {
+        status &= storeString( m_currentBoardDescription->m_manufacturer, true );
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Number_Of_Pins" ) )
+    {
+        status &= readInt( m_currentBoardDescription->m_numberOfPins );
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Pin_List" ) )
+    {
+        Report( _( "The [Pin List] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Path_Description" ) )
+    {
+        Report( _( "The [Path Description] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Reference_Designator_Map" ) )
+    {
+        Report( _( "The [Path Description] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Diff_Pin" ) )
+    {
+        status &= readDiffPin();
+    }
+    else
+    {
+        if( !changeContext( aKeyword ) )
+        {
+            status = false;
+        }
+    }
     return status;
 }
 
@@ -2628,6 +2689,9 @@ bool IbisParser::onNewLine()
             break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL:
             status &= parsePackageModel( keyword );
+	    break;
+        case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION:
+            status &= parseBoardDescription( keyword );
             break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA:
             status &= parsePackageModelModelData( keyword );

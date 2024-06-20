@@ -264,6 +264,19 @@ public:
 };
 
 
+class IbisBoardPin : public IBIS_INPUT
+{
+public:
+    IbisBoardPin( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
+
+    virtual ~IbisBoardPin(){};
+
+    std::string m_name;
+    std::string m_signalName;
+    bool        Check() override;
+};
+
+
 class IbisComponentPinMapping : public IBIS_INPUT
 {
 public:
@@ -332,6 +345,22 @@ public:
     std::string                             m_busLabel;
     std::string                             m_dieSupplyPads;
     IbisDiffPin                             m_diffPin;
+
+    bool Check() override;
+};
+
+
+class IbisBoardDescription : public IBIS_INPUT
+{
+public:
+    IbisComponent( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
+
+    virtual ~IbisBoardDescription(){};
+
+    std::string               m_name = "";
+    std::string               m_manufacturer = "";
+    int                       m_numberofPins;
+    std::vector<IbisBoardPin> m_pins;
 
     bool Check() override;
 };
@@ -705,6 +734,7 @@ enum class IBIS_PARSER_CONTEXT
     MODEL,
     PACKAGEMODEL,
     PACKAGEMODEL_MODELDATA,
+    BOARD_DESCRIPTION,
     END
 };
 
@@ -727,11 +757,12 @@ public:
     int   m_lineIndex = 0;
     int   m_lineLength = 0;
 
-    IbisFile           m_ibisFile;
-    IbisComponent*     m_currentComponent = nullptr;
-    IbisModelSelector* m_currentModelSelector = nullptr;
-    IbisModel*         m_currentModel = nullptr;
-    IbisPackageModel*  m_currentPackageModel = nullptr;
+    IbisFile                     m_ibisFile;
+    IbisComponent*               m_currentComponent = nullptr;
+    IbisBoardDescription*        m_currentBoardDescription = nullptr;
+    IbisModelSelector*           m_currentModelSelector = nullptr;
+    IbisModel*                   m_currentModel = nullptr;
+    IbisPackageModel*            m_currentPackageModel = nullptr;
     std::shared_ptr<IBIS_MATRIX> m_currentMatrix = nullptr;
     int                m_currentMatrixRow = 0;
     int                m_currentMatrixRowIndex = 0;
@@ -774,35 +805,36 @@ private:
      * @return True in case of success
      */
     bool parseComponent( std::string& aKeyword );
-
-    /** @brief Parse a single keyword in the component context
-     *
-     * @param aKeyword Keyword
-     * @return True in case of success
-     */
-    bool parseModelSelector( std::string& aKeyword );
-
     /** @brief Parse a single keyword in the model selector context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
-    bool parseModel( std::string& aKeyword );
-
+    bool parseModelSelector( std::string& aKeyword );
     /** @brief Parse a single keyword in the model context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
-    bool parsePackageModel( std::string& aKeyword );
-
+    bool parseModel( std::string& aKeyword );
     /** @brief Parse a single keyword in the package model context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
+    bool parsePackageModel( std::string& aKeyword );
+    /** @brief Parse a single keyword in the package model model data context
+     *
+     * @param aKeyword Keyword
+     * @return True in case of success
+     */
     bool parsePackageModelModelData( std::string& );
-
+    /** @brief Parse a single keyword in the board description context
+     *
+     * @param aKeyword Keyword
+     * @return True in case of success
+     */
+    bool parseBoardDescription( std::string& aKeyword );
     /** @brief Parse a double according to the ibis standard
      *
      * @param aDest Where the double should be stored
