@@ -353,16 +353,16 @@ public:
 class IbisBoardDescription : public IBIS_INPUT
 {
 public:
-    IbisComponent( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
+    IbisBoardDescription( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
 
     virtual ~IbisBoardDescription(){};
 
     std::string               m_name = "";
     std::string               m_manufacturer = "";
-    int                       m_numberofPins;
+    int                       m_numberOfPins;
     std::vector<IbisBoardPin> m_pins;
 
-    bool Check() override;
+    //bool Check() override;
 };
 
 
