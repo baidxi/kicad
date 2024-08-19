@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2023 Andre F. K. Iwers <iwers11@gmail.com>
  * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) redesign and expansion with version 2, 2024 Rosy <rosy@rosy-logic.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,28 +27,33 @@
 #include <symbol_lib_table.h>
 
 #include <http_lib/http_lib_connection.h>
+#include <http_lib/http_lib_v1_connection.h>
+#include <http_lib/http_lib_v2_connection.h>
 #include "sch_io_http_lib.h"
-
-
-SCH_IO_HTTP_LIB::SCH_IO_HTTP_LIB() : SCH_IO( wxS( "HTTP library" ) ), m_libTable( nullptr )
-{
-}
-
-
-SCH_IO_HTTP_LIB::~SCH_IO_HTTP_LIB()
-{
-}
-
 
 void SCH_IO_HTTP_LIB::EnumerateSymbolLib( wxArrayString&         aSymbolNameList,
                                           const wxString&        aLibraryPath,
                                           const STRING_UTF8_MAP* aProperties )
 {
-    std::vector<LIB_SYMBOL*> symbols;
-    EnumerateSymbolLib( symbols, aLibraryPath, aProperties );
+    ensureSettings( aLibraryPath );
+    ensureConnection();
 
-    for( LIB_SYMBOL* symbol : symbols )
-        aSymbolNameList.Add( symbol->GetName() );
+    bool powerSymbolsOnly =
+            ( aProperties
+              && aProperties->find( SYMBOL_LIB_TABLE::PropPowerSymsOnly ) != aProperties->end() );
+
+    std::vector<std::string> partNames;
+
+    if( !m_conn->GetPartNames( partNames, powerSymbolsOnly ) )
+    {
+        m_lastError = m_conn->GetLastError();
+        THROW_IO_ERROR( m_lastError );
+    }
+
+    for( const std::string partName : partNames )
+    {
+        aSymbolNameList.Add( partName );
+    }
 }
 
 
@@ -56,48 +62,28 @@ void SCH_IO_HTTP_LIB::EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList,
                                           const STRING_UTF8_MAP*    aProperties )
 {
     wxCHECK_RET( m_libTable, _( "httplib plugin missing library table handle!" ) );
+
     ensureSettings( aLibraryPath );
     ensureConnection();
-
-    if( !m_conn )
-    {
-        THROW_IO_ERROR( m_lastError );
-        return;
-    }
 
     bool powerSymbolsOnly =
             ( aProperties
               && aProperties->find( SYMBOL_LIB_TABLE::PropPowerSymsOnly ) != aProperties->end() );
 
-    for( const HTTP_LIB_CATEGORY& category : m_conn->getCategories() )
+    std::vector<HTTP_LIB_PART*>* parts = m_conn->GetParts( powerSymbolsOnly );
+
+    if( !parts )
     {
-        bool refresh_cache = true;
+        m_lastError = m_conn->GetLastError();
+        THROW_IO_ERROR( m_lastError );
+    }
 
-        // Check if there is already a part in our cache, if not fetch it
-        if( m_cachedCategories.find( category.id ) != m_cachedCategories.end() )
-        {
-            // check if it's outdated, if so re-fetch
-            if( std::difftime( std::time( nullptr ), m_cachedCategories[category.id].lastCached )
-                < m_settings->m_Source.timeout_categories )
-            {
-                refresh_cache = false;
-            }
-        }
+    for( HTTP_LIB_PART* part : *parts )
+    {
+        LIB_SYMBOL* symbol = loadSymbolFromPart( part );
 
-        if( refresh_cache )
-        {
-            syncCache( category );
-        }
-
-        for( const HTTP_LIB_PART& part : m_cachedCategories[category.id].cachedParts )
-        {
-            wxString libIDString( part.name );
-
-            LIB_SYMBOL* symbol = loadSymbolFromPart( libIDString, category, part );
-
-            if( symbol && ( !powerSymbolsOnly || symbol->IsPower() ) )
-                aSymbolList.emplace_back( symbol );
-        }
+        if( symbol && ( !powerSymbolsOnly || symbol->IsPower() ) )
+            aSymbolList.emplace_back( symbol );
     }
 }
 
@@ -106,111 +92,69 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::LoadSymbol( const wxString& aLibraryPath, const wxS
                                          const STRING_UTF8_MAP* aProperties )
 {
     wxCHECK( m_libTable, nullptr );
+
     ensureSettings( aLibraryPath );
     ensureConnection();
 
-    if( !m_conn )
-        THROW_IO_ERROR( m_lastError );
-
-    std::string part_id = "";
-
     std::string partName( aAliasName.ToUTF8() );
 
-    const HTTP_LIB_CATEGORY* foundCategory = nullptr;
-    HTTP_LIB_PART            result;
+    bool powerSymbolsOnly =
+            ( aProperties
+              && aProperties->find( SYMBOL_LIB_TABLE::PropPowerSymsOnly ) != aProperties->end() );
 
-    std::vector<HTTP_LIB_CATEGORY> categories = m_conn->getCategories();
+    HTTP_LIB_PART* part = m_conn->GetPart( partName, powerSymbolsOnly );
 
-    if( m_conn->getCachedParts().empty() )
+    if( !part )
     {
-        syncCache();
-    }
-
-    std::tuple  relations = m_conn->getCachedParts()[partName];
-    std::string associatedCatID = std::get<1>( relations );
-
-    // get the matching category
-    for( const HTTP_LIB_CATEGORY& categoryIter : categories )
-    {
-        if( categoryIter.id == associatedCatID )
-        {
-            foundCategory = &categoryIter;
-            break;
-        }
-    }
-
-    // return Null if no category was found. This should never happen
-    if( foundCategory == nullptr )
-    {
-        wxLogTrace( traceHTTPLib, wxT( "loadSymbol: no category found for %s" ), partName );
-        return nullptr;
-    }
-
-    // get the matching query ID
-    for( const HTTP_LIB_PART& part : m_cachedCategories[foundCategory->id].cachedParts )
-    {
-        if( part.id == std::get<0>( relations ) )
-        {
-            part_id = part.id;
-            break;
-        }
-    }
-
-    if( m_conn->SelectOne( part_id, result ) )
-    {
-        wxLogTrace( traceHTTPLib, wxT( "loadSymbol: SelectOne (%s) found in %s" ), part_id,
-                    foundCategory->name );
-    }
-    else
-    {
-        wxLogTrace( traceHTTPLib, wxT( "loadSymbol: SelectOne (%s) failed for category %s" ),
-                    part_id, foundCategory->name );
-
+        m_lastError = m_conn->GetLastError();
         THROW_IO_ERROR( m_lastError );
     }
 
-    wxCHECK( foundCategory, nullptr );
-
-    return loadSymbolFromPart( aAliasName, *foundCategory, result );
+    return loadSymbolFromPart( part );
 }
 
 
 void SCH_IO_HTTP_LIB::GetSubLibraryNames( std::vector<wxString>& aNames )
 {
     ensureSettings( wxEmptyString );
+    ensureConnection();
 
     aNames.clear();
 
-    std::set<wxString> categoryNames;
+    std::vector<std::string> categories;
 
-    for( const HTTP_LIB_CATEGORY& categoryIter : m_conn->getCategories() )
+    if( !m_conn->GetCategoryNames( categories ) )
     {
-        if( categoryNames.count( categoryIter.name ) )
-            continue;
+        m_lastError = m_conn->GetLastError();
+        THROW_IO_ERROR( m_lastError );
+    }
 
-        aNames.emplace_back( categoryIter.name );
-        categoryNames.insert( categoryIter.name );
+    for( const std::string category : categories )
+    {
+        aNames.emplace_back( category );
     }
 }
 
 wxString SCH_IO_HTTP_LIB::GetSubLibraryDescription( const wxString& aName )
 {
-    return m_conn->getCategoryDescription( std::string( aName.mb_str() ) );
+    ensureSettings( wxEmptyString );
+    ensureConnection();
+
+    std::string description;
+
+    if( !m_conn->GetCategoryDescription( description, std::string( aName.ToUTF8() ) ) )
+    {
+        m_lastError = m_conn->GetLastError();
+        THROW_IO_ERROR( m_lastError );
+    }
+
+    return description;
 }
 
 void SCH_IO_HTTP_LIB::GetAvailableSymbolFields( std::vector<wxString>& aNames )
 {
-    // TODO: Implement this sometime; This is currently broken...
     std::copy( m_customFields.begin(), m_customFields.end(), std::back_inserter( aNames ) );
 }
-
-
-void SCH_IO_HTTP_LIB::GetDefaultSymbolFields( std::vector<wxString>& aNames )
-{
-    std::copy( m_defaultShownFields.begin(), m_defaultShownFields.end(),
-               std::back_inserter( aNames ) );
-}
-
 
 void SCH_IO_HTTP_LIB::ensureSettings( const wxString& aSettingsPath )
 {
@@ -233,7 +177,9 @@ void SCH_IO_HTTP_LIB::ensureSettings( const wxString& aSettingsPath )
             THROW_IO_ERROR( msg );
         }
 
-        if( m_settings->getSupportedAPIVersion() != m_settings->m_Source.api_version )
+        if( m_settings->getSupportedAPIVersion().find( "{" + m_settings->m_Source.api_version
+                                                       + "}" )
+            == std::string::npos )
         {
             wxString msg = wxString::Format( _( "HTTP library settings file %s uses API version "
                                                 "%s, but KiCad requires version %s" ),
@@ -284,7 +230,7 @@ void SCH_IO_HTTP_LIB::ensureSettings( const wxString& aSettingsPath )
     }
     else if( m_settings )
     {
-        // If we have valid settings but no connection yet; reload settings in case user is editing
+        // Reload settings in case user is editing
         tryLoad();
     }
     else if( !m_settings )
@@ -293,89 +239,80 @@ void SCH_IO_HTTP_LIB::ensureSettings( const wxString& aSettingsPath )
     }
 }
 
-
 void SCH_IO_HTTP_LIB::ensureConnection()
 {
     wxCHECK_RET( m_settings, "Call ensureSettings before ensureConnection!" );
 
-    connect();
 
-    if( !m_conn || !m_conn->IsValidEndpoint() )
+    if( m_conn )
+    {
+        if( m_conn->IsValidEndpoint( m_settings->m_Source ) )
+        {
+            return;
+        }
+
+        m_conn.reset();
+    }
+
+    establishConnection();
+
+    if( m_conn && !m_conn->IsValidEndpoint( m_settings->m_Source ) )
+    {
+        m_lastError = m_conn->GetLastError();
+
+        m_conn.reset();
+    }
+
+    if( !m_conn )
     {
         wxString msg = wxString::Format( _( "Could not connect to %s. Errors: %s" ),
                                          m_settings->m_Source.root_url, m_lastError );
-
         THROW_IO_ERROR( msg );
     }
 }
 
-
-void SCH_IO_HTTP_LIB::connect()
+void SCH_IO_HTTP_LIB::establishConnection()
 {
-    wxCHECK_RET( m_settings, "Call ensureSettings before connect()!" );
-
-    if( !m_conn )
+    if( m_settings->m_Source.api_version == "v1" )
     {
-        m_conn = std::make_unique<HTTP_LIB_CONNECTION>( m_settings->m_Source, true );
+        m_conn = std::make_unique<HTTP_LIB_V1_CONNECTION>( m_settings->m_Source );
+    }
 
-        if( !m_conn->IsValidEndpoint() )
-        {
-            m_lastError = m_conn->GetLastError();
-
-            // Make sure we release pointer so we are able to query API again next time
-            m_conn.reset();
-
-            return;
-        }
+    if( m_settings->m_Source.api_version == "v2" )
+    {
+        m_conn = std::make_unique<HTTP_LIB_V2_CONNECTION>( m_settings->m_Source );
     }
 }
 
-void SCH_IO_HTTP_LIB::syncCache()
-{
-    for( const HTTP_LIB_CATEGORY& category : m_conn->getCategories() )
-    {
-        syncCache( category );
-    }
-}
-
-void SCH_IO_HTTP_LIB::syncCache( const HTTP_LIB_CATEGORY& category )
-{
-    std::vector<HTTP_LIB_PART> found_parts;
-
-    if( !m_conn->SelectAll( category, found_parts ) )
-    {
-        if( !m_conn->GetLastError().empty() )
-        {
-            wxString msg = wxString::Format( _( "Error retriving data from HTTP library %s: %s" ),
-                                             category.name, m_conn->GetLastError() );
-            THROW_IO_ERROR( msg );
-        }
-
-        return;
-    }
-
-    // remove cached parts
-    m_cachedCategories[category.id].cachedParts.clear();
-
-    // Copy newly cached data across
-    m_cachedCategories[category.id].cachedParts = found_parts;
-    m_cachedCategories[category.id].lastCached = std::time( nullptr );
-}
-
-
-LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString&          aSymbolName,
-                                                 const HTTP_LIB_CATEGORY& aCategory,
-                                                 const HTTP_LIB_PART&     aPart )
+LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( HTTP_LIB_PART* aPart )
 {
     LIB_SYMBOL* symbol = nullptr;
     LIB_SYMBOL* originalSymbol = nullptr;
     LIB_ID      symbolId;
+    std::string categoryName;
 
-    std::string symbolIdStr = aPart.symbolIdStr;
+    symbol = m_partCache[aPart->Id];
+    if( !aPart->IsUpdated && symbol )
+    {
+        return symbol;
+    }
+
+    if( !m_conn->GetCategoryName( categoryName, aPart->CategoryId ) )
+    {
+        wxLogTrace( traceHTTPLib, wxT( "loadSymbolFromPart: category name not fount for id '%s'" ),
+                    aPart->CategoryId );
+    }
+    if( symbol && aPart->IsSymbolUpdated )
+    {
+        m_partCache.erase( aPart->Id );
+        delete symbol;
+        symbol = nullptr;
+    }
 
     // Get or Create the symbol using the found symbol
-    if( !symbolIdStr.empty() )
+    if( !symbol )
     {
+        std::string symbolIdStr = aPart->Symbol;
         symbolId.Parse( symbolIdStr );
 
         if( symbolId.IsValid() )
@@ -390,10 +327,6 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString&          aSymbo
 
             symbol = originalSymbol->Duplicate();
             symbol->SetSourceLibId( symbolId );
-
-            LIB_ID libId = symbol->GetLibId();
-            libId.SetSubLibraryName( aCategory.name );
-            symbol->SetLibId( libId );
         }
         else if( !symbolId.IsValid() )
         {
@@ -415,59 +348,58 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString&          aSymbo
     {
         // Actual symbol not found: return metadata only; error will be
         // indicated in the symbol chooser
-        symbol = new LIB_SYMBOL( aSymbolName );
-
-        LIB_ID libId = symbol->GetLibId();
-        libId.SetSubLibraryName( aCategory.name );
-        symbol->SetLibId( libId );
+        symbol = new LIB_SYMBOL( aPart->Name );
     }
 
-    symbol->SetExcludedFromBOM( aPart.exclude_from_bom );
-    symbol->SetExcludedFromBoard( aPart.exclude_from_board );
-    symbol->SetExcludedFromSim( aPart.exclude_from_sim );
+    symbol->SetName( aPart->Name );
+
+    LIB_ID libId = symbol->GetLibId();
+    libId.SetSubLibraryName( categoryName );
+    symbol->SetLibId( libId );
+
+    symbol->SetKeyWords( aPart->Keywords );
+
+    symbol->SetExcludedFromBOM( aPart->ExcludeFromBom );
+    symbol->SetExcludedFromBoard( aPart->ExcludeFromBoard );
+    symbol->SetExcludedFromSim( aPart->ExcludeFromSim );
+
+    if( aPart->PowerSymbol )
+    {
+        symbol->SetPower();
+    }
 
     SCH_FIELD* field;
 
-    for( auto& _field : aPart.fields )
-    {
-        wxString   fieldName = wxString( _field.first );
-        std::tuple fieldProperties = _field.second;
+    field = &symbol->GetFootprintField();
+    field->SetText( aPart->Footprint.Value );
+    field->SetVisible( aPart->Footprint.Show );
+    field->SetNameShown( aPart->Footprint.ShowName );
 
-        if( fieldName.Lower() == footprint_field )
-        {
-            field = &symbol->GetFootprintField();
-            field->SetText( std::get<0>( fieldProperties ) );
-            field->SetVisible( std::get<1>( fieldProperties ) );
-        }
-        else if( fieldName.Lower() == description_field )
-        {
-            field = &symbol->GetDescriptionField();
-            field->SetText( std::get<0>( fieldProperties ) );
-            field->SetVisible( std::get<1>( fieldProperties ) );
-        }
-        else if( fieldName.Lower() == value_field )
-        {
-            field = &symbol->GetValueField();
-            field->SetText( std::get<0>( fieldProperties ) );
-            field->SetVisible( std::get<1>( fieldProperties ) );
-        }
-        else if( fieldName.Lower() == datasheet_field )
-        {
-            field = &symbol->GetDatasheetField();
-            field->SetText( std::get<0>( fieldProperties ) );
-            field->SetVisible( std::get<1>( fieldProperties ) );
-        }
-        else if( fieldName.Lower() == reference_field )
-        {
-            field = &symbol->GetReferenceField();
-            field->SetText( std::get<0>( fieldProperties ) );
-            field->SetVisible( std::get<1>( fieldProperties ) );
-        }
-        else if( fieldName.Lower() == keywords_field )
-        {
-            symbol->SetKeyWords( std::get<0>( fieldProperties ) );
-        }
-        else
+    field = &symbol->GetDescriptionField();
+    field->SetText( aPart->Description.Value );
+    field->SetVisible( aPart->Description.Show );
+    field->SetNameShown( aPart->Description.ShowName );
+
+    field = &symbol->GetValueField();
+    field->SetText( aPart->Value.Value );
+    field->SetVisible( aPart->Value.Show );
+    field->SetNameShown( aPart->Value.ShowName );
+
+    field = &symbol->GetDatasheetField();
+    field->SetText( aPart->Datasheet.Value );
+    field->SetVisible( aPart->Datasheet.Show );
+    field->SetNameShown( aPart->Datasheet.ShowName );
+
+    field = &symbol->GetReferenceField();
+    field->SetText( aPart->Reference.Value );
+    field->SetVisible( aPart->Reference.Show );
+    field->SetNameShown( aPart->Reference.ShowName );
+
+
+    for( auto& customField : aPart->Fields )
+    {
+        wxString fieldName = wxString( customField.first );
+        auto&    fieldProperties = customField.second;
         {
             // Check if field exists, if so replace Text and adjust visiblity.
             //
@@ -479,29 +411,26 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString&          aSymbo
             if( field != nullptr )
             {
                 // adjust values accordingly
-                field->SetText( std::get<0>( fieldProperties ) );
-                field->SetVisible( std::get<1>( fieldProperties ) );
+                field->SetText( fieldProperties.Value );
+                field->SetVisible( fieldProperties.Show );
+                field->SetNameShown( fieldProperties.ShowName );
             }
             else
             {
                 // Generic fields
                 field = new SCH_FIELD( nullptr, symbol->GetNextAvailableFieldId() );
                 field->SetName( fieldName );
-
-                field->SetText( std::get<0>( fieldProperties ) );
-                field->SetVisible( std::get<1>( fieldProperties ) );
+                field->SetText( fieldProperties.Value );
+                field->SetVisible( fieldProperties.Show );
+                field->SetNameShown( fieldProperties.ShowName );
                 symbol->AddField( field );
 
                 m_customFields.insert( fieldName );
             }
         }
     }
-
+    aPart->IsUpdated = false;
+    aPart->IsSymbolUpdated = false;
+    m_partCache[aPart->Id] = symbol;
     return symbol;
-}
-
-void SCH_IO_HTTP_LIB::SaveSymbol( const wxString& aLibraryPath, const LIB_SYMBOL* aSymbol,
-                                  const STRING_UTF8_MAP* aProperties )
-{
-    // TODO: Implement this sometime;
 }

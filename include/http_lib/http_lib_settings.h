@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2023 Andre F. K. Iwers <iwers11@gmail.com>
+ * Copyright (C) redesign and expansion with version 2, 2024 Rosy <rosy@rosy-logic.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -37,39 +38,10 @@ struct HTTP_LIB_SOURCE
     std::string          root_url;
     std::string          api_version;
     std::string          token;
+    int                  timeout_cache;
     int                  timeout_parts;
     int                  timeout_categories;
 };
-
-
-struct HTTP_LIB_PART
-{
-    std::string id;
-    std::string name;
-    std::string symbolIdStr;
-
-    bool exclude_from_bom = false;
-    bool exclude_from_board = false;
-    bool exclude_from_sim = false;
-
-    std::time_t lastCached = 0;
-
-    std::vector<std::pair<std::string, std::tuple<std::string, bool>>>
-            fields; ///< additional generic fields
-};
-
-
-struct HTTP_LIB_CATEGORY
-{
-    std::string id;          ///< id of category
-    std::string name;        ///< name of category
-    std::string description; ///< description of category
-
-    std::time_t lastCached = 0;
-
-    std::vector<HTTP_LIB_PART> cachedParts;
-};
-
 
 class HTTP_LIB_SETTINGS : public JSON_SETTINGS
 {
@@ -97,7 +69,7 @@ protected:
 
 private:
     std::string sourceType;
-    std::string api_version = "v1";
+    std::string api_version = "{v1}, {v2}";
 };
 
 #endif //KICAD_HTTP_LIB_SETTINGS_H

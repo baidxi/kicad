@@ -2,6 +2,7 @@
 * This program source code file is part of KiCad, a free EDA CAD application.
 *
 * Copyright (C) 2023 Andre F. K. Iwers <iwers11@gmail.com>
+* Copyright (C) redesign and expansion with version 2, 2024 Rosy <rosy@rosy-logic.ch>
 *
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
@@ -43,11 +44,14 @@ HTTP_LIB_SETTINGS::HTTP_LIB_SETTINGS( const std::string& aFilename ) :
 
     m_params.emplace_back( new PARAM<std::string>( "source.token", &m_Source.token, "" ) );
 
-    m_params.emplace_back( new PARAM<int>( "source.timeout_parts_seconds", &m_Source.timeout_parts, 30 ) );
+    m_params.emplace_back(
+            new PARAM<int>( "source.timeout_cache_seconds", &m_Source.timeout_cache, 60 ) );
+
+    m_params.emplace_back(
+            new PARAM<int>( "source.timeout_parts_seconds", &m_Source.timeout_parts, 30 ) );
 
     m_params.emplace_back( new PARAM<int>( "source.timeout_categories_seconds",
                                            &m_Source.timeout_categories, 600 ) );
-
 }
 
 

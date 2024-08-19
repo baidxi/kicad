@@ -630,6 +630,8 @@ set( COMMON_SRCS
     database/database_connection.cpp
 
     http_lib/http_lib_connection.cpp
+    http_lib/http_lib_v1_connection.cpp
+    http_lib/http_lib_v2_connection.cpp
     http_lib/http_lib_settings.cpp
 
     api/api_enums.cpp

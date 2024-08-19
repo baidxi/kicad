@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2023 Andre F. K. Iwers <iwers11@gmail.com>
+ * Copyright (C) redesign and expansion with version 2, 2024 Rosy <rosy@rosy-logic.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -23,6 +24,8 @@
 
 #include "http_lib/http_lib_settings.h"
 #include <http_lib/http_lib_connection.h>
+#include <http_lib/http_lib_v1_connection.h>
+#include <http_lib/http_lib_v2_connection.h>
 
 #include <sch_io/sch_io.h>
 #include <sch_io/sch_io_mgr.h>
@@ -38,8 +41,8 @@
 class SCH_IO_HTTP_LIB : public SCH_IO
 {
 public:
-    SCH_IO_HTTP_LIB();
-    virtual ~SCH_IO_HTTP_LIB();
+    SCH_IO_HTTP_LIB() : SCH_IO( wxS( "HTTP library" ) ), m_libTable( nullptr ) {}
+    virtual ~SCH_IO_HTTP_LIB() {}
 
     const IO_BASE::IO_FILE_DESC GetLibraryDesc() const override
     {
@@ -66,16 +69,9 @@ public:
 
     void GetAvailableSymbolFields( std::vector<wxString>& aNames ) override;
 
-    void GetDefaultSymbolFields( std::vector<wxString>& aNames ) override;
-
     bool IsLibraryWritable( const wxString& aLibraryPath ) override { return false; }
 
     void SetLibTable( SYMBOL_LIB_TABLE* aTable ) override { m_libTable = aTable; }
-
-    HTTP_LIB_SETTINGS* Settings() const { return m_settings.get(); }
-
-    void SaveSymbol( const wxString& aLibraryPath, const LIB_SYMBOL* aSymbol,
-                     const STRING_UTF8_MAP* aProperties = nullptr ) override;
 
     const wxString& GetError() const override { return m_lastError; }
 
@@ -84,16 +80,13 @@ private:
 
     void ensureConnection();
 
-    void connect();
+    void establishConnection();
 
-    void syncCache();
-
-    void syncCache( const HTTP_LIB_CATEGORY& category );
-
-    LIB_SYMBOL* loadSymbolFromPart( const wxString& aSymbolName, const HTTP_LIB_CATEGORY& aCategory,
-                                    const HTTP_LIB_PART& aPart );
+    LIB_SYMBOL* loadSymbolFromPart( HTTP_LIB_PART* aPart );
 
     SYMBOL_LIB_TABLE* m_libTable;
+
+    std::map<std::string, LIB_SYMBOL*> m_partCache;
 
     /// Generally will be null if no valid connection is established
     std::unique_ptr<HTTP_LIB_CONNECTION> m_conn;
@@ -102,20 +95,7 @@ private:
 
     std::set<wxString> m_customFields;
 
-    std::set<wxString> m_defaultShownFields;
-
     wxString m_lastError;
-
-    wxString symbol_field = "symbol";
-    wxString footprint_field = "footprint";
-    wxString description_field = "description";
-    wxString keywords_field = "keywords";
-    wxString value_field = "value";
-    wxString datasheet_field = "datasheet";
-    wxString reference_field = "reference";
-
-    //     category.id       category
-    std::map<std::string, HTTP_LIB_CATEGORY> m_cachedCategories;
 };
 
 #endif // SCH_IO_HTTP_LIB_H_

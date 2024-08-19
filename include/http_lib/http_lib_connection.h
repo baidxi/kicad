@@ -2,6 +2,7 @@
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
  * Copyright (C) 2023 Andre F. K. Iwers <iwers11@gmail.com>
+ * Copyright (C) redesign and expansion with version 2, 2024 Rosy <rosy@rosy-logic.ch>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -26,92 +27,110 @@
 #include "http_lib/http_lib_settings.h"
 #include <kicad_curl/kicad_curl_easy.h>
 
-extern const char* const traceHTTPLib;
 
+const char* const traceHTTPLib = "KICAD_HTTP_LIB";
+
+struct HTTP_LIB_FIELD
+{
+    HTTP_LIB_FIELD() {}
+    HTTP_LIB_FIELD( const std::string& value ) { Value = value; }
+    HTTP_LIB_FIELD( const bool show ) { Show = show; }
+    HTTP_LIB_FIELD( const std::string& value, const bool show )
+    {
+        Value = value;
+        Show = show;
+    }
+    HTTP_LIB_FIELD( const std::string& value, const bool show, const bool showName )
+    {
+        Value = value;
+        Show = show;
+        ShowName = showName;
+    }
+
+    std::string Value;
+    bool        Show = false;
+    bool        ShowName = false;
+};
+
+struct HTTP_LIB_PART
+{
+    HTTP_LIB_PART() {}
+    HTTP_LIB_PART( const std::string& id ) { Id = id; }
+
+    std::string Id;
+    std::string Name;
+    std::string CategoryId;
+    std::string Symbol;
+    std::string Keywords;
+
+    HTTP_LIB_FIELD Reference = HTTP_LIB_FIELD( "#", true );
+    HTTP_LIB_FIELD Value = HTTP_LIB_FIELD( true );
+    HTTP_LIB_FIELD Footprint;
+    HTTP_LIB_FIELD Datasheet;
+    HTTP_LIB_FIELD Description;
+
+    std::vector<std::pair<std::string, HTTP_LIB_FIELD>> Fields;
+
+    bool Active = true;
+    bool ExcludeFromBom = false;
+    bool ExcludeFromBoard = false;
+    bool ExcludeFromSim = false;
+    bool PowerSymbol = false;
+
+    bool IsUpdated = true;
+    bool IsSymbolUpdated = true;
+};
 
 class HTTP_LIB_CONNECTION
 {
 public:
-    static const long DEFAULT_TIMEOUT = 10;
+    virtual bool GetPartNames( std::vector<std::string>& aPartNames,
+                               const bool                powerSymbolsOnly ) = 0;
 
-    HTTP_LIB_CONNECTION( const HTTP_LIB_SOURCE& aSource, bool aTestConnectionNow );
+    virtual std::vector<HTTP_LIB_PART*>* GetParts( const bool powerSymbolsOnly ) = 0;
 
-    ~HTTP_LIB_CONNECTION();
+    virtual HTTP_LIB_PART* GetPart( const std::string& aPartName, const bool powerSymbolsOnly ) = 0;
 
-    bool IsValidEndpoint() const;
+    virtual bool GetCategoryNames( std::vector<std::string>& aCategories ) = 0;
 
-    /**
-     * Retrieves a single part with full details from the HTTP library.
-     * @param aPk is the primary key of the part
-     * @param aResult will conatain the part if one was found
-     * @return true if aResult was filled; false otherwise
-     */
-    bool SelectOne( const std::string& aPartID, HTTP_LIB_PART& aFetchedPart );
+    virtual bool GetCategoryName( std::string& aCategoryName, const std::string& aCategoryId ) = 0;
 
-    /**
-     * Retrieves all parts from a specific category from the HTTP library.
-     * @param aPk is the primary key of the category
-     * @param aResults will be filled with all parts in that category
-     * @return true if the query succeeded and at least one part was found, false otherwise
-     */
-    bool SelectAll( const HTTP_LIB_CATEGORY& aCategory, std::vector<HTTP_LIB_PART>& aParts );
+    virtual bool GetCategoryDescription( std::string&       aCategoryDescription,
+                                         const std::string& aCategoryName ) = 0;
+
+    bool IsValidEndpoint( const HTTP_LIB_SOURCE& aSource ) const
+    {
+        if( aSource.api_version != m_source.api_version )
+            return false;
+        if( aSource.root_url != m_source.root_url )
+            return false;
+        if( aSource.token != m_source.token )
+            return false;
+        if( aSource.timeout_cache != m_source.timeout_cache )
+            return false;
+        if( aSource.timeout_categories != m_source.timeout_categories )
+            return false;
+        if( aSource.timeout_parts != m_source.timeout_parts )
+            return false;
+        return m_endpointValid;
+    }
 
     std::string GetLastError() const { return m_lastError; }
 
-    std::vector<HTTP_LIB_CATEGORY> getCategories() const { return m_categories; }
+    virtual ~HTTP_LIB_CONNECTION() {}
 
-    std::string getCategoryDescription( const std::string& aCategoryName ) const
-    {
-        return m_categoryDescriptions.at( aCategoryName );
-    }
+protected:
+    HTTP_LIB_CONNECTION( const HTTP_LIB_SOURCE& aSource ) { m_source = aSource; }
 
-    auto getCachedParts() { return m_cache; }
-
-private:
-    // This is clunky but at the moment the only way to free the pointer after use without KiCad crashing.
-    // at this point we can't use smart pointers as there is a problem with the order of how things are deleted/freed
-    std::unique_ptr<KICAD_CURL_EASY> createCurlEasyObject()
-    {
-        std::unique_ptr<KICAD_CURL_EASY> aCurl( new KICAD_CURL_EASY() );
-
-        // prepare curl
-        aCurl->SetHeader( "Accept", "application/json" );
-        aCurl->SetHeader( "Authorization", "Token " + m_source.token );
-
-        return aCurl;
-    }
-
-    bool ValidateHTTPLibraryEndpoints();
-
-    bool syncCategories();
+    std::unique_ptr<KICAD_CURL_EASY> createCurlEasyObject();
 
     bool checkServerResponse( std::unique_ptr<KICAD_CURL_EASY>& aCurl );
-
-    bool boolFromString( const std::any& aVal, bool aDefaultValue = false );
 
     wxString httpErrorCodeDescription( uint16_t aHttpCode );
 
     HTTP_LIB_SOURCE m_source;
-
-    //          part.id     part
-    std::map<std::string, HTTP_LIB_PART> m_cachedParts;
-
-    //        part.name               part.id     category.id
-    std::map<std::string, std::tuple<std::string, std::string>> m_cache;
-
-    bool m_endpointValid = false;
-
-    std::string m_lastError;
-
-    std::vector<HTTP_LIB_CATEGORY>     m_categories;
-    std::map<std::string, std::string> m_categoryDescriptions;
-
-    std::map<std::string, std::string> m_parts;
-
-    const std::string http_endpoint_categories = "categories";
-    const std::string http_endpoint_parts = "parts";
-    const std::string http_endpoint_settings = "settings";
-    const std::string http_endpoint_auth = "authentication";
+    bool            m_endpointValid = false;
+    std::string     m_lastError;
 };
 
 #endif //KICAD_HTTP_LIB_CONNECTION_H
