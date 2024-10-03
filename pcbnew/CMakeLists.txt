@@ -311,6 +311,7 @@ set( PCBNEW_DRC_SRCS
     drc/drc_test_provider_misc.cpp
     drc/drc_test_provider_text_dims.cpp
     drc/drc_test_provider_track_angle.cpp
+    drc/drc_test_provider_pad_fanout_width.cpp
     drc/drc_test_provider_track_width.cpp
     drc/drc_test_provider_track_segment_length.cpp
     drc/drc_test_provider_zone_connections.cpp
