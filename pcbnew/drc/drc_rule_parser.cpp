@@ -524,7 +524,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
     case T_track_width:               c.m_Type = TRACK_WIDTH_CONSTRAINT;               break;
     case T_track_angle:               c.m_Type = TRACK_ANGLE_CONSTRAINT;               break;
     case T_track_segment_length:      c.m_Type = TRACK_SEGMENT_LENGTH_CONSTRAINT;      break;
-    case T_pad_fanout_width:          c.m_Type = PAD_FANOUT_WIDTH_CONSTRAINT;          break;
+    case T_pad_fanout_ratio:          c.m_Type = PAD_FANOUT_RATIO_CONSTRAINT;          break;
     case T_connection_width:          c.m_Type = CONNECTION_WIDTH_CONSTRAINT;          break;
     case T_annular_width:             c.m_Type = ANNULAR_WIDTH_CONSTRAINT;             break;
     case T_via_diameter:              c.m_Type = VIA_DIAMETER_CONSTRAINT;              break;
@@ -572,7 +572,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
                     || c.m_Type == TRACK_ANGLE_CONSTRAINT
                     || c.m_Type == VIA_DANGLING_CONSTRAINT
                     || c.m_Type == BRIDGED_MASK_CONSTRAINT
-                    || c.m_Type == PAD_FANOUT_WIDTH_CONSTRAINT;
+                    || c.m_Type == PAD_FANOUT_RATIO_CONSTRAINT;
 
     allowsTimeDomain = c.m_Type == LENGTH_CONSTRAINT || c.m_Type == NET_CHAIN_LENGTH_CONSTRAINT
                        || c.m_Type == NET_CHAIN_STUB_LENGTH_CONSTRAINT

@@ -70,7 +70,7 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH::Run()
         return true;        // continue with other tests
     }
 
-    if( !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_WIDTH_CONSTRAINT ) )
+    if( !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_RATIO_CONSTRAINT ) )
     {
         reportAux( wxT( "No pad fanout constraints found. Tests not run." ) );
         return true;        // continue with other tests
@@ -120,8 +120,7 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH::Run()
                     {
                         continue;
                     }
-
-                    auto constraint = m_drcEngine->EvalRules( PAD_FANOUT_WIDTH_CONSTRAINT, pad, other,
+                    auto constraint = m_drcEngine->EvalRules( PAD_FANOUT_RATIO_CONSTRAINT, pad, other,
                                                               pad->GetLayer() );
 
                     int constraintWidth = 0;

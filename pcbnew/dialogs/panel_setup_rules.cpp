@@ -497,7 +497,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                     || token == wxT( "track_width" )
                     || token == wxT( "track_angle" )
                     || token == wxT( "track_segment_length" )
-                    || token == wxT( "pad_fanout_width" )
+                    || token == wxT( "pad_fanout_ratio" )
                     || token == wxT( "via_count" )
                     || token == wxT( "via_diameter" )
                     || token == wxT( "zone_connection" );
@@ -720,7 +720,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                           "track_width|"
                           "track_angle|"
                           "track_segment_length|"
-                          "pad_fanout_width|"
+                          "pad_fanout_ratio|"
                           "via_count|"
                           "via_diameter|"
                           "zone_connection" );

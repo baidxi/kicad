@@ -644,7 +644,7 @@ void BOARD_INSPECTION_TOOL::InspectDRCError( const std::shared_ptr<RC_ITEM>& aDR
         if( compileError )
             reportCompileError( r );
 
-        constraint = drcEngine->EvalRules( PAD_FANOUT_WIDTH_CONSTRAINT, a, b, layer, r );
+        constraint = drcEngine->EvalRules( PAD_FANOUT_RATIO_CONSTRAINT, a, b, layer, r );
 
         r->Report( "" );
         r->Report( wxString::Format( _( "Resolved fanout width constraints: min %s; max %s." ),
