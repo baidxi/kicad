@@ -176,18 +176,18 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
     {
     case EDA_UNITS::INCHES:
         msg = _( "inches" );
-        busEntryLargeSize = _( "0.1" );
-        busEntrySmallSize = _( "0.05" );
+        busEntryLargeSize = "0.1";
+        busEntrySmallSize = "0.05";
         break;
     case EDA_UNITS::MILS:
         msg = _( "mils" );
-        busEntryLargeSize = _( "100" );
-        busEntrySmallSize = _( "50" );
+        busEntryLargeSize = "100";
+        busEntrySmallSize = "50";
         break;
     case EDA_UNITS::MILLIMETRES:
         msg = _( "mm" );
-        busEntryLargeSize = _( "2.54" );
-        busEntrySmallSize = _( "1.27" );
+        busEntryLargeSize = "2.54";
+        busEntrySmallSize = "1.27";
         break;
     default:
         msg = _( "Units" );
