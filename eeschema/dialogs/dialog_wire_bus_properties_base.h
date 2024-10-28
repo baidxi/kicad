@@ -55,6 +55,7 @@ class DIALOG_WIRE_BUS_PROPERTIES_BASE : public DIALOG_SHIM
 		wxStaticText* m_dotSizeUnits;
 		wxStaticText* m_busEntrySizeLabel;
 		wxBitmapComboBox* m_busEntrySizeCombo;
+		wxStaticText* m_busEntrySizeUnits;
 		wxStaticText* m_helpLabel1;
 		wxStaticText* m_helpLabel2;
 		wxStdDialogButtonSizer* m_sdbSizer;

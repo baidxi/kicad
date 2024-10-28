@@ -48,6 +48,8 @@ private:
     UNIT_BINDER           m_wireWidth;
     UNIT_BINDER           m_junctionSize;
 
+    wxString              busEntryLargeSize;
+    wxString              busEntrySmallSize;
     void resetDefaults( wxCommandEvent& event ) override;
 };
 

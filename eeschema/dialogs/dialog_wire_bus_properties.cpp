@@ -57,9 +57,6 @@ DIALOG_WIRE_BUS_PROPERTIES::DIALOG_WIRE_BUS_PROPERTIES( SCH_EDIT_FRAME* aParent,
 
     m_typeCombo->Append( DEFAULT_STYLE );
 
-    m_busEntrySizeCombo->Append( "100mils" );
-    m_busEntrySizeCombo->Append( "50mils" );
-
     SetupStandardButtons( { { wxID_APPLY, _( "Default" ) } } );
 
     // Now all widgets have the size fixed, call FinishDialogSettings
@@ -167,6 +164,41 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
         m_junctionSize.SetValue( INDETERMINATE_ACTION );
     }
 
+    int largeSizeIndex = m_busEntrySizeCombo->FindString( busEntryLargeSize );
+    int smallSizeIndex = m_busEntrySizeCombo->FindString( busEntrySmallSize );
+    if( largeSizeIndex != wxNOT_FOUND )
+        m_busEntrySizeCombo->Delete( largeSizeIndex );
+    if( smallSizeIndex != wxNOT_FOUND )
+        m_busEntrySizeCombo->Delete( smallSizeIndex );
+
+    wxString msg;
+    switch( GetUserUnits() )
+    {
+    case EDA_UNITS::INCHES:
+        msg = _( "inches" );
+        busEntryLargeSize = _( "0.1" );
+        busEntrySmallSize = _( "0.05" );
+        break;
+    case EDA_UNITS::MILS:
+        msg = _( "mils" );
+        busEntryLargeSize = _( "100" );
+        busEntrySmallSize = _( "50" );
+        break;
+    case EDA_UNITS::MILLIMETRES:
+        msg = _( "mm" );
+        busEntryLargeSize = _( "2.54" );
+        busEntrySmallSize = _( "1.27" );
+        break;
+    default:
+        msg = _( "Units" );
+        busEntryLargeSize = _( "Large" );
+        busEntrySmallSize = _( "Small" );
+        break;
+    }
+    m_busEntrySizeUnits->SetLabel( msg );
+    m_busEntrySizeCombo->Append( busEntryLargeSize );
+    m_busEntrySizeCombo->Append( busEntrySmallSize );
+
     if( std::all_of( m_items.begin(), m_items.end(),
                      [&]( const SCH_ITEM* item )
                      {
@@ -178,11 +210,11 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
         if( busEntrySize.x >= 0 && busEntrySize.y >= 0 )
         {
             if( busEntrySize.x
-                == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ) )
-                m_busEntrySizeCombo->SetStringSelection( "50mils" );
+                == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 100 ) )
+                m_busEntrySizeCombo->SetStringSelection( busEntryLargeSize );
             else if( busEntrySize.x
-                     == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 100 ) )
-                m_busEntrySizeCombo->SetStringSelection( "100mils" );
+                     == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ) )
+                m_busEntrySizeCombo->SetStringSelection( busEntrySmallSize );
             else
             {
                 m_busEntrySizeCombo->SetStringSelection( INDETERMINATE_STYLE );
@@ -192,6 +224,7 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
         {
             m_busEntrySizeLabel->Enable( false );
             m_busEntrySizeCombo->Enable( false );
+            m_busEntrySizeUnits->Enable( false );
             m_busEntrySizeCombo->SetStringSelection( INDETERMINATE_STYLE );
         }
     }
@@ -210,7 +243,7 @@ void DIALOG_WIRE_BUS_PROPERTIES::resetDefaults( wxCommandEvent& event )
     m_colorSwatch->SetSwatchColor( COLOR4D::UNSPECIFIED, false );
     m_typeCombo->SetStringSelection( DEFAULT_STYLE );
     m_junctionSize.SetValue( 0 );
-    m_busEntrySizeCombo->SetStringSelection( "100mils" );
+    m_busEntrySizeCombo->SetStringSelection( busEntryLargeSize );
 
     Refresh();
 }
@@ -263,13 +296,13 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataFromWindow()
             if( item->Type() == SCH_BUS_WIRE_ENTRY_T
                 && m_busEntrySizeCombo->GetStringSelection() != INDETERMINATE_STYLE )
             {
-                if( m_busEntrySizeCombo->GetStringSelection() == "100mils" )
+                if( m_busEntrySizeCombo->GetStringSelection() == busEntryLargeSize )
 
                     static_cast<SCH_BUS_ENTRY_BASE*>( item )->SetSize( VECTOR2I(
                             EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 100 ),
                             EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS,
                                                               100 ) ) );
-                else if( m_busEntrySizeCombo->GetStringSelection() == "50mils" )
+                else if( m_busEntrySizeCombo->GetStringSelection() == busEntrySmallSize )
                     static_cast<SCH_BUS_ENTRY_BASE*>( item )->SetSize( VECTOR2I(
                             EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ),
                             EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ) ) );

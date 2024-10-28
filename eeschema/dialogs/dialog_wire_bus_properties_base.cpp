@@ -85,10 +85,14 @@ DIALOG_WIRE_BUS_PROPERTIES_BASE::DIALOG_WIRE_BUS_PROPERTIES_BASE( wxWindow* pare
 	m_busEntrySizeLabel->Wrap( -1 );
 	gbSizer1->Add( m_busEntrySizeLabel, wxGBPosition( 4, 0 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 
-	m_busEntrySizeCombo = new wxBitmapComboBox( this, wxID_ANY, _("--leave unchanged--"), wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
+	m_busEntrySizeCombo = new wxBitmapComboBox( this, wxID_ANY, _("__leave unchanged__"), wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
 	m_busEntrySizeCombo->SetMinSize( wxSize( 240,-1 ) );
 
 	gbSizer1->Add( m_busEntrySizeCombo, wxGBPosition( 4, 1 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxEXPAND|wxFIXED_MINSIZE, 5 );
+
+	m_busEntrySizeUnits = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_busEntrySizeUnits->Wrap( -1 );
+	gbSizer1->Add( m_busEntrySizeUnits, wxGBPosition( 4, 2 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
 
 
 	mainSizer->Add( gbSizer1, 1, wxEXPAND|wxALL, 10 );
