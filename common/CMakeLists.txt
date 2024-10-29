@@ -692,6 +692,7 @@ target_link_libraries( common
     dxflib_qcad
     tinyspline_lib
     scripting
+    gecko-keys
     nlohmann_json
     pybind11::embed
     compoundfilereader

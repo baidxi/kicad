@@ -35,6 +35,7 @@
 #include <view/wx_view_controls.h>
 #include <eda_draw_frame.h>
 #include <core/kicad_algo.h>
+#include <gecko_keys.h>
 #include <optional>
 #include <wx/log.h>
 #include <wx/stc/stc.h>
@@ -340,7 +341,7 @@ std::optional<TOOL_EVENT> TOOL_DISPATCHER::GetToolEvent( wxKeyEvent* aKeyEvent, 
 {
     std::optional<TOOL_EVENT> evt;
     int             key = aKeyEvent->GetKeyCode();
-    int             unicode_key = aKeyEvent->GetUnicodeKey();
+//     int             unicode_key = aKeyEvent->GetUnicodeKey();
 
     // This wxEVT_CHAR_HOOK event can be ignored: not useful in Kicad
     if( isKeyModifierOnly( key ) )
@@ -355,57 +356,59 @@ std::optional<TOOL_EVENT> TOOL_DISPATCHER::GetToolEvent( wxKeyEvent* aKeyEvent, 
     // and do nothing.
     *keyIsSpecial = isKeySpecialCode( key );
 
+    key = GeckoKeys::WXKFromKeyEvent( aKeyEvent->GetRawKeyCode(), aKeyEvent->GetRawKeyFlags() );
+
     if( aKeyEvent->GetEventType() == wxEVT_CHAR_HOOK )
         key = translateSpecialCode( key );
 
     int mods = decodeModifiers( aKeyEvent );
 
-    if( mods & MD_CTRL )
-    {
-        // wxWidgets maps key codes related to Ctrl+letter handled by CHAR_EVT
-        // (http://docs.wxwidgets.org/trunk/classwx_key_event.html):
-        // char events for ASCII letters in this case carry codes corresponding to the ASCII
-        // value of Ctrl-Latter, i.e. 1 for Ctrl-A, 2 for Ctrl-B and so on until 26 for Ctrl-Z.
-        // They are remapped here to be more easy to handle in code
-        // Note also on OSX wxWidgets has a different behavior and the mapping is made
-        // only for ctrl+'A' to ctlr+'Z' (unicode code return 'A' to 'Z').
-        // Others OS return WXK_CONTROL_A to WXK_CONTROL_Z, and Ctrl+'M' returns the same code as
-        // the return key, so the remapping does not use the unicode key value.
-#ifdef __APPLE__
-        if( unicode_key >= 'A' && unicode_key <= 'Z' && key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
-#else
-        ignore_unused( unicode_key );
+    //     if( mods & MD_CTRL )
+    //     {
+    //         // wxWidgets maps key codes related to Ctrl+letter handled by CHAR_EVT
+    //         // (http://docs.wxwidgets.org/trunk/classwx_key_event.html):
+    //         // char events for ASCII letters in this case carry codes corresponding to the ASCII
+    //         // value of Ctrl-Latter, i.e. 1 for Ctrl-A, 2 for Ctrl-B and so on until 26 for Ctrl-Z.
+    //         // They are remapped here to be more easy to handle in code
+    //         // Note also on OSX wxWidgets has a different behavior and the mapping is made
+    //         // only for ctrl+'A' to ctlr+'Z' (unicode code return 'A' to 'Z').
+    //         // Others OS return WXK_CONTROL_A to WXK_CONTROL_Z, and Ctrl+'M' returns the same code as
+    //         // the return key, so the remapping does not use the unicode key value.
+    // #ifdef __APPLE__
+    //         if( unicode_key >= 'A' && unicode_key <= 'Z' && key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
+    // #else
+    //         ignore_unused( unicode_key );
 
-        if( key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
-#endif
-            key += 'A' - 1;
-    }
+    //         if( key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
+    // #endif
+    //             key += 'A' - 1;
+    //     }
 
-#ifdef __APPLE__
-    if( mods & MD_ALT )
-    {
-        // OSX maps a bunch of commonly used extended-ASCII characters onto the keyboard
-        // using the ALT key.  Since we use ALT for some of our hotkeys, we need to map back
-        // to the underlying keys.  The kVK_ANSI_* values come from Apple and are said to be
-        // hardware independent.
-        switch( aKeyEvent->GetRawKeyCode() )
-        {
-        case /* kVK_ANSI_1     */ 0x12: key = '1'; break;
-        case /* kVK_ANSI_2     */ 0x13: key = '2'; break;
-        case /* kVK_ANSI_3     */ 0x14: key = '3'; break;
-        case /* kVK_ANSI_4     */ 0x15: key = '4'; break;
-        case /* kVK_ANSI_6     */ 0x16: key = '6'; break;
-        case /* kVK_ANSI_5     */ 0x17: key = '5'; break;
-        case /* kVK_ANSI_Equal */ 0x18: key = '='; break;
-        case /* kVK_ANSI_9     */ 0x19: key = '9'; break;
-        case /* kVK_ANSI_7     */ 0x1A: key = '7'; break;
-        case /* kVK_ANSI_Minus */ 0x1B: key = '-'; break;
-        case /* kVK_ANSI_8     */ 0x1C: key = '8'; break;
-        case /* kVK_ANSI_0     */ 0x1D: key = '0'; break;
-        default: ;
-        }
-    }
-#endif
+    // #ifdef __APPLE__
+    //     if( mods & MD_ALT )
+    //     {
+    //         // OSX maps a bunch of commonly used extended-ASCII characters onto the keyboard
+    //         // using the ALT key.  Since we use ALT for some of our hotkeys, we need to map back
+    //         // to the underlying keys.  The kVK_ANSI_* values come from Apple and are said to be
+    //         // hardware independent.
+    //         switch( aKeyEvent->GetRawKeyCode() )
+    //         {
+    //         case /* kVK_ANSI_1     */ 0x12: key = '1'; break;
+    //         case /* kVK_ANSI_2     */ 0x13: key = '2'; break;
+    //         case /* kVK_ANSI_3     */ 0x14: key = '3'; break;
+    //         case /* kVK_ANSI_4     */ 0x15: key = '4'; break;
+    //         case /* kVK_ANSI_6     */ 0x16: key = '6'; break;
+    //         case /* kVK_ANSI_5     */ 0x17: key = '5'; break;
+    //         case /* kVK_ANSI_Equal */ 0x18: key = '='; break;
+    //         case /* kVK_ANSI_9     */ 0x19: key = '9'; break;
+    //         case /* kVK_ANSI_7     */ 0x1A: key = '7'; break;
+    //         case /* kVK_ANSI_Minus */ 0x1B: key = '-'; break;
+    //         case /* kVK_ANSI_8     */ 0x1C: key = '8'; break;
+    //         case /* kVK_ANSI_0     */ 0x1D: key = '0'; break;
+    //         default: ;
+    //         }
+    //     }
+    // #endif
 
     if( key == WXK_ESCAPE ) // ESC is the special key for canceling tools
         evt = TOOL_EVENT( TC_COMMAND, TA_CANCEL_TOOL, WXK_ESCAPE );

@@ -28,6 +28,7 @@
 #include <widgets/widget_hotkey_list.h>
 #include <tool/tool_event.h>
 #include <dialog_shim.h>
+#include <gecko_keys.h>
 
 #include <wx/button.h>
 #include <wx/log.h>
@@ -122,10 +123,10 @@ public:
         wxStaticText* key_label_0 = new wxStaticText( panelDisplayCurrent, wxID_ANY, _( "Current key:" ) );
         fgsizer->Add( key_label_0, 0, wxALL | wxALIGN_CENTRE_VERTICAL, 5 );
 
-        wxStaticText* key_label_1 = new wxStaticText( panelDisplayCurrent, wxID_ANY, wxEmptyString );
-        key_label_1->SetFont( key_label_1->GetFont().Bold() );
-        key_label_1->SetLabel( aCurrentKey );
-        fgsizer->Add( key_label_1, 0, wxALL | wxALIGN_CENTRE_VERTICAL, 5 );
+        m_key_label_1 = new wxStaticText( panelDisplayCurrent, wxID_ANY, wxEmptyString );
+        m_key_label_1->SetFont( m_key_label_1->GetFont().Bold() );
+        m_key_label_1->SetLabel( aCurrentKey );
+        fgsizer->Add( m_key_label_1, 0, wxALL | wxALIGN_CENTRE_VERTICAL, 5 );
 
         fgsizer->AddStretchSpacer();
 
@@ -141,7 +142,6 @@ public:
 
         // Binding both EVT_CHAR and EVT_CHAR_HOOK ensures that all key events, including
         // specials like Tab and Return, are received, particularly on MSW.
-        panelDisplayCurrent->Bind( wxEVT_CHAR, &HK_PROMPT_DIALOG::OnChar, this );
         panelDisplayCurrent->Bind( wxEVT_CHAR_HOOK, &HK_PROMPT_DIALOG::OnCharHook, this );
         panelDisplayCurrent->Bind( wxEVT_KEY_UP, &HK_PROMPT_DIALOG::OnKeyUp, this );
 
@@ -191,7 +191,7 @@ protected:
             WXK_RAW_CONTROL
         };
 
-        int key = aEvent.GetKeyCode();
+        int key = GeckoKeys::WXKFromKeyEvent( aEvent.GetRawKeyCode(), aEvent.GetRawKeyFlags() );
 
         for( wxKeyCode skipped_key : skipped_keys )
         {
@@ -199,28 +199,12 @@ protected:
                 return;
         }
 
-        if( key <= 255 && isprint( key ) && !isspace( key ) )
-        {
-            // Let EVT_CHAR handle this one
-            aEvent.DoAllowNextEvent();
+        long keycode = WIDGET_HOTKEY_LIST::MapKeypressToKeycode( aEvent );
 
-#ifdef __WXMSW__
-            // On Windows, looks like a OnChar event is not generated when
-            // using the Alt key modifier. So ensure m_event is up to date
-            // to handle the right key code when releasing the key and therefore
-            // closing the dialog
-            m_event = aEvent;
-#endif
-            aEvent.Skip();
-        }
-        else
-        {
-            OnChar( aEvent );
-        }
-    }
+        if( keycode == WXK_NONE )
+            return;
 
-    void OnChar( wxKeyEvent& aEvent )
-    {
+        m_key_label_1->SetLabel( KeyNameFromKeyCode( keycode, true ) );
         m_event = aEvent;
     }
 
@@ -241,8 +225,9 @@ protected:
     }
 
 private:
-    bool       m_resetkey = false;
-    wxKeyEvent m_event;
+    wxStaticText* m_key_label_1 = nullptr;
+    bool          m_resetkey = false;
+    wxKeyEvent    m_event;
 };
 
 
@@ -274,7 +259,7 @@ public:
         if( normedInfo.Contains( m_normalised_filter_str ) )
             return true;
 
-        const wxString keyName = KeyNameFromKeyCode( aHotkey.m_EditKeycode );
+        const wxString keyName = KeyNameFromKeyCode( aHotkey.m_EditKeycode, true );
 
         if( keyName.Upper().Contains( m_normalised_filter_str ) )
             return true;
@@ -324,8 +309,8 @@ void WIDGET_HOTKEY_LIST::updateFromClientData()
         {
             const HOTKEY& changed_hk = hkdata->GetChangedHotkey();
             wxString      label = changed_hk.m_Actions[ 0 ]->GetFriendlyName();
-            wxString      key_text = KeyNameFromKeyCode( changed_hk.m_EditKeycode );
-            wxString      alt_text = KeyNameFromKeyCode( changed_hk.m_EditKeycodeAlt );
+            wxString      key_text = KeyNameFromKeyCode( changed_hk.m_EditKeycode, true );
+            wxString      alt_text = KeyNameFromKeyCode( changed_hk.m_EditKeycodeAlt, true );
             wxString      description = changed_hk.m_Actions[ 0 ]->GetDescription();
 
             if( label.IsEmpty() )
@@ -353,8 +338,8 @@ void WIDGET_HOTKEY_LIST::updateFromClientData()
 void WIDGET_HOTKEY_LIST::changeHotkey( HOTKEY& aHotkey, long aKey, bool alternate )
 {
     // See if this key code is handled in hotkeys names list
-    bool exists;
-    KeyNameFromKeyCode( aKey, &exists );
+    bool exists = false;
+    KeyNameFromKeyCode( aKey, false, &exists );
 
     if( exists && aHotkey.m_EditKeycode != aKey )
     {
@@ -496,7 +481,7 @@ bool WIDGET_HOTKEY_LIST::resolveKeyConflicts( TOOL_ACTION* aAction, long aKey )
     TOOL_ACTION* conflictingAction = conflictingHotKey->m_Actions[ 0 ];
     wxString msg = wxString::Format( _( "'%s' is already assigned to '%s' in section '%s'. "
                                         "Are you sure you want to change its assignment?" ),
-                                     KeyNameFromKeyCode( aKey ),
+                                     KeyNameFromKeyCode( aKey, true ),
                                      conflictingAction->GetFriendlyName(),
                                      HOTKEY_STORE::GetSectionName( conflictingAction ) );
 
@@ -671,40 +656,44 @@ bool WIDGET_HOTKEY_LIST::TransferDataFromControl()
 
 long WIDGET_HOTKEY_LIST::MapKeypressToKeycode( const wxKeyEvent& aEvent )
 {
-    long key = aEvent.GetKeyCode();
-    bool is_tab = aEvent.IsKeyInCategory( WXK_CATEGORY_TAB );
+    long code = GeckoKeys::WXKFromKeyEvent( aEvent.GetRawKeyCode(), aEvent.GetRawKeyFlags() );
 
-    if( key == WXK_ESCAPE )
+    // bool is_tab = aEvent.IsKeyInCategory( WXK_CATEGORY_TAB );
+
+    if( code == WXK_ESCAPE )
     {
         return 0;
     }
     else
     {
-        if( key >= 'a' && key <= 'z' )    // convert to uppercase
-            key = key + ('A' - 'a');
+        // if( code >= 'a' && code <= 'z' )    // convert to uppercase
+        //     code = code + ('A' - 'a');
 
-        // Remap Ctrl A (=1+GR_KB_CTRL) to Ctrl Z(=26+GR_KB_CTRL)
-        // to GR_KB_CTRL+'A' .. GR_KB_CTRL+'Z'
-        if( !is_tab && aEvent.ControlDown() && key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
-            key += 'A' - 1;
+        // // Remap Ctrl A (=1+GR_KB_CTRL) to Ctrl Z(=26+GR_KB_CTRL)
+        // // to GR_KB_CTRL+'A' .. GR_KB_CTRL+'Z'
+        // if( !is_tab && aEvent.ControlDown() && key >= WXK_CONTROL_A && key <= WXK_CONTROL_Z )
+        //     key += 'A' - 1;
 
-        /* Disallow shift for keys that have two keycodes on them (e.g. number and
-         * punctuation keys) leaving only the "letter keys" of A-Z, tab and space
-         * Then, you can have, e.g. Ctrl-5 and Ctrl-% (GB layout)
-         * and Ctrl-( and Ctrl-5 (FR layout).
-         * Otherwise, you'd have to have to say Ctrl-Shift-5 on a FR layout
-         */
-        bool keyIsLetter = key >= 'A' && key <= 'Z';
+        // /* Disallow shift for keys that have two keycodes on them (e.g. number and
+        //  * punctuation keys) leaving only the "letter keys" of A-Z, tab and space
+        //  * Then, you can have, e.g. Ctrl-5 and Ctrl-% (GB layout)
+        //  * and Ctrl-( and Ctrl-5 (FR layout).
+        //  * Otherwise, you'd have to have to say Ctrl-Shift-5 on a FR layout
+        //  */
+        // bool keyIsLetter = key >= 'A' && key <= 'Z';
 
-        if( aEvent.ShiftDown() && ( keyIsLetter || key > 256 || key == 9 || key == 32 ) )
-            key |= MD_SHIFT;
+        // if( aEvent.ShiftDown() && ( keyIsLetter || key > 256 || key == 9 || key == 32 ) )
+        //     key |= MD_SHIFT;
+
+        if( aEvent.ShiftDown() )
+            code |= MD_SHIFT;
 
         if( aEvent.ControlDown() )
-            key |= MD_CTRL;
+            code |= MD_CTRL;
 
         if( aEvent.AltDown() )
-            key |= MD_ALT;
+            code |= MD_ALT;
 
-        return key;
+        return code;
     }
 }

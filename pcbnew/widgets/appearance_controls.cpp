@@ -443,15 +443,15 @@ APPEARANCE_CONTROLS::APPEARANCE_CONTROLS( PCB_BASE_FRAME* aParent, wxWindow* aFo
                                                        "Use %s+Tab to activate selector.\n"
                                                        "Successive Tabs while holding %s down will "
                                                        "cycle through presets in the popup." ),
-                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY ),
-                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY ) ) );
+                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ),
+                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ) ) );
 
     m_cbViewports->SetToolTip( wxString::Format( _( "Save and restore view location and zoom.\n"
                                                     "Use %s+Tab to activate selector.\n"
                                                     "Successive Tabs while holding %s down will "
                                                     "cycle through viewports in the popup." ),
-                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ),
-                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ) ) );
+                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ),
+                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ) ) );
 
     createControls();
 
@@ -623,7 +623,7 @@ void APPEARANCE_CONTROLS::createControls()
     hotkey = PCB_ACTIONS::highContrastModeCycle.GetHotKey();
 
     if( hotkey )
-        msg = wxString::Format( _( "Inactive layers (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Inactive layers (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Inactive layers:" );
 
@@ -698,7 +698,7 @@ void APPEARANCE_CONTROLS::createControls()
     hotkey = PCB_ACTIONS::netColorModeCycle.GetHotKey();
 
     if( hotkey )
-        msg = wxString::Format( _( "Net colors (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Net colors (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Net colors:" );
 
@@ -740,7 +740,7 @@ void APPEARANCE_CONTROLS::createControls()
     hotkey = PCB_ACTIONS::ratsnestModeCycle.GetHotKey();
 
     if( hotkey )
-        msg = wxString::Format( _( "Ratsnest display (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Ratsnest display (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Ratsnest display:" );
 
@@ -1799,7 +1799,7 @@ void APPEARANCE_CONTROLS::rebuildLayers()
     wxString msg;
 
     if( hotkey )
-        msg = wxString::Format( _( "Inactive layers (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Inactive layers (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Inactive layers:" );
 
@@ -2528,7 +2528,7 @@ void APPEARANCE_CONTROLS::rebuildNets()
     hotkey = PCB_ACTIONS::netColorModeCycle.GetHotKey();
 
     if( hotkey )
-        msg = wxString::Format( _( "Net colors (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Net colors (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Net colors:" );
 
@@ -2547,7 +2547,7 @@ void APPEARANCE_CONTROLS::rebuildNets()
     hotkey = PCB_ACTIONS::ratsnestModeCycle.GetHotKey();
 
     if( hotkey )
-        msg = wxString::Format( _( "Ratsnest display (%s):" ), KeyNameFromKeyCode( hotkey ) );
+        msg = wxString::Format( _( "Ratsnest display (%s):" ), KeyNameFromKeyCode( hotkey, true ) );
     else
         msg = _( "Ratsnest display:" );
 
@@ -2573,7 +2573,7 @@ void APPEARANCE_CONTROLS::rebuildNets()
 void APPEARANCE_CONTROLS::rebuildLayerPresetsWidget()
 {
     m_viewportsLabel->SetLabel( wxString::Format( _( "Presets (%s+Tab):" ),
-                                                  KeyNameFromKeyCode( PRESET_SWITCH_KEY ) ) );
+                                                  KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ) ) );
 
     m_cbLayerPresets->Clear();
 
@@ -2872,7 +2872,7 @@ void APPEARANCE_CONTROLS::doApplyLayerPreset( const LAYER_PRESET& aPreset )
 void APPEARANCE_CONTROLS::rebuildViewportsWidget()
 {
     m_viewportsLabel->SetLabel( wxString::Format( _( "Viewports (%s+Tab):" ),
-                                                  KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ) ) );
+                                                  KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ) ) );
 
     m_cbViewports->Clear();
 

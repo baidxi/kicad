@@ -60,9 +60,10 @@ int KeyCodeFromKeyName( const wxString& keyname );
  * Return the user friendly key name (ie: "Ctrl+M") from the key code.
  *
  * @param aKeycode key code (ASCII value, or wxWidgets value for function keys).
+ * @param aLocalized set to true to translate the key using current keyboard layout instead of US layout.
  * @param aIsFound a pointer to a bool to return true if found, or false.
  */
-wxString KeyNameFromKeyCode( int aKeycode, bool* aIsFound = nullptr );
+wxString KeyNameFromKeyCode( int aKeycode, bool aLocalized, bool* aIsFound = nullptr );
 
 /**
  * In menus we can add a hot key, or an accelerator, or sometimes just a comment.   Hot keys

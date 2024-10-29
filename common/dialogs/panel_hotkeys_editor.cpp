@@ -259,8 +259,8 @@ void PANEL_HOTKEYS_EDITOR::dumpHotkeys()
 
             if( hk.m_EditKeycode > 0 )
             {
-                stream << wxT( "  | kbd:[" ) << KeyNameFromKeyCode( hk.m_EditKeycode ) << ']'
-                       << endl;
+                stream << wxT( "  | kbd:[" ) << KeyNameFromKeyCode( hk.m_EditKeycode, false ) << ']'
+                       << endl; // TODO: localized or not?
             }
             else
             {

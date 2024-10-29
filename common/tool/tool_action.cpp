@@ -177,7 +177,7 @@ wxString TOOL_ACTION::GetTooltip( bool aIncludeHotkey ) const
     wxString tooltip = wxGetTranslation( m_tooltip );
 
     if( aIncludeHotkey && GetHotKey() )
-        tooltip += wxString::Format( wxT( "  (%s)" ), KeyNameFromKeyCode( GetHotKey() ) );
+        tooltip += wxString::Format( wxT( "  (%s)" ), KeyNameFromKeyCode( GetHotKey(), true ) );
 
     return tooltip;
 }
@@ -189,7 +189,7 @@ wxString TOOL_ACTION::GetButtonTooltip() const
     wxString tooltip = GetFriendlyName();
 
     if( GetHotKey() )
-        tooltip += wxString::Format( wxT( "  (%s)" ), KeyNameFromKeyCode( GetHotKey() ) );
+        tooltip += wxString::Format( wxT( "  (%s)" ), KeyNameFromKeyCode( GetHotKey(), true ) );
 
     if( !GetTooltip( false ).IsEmpty() )
         tooltip += '\n' + GetTooltip( false );

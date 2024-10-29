@@ -793,12 +793,12 @@ void PAD_TOOL::enterPadEditMode()
     if( PCB_ACTIONS::explodePad.GetHotKey() == PCB_ACTIONS::recombinePad.GetHotKey() )
     {
         msg.Printf( _( "Pad Edit Mode.  Press %s again to exit." ),
-                    KeyNameFromKeyCode( PCB_ACTIONS::recombinePad.GetHotKey() ) );
+                    KeyNameFromKeyCode( PCB_ACTIONS::recombinePad.GetHotKey(), true ) );
     }
     else
     {
         msg.Printf( _( "Pad Edit Mode.  Press %s to exit." ),
-                    KeyNameFromKeyCode( PCB_ACTIONS::recombinePad.GetHotKey() ) );
+                    KeyNameFromKeyCode( PCB_ACTIONS::recombinePad.GetHotKey(), true ) );
     }
 
     infoBar->RemoveAllButtons();

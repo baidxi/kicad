@@ -161,15 +161,15 @@ APPEARANCE_CONTROLS_3D::APPEARANCE_CONTROLS_3D( EDA_3D_VIEWER_FRAME* aParent,
                                                        "Use %s+Tab to activate selector.\n"
                                                        "Successive Tabs while holding %s down will "
                                                        "cycle through presets in the popup." ),
-                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY ),
-                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY ) ) );
+                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ),
+                                                    KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ) ) );
 
     m_cbViewports->SetToolTip( wxString::Format( _( "Save and restore camera position and zoom.\n"
                                                     "Use %s+Tab to activate selector.\n"
                                                     "Successive Tabs while holding %s down will "
                                                     "cycle through viewports in the popup." ),
-                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ),
-                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ) ) );
+                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ),
+                                                 KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ) ) );
 
     if( screenHeight <= 900 && m_pointSize >= FromDIP( KIUI::c_IndicatorSizeDIP ) )
         m_pointSize = m_pointSize * 8 / 10;
@@ -625,7 +625,7 @@ void APPEARANCE_CONTROLS_3D::UpdateLayerCtls()
 void APPEARANCE_CONTROLS_3D::rebuildLayerPresetsWidget()
 {
     m_presetsLabel->SetLabel( wxString::Format( _( "Presets (%s+Tab):" ),
-                                                KeyNameFromKeyCode( PRESET_SWITCH_KEY ) ) );
+                                                KeyNameFromKeyCode( PRESET_SWITCH_KEY, true ) ) );
 
     m_cbLayerPresets->Clear();
 
@@ -856,7 +856,7 @@ void APPEARANCE_CONTROLS_3D::doApplyLayerPreset( const LAYER_PRESET_3D& aPreset 
 void APPEARANCE_CONTROLS_3D::rebuildViewportsWidget()
 {
     m_viewportsLabel->SetLabel( wxString::Format( _( "Viewports (%s+Tab):" ),
-                                                  KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY ) ) );
+                                                  KeyNameFromKeyCode( VIEWPORT_SWITCH_KEY, true ) ) );
 
     m_cbViewports->Clear();
 

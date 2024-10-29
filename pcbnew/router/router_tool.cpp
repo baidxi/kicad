@@ -1901,7 +1901,7 @@ void ROUTER_TOOL::performDragging( int aMode )
                     {
                         wxString hint;
                         hint.Printf( _( "(%s to commit anyway.)" ),
-                                    KeyNameFromKeyCode( MD_CTRL + PSEUDO_WXK_CLICK ) );
+                                    KeyNameFromKeyCode( MD_CTRL + PSEUDO_WXK_CLICK, true ) );
 
                         ROUTER_STATUS_VIEW_ITEM* statusItem = new ROUTER_STATUS_VIEW_ITEM();
                         statusItem->SetMessage( _( "Track violates DRC." ) );
@@ -2385,7 +2385,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
                     {
                         wxString hint;
                         hint.Printf( _( "(%s to commit anyway.)" ),
-                                    KeyNameFromKeyCode( MD_CTRL + PSEUDO_WXK_CLICK ) );
+                                    KeyNameFromKeyCode( MD_CTRL + PSEUDO_WXK_CLICK, true ) );
 
                         ROUTER_STATUS_VIEW_ITEM* statusItem = new ROUTER_STATUS_VIEW_ITEM();
                         statusItem->SetMessage( _( "Track violates DRC." ) );
