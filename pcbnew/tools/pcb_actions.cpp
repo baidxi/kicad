@@ -1589,6 +1589,13 @@ TOOL_ACTION PCB_ACTIONS::unlock( TOOL_ACTION_ARGS()
         .Tooltip( _( "Allow items to be moved and/or resized on the canvas" ) )
         .Icon( BITMAPS::unlocked ) );
 
+TOOL_ACTION PCB_ACTIONS::importIDX( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.EditorControl.importIDXs" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Import IDX" ) )
+        .Tooltip( _( "Open another board and append its contents to this board" ) )
+        .Icon( BITMAPS::add_board ) );
+
 TOOL_ACTION PCB_ACTIONS::highlightNet( TOOL_ACTION_ARGS()
         .Name( "pcbnew.EditorControl.highlightNet" )
         .Scope( AS_GLOBAL )
@@ -2252,7 +2259,7 @@ TOOL_ACTION PCB_ACTIONS::inspectConstraints( TOOL_ACTION_ARGS()
         .Scope( AS_GLOBAL )
         .FriendlyName( _( "Constraints Resolution" ) )
         .Tooltip( _( "Show constraints resolution for the selected object" ) )
-        .Icon( BITMAPS::mw_add_stub ) );
+        .Icon( BITMAPS::mw_add_gap ) );
 
 TOOL_ACTION PCB_ACTIONS::diffFootprint( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InspectionTool.DiffFootprint" )
@@ -2904,6 +2911,7 @@ TOOL_ACTION PCB_ACTIONS::lengthTunerSettings( TOOL_ACTION_ARGS()
 TOOL_ACTION PCB_ACTIONS::ddAppendBoard( TOOL_ACTION_ARGS()
         .Name( "pcbnew.Control.DdAppendBoard" )
         .Scope( AS_GLOBAL ) );
+
 
 TOOL_ACTION PCB_ACTIONS::ddImportFootprint( TOOL_ACTION_ARGS()
         .Name( "pcbnew.Control.ddImportFootprint" )

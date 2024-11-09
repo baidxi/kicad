@@ -1406,6 +1406,14 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
     return AppendBoard( *pi, fileName );
 }
 
+#include <idx/kicad_idx.h>
+
+int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
+{
+    read_IDX( "test_idx_v4.5.idx" );
+    return 1;
+}
+
 
 int PCB_CONTROL::AppendDesignBlock( const TOOL_EVENT& aEvent )
 {
@@ -3180,7 +3188,7 @@ void PCB_CONTROL::setTransitions()
     Go( &PCB_CONTROL::DdAppendBoard,        PCB_ACTIONS::ddAppendBoard.MakeEvent() );
     Go( &PCB_CONTROL::PlaceCharacteristics, PCB_ACTIONS::placeCharacteristics.MakeEvent() );
     Go( &PCB_CONTROL::PlaceStackup,         PCB_ACTIONS::placeStackup.MakeEvent() );
-
+    Go( &PCB_CONTROL::ImportIDX,  PCB_ACTIONS::importIDX.MakeEvent() );
     Go( &PCB_CONTROL::Paste,                ACTIONS::paste.MakeEvent() );
     Go( &PCB_CONTROL::Paste,                ACTIONS::pasteSpecial.MakeEvent() );
 

@@ -371,6 +371,12 @@ set( ZONE_MANAGER_SRCS
     zone_manager/zone_preview_canvas.cpp
     )
 
+
+set( PCBNEW_IDX
+     idx/idx_administration.cpp
+     idx/kicad_idx.cpp
+    )
+
 set( PCBNEW_CLASS_SRCS
     ${PCBNEW_DIALOGS}
     ${PCBNEW_EXPORTERS}
@@ -380,6 +386,7 @@ set( PCBNEW_CLASS_SRCS
     ${PCBNEW_NETLIST_SRCS}
     ${ZONE_MANAGER_SRCS}
     ${PCBNEW_BRDSTACKUP_MGR}
+    ${PCBNEW_IDX}
 
     autorouter/spread_footprints.cpp
     autorouter/ar_autoplacer.cpp

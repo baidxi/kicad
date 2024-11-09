@@ -81,6 +81,7 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
         RegisterUIUpdateHandler( item->GetId(), cond );
     }
 
+    fileMenu->Add( PCB_ACTIONS::importIDX );
     fileMenu->Add( PCB_ACTIONS::appendBoard );
     fileMenu->Add( PCB_ACTIONS::compareBoardWithFile );
 
