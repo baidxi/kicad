@@ -22,7 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
-#include <idx/administration.h>
 #include <idx/property.h>
 #include <idx/foundation.h>
+#include <idx/geometry.h>
+#include <idx/administration.h>

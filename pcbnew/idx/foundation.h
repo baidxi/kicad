@@ -42,11 +42,19 @@ class EDMD_SYSTEM;
 } // namespace idx_foundation
 
 #include <idx/idx_base.h>
-#include <idx/administration.h>
 #include <idx/property.h>
 #include <wx/xml/xml.h>
 #include <memory>
 
+namespace idx_administration
+{
+class EDMD_PERSON;
+}
+
+namespace idx_geometry
+{
+class EDMD_POINT;
+}
 
 namespace idx_foundation
 {
@@ -54,22 +62,61 @@ namespace idx_foundation
 class EDMD_OBJECT : public IDX_BASE
 {
 public:
-    EDMD_OBJECT( wxXmlNode aNode ) : IDX_BASE()
+    EDMD_OBJECT() : IDX_BASE() {};
+    EDMD_OBJECT( wxXmlNode& aNode ) : IDX_BASE()
     {
         wxString isAttributeChanged;
         aNode.GetAttribute( "id", &m_id );
         aNode.GetAttribute( "isAttributeChanged", &isAttributeChanged );
         isAttributeChanged == "false" ? false : true;
     };
+
+
+    bool Resolve( IDX_REGISTRY& aRegistry ) { return IDX_BASE::Resolve( aRegistry ); };
+
     wxString m_id;
     bool     m_isAttributeChanged;
+
+    /*
+    template <typename T >
+    void LinkPoints( std::map< wxString, std::shared_ptr<T>>& aVector )
+    {   
+
+        for ( auto x : m_pointsToLink )
+        {
+            wxString name = x.first;
+
+            std::cout << "Trying to link" << name << std::endl;
+            //std::shared_ptr<idx_geometry::EDMD_POINT>* destPtr = std::dynamic_pointer_cast<idx::geometry> x.second;
+            std::shared_ptr<idx_geometry::EDMD_POINT>* destPtr( dynamic_cast<std::shared_ptr<idx_geometry::EDMD_POINT>*  >( x.second ) );
+            std::cout << destPtr << std::endl;
+
+            for ( auto& ptr : aVector )
+            {
+                if ( ptr.second && ptr.second->m_id == name )
+                {
+
+            std::cout << "found " << name << std::endl;
+
+                    *destPtr = ptr.second;
+                    return;
+                }
+            }     
+        }
+    }
+    */
+
+protected:
+    std::map<wxString, std::shared_ptr<idx_foundation::EDMD_OBJECT>*> m_pointsToLink;
 };
 
 
 class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
 {
 public:
-    EDMD_EXTENSIBLE_OBJECT( wxXmlNode aNode ) : EDMD_OBJECT( aNode )
+    EDMD_EXTENSIBLE_OBJECT() : EDMD_OBJECT() {};
+
+    EDMD_EXTENSIBLE_OBJECT( wxXmlNode& aNode ) : EDMD_OBJECT( aNode )
     {
         wxXmlNode* child = aNode.GetChildren();
 
@@ -95,6 +142,9 @@ public:
         }
     };
 
+    bool Resolve( IDX_REGISTRY& aRegistry ) { return EDMD_OBJECT::Resolve( aRegistry ); };
+
+
     wxString                                      m_name = "";
     wxString                                      m_description = "";
     std::vector<EDMD_NAME>                        m_displayDescription;
@@ -106,7 +156,8 @@ public:
 class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_COLLABORATION_OBJECT( wxXmlNode aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
+    EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT() {};
+    EDMD_COLLABORATION_OBJECT( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
 };
 
 
@@ -126,7 +177,7 @@ public:
         FACTORYSTANDARD,
     };
 
-    EDMD_SYSTEM( wxXmlNode aNode ) : EDMD_COLLABORATION_OBJECT( aNode )
+    EDMD_SYSTEM( wxXmlNode& aNode ) : EDMD_COLLABORATION_OBJECT( aNode )
     {
         wxXmlNode* child = aNode.GetChildren();
 
@@ -157,6 +208,12 @@ public:
             child = child->GetNext();
         }
     };
+
+    bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+    };
+
 
     SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
     wxString    m_globalName = "";
@@ -229,7 +286,7 @@ public:
 class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASET( wxXmlNode aNode ) : m_header( aNode ), EDMD_OBJECT( aNode ) {};
+    EDMD_DATASET( wxXmlNode& aNode ) : m_header( aNode ), EDMD_OBJECT( aNode ) {};
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;
@@ -239,7 +296,7 @@ public:
 class EDMD_DATASETBODY : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASETBODY( wxXmlNode aNode ) : EDMD_OBJECT( aNode ) {};
+    EDMD_DATASETBODY( wxXmlNode& aNode ) : EDMD_OBJECT( aNode ) {};
 
     // To be completed
 };
@@ -247,7 +304,7 @@ public:
 class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_DESIGNATOR( wxXmlNode aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
+    EDMD_DESIGNATOR( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
 
     std::shared_ptr<EDMD_SYSTEM> m_systemScope;
     bool                         m_persistant = false;
@@ -259,7 +316,7 @@ public:
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_IDENTIFIER( wxXmlNode aNode ) : EDMD_DESIGNATOR( aNode ) {};
+    EDMD_IDENTIFIER( wxXmlNode& aNode ) : EDMD_DESIGNATOR( aNode ) {};
 
     wxString                                      m_number = "";
     wxString                                      m_version = "";
@@ -273,7 +330,7 @@ public:
 class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_NAME( wxXmlNode aNode ) : EDMD_DESIGNATOR( aNode ) {};
+    EDMD_NAME( wxXmlNode& aNode ) : EDMD_DESIGNATOR( aNode ) {};
     wxString m_objectName;
 };
 

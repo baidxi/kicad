@@ -61,8 +61,6 @@ class EDMD_USER_PROPERTY;
 
 #include <idx/idx_base.h>
 #include <idx/foundation.h>
-#include <idx/administration.h>
-
 #include <wx/string.h>
 #include <memory>
 #include <vector>
@@ -85,6 +83,7 @@ class EDMD_CONSTRAINED_PROPERTY : public idx_foundation::EDMD_OBJECT
 {
 public:
     EDMD_CONSTRAINED_PROPERTY( wxXmlNode aNode ) : idx_foundation::EDMD_OBJECT( aNode ) {};
+    EDMD_CONSTRAINED_PROPERTY() : idx_foundation::EDMD_OBJECT() {};
     std::vector<EDMD_UNIT>                           m_validUnit;
     std::vector<wxString>                            m_validValues;
     std::vector<EDMD_CONSTRAINED_PROPERTY>           m_maxValue;
@@ -197,7 +196,35 @@ public:
 class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_ANGLE_PROPERTY( wxXmlNode aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode ) {};
+    EDMD_ANGLE_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode ) {};
+    EDMD_ANGLE_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
+
+    double m_value;
+    //EDMD_UNIT_ANGLE m_unit;
+};
+
+
+class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_LENGTH_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "property:Value" )
+                content.ToCDouble( &m_value );
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    };
+    EDMD_LENGTH_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
 
     double m_value;
     //EDMD_UNIT_ANGLE m_unit;

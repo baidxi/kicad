@@ -1410,7 +1410,9 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
 
 int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
-    read_IDX( "test_idx_v4.5.idx" );
+    BOARD_COMMIT commit( frame() );
+
+    read_IDX( "test_idx_v4.5.idx", &commit );
     return 1;
 }
 

@@ -25,13 +25,88 @@
 #ifndef IDX_BASE_H
 #define IDX_BASE_H
 
+
+#include <map>
 #include <wx/string.h>
 #include <wx/datetime.h>
+#include <wx/xml/xml.h>
+#include <iostream>
+#include <memory>
+#include <typeindex>
+
+class IDX_BASE;
+
+// Registry to manage different types of objects
+class IDX_REGISTRY
+{
+public:
+    // Register a new object of any type
+    template <typename T>
+    void registerObject( const wxString& name, std::shared_ptr<T> object )
+    {
+        auto& registry = getRegistry<T>();
+        registry[name] = object;
+    }
+
+    // Resolve an object of any type by name
+    template <typename T>
+    std::shared_ptr<T> resolve( const wxString& name )
+    {
+        const auto& registry = getRegistry<T>();
+        auto        it = registry.find( name );
+        if( it != registry.end() )
+        {
+            return std::dynamic_pointer_cast<T>( it->second );
+        }
+        else
+        {
+            std::cerr << "Warning: Object " << name << " not found in registry." << std::endl;
+            return nullptr;
+        }
+    }
+
+private:
+    // Helper function to get the registry for a specific type
+    template <typename T>
+    std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>& getRegistry()
+    {
+        return registries[typeid( T )];
+    }
+
+    /*
+const std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>& getRegistry() const {
+    // Try to find the registry for the type T
+    auto registryIt = registries.find(typeid(T));
+    if (registryIt != registries.end()) {
+        // If found, return a reference to the inner map
+        return registryIt->second;
+    }
+    */
+    /*
+    template <typename T>
+    const std::unordered_map<wxString, std::shared_ptr<EDMD_OBJECT>>& getRegistry() const {
+        auto it = registries.find(typeid(T));
+        if (it != registries.end()) {
+            return it->second;
+        } else {
+            static const std::unordered_map<wxString, std::shared_ptr<idx::EDMD_OBJECT>> emptyRegistry;
+            return emptyRegistry;
+        }
+    }
+    */
+
+    std::unordered_map<std::type_index, std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>>
+            registries;
+};
 
 class IDX_BASE
 {
 public:
     IDX_BASE() {};
+    virtual ~IDX_BASE() = default; // Virtual destructor makes the class polymorphic
+    bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
+
+protected:
 };
 
 #endif

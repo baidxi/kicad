@@ -26,7 +26,7 @@
 #include <idx/idx_reader.h>
 
 
-bool read_IDX( wxString aFilename )
+bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit )
 {
     wxXmlDocument doc;
 
@@ -34,6 +34,11 @@ bool read_IDX( wxString aFilename )
         return false;
 
     IDX_HOLDER* idxHolder = new IDX_HOLDER( doc );
+
+    if( aCommit )
+    {
+        idxHolder->AddElements( *aCommit );
+    }
 
 
     return true;

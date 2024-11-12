@@ -33,35 +33,53 @@ class EDMD_CARTESIAN_POINT;
 class EDMD_CIRCLE;
 class EDMD_CIRCLE_3POINTS;
 class EDMD_CIRCLE_CENTER;
+class EDMD_COMPOSITE_CURVE;
+class EDMD_CURVE;
+class EDMD_CURVESET2D;
+class EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT;
+class EDMD_ELLIPSE;
+class EDMD_HYPERBOLA;
+class EDMD_LINE;
+class EDMD_OFFSET_CURVE;
+class EDMD_PARABOLA;
+class EDMD_POINT;
+class EDMD_POINT_ON_CURVE_DISTANCE;
+class EDMD_POINT_ON_CURVE_INTERSECTION;
+class EDMD_POLYLINE;
+class EDMD_TRIMMED_CURVED;
 } // namespace idx_geometry
 
 #include <wx/xml/xml.h>
+#include <idx/foundation.h>
+#include <idx/property.h>
 #include <memory>
 
 
-namespace idx_foundation
+namespace idx_geometry
 {
-
-class EDMD_OBJECT : public IDX_BASE
+class EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_OBJECT( wxXmlNode aNode ) : IDX_BASE()
+    EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+
+    EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( wxXmlNode& aNode ) :
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode ) {
+
+            };
+
+    bool Resolve( IDX_REGISTRY& aRegistry )
     {
-        wxString isAttributeChanged;
-        aNode.GetAttribute( "id", &m_id );
-        aNode.GetAttribute( "isAttributeChanged", &isAttributeChanged );
-        isAttributeChanged == "false" ? false : true;
+        return idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
     };
-    wxString m_id;
-    bool     m_isAttributeChanged;
 };
 
-
-class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
+class EDMD_CURVE : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
 {
 public:
-    EDMD_EXTENSIBLE_OBJECT( wxXmlNode aNode ) : EDMD_OBJECT( aNode )
+    EDMD_CURVE( wxXmlNode& aNode ) : m_thickness(), EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( aNode )
     {
+        m_thickness.m_value = 0;
+
         wxXmlNode* child = aNode.GetChildren();
 
         while( child )
@@ -69,206 +87,431 @@ public:
             const wxString content = child->GetNodeContent();
             const wxString name = child->GetName();
 
-            if( name == "foundation:Name" )
-                m_name = content;
-            else if( name == "foundation:Description" )
-                m_description = content;
-            else if( name == "foundation:DisplayName" )
-                m_displayName.emplace_back( *child );
-            else if( name == "foundation:DisplayDescription" )
-                m_displayDescription.emplace_back( *child );
-            else if( name == "foundation:UserProperty" )
-                m_userProperty.emplace_back( *child );
-            else
+            if( name == "d2:Thickness" )
             {
+                m_thickness = idx_property::EDMD_LENGTH_PROPERTY( *child );
             }
+
             child = child->GetNext();
         }
     };
 
-    wxString                                      m_name = "";
-    wxString                                      m_description = "";
-    std::vector<EDMD_NAME>                        m_displayDescription;
-    std::vector<EDMD_NAME>                        m_displayName;
-    std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
-};
+    virtual ~EDMD_CURVE() = default;
 
-
-class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
-{
-public:
-    EDMD_COLLABORATION_OBJECT( wxXmlNode aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
-};
-
-
-class EDMD_SYSTEM : public EDMD_COLLABORATION_OBJECT
-{
-public:
-    enum class SYSTEM_TYPE
+    virtual bool Resolve( IDX_REGISTRY& aRegistry )
     {
-        UNDEFINED = 0,
-        MANUFACTURER,
-        PLM,
-        ECAD,
-        MCAD,
-        PROXY,
-        LIBRARY,
-        COMMONSTANDARD,
-        FACTORYSTANDARD,
+        std::cout << "Resolving curve " << std::endl;
+        return EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve( aRegistry );
     };
 
-    EDMD_SYSTEM( wxXmlNode aNode ) : EDMD_COLLABORATION_OBJECT( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
 
-        while( child )
+    idx_property::EDMD_LENGTH_PROPERTY m_thickness;
+    };
+
+
+    class EDMD_HYPERBOLA : public EDMD_CURVE
+    {
+    public:
+        EDMD_HYPERBOLA( wxXmlNode& aNode ) :
+                m_semiMajor( aNode ), m_semiMinor( aNode ), EDMD_CURVE( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_POINT>        m_center;
+        idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
+        idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
+    };
+
+    class EDMD_TRIMMED_CURVE : public EDMD_CURVE
+    {
+    public:
+        EDMD_TRIMMED_CURVE( wxXmlNode& aNode ) :
+                EDMD_CURVE( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_CURVE> m_curve;
+        std::shared_ptr<EDMD_POINT> m_start;
+        std::shared_ptr<EDMD_POINT> m_end;
+    };
+
+
+    class EDMD_LINE : public EDMD_CURVE
+    {
+    public:
+        EDMD_LINE( wxXmlNode& aNode ) :
+                EDMD_CURVE( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_CURVE> m_point;
+        std::shared_ptr<EDMD_POINT> m_vector;
+    };
+
+
+    enum class EDMD_BSPLINE_CURVE_FORM
+    {
+        POLYLINE_FORM = 0,
+        CIRCULAR_ARC = 1,
+        ELLIPTIC_ARC = 2,
+        PARABOLIC_ARC = 3,
+        HYPERBOLIC_ARC = 4,
+        UNSPECIFIED
+    };
+
+
+    class EDMD_BSPLINE_CURVE : public EDMD_CURVE
+    {
+    public:
+        EDMD_BSPLINE_CURVE( wxXmlNode& aNode ) :
+                EDMD_CURVE( aNode ) {
+
+                };
+
+        int                                      m_degree;
+        std::vector<std::shared_ptr<EDMD_POINT>> m_controlPointsList;
+        EDMD_BSPLINE_CURVE_FORM                  m_curveForm = EDMD_BSPLINE_CURVE_FORM::UNSPECIFIED;
+        bool                                     m_closedCurve;
+        bool                                     m_selfIntersect;
+    };
+
+    class EDMD_COMPOSITE_CURVE : public EDMD_CURVE
+    {
+    public:
+        EDMD_COMPOSITE_CURVE( wxXmlNode& aNode ) : EDMD_CURVE( aNode )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            wxXmlNode* child = aNode.GetChildren();
 
-            if( name == "foundation:GlobalName" )
-                m_globalName = content;
-            else if( name == "foundation:WebServiceURI" )
-                m_webServiceURI = content;
-            else if( name == "foundation:Revision" )
-                m_revision = content;
-            else if( name == "foundation:SystemName" )
-                m_systemName = content;
-            else if( name == "foundation:InstanceName" )
-                m_instanceName = content;
-            else if( name == "foundation:systemOwner" )
-                m_systemOwner = content;
-            else if( name == "foundation:NeedsSelfContainedMessages" )
+            std::vector<wxString> refnames;
+            while( child )
             {
-                m_needsSelfContainedMessages = content == "true" ? true : false;
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
+
+                if( name == "d2:Curve" )
+                {
+                    m_curve.emplace_back();
+                    refnames.push_back( content );
+                }
+
+                child = child->GetNext();
             }
-            else
+
+            int i = 0;
+            for( wxString& curveName : refnames )
             {
+                m_pointsToLink[curveName] = (std::shared_ptr<EDMD_OBJECT>*) ( &( m_curve[i++] ) );
             }
-            child = child->GetNext();
-        }
+        };
+
+        std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
     };
 
-    SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
-    wxString    m_globalName = "";
-    wxString    m_webServiceURI = "";
-    wxString    m_revision = "";
-    wxString    m_systemName = "";
-    wxString    m_instanceName = "";
-    wxString    m_systemOwner = "";
-    bool        m_needsSelfContainedMessages = false;
-};
 
-
-class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
-{
-public:
-    EDMD_HEADER( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode )
+    class EDMD_POLYLINE : public EDMD_CURVE
     {
-        wxXmlNode* child = aNode.GetChildren();
-
-        while( child )
+    public:
+        EDMD_POLYLINE( wxXmlNode& aNode ) : EDMD_CURVE( aNode )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            wxXmlNode* child = aNode.GetChildren();
 
-            if( name == "foundation:Description" )
-                m_description = content;
-            else if( name == "foundation:CreatorName" )
-                m_creatorName = content;
-            else if( name == "foundation:CreatorCompany" )
-                m_creatorCompany = content;
-            else if( name == "foundation:CreatorSystem" )
-                m_creatorSystem = content;
-            else if( name == "foundation:PostProcessor" )
-                m_postProcessor = content;
-            else if( name == "foundation:PostProcessorVersion" )
-                m_postProcessorVersion = content;
-            else
+            std::vector<wxString> refnames;
+            while( child )
             {
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
+
+                if( name == "d2:Point" )
+                {
+                    //m_point.emplace_back();
+                    //refnames.push_back( content );
+                    m_pointRef.push_back( content );
+                }
+
+                child = child->GetNext();
             }
-            child = child->GetNext();
-        }
+
+            int i = 0;
+            /*
+                for ( wxString& pointName : refnames )
+                {
+                    m_pointsToLink[ pointName ] = ( std::shared_ptr<EDMD_OBJECT>* ) ( &( m_point[i++] ) );
+                    std::cout << m_point.size() << std::endl;
+                    std::cout << "Saving " << pointName << " : " << m_pointsToLink[ pointName ] << " (" << m_pointsToLink.size() << ")" << std::endl;
+                }*/
+        };
+
+        std::vector<std::shared_ptr<EDMD_POINT>> m_point;
+
+
+        bool Resolve( IDX_REGISTRY& aRegistry )
+        {
+            bool result = EDMD_CURVE::Resolve( aRegistry );
+
+            for( wxString& pointName : m_pointRef )
+            {
+                auto resolvedPoint = aRegistry.resolve<EDMD_POINT>( pointName );
+                if( resolvedPoint )
+                    m_point.push_back( resolvedPoint );
+                else
+                    result = false;
+            }
+            return result;
+        };
+
+    private:
+        std::vector<wxString> m_pointRef;
     };
 
-    wxString m_creatorName = "";
-    wxString m_creatorCompany = "";
-    wxString m_creatorSystem = "";
-    wxString m_postProcessor = "";
-    wxString m_postProcessorVersion = "";
-    //std::shared_ptr<IDX_EDMD_SYSTEM> = nullptr;
-    std::shared_ptr<idx_administration::EDMD_PERSON> m_creator;
-    wxDateTime                                       m_CreationDateTime;
-    wxDateTime                                       m_ModifiedDateTime;
-    bool                                             isSelfContained = true;
-};
 
-class EDMD_DATASET_BODY : public IDX_BASE
-{
-public:
-    EDMD_DATASET_BODY() : IDX_BASE() {};
-};
+    class EDMD_CURVESET2D : public EDMD_CURVE
+    {
+    public:
+        EDMD_CURVESET2D( wxXmlNode& aNode ) :
+                m_upperBound( aNode ), m_lowerBound( aNode ), EDMD_CURVE( aNode ) {
 
-class EDMD_PROCESS_INSTRUCTION : public EDMD_EXTENSIBLE_OBJECT
-{
-public:
-    std::shared_ptr<EDMD_OBJECT> m_subject;
-    std::shared_ptr<EDMD_OBJECT> m_object;
-    std::shared_ptr<EDMD_SYSTEM> m_targetSystem;
-};
+                };
 
-class EDMD_DATASET : public EDMD_OBJECT
-{
-public:
-    EDMD_DATASET( wxXmlNode aNode ) : m_header( aNode ), EDMD_OBJECT( aNode ) {};
-
-    EDMD_HEADER                           m_header;
-    EDMD_DATASET_BODY                     m_body;
-    std::vector<EDMD_PROCESS_INSTRUCTION> m_processInstruction;
-};
-
-class EDMD_DATASETBODY : public EDMD_OBJECT
-{
-public:
-    EDMD_DATASETBODY( wxXmlNode aNode ) : EDMD_OBJECT( aNode ) {};
-
-    // To be completed
-};
-
-class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
-{
-public:
-    EDMD_DESIGNATOR( wxXmlNode aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
-
-    std::shared_ptr<EDMD_SYSTEM> m_systemScope;
-    bool                         m_persistant = false;
-    wxString                     m_originatorId = "";
-    bool                         m_isOriginator = false;
-};
+        idx_property::EDMD_LENGTH_PROPERTY                                  m_lowerBound;
+        idx_property::EDMD_LENGTH_PROPERTY                                  m_upperBound;
+        std::vector<std::shared_ptr<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>> m_point;
+    };
 
 
-class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
-{
-public:
-    EDMD_IDENTIFIER( wxXmlNode aNode ) : EDMD_DESIGNATOR( aNode ) {};
+    class EDMD_ARC : public EDMD_CURVE
+    {
+    public:
+        EDMD_ARC( wxXmlNode& aNode ) : EDMD_CURVE( aNode )
+        {
+            wxXmlNode* child = aNode.GetChildren();
 
-    wxString                                      m_number = "";
-    wxString                                      m_version = "";
-    wxString                                      m_revision = "";
-    wxString                                      m_sequence = "";
-    std::vector<EDMD_NAME>                        m_name;
-    std::vector<EDMD_NAME>                        m_displayName;
-    std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
-};
+            while( child )
+            {
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
 
-class EDMD_NAME : public EDMD_DESIGNATOR
-{
-public:
-    EDMD_NAME( wxXmlNode aNode ) : EDMD_DESIGNATOR( aNode ) {};
-    wxString m_objectName;
-};
+                if( name == "d2:StartPoint" )
+                    m_startPoint_ref = content;
+                if( name == "d2:EndPoint" )
+                    m_endPoint_ref = content;
+                if( name == "d2:IncludeAngle" )
+                    m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY( *child );
+
+                child = child->GetNext();
+            }
+        };
+
+        std::shared_ptr<EDMD_POINT>       m_startPoint;
+        std::shared_ptr<EDMD_POINT>       m_endPoint;
+        idx_property::EDMD_ANGLE_PROPERTY m_includeAngle;
+
+        wxString m_startPoint_ref;
+        wxString m_endPoint_ref;
+    };
 
 
-} // namespace idx_foundation
+    class EDMD_ELLIPSE : public EDMD_CURVE
+    {
+    public:
+        EDMD_ELLIPSE( wxXmlNode& aNode ) :
+                m_semiMinor( aNode ), m_semiMajor( aNode ), EDMD_CURVE( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_POINT>        m_center;
+        idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
+        idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
+    };
+
+
+    class EDMD_POINT : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
+    {
+    public:
+        EDMD_POINT() : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT() {};
+
+        EDMD_POINT( wxXmlNode& aNode ) : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( aNode ) {};
+
+        virtual double GetX() const { return 0; };
+        virtual double GetY() const { return 0; };
+
+        virtual ~EDMD_POINT() = default; // Ensures polymorphic behavior
+    };
+
+    class EDMD_CIRCLE : public EDMD_CURVE
+    {
+    public:
+        EDMD_CIRCLE( wxXmlNode& aNode ) : EDMD_CURVE( aNode ) {};
+
+        virtual bool Resolve( IDX_REGISTRY& aRegistry )
+        {
+            return EDMD_CURVE::Resolve( aRegistry );
+        };
+
+        virtual std::shared_ptr<EDMD_POINT> GetCenter() const
+        {
+            return std::make_shared<EDMD_POINT>();
+        };
+        virtual double GetRadius() const { return 0; };
+    };
+
+    class EDMD_CIRCLE_3POINTS : public EDMD_CIRCLE
+    {
+    public:
+        EDMD_CIRCLE_3POINTS( wxXmlNode& aNode ) :
+                EDMD_CIRCLE( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_POINT> m_p1;
+        std::shared_ptr<EDMD_POINT> m_p2;
+        std::shared_ptr<EDMD_POINT> m_p3;
+    };
+
+
+    class EDMD_CIRCLE_CENTER : public EDMD_CIRCLE
+    {
+    public:
+        EDMD_CIRCLE_CENTER( wxXmlNode& aNode ) : m_diameter( aNode ), EDMD_CIRCLE( aNode )
+        {
+            wxXmlNode* child = aNode.GetChildren();
+
+            wxString centerName;
+
+            while( child )
+            {
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
+
+                if( name == "d2:Center" )
+                {
+                    m_centerRef = content;
+                }
+                else if( name == "d2:Diameter" )
+                {
+                    m_diameter = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                }
+
+                child = child->GetNext();
+            }
+        };
+
+        bool Resolve( IDX_REGISTRY& aRegistry )
+        {
+            bool result = EDMD_CIRCLE::Resolve( aRegistry );
+
+            auto resolvedPoint = aRegistry.resolve<EDMD_POINT>( m_centerRef );
+            if( resolvedPoint )
+                m_center = resolvedPoint;
+            else
+                result = false;
+
+            return result;
+        }
+
+
+        std::shared_ptr<EDMD_POINT> GetCenter() const override { return m_center; };
+        double GetRadius() const override { return m_diameter.m_value / 2 * 1e6; };
+
+        std::shared_ptr<EDMD_POINT>        m_center;
+        idx_property::EDMD_LENGTH_PROPERTY m_diameter;
+
+    private:
+        wxString m_centerRef;
+    };
+
+
+    class EDMD_OFFSET_CURVE : public EDMD_CURVE
+    {
+    public:
+        EDMD_OFFSET_CURVE( wxXmlNode& aNode ) :
+                m_distance( aNode ), EDMD_CURVE( aNode ) {
+
+                };
+
+
+        std::shared_ptr<EDMD_CURVE>        m_basisCurve;
+        idx_property::EDMD_LENGTH_PROPERTY m_distance;
+        bool                               m_selfIntersects = false;
+    };
+
+    class EDMD_PARABOLA : public EDMD_CURVE
+    {
+    public:
+        EDMD_PARABOLA( wxXmlNode& aNode ) :
+                EDMD_CURVE( aNode ) {
+
+                };
+
+
+        std::shared_ptr<EDMD_POINT> m_focus;
+        std::shared_ptr<EDMD_POINT> m_parabola;
+    };
+
+
+    class EDMD_POINT_ON_CURVE_INTERSECTION : public EDMD_POINT
+    {
+    public:
+        EDMD_POINT_ON_CURVE_INTERSECTION( wxXmlNode& aNode ) :
+                EDMD_POINT( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_CURVE> m_curve;
+        std::shared_ptr<EDMD_CURVE> m_intersector;
+    };
+
+
+    class EDMD_CARTESIAN_POINT : public EDMD_POINT
+    {
+    public:
+        EDMD_CARTESIAN_POINT( wxXmlNode& aNode ) : EDMD_POINT( aNode )
+        {
+            wxXmlNode* child = aNode.GetChildren();
+
+            while( child )
+            {
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
+
+                if( name == "d2:X" )
+                    m_x = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                if( name == "d2:Y" )
+                    m_y = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                if( name == "d2:Z" )
+                    m_z = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                else
+                {
+                }
+                child = child->GetNext();
+            }
+            std::cout << m_id << ":   " << m_x.m_value << "    " << m_y.m_value << std::endl;
+        };
+
+        double GetX() const override { return m_x.m_value * 1e6; };
+        double GetY() const override { return m_y.m_value * 1e6; };
+
+
+        idx_property::EDMD_LENGTH_PROPERTY m_x;
+        idx_property::EDMD_LENGTH_PROPERTY m_y;
+        idx_property::EDMD_LENGTH_PROPERTY m_z;
+    };
+
+
+    class EDMD_POINT_ON_CURVE_DISTANCE : public EDMD_POINT
+    {
+    public:
+        EDMD_POINT_ON_CURVE_DISTANCE( wxXmlNode& aNode ) :
+                m_distance( aNode ), EDMD_POINT( aNode ) {
+
+                };
+
+        std::shared_ptr<EDMD_CURVE>        m_curve;
+        std::shared_ptr<EDMD_POINT>        m_start;
+        idx_property::EDMD_LENGTH_PROPERTY m_distance;
+    };
+
+
+    } // namespace idx_geometry
+    // namespace idx_geometry
 
 #endif

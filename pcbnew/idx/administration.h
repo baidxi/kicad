@@ -26,23 +26,25 @@
 #ifndef IDX_ADMINISTRATION_H
 #define IDX_ADMINISTRATION_H
 #include <idx/idx_base.h>
+#include <idx/foundation.h>
 #include <memory>
 
 
 namespace idx_administration
 {
 
-class EDMD_ACTOR
+class EDMD_ACTOR : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_ACTOR() {};
+    EDMD_ACTOR() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_ACTOR( wxXmlNode& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode ) {};
 };
 /**
      * @brief Representation of a natural person
      * 
      */
 
-class EDMD_PERSON : EDMD_ACTOR
+class EDMD_PERSON : public EDMD_ACTOR
 {
 public:
     EDMD_PERSON( wxString aSurname, wxString aGivenName, wxString aInitials, wxString aEmailAddress,
@@ -51,12 +53,40 @@ public:
             m_emailAddress( aEmailAddress ), m_phoneNumber( aPhoneNumber ),
             m_faxNumber( aFaxNumber ), EDMD_ACTOR() {};
 
-    const wxString m_surname;
-    const wxString m_givenName;
-    const wxString m_initials;
-    const wxString m_emailAddress;
-    const wxString m_phoneNumber;
-    const wxString m_faxNumber;
+    EDMD_PERSON( wxXmlNode& aNode ) : EDMD_ACTOR( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "administration:SurName" )
+                m_surname = content;
+            else if( name == "administration:GivenName" )
+                m_givenName = content;
+            else if( name == "administration:Initials" )
+                m_initials = content;
+            else if( name == "adminitration:EMailAddress" )
+                m_emailAddress = content;
+            else if( name == "adminitration:PhoneNumber" )
+                m_phoneNumber = content;
+            else if( name == "administration:FaxNumber" )
+                m_faxNumber = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    wxString m_surname;
+    wxString m_givenName;
+    wxString m_initials;
+    wxString m_emailAddress;
+    wxString m_phoneNumber;
+    wxString m_faxNumber;
 };
 
 /**

@@ -29,6 +29,8 @@
 #include <idx/idx.h>
 #include <wx/xml/xml.h>
 
-bool read_IDX( wxString aFilename );
+class BOARD_COMMIT;
+
+bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit );
 
 #endif
