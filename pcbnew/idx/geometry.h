@@ -52,6 +52,7 @@ class EDMD_TRIMMED_CURVED;
 #include <wx/xml/xml.h>
 #include <idx/foundation.h>
 #include <idx/property.h>
+#include <idx/pdm.h>
 #include <memory>
 
 
@@ -76,7 +77,7 @@ public:
 class EDMD_CURVE : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
 {
 public:
-    EDMD_CURVE( wxXmlNode& aNode ) : m_thickness(), EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( aNode )
+    EDMD_CURVE( wxXmlNode& aNode ) : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( aNode ), m_thickness()
     {
         m_thickness.m_value = 0;
 
@@ -100,7 +101,6 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry )
     {
-        std::cout << "Resolving curve " << std::endl;
         return EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve( aRegistry );
     };
 
@@ -247,15 +247,7 @@ public:
         bool Resolve( IDX_REGISTRY& aRegistry )
         {
             bool result = EDMD_CURVE::Resolve( aRegistry );
-
-            for( wxString& pointName : m_pointRef )
-            {
-                auto resolvedPoint = aRegistry.resolve<EDMD_POINT>( pointName );
-                if( resolvedPoint )
-                    m_point.push_back( resolvedPoint );
-                else
-                    result = false;
-            }
+            result &= resolve<EDMD_POINT>( m_pointRef, m_point, aRegistry );
             return result;
         };
 
@@ -264,17 +256,50 @@ public:
     };
 
 
-    class EDMD_CURVESET2D : public EDMD_CURVE
+    class EDMD_CURVESET2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
     {
     public:
-        EDMD_CURVESET2D( wxXmlNode& aNode ) :
-                m_upperBound( aNode ), m_lowerBound( aNode ), EDMD_CURVE( aNode ) {
+        EDMD_CURVESET2D() : idx_pdm::EDMD_SHAPE_DESCRIPTION() {};
+        EDMD_CURVESET2D( wxXmlNode& aNode ) : idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode )
+        {
+            wxXmlNode* child = aNode.GetChildren();
 
-                };
+            while( child )
+            {
+                const wxString content = child->GetNodeContent();
+                const wxString name = child->GetName();
+
+                if( name == "d2:LowerBound" )
+                {
+                    m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                }
+                else if( name == "d2:LowerBound" )
+                {
+                    m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                }
+                else if( name == "d2:DetailedGeometricModelElement" )
+                {
+                    m_modelElementRef.push_back( content );
+                }
+                child = child->GetNext();
+            }
+        };
+
+        bool Resolve( IDX_REGISTRY& aRegistry )
+        {
+            bool result = true;
+            result &= resolve<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( m_modelElementRef,
+                                                                      m_modelElement, aRegistry );
+            return result;
+        };
+
 
         idx_property::EDMD_LENGTH_PROPERTY                                  m_lowerBound;
         idx_property::EDMD_LENGTH_PROPERTY                                  m_upperBound;
-        std::vector<std::shared_ptr<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>> m_point;
+        std::vector<std::shared_ptr<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>> m_modelElement;
+
+    private:
+        std::vector<wxString> m_modelElementRef;
     };
 
 
@@ -291,9 +316,9 @@ public:
                 const wxString name = child->GetName();
 
                 if( name == "d2:StartPoint" )
-                    m_startPoint_ref = content;
+                    m_startPointRef = content;
                 if( name == "d2:EndPoint" )
-                    m_endPoint_ref = content;
+                    m_endPointRef = content;
                 if( name == "d2:IncludeAngle" )
                     m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY( *child );
 
@@ -301,12 +326,27 @@ public:
             }
         };
 
+
+        bool Resolve( IDX_REGISTRY& aRegistry )
+        {
+            bool result = true;
+
+            result &= resolve<EDMD_POINT>( m_startPointRef, &m_startPoint, aRegistry );
+            result &= resolve<EDMD_POINT>( m_endPointRef, &m_endPoint, aRegistry );
+            return result;
+        }
+
+        std::shared_ptr<EDMD_POINT>        GetStart() { return m_startPoint; }
+        std::shared_ptr<EDMD_POINT>        GetEnd() { return m_endPoint; }
+        idx_property::EDMD_ANGLE_PROPERTY& GetIncludeAngle() { return m_includeAngle; }
+
         std::shared_ptr<EDMD_POINT>       m_startPoint;
         std::shared_ptr<EDMD_POINT>       m_endPoint;
         idx_property::EDMD_ANGLE_PROPERTY m_includeAngle;
 
-        wxString m_startPoint_ref;
-        wxString m_endPoint_ref;
+    private:
+        wxString m_startPointRef;
+        wxString m_endPointRef;
     };
 
 
@@ -398,13 +438,7 @@ public:
         bool Resolve( IDX_REGISTRY& aRegistry )
         {
             bool result = EDMD_CIRCLE::Resolve( aRegistry );
-
-            auto resolvedPoint = aRegistry.resolve<EDMD_POINT>( m_centerRef );
-            if( resolvedPoint )
-                m_center = resolvedPoint;
-            else
-                result = false;
-
+            result &= resolve<EDMD_POINT>( m_centerRef, &m_center, aRegistry );
             return result;
         }
 
@@ -424,7 +458,7 @@ public:
     {
     public:
         EDMD_OFFSET_CURVE( wxXmlNode& aNode ) :
-                m_distance( aNode ), EDMD_CURVE( aNode ) {
+                EDMD_CURVE( aNode ) {
 
                 };
 
@@ -484,7 +518,6 @@ public:
                 }
                 child = child->GetNext();
             }
-            std::cout << m_id << ":   " << m_x.m_value << "    " << m_y.m_value << std::endl;
         };
 
         double GetX() const override { return m_x.m_value * 1e6; };

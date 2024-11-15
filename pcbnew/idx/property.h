@@ -196,7 +196,24 @@ public:
 class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_ANGLE_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode ) {};
+    EDMD_ANGLE_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "property:Value" )
+                content.ToCDouble( &m_value );
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    };
+
     EDMD_ANGLE_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
 
     double m_value;

@@ -26,3 +26,4 @@
 #include <idx/foundation.h>
 #include <idx/geometry.h>
 #include <idx/administration.h>
+#include <idx/pdm.h>

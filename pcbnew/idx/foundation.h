@@ -68,7 +68,7 @@ public:
         wxString isAttributeChanged;
         aNode.GetAttribute( "id", &m_id );
         aNode.GetAttribute( "isAttributeChanged", &isAttributeChanged );
-        isAttributeChanged == "false" ? false : true;
+        m_isAttributeChanged = ( isAttributeChanged == "false" );
     };
 
 
@@ -158,6 +158,12 @@ class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 public:
     EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT() {};
     EDMD_COLLABORATION_OBJECT( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
+
+
+    bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        return EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
+    };
 };
 
 
@@ -286,7 +292,7 @@ public:
 class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASET( wxXmlNode& aNode ) : m_header( aNode ), EDMD_OBJECT( aNode ) {};
+    EDMD_DATASET( wxXmlNode& aNode ) : EDMD_OBJECT( aNode ), m_header( aNode ) {};
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;

@@ -26,11 +26,38 @@
 #ifndef KICAD_IDX_H
 #define KICAD_IDX_H
 
-#include <idx/idx.h>
 #include <wx/xml/xml.h>
+#include <board_commit.h>
+#include <idx/idx.h>
+#include <board.h>
 
-class BOARD_COMMIT;
+class LSET;
+enum PCB_LAYER_ID : int;
 
-bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit );
+//bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit );
+class IDX_HOLDER;
+
+class KICAD_IDX
+{
+public:
+    KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit );
+
+
+    void        AddAll();
+    BOARD_ITEM* AddElement( idx_geometry::EDMD_CURVESET2D&, LSET );
+    BOARD_ITEM* AddElement( idx_geometry::EDMD_POLYLINE&, LSET );
+    BOARD_ITEM* AddElement( idx_geometry::EDMD_CIRCLE&, LSET );
+    BOARD_ITEM* AddElement( idx_geometry::EDMD_ARC&, LSET );
+
+    VECTOR2I  ArcMidPoint( idx_geometry::EDMD_ARC& );
+    PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
+    SHAPE_ARC ConvertToKiCadArc( idx_geometry::EDMD_ARC& );
+
+    void AddItem( BOARD_ITEM*, LSET );
+
+    std::unique_ptr<IDX_HOLDER> m_holder;
+    BOARD_COMMIT*               m_commit;
+    BOARD*                      m_board;
+};
 
 #endif

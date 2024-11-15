@@ -92,7 +92,7 @@
 #include <widgets/wx_infobar.h>
 #include <pcb_io/pcb_io.h>
 #include <wx/hyperlink.h>
-
+#include <idx/kicad_idx.h>
 
 using namespace std::placeholders;
 
@@ -1406,13 +1406,13 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
     return AppendBoard( *pi, fileName );
 }
 
-#include <idx/kicad_idx.h>
 
 int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
     BOARD_COMMIT commit( frame() );
 
-    read_IDX( "test_idx_v4.5.idx", &commit );
+    KICAD_IDX* kidx = new KICAD_IDX( "test_idx_v4.5.idx", board(), &commit );
+    kidx->AddAll();
     return 1;
 }
 

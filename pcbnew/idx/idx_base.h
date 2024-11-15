@@ -107,6 +107,40 @@ public:
     bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
 
 protected:
+    template <typename T, typename U>
+    bool resolve( wxString aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry )
+    {
+        std::cout << "Resolving " << aName << std::endl;
+        if( !aDest )
+            return false;
+
+        auto resolvedPoint = aRegistry.resolve<T>( aName );
+
+        if( !resolvedPoint )
+            return false;
+
+        *aDest = resolvedPoint;
+        return true;
+    }
+
+
+    template <typename T, typename U>
+    bool resolve( std::vector<wxString>& aName, std::vector<std::shared_ptr<U>>& aDest,
+                  IDX_REGISTRY& aRegistry )
+    {
+        bool result = true;
+
+        for( wxString& name : aName )
+        {
+            std::shared_ptr<U> tmp;
+
+            if( resolve<U>( name, &tmp, aRegistry ) )
+                aDest.push_back( tmp );
+            else
+                result = false;
+        }
+        return result;
+    }
 };
 
 #endif

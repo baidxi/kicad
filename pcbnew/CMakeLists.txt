@@ -373,7 +373,6 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
-     idx/idx_administration.cpp
      idx/kicad_idx.cpp
     )
 

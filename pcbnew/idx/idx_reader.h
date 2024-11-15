@@ -22,14 +22,19 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef IDX_READER_H
-#define IDX_READER_H
 
 #include <idx/idx.h>
 #include <iostream>
 #include <board_commit.h>
 #include <math/vector2d.h>
 #include <pcb_shape.h>
+#include <pcb_group.h>
+
+
+#ifndef IDX_READER_H
+#define IDX_READER_H
+
+#pragma once
 
 class IDX_HOLDER
 {
@@ -44,8 +49,6 @@ public:
     void ReadBody( wxXmlDocument& aDoc );
     void AddElements( BOARD_COMMIT& aCommit );
 
-    void AddEDMDObject( wxXmlNode& aNode );
-    void AddEDMDSystem( wxXmlNode& aNode );
 
     std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
     std::map<wxString, std::shared_ptr<idx_administration::EDMD_ACTOR>> m_actors;
@@ -53,6 +56,11 @@ public:
     std::map<wxString, std::shared_ptr<idx_property::EDMD_UNIT>>        m_units;
     std::map<wxString, std::shared_ptr<idx_geometry::EDMD_POINT>>       m_points;
     std::map<wxString, std::shared_ptr<idx_geometry::EDMD_CURVE>>       m_curves;
+    std::map<wxString, std::shared_ptr<idx_geometry::EDMD_CURVESET2D>>  m_curvesets;
+    std::map<wxString, std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>    m_shapeElements;
+    std::map<wxString, std::shared_ptr<idx_pdm::EDMD_STRATUM>>          m_stratums;
+    std::map<wxString, std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>  m_keeps;
+
 
     IDX_REGISTRY m_registry;
 };
@@ -74,6 +82,11 @@ void IDX_HOLDER::AddElements( BOARD_COMMIT& aCommit )
                 if( p )
                     polypoints.emplace_back( p->GetX(), p->GetY() );
             }
+            PCB_SHAPE* s = new PCB_SHAPE();
+
+            PCB_GROUP* group = new PCB_GROUP( s );
+            group->SetName( polyline->m_id );
+            aCommit.Add( group );
 
             for( size_t i = 0; i < polypoints.size() - 1; i++ )
             {
@@ -81,8 +94,11 @@ void IDX_HOLDER::AddElements( BOARD_COMMIT& aCommit )
                 s->SetWidth( polyline->m_thickness.m_value * 1e6 );
                 s->SetStart( polypoints[i] );
                 s->SetEnd( polypoints[i + 1] );
+                group->AddItem( s );
+                aCommit.Stage( s, CHT_GROUP );
                 aCommit.Add( s );
             }
+
 
             continue;
         }
@@ -132,8 +148,6 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
 
     while( child )
     {
-        std::cout << child->GetName() << std::endl;
-
         if( child->GetName() == "foundation:Body" )
         {
             wxXmlNode* child2 = child->GetChildren();
@@ -166,21 +180,58 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
                     std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
                             std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( *child2 );
                     m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
-                    m_points[s->m_id] = s;
-                    std::cout << "Adding point: " << s->m_id << std::endl;
-                    ;
                 }
                 else if( name == "foundation:PolyLine" )
                 {
                     std::shared_ptr<idx_geometry::EDMD_POLYLINE> s =
                             std::make_shared<idx_geometry::EDMD_POLYLINE>( *child2 );
+                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                            s->m_id, s );
                     m_curves[s->m_id] = s;
                 }
                 else if( name == "foundation:CircleCenter" )
                 {
                     std::shared_ptr<idx_geometry::EDMD_CIRCLE_CENTER> s =
                             std::make_shared<idx_geometry::EDMD_CIRCLE_CENTER>( *child2 );
+                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                            s->m_id, s );
                     m_curves[s->m_id] = s;
+                }
+                else if( name == "foundation:Arc" )
+                {
+                    std::shared_ptr<idx_geometry::EDMD_ARC> s =
+                            std::make_shared<idx_geometry::EDMD_ARC>( *child2 );
+                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                            s->m_id, s );
+                    m_curves[s->m_id] = s;
+                }
+                else if( name == "foundation:CurveSet2d" )
+                {
+                    std::shared_ptr<idx_geometry::EDMD_CURVESET2D> s =
+                            std::make_shared<idx_geometry::EDMD_CURVESET2D>( *child2 );
+                    m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+                    m_curvesets[s->m_id] = s;
+                }
+                else if( name == "foundation:ShapeElement" )
+                {
+                    std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT> s =
+                            std::make_shared<idx_pdm::EDMD_SHAPE_ELEMENT>( *child2 );
+                    m_registry.registerObject<idx_pdm::EDMD_SHAPE_ELEMENT>( s->m_id, s );
+                    m_shapeElements[s->m_id] = s;
+                }
+                else if( name == "foundation:Stratum" )
+                {
+                    std::shared_ptr<idx_pdm::EDMD_STRATUM> s =
+                            std::make_shared<idx_pdm::EDMD_STRATUM>( *child2 );
+                    //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+                    m_stratums[s->m_id] = s;
+                }
+                else if( name == "foundation:KeepOut" )
+                {
+                    std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT> s =
+                            std::make_shared<idx_pdm::EDMD_KEEP_CONSTRAINT>( *child2 );
+                    //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+                    m_keeps[s->m_id] = s;
                 }
                 else
                 {
@@ -195,16 +246,16 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
     }
 
     for( auto curve : m_curves )
-    {
         curve.second->Resolve( m_registry );
-        //curve.second->LinkPoints( m_points );
-        //curve.second->LinkPoints( m_curves   );
-    }
+    for( auto curveset : m_curvesets )
+        curveset.second->Resolve( m_registry );
+    for( auto shapeE : m_shapeElements )
+        shapeE.second->Resolve( m_registry );
+    for( auto stratum : m_stratums )
+        stratum.second->Resolve( m_registry );
+    for( auto stratum : m_keeps )
+        stratum.second->Resolve( m_registry );
 }
 
-
-void IDX_HOLDER::AddEDMDObject( wxXmlNode& aNode )
-{
-}
 
 #endif

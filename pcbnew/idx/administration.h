@@ -49,9 +49,9 @@ class EDMD_PERSON : public EDMD_ACTOR
 public:
     EDMD_PERSON( wxString aSurname, wxString aGivenName, wxString aInitials, wxString aEmailAddress,
                  wxString aPhoneNumber, wxString aFaxNumber ) :
-            m_surname( aSurname ), m_givenName( aGivenName ), m_initials( aInitials ),
+            EDMD_ACTOR(), m_surname( aSurname ), m_givenName( aGivenName ), m_initials( aInitials ),
             m_emailAddress( aEmailAddress ), m_phoneNumber( aPhoneNumber ),
-            m_faxNumber( aFaxNumber ), EDMD_ACTOR() {};
+            m_faxNumber( aFaxNumber ) {};
 
     EDMD_PERSON( wxXmlNode& aNode ) : EDMD_ACTOR( aNode )
     {
