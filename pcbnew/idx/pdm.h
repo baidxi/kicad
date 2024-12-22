@@ -128,7 +128,46 @@ class EDMD_TRANSFORMATION : public idx_foundation::EDMD_OBJECT
 {
 public:
     EDMD_TRANSFORMATION() : idx_foundation::EDMD_OBJECT() {};
-    EDMD_TRANSFORMATION( wxXmlNode& aNode ) : idx_foundation::EDMD_OBJECT( aNode ) {};
+    EDMD_TRANSFORMATION( wxXmlNode& aNode ) : idx_foundation::EDMD_OBJECT( aNode ) {
+
+         wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "pdm:xx" )
+                content.ToCDouble( &m_xx );
+            if( name == "pdm:xy" )
+                content.ToCDouble( &m_xy );
+            if( name == "pdm:xz" )
+                content.ToCDouble( &m_xz );
+            if( name == "pdm:yx" )
+                content.ToCDouble( &m_yx );
+            if( name == "pdm:yy" )
+                content.ToCDouble( &m_yy );
+            if( name == "pdm:yz" )
+                content.ToCDouble( &m_yz );
+            if( name == "pdm:zx" )
+                content.ToCDouble( &m_zx );
+            if( name == "pdm:zy" )
+                content.ToCDouble( &m_zy );
+            if( name == "pdm:zz" )
+                content.ToCDouble( &m_zz );
+            if( name == "pdm:tx" )
+                m_tx = idx_property::EDMD_LENGTH_PROPERTY( *child );
+            if( name == "pdm:ty" )
+                m_ty = idx_property::EDMD_LENGTH_PROPERTY( *child );
+            if( name == "pdm:tz" )
+                m_tz = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                
+            child = child->GetNext();
+
+            std::cout << "TRANSFO  " << m_id << " :: " << m_tx.m_value << "  ,  " << m_ty.m_value << std::endl;         
+        }
+
+    };
 
     double m_xx = 1;
     double m_xy = 0;
@@ -139,9 +178,9 @@ public:
     double m_zx = 0;
     double m_zy = 0;
     double m_zz = 1;
-    double m_tx = 0;
-    double m_ty = 0;
-    double m_tz = 0;
+    idx_property::EDMD_LENGTH_PROPERTY m_tx;
+    idx_property::EDMD_LENGTH_PROPERTY m_ty;
+    idx_property::EDMD_LENGTH_PROPERTY m_tz;
 };
 
 
@@ -158,7 +197,7 @@ public:
             const wxString content = child->GetNodeContent();
             const wxString name = child->GetName();
 
-            if( name == "pdm:ShapeElement" )
+            if( name == "pdm:ShapeElementType" )
             {
                 if( content == "NonFeatureShapeElement" )
                     m_shapeElementType = SHAPE_ELEMENT_TYPE::NON_FEATURE_SHAPE_ELEMENT;
@@ -520,8 +559,285 @@ public:
     std::vector<idx_property::EDMD_CONSTRAINED_PROPERTY> m_keepConstraintCondition;
 
 private:
-    std::vector<wxString> m_stratumTechnologyRef;
 };
+
+
+class EDMD_ITEM_INSTANCE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
+{
+public:
+    EDMD_ITEM_INSTANCE() : EDMD_EXTENSIBLE_OBJECT() {};
+    EDMD_ITEM_INSTANCE( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if ( name == "pdm:InstanceName" )
+                m_instanceName = idx_foundation::EDMD_NAME( *child );
+            if ( name == "pdm:Transformation" )
+                m_transformation = idx_pdm::EDMD_TRANSFORMATION( *child );
+            if ( name == "pdm:Item" )
+                m_itemRef = content;
+            if ( name == "pdm:InstanceUserAreaLayerName" )
+                m_instanceUserAreaLayerName.emplace_back( *child );
+            if ( name == "pdm:zOffset")
+                content.ToCDouble( &m_zOffset );
+
+            child = child->GetNext();
+        }
+
+    };
+
+
+    bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        bool result = idx_foundation::EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
+        bool tmp;
+        tmp &=
+                resolve<idx_pdm::EDMD_ITEM>( m_itemRef, &m_item, aRegistry );
+
+
+        return result && tmp;
+    };
+
+    idx_foundation::EDMD_NAME m_instanceName;
+    idx_pdm::EDMD_TRANSFORMATION m_transformation;
+    std::shared_ptr<idx_pdm::EDMD_ITEM> m_item;
+    std::vector<idx_foundation::EDMD_NAME> m_instanceUserAreaLayerName;
+    double m_zOffset = 0;
+
+private:
+    wxString m_itemRef;
+};
+
+
+enum class ITEM_TYPE
+{
+    SINGLE=0,
+    ASSEMBLY
+};
+
+
+class EDMD_ITEM : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_ITEM() : EDMD_COLLABORATION_OBJECT() {};
+    EDMD_ITEM( wxXmlNode& aNode ) : EDMD_COLLABORATION_OBJECT( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "pdm:ItemType" )
+            {
+                if( content == "Single" )
+                    m_itemType = ITEM_TYPE::SINGLE;
+                if( content == "Assembly" )
+                    m_itemType = ITEM_TYPE::ASSEMBLY;
+            }
+        else if( name == "pdm:Identifier" )
+            {
+                m_identifier.emplace_back( *child );
+            }
+        else if( name == "pdm:PackageName" )
+            {
+                m_packageName.emplace_back( *child );
+            }
+        else if( name == "pdm:ItemInstance" )
+            {
+                m_itemInstance.emplace_back( *child );
+            }
+        else if( name == "pdm:Shape" )
+            {                       
+                m_shapeRef = content;
+            }
+            child = child->GetNext();
+        }
+    };
+
+bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+
+        result &=
+                  resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
+
+        for ( auto& instance : m_itemInstance )
+        {   
+            instance.Resolve( aRegistry );     
+        }
+
+
+        return result;
+    };
+
+    ITEM_TYPE m_itemType = ITEM_TYPE::SINGLE;
+    std::vector<idx_foundation::EDMD_IDENTIFIER> m_identifier;
+    std::vector<idx_foundation::EDMD_NAME> m_packageName;
+    std::vector<idx_pdm::EDMD_ITEM_INSTANCE> m_itemInstance;
+    std::shared_ptr<idx_pdm::EDMD_ITEM_SHAPE> m_shape;
+
+private:
+    wxString m_shapeRef;
+};
+
+enum class ASSEMBLY_COMPONENT_TYPE
+{
+    ASSEMBLY_GROUP_COMPONENT = 0,
+    LAMINATE_COMPONENT,
+    THERMAL_COMPONENT,
+    PHYSICAL,
+    PADSTACK
+};
+
+class EDMD_ASSEMBLY_COMPONENT: public idx_pdm::EDMD_ITEM_SHAPE
+{
+public:
+    EDMD_ASSEMBLY_COMPONENT() : EDMD_ITEM_SHAPE() {};
+    EDMD_ASSEMBLY_COMPONENT( wxXmlNode& aNode ) : EDMD_ITEM_SHAPE( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "pdm:AssemblyComponentType" )
+            {
+                if( content == "AssemblyGroupComponent" )
+                    m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::ASSEMBLY_GROUP_COMPONENT;
+                if( content == "LaminateComponent" )
+                    m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::LAMINATE_COMPONENT;
+                if( content == "ThermalComponent" )
+                    m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::THERMAL_COMPONENT;
+                if( content == "Physical" )
+                    m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::PHYSICAL;
+                if( content == "Padstack" )
+                    m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::PADSTACK;
+            }
+            child = child->GetNext();
+        }
+    };
+
+bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+
+        //result &=
+        //          resolve<EDMD_SHAPE_DESCRIPTION>( m_shapeRef, &m_shape, aRegistry );
+
+        return result;
+    };
+
+
+    ASSEMBLY_COMPONENT_TYPE m_assemblyComponentType;
+private:
+
+};
+
+enum class INTERSTRATUM_FEATURE_TYPE
+{
+    UNSUPPORTED_PASSAGE=0,
+    STRATUM_FEATURE_TEMPLATE_COMPONENT,
+    CUTOUT_EDGE_SEGMENT,
+    PLATED_CUTOUT_EDGE_SEGMENT,
+    CUTOUT,
+    PLATED_INTERSTRATUM_FEATURE,
+    PLATED_PASSAGE,
+    MILLED_CUTOUT,
+    PLATED_CUTOUT,
+    VIA,
+    PHYSICAL_CONNECTIVITY_INTERRUPTING_CUTOUT,
+    PARTIALLY_PLATED_CUTOUT,
+    COMPONENT_TERMINATION_PASSAGE,
+    FILLED_VIA,
+    MECHANICAL_COMPONENT,
+    CUSTOM_ELECTROMECHANICAL_COMPONENT,
+    BOARD_CUTOUT
+};
+
+class EDMD_INTERSTRATUM_FEATURE : public idx_pdm::EDMD_ITEM_SHAPE
+{
+public:
+    EDMD_INTERSTRATUM_FEATURE() : EDMD_ITEM_SHAPE() {};
+    EDMD_INTERSTRATUM_FEATURE( wxXmlNode& aNode ) : EDMD_ITEM_SHAPE( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "pdm:InterStratumFeatureType" )
+            {
+                if( content == "UnsupportedPassage" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::UNSUPPORTED_PASSAGE  ;
+                else if( content == "StratumFeatureTemplateComponent" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::STRATUM_FEATURE_TEMPLATE_COMPONENT;
+                else if( content == "CutoutEdgeSegment" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUTOUT_EDGE_SEGMENT;
+                else if( content == "PlatedCutoutEdgeSegment" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT_EDGE_SEGMENT;
+                else if( content == "Cutout" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUTOUT;
+                else if( content == "PlatedInterStratumFeature" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_INTERSTRATUM_FEATURE;
+                else if( content == "PlatedPassage" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_PASSAGE;
+                else if( content == "MilledCutout" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::MILLED_CUTOUT;
+                else if( content == "PlatedCutout" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT;
+                else if( content == "Via" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::VIA;
+                else if( content == "PhysicalConnectivityInterruptingCutout" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PHYSICAL_CONNECTIVITY_INTERRUPTING_CUTOUT;
+                else if( content == "ComponentTerminationPassage" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::COMPONENT_TERMINATION_PASSAGE;
+                else if( content == "FilledVia" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::FILLED_VIA;
+                else if( content == "MechanicalComponent" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::MECHANICAL_COMPONENT;
+                else if( content == "CustomElectroMechanicalComponent" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUSTOM_ELECTROMECHANICAL_COMPONENT;
+                else if( content == "BoardCutout" )
+                    m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::BOARD_CUTOUT;    
+            }
+            else if ( name == "pdm:Stratum" )
+            {
+                m_stratumRef.push_back( content );
+            }
+            child = child->GetNext();
+        }
+    };
+
+bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
+
+        result &=
+                resolve<EDMD_STRATUM>( m_stratumRef, m_stratum  , aRegistry );
+
+        return result;
+    };
+
+
+    std::vector<std::shared_ptr<EDMD_STRATUM>> m_stratum ;
+    INTERSTRATUM_FEATURE_TYPE m_interstratumFeatureType;
+private:
+    std::vector<wxString> m_stratumRef;
+
+};
+
+
 
 } // namespace idx_pdm
 

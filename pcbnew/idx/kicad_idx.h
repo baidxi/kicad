@@ -48,16 +48,20 @@ public:
     BOARD_ITEM* AddElement( idx_geometry::EDMD_POLYLINE&, LSET );
     BOARD_ITEM* AddElement( idx_geometry::EDMD_CIRCLE&, LSET );
     BOARD_ITEM* AddElement( idx_geometry::EDMD_ARC&, LSET );
+    BOARD_ITEM* AddElement( idx_pdm::EDMD_ITEM_INSTANCE& );
+    
 
     VECTOR2I  ArcMidPoint( idx_geometry::EDMD_ARC& );
     PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
     SHAPE_ARC ConvertToKiCadArc( idx_geometry::EDMD_ARC& );
 
     void AddItem( BOARD_ITEM*, LSET );
+    LSET GetLayers( idx_geometry::EDMD_CURVESET2D& );
 
-    std::unique_ptr<IDX_HOLDER> m_holder;
-    BOARD_COMMIT*               m_commit;
-    BOARD*                      m_board;
+    std::shared_ptr<IDX_HOLDER>   m_holder;
+    BOARD_COMMIT*                 m_commit;
+    BOARD*                        m_board;
+    std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup; 
 };
 
 #endif

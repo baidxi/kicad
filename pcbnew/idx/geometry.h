@@ -25,6 +25,8 @@
 #ifndef IDX_GEOMETRY_HEADER_H
 #define IDX_GEOMETRY_HEADER_H
 
+#include <iostream>
+
 namespace idx_geometry
 {
 class EDMD_ARC;
@@ -273,9 +275,9 @@ public:
                 {
                     m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY( *child );
                 }
-                else if( name == "d2:LowerBound" )
+                else if( name == "d2:UpperBound" )
                 {
-                    m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY( *child );
+                    m_upperBound = idx_property::EDMD_LENGTH_PROPERTY( *child );
                 }
                 else if( name == "d2:DetailedGeometricModelElement" )
                 {

@@ -50,7 +50,7 @@ public:
 
     // Resolve an object of any type by name
     template <typename T>
-    std::shared_ptr<T> resolve( const wxString& name )
+    std::shared_ptr<IDX_BASE> resolve( const wxString& name )
     {
         const auto& registry = getRegistry<T>();
         auto        it = registry.find( name );
@@ -60,7 +60,7 @@ public:
         }
         else
         {
-            std::cerr << "Warning: Object " << name << " not found in registry." << std::endl;
+            std::cerr << "Warning: Object " << name << " not found in registry. ( " << typeid( T ).name() <<  " )" << std::endl;
             return nullptr;
         }
     }
@@ -110,7 +110,6 @@ protected:
     template <typename T, typename U>
     bool resolve( wxString aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry )
     {
-        std::cout << "Resolving " << aName << std::endl;
         if( !aDest )
             return false;
 
@@ -119,7 +118,7 @@ protected:
         if( !resolvedPoint )
             return false;
 
-        *aDest = resolvedPoint;
+        *aDest = std::dynamic_pointer_cast<U> ( resolvedPoint )     ;
         return true;
     }
 

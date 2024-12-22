@@ -28,27 +28,10 @@
 #include <layer_ids.h>
 #include <zone.h>
 #include <tools/convert_tool.h>
+#include <board_design_settings.h>
+#include <layer_range.h>    
 
 
-/*
-bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit )
-{
-    wxXmlDocument doc;
-
-    if( !doc.Load( aFilename ) )
-        return false;
-
-    IDX_HOLDER* idxHolder = new IDX_HOLDER( doc );
-
-    if( aCommit )
-    {
-        idxHolder->AddElements( *aCommit );
-    }
-
-
-    return true;
-}
-*/
 KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
         m_board( aBoard ), m_commit( aCommit )
 {
@@ -58,15 +41,43 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
         return;
 
     m_holder = std::make_unique<IDX_HOLDER>( doc );
+
+    BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
+    BOARD_STACKUP stackup = dsnSettings.GetStackupDescriptor();
+    stackup.SynchronizeWithBoard( &dsnSettings );
+    std::vector<BOARD_STACKUP_ITEM*> Llist = stackup.GetList();
+    std::reverse( Llist.begin(), Llist.end( ) );
+
+    int currentThickness = 0;
+
+    for ( BOARD_STACKUP_ITEM* bsi : Llist )
+    {       
+        if ( bsi )
+        {
+            if ( bsi->GetBrdLayerId() == B_Cu )
+            {
+                currentThickness = 0;
+            }
+
+            if ( currentThickness >= 0 && bsi->GetType() == BOARD_STACKUP_ITEM_TYPE::BS_ITEM_TYPE_COPPER )
+            {
+                m_stackup.push_back( { bsi->GetBrdLayerId(), currentThickness } );
+            }
+
+            currentThickness += bsi->GetThickness();
+        }
+    }
+    
 };
 
 
 void KICAD_IDX::AddAll()
 {
+    /*
     for( auto const& x : m_holder->m_stratums )
     {
         std::cout << "------------" << std::endl;
-        for( auto const& y : x.second->m_shapeElement )
+        for( auto const& y : x->m_shapeElement )
         {
             std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
                     std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
@@ -75,20 +86,34 @@ void KICAD_IDX::AddAll()
                 AddElement( *ptr, LSET( { Edge_Cuts } ) );
         }
     }
+*/          
+    for ( auto const& item : m_holder->m_items )
+    {
+        std::cout << "------------" << std::endl;
+        std::cout << "Adding an item : " << item->m_id << std::endl;
+
+        for ( auto& instance: item->m_itemInstance )
+        {       
+            AddElement( instance );
+        }
+
+    }
 
 
     for( auto const& x : m_holder->m_keeps )
     {
-        for( auto const& y : x.second->m_shapeElement )
+        for( auto const& y : x->m_shapeElement )
         {
             std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
                     std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
 
             if( ptr )
             {
+
+                
                 ZONE* zone = new ZONE( m_board );
-                zone->SetZoneName( x.second->m_id );
-                zone->SetLayer( F_Cu );
+                zone->SetZoneName( x->m_id );
+                zone->SetLayerSet( GetLayers(   *ptr  ) );
                 zone->SetIsRuleArea( true );
                 zone->SetHatchStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_FULL );
 
@@ -98,7 +123,7 @@ void KICAD_IDX::AddAll()
                 zone->SetDoNotAllowFootprints( false );
                 zone->SetDoNotAllowPads( false );
 
-                for( auto& purpose : x.second->m_purpose )
+                for( auto& purpose : x->m_purpose )
                 {
                     if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT )
                     {
@@ -321,6 +346,38 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_ARC& aArc, LSET aLset )
 }
 
 
+BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+    if ( !( aInstance.m_item ) )
+        return nullptr;
+
+
+    if ( !( aInstance.m_item->m_shape ) )
+        return nullptr;
+    
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
+
+        if( ptr )
+        {
+            BOARD_ITEM* result;
+            result = AddElement( *ptr, LSET( { Edge_Cuts } ) );
+            if ( result )
+            {
+                VECTOR2I moveVector( aInstance.m_transformation.m_tx.m_value * 1e6 , aInstance      .m_transformation.m_ty.m_value * 1e6 );
+                result->Move( moveVector );
+                std::cout << "Transfo : " << moveVector << std::endl;
+                m_commit->Stage(  result, CHANGE_TYPE::CHT_MODIFY );
+            }  
+        }
+    }
+
+    return nullptr;
+}
+
+
 BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_CIRCLE& aCircle, LSET aLset )
 {
     if( aCircle.GetCenter() )
@@ -382,4 +439,36 @@ void KICAD_IDX::AddItem( BOARD_ITEM* aItem, LSET aLset )
     {
         aItem->SetLayer( id );
     }
+}
+
+    
+LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
+{
+
+    double upper = aCurveSet.m_upperBound.m_value * 1e3 ;
+    double   lower = aCurveSet.m_lowerBound.m_value * 1e3   ;
+
+    std::vector<PCB_LAYER_ID> pli;
+
+    int currentThickness = 0;
+    int layerCount = 0  ;
+
+    for ( auto& layer : m_stackup )
+    {
+        if ( layer.second >= lower && layer.second <= upper  )
+        {
+            layerCount++;
+            pli.push_back( layer.first );
+        }       
+    }                       
+
+    LSET result = LSET();
+    
+    if ( pli.size() > 0 )
+    {
+        result = LSET( LAYER_RANGE( pli.front(), pli.back(), layerCount ) );
+    }
+
+    return result;
+
 }

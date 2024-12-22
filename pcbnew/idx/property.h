@@ -243,7 +243,7 @@ public:
     };
     EDMD_LENGTH_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
 
-    double m_value;
+    double m_value = 0;
     //EDMD_UNIT_ANGLE m_unit;
 };
 

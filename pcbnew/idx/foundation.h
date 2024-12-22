@@ -310,6 +310,7 @@ public:
 class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
+    EDMD_DESIGNATOR() : EDMD_EXTENSIBLE_OBJECT() {};
     EDMD_DESIGNATOR( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
 
     std::shared_ptr<EDMD_SYSTEM> m_systemScope;
@@ -336,6 +337,7 @@ public:
 class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
+    EDMD_NAME( ) : EDMD_DESIGNATOR() {};
     EDMD_NAME( wxXmlNode& aNode ) : EDMD_DESIGNATOR( aNode ) {};
     wxString m_objectName;
 };
