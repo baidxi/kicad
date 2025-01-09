@@ -36,16 +36,16 @@
 /*
     Pad fanout test. Checks the width of tracks connected to a pad.
     Errors generated:
-    - DRCE_PAD_FANOUT_WIDTH
+    - DRCE_PAD_FANOUT_RATIO
 */
 
-class DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH : public DRC_TEST_PROVIDER
+class DRC_TEST_PROVIDER_PAD_FANOUT_RATIO : public DRC_TEST_PROVIDER
 {
 public:
-    DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH()
+    DRC_TEST_PROVIDER_PAD_FANOUT_RATIO()
     {}
 
-    virtual ~DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH()
+    virtual ~DRC_TEST_PROVIDER_PAD_FANOUT_RATIO()
     {}
 
     virtual bool Run() override;
@@ -62,7 +62,7 @@ public:
 };
 
 
-bool DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH::Run()
+bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
 {
     if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_WIDTH ) )
     {
@@ -171,5 +171,5 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH::Run()
 
 namespace detail
 {
-static DRC_REGISTER_TEST_PROVIDER<DRC_TEST_PROVIDER_PAD_FANOUT_WIDTH> dummy;
+static DRC_REGISTER_TEST_PROVIDER<DRC_TEST_PROVIDER_PAD_FANOUT_RATIO> dummy;
 }
