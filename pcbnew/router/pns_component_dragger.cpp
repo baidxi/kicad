@@ -257,12 +257,21 @@ bool COMPONENT_DRAGGER::Drag( const VECTOR2I& aP )
         m_currentNode->Remove( origLine );
     }
 
-    std::vector<LINE> addedLines;
-    std::set<int>     failedConnections;
+    std::map<long long, std::set<int>> toRouteOrder;
+    std::set<int>                      firstToRoute;
 
-    auto routeConnection = [&]( int aCn, std::set<int>* aFailedConnections )
+    for( int i = 0; i < m_conns.size(); i++ )
+        firstToRoute.emplace( i );
+
+    toRouteOrder.emplace( 0, firstToRoute );
+
+    std::map<int, LINE> addedLines;
+    std::set<int>       failedConnections;
+
+    auto routeConnection = [&]( int aCn, bool aOptimize )
     {
         COMPONENT_DRAGGER::DRAGGED_CONNECTION cn = m_conns[aCn];
+        bool                                  status = true;
 
         LINE origLine( cn.origLine );
         LINE draggedLine( cn.origLine );
@@ -276,9 +285,11 @@ bool COMPONENT_DRAGGER::Drag( const VECTOR2I& aP )
         {
             LINE walkLine( draggedLine );
 
-            if( tryWalkaround( m_currentNode, draggedLine, walkLine ) )
+            status = tryWalkaround( m_currentNode, draggedLine, walkLine );
+
+            if( status )
             {
-                if( Settings().GetOptimizeEntireDraggedTrack() )
+                if( aOptimize )
                 {
                     OPTIMIZER optimizer( m_currentNode );
 
@@ -318,39 +329,54 @@ bool COMPONENT_DRAGGER::Drag( const VECTOR2I& aP )
                     draggedLine = walkLine;
                 }
             }
-            else if( aFailedConnections )
-            {
-                aFailedConnections->emplace( aCn );
-            }
         }
 
         m_currentNode->Add( draggedLine );
-        addedLines.push_back( draggedLine );
+        addedLines.emplace( aCn, draggedLine );
+
+        return status;
     };
 
-    for( int cnId = 0; cnId < m_conns.size(); cnId++ )
-        routeConnection( cnId, &failedConnections );
-
-    if( failedConnections.size() > 0 )
+    for( auto& [_, toRouteSet] : toRouteOrder )
     {
-        for( LINE& line : addedLines )
-            m_currentNode->Remove( line );
-
-        addedLines.clear();
-
-        for( int cnId : failedConnections )
-            routeConnection( cnId, nullptr );
-
-        failedConnections.clear();
-
-        for( int cnId = 0; cnId < m_conns.size(); cnId++ )
+        for( int cnId : toRouteSet )
         {
-            if( !failedConnections.contains( cnId ) )
-                routeConnection( cnId, &failedConnections );
+            if( !routeConnection( cnId, false ) )
+                failedConnections.emplace( cnId );
         }
     }
 
-    for( LINE& line : addedLines )
+    // If there's a length increase of more than this value, this track will be routed before routing failed connections
+    const long long c_failed_vs_length = pcbIUScale.mmToIU( 100 );
+
+    toRouteOrder.clear();
+    toRouteOrder[-c_failed_vs_length] = failedConnections;
+
+    for( auto& [cId, newLine] : addedLines )
+    {
+        if( !failedConnections.contains( cId ) )
+        {
+            long long increase = newLine.Line().Length() - m_conns[cId].origLine.Line().Length();
+            toRouteOrder[-increase].emplace( cId );
+        }
+    }
+
+    for( auto& [_, line] : addedLines )
+        m_currentNode->Remove( line );
+
+    addedLines.clear();
+    failedConnections.clear();
+
+    for( auto& [_, toRouteSet] : toRouteOrder )
+    {
+        for( int cnId : toRouteSet )
+        {
+            if( !routeConnection( cnId, true ) )
+                failedConnections.emplace( cnId );
+        }
+    }
+
+    for( auto& [_, line] : addedLines )
         m_draggedItems.Add( line );
 
     return true;
