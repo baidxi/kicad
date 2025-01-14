@@ -715,22 +715,36 @@ unsigned int CONNECTIVITY_DATA::GetPadCount( int aNet ) const
     return n;
 }
 
+void sortEdgesOnSerializationForStableOrdering( std::vector<CN_EDGE>& edges )
+{
+    std::sort(edges.begin(), edges.end(),
+              [](const CN_EDGE& a, const CN_EDGE& b)
+              {
+                  return a.SerializeToString() < b.SerializeToString();
+              });
+}
 
 void CONNECTIVITY_DATA::RunOnUnconnectedEdges( std::function<bool( CN_EDGE& )> aFunc )
 {
+    std::vector<CN_EDGE> edges;
+
     for( RN_NET* rnNet : m_nets )
     {
         if( rnNet )
         {
             for( CN_EDGE& edge : rnNet->GetEdges() )
             {
-                if( !aFunc( edge ) )
-                    return;
+                edges.push_back( edge );
             }
         }
     }
+    sortEdgesOnSerializationForStableOrdering( edges );
+    for( CN_EDGE& edge : edges )
+    {
+        if( !aFunc( edge ) )
+            return;
+    }
 }
-
 
 static int getMinDist( BOARD_CONNECTED_ITEM* aItem, const VECTOR2I& aPoint )
 {
