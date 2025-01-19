@@ -92,8 +92,6 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
                     return false;
                 }
 
-                const auto& size_vec = pad->GetBoundingBox().GetSize();
-                int size = size_vec.x < size_vec.y ? size_vec.x : size_vec.y;
 
                 std::shared_ptr<CONNECTIVITY_DATA> connectivity = m_drcEngine->GetBoard()->GetConnectivity();
 
@@ -120,8 +118,12 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
                     {
                         continue;
                     }
+
+                    const auto& size_vec = pad->GetSize( other->GetLayer() );
+                    int         size = size_vec.x < size_vec.y ? size_vec.x : size_vec.y;
+
                     auto constraint = m_drcEngine->EvalRules( PAD_FANOUT_RATIO_CONSTRAINT, pad, other,
-                                                              pad->GetLayer() );
+                                                              other->GetLayer() );
 
                     int constraintWidth = 0;
 
