@@ -319,6 +319,12 @@ void HelperShapeLineChainFromAltiumVertices( SHAPE_LINE_CHAIN& aLine,
 }
 
 
+static wxString buildFootprintName( FOOTPRINT* aFootprint )
+{
+    return wxString::Format( wxT( "%s (%s)" ), aFootprint->GetReference(), aFootprint->GetFPIDAsString() );
+}
+
+
 PCB_LAYER_ID ALTIUM_PCB::GetKicadLayer( ALTIUM_LAYER aAltiumLayer ) const
 {
     auto override = m_layermap.find( aAltiumLayer );
@@ -2020,8 +2026,8 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
     {
         if( m_reporter )
         {
-            m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ),
-                                                  aElem.modelId, aFootprint->GetReference() ),
+            m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ), aElem.modelId,
+                                                  buildFootprintName( aFootprint ) ),
                                 RPT_SEVERITY_ERROR );
         }
 
@@ -3408,9 +3414,8 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
                 {
                     wxString msg;
                     msg.Printf( _( "Footprint %s contains a dashed outline on Altium layer (%d) with "
-                                 "no KiCad equivalent. It has been moved to KiCad layer Eco1_User." ),
-                              aFootprint->GetReference(),
-                              aElem.layer );
+                                   "no KiCad equivalent. It has been moved to KiCad layer Eco1_User." ),
+                                buildFootprintName( aFootprint ), aElem.layer );
                     m_reporter->Report( msg, RPT_SEVERITY_ERROR );
                 }
             }
@@ -3464,8 +3469,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
             {
                 wxString msg;
                 msg.Printf( _( "Footprint %s contains polygon shape of kind %d (not yet supported)." ),
-                        aFootprint->GetReference(),
-                        aElem.kind );
+                            buildFootprintName( aFootprint ), aElem.kind );
                 m_reporter->Report( msg, RPT_SEVERITY_ERROR );
             }
         }
@@ -4179,8 +4183,7 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                 {
                     wxString msg;
                     msg.Printf( _( "Footprint %s pad %s is not marked as multilayer, but is a TH pad." ),
-                            aFootprint->GetReference(),
-                            aElem.name );
+                                buildFootprintName( aFootprint ), aElem.name );
                     m_reporter->Report( msg, RPT_SEVERITY_ERROR );
                 }
             }
@@ -4221,8 +4224,7 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                     {
                         wxString msg;
                         msg.Printf( _( "Footprint %s pad %s has a square hole (not yet supported)." ),
-                                  aFootprint->GetReference(),
-                                  aElem.name );
+                                    buildFootprintName( aFootprint ), aElem.name );
                         m_reporter->Report( msg, RPT_SEVERITY_DEBUG );
                     }
                 }
@@ -4266,10 +4268,9 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                         {
                             wxString msg;
                             msg.Printf( _( "Footprint %s pad %s has a hole-rotation of %d degrees. "
-                                         "KiCad only supports 90 degree rotations." ),
-                                      aFootprint->GetReference(),
-                                      aElem.name,
-                                      KiROUND( slotRotation.AsDegrees() ) );
+                                           "KiCad only supports 90 degree rotations." ),
+                                        buildFootprintName( aFootprint ), aElem.name,
+                                        KiROUND( slotRotation.AsDegrees() ) );
                             m_reporter->Report( msg, RPT_SEVERITY_DEBUG );
                         }
                     }
@@ -4300,9 +4301,7 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                     {
                         wxString msg;
                         msg.Printf( _( "Footprint %s pad %s uses a hole of unknown kind %d." ),
-                                aFootprint->GetReference(),
-                                aElem.name,
-                                aElem.sizeAndShape->holeshape );
+                                    buildFootprintName( aFootprint ), aElem.name, aElem.sizeAndShape->holeshape );
                         m_reporter->Report( msg, RPT_SEVERITY_DEBUG );
                     }
                 }
@@ -4380,8 +4379,7 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                         {
                             wxString msg;
                             msg.Printf( _( "Footprint %s pad %s uses an unknown pad shape." ),
-                                        aFootprint->GetReference(),
-                                        aElem.name );
+                                        buildFootprintName( aFootprint ), aElem.name );
                             m_reporter->Report( msg, RPT_SEVERITY_DEBUG );
                         }
                     }
@@ -4537,10 +4535,8 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, 
             {
                 wxString msg;
                 msg.Printf( _( "Footprint %s non-copper pad %s found on an Altium layer (%d) with no "
-                             "KiCad equivalent. It has been moved to KiCad layer Eco1_User." ),
-                          aFootprint->GetReference(),
-                          aElem.name,
-                          aElem.layer );
+                               "KiCad equivalent. It has been moved to KiCad layer Eco1_User." ),
+                            buildFootprintName( aFootprint ), aElem.name, aElem.layer );
                 m_reporter->Report( msg, RPT_SEVERITY_INFO );
             }
         }
