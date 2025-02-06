@@ -498,6 +498,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                     || token == wxT( "track_angle" )
                     || token == wxT( "track_segment_length" )
                     || token == wxT( "pad_fanout_ratio" )
+                    || token == wxT( "pad_fanout_via_distance" )
                     || token == wxT( "footprint_fanout_force" )
                     || token == wxT( "footprint_fanout_torque" )
                     || token == wxT( "via_count" )
@@ -723,6 +724,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                           "track_angle|"
                           "track_segment_length|"
                           "pad_fanout_ratio|"
+                          "pad_fanout_via_distance|"
                           "footprint_fanout_force|"
                           "footprint_fanout_torque|"
                           "via_count|"

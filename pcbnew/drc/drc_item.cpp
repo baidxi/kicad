@@ -132,6 +132,10 @@ DRC_ITEM DRC_ITEM::padFanoutRatio( DRCE_PAD_FANOUT_RATIO,
         _( "Pad fanout ratio" ),
         wxT( "pad_fanout_ratio" ) );
 
+DRC_ITEM DRC_ITEM::padFanoutViaDistance( DRCE_PAD_FANOUT_VIA_DISTANCE,
+        _( "Pad fanout via distance" ),
+        wxT( "pad_fanout_via_distance" ) );
+
 DRC_ITEM DRC_ITEM::footprintFanoutForce( DRCE_FOOTPRINT_FANOUT_FORCE,
         _( "Footprint fanout force" ),
         wxT( "footprint_fanout_force" ) );
@@ -356,6 +360,7 @@ std::vector<std::reference_wrapper<RC_ITEM>> DRC_ITEM::allItemTypes( {
         DRC_ITEM::trackAngle,
         DRC_ITEM::trackSegmentLength,
         DRC_ITEM::padFanoutRatio,
+        DRC_ITEM::padFanoutViaDistance,
         DRC_ITEM::footprintFanoutForce,
         DRC_ITEM::footprintFanoutTorque,
         DRC_ITEM::annularWidth,
@@ -453,6 +458,7 @@ std::shared_ptr<DRC_ITEM> DRC_ITEM::Create( int aErrorCode )
     case DRCE_TRACK_ANGLE:              return std::make_shared<DRC_ITEM>( trackAngle );
     case DRCE_TRACK_SEGMENT_LENGTH:     return std::make_shared<DRC_ITEM>( trackSegmentLength );
     case DRCE_PAD_FANOUT_RATIO:         return std::make_shared<DRC_ITEM>( padFanoutRatio );
+    case DRCE_PAD_FANOUT_VIA_DISTANCE:  return std::make_shared<DRC_ITEM>( padFanoutViaDistance );
     case DRCE_FOOTPRINT_FANOUT_FORCE:   return std::make_shared<DRC_ITEM>( footprintFanoutForce );
     case DRCE_FOOTPRINT_FANOUT_TORQUE:  return std::make_shared<DRC_ITEM>( footprintFanoutTorque );
     case DRCE_ANNULAR_WIDTH:            return std::make_shared<DRC_ITEM>( annularWidth );

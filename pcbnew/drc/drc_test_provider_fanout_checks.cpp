@@ -45,6 +45,7 @@
     Pad fanout test. Checks the width of tracks connected to a pad.
     Errors generated:
     - DRCE_PAD_FANOUT_RATIO
+    - DRCE_PAD_FANOUT_VIA_DISTANCE
     - DRCE_FOOTPRINT_FANOUT_FORCE
     - DRCE_FOOTPRINT_FANOUT_TORQUE
 */
@@ -90,6 +91,167 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 
     if( !reportPhase( _( "Checking pad fanouts..." ) ) )
         return false;       // DRC cancelled
+
+    auto checkPadViaDistance =
+        [&]( const PAD* pad ) -> bool
+            {
+                if( m_drcEngine->IsCancelled() )
+                {
+                    return false;
+                }
+
+                std::shared_ptr<CONNECTIVITY_DATA> connectivity = m_drcEngine->GetBoard()->GetConnectivity();
+
+                std::set<PCB_TRACK*> visited;
+                std::queue<std::tuple<PCB_TRACK*, VECTOR2I, int>> next;
+
+                auto constraint = m_drcEngine->EvalRules( PAD_FANOUT_VIA_DISTANCE_CONSTRAINT, pad, nullptr,
+                                                          pad->GetLayer() );
+                
+                if( !constraint.m_Value.HasMin() || constraint.GetSeverity() == RPT_SEVERITY_IGNORE )
+                    return false;
+
+                int length_limit { constraint.m_Value.Min() };
+
+                for( auto track: connectivity->GetConnectedTracks( pad ) )
+                {
+                    if( track->Type() == PCB_TRACE_T )
+                    {
+                        auto padOutline = pad->GetEffectivePolygon( track->GetLayer() )->Outline( 0 );
+
+                        SHAPE_LINE_CHAIN::INTERSECTIONS intersections;
+
+                        padOutline.Intersect( SEG( track->GetStart(), track->GetEnd() ), intersections );
+
+                        std::set<VECTOR2I> points;
+
+                        for( auto intersection : intersections )
+                        {
+                            if( points.contains( intersection.p ) )
+                                continue;
+
+                            points.emplace( intersection.p );
+                        }
+
+                        for( VECTOR2I p : points )
+                        {
+                            next.emplace( track, p, 0 );
+                        }
+                    }
+                }
+
+                while( !next.empty() )
+                {
+                    auto [current, point, length] = next.front();
+                    next.pop();
+
+                    visited.emplace( current );
+
+                    for( auto track: connectivity->GetConnectedTracks( current ) )
+                    {
+                        std::vector<VECTOR2I> buffer;
+
+                        if( track->Type() == PCB_VIA_T )
+                        {
+                            PCB_VIA* via = static_cast<PCB_VIA*>( track );
+
+                            int len = length + (point - via->GetPosition()).EuclideanNorm() - via->GetDrill();
+
+                            if( len < length_limit )
+                            {
+                                std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_PAD_FANOUT_VIA_DISTANCE );
+                                wxString msg;
+
+                                msg = formatMsg( _( "(%s min via distance %s; actual %s)" ),
+                                                 constraint.GetName(),
+                                                 length_limit,
+                                                 len );
+
+                                drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                                drcItem->SetItems( pad , via );
+                                drcItem->SetViolatingRule( constraint.GetParentRule() );
+
+                                reportViolation( drcItem, pad->GetPosition(), pad->GetLayer() );
+                            }
+                        }
+                        else if( track->Type() == PCB_ARC_T )
+                        {
+                            // TODO: Figure out how to support arcs.
+                            PCB_ARC* arc = static_cast<PCB_ARC*>( track );
+
+                            SHAPE_ARC arc_shape { arc->GetStart(), arc->GetMid(), arc->GetEnd(), arc->GetWidth() };
+
+                            if( current->Type() == PCB_ARC_T )
+                            {
+                                PCB_ARC* current_arc = static_cast<PCB_ARC*>( current );
+                                SHAPE_ARC current_arc_shape {
+                                    current_arc->GetStart(),
+                                    current_arc->GetMid(),
+                                    current_arc->GetEnd(),
+                                    current_arc->GetWidth() };
+
+                                arc_shape.Intersect( current_arc_shape, &buffer );
+                            }
+                            else
+                            {
+                                arc_shape.IntersectLine( SEG( current->GetStart(), current->GetEnd() ), &buffer );
+                            }
+                        }
+                        else
+                        {
+                            SEG b { track->GetStart(), track->GetEnd() };
+
+                            if( current->Type() == PCB_ARC_T )
+                            {
+                                PCB_ARC* current_arc = static_cast<PCB_ARC*>( current );
+                                SHAPE_ARC current_arc_shape {
+                                    current_arc->GetStart(),
+                                    current_arc->GetMid(),
+                                    current_arc->GetEnd(),
+                                    current_arc->GetWidth() };
+
+                                current_arc_shape.IntersectLine( b, &buffer );
+                            }
+                            else
+                            {
+                                SEG a { current->GetStart(), current->GetEnd() };
+                                OPT_VECTOR2I p = a.Intersect( b );
+
+                                if( !p.has_value() )
+                                    continue;
+
+                                buffer.emplace_back( *p );
+                            }
+                        }
+
+                        if( buffer.empty() )
+                            continue;
+
+                        double shortest = -1;
+                        VECTOR2I p;
+
+                        for( VECTOR2I c : buffer )
+                        {
+                            if( shortest > 0 && c.Distance( point ) >= shortest)
+                                continue;
+                            shortest = c.Distance( point );
+                            p = c;
+                        }
+                            
+                        int len = length + shortest;
+
+                        if( len > length_limit * 2 )
+                            continue;
+
+                        if( visited.contains( track ) )
+                            continue;
+
+                        next.emplace( track, p, len );
+                    }
+                }
+
+                return true;
+    };
 
     auto checkPadFanoutRatio =
             [&]( const PAD* pad ) -> bool
@@ -406,6 +568,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
     for( PAD* item : m_drcEngine->GetBoard()->GetPads() )
     {
         returns.emplace_back( tp.submit( checkPadFanoutRatio, item ) );
+        returns.emplace_back( tp.submit( checkPadViaDistance, item ) );
     }
 
     for( FOOTPRINT* item : m_drcEngine->GetBoard()->Footprints() )
