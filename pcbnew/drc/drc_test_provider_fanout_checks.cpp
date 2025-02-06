@@ -357,7 +357,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_FORCE );
                 wxString msg;
 
-                msg = formatMsg( _( "(%s footprint fanout force exceeded. %s; actual %s)" ),
+                msg = formatMsg( _( "(%s fanout force exceeded. %s; actual %s)" ),
                                  force_constraint.GetName(),
                                  force_constraint.m_Value.Max(),
                                  actual_force );
@@ -379,7 +379,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_TORQUE );
                 wxString msg;
 
-                msg = formatMsg( _( "(%s footprint fanout torque exceeded. %s; actual %s)" ),
+                msg = formatMsg( _( "(%s fanout torque exceeded. %s; actual %s)" ),
                                  torque_constraint.GetName(),
                                  torque_constraint.m_Value.Max(),
                                  actual_torque );
