@@ -57,6 +57,8 @@ enum PCB_DRC_CODE
     DRCE_TRACK_ANGLE,                    // Angle between two connected tracks is too small or too large
     DRCE_TRACK_SEGMENT_LENGTH,           // Track segment is too short or too long
     DRCE_PAD_FANOUT_RATIO,               // The fanout width from a pad is too large as a percentage of pad width
+    DRCE_FOOTPRINT_FANOUT_FORCE,         // The fanout from a footprint should by symmetric.
+    DRCE_FOOTPRINT_FANOUT_TORQUE,        // The fanout from a footprint should by symmetric.
     DRCE_ANNULAR_WIDTH,                  // Via size and drill leave annular ring too small
     DRCE_CONNECTION_WIDTH,               // Net connection too small
     DRCE_DRILL_OUT_OF_RANGE,             // Too small via or pad drill
@@ -214,6 +216,8 @@ private:
     static DRC_ITEM trackAngle;
     static DRC_ITEM trackSegmentLength;
     static DRC_ITEM padFanoutRatio;
+    static DRC_ITEM footprintFanoutForce;
+    static DRC_ITEM footprintFanoutTorque;
     static DRC_ITEM annularWidth;
     static DRC_ITEM drillTooSmall;
     static DRC_ITEM viaDiameter;

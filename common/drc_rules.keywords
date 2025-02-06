@@ -64,6 +64,8 @@ through_via
 track
 track_angle
 pad_fanout_ratio
+footprint_fanout_force
+footprint_fanout_torque
 track_width
 track_segment_length
 version

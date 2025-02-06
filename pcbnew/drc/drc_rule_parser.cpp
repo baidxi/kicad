@@ -525,6 +525,8 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
     case T_track_angle:               c.m_Type = TRACK_ANGLE_CONSTRAINT;               break;
     case T_track_segment_length:      c.m_Type = TRACK_SEGMENT_LENGTH_CONSTRAINT;      break;
     case T_pad_fanout_ratio:          c.m_Type = PAD_FANOUT_RATIO_CONSTRAINT;          break;
+    case T_footprint_fanout_force:    c.m_Type = FOOTPRINT_FANOUT_FORCE_CONSTRAINT;    break;
+    case T_footprint_fanout_torque:   c.m_Type = FOOTPRINT_FANOUT_TORQUE_CONSTRAINT;   break;
     case T_connection_width:          c.m_Type = CONNECTION_WIDTH_CONSTRAINT;          break;
     case T_annular_width:             c.m_Type = ANNULAR_WIDTH_CONSTRAINT;             break;
     case T_via_diameter:              c.m_Type = VIA_DIAMETER_CONSTRAINT;              break;
