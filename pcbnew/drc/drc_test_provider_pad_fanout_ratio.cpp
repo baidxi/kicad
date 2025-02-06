@@ -21,6 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <thread_pool.h>
 #include "core/typeinfo.h"
 #include <numbers>
 #include <pcb_track.h>
@@ -79,8 +80,8 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
     if( !reportPhase( _( "Checking pad fanouts..." ) ) )
         return false;       // DRC cancelled
 
-    auto checkPadFanoutWidth =
-            [&]( PAD* pad ) -> bool
+    auto checkPadFanoutRatio =
+            [&]( const PAD* pad ) -> bool
             {
                 if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_RATIO ) )
                 {
@@ -153,16 +154,51 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
                 return true;
             };
 
+    auto checkFootprintSymmetry = [&]( const FOOTPRINT* footprint ) -> bool
+    {
+        if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_UNMATCHED_TRACK ) )
+        {
+            return false;
+        }
+
+        if( m_drcEngine->IsCancelled() )
+        {
+            return false;
+        }
+
+        auto constraint = m_drcEngine->EvalRules( PAD_FANOUT_RATIO_CONSTRAINT, footprint, nullptr,
+                                                  UNDEFINED_LAYER );
+
+        if( !constraint.m_ConstraintSet )
+            return false;
+
+
+
+        return false;
+    };
+
     const int progressDelta = 250;
     int       ii = 0;
 
-    for( PAD* pad : m_drcEngine->GetBoard()->GetPads() )
-    {
-        if( !reportProgress( ii++, m_drcEngine->GetBoard()->Tracks().size(), progressDelta ) )
-            break;
+    thread_pool&                   tp = GetKiCadThreadPool();
+    std::vector<std::future<bool>> returns;
 
-        if( !checkPadFanoutWidth( pad ) )
-            break;
+    returns.reserve( m_drcEngine->GetBoard()->GetPads().size() );
+
+    for( PAD* item : m_drcEngine->GetBoard()->GetPads() )
+    {
+        returns.emplace_back( tp.submit( checkPadFanoutRatio, item ) );
+    }
+
+    for( std::future<bool>& ret : returns )
+    {
+        std::future_status status = ret.wait_for( std::chrono::milliseconds( 250 ) );
+
+        while( status != std::future_status::ready )
+        {
+            reportProgress( ii++, m_drcEngine->GetBoard()->Tracks().size(), progressDelta );
+            status = ret.wait_for( std::chrono::milliseconds( 250 ) );
+        }
     }
 
     reportRuleStatistics();
