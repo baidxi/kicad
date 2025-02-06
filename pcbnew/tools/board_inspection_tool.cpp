@@ -513,7 +513,7 @@ wxString BOARD_INSPECTION_TOOL::InspectDRCErrorMenuText( const std::shared_ptr<R
             || aDRCItem->GetErrorCode() == DRCE_TRACK_WIDTH
             || aDRCItem->GetErrorCode() == DRCE_TRACK_ANGLE
             || aDRCItem->GetErrorCode() == DRCE_TRACK_SEGMENT_LENGTH
-            || aDRCItem->GetErrorCode() == DRCE_PAD_FANOUT_WIDTH
+            || aDRCItem->GetErrorCode() == DRCE_PAD_FANOUT_RATIO
             || aDRCItem->GetErrorCode() == DRCE_VIA_DIAMETER
             || aDRCItem->GetErrorCode() == DRCE_ANNULAR_WIDTH
             || aDRCItem->GetErrorCode() == DRCE_DRILL_OUT_OF_RANGE
@@ -637,9 +637,9 @@ void BOARD_INSPECTION_TOOL::InspectDRCError( const std::shared_ptr<RC_ITEM>& aDR
                                      reportMax( m_frame, constraint ) ) );
         break;
     
-    case DRCE_PAD_FANOUT_WIDTH:
-        r = dialog->AddHTMLPage( _( "Pad fanout width" ) );
-        reportHeader( _( "Pad fanout width resolution for:" ), a, r );
+    case DRCE_PAD_FANOUT_RATIO:
+        r = dialog->AddHTMLPage( _( "Pad fanout ratio" ) );
+        reportHeader( _( "Pad fanout ratio resolution for:" ), a, r );
 
         if( compileError )
             reportCompileError( r );
@@ -647,7 +647,7 @@ void BOARD_INSPECTION_TOOL::InspectDRCError( const std::shared_ptr<RC_ITEM>& aDR
         constraint = drcEngine->EvalRules( PAD_FANOUT_RATIO_CONSTRAINT, a, b, layer, r );
 
         r->Report( "" );
-        r->Report( wxString::Format( _( "Resolved fanout width constraints: min %s; max %s." ),
+        r->Report( wxString::Format( _( "Resolved fanout ratio constraints: min %s; max %s." ),
                                      reportMin( m_frame, constraint ),
                                      reportMax( m_frame, constraint ) ) );
         break;

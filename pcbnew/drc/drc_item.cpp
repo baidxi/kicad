@@ -127,9 +127,10 @@ DRC_ITEM DRC_ITEM::trackAngle( DRCE_TRACK_ANGLE,
 DRC_ITEM DRC_ITEM::trackSegmentLength( DRCE_TRACK_SEGMENT_LENGTH,
         _HKI( "Track segment length" ),
         wxT( "track_segment_length" ) );
-DRC_ITEM DRC_ITEM::padFanoutWidth( DRCE_PAD_FANOUT_WIDTH,
-        _( "Pad fanout width" ),
-        wxT( "pad_fanout_width" ) );
+
+DRC_ITEM DRC_ITEM::padFanoutRatio( DRCE_PAD_FANOUT_RATIO,
+        _( "Pad fanout ratio" ),
+        wxT( "pad_fanout_ratio" ) );
 
 DRC_ITEM DRC_ITEM::annularWidth( DRCE_ANNULAR_WIDTH,
         _HKI( "Annular width" ),
@@ -346,7 +347,7 @@ std::vector<std::reference_wrapper<RC_ITEM>> DRC_ITEM::allItemTypes( {
         DRC_ITEM::trackWidth,
         DRC_ITEM::trackAngle,
         DRC_ITEM::trackSegmentLength,
-        DRC_ITEM::padFanoutWidth,
+        DRC_ITEM::padFanoutRatio,
         DRC_ITEM::annularWidth,
         DRC_ITEM::drillTooSmall,
         DRC_ITEM::microviaDrillTooSmall,
@@ -441,7 +442,7 @@ std::shared_ptr<DRC_ITEM> DRC_ITEM::Create( int aErrorCode )
     case DRCE_TRACK_WIDTH:              return std::make_shared<DRC_ITEM>( trackWidth );
     case DRCE_TRACK_ANGLE:              return std::make_shared<DRC_ITEM>( trackAngle );
     case DRCE_TRACK_SEGMENT_LENGTH:     return std::make_shared<DRC_ITEM>( trackSegmentLength );
-    case DRCE_PAD_FANOUT_WIDTH:         return std::make_shared<DRC_ITEM>( padFanoutWidth );
+    case DRCE_PAD_FANOUT_RATIO:         return std::make_shared<DRC_ITEM>( padFanoutRatio );
     case DRCE_ANNULAR_WIDTH:            return std::make_shared<DRC_ITEM>( annularWidth );
     case DRCE_DRILL_OUT_OF_RANGE:       return std::make_shared<DRC_ITEM>( drillTooSmall );
     case DRCE_VIA_DIAMETER:             return std::make_shared<DRC_ITEM>( viaDiameter );

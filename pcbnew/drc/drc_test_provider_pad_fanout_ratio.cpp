@@ -64,7 +64,7 @@ public:
 
 bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
 {
-    if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_WIDTH ) )
+    if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_RATIO ) )
     {
         reportAux( wxT( "Pad fanout violations ignored. Tests not run." ) );
         return true;        // continue with other tests
@@ -82,7 +82,7 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
     auto checkPadFanoutWidth =
             [&]( PAD* pad ) -> bool
             {
-                if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_WIDTH ) )
+                if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_RATIO ) )
                 {
                     return false;
                 }
@@ -131,7 +131,7 @@ bool DRC_TEST_PROVIDER_PAD_FANOUT_RATIO::Run()
                         {
                             constraintWidth = static_cast<double>( constraint.Value().Max() ) / 100.0 * size;
 
-                            std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_PAD_FANOUT_WIDTH );
+                            std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_PAD_FANOUT_RATIO );
                             wxString msg;
 
                             msg = formatMsg( _( "(%s max fanout width %s; actual %s)" ),

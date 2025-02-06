@@ -557,7 +557,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
                        "min_resolved_spokes, solder_mask_expansion, solder_mask_sliver, "
                        "solder_paste_abs_margin, solder_paste_rel_margin, length, net_chain_length, "
                        "skew, via_count, via_dangling, via_diameter, diff_pair_gap, "
-                       "diff_pair_uncoupled, bridged_mask or pad_fanout_width" ) );
+                       "diff_pair_uncoupled, bridged_mask or pad_fanout_ratio" ) );
         return;
     }
 
