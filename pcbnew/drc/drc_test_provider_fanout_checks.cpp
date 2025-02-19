@@ -329,32 +329,39 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 {
                     for( PCB_LAYER_ID layer : pad->GetLayerSet() )
                     {
-                        if( ! zone->IsOnLayer( layer ) )
+                        if( !zone->IsOnLayer( layer ) )
                             continue;
 
-                        int actual;
+                        if( !zone->GetBoundingBox().Intersects( pad->GetBoundingBox() ) )
+                            continue;
 
                         const std::shared_ptr<SHAPE_POLY_SET>& zoneFill = zone->GetFilledPolysList( layer );
+
                         if( zoneFill->IsEmpty() )
                             continue;
 
                         auto padOutline = pad->GetEffectivePolygon( layer )->Outline( 0 );
                         auto padBBox = pad->GetBoundingBox();
 
-                        int spoke_half_width = m_drcEngine->EvalRules( THERMAL_SPOKE_WIDTH_CONSTRAINT, pad, zone, layer ).m_Value.Min() / 2;
-                        
+                        int spoke_width = m_drcEngine
+                                                  ->EvalRules( THERMAL_SPOKE_WIDTH_CONSTRAINT, pad,
+                                                               zone, layer )
+                                                  .m_Value.Min();
+
+                        int actual{ 0 };
+
                         for( int jj = 0; jj < zoneFill->OutlineCount(); ++jj )
                         {
                             std::vector<SHAPE_LINE_CHAIN::INTERSECTION> intersections;
 
-                            zoneFill->Outline( jj ).Intersect( padOutline, intersections, true, &padBBox );
-
-                            if( intersections.size() < 2 )
-                                continue;
-
-                            actual = spoke_half_width * intersections.size();
+                            // We only need to check for one spoke since the width will be the same for the same zone.
+                            if( zoneFill->Outline( jj ).Intersect( padOutline, intersections, true,
+                                                                   &padBBox ) >= 2 )
+                            {
+                                actual = spoke_width;
+                                break;
+                            }
                         }
-
 
                         const auto& size_vec = pad->GetSize( layer );
                         int         size = size_vec.x < size_vec.y ? size_vec.x : size_vec.y;
@@ -457,11 +464,14 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
             {
                 for( PCB_LAYER_ID layer : pad->GetLayerSet() )
                 {
-                    if( ! zone->IsOnLayer( layer ) )
+                    if( !zone->IsOnLayer( layer ) )
                         continue;
-                    // Only external copper layers are interesting for this test, since it is ultimately about solderability.
+
+                    if( !zone->GetBoundingBox().Intersects( pad->GetBoundingBox() ) )
+                        continue;
 
                     const std::shared_ptr<SHAPE_POLY_SET>& zoneFill = zone->GetFilledPolysList( layer );
+
                     if( zoneFill->IsEmpty() )
                         continue;
 
@@ -479,10 +489,19 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                         if( intersections.size() < 2 )
                             continue;
 
+                        std::set<int> our_indices;
+
                         for( auto intersection : intersections )
                         {
+                            // Don't double count spoke edges.
+                            if( our_indices.contains( intersection.index_our ) )
+                                continue;
+
+                            our_indices.emplace( intersection.index_our );
+
                             SEG seg = zoneFill->Outline( jj ).Segment( intersection.index_our );
                             VECTOR2D direction;
+
                             if( padOutline.PointInside( seg.A ) )
                                 direction = seg.B - intersection.p;
                             else
