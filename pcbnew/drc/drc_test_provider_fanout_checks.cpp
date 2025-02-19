@@ -148,12 +148,17 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 
                         if( track->Type() == PCB_VIA_T )
                         {
+                            if( visited.contains( track ) )
+                                continue;
+
                             PCB_VIA* via = static_cast<PCB_VIA*>( track );
 
                             int len = length + (point - via->GetPosition()).EuclideanNorm() - via->GetDrill();
 
                             if( len < length_limit )
                             {
+                                visited.emplace( track );
+
                                 std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_PAD_FANOUT_VIA_DISTANCE );
                                 wxString msg;
 
@@ -171,7 +176,6 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                         }
                         else if( track->Type() == PCB_ARC_T )
                         {
-                            // TODO: Figure out how to support arcs.
                             PCB_ARC* arc = static_cast<PCB_ARC*>( track );
 
                             SHAPE_ARC arc_shape { arc->GetStart(), arc->GetMid(), arc->GetEnd(), arc->GetWidth() };
@@ -232,7 +236,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                             shortest = c.Distance( point );
                             p = c;
                         }
-                            
+
                         int len = length + shortest;
 
                         if( len > length_limit * 2 )
@@ -407,7 +411,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
         {
             return false;
         }
-        
+
         // pad fanout symmetry is easiest to be calculated using torque and net force.
         // Both need to be net zero for the fanout to be symmetric.
         // Force is calculated using connected width.
