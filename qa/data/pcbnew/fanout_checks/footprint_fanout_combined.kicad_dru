@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "test footprint fanout torque"
+	(constraint footprint_fanout_torque (max 0.1mm))
+)
+
+(rule "test footprint fanout force"
+	(constraint footprint_fanout_force (max 0.1mm))
+)
