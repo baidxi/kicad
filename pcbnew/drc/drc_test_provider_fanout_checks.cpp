@@ -75,15 +75,10 @@ public:
 
 bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 {
-    if( m_drcEngine->IsErrorLimitExceeded( DRCE_PAD_FANOUT_RATIO ) )
-    {
-        reportAux( wxT( "Pad fanout violations ignored. Tests not run." ) );
-        return true;        // continue with other tests
-    }
-
     if( !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_RATIO_CONSTRAINT )
         && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_FORCE_CONSTRAINT )
-        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_TORQUE_CONSTRAINT ) )
+        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_TORQUE_CONSTRAINT )
+        && !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_VIA_DISTANCE_CONSTRAINT ) )
     {
         reportAux( wxT( "No fanout constraints found. Tests not run." ) );
         return true;        // continue with other tests
