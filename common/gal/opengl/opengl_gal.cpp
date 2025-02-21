@@ -504,9 +504,9 @@ wxString OPENGL_GAL::CheckFeatures( GAL_DISPLAY_OPTIONS& aOptions )
 
 void OPENGL_GAL::PostPaint( wxPaintEvent& aEvent )
 {
-    // posts an event to m_paint_listener to ask for redraw the canvas.
+    // Repaint it immediately via m_paintListener.
     if( m_paintListener )
-        wxPostEvent( m_paintListener, aEvent );
+        m_paintListener->ProcessEvent( aEvent );
 }
 
 
@@ -2694,7 +2694,8 @@ void OPENGL_GAL::init()
     // Check correct initialization from the constructor
     if( m_tesselator == nullptr )
         throw std::runtime_error( "Could not create the tesselator" );
-    GLenum err = glewInit();
+
+    GLenum err = kiglewInit();
 
 #ifdef KICAD_USE_EGL
     // TODO: better way to check when EGL is ready (init fails at "getString(GL_VERSION)")
@@ -2704,7 +2705,7 @@ void OPENGL_GAL::init()
             break;
 
         std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
-        err = glewInit();
+        err = kiglewInit();
     }
 
 #endif // KICAD_USE_EGL

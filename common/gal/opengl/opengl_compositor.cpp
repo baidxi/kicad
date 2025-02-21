@@ -384,7 +384,16 @@ void OPENGL_COMPOSITOR::bindFb( unsigned int aFb )
 
     if( m_curFbo != aFb )
     {
-        glBindFramebufferEXT( GL_FRAMEBUFFER, aFb );
+        unsigned int actualBuffer = aFb;
+
+#ifdef __WXQT__
+        // Qt needs to draw on a separate framebuffer first
+        if( aFb == DIRECT_RENDERING )
+            actualBuffer = QtOpenGLGetOutputFBO();
+#endif
+
+        glBindFramebufferEXT( GL_FRAMEBUFFER, actualBuffer );
+
         checkGlError( "switching framebuffer", __FILE__, __LINE__ );
         m_curFbo = aFb;
     }

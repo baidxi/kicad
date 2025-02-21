@@ -183,7 +183,7 @@ void EDA_3D_MODEL_VIEWER::Clear3DModel()
 
 void EDA_3D_MODEL_VIEWER::ogl_initialize()
 {
-    const GLenum err = glewInit();
+    const GLenum err = kiglewInit();
 
     if( GLEW_OK != err )
     {

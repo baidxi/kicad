@@ -48,7 +48,7 @@ public:
      */
     static int SetSwapInterval( int aVal )
     {
-#if defined( __linux__ ) && !defined( KICAD_USE_EGL )
+#if defined( __linux__ ) && !defined( KICAD_USE_EGL ) && !defined( __WXQT__ )
 
         if( Display* dpy = glXGetCurrentDisplay() )
         {
@@ -109,7 +109,7 @@ public:
             }
         }
 
-#elif defined( _WIN32 )
+#elif defined( _WIN32 ) and !defined( __WXQT__ )
 
         const GLubyte* vendor = glGetString( GL_VENDOR );
         const GLubyte* version = glGetString( GL_VERSION );

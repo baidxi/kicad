@@ -121,10 +121,9 @@ cmake_dependent_option( KICAD_USE_EGL
     OFF "UNIX_NOT_APPLE"
     OFF)
 
-cmake_dependent_option( KICAD_USE_BUNDLED_GLEW
-    "Use the bundled version of GLEW - only available when KICAD_USE_EGL is set"
-    ON "KICAD_USE_EGL"
-    OFF )
+option( KICAD_USE_BUNDLED_GLEW
+    "Use the bundled version of GLEW"
+    ${KICAD_USE_EGL} )
 
 cmake_dependent_option( KICAD_WAYLAND
     "Support Wayland features"
@@ -756,50 +755,6 @@ if( KICAD_BUILD_I18N )
 endif()
 
 #
-# Find OpenGL library, required
-#
-if( KICAD_USE_EGL )
-    find_package( OpenGL REQUIRED COMPONENTS OpenGL EGL )
-else()
-    set( OpenGL_GL_PREFERENCE "LEGACY" )     # CMake 3.11+ setting; see 'cmake --help-policy CMP0072'
-    find_package( OpenGL REQUIRED )
-endif()
-
-#
-# Find GLEW library, required
-#
-# The EGL canvas on GTK requires the use of a GLEW version compiled with an EGL flag.
-# The one built in the thirdparty directory has the flag for EGL set, so we use it unless told
-# otherwise. Then we search for the system GLEW version and use that instead.
-#
-if( KICAD_USE_EGL AND KICAD_USE_BUNDLED_GLEW AND UNIX AND NOT APPLE )
-    if( OpenGL_EGL_FOUND )
-        message( STATUS "Found OpenGL EGL library: ${OPENGL_egl_LIBRARY}" )
-    else()
-        message( FATAL_ERROR "OpenGL EGL library not found" )
-    endif()
-
-    # Add the custom GLEW target
-    add_subdirectory( thirdparty/glew )
-
-    # Set the standard package variables to point to our custom target to mimic the system version.
-    set( GLEW_LIBRARIES glew )
-    set( GLEW_FOUND TRUE )
-    include_directories( SYSTEM $<TARGET_PROPERTY:glew,INCLUDE_DIRECTORIES> )
-else()
-    find_package( GLEW REQUIRED )
-    check_find_package_result( GLEW_FOUND "GLEW" )
-    include_directories( SYSTEM ${GLEW_INCLUDE_DIR} )
-endif()
-
-#
-# Find GLM library, required
-#
-find_package( GLM 0.9.8 REQUIRED )
-add_compile_definitions( GLM_FORCE_CTOR_INIT )
-include_directories( SYSTEM ${GLM_INCLUDE_DIR} )
-
-#
 # Find zlib library, required
 #
 find_package(ZLIB REQUIRED)
@@ -1035,10 +990,7 @@ if( WXWIDGETS_REQUESTED_TOOLKIT
     message( WARNING "wxWidgets and wxPython must be based on the same toolkit.\n"
         "It will be fixed automatically if you skip the '--toolkit=xxx' "
         "wxWidgets_CONFIG_OPTIONS parameter.")
-elseif( UNIX AND NOT APPLE )
-    # Force the use of GTK3 on Linux
-    set( wxWidgets_CONFIG_OPTIONS ${wxWidgets_CONFIG_OPTIONS} "--toolkit=gtk3" )
-else()
+elseif( WXPYTHON_TOOLKIT )
     # Use the same toolkit as wxPython otherwise there will be a symbol conflict
     set( wxWidgets_CONFIG_OPTIONS ${wxWidgets_CONFIG_OPTIONS} "--toolkit=${WXPYTHON_TOOLKIT}" )
 endif()
@@ -1077,6 +1029,14 @@ else()
     message( FATAL_ERROR "Unable to detect wxWidgets port")
 endif()
 
+if( MSVC AND NOT ${wxWidgets_VERSION_STRING} VERSION_LESS 3.3 )
+    # wx 3.3 exports std::vector methods from the dll, causing multiple definition
+    # errors when linking kicommon. /FORCE:MULTIPLE works around this issue.
+    foreach( type EXE SHARED MODULE )
+        string( APPEND CMAKE_${type}_LINKER_FLAGS " /FORCE:MULTIPLE" )
+    endforeach()
+endif()
+
 if( NOT MSVC )
     if( ${wxWidgets_VERSION_STRING} VERSION_LESS 3.2 )
         message( FATAL_ERROR "wxWidgets 3.2.0 or greater is required" )
@@ -1092,6 +1052,52 @@ if( MINGW )
         add_definitions( -U__STRICT_ANSI__ )
     endif()
 endif()
+
+#
+# Find OpenGL library, required
+#
+if( KICAD_USE_EGL )
+    find_package( OpenGL REQUIRED COMPONENTS OpenGL EGL )
+else()
+    set( OpenGL_GL_PREFERENCE "LEGACY" )     # CMake 3.11+ setting; see 'cmake --help-policy CMP0072'
+    find_package( OpenGL REQUIRED )
+endif()
+
+#
+# Find GLEW library, required
+#
+# The EGL canvas on GTK requires the use of a GLEW version compiled with an EGL flag.
+# The one built in the thirdparty directory has the flag for EGL set, so we use it unless told
+# otherwise. Then we search for the system GLEW version and use that instead.
+#
+if( KICAD_USE_EGL )
+    if( OpenGL_EGL_FOUND )
+        message( STATUS "Found OpenGL EGL library: ${OPENGL_egl_LIBRARY}" )
+    else()
+        message( FATAL_ERROR "OpenGL EGL library not found" )
+    endif()
+endif()
+
+if( KICAD_USE_BUNDLED_GLEW AND UNIX AND NOT APPLE )
+    # Add the custom GLEW target
+    add_subdirectory( thirdparty/glew )
+
+    # Set the standard package variables to point to our custom target to mimic the system version.
+    set( GLEW_LIBRARIES glew )
+    set( GLEW_FOUND TRUE )
+    include_directories( SYSTEM $<TARGET_PROPERTY:glew,INCLUDE_DIRECTORIES> )
+else()
+    find_package( GLEW REQUIRED )
+    check_find_package_result( GLEW_FOUND "GLEW" )
+    include_directories( SYSTEM ${GLEW_INCLUDE_DIR} )
+endif()
+
+#
+# Find GLM library, required
+#
+find_package( GLM 0.9.8 REQUIRED )
+add_compile_definitions( GLM_FORCE_CTOR_INIT )
+include_directories( SYSTEM ${GLM_INCLUDE_DIR} )
 
 if( APPLE )
     # Remove app bundles in ${KICAD_BIN} before installing anything new.

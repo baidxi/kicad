@@ -196,6 +196,9 @@ void EDA_DRAW_PANEL_GAL::onPaint( wxPaintEvent& WXUNUSED( aEvent ) )
 
 bool EDA_DRAW_PANEL_GAL::DoRePaint()
 {
+    if( m_gal->IsContextLocked() )
+        return false;
+
     if( !m_refreshMutex.try_lock() )
         return false;
 
@@ -395,8 +398,7 @@ void EDA_DRAW_PANEL_GAL::RequestRefresh()
 
 void EDA_DRAW_PANEL_GAL::Refresh( bool aEraseBackground, const wxRect* aRect )
 {
-    if( !DoRePaint() )
-        RequestRefresh();
+    wxScrolledCanvas::Refresh( aEraseBackground, aRect );
 }
 
 
@@ -421,7 +423,7 @@ void EDA_DRAW_PANEL_GAL::ForceRefresh()
         }
     }
 
-    DoRePaint();
+    Refresh();
 }
 
 

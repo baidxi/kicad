@@ -31,12 +31,16 @@
 // Pull in the configuration options for wxWidgets
 #include <wx/platform.h>
 
+#ifdef __WXQT__
+#include <kiplatform/opengl_qt.h>
+#endif
+
 // Apple, in their infinite wisdom, has decided to mark OpenGL as deprecated.
 // Luckily we can silence warnings about its deprecation. This is needed on the GLEW
 // includes since they transitively include the OpenGL headers.
 #define GL_SILENCE_DEPRECATION 1
 
-#if defined( __unix__ ) and not defined( __APPLE__ )
+#if defined( __unix__ ) and not defined( __APPLE__ ) and not defined( __WXQT__ )
 
     #ifdef KICAD_USE_EGL
 
@@ -54,6 +58,11 @@
         #else
             // wxWidgets wasn't compiled with the EGL canvas, so use the X11 GLEW
             #include <GL/glxew.h>
+
+            // Resolve X.h conflict with wx 3.3
+            #ifdef Success
+                #undef Success
+            #endif
         #endif
 
     #endif  // KICAD_USE_EGL
@@ -63,12 +72,24 @@
     // Non-GTK platforms only need the normal GLEW include
     #include <GL/glew.h>
 
-#endif  // defined( __unix__ ) and not defined( __APPLE__ )
+#endif  // defined( __unix__ ) and not defined( __APPLE__ ) and not defined( __WXQT__ )
 
-#ifdef _WIN32
+#if defined( _WIN32 ) and not defined( __WXQT__ )
 
     #include <GL/wglew.h>
 
-#endif  // _WIN32
+#endif  // defined( _WIN32 ) and not defined( __WXQT__ )
+
+
+inline GLenum kiglewInit()
+{
+#ifdef __WXQT__
+    GLenum err = glewInit( &QtOpenGLGetProcAddress );
+#else
+    GLenum err = glewInit();
+#endif
+    return err;
+}
+
 
 #endif  // KIGLEW_H_

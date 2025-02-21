@@ -38,6 +38,28 @@ elseif( KICAD_WX_PORT STREQUAL gtk )
         message( STATUS "Configuring KiCad not to hide any GTK error messages" )
         string( APPEND PLATFORM_COMPILE_DEFS "-DKICAD_SHOW_GTK_MESSAGES" )
     endif()
+
+elseif( KICAD_WX_PORT STREQUAL qt )
+    set( PLATFORM_SRCS
+        port/wxqt/ui.cpp
+        port/wxqt/opengl_qt.cpp
+        )
+
+    set( QT_COMPONENTS Core Widgets Gui )
+
+    find_package( Qt5 REQUIRED COMPONENTS ${QT_COMPONENTS} )
+    set( QT_MAJOR_VERSION 5 )
+
+    foreach(QT_COMPONENT ${QT_COMPONENTS})
+        list(APPEND QT_INC_DIRS ${Qt${QT_MAJOR_VERSION}${QT_COMPONENT}_INCLUDE_DIRS})
+        list(APPEND PLATFORM_LIBS ${Qt${QT_MAJOR_VERSION}${QT_COMPONENT}_LIBRARIES})
+        list(APPEND PLATFORM_COMPILE_DEFS ${Qt${QT_MAJOR_VERSION}${QT_COMPONENT}_COMPILE_DEFINITIONS})
+    endforeach()
+
+    include_directories( SYSTEM ${QT_INC_DIRS} )
+
+    message( STATUS "Using Qt${QT_MAJOR_VERSION} platform libraries ${PLATFORM_LIBS}" )
+
 endif()
 
 

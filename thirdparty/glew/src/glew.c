@@ -36,6 +36,7 @@
 #  include GLEW_INCLUDE
 #endif
 
+#ifndef GLEW_RAW_PTR
 #if defined(GLEW_OSMESA)
 #  define GLAPI extern
 #  include <GL/osmesa.h>
@@ -54,10 +55,13 @@
 #elif !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && (!defined(__APPLE__) || defined(GLEW_APPLE_GLX))
 #  include <GL/glxew.h>
 #endif
+#endif
 
 #include <stddef.h>  /* For size_t */
 
-#if defined(GLEW_EGL)
+#if defined(GLEW_RAW_PTR)
+static void *(*glew_GetProcAddressPtr)(const unsigned char *procName);
+#elif defined(GLEW_EGL)
 #elif defined(GLEW_REGAL)
 
 /* In GLEW_REGAL mode we call direcly into the linked
@@ -158,7 +162,9 @@ void* NSGLGetProcAddress (const GLubyte *name)
 /*
  * Define glewGetProcAddress.
  */
-#if defined(GLEW_REGAL)
+#if defined(GLEW_RAW_PTR)
+#  define glewGetProcAddress(name) (*glew_GetProcAddressPtr)(name)
+#elif defined(GLEW_REGAL)
 #  define glewGetProcAddress(name) regalGetProcAddress((const GLchar *)name)
 #elif defined(GLEW_OSMESA)
 #  define glewGetProcAddress(name) OSMesaGetProcAddress((const char *)name)
@@ -22137,7 +22143,7 @@ GLenum GLEWAPIENTRY wglewInit ()
   return GLEW_OK;
 }
 
-#elif !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && (!defined(__APPLE__) || defined(GLEW_APPLE_GLX))
+#elif !defined(GLEW_RAW_PTR) && !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && (!defined(__APPLE__) || defined(GLEW_APPLE_GLX))
 
 PFNGLXGETCURRENTDISPLAYPROC __glewXGetCurrentDisplay = NULL;
 
@@ -23226,7 +23232,7 @@ GLenum glxewInit ()
   return GLEW_OK;
 }
 
-#endif /* !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && (!defined(__APPLE__) || defined(GLEW_APPLE_GLX)) */
+#endif /* !defined(GLEW_RAW_PTR) && !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && (!defined(__APPLE__) || defined(GLEW_APPLE_GLX)) */
 
 /* ------------------------------------------------------------------------ */
 
@@ -23262,8 +23268,14 @@ const GLubyte * GLEWAPIENTRY glewGetString (GLenum name)
 
 GLboolean glewExperimental = GL_FALSE;
 
+#ifdef GLEW_RAW_PTR
+GLenum GLEWAPIENTRY glewInit (void *(* getProcAddressFn)(const char *))
+{
+    glew_GetProcAddressPtr = (void* (*) (const unsigned char*) ) getProcAddressFn;
+#else
 GLenum GLEWAPIENTRY glewInit (void)
 {
+#endif 
   GLenum r;
 #if defined(GLEW_EGL)
   PFNEGLGETCURRENTDISPLAYPROC getCurrentDisplay = NULL;
@@ -23273,7 +23285,7 @@ GLenum GLEWAPIENTRY glewInit (void)
 #if defined(GLEW_EGL)
   getCurrentDisplay = (PFNEGLGETCURRENTDISPLAYPROC) glewGetProcAddress("eglGetCurrentDisplay");
   return eglewInit(getCurrentDisplay());
-#elif defined(GLEW_OSMESA) || defined(__ANDROID__) || defined(__native_client__) || defined(__HAIKU__)
+#elif defined(GLEW_RAW_PTR) || defined(GLEW_OSMESA) || defined(__ANDROID__) || defined(__native_client__) || defined(__HAIKU__)
   return r;
 #elif defined(_WIN32)
   return wglewInit();
@@ -30432,7 +30444,7 @@ GLboolean GLEWAPIENTRY wglewIsSupported (const char* name)
   return ret;
 }
 
-#elif !defined(GLEW_OSMESA) && !defined(GLEW_EGL) && !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && !defined(__APPLE__) || defined(GLEW_APPLE_GLX)
+#elif !defined(GLEW_RAW_PTR) && !defined(GLEW_OSMESA) && !defined(GLEW_EGL) && !defined(__ANDROID__) && !defined(__native_client__) && !defined(__HAIKU__) && !defined(__APPLE__) || defined(GLEW_APPLE_GLX)
 
 GLboolean glxewIsSupported (const char* name)
 {

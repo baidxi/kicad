@@ -26512,7 +26512,12 @@ VERSION_MICRO 0
 */
 
 /* API */
+#ifdef GLEW_RAW_PTR
+GLEWAPI GLenum GLEWAPIENTRY glewInit (void *(* getProcAddressFn)(const char *));
+#else
 GLEWAPI GLenum GLEWAPIENTRY glewInit (void);
+#endif
+
 GLEWAPI GLboolean GLEWAPIENTRY glewIsSupported (const char *name);
 #define glewIsExtensionSupported(x) glewIsSupported(x)
 

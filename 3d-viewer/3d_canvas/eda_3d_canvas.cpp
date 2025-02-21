@@ -226,7 +226,7 @@ bool  EDA_3D_CANVAS::initializeOpenGL()
 {
     wxLogTrace( m_logTrace, wxT( "EDA_3D_CANVAS::initializeOpenGL" ) );
 
-    const GLenum err = glewInit();
+    const GLenum err = kiglewInit();
 
     if( GLEW_OK != err )
     {

@@ -542,10 +542,11 @@ int DIALOG_SHIM::ShowQuasiModal()
     wxWindow* parent = GetParentForModalDialog( GetParent(), GetWindowStyle() );
 
     wxASSERT_MSG( !m_qmodal_parent_disabler, wxT( "Caller using ShowQuasiModal() twice on same "
-                                                  "window?" ) );
-
+                                                  "window?" ) );    
+#ifndef __WXQT__
     // quasi-modal: disable only my "optimal" parent
     m_qmodal_parent_disabler = new WDO_ENABLE_DISABLE( parent );
+#endif
 
     // Apple in its infinite wisdom will raise a disabled window before even passing
     // us the event, so we have no way to stop it.  Instead, we must set an order on
