@@ -1,7 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2004-2023 KiCad Developers.
+ * Copyright (C) 2004-2025 KiCad Developers.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -451,7 +451,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 if( outline.Intersect( SEG( track->GetStart(), track->GetEnd() ), intersections ) )
                     p0 = intersections[0].p;
 
-                p0 = p0 - footprint->GetCenter();
+                p0 = p0 - footprint->GetPosition();
 
                 direction = direction.Resize( pcbIUScale.IUTomm( track->GetWidth() ) );
 
@@ -508,7 +508,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 
                             direction = direction.Resize( pcbIUScale.IUTomm( spoke_half_width ) );
 
-                            VECTOR2D p0 = intersection.p - footprint->GetCenter();
+                            VECTOR2D p0 = intersection.p - footprint->GetPosition();
 
                             force += direction;
                             torque += pcbIUScale.IUTomm( p0.x ) * direction.y - pcbIUScale.IUTomm( p0.y ) * direction.x;
