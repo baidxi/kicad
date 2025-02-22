@@ -21,6 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include "core/typeinfo.h"
 #include <algorithm>
 #include <cstdio>
 #include <memory>
@@ -1621,7 +1622,12 @@ static void hasComponentClassFunc( LIBEVAL::CONTEXT* aCtx, void* self )
                     footprint = item->GetParentFootprint();
 
                 if( !footprint )
-                    return 0.0;
+                {
+                    if( item->Type() == PCB_PAD_T )
+                        footprint = dynamic_cast<PAD*>( item )->GetParentFootprint();
+                    else
+                        return 0.0;
+                }
 
                 const COMPONENT_CLASS* compClass = footprint->GetComponentClass();
 
