@@ -1,7 +1,8 @@
 #include <wx/log.h>
 
-#include "allegro_parser.h"
 #include "allegro_pcb.h"
+
+#include "allegro_parser.h"
 
 ALLEGRO_PCB::ALLEGRO_PCB( BOARD* aBoard ) : m_board( aBoard )
 {

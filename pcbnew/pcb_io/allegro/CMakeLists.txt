@@ -1,5 +1,6 @@
 set( ALLEGRO2PCBNEW_SRCS
     allegro_file.cpp
+    allegro_parser.cpp
     allegro_pcb.cpp
     pcb_io_allegro.cpp
     )
