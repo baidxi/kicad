@@ -935,7 +935,7 @@ template <MAGIC magic>
 struct T_28_ZONE
 {
     uint16_t type;
-    LAYER_IN layer;
+    LAYER_INFO layer;
 
     uint32_t k;
     uint32_t ptr5;
