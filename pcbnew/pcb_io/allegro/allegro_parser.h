@@ -51,7 +51,7 @@ private:
     void    BuildBoard();
     uint8_t GetCopperLayerCount();
     void    AddAnnotation( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_14<magic>& i14 );
-    void    AddFootprint( const ALLEGRO::T_2B<magic>& i2B );
+    void    AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& i2B );
 
     void AddPad( FOOTPRINT* fp, const ALLEGRO::T_32<magic>& i32 );
 
@@ -81,7 +81,7 @@ private:
     constexpr ALLEGRO::t13<magic>* GetPadComponent( const ALLEGRO::T_1C<magic>& i1C, uint32_t idx );
     void                           SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it13 );
 
-    std::optional<wxString> RefdesLookup( const ALLEGRO::T_2D<magic>& i2D );
+    std::optional<wxString> RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& i2D );
 
     template <template <ALLEGRO::MAGIC> typename T>
     static uint32_t DefaultParser( ALLEGRO_PARSER& parser );
@@ -190,11 +190,11 @@ private:
         // 0x2A
         &Parse2A,
         // 0x2B
-        &DefaultParser<ALLEGRO::T_2B>,
+        &DefaultParser<ALLEGRO::T_2B_FOOTPRINT>,
         // 0x2C
-        &DefaultParser<ALLEGRO::T_2C>,
+        &DefaultParser<ALLEGRO::T_2C_TABLE>,
         // 0x2D
-        &DefaultParser<ALLEGRO::T_2D>,
+        &DefaultParser<ALLEGRO::T_2D_PLACED_FOOTPRINT>,
         // 0x2E
         &DefaultParser<ALLEGRO::T_2E>,
         // 0x2F

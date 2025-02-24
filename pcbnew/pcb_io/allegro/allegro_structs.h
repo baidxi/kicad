@@ -980,52 +980,6 @@ struct T_28_ZONE
     uint32_t TAIL;
 };
 
-template <MAGIC magic>
-struct T_2B
-{
-    uint32_t t;
-    uint32_t k;
-    uint32_t footprint_string_ref;
-
-    uint32_t un1; // Always null?
-
-    int32_t coords[4];
-
-    // Points to another x2B object? Just the next item, not interesting.
-    uint32_t next;
-
-    // Points to placed symbol (x2D)
-    uint32_t ptr2;
-
-    // Points to pad of some type (x0D)?
-    uint32_t ptr3;
-
-    // Symbol pad (x32)
-    uint32_t ptr4;
-
-    // x14?
-    uint32_t ptr5;
-
-    // Usually (but not always) points to footprint file path.
-    uint32_t str_ptr;
-
-    // x0E or x28
-    uint32_t ptr6;
-
-    // x24
-    uint32_t ptr7;
-
-    // x28
-    uint32_t ptr8;
-
-    COND_FIELD( magic >= A_164, uint32_t, un2 ); // Always null?
-
-    // 17.x?
-    COND_FIELD( magic >= A_172, uint32_t, un3 );
-
-    uint32_t TAIL;
-};
-
 struct x2A_hdr
 {
     uint16_t t;
@@ -1078,9 +1032,55 @@ struct T_2A
     uint32_t                         k;
 };
 
+template <MAGIC magic>
+struct T_2B_FOOTPRINT
+{
+    uint32_t t;
+    uint32_t k;
+    uint32_t footprint_string_ref;
+
+    uint32_t un1; // Always null?
+
+    int32_t coords[4];
+
+    // Points to another x2B object? Just the next item, not interesting.
+    uint32_t next;
+
+    // Points to placed symbol (x2D)
+    uint32_t ptr2;
+
+    // Points to pad of some type (x0D)?
+    uint32_t ptr3;
+
+    // Symbol pad (x32)
+    uint32_t ptr4;
+
+    // x14?
+    uint32_t ptr5;
+
+    // Usually (but not always) points to footprint file path.
+    uint32_t str_ptr;
+
+    // x0E or x28
+    uint32_t ptr6;
+
+    // x24
+    uint32_t ptr7;
+
+    // x28
+    uint32_t ptr8;
+
+    COND_FIELD( magic >= A_164, uint32_t, un2 ); // Always null?
+
+    // 17.x?
+    COND_FIELD( magic >= A_172, uint32_t, un3 );
+
+    uint32_t TAIL;
+};
+
 // Table?
 template <MAGIC magic>
-struct T_2C
+struct T_2C_TABLE
 {
     uint32_t t;
     uint32_t k;
@@ -1112,7 +1112,7 @@ struct T_2C
 
 // Placed symbol
 template <MAGIC magic>
-struct T_2D
+struct T_2D_PLACED_FOOTPRINT
 {
     uint16_t t;
     uint8_t  layer;
