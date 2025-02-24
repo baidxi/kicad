@@ -57,7 +57,7 @@ void ALLEGRO_PARSER<magic>::Parse()
     {
         uint32_t xs[2] = { *( (uint32_t*) m_curAddr ), *( ( (uint32_t*) m_curAddr ) + 1 ) };
         Skip( sizeof( xs ) );
-        m_layers.push_back( std::make_tuple( xs[0], xs[1] ) );
+        m_layers.emplace_back( xs[0], xs[1] );
     }
 
     // Strings map
