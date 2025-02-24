@@ -10,7 +10,6 @@
 #include <unordered_map>
 #endif
 #include <optional>
-#include <variant>
 
 // Includes for `ntohl`, which is used for displaying ints in the same format
 // as a hex editor.

@@ -96,8 +96,8 @@ void ALLEGRO_PARSER<magic>::Parse()
         }
         else
         {
-            Log( "Do not have parser t=%02X available", t );
-            return;
+            THROW_IO_ERROR(
+                    wxString::Format( "Do not have parser for t=0x%02X available.", ntohl( t ) ) );
         }
     }
 

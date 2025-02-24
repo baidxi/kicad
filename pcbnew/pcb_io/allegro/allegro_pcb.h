@@ -4,7 +4,6 @@
 #include <pcb_io/pcb_io.h>
 
 #include "allegro_file.h"
-#include "allegro_structs.h"
 
 class ALLEGRO_PCB
 {

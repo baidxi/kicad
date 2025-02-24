@@ -1,3 +1,5 @@
+#include "pcb_io_allegro.h"
+
 #include <wx/wfstream.h>
 #include <wx/log.h>
 #include <wx/translation.h>
@@ -7,7 +9,6 @@
 #include "allegro_file.h"
 #include "allegro_pcb.h"
 #include "allegro_structs.h"
-#include "pcb_io_allegro.h"
 
 PCB_IO_ALLEGRO::PCB_IO_ALLEGRO() : PCB_IO( wxS( "Cadence Allegro" ) ), m_board( nullptr ) {};
 

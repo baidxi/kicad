@@ -1,6 +1,6 @@
-#include <wx/log.h>
-
 #include "allegro_pcb.h"
+
+#include <wx/log.h>
 
 #include "allegro_parser.h"
 
@@ -10,7 +10,6 @@ ALLEGRO_PCB::ALLEGRO_PCB( BOARD* aBoard ) : m_board( aBoard )
 
 void ALLEGRO_PCB::Parse( const ALLEGRO_FILE& aAllegroBrdFile )
 {
-    // wxLogMessage( "p: %p\n", aAllegroBrdFile.region.get_address() );
     uint32_t magic = *(uint32_t*) ( aAllegroBrdFile.region.get_address() );
     switch( magic )
     {
@@ -64,5 +63,8 @@ void ALLEGRO_PCB::Parse( const ALLEGRO_FILE& aAllegroBrdFile )
         ALLEGRO_PARSER<ALLEGRO::A_175>( m_board, aAllegroBrdFile ).Parse();
         return;
     }
+    default:
+        THROW_IO_ERROR( wxString::Format( _( "Board file magic=0x%08X not recognized." ),
+                                          ntohl( magic ) ) );
     }
 }

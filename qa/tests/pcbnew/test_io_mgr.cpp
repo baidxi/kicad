@@ -92,6 +92,11 @@ static const std::vector<PCB_IO_PLUGIN_CASE> BoardPluginCases = {
         "plugins/fakeboard.SWPcbDoc",
         PCB_IO_MGR::FILE_TYPE_NONE
     },
+    {
+        "Fake Board file (Allegro PCB with unknown magic)",
+        "plugins/allegro/Invalid_Magic.brd",
+        PCB_IO_MGR::FILE_TYPE_NONE
+    },
 
     //
     // REAL Boards:
@@ -279,21 +284,19 @@ static const std::vector<PCB_IO_PLUGIN_CASE> LibraryPluginCases = {
 
 BOOST_DATA_TEST_CASE( FindBoardPluginType, boost::unit_test::data::make( BoardPluginCases ), c )
 {
-    wxString dataPath =
-            wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
+    wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
 
-    BOOST_CHECK_EQUAL( PCB_IO_MGR::FindPluginTypeFromBoardPath( dataPath ),
-                        c.m_expected_type );
+    BOOST_CHECK_EQUAL( PCB_IO_MGR::FindPluginTypeFromBoardPath( dataPath ), c.m_expected_type );
 
     // Todo add tests to check if it still works with upper/lower case ext.
     // ( FindPluginTypeFromBoardPath should be case insensitive)
 }
 
 
-BOOST_DATA_TEST_CASE( GuessLibraryPluginType, boost::unit_test::data::make( LibraryPluginCases ), c )
+BOOST_DATA_TEST_CASE( GuessLibraryPluginType, boost::unit_test::data::make( LibraryPluginCases ),
+                      c )
 {
-    wxString dataPath =
-            wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
+    wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
 
     BOOST_CHECK_EQUAL( PCB_IO_MGR::GuessPluginTypeFromLibPath( dataPath ), c.m_expected_type );
 
@@ -304,8 +307,7 @@ BOOST_DATA_TEST_CASE( GuessLibraryPluginType, boost::unit_test::data::make( Libr
 
 BOOST_DATA_TEST_CASE( CheckCanReadBoard, boost::unit_test::data::make( BoardPluginCases ), c )
 {
-    wxString dataPath =
-            wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
+    wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
 
     auto& pluginEntries = PCB_IO_MGR::PLUGIN_REGISTRY::Instance()->AllPlugins();
 
