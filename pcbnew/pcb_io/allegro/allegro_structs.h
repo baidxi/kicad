@@ -124,7 +124,7 @@ static_assert( offsetof( HEADER, unit_divisor ) == 620 );
 
 // Curved line segment
 template <MAGIC magic>
-struct T_01
+struct T_01_ARC
 {
     uint16_t t;
     uint8_t  un0;
@@ -157,9 +157,9 @@ struct T_01
     uint32_t TAIL;
 };
 
-static_assert( sizeof_allegro_obj<T_01<A_160>>() == 80 );
-static_assert( sizeof_allegro_obj<T_01<A_172>>() == 84 );
-static_assert( sizeof_allegro_obj<T_01<A_174>>() == 84 );
+static_assert( sizeof_allegro_obj<T_01_ARC<A_160>>() == 80 );
+static_assert( sizeof_allegro_obj<T_01_ARC<A_172>>() == 84 );
+static_assert( sizeof_allegro_obj<T_01_ARC<A_174>>() == 84 );
 
 struct x03_hdr_subtype
 {
@@ -572,7 +572,7 @@ struct T_14
 
 // Line segment
 template <MAGIC magic>
-struct T_15
+struct T_15_SEGMENT
 {
     uint32_t t;
     uint32_t k;
@@ -594,7 +594,7 @@ struct T_15
 
 // Line segment
 template <MAGIC magic>
-struct T_16
+struct T_16_SEGMENT
 {
     uint32_t t;
     uint32_t k;
@@ -615,7 +615,7 @@ struct T_16
 
 // Line segment
 template <MAGIC magic>
-struct T_17
+struct T_17_SEGMENT
 {
     uint32_t t;
     uint32_t k;

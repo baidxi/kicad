@@ -68,8 +68,12 @@ private:
     NETINFO_ITEM*           NetInfo( uint32_t k );
     NETINFO_ITEM*           NetInfo( const ALLEGRO::T_04<magic>& i04 );
     SHAPE_LINE_CHAIN        ShapeStartingAt( uint32_t* k );
-    PCB_LAYER_ID            EtchLayerToKi( ALLEGRO::LAYER_INFO a_layer );
-    double                  Scale( double a_allegroValue );
+
+    template <class SEGMENT_TYPE>
+    void AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment, bool first_segment );
+
+    PCB_LAYER_ID EtchLayerToKi( ALLEGRO::LAYER_INFO a_layer );
+    double       Scale( double a_allegroValue );
 
     const ALLEGRO::T_36_08<magic>* FindFont( uint8_t k );
 
@@ -102,7 +106,7 @@ private:
         // 0x00
         nullptr,
         // 0x01
-        &DefaultParser<ALLEGRO::T_01>,
+        &DefaultParser<ALLEGRO::T_01_ARC>,
         // 0x02
         nullptr,
         // 0x03
@@ -142,11 +146,11 @@ private:
         // 0x14
         &DefaultParser<ALLEGRO::T_14>,
         // 0x15
-        &DefaultParser<ALLEGRO::T_15>,
+        &DefaultParser<ALLEGRO::T_15_SEGMENT>,
         // 0x16
-        &DefaultParser<ALLEGRO::T_16>,
+        &DefaultParser<ALLEGRO::T_16_SEGMENT>,
         // 0x17
-        &DefaultParser<ALLEGRO::T_17>,
+        &DefaultParser<ALLEGRO::T_17_SEGMENT>,
         // 0x18
         nullptr,
         // 0x19

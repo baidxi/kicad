@@ -310,7 +310,7 @@ template <ALLEGRO::MAGIC magic>
 uint32_t ALLEGRO_PARSER<magic>::Parse2A( ALLEGRO_PARSER& parser )
 {
     ALLEGRO::T_2A x2A_inst;
-    memcpy( &x2A_inst, parser.m_curAddr, sizeof( ALLEGRO::x2A_hdr ) );
+    memcpy( &x2A_inst.hdr, parser.m_curAddr, sizeof( ALLEGRO::x2A_hdr ) );
 
     // f.read((char*)&x2A_inst.hdr, sizeof(x2A_hdr));
     parser.Skip( sizeof( ALLEGRO::x2A_hdr ) );
@@ -585,7 +585,7 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
     {
         if( IsType( k, 0x01 ) )
         {
-            ALLEGRO::T_01<magic>* i01 = static_cast<ALLEGRO::T_01<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_01_ARC<magic>* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[k] );
 
             double r = cfp_to_double( i01->r );
 
@@ -610,7 +610,8 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         }
         else if( IsType( k, 0x15 ) )
         {
-            ALLEGRO::T_15<magic>* i15 = static_cast<ALLEGRO::T_15<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_15_SEGMENT<magic>* i15 =
+                    static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i15->coords[0] );
@@ -631,7 +632,8 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         }
         else if( IsType( k, 0x16 ) )
         {
-            ALLEGRO::T_16<magic>* i16 = static_cast<ALLEGRO::T_16<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_16_SEGMENT<magic>* i16 =
+                    static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i16->coords[0] );
@@ -652,7 +654,8 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         }
         else if( IsType( k, 0x17 ) )
         {
-            ALLEGRO::T_17<magic>* i17 = static_cast<ALLEGRO::T_17<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_17_SEGMENT<magic>* i17 =
+                    static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i17->coords[0] );
@@ -1003,7 +1006,7 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
     {
         if( IsType( k, 0x01 ) )
         {
-            ALLEGRO::T_01<magic>* i01 = static_cast<ALLEGRO::T_01<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_01_ARC<magic>* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[k] );
 
             double r = cfp_to_double( i01->r );
 
@@ -1030,7 +1033,8 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         }
         else if( IsType( k, 0x15 ) )
         {
-            ALLEGRO::T_15<magic>* i15 = static_cast<ALLEGRO::T_15<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_15_SEGMENT<magic>* i15 =
+                    static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i15->coords[0] );
@@ -1052,7 +1056,8 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         }
         else if( IsType( k, 0x16 ) )
         {
-            ALLEGRO::T_16<magic>* i16 = static_cast<ALLEGRO::T_16<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_16_SEGMENT<magic>* i16 =
+                    static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i16->coords[0] );
@@ -1074,7 +1079,8 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         }
         else if( IsType( k, 0x17 ) )
         {
-            ALLEGRO::T_17<magic>* i17 = static_cast<ALLEGRO::T_17<magic>*>( m_ptrs[k] );
+            ALLEGRO::T_17_SEGMENT<magic>* i17 =
+                    static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[k] );
 
             VECTOR2D start, end;
             start.x = Scale( i17->coords[0] );
@@ -1271,8 +1277,6 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::BuildBoard()
 {
-    // FIXME: Add one so we can see the bottom layer, which is currently tagged
-    // incorrectly on an inner layer.
     m_board->SetCopperLayerCount( GetCopperLayerCount() );
 
     ALLEGRO::T_1B<magic>* i = static_cast<ALLEGRO::T_1B<magic>*>( m_ptrs[m_header->ll_x1B.head] );
@@ -1475,7 +1479,7 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
     {
         if( IsType( *k, 0x01 ) )
         {
-            ALLEGRO::T_01<magic>* i01 = static_cast<ALLEGRO::T_01<magic>*>( m_ptrs[*k] );
+            ALLEGRO::T_01_ARC<magic>* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[*k] );
 
             VECTOR2I start, end, center, mid;
             start.x = Scale( i01->coords[0] );
@@ -1498,57 +1502,21 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
         }
         else if( IsType( *k, 0x15 ) )
         {
-            ALLEGRO::T_15<magic>* i15 = static_cast<ALLEGRO::T_15<magic>*>( m_ptrs[*k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i15->coords[0] );
-            start.y = Scale( -i15->coords[1] );
-            end.x = Scale( i15->coords[2] );
-            end.y = Scale( -i15->coords[3] );
-
-            if( first )
-            {
-                chain.Append( start );
-            }
-            chain.Append( end );
-
-            *k = i15->next;
+            auto* segment_inst = static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[*k] );
+            AddSegmentToChain( chain, segment_inst, first );
+            *k = segment_inst->next;
         }
         else if( IsType( *k, 0x16 ) )
         {
-            ALLEGRO::T_16<magic>* i16 = static_cast<ALLEGRO::T_16<magic>*>( m_ptrs[*k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i16->coords[0] );
-            start.y = Scale( -i16->coords[1] );
-            end.x = Scale( i16->coords[2] );
-            end.y = Scale( -i16->coords[3] );
-
-            if( first )
-            {
-                chain.Append( start );
-            }
-            chain.Append( end );
-
-            *k = i16->next;
+            auto* segment_inst = static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[*k] );
+            AddSegmentToChain( chain, segment_inst, first );
+            *k = segment_inst->next;
         }
         else if( IsType( *k, 0x17 ) )
         {
-            ALLEGRO::T_17<magic>* i17 = static_cast<ALLEGRO::T_17<magic>*>( m_ptrs[*k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i17->coords[0] );
-            start.y = Scale( -i17->coords[1] );
-            end.x = Scale( i17->coords[2] );
-            end.y = Scale( -i17->coords[3] );
-
-            if( first )
-            {
-                chain.Append( start );
-            }
-            chain.Append( end );
-
-            *k = i17->next;
+            auto* segment_inst = static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[*k] );
+            AddSegmentToChain( chain, segment_inst, first );
+            *k = segment_inst->next;
         }
         else
         {
@@ -1560,6 +1528,24 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
 
     chain.SetClosed( true );
     return chain;
+}
+
+template <ALLEGRO::MAGIC magic>
+template <class SEGMENT_TYPE>
+void ALLEGRO_PARSER<magic>::AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment,
+                                               bool first_segment )
+{
+    VECTOR2D start, end;
+    start.x = Scale( segment->coords[0] );
+    start.y = Scale( -segment->coords[1] );
+    end.x = Scale( segment->coords[2] );
+    end.y = Scale( -segment->coords[3] );
+
+    if( first_segment )
+    {
+        chain.Append( start );
+    }
+    chain.Append( end );
 }
 
 template <ALLEGRO::MAGIC magic>
