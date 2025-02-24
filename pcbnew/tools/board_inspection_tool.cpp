@@ -508,18 +508,18 @@ wxString BOARD_INSPECTION_TOOL::InspectDRCErrorMenuText( const std::shared_ptr<R
         return m_frame->GetRunMenuCommandDescription( PCB_ACTIONS::inspectClearance );
     }
     else if( aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT
-            || aDRCItem->GetErrorCode() == DRCE_TEXT_THICKNESS
-            || aDRCItem->GetErrorCode() == DRCE_DIFF_PAIR_UNCOUPLED_LENGTH_TOO_LONG
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_ANGLE
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_SEGMENT_LENGTH
-            || aDRCItem->GetErrorCode() == DRCE_PAD_FANOUT_RATIO
-            || aDRCItem->GetErrorCode() == DRCE_VIA_DIAMETER
-            || aDRCItem->GetErrorCode() == DRCE_ANNULAR_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_DRILL_OUT_OF_RANGE
-            || aDRCItem->GetErrorCode() == DRCE_MICROVIA_DRILL_OUT_OF_RANGE
-            || aDRCItem->GetErrorCode() == DRCE_CONNECTION_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_ASSERTION_FAILURE )
+             || aDRCItem->GetErrorCode() == DRCE_TEXT_THICKNESS
+             || aDRCItem->GetErrorCode() == DRCE_DIFF_PAIR_UNCOUPLED_LENGTH_TOO_LONG
+             || aDRCItem->GetErrorCode() == DRCE_TRACK_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_TRACK_ANGLE
+             || aDRCItem->GetErrorCode() == DRCE_TRACK_SEGMENT_LENGTH
+             || aDRCItem->GetErrorCode() == DRCE_PAD_FANOUT_RATIO
+             || aDRCItem->GetErrorCode() == DRCE_VIA_DIAMETER
+             || aDRCItem->GetErrorCode() == DRCE_ANNULAR_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_DRILL_OUT_OF_RANGE
+             || aDRCItem->GetErrorCode() == DRCE_MICROVIA_DRILL_OUT_OF_RANGE
+             || aDRCItem->GetErrorCode() == DRCE_CONNECTION_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_ASSERTION_FAILURE )
     {
         return m_frame->GetRunMenuCommandDescription( PCB_ACTIONS::inspectConstraints );
     }
@@ -636,7 +636,7 @@ void BOARD_INSPECTION_TOOL::InspectDRCError( const std::shared_ptr<RC_ITEM>& aDR
                                      reportMin( m_frame, constraint ),
                                      reportMax( m_frame, constraint ) ) );
         break;
-    
+
     case DRCE_PAD_FANOUT_RATIO:
         r = dialog->AddHTMLPage( _( "Pad fanout ratio" ) );
         reportHeader( _( "Pad fanout ratio resolution for:" ), a, r );

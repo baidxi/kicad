@@ -508,6 +508,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
         return;
     }
 
+    // clang-format off: suggestion is less organised
     switch( token )
     {
     case T_assertion:                 c.m_Type = ASSERTION_CONSTRAINT;                 break;
@@ -563,6 +564,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
                        "diff_pair_uncoupled, bridged_mask or pad_fanout_ratio" ) );
         return;
     }
+    // clang-format on: suggestion is less organised
 
     if( aRule->FindConstraint( c.m_Type ) )
     {

@@ -450,6 +450,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
         STRUCT_REF
     };
 
+    // clang-format off: suggestion is less maintainable
     auto isDisallowToken =
             []( const wxString& token ) -> bool
             {
@@ -505,6 +506,7 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                     || token == wxT( "via_diameter" )
                     || token == wxT( "zone_connection" );
             };
+    // clang-format on: suggestion is less maintainable
 
     std::stack<wxString> sexprs;
     wxString             partial;
