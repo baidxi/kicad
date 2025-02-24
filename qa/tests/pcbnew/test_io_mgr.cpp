@@ -148,18 +148,13 @@ static const std::vector<PCB_IO_PLUGIN_CASE> BoardPluginCases = {
         PCB_IO_MGR::ALTIUM_DESIGNER
     },
     {
-        "AVALON.BRD",
-        "plugins/allegro/AVALON.BRD",
+        "AVALON",
+        "plugins/allegro/AVALON.brd",
         PCB_IO_MGR::ALLEGRO
     },
     {
         "BeagleBone-AI",
-        "plugins/allegro/BeagleBone-AI.BRD",
-        PCB_IO_MGR::ALLEGRO
-    },
-    {
-        "BeagleBone-AI",
-        "plugins/allegro/BeagleBone-AI.BRD",
+        "plugins/allegro/BeagleBone-AI.brd",
         PCB_IO_MGR::ALLEGRO
     },
     {

@@ -20,7 +20,7 @@ BOOST_FIXTURE_TEST_SUITE( AllegroBrdImport, ALLEGRO_BRD_IMPORT_FIXTURE )
 BOOST_AUTO_TEST_CASE( AllegroBrdImport )
 {
     std::vector<wxString> tests = {
-        "AVALON.BRD",
+        "AVALON.brd",
         "BeagleBone-AI.brd",
         "BeagleY-AI_PCB_V1.0_240105.brd",
         "MAINBOARD_02_20181023.brd",
@@ -32,7 +32,11 @@ BOOST_AUTO_TEST_CASE( AllegroBrdImport )
     for( const wxString& brdName : tests )
     {
         wxString allegroBrdPath = dataPath + brdName;
-        BOARD*   brd = allegroPlugin.LoadBoard( allegroBrdPath, nullptr );
+        BOOST_TEST_CONTEXT( "Filename: " << allegroBrdPath )
+        {
+            BOARD* brd = allegroPlugin.LoadBoard( allegroBrdPath, nullptr );
+            BOOST_CHECK_NE( brd->GetCopperLayerCount(), 0 );
+        }
     }
 };
 
