@@ -765,11 +765,11 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
         {
             if( IsType( k_shape, 0x28 ) )
             {
-                auto* i28 = static_cast<ALLEGRO::T_28_ZONE<magic>*>( m_ptrs[k_shape] );
+                auto* i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k_shape] );
                 // wxLogMessage( "Drawing T_28 t=0x%02X.%02X.%02X k=0x%08X", ntohs( i28->type ),
                 //               i28->subtype, i28->layer, ntohl( i28->k ) );
                 AddZone( *fp, {}, *i28 );
-                k_shape = i28->ptr5;
+                k_shape = i28->next;
             }
             else if( IsType( k_shape, 0x0E ) )
             {
@@ -784,10 +784,10 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
             }
         }
 
-        PCB_FIELD id_field = PCB_FIELD( &*fp, -1, "ALLEGRO_ID" );
-        id_field.SetText( wxString::Format( "0x%08X", ntohl( i2D->k ) ) );
-        id_field.SetVisible( false );
-        fp->AddField( id_field );
+        PCB_FIELD* id_field = fp->GetField( FIELD_T::USER );
+        id_field->SetName( "ALLEGRO_ID" );
+        id_field->SetText( wxString::Format( "0x%08X", ntohl( i2D->k ) ) );
+        id_field->SetVisible( false );
 
         k = i2D->next;
 
@@ -1123,7 +1123,7 @@ void ALLEGRO_PARSER<magic>::AddVia( const ALLEGRO::T_33<magic>& i33 )
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      aContainer,
                                      const std::optional<ALLEGRO::T_1B<magic>>& i1B,
-                                     const ALLEGRO::T_28_ZONE<magic>&           i28 )
+                                     const ALLEGRO::T_28_SHAPE<magic>&          i28 )
 {
     uint32_t k = i28.first_segment_ptr;
 
@@ -1172,6 +1172,17 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         // zone->SetFilledPolysList( layer, outline );
 
         aContainer.Add( zone.release(), ADD_MODE::APPEND );
+    }
+    else if( i28.layer.family == 1 && i28.layer.ordinal == 253 )
+    {
+        wxLogMessage( "Found border" );
+        std::unique_ptr<PCB_SHAPE> shape =
+                std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
+        shape->SetPolyShape( *outline.release() );
+        shape->SetFilled( false );
+        shape->SetLayer( Edge_Cuts );
+
+        aContainer.Add( shape.release(), ADD_MODE::APPEND );
     }
     else if( i28.layer.family == ALLEGRO::ZONE_TYPE_SILK )
     {
@@ -1309,10 +1320,10 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         }
                         else if( IsType( k, 0x28 ) )
                         {
-                            auto* i28 = static_cast<ALLEGRO::T_28_ZONE<magic>*>( m_ptrs[k] );
+                            auto* i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k] );
                             AddZone( *m_board, *i, *i28 );
 
-                            k = i28->ptr5;
+                            k = i28->next;
                         }
                         else if( IsType( k, 0x0E ) )
                         {
@@ -1365,9 +1376,9 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             }
             else if( IsType( k, 0x28 ) )
             {
-                auto i28 = static_cast<ALLEGRO::T_28_ZONE<magic>*>( m_ptrs[k] );
+                auto i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k] );
                 AddZone( *m_board, {}, *i28 );
-                k = i28->ptr5;
+                k = i28->next;
             }
             else
             {
@@ -1419,6 +1430,30 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             {
                 // wxLogMessage( "Unexpected type in ll_x03_x30" );
                 break;
+            }
+        }
+    }
+
+    k = m_header->ll_x24_x28.head;
+    if( k != 0 )
+    {
+        while( k != m_header->ll_x24_x28.tail )
+        {
+            if( IsType( k, 0x24 ) )
+            {
+                auto* i = static_cast<ALLEGRO::T_24<magic>*>( m_ptrs[k] );
+                k = i->next;
+            }
+            else if( IsType( k, 0x28 ) )
+            {
+                auto* i = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k] );
+                AddZone( *m_board, {}, *i );
+                k = i->next;
+            }
+            else
+            {
+                THROW_IO_ERROR( wxString::Format(
+                        "Expecetd t=0x24 or t=0x28 but k=0x%08X unexpected", ntohl( k ) ) );
             }
         }
     }
@@ -1614,7 +1649,7 @@ void ALLEGRO_PARSER<magic>::SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it
     {
         if( IsType( it13.str_ptr, 0x28 ) )
         {
-            auto*    i28 = static_cast<ALLEGRO::T_28_ZONE<magic>*>( m_ptrs[it13.str_ptr] );
+            auto*    i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[it13.str_ptr] );
             uint32_t k = i28->first_segment_ptr;
             pad.DeletePrimitivesList();
             pad.AddPrimitivePoly( PADSTACK::ALL_LAYERS, ShapeStartingAt( &k ), 0, true );

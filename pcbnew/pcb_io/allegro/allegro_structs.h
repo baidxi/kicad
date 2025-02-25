@@ -892,9 +892,13 @@ struct T_23
 template <MAGIC magic>
 struct T_24
 {
-    uint32_t t;
+    uint16_t   t;
+    LAYER_INFO layer;
+
     uint32_t k;
-    uint32_t un[11];
+    uint32_t next;
+
+    uint32_t un[10];
     COND_FIELD( magic >= A_172, uint32_t, un1 );
 
     uint32_t TAIL;
@@ -931,13 +935,13 @@ enum ZONE_TYPE : uint8_t
 };
 
 template <MAGIC magic>
-struct T_28_ZONE
+struct T_28_SHAPE
 {
-    uint16_t type;
+    uint16_t   type;
     LAYER_INFO layer;
 
     uint32_t k;
-    uint32_t ptr5;
+    uint32_t next;
 
     // Points to one of: header value, `x04`, `x2B`, `x2D`
     uint32_t ptr1;
@@ -948,7 +952,7 @@ struct T_28_ZONE
     COND_FIELD( magic >= A_172, uint32_t[2], un5 );
 
     // Points to `x28`, `x2D`, or `x33`
-    uint32_t next;
+    uint32_t ptr2;
 
     // Points to `x05` or `x09` (much more frequently `x09`)
     uint32_t ptr3;

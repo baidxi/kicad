@@ -58,7 +58,7 @@ private:
     void AddTrack( const ALLEGRO::T_1B<magic>& i1B, const ALLEGRO::T_05_TRACK<magic>& i05 );
     void AddVia( const ALLEGRO::T_33<magic>& i33 );
     void AddZone( BOARD_ITEM_CONTAINER& aContainer, const std::optional<ALLEGRO::T_1B<magic>>& i1B,
-                  const ALLEGRO::T_28_ZONE<magic>& i28 );
+                  const ALLEGRO::T_28_SHAPE<magic>& i28 );
 
     void                    Skip( std::size_t n );
     void                    Log( const char* fmt... );
@@ -183,7 +183,7 @@ private:
         // 0x27
         &Parse27,
         // 0x28
-        &DefaultParser<ALLEGRO::T_28_ZONE>,
+        &DefaultParser<ALLEGRO::T_28_SHAPE>,
         // 0x29
         nullptr,
         // 0x2A
