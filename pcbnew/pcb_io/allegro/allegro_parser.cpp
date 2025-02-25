@@ -1280,6 +1280,28 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
 }
 
 template <ALLEGRO::MAGIC magic>
+void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer,
+                                          const ALLEGRO::T_24<magic>& i24 )
+{
+    std::unique_ptr<SHAPE_POLY_SET> outline = std::make_unique<SHAPE_POLY_SET>();
+
+    SHAPE_LINE_CHAIN chain;
+    chain.Append( VECTOR2D{ Scale( i24.coords[0] ), Scale( i24.coords[1] ) } );
+    chain.Append( VECTOR2D{ Scale( i24.coords[0] ), Scale( i24.coords[3] ) } );
+    chain.Append( VECTOR2D{ Scale( i24.coords[1] ), Scale( i24.coords[3] ) } );
+    chain.Append( VECTOR2D{ Scale( i24.coords[1] ), Scale( i24.coords[1] ) } );
+    chain.SetClosed( true );
+
+    outline->AddOutline( chain );
+
+    std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
+    shape->SetPolyShape( *outline.release() );
+    shape->SetFilled( false );
+    shape->SetLayer( User_1 );
+    aContainer.Add( shape.release(), ADD_MODE::APPEND );
+}
+
+template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::BuildBoard()
 {
     m_board->SetCopperLayerCount( GetCopperLayerCount() );
@@ -1441,6 +1463,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             if( IsType( k, 0x24 ) )
             {
                 auto* i = static_cast<ALLEGRO::T_24<magic>*>( m_ptrs[k] );
+                AddRectangle( *m_board, *i );
                 k = i->next;
             }
             else if( IsType( k, 0x28 ) )

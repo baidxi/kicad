@@ -59,6 +59,7 @@ private:
     void AddVia( const ALLEGRO::T_33<magic>& i33 );
     void AddZone( BOARD_ITEM_CONTAINER& aContainer, const std::optional<ALLEGRO::T_1B<magic>>& i1B,
                   const ALLEGRO::T_28_SHAPE<magic>& i28 );
+    void AddRectangle( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_24<magic>& i24 );
 
     void                    Skip( std::size_t n );
     void                    Log( const char* fmt... );

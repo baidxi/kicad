@@ -65,7 +65,7 @@ enum class LAYER_FAMILY : uint8_t
 struct LAYER_INFO
 {
     LAYER_FAMILY family;
-    uint8_t ordinal;
+    uint8_t      ordinal;
 };
 
 enum class BRD_UNITS : uint8_t
@@ -904,9 +904,12 @@ struct T_24
 
     uint32_t k;
     uint32_t next;
-
-    uint32_t un[10];
-    COND_FIELD( magic >= A_172, uint32_t, un1 );
+    uint32_t ptr1;
+    uint32_t un1;
+    COND_FIELD( magic >= A_172, uint32_t, un2 );
+    int32_t  coords[4];
+    uint32_t ptr2;
+    uint32_t un[3];
 
     uint32_t TAIL;
 };
