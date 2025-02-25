@@ -566,15 +566,15 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
 {
     PCB_LAYER_ID layer = User_1;
 
-    if( i14.layer.family == 0x9 && i14.layer.ordinal == 246 )
+    if( i14.layer.family == ALLEGRO::LAYER_FAMILY::SILK && i14.layer.ordinal == 246 )
     {
         layer = B_SilkS;
     }
-    if( i14.layer.family == 0x9 && i14.layer.ordinal == 247 )
+    if( i14.layer.family == ALLEGRO::LAYER_FAMILY::SILK && i14.layer.ordinal == 247 )
     {
         layer = F_SilkS;
     }
-    else if( i14.layer.family == 0x1 && i14.layer.ordinal == 241 )
+    else if( i14.layer.family == ALLEGRO::LAYER_FAMILY::BOARD_GEOMETRY && i14.layer.ordinal == 241 )
     {
         layer = F_SilkS;
     }
@@ -1151,7 +1151,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         hole_k = i34->next;
     }
 
-    if( i28.layer.family == ALLEGRO::ZONE_TYPE_NET )
+    if( i28.layer.family == ALLEGRO::LAYER_FAMILY::COPPER )
     {
         std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( &aContainer );
         zone->SetZoneName( wxString::Format( "x28: 0x%08X", ntohl( i28.k ) ) );
@@ -1173,18 +1173,17 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
 
         aContainer.Add( zone.release(), ADD_MODE::APPEND );
     }
-    else if( i28.layer.family == 1 && i28.layer.ordinal == 253 )
+    else if( i28.layer.family == ALLEGRO::LAYER_FAMILY::BOARD_GEOMETRY
+             && i28.layer.ordinal == 0xFD )
     {
-        wxLogMessage( "Found border" );
         std::unique_ptr<PCB_SHAPE> shape =
                 std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
         shape->SetPolyShape( *outline.release() );
         shape->SetFilled( false );
         shape->SetLayer( Edge_Cuts );
-
         aContainer.Add( shape.release(), ADD_MODE::APPEND );
     }
-    else if( i28.layer.family == ALLEGRO::ZONE_TYPE_SILK )
+    else if( i28.layer.family == ALLEGRO::LAYER_FAMILY::SILK )
     {
         std::unique_ptr<PCB_SHAPE> shape =
                 std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
@@ -1453,7 +1452,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             else
             {
                 THROW_IO_ERROR( wxString::Format(
-                        "Expecetd t=0x24 or t=0x28 but k=0x%08X unexpected", ntohl( k ) ) );
+                        "Expected t=0x24 or t=0x28 but k=0x%08X unexpected", ntohl( k ) ) );
             }
         }
     }

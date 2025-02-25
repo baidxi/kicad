@@ -55,9 +55,16 @@ struct CADENCE_FP
     uint32_t y;
 };
 
+enum class LAYER_FAMILY : uint8_t
+{
+    BOARD_GEOMETRY = 0x01,
+    COPPER = 0x06,
+    SILK = 0x09,
+};
+
 struct LAYER_INFO
 {
-    uint8_t family;
+    LAYER_FAMILY family;
     uint8_t ordinal;
 };
 
@@ -927,13 +934,6 @@ struct T_26
 };
 
 // Shape
-enum ZONE_TYPE : uint8_t
-{
-    ZONE_TYPE_TBD = 0x01,
-    ZONE_TYPE_NET = 0x06,
-    ZONE_TYPE_SILK = 0x09,
-};
-
 template <MAGIC magic>
 struct T_28_SHAPE
 {
