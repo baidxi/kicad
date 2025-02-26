@@ -588,14 +588,10 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
 
             double r = cfp_to_double( i01->r );
 
-            VECTOR2I start, end, center, mid;
-            start.x = Scale( i01->coords[0] );
-            start.y = Scale( -i01->coords[1] );
-            end.x = Scale( i01->coords[2] );
-            end.y = Scale( -i01->coords[3] );
-            center.x = Scale( (int32_t) cfp_to_double( i01->x ) );
-            center.y = Scale( -(int32_t) cfp_to_double( i01->y ) );
-            mid = CalcArcMid( start, end, center );
+            auto [start, end] = GetCoordinatePair( *i01 );
+            VECTOR2D center{ Scale( (int32_t) cfp_to_double( i01->x ) ),
+                             Scale( -(int32_t) cfp_to_double( i01->y ) ) };
+            VECTOR2I mid = CalcArcMid( start, end, center );
 
             PCB_SHAPE* arc = new PCB_SHAPE( &aContainer, SHAPE_T::ARC );
 
@@ -610,13 +606,7 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         else if( IsType( k, 0x15 ) )
         {
             auto* i15 = static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i15->coords[0] );
-            start.y = Scale( -i15->coords[1] );
-            end.x = Scale( i15->coords[2] );
-            end.y = Scale( -i15->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i15 );
             PCB_SHAPE* segment = new PCB_SHAPE( &aContainer, SHAPE_T::SEGMENT );
 
             segment->SetLayer( layer );
@@ -631,13 +621,7 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         else if( IsType( k, 0x16 ) )
         {
             auto* i16 = static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i16->coords[0] );
-            start.y = Scale( -i16->coords[1] );
-            end.x = Scale( i16->coords[2] );
-            end.y = Scale( -i16->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i16 );
             PCB_SHAPE* segment = new PCB_SHAPE( &aContainer, SHAPE_T::SEGMENT );
 
             segment->SetLayer( layer );
@@ -652,13 +636,7 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
         else if( IsType( k, 0x17 ) )
         {
             auto* i17 = static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i17->coords[0] );
-            start.y = Scale( -i17->coords[1] );
-            end.x = Scale( i17->coords[2] );
-            end.y = Scale( -i17->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i17 );
             PCB_SHAPE* segment = new PCB_SHAPE( &aContainer, SHAPE_T::SEGMENT );
 
             segment->SetLayer( layer );
@@ -1279,6 +1257,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
     }
 }
 
+// This is typically used to frame things, like tables or pages.
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer,
                                           const ALLEGRO::T_24<magic>& i24 )
@@ -1286,10 +1265,11 @@ void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer
     std::unique_ptr<SHAPE_POLY_SET> outline = std::make_unique<SHAPE_POLY_SET>();
 
     SHAPE_LINE_CHAIN chain;
-    chain.Append( VECTOR2D{ Scale( i24.coords[0] ), Scale( i24.coords[1] ) } );
-    chain.Append( VECTOR2D{ Scale( i24.coords[0] ), Scale( i24.coords[3] ) } );
-    chain.Append( VECTOR2D{ Scale( i24.coords[1] ), Scale( i24.coords[3] ) } );
-    chain.Append( VECTOR2D{ Scale( i24.coords[1] ), Scale( i24.coords[1] ) } );
+    auto [a, b] = GetCoordinatePair( i24 );
+    chain.Append( a.x, a.y );
+    chain.Append( a.x, b.y );
+    chain.Append( b.x, b.y );
+    chain.Append( b.x, a.y );
     chain.SetClosed( true );
 
     outline->AddOutline( chain );
@@ -1297,7 +1277,7 @@ void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer
     std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
     shape->SetPolyShape( *outline.release() );
     shape->SetFilled( false );
-    shape->SetLayer( User_1 );
+    shape->SetLayer( User_3 );
     aContainer.Add( shape.release(), ADD_MODE::APPEND );
 }
 
@@ -1527,13 +1507,9 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
         {
             auto* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[*k] );
 
-            VECTOR2I start, end, center, mid;
-            start.x = Scale( i01->coords[0] );
-            start.y = Scale( -i01->coords[1] );
-            end.x = Scale( i01->coords[2] );
-            end.y = Scale( -i01->coords[3] );
-            center.x = Scale( (int32_t) cfp_to_double( i01->x ) );
-            center.y = Scale( -(int32_t) cfp_to_double( i01->y ) );
+            auto [start, end] = GetCoordinatePair( *i01 );
+            VECTOR2D center{ Scale( (int32_t) cfp_to_double( i01->x ) ),
+                             Scale( -(int32_t) cfp_to_double( i01->y ) ) };
 
             SHAPE_ARC arc;
             arc.ConstructFromStartEndCenter( start, end, center, i01->subtype == 0x00, 0 );
@@ -1581,12 +1557,7 @@ template <class SEGMENT_TYPE>
 void ALLEGRO_PARSER<magic>::AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment,
                                                bool first_segment )
 {
-    VECTOR2D start, end;
-    start.x = Scale( segment->coords[0] );
-    start.y = Scale( -segment->coords[1] );
-    end.x = Scale( segment->coords[2] );
-    end.y = Scale( -segment->coords[3] );
-
+    auto [start, end] = GetCoordinatePair( *segment );
     if( first_segment )
     {
         chain.Append( start );
@@ -1615,6 +1586,14 @@ template <ALLEGRO::MAGIC magic>
 double ALLEGRO_PARSER<magic>::Scale( double a_allegroValue )
 {
     return a_allegroValue * m_scaleFactor;
+}
+
+template <ALLEGRO::MAGIC magic>
+template <class T>
+std::pair<VECTOR2D, VECTOR2D> ALLEGRO_PARSER<magic>::GetCoordinatePair( T& inst )
+{
+    return { { Scale( inst.coords[0] ), Scale( -inst.coords[1] ) },
+             { Scale( inst.coords[2] ), Scale( -inst.coords[3] ) } };
 }
 
 template <ALLEGRO::MAGIC magic>

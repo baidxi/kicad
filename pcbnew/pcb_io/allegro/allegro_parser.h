@@ -75,6 +75,9 @@ private:
     PCB_LAYER_ID EtchLayerToKi( ALLEGRO::LAYER_INFO a_layer );
     double       Scale( double a_allegroValue );
 
+    template <class T>
+    std::pair<VECTOR2D, VECTOR2D> GetCoordinatePair( T& instance );
+
     const ALLEGRO::T_36_08<magic>* FindFont( uint8_t k );
 
     constexpr uint32_t             GetPadComponentCount( const ALLEGRO::T_1C<magic>& i1C );
