@@ -248,7 +248,6 @@ private:
     std::map<uint32_t, ALLEGRO::T_1E>           m_t1E_map;
     std::map<uint32_t, ALLEGRO::T_36<magic>*>   m_t36_map;
 
-
 #if BOOST_VERSION >= 108100
     boost::unordered_flat_map<uint32_t, void*> m_ptrs;
 #else

@@ -566,17 +566,10 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
 {
     PCB_LAYER_ID layer = User_1;
 
-    if( i14.layer.family == ALLEGRO::LAYER_FAMILY::SILK && i14.layer.ordinal == 246 )
+    if( auto pcb_layer = ALLEGRO::LAYER_MAPPING.find( i14.layer );
+        pcb_layer != ALLEGRO::LAYER_MAPPING.end() )
     {
-        layer = B_SilkS;
-    }
-    if( i14.layer.family == ALLEGRO::LAYER_FAMILY::SILK && i14.layer.ordinal == 247 )
-    {
-        layer = F_SilkS;
-    }
-    else if( i14.layer.family == ALLEGRO::LAYER_FAMILY::BOARD_GEOMETRY && i14.layer.ordinal == 241 )
-    {
-        layer = F_SilkS;
+        layer = pcb_layer->second;
     }
 
     uint32_t k = i14.ptr2;

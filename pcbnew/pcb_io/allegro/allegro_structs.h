@@ -5,6 +5,9 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <map>
+
+#include <board.h>
 
 namespace ALLEGRO
 {
@@ -66,6 +69,25 @@ struct LAYER_INFO
 {
     LAYER_FAMILY family;
     uint8_t      ordinal;
+
+    // This is required so that this type may be used as a `std::map` key.
+    bool operator<( const LAYER_INFO& other ) const
+    {
+        if( family == other.family )
+        {
+            return ordinal < other.ordinal;
+        }
+        else
+        {
+            return family < other.family;
+        }
+    }
+};
+
+const std::map<ALLEGRO::LAYER_INFO, PCB_LAYER_ID> LAYER_MAPPING = {
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF1 }, F_SilkS },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF6 }, B_SilkS },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF7 }, F_SilkS },
 };
 
 enum class BRD_UNITS : uint8_t
@@ -1549,7 +1571,6 @@ struct T_3C
 
     std::vector<uint32_t> ptrs;
 };
-
 }; // namespace ALLEGRO
 
 #endif // ALLEGRO_STRUCTS_H_
