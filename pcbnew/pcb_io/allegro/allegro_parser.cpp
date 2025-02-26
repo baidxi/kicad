@@ -566,10 +566,9 @@ void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContaine
 {
     PCB_LAYER_ID layer = User_1;
 
-    if( auto pcb_layer = ALLEGRO::LAYER_MAPPING.find( i14.layer );
-        pcb_layer != ALLEGRO::LAYER_MAPPING.end() )
+    if( auto result = LookupPcbLayer( i14.layer ); result.has_value() )
     {
-        layer = pcb_layer->second;
+        layer = *result;
     }
 
     uint32_t k = i14.ptr2;
@@ -787,7 +786,7 @@ void ALLEGRO_PARSER<magic>::AddPad( FOOTPRINT* fp, const ALLEGRO::T_32<magic>& i
     pad->SetPosition( center );
     pad->SetOrientationDegrees( i0D->rotation / 1000. );
 
-    std::optional<wxString> pad_number = StringLookup( i0D->str_ptr );
+    std::optional<wxString> pad_number = LookupString( i0D->str_ptr );
     if( pad_number )
     {
         pad->SetNumber( *pad_number );
@@ -1479,13 +1478,27 @@ bool ALLEGRO_PARSER<magic>::IsType( uint32_t k, uint8_t t )
 }
 
 template <ALLEGRO::MAGIC magic>
-std::optional<wxString> ALLEGRO_PARSER<magic>::StringLookup( uint32_t k )
+std::optional<wxString> ALLEGRO_PARSER<magic>::LookupString( uint32_t k )
 {
     if( m_strings.count( k ) > 0 )
     {
         return wxString( m_strings[k] );
     }
     return {};
+}
+
+template <ALLEGRO::MAGIC magic>
+std::optional<PCB_LAYER_ID>
+ALLEGRO_PARSER<magic>::LookupPcbLayer( const ALLEGRO::LAYER_INFO& layer ) const
+{
+    if( auto kv = ALLEGRO::LAYER_MAPPING.find( layer ); kv != ALLEGRO::LAYER_MAPPING.end() )
+    {
+        return kv->second;
+    }
+    else
+    {
+        return {};
+    }
 }
 
 template <ALLEGRO::MAGIC magic>
@@ -1700,7 +1713,7 @@ template <ALLEGRO::MAGIC magic>
 NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( uint32_t k )
 {
     NETINFO_ITEM*           netinfo = nullptr;
-    std::optional<wxString> netname = StringLookup( k );
+    std::optional<wxString> netname = LookupString( k );
 
     if( netname )
     {

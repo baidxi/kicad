@@ -61,13 +61,15 @@ private:
                   const ALLEGRO::T_28_SHAPE<magic>& i28 );
     void AddRectangle( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_24<magic>& i24 );
 
-    void                    Skip( std::size_t n );
-    void                    Log( const char* fmt... );
-    bool                    IsType( uint32_t k, uint8_t t );
-    std::optional<wxString> StringLookup( uint32_t k );
-    NETINFO_ITEM*           NetInfo( uint32_t k );
-    NETINFO_ITEM*           NetInfo( const ALLEGRO::T_04<magic>& i04 );
-    SHAPE_LINE_CHAIN        ShapeStartingAt( uint32_t* k );
+    void             Skip( std::size_t n );
+    void             Log( const char* fmt... );
+    bool             IsType( uint32_t k, uint8_t t );
+    NETINFO_ITEM*    NetInfo( uint32_t k );
+    NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04<magic>& i04 );
+    SHAPE_LINE_CHAIN ShapeStartingAt( uint32_t* k );
+
+    std::optional<wxString>     LookupString( uint32_t k );
+    std::optional<PCB_LAYER_ID> LookupPcbLayer( const ALLEGRO::LAYER_INFO& layer ) const;
 
     template <class SEGMENT_TYPE>
     void AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment, bool first_segment );
