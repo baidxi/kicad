@@ -1160,9 +1160,9 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         shape->SetPolyShape( *outline.release() );
         shape->SetFilled( true );
 
-        if( i28.layer.ordinal == 0xFD )
+        if( auto result = LookupPcbLayer( i28.layer ); result.has_value() )
         {
-            shape->SetLayer( F_SilkS );
+            shape->SetLayer( *result );
         }
         else if( i28.layer.ordinal == 0xEC )
         {
@@ -1178,22 +1178,6 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         {
             shape->SetFilled( false );
             shape->SetLayer( F_SilkS );
-        }
-        else if( i28.layer.ordinal == 0xFA )
-        {
-            shape->SetLayer( B_CrtYd );
-        }
-        else if( i28.layer.ordinal == 0xFB )
-        {
-            shape->SetLayer( F_CrtYd );
-        }
-        else if( i28.layer.ordinal == 0xF3 )
-        {
-            shape->SetLayer( B_Paste );
-        }
-        else if( i28.layer.ordinal == 0xF4 )
-        {
-            shape->SetLayer( F_Paste );
         }
         else if( i28.layer.ordinal == 0xF7 )
         {
