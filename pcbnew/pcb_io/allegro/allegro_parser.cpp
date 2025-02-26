@@ -564,12 +564,7 @@ template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::AddAnnotation( BOARD_ITEM_CONTAINER&       aContainer,
                                            const ALLEGRO::T_14<magic>& i14 )
 {
-    PCB_LAYER_ID layer = User_1;
-
-    if( auto result = LookupPcbLayer( i14.layer ); result.has_value() )
-    {
-        layer = *result;
-    }
+    PCB_LAYER_ID layer = LookupPcbLayer( i14.layer ).value_or( User_1 );
 
     uint32_t k = i14.ptr2;
     while( true )
@@ -969,6 +964,7 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
     uint32_t k = i05.first_segment_ptr;
 
     NETINFO_ITEM* netinfo = NetInfo( i1B.net_name );
+    PCB_LAYER_ID  layer = EtchLayerToKi( i05.layer );
 
     while( true )
     {
@@ -978,20 +974,17 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
 
             double r = cfp_to_double( i01->r );
 
-            VECTOR2I start, end, center, mid;
-            start.x = Scale( i01->coords[0] );
-            start.y = Scale( -i01->coords[1] );
-            end.x = Scale( i01->coords[2] );
-            end.y = Scale( -i01->coords[3] );
-            center.x = Scale( (int32_t) cfp_to_double( i01->x ) );
-            center.y = Scale( -(int32_t) cfp_to_double( i01->y ) );
+            auto [start, end] = GetCoordinatePair( *i01 );
+            VECTOR2D center{ Scale( (int32_t) cfp_to_double( i01->x ) ),
+                             Scale( -(int32_t) cfp_to_double( i01->y ) ) };
+            VECTOR2I mid = CalcArcMid( start, end, center );
 
             SHAPE_ARC shape_arc;
             shape_arc.ConstructFromStartEndCenter( start, end, center, i01->subtype == 0x00, 0 );
 
             std::unique_ptr<PCB_ARC> arc = std::make_unique<PCB_ARC>( m_board, &shape_arc );
 
-            arc->SetLayer( EtchLayerToKi( i05.layer ) );
+            arc->SetLayer( layer );
             arc->SetWidth( Scale( i01->width ) );
             arc->SetNet( netinfo );
 
@@ -1002,16 +995,10 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         else if( IsType( k, 0x15 ) )
         {
             auto* i15 = static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i15->coords[0] );
-            start.y = Scale( -i15->coords[1] );
-            end.x = Scale( i15->coords[2] );
-            end.y = Scale( -i15->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i15 );
             std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
 
-            track->SetLayer( EtchLayerToKi( i05.layer ) );
+            track->SetLayer( layer );
             track->SetWidth( Scale( i15->width ) );
             track->SetStart( start );
             track->SetEnd( end );
@@ -1024,16 +1011,10 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         else if( IsType( k, 0x16 ) )
         {
             auto* i16 = static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i16->coords[0] );
-            start.y = Scale( -i16->coords[1] );
-            end.x = Scale( i16->coords[2] );
-            end.y = Scale( -i16->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i16 );
             std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
 
-            track->SetLayer( EtchLayerToKi( i05.layer ) );
+            track->SetLayer( layer );
             track->SetWidth( Scale( i16->width ) );
             track->SetStart( start );
             track->SetEnd( end );
@@ -1046,16 +1027,10 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B<magic>&       i1B,
         else if( IsType( k, 0x17 ) )
         {
             auto* i17 = static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[k] );
-
-            VECTOR2D start, end;
-            start.x = Scale( i17->coords[0] );
-            start.y = Scale( -i17->coords[1] );
-            end.x = Scale( i17->coords[2] );
-            end.y = Scale( -i17->coords[3] );
-
+            auto [start, end] = GetCoordinatePair( *i17 );
             std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
 
-            track->SetLayer( EtchLayerToKi( i05.layer ) );
+            track->SetLayer( layer );
             track->SetWidth( Scale( i17->width ) );
             track->SetStart( start );
             track->SetEnd( end );
@@ -1253,7 +1228,7 @@ void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer
     std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
     shape->SetPolyShape( *outline.release() );
     shape->SetFilled( false );
-    shape->SetLayer( User_3 );
+    shape->SetLayer( LookupPcbLayer( i24.layer ).value_or( User_3 ) );
     aContainer.Add( shape.release(), ADD_MODE::APPEND );
 }
 
@@ -1556,7 +1531,7 @@ void ALLEGRO_PARSER<magic>::AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_
 }
 
 template <ALLEGRO::MAGIC magic>
-PCB_LAYER_ID ALLEGRO_PARSER<magic>::EtchLayerToKi( ALLEGRO::LAYER_INFO a_layer )
+PCB_LAYER_ID ALLEGRO_PARSER<magic>::EtchLayerToKi( const ALLEGRO::LAYER_INFO& a_layer )
 {
     if( a_layer.ordinal == 0 )
     {

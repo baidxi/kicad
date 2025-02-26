@@ -74,7 +74,7 @@ private:
     template <class SEGMENT_TYPE>
     void AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment, bool first_segment );
 
-    PCB_LAYER_ID EtchLayerToKi( ALLEGRO::LAYER_INFO a_layer );
+    PCB_LAYER_ID EtchLayerToKi( const ALLEGRO::LAYER_INFO& a_layer );
     double       Scale( double a_allegroValue );
 
     template <class T>
