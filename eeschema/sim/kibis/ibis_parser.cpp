@@ -622,7 +622,6 @@ bool IbisModel::Check()
     {
         if( !m_ramp.Check() )
             Report( _( "Invalid Ramp" ), RPT_SEVERITY_ERROR );
-        }
     }
 
     for( IbisSubmodel sm : this->m_submodels )
@@ -1379,7 +1378,7 @@ bool IbisParser::changeContext( std::string& aKeyword )
         }
         else if( compareIbisWord( aKeyword.c_str(), "Begin_Board_Description" ) )
         {
-            IbisBoardDescription BD( m_reporter );
+            IbisBoardDescription BD( m_Reporter );
             status &= storeString( BD.m_name, false );
 
             m_ibisFile.m_boardDescriptions.push_back( BD );
@@ -2159,7 +2158,7 @@ bool IbisParser::readAddSubmodel()
 
     if( status )
     {
-        IbisSubmodel submodel( m_reporter );
+        IbisSubmodel submodel( m_Reporter );
         submodel.m_name = name;
         submodel.m_mode = mode;
         m_currentModel->m_submodels.push_back( submodel );
@@ -2256,6 +2255,9 @@ bool IbisParser::parseComponent( std::string& aKeyword )
     {
         status = false;
     }
+
+    return status;
+}
 
 bool IbisParser::parseBoardDescription( std::string& aKeyword )
 {
