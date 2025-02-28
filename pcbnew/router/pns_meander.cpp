@@ -304,6 +304,7 @@ int MEANDER_SHAPE::cornerRadius( bool aMid ) const
     if( m_amplitude == 0 )
         return 0;
 
+    // Compute min corner radius
     int minCr = 0;
 
     if( m_placer->MeanderSettings().m_cornerStyle == MEANDER_STYLE_ROUND )
@@ -311,13 +312,18 @@ int MEANDER_SHAPE::cornerRadius( bool aMid ) const
     else
         minCr = std::abs( m_baselineOffset ) + m_width / 2 * ( 1 - tan( DEG2RAD( 22.5 ) ) );
 
+    // Compute max control radius 1
     int maxCr1 = 0;
+
     if( aMid )
         maxCr1 = m_amplitude + std::abs( m_baselineOffset );
     else
         maxCr1 = ( m_amplitude + std::abs( m_baselineOffset ) ) / 2;
 
+    // Compute max control radius 2
     int maxCr2 = spacing() / 2;
+
+    // Compute final max corner radius
     int maxCr = std::min( maxCr1, maxCr2 );
 
     wxCHECK2_MSG( maxCr >= minCr, return maxCr,
@@ -478,13 +484,13 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
 
     if( aType == MT_TURN )
     {
-        if( cr > amplitude + std::abs( offset ) )
-            cr = amplitude + std::abs( offset );
+        // Limit maximum corner radius for U-turns
+        cr = std::min( cr, amplitude + std::abs( offset ) );
     }
     else
     {
-        if( 2 * cr > amplitude + std::abs( offset ) )
-            cr = ( amplitude + std::abs( offset ) ) / 2;
+        // Limit maximum corner radius for other shapes
+        cr = std::min( cr, ( amplitude + std::abs( offset ) ) / 2 );
     }
 
     if( 2 * cr > spc )
