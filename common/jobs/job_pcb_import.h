@@ -32,7 +32,7 @@
 class KICOMMON_API JOB_PCB_IMPORT : public JOB
 {
 public:
-    JOB_PCB_IMPORT( bool aIsCli );
+    JOB_PCB_IMPORT( );
 
     wxString m_filename;
     wxString m_outputFile;
@@ -44,14 +44,7 @@ public:
         ALTIUM_DESIGNER
     };
 
-    enum class To
-    {
-        KICAD_SEXP
-    };
-
-
     From m_from;
-    To   m_to ;
 };
 
 #endif

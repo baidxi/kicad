@@ -41,44 +41,33 @@
 #include <wx/tokenzr.h>
 
 #define ARG_FROM "--from"
-#define ARG_TO "--to"
 
-
-CLI::SCH_IMPORT_COMMAND::SCH_IMPORT_COMMAND() : COMMAND( "convert" )
+CLI::SCH_IMPORT_COMMAND::SCH_IMPORT_COMMAND() : COMMAND( "import" )
 {
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
-    m_argParser.add_description(
-            UTF8STDSTR( _( "Convert a vendor's schematic document to another vendor's schematic document" ) ) );
+    m_argParser.add_description( UTF8STDSTR(
+            _( "Import SCH designs from other formats into the latest version of KiCad" ) ) );
 
 
     m_argParser.add_argument( ARG_FROM )
             .default_value( std::string( "sch_altium" ) )
             .add_choices( enumChoices<JOB_SCH_IMPORT::From>() )
             .metavar( "FROM" )
-            .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB format. Options: %s" ),
+            .help( UTF8STDSTR( wxString::Format( _( "Accepted SCH formats. Options: %s" ),
                                                  enumString<JOB_SCH_IMPORT::From>() ) ) );
-
-
-    m_argParser.add_argument( ARG_TO )
-            .default_value( std::string( "sch_kicad" ) )
-            .add_choices( enumChoices<JOB_SCH_IMPORT::To>() )
-            .metavar( "TO" )
-            .help( UTF8STDSTR( wxString::Format( _( "Converted format. Options: %s" ),
-                                                 enumString<JOB_SCH_IMPORT::To>() ) ) );
 }
 
 
 int CLI::SCH_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT( true ) );
+    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT(  ) );
 
     convertJob->m_outputFile = m_argOutput;
     convertJob->m_filename = m_argInput;
     convertJob->SetVarOverrides( m_argDefineVars );
     getToEnum( m_argParser.get<std::string>( ARG_FROM ), convertJob->m_from );
-    getToEnum( m_argParser.get<std::string>( ARG_TO ), convertJob->m_to );
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, convertJob.get() );
     return exitCode;
 }

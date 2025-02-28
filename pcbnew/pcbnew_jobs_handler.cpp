@@ -2630,45 +2630,34 @@ int PCBNEW_JOBS_HANDLER::JobPcbImport( JOB* aJob )
         { JOB_PCB_IMPORT::From::ALTIUM_DESIGNER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_DESIGNER },
     };
 
-    static const auto convertToPCBTYPE = std::map<JOB_PCB_IMPORT::To, PCB_IO_MGR::PCB_FILE_T>{
-        { JOB_PCB_IMPORT::To::KICAD_SEXP,
-          PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP }
-    };
 
     if( auto from_type = converFromPCBType.find( aConvertJob->m_from ); from_type == converFromPCBType.end() )
     {
-            return CLI::EXIT_CODES::ERR_ARGS;
+        return CLI::EXIT_CODES::ERR_ARGS;
     }
     else
     {
 
-        if (auto to_type = convertToPCBTYPE.find( aConvertJob->m_to ); to_type == convertToPCBTYPE.end() )
+        BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second,
+                    true );
+        try
         {
-            return CLI::EXIT_CODES::ERR_ARGS;
+            IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::PluginFind( PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP ) );
+            pi->SetProgressReporter( m_progressReporter );
+            pi->SaveBoard( aConvertJob->m_outputFile, brd );
         }
-        else
+            catch( const IO_ERROR& ioe )
         {
-            BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second,
-                        true );
-            try
-            {
-                IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::PluginFind( to_type->second ) );
-                pi->SetProgressReporter( m_progressReporter );
-                pi->SaveBoard( aConvertJob->m_outputFile, brd );
-            }
-                catch( const IO_ERROR& ioe )
-            {
-                m_reporter->Report( wxString::Format( _( "Error converting pcb file '%s'.\n%s" ),
-                                                    aConvertJob->m_filename, ioe.What() ),
-                                    RPT_SEVERITY_ERROR );
+            m_reporter->Report( wxString::Format( _( "Error importing pcb file '%s'.\n%s" ),
+                                                aConvertJob->m_filename, ioe.What() ),
+                                RPT_SEVERITY_ERROR );
 
-                return CLI::EXIT_CODES::ERR_UNKNOWN;
-            }
-
-            m_reporter->Report( _( "Successfully converted board" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
-            return CLI::EXIT_CODES::OK;
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
         }
 
+        m_reporter->Report( _( "Successfully imported board" ) + wxS( "\n" ),
+                            RPT_SEVERITY_INFO );
+        return CLI::EXIT_CODES::OK;
     }
 
 }

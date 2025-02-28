@@ -24,6 +24,6 @@
 
 #include "job_sch_import.h"
 
-JOB_SCH_IMPORT::JOB_SCH_IMPORT( bool aIsCli ) : JOB( "import", aIsCli )
+JOB_SCH_IMPORT::JOB_SCH_IMPORT(  ) : JOB( "import" ,false )
 {
 }

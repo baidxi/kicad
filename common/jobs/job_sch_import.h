@@ -33,7 +33,7 @@
 class KICOMMON_API JOB_SCH_IMPORT : public JOB
 {
 public:
-    JOB_SCH_IMPORT( bool aIsCli );
+    JOB_SCH_IMPORT(  );
     wxString m_filename;
     wxString m_outputFile;
 
@@ -42,14 +42,7 @@ public:
         SCH_ALTIUM
     };
 
-    enum class To
-    {
-        SCH_KICAD
-    };
-
-
     From m_from;
-    To   m_to;
 };
 
 #endif

@@ -25,6 +25,6 @@
 #include "job_pcb_import.h"
 
 
-JOB_PCB_IMPORT::JOB_PCB_IMPORT( bool aIsCli ) : JOB( "import", aIsCli )
+JOB_PCB_IMPORT::JOB_PCB_IMPORT( ) : JOB( "import", false )
 {
 }

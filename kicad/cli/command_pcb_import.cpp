@@ -39,45 +39,35 @@
 #include <wx/tokenzr.h>
 
 #define ARG_FROM "--from"
-#define ARG_TO "--to"
 
 
-CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "convert" )
+CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
 {
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
     m_argParser.add_description(
-            UTF8STDSTR( _( "Convert a vendor's PCB document to another vendor's PCB document" ) ) );
+        UTF8STDSTR( _( "Import PCB designs from other formats into the latest version of KiCad." ) ) );
 
 
     m_argParser.add_argument( ARG_FROM )
             .default_value( std::string( "altium_designer" ) )
             .add_choices( enumChoices<JOB_PCB_IMPORT::From>() )
             .metavar( "FROM" )
-            .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB format. Options: %s" ),
+            .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB formats. Options: %s" ),
                                                  enumString<JOB_PCB_IMPORT::From>() ) ) );
-
-
-    m_argParser.add_argument( ARG_TO )
-            .default_value( std::string( "kicad_sexp" ) )
-            .add_choices( enumChoices<JOB_PCB_IMPORT::To>() )
-            .metavar( "TO" )
-            .help( UTF8STDSTR( wxString::Format( _( "Converted format. Options: %s" ),
-                                                 enumString<JOB_PCB_IMPORT::To>() ) ) );
 
 }
 
 
 int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_PCB_IMPORT> convertJob( new JOB_PCB_IMPORT( true ) );
+    std::unique_ptr<JOB_PCB_IMPORT> convertJob( new JOB_PCB_IMPORT( ) );
 
     convertJob->m_outputFile = m_argOutput;
     convertJob->m_filename = m_argInput;
     convertJob->SetVarOverrides( m_argDefineVars );
     getToEnum( m_argParser.get<std::string>( ARG_FROM ), convertJob->m_from );
-    getToEnum( m_argParser.get<std::string>( ARG_TO ), convertJob->m_to );
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, convertJob.get() );
     return exitCode;
 }
