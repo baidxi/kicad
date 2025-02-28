@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2023 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,8 +22,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "command_pcb_convert.h"
-#include "jobs/job_pcb_convert.h"
+#include "command_sch_import.h"
+
+#include "command_utils.h"
+
+#include "jobs/job_sch_import.h"
 
 
 #include <cli/exit_codes.h>
@@ -41,43 +44,41 @@
 #define ARG_TO "--to"
 
 
-CLI::PCB_CONVERT_COMMAND::PCB_CONVERT_COMMAND() :
-        COMMAND( "convert" )
+CLI::SCH_IMPORT_COMMAND::SCH_IMPORT_COMMAND() : COMMAND( "convert" )
 {
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
     m_argParser.add_description(
-            UTF8STDSTR( _( "Convert a vendor's PCB document to another vendor's PCB document" ) ) );
+            UTF8STDSTR( _( "Convert a vendor's schematic document to another vendor's schematic document" ) ) );
 
 
     m_argParser.add_argument( ARG_FROM )
-            .default_value( std::string( "altium_designer" ) )
-            .add_choices( enumChoices<JOB_PCB_CONVERT::From>() )
+            .default_value( std::string( "sch_altium" ) )
+            .add_choices( enumChoices<JOB_SCH_IMPORT::From>() )
             .metavar( "FROM" )
             .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB format. Options: %s" ),
-                                                 enumString<JOB_PCB_CONVERT::From>() ) ) );
+                                                 enumString<JOB_SCH_IMPORT::From>() ) ) );
 
 
     m_argParser.add_argument( ARG_TO )
-            .default_value( std::string( "kicad_sexp" ) )
-            .add_choices( enumChoices<JOB_PCB_CONVERT::To>() )
+            .default_value( std::string( "sch_kicad" ) )
+            .add_choices( enumChoices<JOB_SCH_IMPORT::To>() )
             .metavar( "TO" )
             .help( UTF8STDSTR( wxString::Format( _( "Converted format. Options: %s" ),
-                                                 enumString<JOB_PCB_CONVERT::To>() ) ) );
-
+                                                 enumString<JOB_SCH_IMPORT::To>() ) ) );
 }
 
 
-int CLI::PCB_CONVERT_COMMAND::doPerform( KIWAY& aKiway )
+int CLI::SCH_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_PCB_CONVERT> convertJob( new JOB_PCB_CONVERT( true ) );
+    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT( true ) );
 
     convertJob->m_outputFile = m_argOutput;
     convertJob->m_filename = m_argInput;
     convertJob->SetVarOverrides( m_argDefineVars );
     getToEnum( m_argParser.get<std::string>( ARG_FROM ), convertJob->m_from );
     getToEnum( m_argParser.get<std::string>( ARG_TO ), convertJob->m_to );
-    int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, convertJob.get() );
+    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, convertJob.get() );
     return exitCode;
 }

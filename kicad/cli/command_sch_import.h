@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2023 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,10 +22,25 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "job_sch_convert.h"
-#include "job.h"
+#ifndef COMMAND_SCH_IMPORT_H
+#define COMMAND_SCH_IMPORT_H
 
-JOB_SCH_CONVERT::JOB_SCH_CONVERT( bool aIsCli ) :
-        JOB( "convert", aIsCli )
+#include "command.h"
+
+
+namespace CLI
 {
-}
+
+class SCH_IMPORT_COMMAND : public COMMAND
+{
+public:
+    SCH_IMPORT_COMMAND();
+
+protected:
+    int doPerform( KIWAY& aKiway ) override;
+};
+
+} // namespace CLI
+
+
+#endif

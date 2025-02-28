@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2024 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,36 +22,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef JOB_PCB_CONVERT_H
-#define JOB_PCB_CONVERT_H
+#include "job_sch_import.h"
 
-#include <kicommon.h>
-#include <wx/string.h>
-#include "job.h"
-
-class KICOMMON_API JOB_PCB_CONVERT : public JOB
+JOB_SCH_IMPORT::JOB_SCH_IMPORT( bool aIsCli ) : JOB( "import", aIsCli )
 {
-public:
-    JOB_PCB_CONVERT( bool aIsCli );
-
-    wxString m_filename;
-    wxString m_outputFile;
-
-    enum class From
-    {
-        ALTIUM_CIRCUIT_MAKER,
-        ALTIUM_CIRCUIT_STUDIO,
-        ALTIUM_DESIGNER
-    };
-
-    enum class To
-    {
-        KICAD_SEXP
-    };
-
-
-    From m_from;
-    To   m_to ;
-};
-
-#endif
+}

@@ -132,8 +132,8 @@ set( KICOMMON_SRCS
     jobs/job_sch_erc.cpp
     jobs/job_sym_export_svg.cpp
     jobs/job_sym_upgrade.cpp
-    jobs/job_pcb_convert.cpp
-    jobs/job_sch_convert.cpp
+    jobs/job_pcb_import.cpp
+    jobs/job_sch_import.cpp
     jobs/job_pcb_upgrade.cpp
     jobs/job_sch_upgrade.cpp
 

@@ -26,7 +26,7 @@
 #include <drawing_sheet/ds_proxy_view_item.h>
 #include <font/kicad_font_name.h>
 #include <jobs/job_export_sch_bom.h>
-#include <jobs/job_sch_convert.h>
+#include <jobs/job_sch_import.h>
 #include <jobs/job_export_sch_pythonbom.h>
 #include <jobs/job_export_sch_netlist.h>
 #include <jobs/job_export_sch_plot.h>
@@ -1388,7 +1388,7 @@ DS_PROXY_VIEW_ITEM* EESCHEMA_JOBS_HANDLER::getDrawingSheetProxyView( SCHEMATIC* 
 
 int EESCHEMA_JOBS_HANDLER::JobSchConvert( JOB* aJob )
 {
-    JOB_SCH_CONVERT* aConvertJob = dynamic_cast<JOB_SCH_CONVERT*>( aJob );
+    JOB_SCH_IMPORT* aConvertJob = dynamic_cast<JOB_SCH_IMPORT*>( aJob );
 
     if( !aConvertJob )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
@@ -1396,13 +1396,13 @@ int EESCHEMA_JOBS_HANDLER::JobSchConvert( JOB* aJob )
     if( aJob->IsCli() )
         m_reporter->Report( _( "Loading schematic\n" ), RPT_SEVERITY_INFO );
 
-    static const auto convertFromSCH =
-            std::map<JOB_SCH_CONVERT::From, SCH_IO_MGR::SCH_FILE_T>{ { JOB_SCH_CONVERT::From::SCH_ALTIUM,
-                                                                       SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM } };
+    static const auto convertFromSCH = std::map<JOB_SCH_IMPORT::From,SCH_IO_MGR::SCH_FILE_T > {
+        {JOB_SCH_IMPORT::From::SCH_ALTIUM, SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM}
+    };
 
-    static const auto convertToSCH =
-            std::map<JOB_SCH_CONVERT::To, SCH_IO_MGR::SCH_FILE_T>{ { JOB_SCH_CONVERT::To::SCH_KICAD,
-                                                                     SCH_IO_MGR::SCH_FILE_T::SCH_KICAD } };
+    static const auto convertToSCH = std::map<JOB_SCH_IMPORT::To,SCH_IO_MGR::SCH_FILE_T > {
+        {JOB_SCH_IMPORT::To::SCH_KICAD, SCH_IO_MGR::SCH_FILE_T::SCH_KICAD}
+    };
 
     if( auto from_type = convertFromSCH.find( aConvertJob->m_from ); from_type == convertFromSCH.end() )
     {

@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2024 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,24 +22,23 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef COMMAND_SCH_CONVERT_H
-#define COMMAND_SCH_CONVERT_H
-#include "command.h"
+#ifndef COMMAND_PCB_IMPORT_H
+#define COMMAND_PCB_IMPORT_H
 
+#include "command.h"
 
 namespace CLI
 {
 
-class SCH_CONVERT_COMMAND : public COMMAND
+class PCB_IMPORT_COMMAND : public COMMAND
 {
 public:
-    SCH_CONVERT_COMMAND();
+    PCB_IMPORT_COMMAND();
 
 protected:
     int doPerform( KIWAY& aKiway ) override;
 };
 
 } // namespace CLI
-
 
 #endif

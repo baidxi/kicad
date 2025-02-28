@@ -46,7 +46,7 @@
 #include <jobs/job_export_pcb_3d.h>
 #include <jobs/job_pcb_render.h>
 #include <jobs/job_pcb_drc.h>
-#include <jobs/job_pcb_convert.h>
+#include <jobs/job_pcb_import.h>
 #include <jobs/job_pcb_upgrade.h>
 #include <eda_units.h>
 #include <lset.h>
@@ -2645,23 +2645,23 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
 
 int PCBNEW_JOBS_HANDLER::JobExportConvert( JOB* aJob )
 {
-    JOB_PCB_CONVERT* aConvertJob = dynamic_cast<JOB_PCB_CONVERT*>( aJob );
+    JOB_PCB_IMPORT* aConvertJob = dynamic_cast<JOB_PCB_IMPORT*>( aJob );
 
     if( aConvertJob == nullptr )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
     m_reporter->Report( _( "Loading board\n" ), RPT_SEVERITY_INFO );
 
-    static const auto converFromPCBType = std::map<JOB_PCB_CONVERT::From, PCB_IO_MGR::PCB_FILE_T>{
-        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_MAKER,
+    static const auto converFromPCBType = std::map<JOB_PCB_IMPORT::From, PCB_IO_MGR::PCB_FILE_T>{
+        { JOB_PCB_IMPORT::From::ALTIUM_CIRCUIT_MAKER,
           PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_MAKER },
-        { JOB_PCB_CONVERT::From::ALTIUM_CIRCUIT_STUDIO,
+        { JOB_PCB_IMPORT::From::ALTIUM_CIRCUIT_STUDIO,
           PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_STUDIO },
-        { JOB_PCB_CONVERT::From::ALTIUM_DESIGNER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_DESIGNER },
+        { JOB_PCB_IMPORT::From::ALTIUM_DESIGNER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_DESIGNER },
     };
 
-    static const auto convertToPCBTYPE = std::map<JOB_PCB_CONVERT::To, PCB_IO_MGR::PCB_FILE_T>{
-        { JOB_PCB_CONVERT::To::KICAD_SEXP,
+    static const auto convertToPCBTYPE = std::map<JOB_PCB_IMPORT::To, PCB_IO_MGR::PCB_FILE_T>{
+        { JOB_PCB_IMPORT::To::KICAD_SEXP,
           PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP }
     };
 

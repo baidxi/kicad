@@ -1,8 +1,8 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2023 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2023 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -22,10 +22,34 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include "job_pcb_convert.h"
+#ifndef JOB_SCH_IMPORT_H
+#define JOB_SCH_IMPORT_H
+
+#include <kicommon.h>
+#include <wx/string.h>
 #include "job.h"
 
-JOB_PCB_CONVERT::JOB_PCB_CONVERT( bool aIsCli ) :
-        JOB( "convert", aIsCli )
+
+class KICOMMON_API JOB_SCH_IMPORT : public JOB
 {
-}
+public:
+    JOB_SCH_IMPORT( bool aIsCli );
+    wxString m_filename;
+    wxString m_outputFile;
+
+    enum class From
+    {
+        SCH_ALTIUM
+    };
+
+    enum class To
+    {
+        SCH_KICAD
+    };
+
+
+    From m_from;
+    To   m_to;
+};
+
+#endif
