@@ -273,7 +273,6 @@ public:
 
     std::string m_name;
     std::string m_signalName;
-    bool        Check() override;
 };
 
 
@@ -361,8 +360,6 @@ public:
     std::string               m_manufacturer = "";
     int                       m_numberOfPins;
     std::vector<IbisBoardPin> m_pins;
-
-    //bool Check() override;
 };
 
 
@@ -697,11 +694,12 @@ public:
     virtual ~IbisFile()
     {};
 
-    IbisHeader                      m_header;
-    std::vector<IbisComponent>      m_components;
-    std::vector<IbisModelSelector>  m_modelSelectors;
-    std::vector<IbisModel>          m_models;
-    std::vector<IbisPackageModel>   m_packageModels;
+    IbisHeader                        m_header;
+    std::vector<IbisComponent>        m_components;
+    std::vector<IbisModelSelector>    m_modelSelectors;
+    std::vector<IbisModel>            m_models;
+    std::vector<IbisPackageModel>     m_packageModels;
+    std::vector<IbisBoardDescription> m_boardDescriptions;
 };
 
 
