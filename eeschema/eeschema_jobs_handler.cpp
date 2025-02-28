@@ -60,6 +60,7 @@
 #include <sch_file_versions.h>
 #include <sch_io/sch_io.h>
 #include <sch_io/kicad_sexpr/sch_io_kicad_sexpr_lib_cache.h>
+#include <sch_io/sch_io.h>
 
 #include <netlist.h>
 #include <netlist_exporter_base.h>
@@ -165,11 +166,12 @@ EESCHEMA_JOBS_HANDLER::EESCHEMA_JOBS_HANDLER( KIWAY* aKiway ) :
                   DIALOG_ERC_JOB_CONFIG dlg( aParent, ercJob );
                   return dlg.ShowModal() == wxID_OK;
               } );
-    Register( "convert", std::bind( &EESCHEMA_JOBS_HANDLER::JobSchConvert, this, std::placeholders::_1 ),
-              []( JOB* job, wxWindow* aParent ) -> bool
-              {
-                  return true;
-              } );
+   Register( "import",
+            std::bind( &EESCHEMA_JOBS_HANDLER::JobSchImport, this, std::placeholders::_1 ),
+            []( JOB* job, wxWindow* aParent ) -> bool
+            {
+                return true;
+            } );
     Register( "upgrade", std::bind( &EESCHEMA_JOBS_HANDLER::JobUpgrade, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
@@ -1386,15 +1388,14 @@ DS_PROXY_VIEW_ITEM* EESCHEMA_JOBS_HANDLER::getDrawingSheetProxyView( SCHEMATIC* 
     return drawingSheet;
 }
 
-int EESCHEMA_JOBS_HANDLER::JobSchConvert( JOB* aJob )
+int EESCHEMA_JOBS_HANDLER::JobSchImport( JOB* aJob )
 {
     JOB_SCH_IMPORT* aConvertJob = dynamic_cast<JOB_SCH_IMPORT*>( aJob );
 
     if( !aConvertJob )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
-    if( aJob->IsCli() )
-        m_reporter->Report( _( "Loading schematic\n" ), RPT_SEVERITY_INFO );
+    m_reporter->Report( _( "Loading schematic\n" ), RPT_SEVERITY_INFO );
 
     static const auto convertFromSCH = std::map<JOB_SCH_IMPORT::From,SCH_IO_MGR::SCH_FILE_T > {
         {JOB_SCH_IMPORT::From::SCH_ALTIUM, SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM}

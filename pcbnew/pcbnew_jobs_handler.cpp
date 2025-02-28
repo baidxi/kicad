@@ -154,7 +154,7 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   return true;
               } );
 
-    Register( "convert", std::bind( &PCBNEW_JOBS_HANDLER::JobExportConvert, this, std::placeholders::_1 ),
+    Register( "import", std::bind( &PCBNEW_JOBS_HANDLER::JobPcbImport, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
                   return true;
@@ -379,37 +379,7 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   DIALOG_EXPORT_ODBPP dlg( odbJob, editFrame, aParent );
                   return dlg.ShowModal() == wxID_OK;
               } );
-}
-
-
-PCBNEW_JOBS_HANDLER::~PCBNEW_JOBS_HANDLER()
-{
-}
-
-
-TOOL_MANAGER* PCBNEW_JOBS_HANDLER::getToolManager( BOARD* aBrd )
-{
-    TOOL_MANAGER* toolManager = nullptr;
-    if( Pgm().IsGUI() )
-    {
-        // we assume the PCB we are working on here is the one in the frame
-        // so use the frame's tool manager
-        PCB_EDIT_FRAME* editFrame = (PCB_EDIT_FRAME*) m_kiway->Player( FRAME_PCB_EDITOR, false );
-        if( editFrame )
-            toolManager = editFrame->GetToolManager();
-    }
-    else
-    {
-        if( m_toolManager == nullptr )
-        {
-            m_toolManager = std::make_unique<TOOL_MANAGER>();
-        }
-
-        toolManager = m_toolManager.get();
-
-        toolManager->SetEnvironment( aBrd, nullptr, nullptr, Kiface().KifaceSettings(), nullptr );
-    }
-    return toolManager;
+    Register( "convert",std::bind( &PCBNEW_JOBS_HANDLER::JobExportConvert, this, std::placeholders::_1 ) );              
 }
 
 
@@ -2643,7 +2613,7 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
     return CLI::EXIT_CODES::SUCCESS;
 }
 
-int PCBNEW_JOBS_HANDLER::JobExportConvert( JOB* aJob )
+int PCBNEW_JOBS_HANDLER::JobPcbImport( JOB* aJob )
 {
     JOB_PCB_IMPORT* aConvertJob = dynamic_cast<JOB_PCB_IMPORT*>( aJob );
 
