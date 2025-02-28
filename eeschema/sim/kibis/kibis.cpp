@@ -422,6 +422,7 @@ std::string KIBIS_MODEL::SpiceDie( const KIBIS_PARAMETER& aParam, int aIndex ) c
         result += m_pulldown.Spice( aIndex * 4 + 3, DIEBUFF, PD_GND, PD, supply );
         result += "VmeasPD GND " + PD_GND + " 0\n";
         result += "BKD GND " + DIE + " i=( i(VmeasPD) * v(KD) )\n";
+        result += "RKD GND " + DIE + " 100MEG\n"; // For convergence if KU == 0 and KD == 0
     }
 
     if( HasPullup() )
@@ -429,6 +430,7 @@ std::string KIBIS_MODEL::SpiceDie( const KIBIS_PARAMETER& aParam, int aIndex ) c
         result += m_pullup.Spice( aIndex * 4 + 4, PU_PWR, DIEBUFF, PU, supply );
         result += "VmeasPU POWER " + PU_PWR + " 0\n";
         result += "BKU POWER " + DIE + " i=( -i(VmeasPU) * v(KU) )\n";
+        result += "RKU POWER " + DIE + " 100MEG\n"; // For convergence if KU == 0 and KD == 0
     }
 
     if ( HasPullup() || HasPulldown() )
@@ -497,6 +499,24 @@ bool KIBIS_MODEL::HasPOWERClamp() const
     return m_POWERClamp.m_entries.size() > 0;
 }
 
+std::string KIBIS_MODEL::generateWF( const IbisWaveform& aWF, const KIBIS_PARAMETER& aParam )
+{
+    const IBIS_CORNER supply = aParam.m_supply;
+    std::string       simul = "";
+    simul += "Vstimuli DIE0 0 pwl(+\n";
+
+    IbisWaveform WF = TrimWaveform( aWF );
+    for( VTtableEntry& entry : WF.m_table.m_entries )
+    {
+        simul += doubleToString( entry.t );
+        simul += " ";
+        simul += doubleToString( entry.V.value[supply] );
+        simul += "\n+";
+    }
+    simul += ")\n";
+
+    return simul;
+}
 
 std::string KIBIS_MODEL::generateSquareWave( const std::string& aNode1, const std::string& aNode2,
                                              const std::vector<std::pair<int, double>>&     aBits,
@@ -760,9 +780,7 @@ std::string KIBIS_PIN::KuKdDriver( KIBIS_MODEL&                                 
     case KIBIS_WAVEFORM_TYPE::PRBS:
     {
         wave->Check( risingWF, fallingWF );
-        std::vector<std::pair<int, double>> bits = wave->GenerateBitSequence();
-        bits = SimplifyBitSequence( bits );
-        simul += aModel.generateSquareWave( "DIE0", "GND", bits, aPair, aParam );
+        simul += aModel.generateWF( *risingWF, aParam );
         break;
     }
     case KIBIS_WAVEFORM_TYPE::STUCK_HIGH:
@@ -1109,6 +1127,74 @@ void KIBIS_PIN::getKuKdTwoWaveforms( KIBIS_MODEL&                               
     }
 }
 
+void KIBIS_PIN::WritePinParasitics( std::string& aDest, const KIBIS_PARAMETER& aParam )
+{
+    if( m_Lpin.value[aParam.m_Lpin] <= 0 )
+    {
+        aDest += "RPIN DIE0 PIN ";
+        aDest += doubleToString( m_Rpin.value[aParam.m_Rpin] );
+        aDest += "\n";
+    }
+    else if( m_Rpin.value[aParam.m_Rpin] <= 0 )
+    {
+        aDest += "LPIN DIE0 PIN ";
+        aDest += doubleToString( m_Lpin.value[aParam.m_Lpin] );
+        aDest += "\nRPIN DIE0 PIN 20\n"; // Damping
+    }
+    else
+    {
+        aDest += "RPIN DIE0 PARA0 ";
+        aDest += doubleToString( m_Rpin.value[aParam.m_Rpin] );
+        aDest += "\nLPIN PARA0 PIN ";
+        aDest += doubleToString( m_Lpin.value[aParam.m_Lpin] );
+        aDest += "\nRDAMP PARA0 PIN 20\n"; // Damping
+    }
+    if( m_Cpin.value[aParam.m_Cpin] >= 0 )
+    {
+        aDest += "CPIN PIN GND ";
+        aDest += doubleToString( m_Cpin.value[aParam.m_Cpin] );
+        aDest += "\n";
+    }
+}
+
+void KIBIS_PIN::getKuKd( KIBIS_MODEL& aModel, const KIBIS_PARAMETER& aParam )
+{
+    std::vector<std::pair<IbisWaveform*, IbisWaveform*>> wfPairs = aModel.waveformPairs();
+    KIBIS_ACCURACY                                       accuracy = aParam.m_accuracy;
+
+    IBIS_CORNER supply = aParam.m_supply;
+
+    if( true || wfPairs.size() < 1 || accuracy <= KIBIS_ACCURACY::LEVEL_0 )
+    {
+        m_KuR.push_back( 0 );
+        m_KuR.push_back( 1 );
+        m_KdR.push_back( 1 );
+        m_KdR.push_back( 0 );
+        m_tR.push_back( 0 );
+        m_tR.push_back( aModel.m_ramp.m_rising.value[supply].m_dt / 0.6 );
+        // We divide by 0.6 because the rise time in ibis is the 20% -> 80% rise time
+
+        m_KuF.push_back( 1 );
+        m_KuF.push_back( 0 );
+        m_KdF.push_back( 0 );
+        m_KdF.push_back( 1 );
+        m_tF.push_back( 0 );
+        m_tF.push_back( aModel.m_ramp.m_falling.value[supply].m_dt / 0.6 );
+    }
+    else if( wfPairs.size() == 1 || accuracy <= KIBIS_ACCURACY::LEVEL_1 )
+    {
+        getKuKdOneWaveform( aModel, wfPairs.at( 0 ), aParam );
+    }
+    else
+    {
+        if( wfPairs.size() > 2 || accuracy <= KIBIS_ACCURACY::LEVEL_2 )
+        {
+            Report( _( "Model has more than 2 waveform pairs, using the first two." ),
+                    RPT_SEVERITY_WARNING );
+        }
+        getKuKdTwoWaveforms( aModel, wfPairs.at( 0 ), wfPairs.at( 1 ), aParam );
+    }
+}
 
 bool KIBIS_PIN::writeSpiceDriver( std::string& aDest, const std::string& aName, KIBIS_MODEL& aModel,
                                   const KIBIS_PARAMETER& aParam )
@@ -1133,6 +1219,10 @@ bool KIBIS_PIN::writeSpiceDriver( std::string& aDest, const std::string& aName, 
         std::string result;
         std::string tmp;
 
+        std::pair<std::vector<double>, std::vector<double>> Ks;
+
+        getKuKd( aModel, aParam );
+
         result = "\n*Driver model generated by Kicad using Ibis data. ";
 
         result += "\n*Pin number: ";
@@ -1146,68 +1236,192 @@ bool KIBIS_PIN::writeSpiceDriver( std::string& aDest, const std::string& aName, 
         result += " GND PIN \n";
         result += "\n";
 
-        result += "RPIN 1 PIN ";
-        result += doubleToString( m_Rpin.value[aParam.m_Rpin] );
-        result += "\n";
-        result += "LPIN DIE0 1 ";
-        result += doubleToString( m_Lpin.value[aParam.m_Lpin] );
-        result += "\n";
-        result += "CPIN PIN GND ";
-        result += doubleToString( m_Cpin.value[aParam.m_Cpin] );
-        result += "\n";
+        WritePinParasitics( result, aParam );
 
-        std::vector<std::pair<IbisWaveform*, IbisWaveform*>> wfPairs = aModel.waveformPairs();
-        KIBIS_ACCURACY                                       accuracy = aParam.m_accuracy;
-
-        if( wfPairs.size() < 1 || accuracy <= KIBIS_ACCURACY::LEVEL_0 )
+        bool driving = true;
+        switch( aParam.m_waveform->GetType() )
         {
-            if( accuracy > KIBIS_ACCURACY::LEVEL_0 )
+        case KIBIS_WAVEFORM_TYPE::NONE: // Used for three state
+            driving = false;
+            result += "VKU KU 0  0\n";
+            result += "VKD KD 0  0\n";
+            break;
+        case KIBIS_WAVEFORM_TYPE::PRBS:
+        {
+            KIBIS_WAVEFORM_PRBS* wf = dynamic_cast<KIBIS_WAVEFORM_PRBS*>( aParam.m_waveform );
+            if( !wf || wf->m_bitrate <= 0 )
             {
-                Report( _( "Model has no waveform pair, using [Ramp] instead, poor accuracy" ),
-                        RPT_SEVERITY_INFO );
+                result += "VSTIMUL STIMULI 0 0\n";
+                break;
             }
+            //result += "VSTIMUL STIMULI 0 0 \n";
+            // Linear feedback shift register
+            double halfperiod = 0.5 / wf->m_bitrate;
+            result += ".model flopPRBS0 d_dff(clk_delay=10p set_delay =10p reset_delay=0 ic=0 "
+                      "rise_delay=0 fall_delay=0)\n";
+            result += ".model flopPRBS1 d_dff(clk_delay=10p set_delay =10p reset_delay=0 ic=1 "
+                      "rise_delay=0 fall_delay=0)\n";
 
-            getKuKdNoWaveform( aModel, aParam );
-        }
-        else if( wfPairs.size() == 1 || accuracy <= KIBIS_ACCURACY::LEVEL_1 )
-        {
-            getKuKdOneWaveform( aModel, wfPairs.at( 0 ), aParam );
-        }
-        else
-        {
-            if( wfPairs.size() > 2 || accuracy <= KIBIS_ACCURACY::LEVEL_2 )
+            result += "aprbs1 PRBS1 prbs_clk NULL0PRBS1 NULL1PRBS1 PRBS2 NULL3PRBS1 flopPRBS1\n";
+            result += "aprbs2 PRBS2 prbs_clk NULL0PRBS2 NULL1PRBS2 PRBS3 NULL3PRBS2 flopPRBS0\n";
+            result += "aprbs3 PRBS3 prbs_clk NULL0PRBS3 NULL1PRBS3 PRBS4 NULL3PRBS3 flopPRBS0\n";
+            result += "aprbs4 PRBS4 prbs_clk NULL0PRBS4 NULL1PRBS4 PRBS5 NULL3PRBS4 flopPRBS1\n";
+
+            result += ".model xorPRBS d_xor(rise_delay = ";
+            result += doubleToString( halfperiod ) + " fall_delay = ";
+            result += doubleToString( halfperiod ) + " input_load = 0.5e-12)\n";
+            result += "axorPRBS1 [PRBS4 PRBS5] PRBS1 xorPRBS\n";
+
+            result += ".model prbs_clock d_osc( cntl_array=[-1 1] freq_array=[1e7 1e7] "
+                      "duty_cycle=0.5 init_phase=0 rise_delay=0 fall_delay=0 )\n";
+            result += "aprbsclk 0 prbs_clk prbs_clock\n";
+            result += ".model dac_prbs dac_bridge(out_low =-1 out_high=1 out_undef=1e-12 t_rise "
+                      "=1e-12 t_fall=1e-12)\n";
+            result += "AbridgePRBS [PRBS5] [STIMULI] dac_prbs\n";
+
+            break;
+            }
+            case KIBIS_WAVEFORM_TYPE::RECTANGULAR:
             {
-                Report( _( "Model has more than 2 waveform pairs, using the first two." ),
-                        RPT_SEVERITY_WARNING );
+                KIBIS_WAVEFORM_RECTANGULAR* wf =
+                        dynamic_cast<KIBIS_WAVEFORM_RECTANGULAR*>( aParam.m_waveform );
+                if( !wf )
+                {
+                    result += "VSTIMUL STIMULI 0 0\n";
+                    break;
+                }
+                result += "VSTIMUL STIMULI 0 PULSE( 0 1 0 0 0 ";
+                result += doubleToString( wf->m_ton ) + " ";
+                result += doubleToString( wf->m_toff + wf->m_ton ) + " ";
+                result += doubleToString( wf->m_cycles ) + ")\n";
+                break;
             }
-
-            getKuKdTwoWaveforms( aModel, wfPairs.at( 0 ), wfPairs.at( 1 ), aParam );
+            case KIBIS_WAVEFORM_TYPE::STUCK_HIGH:
+                driving = false;
+                result += "VKU KU 0  1\n";
+                result += "VKD KD 0  0\n";
+                break;
+            case KIBIS_WAVEFORM_TYPE::HIGH_Z:
+                driving = false;
+                result += "VKU KU 0  0\n";
+                result += "VKD KD 0  0\n";
+                break;
+            case KIBIS_WAVEFORM_TYPE::STUCK_LOW:
+            default:
+                driving = false;
+                result += "VKU KU 0  0\n";
+                result += "VKD KD 0  1\n";
+                break;
         }
 
-        result += "Vku KU GND pwl ( ";
-
-        for( size_t i = 0; i < m_t.size(); i++ )
+        if( driving )
         {
-            result += doubleToString( m_t.at( i ) );
-            result += " ";
-            result += doubleToString( m_Ku.at( i ) );
-            result += " ";
+            // A lot of this part could be replace if ngspice implements a STATE() function as implemented in Pspice
+            // STATE() returns the previous value of a node.
+            // This is useful to detect rising / falling edges
+            // Instead, we use 2 ADCs, one for the rising edge threshold, the other for the falling edge threshold
+            // Then we apply some logic to detect rising edge
+            // STATE() would also avoid arbritrary delays.
+
+            // ADC with rising threshold
+            result += ".model adc_buff_r adc_bridge(in_low =0.7 in_high=0.7 rise_delay=0 "
+                      "fall_delay=0)\n";
+            // ADC with falling threshold
+            result += ".model adc_buff_f adc_bridge(in_low =0.3 in_high=0.3 rise_delay=0 "
+                      "fall_delay=0)\n";
+            // DAC model
+            result += ".model dac_buff dac_bridge(out_low =-1 out_high=1 out_undef=0 t_rise =0 "
+                      "t_fall=0)\n";
+
+            // Digital elements with some arbritary values...
+            result += ".model flop1 d_dff(clk_delay=10p set_delay =10p reset_delay=0 ic=2 "
+                      "rise_delay=0 fall_delay=0)\n";
+            result += ".model and1 d_and(rise_delay=0 fall_delay=0)\n";
+            result += ".model inv1 d_inverter(rise_delay=0 fall_delay=0)\n";
+            result += ".model mydel1 delay( delay=3n )\n";
+            result += ".model mydel2 delay( delay=1p )\n";
+            // Convert the analog stimuli to digital
+            result += "AbridgeR [STIMULI] [STIMULIDR] adc_buff_r\n";
+            // Do the same for falling threshold, but we need to invert it
+            result += "AbridgeF [STIMULI] [STIMULIDFTMP] adc_buff_f\n";
+            result += "ainv STIMULIDFTMP STIMULIDF inv1\n";
+
+            // Sampling clock -> required because there is no STATE() function in ngspice
+            result += ".model var_clock d_osc( cntl_array=[-1 1] freq_array=[10e9 10e9] "
+                      "duty_cycle=0.5 init_phase=0 rise_delay=0 fall_delay=0 )\n";
+            result += "aclk 0 clk var_clock\n";
+
+            // Rising edge detection
+            result += "affr STIMULIDR clk NULL0R NULL1R STIMULIDDR NULL3R flop1\n";
+            result += "affr2 STIMULIDDR clk NULL4R NULL5R NULL6R STIMULIDDR_DELAYED flop1\n";
+            result += "aandr [STIMULIDDR STIMULIDDR_DELAYED] OUTPUTR and1\n";
+            // Falling edge detection
+            result += "afff STIMULIDF clk NULL0F NULL1F STIMULIDDF NULL3F flop1\n";
+            result += "afff2 STIMULIDDF clk NULL4F NULL5F NULL6F STIMULIDDF_DELAYED flop1\n";
+            result += "aandf [STIMULIDDF STIMULIDDF_DELAYED] OUTPUTF and1\n";
+
+            //result += "adelay1 STIMULI STIMULI_DELAYED 0 mydel1\n";
+            // recover the current bit being sent ( 1 or 0 )
+            result += "addm NULL0M NULL1M OUTPUTR OUTPUTF MODED NULL1M flop1\n";
+
+            // Convert to analog domain
+            result += "Abridge2 [OUTPUTR] [A_RISING_EDGE] dac_buff\n";
+            result += "Abridge3 [OUTPUTF] [A_FALLING_EDGE] dac_buff\n";
+            result += "Abridge4 [MODED] [A_MODE] dac_buff\n";
+
+            // Store the current time
+            result += "BTIMESTAMP TIMESTAMP 0 V=TIME\n";
+
+            // Store the time the last rising edge occured. This will be used as an offset in the KD/KU vs time curve
+            result += "adelayrise LAST_RISE LAST_RISE_DELAYED 0 mydel2\n";
+            result += "ELR LAST_RISE 0 vol = ( V( A_RISING_EDGE ) > 0.2 ? V(TIMESTAMP) : "
+                      "V(LAST_RISE_DELAYED) )\n";
+
+            // Store the time the last falling edge occured. This will be used as an offset in the KD/KU vs time curve
+            result += "adelayfall LAST_FALL LAST_FALL_DELAYED 0 mydel2\n";
+            result += "ELF LAST_FALL 0 vol = ( V( A_FALLING_EDGE ) > 0.2 ? V(TIMESTAMP) : "
+                      "V(LAST_FALL_DELAYED) )\n";
+
+
+            result += "EFALLTIME FALLTIME 0 vol=V(TIMESTAMP,LAST_FALL)\n";
+            result += "ERISETIME RISETIME 0 vol=V(TIMESTAMP,LAST_RISE)\n";
+            // Generate the rising / falling waveform for KU
+
+            result += "ERISEWFKU RISEWFKU 0 TABLE {V(RISETIME)} =";
+            for( int i = 0; i < m_tR.size(); i++ )
+            {
+                result += " ( " + doubleToString( m_tR.at( i ) ) + " , "
+                          + doubleToString( m_KuR.at( i ) ) + " )";
+            }
+            result += "\n";
+            result += "EFALLWFKU FALLWFKU 0 TABLE {V(FALLTIME)} =";
+            for( int i = 0; i < m_tR.size(); i++ )
+            {
+                result += " ( " + doubleToString( m_tF.at( i ) ) + " , "
+                          + doubleToString( m_KuF.at( i ) ) + " )";
+            }
+            result += "\n\n";
+            result += "ERISEWFKD RISEWFKD 0 TABLE {V(RISETIME)} =";
+            for( int i = 0; i < m_tR.size(); i++ )
+            {
+                result += " ( " + doubleToString( m_tR.at( i ) ) + " , "
+                          + doubleToString( m_KdR.at( i ) ) + " )";
+            }
+            result += "\n";
+            result += "EFALLWFKD FALLWFKD 0 TABLE {V(FALLTIME)} =";
+            for( int i = 0; i < m_tR.size(); i++ )
+            {
+                result += " ( " + doubleToString( m_tF.at( i ) ) + " , "
+                          + doubleToString( m_KdF.at( i ) ) + " )";
+            }
+            result += "\n";
+
+            // Use the correct waveform depending if the last edge was rising or falling
+            result += "EKU KU 0 vol= ( V(A_MODE) == 1 ? V(RISEWFKU) : V(A_MODE) == -1  ? "
+                      "V(FALLWFKU) : 0 )\n";
+            result += "EKD KD 0 vol= ( V(A_MODE) == 1 ? V(RISEWFKD) : V(A_MODE) == -1  ? "
+                      "V(FALLWFKD) : 0 )\n";
         }
-
-        result += ") \n";
-
-
-        result += "Vkd KD GND pwl ( ";
-
-        for( size_t i = 0; i < m_t.size(); i++ )
-        {
-            result += doubleToString( m_t.at( i ) );
-            result += " ";
-            result += doubleToString( m_Kd.at( i ) );
-            result += " ";
-        }
-
-        result += ") \n";
 
         result += aModel.SpiceDie( aParam, 0 );
 
@@ -1247,16 +1461,7 @@ bool KIBIS_PIN::writeSpiceDevice( std::string& aDest, const std::string& aName, 
         result += aName;
         result += " GND PIN\n";
         result += "\n";
-        result += "\n";
-        result += "RPIN 1 PIN ";
-        result += doubleToString( m_Rpin.value[aParam.m_Rpin] );
-        result += "\n";
-        result += "LPIN DIE0 1 ";
-        result += doubleToString( m_Lpin.value[aParam.m_Lpin] );
-        result += "\n";
-        result += "CPIN PIN GND ";
-        result += doubleToString( m_Cpin.value[aParam.m_Cpin] );
-        result += "\n";
+        WritePinParasitics( result, aParam );
 
 
         result += "Vku KU GND pwl ( 0 0 )\n";
