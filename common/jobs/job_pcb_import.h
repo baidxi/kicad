@@ -32,7 +32,7 @@
 class KICOMMON_API JOB_PCB_IMPORT : public JOB
 {
 public:
-    JOB_PCB_IMPORT( );
+    JOB_PCB_IMPORT();
 
     wxString m_filename;
     wxString m_outputFile;

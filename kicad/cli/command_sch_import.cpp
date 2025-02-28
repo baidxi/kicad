@@ -62,8 +62,7 @@ CLI::SCH_IMPORT_COMMAND::SCH_IMPORT_COMMAND() : COMMAND( "import" )
 
 int CLI::SCH_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT(  ) );
-
+    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT() );
     convertJob->m_outputFile = m_argOutput;
     convertJob->m_filename = m_argInput;
     convertJob->SetVarOverrides( m_argDefineVars );

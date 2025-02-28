@@ -126,7 +126,7 @@ static CLI::JOBSET_RUN_COMMAND           jobsetRunCmd{};
 static CLI::PCB_COMMAND                  pcbCmd{};
 static CLI::PCB_DRC_COMMAND              pcbDrcCmd{};
 static CLI::PCB_RENDER_COMMAND           pcbRenderCmd{};
-static CLI::PCB_IMPORT_COMMAND          pcbConvertCmd{};
+static CLI::PCB_IMPORT_COMMAND           pcbImportCmd{};
 static CLI::PCB_UPGRADE_COMMAND          pcbUpgradeCmd{};
 static CLI::PCB_EXPORT_DRILL_COMMAND     exportPcbDrillCmd{};
 static CLI::PCB_EXPORT_DXF_COMMAND       exportPcbDxfCmd{};
@@ -157,7 +157,7 @@ static CLI::PCB_EXPORT_COMMAND           exportPcbCmd{};
 static CLI::SCH_EXPORT_COMMAND           exportSchCmd{};
 static CLI::SCH_COMMAND                  schCmd{};
 static CLI::SCH_ERC_COMMAND              schErcCmd{};
-static CLI::SCH_IMPORT_COMMAND          schConvertCmd{};
+static CLI::SCH_IMPORT_COMMAND           schImportCmd{};
 static CLI::SCH_UPGRADE_COMMAND          schUpgradeCmd{};
 static CLI::SCH_EXPORT_BOM_COMMAND       exportSchBomCmd{};
 static CLI::SCH_EXPORT_PYTHONBOM_COMMAND exportSchPythonBomCmd{};
@@ -212,7 +212,7 @@ static std::vector<COMMAND_ENTRY> commandStack = {
                 &pcbRenderCmd
             },
             {
-                &pcbConvertCmd
+                &pcbImportCmd
             },
             {
                 &exportPcbCmd,
@@ -255,7 +255,7 @@ static std::vector<COMMAND_ENTRY> commandStack = {
                 &schErcCmd
             },
             {
-                &schConvertCmd
+                &schImportCmd
             },
             {
                 &exportSchCmd,

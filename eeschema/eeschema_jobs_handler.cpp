@@ -1397,23 +1397,24 @@ int EESCHEMA_JOBS_HANDLER::JobSchImport( JOB* aJob )
 
     m_reporter->Report( _( "Loading schematic\n" ), RPT_SEVERITY_INFO );
 
-    static const auto convertFromSCH = std::map<JOB_SCH_IMPORT::From,SCH_IO_MGR::SCH_FILE_T > {
-        {JOB_SCH_IMPORT::From::SCH_ALTIUM, SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM}
+    static const auto convertFromSCH = std::map<JOB_SCH_IMPORT::From, SCH_IO_MGR::SCH_FILE_T>{
+        { JOB_SCH_IMPORT::From::SCH_ALTIUM, SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM }
     };
 
 
-    if( auto from_type = convertFromSCH.find( aConvertJob->m_from ); from_type == convertFromSCH.end() )
+    if( auto from_type = convertFromSCH.find( aConvertJob->m_from );
+        from_type == convertFromSCH.end() )
     {
         return CLI::EXIT_CODES::ERR_ARGS;
     }
     else
     {
-
         try
         {
-            SCHEMATIC* sch = EESCHEMA_HELPERS::LoadSchematic( aConvertJob->m_filename, from_type->second, true );
+            SCHEMATIC* sch = EESCHEMA_HELPERS::LoadSchematic( aConvertJob->m_filename,
+                                                              from_type->second, true );
 
-            if(!sch || !sch->IsValid())
+            if( !sch || !sch->IsValid() )
             {
                 m_reporter->Report( _( "Failed to load schematic file." ) );
                 return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
@@ -1421,18 +1422,19 @@ int EESCHEMA_JOBS_HANDLER::JobSchImport( JOB* aJob )
 
             IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_FILE_T::SCH_KICAD ) );
             pi->SetProgressReporter( m_progressReporter );
-            pi->SaveSchematicFile( aConvertJob->m_outputFile, &sch->Root() ,sch );
+            pi->SaveSchematicFile( aConvertJob->m_outputFile, &sch->Root(), sch );
         }
-            catch( const IO_ERROR& ioe )
+        catch( const IO_ERROR& ioe )
         {
             m_reporter->Report( wxString::Format( _( "Error importing schematic file '%s'.\n%s" ),
-                                                aConvertJob->m_filename, ioe.What() ),
+                                                  aConvertJob->m_filename, ioe.What() ),
                                 RPT_SEVERITY_ERROR );
 
             return CLI::EXIT_CODES::ERR_UNKNOWN;
         }
 
-        m_reporter->Report( _( "Successfully imported schematic file" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
+        m_reporter->Report( _( "Successfully imported schematic file" ) + wxS( "\n" ),
+                            RPT_SEVERITY_INFO );
         return CLI::EXIT_CODES::OK;
     }
 }

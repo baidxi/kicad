@@ -379,7 +379,12 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   DIALOG_EXPORT_ODBPP dlg( odbJob, editFrame, aParent );
                   return dlg.ShowModal() == wxID_OK;
               } );
-    Register( "convert",std::bind( &PCBNEW_JOBS_HANDLER::JobExportConvert, this, std::placeholders::_1 ) );              
+    Register( "import",
+              std::bind( &PCBNEW_JOBS_HANDLER::JobPcbImport, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
 }
 
 
@@ -2631,35 +2636,32 @@ int PCBNEW_JOBS_HANDLER::JobPcbImport( JOB* aJob )
     };
 
 
-    if( auto from_type = converFromPCBType.find( aConvertJob->m_from ); from_type == converFromPCBType.end() )
+    if( auto from_type = converFromPCBType.find( aConvertJob->m_from );
+        from_type == converFromPCBType.end() )
     {
         return CLI::EXIT_CODES::ERR_ARGS;
     }
     else
     {
-
-        BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second,
-                    true );
+        BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second, true );
         try
         {
             IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::PluginFind( PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP ) );
             pi->SetProgressReporter( m_progressReporter );
             pi->SaveBoard( aConvertJob->m_outputFile, brd );
         }
-            catch( const IO_ERROR& ioe )
+        catch( const IO_ERROR& ioe )
         {
             m_reporter->Report( wxString::Format( _( "Error importing pcb file '%s'.\n%s" ),
-                                                aConvertJob->m_filename, ioe.What() ),
+                                                  aConvertJob->m_filename, ioe.What() ),
                                 RPT_SEVERITY_ERROR );
 
             return CLI::EXIT_CODES::ERR_UNKNOWN;
         }
 
-        m_reporter->Report( _( "Successfully imported board" ) + wxS( "\n" ),
-                            RPT_SEVERITY_INFO );
+        m_reporter->Report( _( "Successfully imported board" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
         return CLI::EXIT_CODES::OK;
     }
-
 }
 
 int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )

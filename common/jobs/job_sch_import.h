@@ -33,7 +33,7 @@
 class KICOMMON_API JOB_SCH_IMPORT : public JOB
 {
 public:
-    JOB_SCH_IMPORT(  );
+    JOB_SCH_IMPORT();
     wxString m_filename;
     wxString m_outputFile;
 

@@ -46,8 +46,8 @@ CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
     addCommonArgs( true, true, false, false );
     addDefineArg();
 
-    m_argParser.add_description(
-        UTF8STDSTR( _( "Import PCB designs from other formats into the latest version of KiCad." ) ) );
+    m_argParser.add_description( UTF8STDSTR(
+            _( "Import PCB designs from other formats into the latest version of KiCad." ) ) );
 
 
     m_argParser.add_argument( ARG_FROM )
@@ -56,14 +56,12 @@ CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
             .metavar( "FROM" )
             .help( UTF8STDSTR( wxString::Format( _( "Accepted PCB formats. Options: %s" ),
                                                  enumString<JOB_PCB_IMPORT::From>() ) ) );
-
 }
 
 
 int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 {
-    std::unique_ptr<JOB_PCB_IMPORT> convertJob( new JOB_PCB_IMPORT( ) );
-
+    std::unique_ptr<JOB_PCB_IMPORT> convertJob( new JOB_PCB_IMPORT() );
     convertJob->m_outputFile = m_argOutput;
     convertJob->m_filename = m_argInput;
     convertJob->SetVarOverrides( m_argDefineVars );
