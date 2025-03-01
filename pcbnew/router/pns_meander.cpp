@@ -492,7 +492,7 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     crEnds = std::clamp( crEnds, offset, spc / 2 );
     crMid = std::clamp( crMid, offset, spc / 2 );
 
-    m_meanCornerRadius = crEnds;
+    m_meanCornerRadius = ( crEnds + crMid ) / 2;
 
     int crEndsMinus = crEnds - offset;
     int crEndsPlus = crEnds + offset;
@@ -528,9 +528,9 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
         }
 
         miter( crEndsMinus, false );
-
         forward( startSide );
         miter( crEndsPlus, true );
+
         forward( topVal );
         miter( crMidPlus, true );
         forward( turnSide );
