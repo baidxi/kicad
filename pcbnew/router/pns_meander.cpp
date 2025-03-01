@@ -470,7 +470,9 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
                                                  bool aSide, MEANDER_TYPE aType,
                                                  int aBaselineOffset )
 {
-    int cr = cornerRadius( aType == MT_TURN );
+    int crEnds = cornerRadius( false );
+    int crMid = cornerRadius( true );
+
     int offset = aBaselineOffset;
     int spc = spacing();
     int amplitude = m_amplitude;
@@ -482,30 +484,27 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     VECTOR2D dir_u_b( aDir.Resize( offset ) );
     VECTOR2D dir_v_b( dir_u_b.Perpendicular() );
 
-    if( aType == MT_TURN )
-    {
-        // Limit maximum corner radius for U-turns
-        cr = std::min( cr, amplitude + std::abs( offset ) );
-    }
-    else
-    {
-        // Limit maximum corner radius for other shapes
-        cr = std::min( cr, ( amplitude + std::abs( offset ) ) / 2 );
-    }
+    // Limit maximum corner radius
+    crEnds = std::min( crEnds, ( amplitude + std::abs( offset ) ) / 2 );
+    crMid = std::min( crMid, amplitude + std::abs( offset ) );
 
-    if( 2 * cr > spc )
-        cr = spc / 2;
+    // Corner radiuses must be between DP offset and half the spacing
+    crEnds = std::clamp( crEnds, offset, spc / 2 );
+    crMid = std::clamp( crMid, offset, spc / 2 );
 
-    if( cr - offset < 0 )
-        cr = offset;
+    m_meanCornerRadius = crEnds;
 
-    m_meanCornerRadius = cr;
+    int crEndsMinus = crEnds - offset;
+    int crEndsPlus = crEnds + offset;
 
-    int sCorner = cr - offset;
-    int uCorner = cr + offset;
-    int startSide = amplitude - 2 * cr + std::abs( offset );
-    int turnSide = amplitude - cr + std::abs( offset );
-    int top = spc - 2 * cr;
+    int crMidMinus = crMid - offset;
+    int crMidPlus = crMid + offset;
+
+    int startSide = amplitude - 2 * crEnds + std::abs( offset );
+    int turnSide = amplitude - crMid + std::abs( offset );
+
+    int topEnds = spc - 2 * crEnds;
+    int topMid = spc - 2 * crMid;
 
     SHAPE_LINE_CHAIN lc;
 
@@ -520,32 +519,50 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     }
     case MT_START:
     {
-        if( targetBaseLen )
-            top = std::max( top, targetBaseLen - sCorner - uCorner * 2 + offset );
+        int topVal = ( topEnds + topMid ) / 2;
 
-        miter( sCorner, false );
-        uShape( startSide, uCorner, top );
-        forward( std::min( sCorner, uCorner ) );
-        forward( std::abs( offset ) );
+        if( targetBaseLen )
+        {
+            topVal = std::max( topVal,
+                               targetBaseLen - crEndsMinus - crEndsPlus - crMidPlus + offset );
+        }
+
+        miter( crEndsMinus, false );
+
+        forward( startSide );
+        miter( crEndsPlus, true );
+        forward( topVal );
+        miter( crMidPlus, true );
+        forward( turnSide );
+
         break;
     }
 
     case MT_FINISH:
     {
+        int topVal = ( topEnds + topMid ) / 2;
+
         if( targetBaseLen )
-            top = std::max( top, targetBaseLen - cr - spc );
+        {
+            int topVal = std::max( topVal,
+                                   targetBaseLen - crMidPlus - crEndsPlus - crEndsMinus + offset );
+        }
 
         start( &lc, aP - dir_u_b, aDir );
         turn( -ANGLE_90 );
-        forward( std::min( sCorner, uCorner ) );
-        forward( std::abs( offset ) );
-        uShape( startSide, uCorner, top );
-        miter( sCorner, false );
 
-        if( targetBaseLen >= spc + cr )
+        forward( turnSide );
+        miter( crMidPlus, true );
+        forward( topVal );
+        miter( crEndsPlus, true );
+        forward( startSide );
+
+        miter( crEndsMinus, false );
+
+        if( targetBaseLen >= spc + crEnds )
             lc.Append( aP + dir_v_b + aDir.Resize( targetBaseLen ) );
         else
-            lc.Append( aP + dir_v_b + aDir.Resize( 2 * spc - cr ) );
+            lc.Append( aP + dir_v_b + aDir.Resize( 2 * spc - crEnds ) );
 
         break;
     }
@@ -553,22 +570,22 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
     case MT_TURN:
     {
         if( targetBaseLen )
-            top = std::max( top, targetBaseLen - uCorner * 2 + offset * 2 );
+            topMid = std::max( topMid, targetBaseLen - crEndsPlus * 2 + offset * 2 );
 
         start( &lc, aP - dir_u_b, aDir );
         turn( -ANGLE_90 );
-        uShape( turnSide, uCorner, top );
+        uShape( turnSide, crMidPlus, topMid );
         break;
     }
 
     case MT_SINGLE:
     {
         if( targetBaseLen )
-            top = std::max( top, ( targetBaseLen - sCorner * 2 - uCorner * 2 ) / 2 );
+            topEnds = std::max( topEnds, ( targetBaseLen - crEndsMinus * 2 - crEndsPlus * 2 ) / 2 );
 
-        miter( sCorner, false );
-        uShape( startSide, uCorner, top );
-        miter( sCorner, false );
+        miter( crEndsMinus, false );
+        uShape( startSide, crEndsPlus, topEnds );
+        miter( crEndsMinus, false );
         lc.Append( aP + dir_v_b + aDir.Resize( 2 * spc ) );
         break;
     }
