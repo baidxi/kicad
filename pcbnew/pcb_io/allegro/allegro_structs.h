@@ -246,7 +246,7 @@ struct T_03
 };
 
 template <MAGIC magic>
-struct T_04
+struct T_04_NET_ASSIGNMENT
 {
     uint32_t t;
     uint32_t k;
@@ -736,7 +736,7 @@ struct T_1B_NET
 };
 
 template <MAGIC magic>
-struct t13
+struct PAD_STACK_COMPONENT
 {
     uint8_t t;
     uint8_t un1;
@@ -755,11 +755,11 @@ struct t13
     uint32_t TAIL;
 };
 
-static_assert( sizeof_allegro_obj<t13<A_160>>() == 28 );
-static_assert( sizeof_allegro_obj<t13<A_174>>() == 36 );
+static_assert( sizeof_allegro_obj<PAD_STACK_COMPONENT<A_160>>() == 28 );
+static_assert( sizeof_allegro_obj<PAD_STACK_COMPONENT<A_174>>() == 36 );
 
-static_assert( offsetof( t13<A_164>, str_ptr ) == 20 );
-static_assert( offsetof( t13<A_174>, str_ptr ) == 32 );
+static_assert( offsetof( PAD_STACK_COMPONENT<A_164>, str_ptr ) == 20 );
+static_assert( offsetof( PAD_STACK_COMPONENT<A_174>, str_ptr ) == 32 );
 
 // x1C shows how to draw pads
 enum PAD_TYPE : uint8_t
@@ -803,8 +803,8 @@ struct T_1C_PAD_STACK
     COND_FIELD( magic >= A_172, uint32_t[28], un9 );
     COND_FIELD( magic == A_165 || magic == A_166, uint32_t[8], un10 );
 
-    uint32_t                TAIL;
-    std::vector<t13<magic>> parts;
+    uint32_t                                TAIL;
+    std::vector<PAD_STACK_COMPONENT<magic>> parts;
 };
 
 static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_164>>() == 21 * 4 );
@@ -948,7 +948,7 @@ struct T_23
 };
 
 template <MAGIC magic>
-struct T_24
+struct T_24_RECTANGLE
 {
     uint16_t   t;
     LAYER_INFO layer;
@@ -1362,7 +1362,7 @@ struct T_32_PLACED_PAD
 };
 
 template <MAGIC magic>
-struct T_33
+struct T_33_VIA
 {
     uint16_t   t;
     LAYER_INFO layer;
@@ -1370,7 +1370,7 @@ struct T_33
     uint32_t k;
     uint32_t un1;
 
-    uint32_t ptr1;
+    uint32_t net_ptr;
 
     // Some bit field?
     uint32_t un2;

@@ -73,25 +73,27 @@ public:
 private:
     void    BuildBoard();
     uint8_t GetCopperLayerCount();
-    void    AddAnnotation( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_14<magic>& i14 );
-    void    AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& i2B );
+    void    AddAnnotation( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_14<magic>& aObjInst );
+    void    AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& aBrdFootprint );
 
-    void AddPad( FOOTPRINT* fp, const ALLEGRO::T_32_PLACED_PAD<magic>& i32 );
+    void AddPad( FOOTPRINT* aFootprint, const ALLEGRO::T_32_PLACED_PAD<magic>& aBrdPlacedPad );
 
     void AddText( BOARD_ITEM_CONTAINER&                              aContainer,
-                  const ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER<magic>& i30 );
-    void AddTrack( const ALLEGRO::T_1B_NET<magic>& i1B, const ALLEGRO::T_05_TRACK<magic>& i05 );
-    void AddVia( const ALLEGRO::T_33<magic>& i33 );
+                  const ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER<magic>& aStrWrapper );
+    void AddTrack( const ALLEGRO::T_1B_NET<magic>&   aBrdNet,
+                   const ALLEGRO::T_05_TRACK<magic>& aBrdTrack );
+    void AddVia( const ALLEGRO::T_33_VIA<magic>& aBrdVia );
     void AddZone( BOARD_ITEM_CONTAINER&                          aContainer,
-                  const std::optional<ALLEGRO::T_1B_NET<magic>>& i1B,
-                  const ALLEGRO::T_28_SHAPE<magic>&              i28 );
-    void AddRectangle( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_24<magic>& i24 );
+                  const std::optional<ALLEGRO::T_1B_NET<magic>>& aBrdNet,
+                  const ALLEGRO::T_28_SHAPE<magic>&              aBrdShape );
+    void AddRectangle( BOARD_ITEM_CONTAINER&                 aContainer,
+                       const ALLEGRO::T_24_RECTANGLE<magic>& aBrdRect );
 
-    void             Skip( std::size_t n );
+    void             Skip( std::size_t aSkipBytes );
     void             Log( const char* fmt... );
-    bool             IsType( uint32_t k, uint8_t t );
-    NETINFO_ITEM*    NetInfo( uint32_t k );
-    NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04<magic>& i04 );
+    bool             IsType( uint32_t aKey, uint8_t aType );
+    NETINFO_ITEM*    NetInfo( uint32_t aKey );
+    NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& i04 );
     SHAPE_LINE_CHAIN ShapeStartingAt( uint32_t* k );
 
     std::optional<wxString>     LookupString( uint32_t k );
@@ -109,11 +111,12 @@ private:
     const ALLEGRO::T_36_08<magic>* FindFont( uint8_t k );
 
     constexpr uint32_t GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C );
-    constexpr ALLEGRO::t13<magic>* GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C,
-                                                    uint32_t                              idx );
-    void                           SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it13 );
+    constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>*
+         GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C, uint32_t idx );
+    void SetPadShape( PAD& pad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent );
 
-    std::optional<wxString> RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& i2D );
+    std::optional<wxString>
+    RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& aPlacedFootprint );
 
     template <template <ALLEGRO::MAGIC> typename T>
     static uint32_t DefaultParser( ALLEGRO_PARSER& parser );
@@ -144,7 +147,7 @@ private:
         // 0x03
         &Parse03,
         // 0x04
-        &DefaultParser<ALLEGRO::T_04>,
+        &DefaultParser<ALLEGRO::T_04_NET_ASSIGNMENT>,
         // 0x05
         &DefaultParser<ALLEGRO::T_05_TRACK>,
         // 0x06
@@ -208,7 +211,7 @@ private:
         // 0x23
         &DefaultParser<ALLEGRO::T_23>,
         // 0x24
-        &DefaultParser<ALLEGRO::T_24>,
+        &DefaultParser<ALLEGRO::T_24_RECTANGLE>,
         // 0x25
         nullptr,
         // 0x26
@@ -238,7 +241,7 @@ private:
         // 0x32
         &DefaultParser<ALLEGRO::T_32_PLACED_PAD>,
         // 0x33
-        &DefaultParser<ALLEGRO::T_33>,
+        &DefaultParser<ALLEGRO::T_33_VIA>,
         // 0x34
         &DefaultParser<ALLEGRO::T_34>,
         // 0x35

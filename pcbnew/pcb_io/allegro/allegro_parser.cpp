@@ -212,7 +212,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse1C( ALLEGRO_PARSER<magic>& aParser )
     {
         // log(fs.region.get_address(), address, "- Skipping t13 %d\n", i);
         // log_n_words(address, 4);
-        aParser.Skip( ALLEGRO::sizeof_allegro_obj<ALLEGRO::t13<magic>>() );
+        aParser.Skip( ALLEGRO::sizeof_allegro_obj<ALLEGRO::PAD_STACK_COMPONENT<magic>>() );
     }
     // skip(address, size * sizeof_until_tail<t13<magic>>());
 
@@ -795,7 +795,7 @@ void ALLEGRO_PARSER<magic>::AddPad( FOOTPRINT*                             aFoot
     if( IsType( aBrdPlacedPad.net_ptr, 0x04 ) )
     {
         const auto* net_pairing =
-                static_cast<ALLEGRO::T_04<magic>*>( m_ptrs[aBrdPlacedPad.net_ptr] );
+                static_cast<ALLEGRO::T_04_NET_ASSIGNMENT<magic>*>( m_ptrs[aBrdPlacedPad.net_ptr] );
 
         NETINFO_ITEM* netinfo = NetInfo( *net_pairing );
         pad->SetNet( netinfo );
@@ -856,7 +856,7 @@ void ALLEGRO_PARSER<magic>::AddPad( FOOTPRINT*                             aFoot
     {
         offset = 12;
     }
-    ALLEGRO::t13<magic>* comp = GetPadComponent( *pad_stack, offset );
+    ALLEGRO::PAD_STACK_COMPONENT<magic>* comp = GetPadComponent( *pad_stack, offset );
     if( comp->t != 0 )
     {
         SetPadShape( *pad, *comp );
@@ -1079,16 +1079,16 @@ void ALLEGRO_PARSER<magic>::AddTrack( const ALLEGRO::T_1B_NET<magic>&   aBrdNet,
 }
 
 template <ALLEGRO::MAGIC magic>
-void ALLEGRO_PARSER<magic>::AddVia( const ALLEGRO::T_33<magic>& i33 )
+void ALLEGRO_PARSER<magic>::AddVia( const ALLEGRO::T_33_VIA<magic>& aBrdVia )
 {
     std::unique_ptr<PCB_VIA> via = std::make_unique<PCB_VIA>( m_board );
-    via->SetPosition( VECTOR2D( Scale( i33.coords[0] ), Scale( -i33.coords[1] ) ) );
+    via->SetPosition( VECTOR2D( Scale( aBrdVia.coords[0] ), Scale( -aBrdVia.coords[1] ) ) );
 
     // Find net information
-    if( IsType( i33.ptr1, 0x04 ) )
+    if( IsType( aBrdVia.net_ptr, 0x04 ) )
     {
-        const auto* i04 = static_cast<ALLEGRO::T_04<magic>*>( m_ptrs[i33.ptr1] );
-
+        const auto* i04 =
+                static_cast<ALLEGRO::T_04_NET_ASSIGNMENT<magic>*>( m_ptrs[aBrdVia.net_ptr] );
         NETINFO_ITEM* netinfo = NetInfo( *i04 );
         via->SetNet( netinfo );
     }
@@ -1098,15 +1098,15 @@ void ALLEGRO_PARSER<magic>::AddVia( const ALLEGRO::T_33<magic>& i33 )
 
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                          aContainer,
-                                     const std::optional<ALLEGRO::T_1B_NET<magic>>& i1B,
-                                     const ALLEGRO::T_28_SHAPE<magic>&              i28 )
+                                     const std::optional<ALLEGRO::T_1B_NET<magic>>& aBrdNet,
+                                     const ALLEGRO::T_28_SHAPE<magic>&              aBrdShape )
 {
-    uint32_t k = i28.first_segment_ptr;
+    uint32_t k = aBrdShape.first_segment_ptr;
 
     std::unique_ptr<SHAPE_POLY_SET> outline = std::make_unique<SHAPE_POLY_SET>();
     outline->AddOutline( ShapeStartingAt( &k ) );
 
-    uint32_t hole_k = i28.ptr4;
+    uint32_t hole_k = aBrdShape.ptr4;
     while( IsType( hole_k, 0x34 ) )
     {
         auto* i34 = static_cast<ALLEGRO::T_34<magic>*>( m_ptrs[hole_k] );
@@ -1127,21 +1127,21 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         hole_k = i34->next;
     }
 
-    if( i28.layer.family == ALLEGRO::LAYER_FAMILY::COPPER )
+    if( aBrdShape.layer.family == ALLEGRO::LAYER_FAMILY::COPPER )
     {
         std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( &aContainer );
-        zone->SetZoneName( wxString::Format( "x28: 0x%08X", ntohl( i28.k ) ) );
+        zone->SetZoneName( wxString::Format( "x28: 0x%08X", ntohl( aBrdShape.k ) ) );
         zone->SetLocalClearance( 0 );
         zone->SetMinThickness( 0 );
         zone->SetOutline( outline.release() );
 
-        PCB_LAYER_ID layer = EtchLayerToKi( i28.layer );
+        PCB_LAYER_ID layer = EtchLayerToKi( aBrdShape.layer );
 
         zone->SetLayer( layer );
 
-        if( i1B )
+        if( aBrdNet )
         {
-            NETINFO_ITEM* netinfo = NetInfo( i1B->net_name );
+            NETINFO_ITEM* netinfo = NetInfo( aBrdNet->net_name );
             zone->SetNet( netinfo );
         }
 
@@ -1149,8 +1149,8 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
 
         aContainer.Add( zone.release(), ADD_MODE::APPEND );
     }
-    else if( i28.layer.family == ALLEGRO::LAYER_FAMILY::BOARD_GEOMETRY
-             && i28.layer.ordinal == 0xFD )
+    else if( aBrdShape.layer.family == ALLEGRO::LAYER_FAMILY::BOARD_GEOMETRY
+             && aBrdShape.layer.ordinal == 0xFD )
     {
         std::unique_ptr<PCB_SHAPE> shape =
                 std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
@@ -1159,54 +1159,54 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         shape->SetLayer( Edge_Cuts );
         aContainer.Add( shape.release(), ADD_MODE::APPEND );
     }
-    else if( i28.layer.family == ALLEGRO::LAYER_FAMILY::SILK )
+    else if( aBrdShape.layer.family == ALLEGRO::LAYER_FAMILY::SILK )
     {
         std::unique_ptr<PCB_SHAPE> shape =
                 std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
         shape->SetPolyShape( *outline.release() );
         shape->SetFilled( true );
 
-        if( auto result = LookupPcbLayer( i28.layer ); result.has_value() )
+        if( auto result = LookupPcbLayer( aBrdShape.layer ); result.has_value() )
         {
             shape->SetLayer( *result );
         }
-        else if( i28.layer.ordinal == 0xEC )
+        else if( aBrdShape.layer.ordinal == 0xEC )
         {
             shape->SetWidth( 0 );
             shape->SetLayer( B_Mask );
         }
-        else if( i28.layer.ordinal == 0xED )
+        else if( aBrdShape.layer.ordinal == 0xED )
         {
             shape->SetWidth( 0 );
             shape->SetLayer( F_Mask );
         }
-        else if( i28.layer.ordinal == 0xF6 )
+        else if( aBrdShape.layer.ordinal == 0xF6 )
         {
             shape->SetFilled( false );
             shape->SetLayer( F_SilkS );
         }
-        else if( i28.layer.ordinal == 0xF7 )
+        else if( aBrdShape.layer.ordinal == 0xF7 )
         {
             shape->SetLayer( User_6 );
         }
-        else if( i28.layer.ordinal == 0xEE )
+        else if( aBrdShape.layer.ordinal == 0xEE )
         {
             // What are these?
             shape->SetFilled( false );
             shape->SetLayer( User_7 );
         }
-        else if( i28.layer.ordinal == 0xEF )
+        else if( aBrdShape.layer.ordinal == 0xEF )
         {
             // What are these?
             shape->SetFilled( false );
             shape->SetLayer( User_8 );
         }
-        else if( i28.layer.ordinal == 0x02 )
+        else if( aBrdShape.layer.ordinal == 0x02 )
         {
             shape->SetFilled( false );
             shape->SetLayer( Eco1_User );
         }
-        else if( i28.layer.ordinal == 0x00 )
+        else if( aBrdShape.layer.ordinal == 0x00 )
         {
             shape->SetFilled( false );
             shape->SetLayer( Eco2_User );
@@ -1241,13 +1241,13 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
 
 // This is typically used to frame things, like tables or pages.
 template <ALLEGRO::MAGIC magic>
-void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer,
-                                          const ALLEGRO::T_24<magic>& i24 )
+void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&                 aContainer,
+                                          const ALLEGRO::T_24_RECTANGLE<magic>& aBrdRect )
 {
     std::unique_ptr<SHAPE_POLY_SET> outline = std::make_unique<SHAPE_POLY_SET>();
 
     SHAPE_LINE_CHAIN chain;
-    auto [a, b] = GetCoordinatePair( i24 );
+    auto [a, b] = GetCoordinatePair( aBrdRect );
     chain.Append( a.x, a.y );
     chain.Append( a.x, b.y );
     chain.Append( b.x, b.y );
@@ -1259,7 +1259,7 @@ void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&       aContainer
     std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( &aContainer, SHAPE_T::POLY );
     shape->SetPolyShape( *outline.release() );
     shape->SetFilled( false );
-    shape->SetLayer( LookupPcbLayer( i24.layer ).value_or( User_3 ) );
+    shape->SetLayer( LookupPcbLayer( aBrdRect.layer ).value_or( User_3 ) );
     aContainer.Add( shape.release(), ADD_MODE::APPEND );
 }
 
@@ -1268,14 +1268,14 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
 {
     m_board->SetCopperLayerCount( GetCopperLayerCount() );
 
-    auto* i = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[m_header->ll_x1B.head] );
-    if( i != nullptr )
+    auto* net = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[m_header->ll_x1B.head] );
+    if( net != nullptr )
     {
         do
         {
-            if( i->ptr1 != 0 )
+            if( net->ptr1 != 0 )
             {
-                auto* i04 = static_cast<ALLEGRO::T_04<magic>*>( m_ptrs[i->ptr1] );
+                auto* i04 = static_cast<ALLEGRO::T_04_NET_ASSIGNMENT<magic>*>( m_ptrs[net->ptr1] );
                 do
                 {
                     uint32_t k = i04->ptr2;
@@ -1283,7 +1283,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                     {
                         if( IsType( k, 0x33 ) )
                         {
-                            auto* i33 = static_cast<ALLEGRO::T_33<magic>*>( m_ptrs[k] );
+                            auto* i33 = static_cast<ALLEGRO::T_33_VIA<magic>*>( m_ptrs[k] );
                             // auto& i = fs->get_x33( k );
                             // printf("- - Found x33 w/ key = 0x %08X\n", ntohl(k));
                             AddVia( *i33 );
@@ -1304,7 +1304,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         else if( IsType( k, 0x28 ) )
                         {
                             auto* i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k] );
-                            AddZone( *m_board, *i, *i28 );
+                            AddZone( *m_board, *net, *i28 );
 
                             k = i28->next;
                         }
@@ -1316,7 +1316,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         else if( IsType( k, 0x05 ) )
                         {
                             auto* i05 = static_cast<ALLEGRO::T_05_TRACK<magic>*>( m_ptrs[k] );
-                            AddTrack( *i, *i05 );
+                            AddTrack( *net, *i05 );
 
                             k = i05->ptr0;
                         }
@@ -1331,19 +1331,20 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         }
                     }
 
-                    if( i04->next == i->k )
+                    if( i04->next == net->k )
                     {
                         break;
                     }
                     else
                     {
-                        i04 = static_cast<ALLEGRO::T_04<magic>*>( m_ptrs[i04->next] );
+                        i04 = static_cast<ALLEGRO::T_04_NET_ASSIGNMENT<magic>*>(
+                                m_ptrs[i04->next] );
                     }
                 } while( true );
             }
 
-            i = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[i->next] );
-        } while( i->next != m_header->ll_x1B.tail );
+            net = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[net->next] );
+        } while( net->next != m_header->ll_x1B.tail );
     }
 
     uint32_t k = m_header->ll_x0E_x28.head;
@@ -1424,7 +1425,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
         {
             if( IsType( k, 0x24 ) )
             {
-                auto* i = static_cast<ALLEGRO::T_24<magic>*>( m_ptrs[k] );
+                auto* i = static_cast<ALLEGRO::T_24_RECTANGLE<magic>*>( m_ptrs[k] );
                 AddRectangle( *m_board, *i );
                 k = i->next;
             }
@@ -1444,9 +1445,9 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
 }
 
 template <ALLEGRO::MAGIC magic>
-void ALLEGRO_PARSER<magic>::Skip( std::size_t n )
+void ALLEGRO_PARSER<magic>::Skip( std::size_t aSkipBytes )
 {
-    m_curAddr = (void*) ( ( (char*) m_curAddr ) + n );
+    m_curAddr = (void*) ( ( (char*) m_curAddr ) + aSkipBytes );
 }
 
 template <ALLEGRO::MAGIC magic>
@@ -1462,26 +1463,26 @@ void ALLEGRO_PARSER<magic>::Log( const char* fmt... )
 }
 
 template <ALLEGRO::MAGIC magic>
-bool ALLEGRO_PARSER<magic>::IsType( uint32_t k, uint8_t t )
+bool ALLEGRO_PARSER<magic>::IsType( uint32_t aKey, uint8_t aType )
 {
-    return ( m_ptrs.count( k ) > 0 ) && ( *(uint8_t*) m_ptrs[k] == t );
+    return ( m_ptrs.count( aKey ) > 0 ) && ( *(uint8_t*) m_ptrs[aKey] == aType );
 }
 
 template <ALLEGRO::MAGIC magic>
-std::optional<wxString> ALLEGRO_PARSER<magic>::LookupString( uint32_t k )
+std::optional<wxString> ALLEGRO_PARSER<magic>::LookupString( uint32_t aKey )
 {
-    if( m_strings.count( k ) > 0 )
+    if( m_strings.count( aKey ) > 0 )
     {
-        return wxString( m_strings[k] );
+        return wxString( m_strings[aKey] );
     }
     return {};
 }
 
 template <ALLEGRO::MAGIC magic>
 std::optional<PCB_LAYER_ID>
-ALLEGRO_PARSER<magic>::LookupPcbLayer( const ALLEGRO::LAYER_INFO& layer ) const
+ALLEGRO_PARSER<magic>::LookupPcbLayer( const ALLEGRO::LAYER_INFO& aLayer ) const
 {
-    if( auto kv = ALLEGRO::LAYER_MAPPING.find( layer ); kv != ALLEGRO::LAYER_MAPPING.end() )
+    if( auto kv = ALLEGRO::LAYER_MAPPING.find( aLayer ); kv != ALLEGRO::LAYER_MAPPING.end() )
     {
         return kv->second;
     }
@@ -1492,16 +1493,16 @@ ALLEGRO_PARSER<magic>::LookupPcbLayer( const ALLEGRO::LAYER_INFO& layer ) const
 }
 
 template <ALLEGRO::MAGIC magic>
-SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
+SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* aKey )
 {
     SHAPE_LINE_CHAIN chain;
 
     bool first = true;
-    while( k != nullptr )
+    while( aKey != nullptr )
     {
-        if( IsType( *k, 0x01 ) )
+        if( IsType( *aKey, 0x01 ) )
         {
-            auto* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[*k] );
+            auto* i01 = static_cast<ALLEGRO::T_01_ARC<magic>*>( m_ptrs[*aKey] );
 
             auto [start, end] = GetCoordinatePair( *i01 );
             VECTOR2D center{ Scale( (int32_t) cfp_to_double( i01->x ) ),
@@ -1516,25 +1517,25 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
             }
             chain.Append( arc );
 
-            *k = i01->next;
+            *aKey = i01->next;
         }
-        else if( IsType( *k, 0x15 ) )
+        else if( IsType( *aKey, 0x15 ) )
         {
-            auto* segment_inst = static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[*k] );
+            auto* segment_inst = static_cast<ALLEGRO::T_15_SEGMENT<magic>*>( m_ptrs[*aKey] );
             AddSegmentToChain( chain, segment_inst, first );
-            *k = segment_inst->next;
+            *aKey = segment_inst->next;
         }
-        else if( IsType( *k, 0x16 ) )
+        else if( IsType( *aKey, 0x16 ) )
         {
-            auto* segment_inst = static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[*k] );
+            auto* segment_inst = static_cast<ALLEGRO::T_16_SEGMENT<magic>*>( m_ptrs[*aKey] );
             AddSegmentToChain( chain, segment_inst, first );
-            *k = segment_inst->next;
+            *aKey = segment_inst->next;
         }
-        else if( IsType( *k, 0x17 ) )
+        else if( IsType( *aKey, 0x17 ) )
         {
-            auto* segment_inst = static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[*k] );
+            auto* segment_inst = static_cast<ALLEGRO::T_17_SEGMENT<magic>*>( m_ptrs[*aKey] );
             AddSegmentToChain( chain, segment_inst, first );
-            *k = segment_inst->next;
+            *aKey = segment_inst->next;
         }
         else
         {
@@ -1550,50 +1551,50 @@ SHAPE_LINE_CHAIN ALLEGRO_PARSER<magic>::ShapeStartingAt( uint32_t* k )
 
 template <ALLEGRO::MAGIC magic>
 template <class SEGMENT_TYPE>
-void ALLEGRO_PARSER<magic>::AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment,
-                                               bool first_segment )
+void ALLEGRO_PARSER<magic>::AddSegmentToChain( SHAPE_LINE_CHAIN& aChain, SEGMENT_TYPE* aSegment,
+                                               bool aFirstSegment )
 {
-    auto [start, end] = GetCoordinatePair( *segment );
-    if( first_segment )
+    auto [start, end] = GetCoordinatePair( *aSegment );
+    if( aFirstSegment )
     {
-        chain.Append( start );
+        aChain.Append( start );
     }
-    chain.Append( end );
+    aChain.Append( end );
 }
 
 template <ALLEGRO::MAGIC magic>
-PCB_LAYER_ID ALLEGRO_PARSER<magic>::EtchLayerToKi( const ALLEGRO::LAYER_INFO& a_layer )
+PCB_LAYER_ID ALLEGRO_PARSER<magic>::EtchLayerToKi( const ALLEGRO::LAYER_INFO& aLayer )
 {
-    if( a_layer.ordinal == 0 )
+    if( aLayer.ordinal == 0 )
     {
         return F_Cu;
     }
-    else if( a_layer.ordinal == GetCopperLayerCount() - 1 )
+    else if( aLayer.ordinal == GetCopperLayerCount() - 1 )
     {
         return B_Cu;
     }
     else
     {
-        return static_cast<PCB_LAYER_ID>( B_Cu + ( a_layer.ordinal * 2 ) );
+        return static_cast<PCB_LAYER_ID>( B_Cu + ( aLayer.ordinal * 2 ) );
     }
 }
 
 template <ALLEGRO::MAGIC magic>
-double ALLEGRO_PARSER<magic>::Scale( double a_allegroValue )
+double ALLEGRO_PARSER<magic>::Scale( double aBrdValue )
 {
-    return a_allegroValue * m_scaleFactor;
+    return aBrdValue * m_scaleFactor;
 }
 
 template <ALLEGRO::MAGIC magic>
 template <class T>
-std::pair<VECTOR2D, VECTOR2D> ALLEGRO_PARSER<magic>::GetCoordinatePair( T& inst )
+std::pair<VECTOR2D, VECTOR2D> ALLEGRO_PARSER<magic>::GetCoordinatePair( T& aInst )
 {
-    return { { Scale( inst.coords[0] ), Scale( -inst.coords[1] ) },
-             { Scale( inst.coords[2] ), Scale( -inst.coords[3] ) } };
+    return { { Scale( aInst.coords[0] ), Scale( -aInst.coords[1] ) },
+             { Scale( aInst.coords[2] ), Scale( -aInst.coords[3] ) } };
 }
 
 template <ALLEGRO::MAGIC magic>
-const ALLEGRO::T_36_08<magic>* ALLEGRO_PARSER<magic>::FindFont( uint8_t k )
+const ALLEGRO::T_36_08<magic>* ALLEGRO_PARSER<magic>::FindFont( uint8_t aKey )
 {
     // Unclear why there's an offset, but this seems to make things
     // work nicely?
@@ -1606,7 +1607,7 @@ const ALLEGRO::T_36_08<magic>* ALLEGRO_PARSER<magic>::FindFont( uint8_t k )
         {
             return reinterpret_cast<ALLEGRO::T_36_08<magic>*>(
                     ( (char*) x36_inst ) + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_36<magic>>()
-                    + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_36_08<magic>>() * ( k + offset ) );
+                    + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_36_08<magic>>() * ( aKey + offset ) );
         }
     }
 
@@ -1616,22 +1617,23 @@ const ALLEGRO::T_36_08<magic>* ALLEGRO_PARSER<magic>::FindFont( uint8_t k )
 
 template <ALLEGRO::MAGIC magic>
 constexpr uint32_t
-ALLEGRO_PARSER<magic>::GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C )
+ALLEGRO_PARSER<magic>::GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack )
 {
     if( magic < ALLEGRO::A_172 )
     {
-        return 10 + 3 * i1C.layer_count;
+        return 10 + 3 * aPadStack.layer_count;
     }
     else
     {
-        return 21 + 4 * i1C.layer_count;
+        return 21 + 4 * aPadStack.layer_count;
     }
 }
 
 template <ALLEGRO::MAGIC magic>
-void ALLEGRO_PARSER<magic>::SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it13 )
+void ALLEGRO_PARSER<magic>::SetPadShape(
+        PAD& pad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent )
 {
-    switch( it13.t )
+    switch( aPadStackComponent.t )
     {
     case 0x02: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE ); break;
     case 0x05:
@@ -1640,14 +1642,15 @@ void ALLEGRO_PARSER<magic>::SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it
     case 0x1B:
     case 0x0C: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::ROUNDRECT ); break;
     case 0x16: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CUSTOM ); break;
-    default: wxLogMessage( "Unrecognized type: t=%02X", it13.t );
+    default: wxLogMessage( "Unrecognized type: t=%02X", aPadStackComponent.t );
     }
 
-    if( it13.t == 0x16 )
+    if( aPadStackComponent.t == 0x16 )
     {
-        if( IsType( it13.str_ptr, 0x28 ) )
+        if( IsType( aPadStackComponent.str_ptr, 0x28 ) )
         {
-            auto*    i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[it13.str_ptr] );
+            auto* i28 =
+                    static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[aPadStackComponent.str_ptr] );
             uint32_t k = i28->first_segment_ptr;
             pad.DeletePrimitivesList();
             pad.AddPrimitivePoly( PADSTACK::ALL_LAYERS, ShapeStartingAt( &k ), 0, true );
@@ -1658,38 +1661,40 @@ void ALLEGRO_PARSER<magic>::SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it
         }
         else
         {
-            wxLogMessage( "Weird case?, str_ptr = 0x %08X, count = %d", ntohl( it13.str_ptr ),
-                          m_ptrs.count( it13.str_ptr ) );
+            wxLogMessage( "Weird case?, str_ptr = 0x %08X, count = %d",
+                          ntohl( aPadStackComponent.str_ptr ),
+                          m_ptrs.count( aPadStackComponent.str_ptr ) );
         }
     }
     else
     {
-        pad.SetSize( PADSTACK::ALL_LAYERS, VECTOR2I( Scale( it13.w ), Scale( it13.h ) ) );
+        pad.SetSize( PADSTACK::ALL_LAYERS,
+                     VECTOR2I( Scale( aPadStackComponent.w ), Scale( aPadStackComponent.h ) ) );
     }
-    pad.Move( VECTOR2I( Scale( it13.x3 ), -Scale( it13.x4 ) ) );
+    pad.Move( VECTOR2I( Scale( aPadStackComponent.x3 ), -Scale( aPadStackComponent.x4 ) ) );
 }
 
 template <ALLEGRO::MAGIC magic>
-constexpr ALLEGRO::t13<magic>*
+constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>*
 ALLEGRO_PARSER<magic>::GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C, uint32_t idx )
 {
-    return (ALLEGRO::t13<magic>*) ( (char*) &i1C
-                                    + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_1C_PAD_STACK<magic>>()
-                                    + ALLEGRO::sizeof_allegro_obj<ALLEGRO::t13<magic>>() * idx );
+    return (ALLEGRO::PAD_STACK_COMPONENT<
+            magic>*) ( (char*) &i1C + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_1C_PAD_STACK<magic>>()
+                       + ALLEGRO::sizeof_allegro_obj<ALLEGRO::PAD_STACK_COMPONENT<magic>>() * idx );
 }
 
 template <ALLEGRO::MAGIC magic>
 std::optional<wxString>
-ALLEGRO_PARSER<magic>::RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& i2D )
+ALLEGRO_PARSER<magic>::RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& aPlacedFootprint )
 {
     uint32_t inst_ref = 0;
-    if constexpr( std::is_same_v<decltype( i2D.inst_ref ), std::monostate> )
+    if constexpr( std::is_same_v<decltype( aPlacedFootprint.inst_ref ), std::monostate> )
     {
-        inst_ref = i2D.inst_ref_16x;
+        inst_ref = aPlacedFootprint.inst_ref_16x;
     }
     else
     {
-        inst_ref = i2D.inst_ref;
+        inst_ref = aPlacedFootprint.inst_ref;
     }
 
     if( inst_ref == 0 || !IsType( inst_ref, 0x07 ) )
@@ -1701,10 +1706,10 @@ ALLEGRO_PARSER<magic>::RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>
 }
 
 template <ALLEGRO::MAGIC magic>
-NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( uint32_t k )
+NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( uint32_t aKey )
 {
     NETINFO_ITEM*           netinfo = nullptr;
-    std::optional<wxString> netname = LookupString( k );
+    std::optional<wxString> netname = LookupString( aKey );
 
     if( netname )
     {
@@ -1723,7 +1728,7 @@ NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( uint32_t k )
 }
 
 template <ALLEGRO::MAGIC magic>
-NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( const ALLEGRO::T_04<magic>& i04 )
+NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& i04 )
 {
     auto* i1B = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[i04.ptr1] );
     return NetInfo( i1B->net_name );
