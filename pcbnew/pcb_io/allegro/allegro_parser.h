@@ -76,13 +76,15 @@ private:
     void    AddAnnotation( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_14<magic>& i14 );
     void    AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& i2B );
 
-    void AddPad( FOOTPRINT* fp, const ALLEGRO::T_32<magic>& i32 );
+    void AddPad( FOOTPRINT* fp, const ALLEGRO::T_32_PLACED_PAD<magic>& i32 );
 
-    void AddText( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_30<magic>& i30 );
-    void AddTrack( const ALLEGRO::T_1B<magic>& i1B, const ALLEGRO::T_05_TRACK<magic>& i05 );
+    void AddText( BOARD_ITEM_CONTAINER&                              aContainer,
+                  const ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER<magic>& i30 );
+    void AddTrack( const ALLEGRO::T_1B_NET<magic>& i1B, const ALLEGRO::T_05_TRACK<magic>& i05 );
     void AddVia( const ALLEGRO::T_33<magic>& i33 );
-    void AddZone( BOARD_ITEM_CONTAINER& aContainer, const std::optional<ALLEGRO::T_1B<magic>>& i1B,
-                  const ALLEGRO::T_28_SHAPE<magic>& i28 );
+    void AddZone( BOARD_ITEM_CONTAINER&                          aContainer,
+                  const std::optional<ALLEGRO::T_1B_NET<magic>>& i1B,
+                  const ALLEGRO::T_28_SHAPE<magic>&              i28 );
     void AddRectangle( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_24<magic>& i24 );
 
     void             Skip( std::size_t n );
@@ -106,8 +108,9 @@ private:
 
     const ALLEGRO::T_36_08<magic>* FindFont( uint8_t k );
 
-    constexpr uint32_t             GetPadComponentCount( const ALLEGRO::T_1C<magic>& i1C );
-    constexpr ALLEGRO::t13<magic>* GetPadComponent( const ALLEGRO::T_1C<magic>& i1C, uint32_t idx );
+    constexpr uint32_t GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C );
+    constexpr ALLEGRO::t13<magic>* GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C,
+                                                    uint32_t                              idx );
     void                           SetPadShape( PAD& pad, const ALLEGRO::t13<magic>& it13 );
 
     std::optional<wxString> RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& i2D );
@@ -159,7 +162,7 @@ private:
         // 0x0C
         &DefaultParser<ALLEGRO::T_0C>,
         // 0x0D
-        &DefaultParser<ALLEGRO::T_0D>,
+        &DefaultParser<ALLEGRO::T_0D_PAD>,
         // 0x0E
         &DefaultParser<ALLEGRO::T_0E>,
         // 0x0F
@@ -187,7 +190,7 @@ private:
         // 0x1A
         nullptr,
         // 0x1B
-        &DefaultParser<ALLEGRO::T_1B>,
+        &DefaultParser<ALLEGRO::T_1B_NET>,
         // 0x1C
         &Parse1C,
         // 0x1D
@@ -229,11 +232,11 @@ private:
         // 0x2F
         &DefaultParser<ALLEGRO::T_2F>,
         // 0x30
-        &DefaultParser<ALLEGRO::T_30>,
+        &DefaultParser<ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER>,
         // 0x31
         &Parse31,
         // 0x32
-        &DefaultParser<ALLEGRO::T_32>,
+        &DefaultParser<ALLEGRO::T_32_PLACED_PAD>,
         // 0x33
         &DefaultParser<ALLEGRO::T_33>,
         // 0x34

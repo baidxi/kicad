@@ -252,10 +252,10 @@ struct T_04
     uint32_t k;
     uint32_t next;
 
-    // Points to `x1B`
+    // Points to `x1B` (net info)
     uint32_t ptr1;
 
-    // Points to `x05`
+    // Points to `x05` (shape?)
     uint32_t ptr2;
 
     COND_FIELD( magic >= A_174, uint32_t, un1 );
@@ -471,7 +471,7 @@ struct T_0C
 };
 
 template <MAGIC magic>
-struct T_0D
+struct T_0D_PAD
 {
     uint32_t t;
     uint32_t k;
@@ -691,7 +691,7 @@ struct T_17_SEGMENT
 
 // A net
 template <MAGIC magic>
-struct T_1B
+struct T_1B_NET
 {
     uint32_t t;
     uint32_t k;
@@ -782,7 +782,7 @@ struct PAD_INFO
 };
 
 template <MAGIC magic>
-struct T_1C
+struct T_1C_PAD_STACK
 {
     uint16_t t;
     uint8_t  n;
@@ -807,14 +807,14 @@ struct T_1C
     std::vector<t13<magic>> parts;
 };
 
-static_assert( sizeof_allegro_obj<T_1C<A_164>>() == 21 * 4 );
-static_assert( sizeof_allegro_obj<T_1C<A_165>>() == 29 * 4 );
-static_assert( sizeof_allegro_obj<T_1C<A_172>>() == 48 * 4 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_164>>() == 21 * 4 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_165>>() == 29 * 4 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_172>>() == 48 * 4 );
 
-static_assert( offsetof( T_1C<A_164>, layer_count ) == 50 );
-static_assert( offsetof( T_1C<A_172>, layer_count ) == 44 );
-static_assert( offsetof( T_1C<A_164>, pad_info ) == 44 );
-static_assert( offsetof( T_1C<A_172>, pad_info ) == 28 );
+static_assert( offsetof( T_1C_PAD_STACK<A_164>, layer_count ) == 50 );
+static_assert( offsetof( T_1C_PAD_STACK<A_172>, layer_count ) == 44 );
+static_assert( offsetof( T_1C_PAD_STACK<A_164>, pad_info ) == 44 );
+static_assert( offsetof( T_1C_PAD_STACK<A_172>, pad_info ) == 28 );
 
 template <MAGIC magic>
 struct T_1D
@@ -1258,7 +1258,7 @@ struct TEXT_PROPERTIES
 };
 
 template <MAGIC magic>
-struct T_30
+struct T_30_STRING_GRAPHIC_WRAPPER
 {
     uint16_t   type;
     LAYER_INFO layer;
@@ -1301,7 +1301,7 @@ enum class STR_LAYER : uint16_t
 };
 
 template <MAGIC magic>
-struct T_31
+struct T_31_STRING_GRAPHIC
 {
     uint16_t  t;
     STR_LAYER layer;
@@ -1323,7 +1323,7 @@ struct T_31
 
 // Symbol pins
 template <MAGIC magic>
-struct T_32
+struct T_32_PLACED_PAD
 {
     uint16_t   type;
     LAYER_INFO layer;
@@ -1331,7 +1331,7 @@ struct T_32
     uint32_t k;
     uint32_t un1;
 
-    uint32_t ptr1;
+    uint32_t net_ptr;
 
     // Don't look for layer here, seems almost always null.
     uint32_t bitmask1;
@@ -1341,7 +1341,10 @@ struct T_32
 
     uint32_t ptr3;
     uint32_t ptr4;
-    uint32_t ptr5;
+
+    // T_0D, the unplaced instance of this pad contains the geometry and other
+    // info.
+    uint32_t pad_ptr;
     uint32_t ptr6;
     uint32_t ptr7;
     uint32_t ptr8;
