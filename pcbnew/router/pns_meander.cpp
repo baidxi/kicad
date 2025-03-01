@@ -528,9 +528,9 @@ SHAPE_LINE_CHAIN MEANDER_SHAPE::genMeanderShape( const VECTOR2D& aP, const VECTO
         }
 
         miter( crEndsMinus, false );
+
         forward( startSide );
         miter( crEndsPlus, true );
-
         forward( topVal );
         miter( crMidPlus, true );
         forward( turnSide );
