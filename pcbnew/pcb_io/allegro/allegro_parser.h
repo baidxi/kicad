@@ -93,49 +93,49 @@ private:
     void             Log( const char* fmt... );
     bool             IsType( uint32_t aKey, uint8_t aType );
     NETINFO_ITEM*    NetInfo( uint32_t aKey );
-    NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& i04 );
-    SHAPE_LINE_CHAIN ShapeStartingAt( uint32_t* k );
+    NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& aNetAssignment );
+    SHAPE_LINE_CHAIN ShapeStartingAt( uint32_t* aKey );
 
-    std::optional<wxString>     LookupString( uint32_t k );
-    std::optional<PCB_LAYER_ID> LookupPcbLayer( const ALLEGRO::LAYER_INFO& layer ) const;
+    std::optional<wxString>     LookupString( uint32_t aKey );
+    std::optional<PCB_LAYER_ID> LookupPcbLayer( const ALLEGRO::LAYER_INFO& aLayer ) const;
 
     template <class SEGMENT_TYPE>
-    void AddSegmentToChain( SHAPE_LINE_CHAIN& chain, SEGMENT_TYPE* segment, bool first_segment );
+    void AddSegmentToChain( SHAPE_LINE_CHAIN& aChain, SEGMENT_TYPE* aSegment, bool aFirstSegment );
 
-    PCB_LAYER_ID EtchLayerToKi( const ALLEGRO::LAYER_INFO& a_layer );
-    double       Scale( double a_allegroValue );
+    PCB_LAYER_ID EtchLayerToKi( const ALLEGRO::LAYER_INFO& aLayer );
+    double       Scale( double aBrdValue );
 
     template <class T>
-    std::pair<VECTOR2D, VECTOR2D> GetCoordinatePair( T& instance );
+    std::pair<VECTOR2D, VECTOR2D> GetCoordinatePair( T& aInst );
 
-    const ALLEGRO::T_36_08<magic>* FindFont( uint8_t k );
+    const ALLEGRO::T_36_08<magic>* FindFont( uint8_t aKey );
 
-    constexpr uint32_t GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C );
+    constexpr uint32_t GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack );
     constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>*
-         GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C, uint32_t idx );
-    void SetPadShape( PAD& pad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent );
+         GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack, uint32_t aIndex );
+    void SetPadShape( PAD& aPad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent );
 
     std::optional<wxString>
     RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& aPlacedFootprint );
 
     template <template <ALLEGRO::MAGIC> typename T>
-    static uint32_t DefaultParser( ALLEGRO_PARSER& parser );
+    static uint32_t DefaultParser( ALLEGRO_PARSER& aParser );
 
-    static uint32_t Parse03( ALLEGRO_PARSER& parser );
-    static uint32_t Parse1C( ALLEGRO_PARSER& parser );
-    static uint32_t Parse1D( ALLEGRO_PARSER& parser );
-    static uint32_t Parse1E( ALLEGRO_PARSER& parser );
-    static uint32_t Parse1F( ALLEGRO_PARSER& parser );
-    static uint32_t Parse21( ALLEGRO_PARSER& parser );
-    static uint32_t Parse27( ALLEGRO_PARSER& parser );
-    static uint32_t Parse2A( ALLEGRO_PARSER& parser );
-    static uint32_t Parse31( ALLEGRO_PARSER& parser );
-    static uint32_t Parse35( ALLEGRO_PARSER& parser );
-    static uint32_t Parse36( ALLEGRO_PARSER& parser );
-    static uint32_t Parse3B( ALLEGRO_PARSER& parser );
-    static uint32_t Parse3C( ALLEGRO_PARSER& parser );
+    static uint32_t Parse03( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1C( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1D( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1E( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1F( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse21( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse27( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse2A( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse31( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse35( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse36( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse3B( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse3C( ALLEGRO_PARSER& aParser );
 
-    typedef uint32_t ( *PARSER_FUNC )( ALLEGRO_PARSER& parser );
+    typedef uint32_t ( *PARSER_FUNC )( ALLEGRO_PARSER& aParser );
 
     static constexpr PARSER_FUNC PARSER_TABLE[] = {
         // 0x00

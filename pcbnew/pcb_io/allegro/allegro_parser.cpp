@@ -1631,17 +1631,17 @@ ALLEGRO_PARSER<magic>::GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic
 
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::SetPadShape(
-        PAD& pad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent )
+        PAD& aPad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent )
 {
     switch( aPadStackComponent.t )
     {
-    case 0x02: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE ); break;
+    case 0x02: aPad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE ); break;
     case 0x05:
-    case 0x06: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::RECTANGLE ); break;
+    case 0x06: aPad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::RECTANGLE ); break;
     case 0x0B:
     case 0x1B:
-    case 0x0C: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::ROUNDRECT ); break;
-    case 0x16: pad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CUSTOM ); break;
+    case 0x0C: aPad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::ROUNDRECT ); break;
+    case 0x16: aPad.SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CUSTOM ); break;
     default: wxLogMessage( "Unrecognized type: t=%02X", aPadStackComponent.t );
     }
 
@@ -1652,12 +1652,12 @@ void ALLEGRO_PARSER<magic>::SetPadShape(
             auto* i28 =
                     static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[aPadStackComponent.str_ptr] );
             uint32_t k = i28->first_segment_ptr;
-            pad.DeletePrimitivesList();
-            pad.AddPrimitivePoly( PADSTACK::ALL_LAYERS, ShapeStartingAt( &k ), 0, true );
+            aPad.DeletePrimitivesList();
+            aPad.AddPrimitivePoly( PADSTACK::ALL_LAYERS, ShapeStartingAt( &k ), 0, true );
 
             // FIXME: Set the fake pad to a very small size
-            pad.SetSize( PADSTACK::ALL_LAYERS,
-                         VECTOR2I( pcbIUScale.MilsToIU( 1 ), pcbIUScale.MilsToIU( 1 ) ) );
+            aPad.SetSize( PADSTACK::ALL_LAYERS,
+                          VECTOR2I( pcbIUScale.MilsToIU( 1 ), pcbIUScale.MilsToIU( 1 ) ) );
         }
         else
         {
@@ -1668,19 +1668,22 @@ void ALLEGRO_PARSER<magic>::SetPadShape(
     }
     else
     {
-        pad.SetSize( PADSTACK::ALL_LAYERS,
-                     VECTOR2I( Scale( aPadStackComponent.w ), Scale( aPadStackComponent.h ) ) );
+        aPad.SetSize( PADSTACK::ALL_LAYERS,
+                      VECTOR2I( Scale( aPadStackComponent.w ), Scale( aPadStackComponent.h ) ) );
     }
-    pad.Move( VECTOR2I( Scale( aPadStackComponent.x3 ), -Scale( aPadStackComponent.x4 ) ) );
+    aPad.Move( VECTOR2I( Scale( aPadStackComponent.x3 ), -Scale( aPadStackComponent.x4 ) ) );
 }
 
 template <ALLEGRO::MAGIC magic>
 constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>*
-ALLEGRO_PARSER<magic>::GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& i1C, uint32_t idx )
+ALLEGRO_PARSER<magic>::GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack,
+                                        uint32_t                              aIndex )
 {
     return (ALLEGRO::PAD_STACK_COMPONENT<
-            magic>*) ( (char*) &i1C + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_1C_PAD_STACK<magic>>()
-                       + ALLEGRO::sizeof_allegro_obj<ALLEGRO::PAD_STACK_COMPONENT<magic>>() * idx );
+            magic>*) ( (char*) &aPadStack
+                       + ALLEGRO::sizeof_allegro_obj<ALLEGRO::T_1C_PAD_STACK<magic>>()
+                       + ALLEGRO::sizeof_allegro_obj<ALLEGRO::PAD_STACK_COMPONENT<magic>>()
+                                 * aIndex );
 }
 
 template <ALLEGRO::MAGIC magic>
@@ -1728,9 +1731,10 @@ NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( uint32_t aKey )
 }
 
 template <ALLEGRO::MAGIC magic>
-NETINFO_ITEM* ALLEGRO_PARSER<magic>::NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& i04 )
+NETINFO_ITEM*
+ALLEGRO_PARSER<magic>::NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& aNetAssignment )
 {
-    auto* i1B = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[i04.ptr1] );
+    auto* i1B = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[aNetAssignment.ptr1] );
     return NetInfo( i1B->net_name );
 }
 
