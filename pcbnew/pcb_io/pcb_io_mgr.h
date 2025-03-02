@@ -37,7 +37,6 @@
 class BOARD;
 class PCB_IO;
 class FOOTPRINT;
-class STRING_UTF8_MAP;
 class PROJECT;
 class PROGRESS_REPORTER;
 
