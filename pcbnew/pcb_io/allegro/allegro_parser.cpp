@@ -49,6 +49,13 @@ double cfp_to_double( ALLEGRO::CADENCE_FP aAllegroFloat )
     return g;
 }
 
+// Reimplemented so we do not require all of the corresponding header.
+constexpr uint32_t local_ntohl( uint32_t aX )
+{
+    return ( ( aX & 0x000000FF ) << 24 ) | ( ( aX & 0x0000FF00 ) << 8 )
+           | ( ( aX & 0x00FF0000 ) >> 8 ) | ( ( aX & 0xFF000000 ) >> 24 );
+}
+
 template <ALLEGRO::MAGIC magic>
 ALLEGRO_PARSER<magic>::ALLEGRO_PARSER( BOARD* aBoard, const ALLEGRO_FILE& aAllegroBrdFile ) :
         m_board( aBoard ), m_brd( aAllegroBrdFile ){};
@@ -120,8 +127,8 @@ void ALLEGRO_PARSER<magic>::Parse()
         }
         else
         {
-            THROW_IO_ERROR(
-                    wxString::Format( "Do not have parser for t=0x%02X available.", ntohl( t ) ) );
+            THROW_IO_ERROR( wxString::Format( "Do not have parser for t=0x%02X available.",
+                                              local_ntohl( t ) ) );
         }
     }
 
@@ -410,10 +417,10 @@ uint32_t ALLEGRO_PARSER<magic>::Parse36( ALLEGRO_PARSER& aParser )
 
     // log(&f, "- x36\n");
     // log(&f, "- - inst->c    = 0x %04X\n", ntohs(inst->c));
-    // log(&f, "- - inst->k    = 0x %08X\n", ntohl(inst->k));
-    // log(&f, "- - inst->next = 0x %08X\n", ntohl(inst->next));
+    // log(&f, "- - inst->k    = 0x %08X\n", local_ntohl(inst->k));
+    // log(&f, "- - inst->next = 0x %08X\n", local_ntohl(inst->next));
     // if constexpr (!std::is_same_v<decltype(inst->un1), std::monostate>) {
-    //     log(&f, "- - inst->un1  = 0x %08X\n", ntohl(inst->un1));
+    //     log(&f, "- - inst->un1  = 0x %08X\n", local_ntohl(inst->un1));
     // } else {
     //     log(&f, "- - inst->un1  = n/a\n");
     // }
@@ -421,9 +428,9 @@ uint32_t ALLEGRO_PARSER<magic>::Parse36( ALLEGRO_PARSER& aParser )
     // log(&f,
     //     "- - inst->count = %d, inst->last_idx = %d, inst->un3 = 0x"
     //     " % 08X\n ",
-    //     inst->count, inst->last_idx, ntohl(inst->un3));
+    //     inst->count, inst->last_idx, local_ntohl(inst->un3));
     // if constexpr (!std::is_same_v<decltype(inst->un2), std::monostate>) {
-    //     log(&f, "- - inst->un2  = 0x %08X\n", ntohl(inst->un2));
+    //     log(&f, "- - inst->un2  = 0x %08X\n", local_ntohl(inst->un2));
     // } else {
     //     log(&f, "- - inst->un2  = n/a\n");
     // }
@@ -481,7 +488,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse36( ALLEGRO_PARSER& aParser )
             // log(&f,
             //     "- - 0x%02X %08x %08x"
             //     " xs={h=% 7d w=% 7d % 7d % 7d % 7d %7d}",
-            //     i, ntohl(x.a), ntohl(x.b), x.char_height, x.char_width,
+            //     i, local_ntohl(x.a), local_ntohl(x.b), x.char_height, x.char_width,
             //     x.xs[0], x.xs[1], x.xs[2], x.xs[3]);
             // if constexpr (!std::is_same_v<decltype(x.ys),
             // std::monostate>) {
@@ -739,7 +746,7 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
             else if( IsType( k_text, 0x03 ) )
             {
                 auto* i03 = static_cast<ALLEGRO::T_03<magic>*>( m_ptrs[k_text] );
-                // wxLogMessage( "%s T_03.k=%08X", *refdes, ntohl( i03->k ) );
+                // wxLogMessage( "%s T_03.k=%08X", *refdes, local_ntohl( i03->k ) );
                 k_text = i03->next;
             }
             else
@@ -749,7 +756,7 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
         }
 
         // Add zones
-        // wxLogMessage( "Drawing x2D k=0x%08X zones", ntohl( i2D->k ) );
+        // wxLogMessage( "Drawing x2D k=0x%08X zones", local_ntohl( i2D->k ) );
         uint32_t k_shape = i2D->ptr4[1];
         while( true )
         {
@@ -757,15 +764,15 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
             {
                 auto* i28 = static_cast<ALLEGRO::T_28_SHAPE<magic>*>( m_ptrs[k_shape] );
                 // wxLogMessage( "Drawing T_28 t=0x%02X.%02X.%02X k=0x%08X", ntohs( i28->type ),
-                //               i28->subtype, i28->layer, ntohl( i28->k ) );
+                //               i28->subtype, i28->layer, local_ntohl( i28->k ) );
                 AddZone( *fp, {}, *i28 );
                 k_shape = i28->next;
             }
             else if( IsType( k_shape, 0x0E ) )
             {
                 auto* i0E = static_cast<ALLEGRO::T_0E<magic>*>( m_ptrs[k_shape] );
-                // wxLogMessage( "How to draw T_0E? 0x%08X k=0x%08X", ntohl( i0E->t ),
-                //               ntohl( i0E->k ) );
+                // wxLogMessage( "How to draw T_0E? 0x%08X k=0x%08X", local_ntohl( i0E->t ),
+                //               local_ntohl( i0E->k ) );
                 k_shape = i0E->next;
             }
             else
@@ -776,7 +783,7 @@ void ALLEGRO_PARSER<magic>::AddFootprint( const ALLEGRO::T_2B_FOOTPRINT<magic>& 
 
         PCB_FIELD* id_field = fp->GetField( FIELD_T::USER );
         id_field->SetName( "ALLEGRO_ID" );
-        id_field->SetText( wxString::Format( "0x%08X", ntohl( i2D->k ) ) );
+        id_field->SetText( wxString::Format( "0x%08X", local_ntohl( i2D->k ) ) );
         id_field->SetVisible( false );
 
         k = i2D->next;
@@ -820,7 +827,7 @@ void ALLEGRO_PARSER<magic>::AddPad( FOOTPRINT*                             aFoot
 
     const auto* pad_stack =
             static_cast<ALLEGRO::T_1C_PAD_STACK<magic>*>( m_ptrs[brd_pad->pad_ptr] );
-    // wxLogMessage( "i1C.k = 0x %08X", ntohl( i1C->k ) );
+    // wxLogMessage( "i1C.k = 0x %08X", local_ntohl( i1C->k ) );
 
     switch( pad_stack->pad_info.pad_type )
     {
@@ -843,11 +850,11 @@ void ALLEGRO_PARSER<magic>::AddPad( FOOTPRINT*                             aFoot
 
     /*
     const uint32_t component_count = GetPadComponentCount( *i1C );
-    wxLogMessage( "next pad, for 0x1C k=0x %08X", ntohl( i1C->k ) );
+    wxLogMessage( "next pad, for 0x1C k=0x %08X", local_ntohl( i1C->k ) );
     for( uint8_t i = 0; i < component_count; i++ )
     {
         ALLEGRO::t13<magic>* c = GetPadComponent( *i1C, i );
-        wxLogMessage( "%02d: t=0x%08X, ptr=0x%08X", i, c->t, ntohl( c->str_ptr ) );
+        wxLogMessage( "%02d: t=0x%08X, ptr=0x%08X", i, c->t, local_ntohl( c->str_ptr ) );
     }
     */
 
@@ -1110,7 +1117,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
     while( IsType( hole_k, 0x34 ) )
     {
         auto* i34 = static_cast<ALLEGRO::T_34<magic>*>( m_ptrs[hole_k] );
-        // wxLogMessage( "Handling x34 0x%08X", ntohl( i34->k ) );
+        // wxLogMessage( "Handling x34 0x%08X", local_ntohl( i34->k ) );
         uint32_t k = i34->ptr2;
 
         SHAPE_LINE_CHAIN hole_chain = ShapeStartingAt( &k );
@@ -1130,7 +1137,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
     if( aBrdShape.layer.family == ALLEGRO::LAYER_FAMILY::COPPER )
     {
         std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( &aContainer );
-        zone->SetZoneName( wxString::Format( "x28: 0x%08X", ntohl( aBrdShape.k ) ) );
+        zone->SetZoneName( wxString::Format( "x28: 0x%08X", local_ntohl( aBrdShape.k ) ) );
         zone->SetLocalClearance( 0 );
         zone->SetMinThickness( 0 );
         zone->SetOutline( outline.release() );
@@ -1285,20 +1292,20 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         {
                             auto* i33 = static_cast<ALLEGRO::T_33_VIA<magic>*>( m_ptrs[k] );
                             // auto& i = fs->get_x33( k );
-                            // printf("- - Found x33 w/ key = 0x %08X\n", ntohl(k));
+                            // printf("- - Found x33 w/ key = 0x %08X\n", local_ntohl(k));
                             AddVia( *i33 );
                             k = i33->un1;
                         }
                         else if( IsType( k, 0x32 ) )
                         {
                             auto* i = static_cast<ALLEGRO::T_32_PLACED_PAD<magic>*>( m_ptrs[k] );
-                            // printf("- - Found x32 w/ key = 0x %08X\n", ntohl(k));
+                            // printf("- - Found x32 w/ key = 0x %08X\n", local_ntohl(k));
                             k = i->un1;
                         }
                         else if( IsType( k, 0x2E ) )
                         {
                             auto* i = static_cast<ALLEGRO::T_2E<magic>*>( m_ptrs[k] );
-                            // printf("- - Found x2E w/ key = 0x %08X\n", ntohl(k));
+                            // printf("- - Found x2E w/ key = 0x %08X\n", local_ntohl(k));
                             k = i->un[0];
                         }
                         else if( IsType( k, 0x28 ) )
@@ -1326,7 +1333,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
                         }
                         else
                         {
-                            // wxLogMessage( "Unexpected key = 0x %08X :(", ntohl( k ) );
+                            // wxLogMessage( "Unexpected key = 0x %08X :(", local_ntohl( k ) );
                             break;
                         }
                     }
@@ -1366,7 +1373,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             }
             else
             {
-                // wxLogMessage( "Unexpected type with key = 0x%08X!", ntohl( k ) );
+                // wxLogMessage( "Unexpected type with key = 0x%08X!", local_ntohl( k ) );
                 break;
             }
         }
@@ -1438,7 +1445,7 @@ void ALLEGRO_PARSER<magic>::BuildBoard()
             else
             {
                 THROW_IO_ERROR( wxString::Format(
-                        "Expected t=0x24 or t=0x28 but k=0x%08X unexpected", ntohl( k ) ) );
+                        "Expected t=0x24 or t=0x28 but k=0x%08X unexpected", local_ntohl( k ) ) );
             }
         }
     }
@@ -1662,7 +1669,7 @@ void ALLEGRO_PARSER<magic>::SetPadShape(
         else
         {
             wxLogMessage( "Weird case?, str_ptr = 0x %08X, count = %d",
-                          ntohl( aPadStackComponent.str_ptr ),
+                          local_ntohl( aPadStackComponent.str_ptr ),
                           m_ptrs.count( aPadStackComponent.str_ptr ) );
         }
     }

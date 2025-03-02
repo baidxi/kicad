@@ -35,14 +35,6 @@
 #endif
 #include <optional>
 
-// Includes for `ntohl`, which is used for displaying ints in the same format
-// as a hex editor.
-#ifdef __WINDOWS__
-#include <winsock.h>
-#else
-#include <arpa/inet.h>
-#endif
-
 #include <wx/log.h>
 
 #include <base_units.h>
