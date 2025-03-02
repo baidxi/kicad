@@ -77,20 +77,6 @@ public:
                       const std::map<std::string, UTF8>* aProperties = nullptr,
                       PROJECT*                           aProject = nullptr ) override;
 
-    void FootprintEnumerate( wxArrayString& aFootprintNames, const wxString& aLibraryPath,
-                             bool                               aBestEfforts,
-                             const std::map<std::string, UTF8>* aProperties ) override
-    {
-        wxLogWarning( "Func %s", __FUNCTION__ );
-    }
-
-    void FootprintLibCreate( const wxString& aLibraryPath, const STRING_UTF8_MAP* aProperties )
-    {
-        wxLogWarning( "Func %s", __FUNCTION__ );
-    }
-
-    bool IsFootprintLibWritable( const wxString& aLibraryPath ) { return false; }
-
     PCB_IO_ALLEGRO();
     ~PCB_IO_ALLEGRO() override;
 
