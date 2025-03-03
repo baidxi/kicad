@@ -279,4 +279,11 @@ private:
 #endif
 };
 
+// Reimplemented so we do not require all of the corresponding header.
+constexpr uint32_t local_ntohl( uint32_t aX )
+{
+    return ( ( aX & 0x000000FF ) << 24 ) | ( ( aX & 0x0000FF00 ) << 8 )
+           | ( ( aX & 0x00FF0000 ) >> 8 ) | ( ( aX & 0xFF000000 ) >> 24 );
+}
+
 #endif // ALLEGRO_PARSER_H_

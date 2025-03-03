@@ -49,13 +49,6 @@ double cfp_to_double( ALLEGRO::CADENCE_FP aAllegroFloat )
     return g;
 }
 
-// Reimplemented so we do not require all of the corresponding header.
-constexpr uint32_t local_ntohl( uint32_t aX )
-{
-    return ( ( aX & 0x000000FF ) << 24 ) | ( ( aX & 0x0000FF00 ) << 8 )
-           | ( ( aX & 0x00FF0000 ) >> 8 ) | ( ( aX & 0xFF000000 ) >> 24 );
-}
-
 template <ALLEGRO::MAGIC magic>
 ALLEGRO_PARSER<magic>::ALLEGRO_PARSER( BOARD* aBoard, const ALLEGRO_FILE& aAllegroBrdFile ) :
         m_board( aBoard ), m_brd( aAllegroBrdFile ){};

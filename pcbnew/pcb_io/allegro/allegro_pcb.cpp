@@ -89,6 +89,6 @@ void ALLEGRO_PCB::Parse( const ALLEGRO_FILE& aAllegroBrdFile )
     }
     default:
         THROW_IO_ERROR( wxString::Format( _( "Board file magic=0x%08X not recognized." ),
-                                          ntohl( magic ) ) );
+                                          local_ntohl( magic ) ) );
     }
 }
