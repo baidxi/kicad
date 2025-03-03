@@ -39,39 +39,16 @@ public:
 
     const IO_BASE::IO_FILE_DESC GetLibraryDesc() const override { return GetBoardFileDesc(); }
 
-    const IO_BASE::IO_FILE_DESC GetFootprintFileDesc() const
-    {
-        wxLogWarning( "Func %s", __FUNCTION__ );
-        return GetBoardFileDesc();
-    }
-
-    const IO_BASE::IO_FILE_DESC GetFootprintLibDesc() const
-    {
-        wxLogWarning( "Func? %s", __FUNCTION__ );
-        return GetBoardFileDesc();
-    }
-
-    long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override
-    {
-        wxLogWarning( "Func %s", __FUNCTION__ );
-        // No support for libraries....
-        return 1;
-    }
+    long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override { return 0; }
 
     bool CanReadBoard( const wxString& aFileName ) const override;
-    bool CanReadFootprint( const wxString& aFileName ) const override;
-    bool CanReadFootprintLib( const wxString& aFileName ) const;
+    bool CanReadFootprint( const wxString& aFileName ) const override { return false; };
 
     // FIXME: Should we return true if we can read all the library elements of
     // this file?
     bool CanReadLibrary( const wxString& aFileName ) const override { return false; }
 
-    std::vector<FOOTPRINT*> GetImportedCachedLibraryFootprints() override
-    {
-        wxLogWarning( "Func %s", __FUNCTION__ );
-        std::vector<FOOTPRINT*> fps;
-        return fps;
-    }
+    std::vector<FOOTPRINT*> GetImportedCachedLibraryFootprints() override { return {}; }
 
     BOARD* LoadBoard( const wxString& aFileName, BOARD* aAppendToMe,
                       const std::map<std::string, UTF8>* aProperties = nullptr,

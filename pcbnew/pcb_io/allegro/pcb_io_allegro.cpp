@@ -66,18 +66,6 @@ bool PCB_IO_ALLEGRO::CanReadBoard( const wxString& aFileName ) const
     return false;
 };
 
-bool PCB_IO_ALLEGRO::CanReadFootprint( const wxString& aFileName ) const
-{
-    wxLogWarning( "Func %s", __FUNCTION__ );
-    return CanReadBoard( aFileName );
-};
-
-bool PCB_IO_ALLEGRO::CanReadFootprintLib( const wxString& aFileName ) const
-{
-    wxLogWarning( "Func %s", __FUNCTION__ );
-    return CanReadBoard( aFileName );
-};
-
 BOARD* PCB_IO_ALLEGRO::LoadBoard( const wxString& aFileName, BOARD* aAppendToMe,
                                   const std::map<std::string, UTF8>* aProperties,
                                   PROJECT*                           aProject )
