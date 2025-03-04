@@ -284,6 +284,18 @@ void EDA_TEXT::CopyText( const EDA_TEXT& aSrc )
 void EDA_TEXT::SetTextThickness( int aWidth )
 {
     m_attributes.m_StrokeWidth = aWidth;
+
+    const int size = std::min( m_attributes.m_Size.x, m_attributes.m_Size.y );
+
+    // Identifies whether the user manually entered a thickness value.
+    // If the value is manually set (not matching the system-calculated bold pen size), store it.
+    // Otherwise, set it to -1, indicating that no manual value should be retained when toggling bold/unbold.
+    if( ( aWidth < GetPenSizeForBold( size ) && aWidth != GetPenSizeForNormal( size ) )
+        || aWidth > GetPenSizeForBold( size ) )
+        m_attributes.m_StoredStrokeWidth = aWidth;
+    else
+        m_attributes.m_StoredStrokeWidth = -1;
+
     ClearRenderCache();
     ClearBoundingBoxCache();
 }
@@ -338,23 +350,23 @@ void EDA_TEXT::SetBold( bool aBold )
 
             if( aBold )
             {
-                m_attributes.m_StoredStrokeWidth = m_attributes.m_StrokeWidth;
-                m_attributes.m_StrokeWidth = GetPenSizeForBold( size );
+                // If the user manually set a stroke width greater than the system-calculated bold pen size,
+                // use the manually set stroke width instead of the default bold stroke width.  
+                if( m_attributes.m_StoredStrokeWidth > 0
+                   && m_attributes.m_StoredStrokeWidth > GetPenSizeForBold( size ) )
+                    m_attributes.m_StrokeWidth = m_attributes.m_StoredStrokeWidth;
+                else
+                    m_attributes.m_StrokeWidth = GetPenSizeForBold( size );
             }
             else
             {
-                // Restore the original stroke width from `m_StoredStrokeWidth` if it was
-                // previously stored, resetting the width after unbolding.
-                if( m_attributes.m_StoredStrokeWidth )
+                // If the user manually set a stroke width smaller than the system-calculated bold pen size,
+                // use the manually set stroke width instead of the default unbold stroke width.  
+                if( m_attributes.m_StoredStrokeWidth >= 0
+                    && m_attributes.m_StoredStrokeWidth < GetPenSizeForBold( size ) )
                     m_attributes.m_StrokeWidth = m_attributes.m_StoredStrokeWidth;
                 else
-                {
                     m_attributes.m_StrokeWidth = GetPenSizeForNormal( size );
-                    // Sets `m_StrokeWidth` to the normal pen size and stores it in
-                    // `m_StoredStrokeWidth` as the default, but only if the bold option was
-                    // applied before this feature was implemented.
-                    m_attributes.m_StoredStrokeWidth = m_attributes.m_StrokeWidth;
-                }
             }
         }
         else
