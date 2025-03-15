@@ -133,6 +133,16 @@ public:
     ///< Return the shape of the line.
     const SHAPE* Shape( int aLayer ) const override { return &m_line; }
 
+
+    VECTOR2I Anchor( int n ) const override
+    { // Required by pns_kicad_iface
+        if( n == 0 && m_line.PointCount() > 0 )
+            return m_line.CPoint( 0 );
+        if( n == 1 && m_line.PointCount() > 0 )
+            return m_line.CPoint( m_line.PointCount()-1 );
+        return VECTOR2I();
+    }
+
     ///< Modifiable accessor to the underlying shape.
     SHAPE_LINE_CHAIN& Line() { return m_line; }
     const SHAPE_LINE_CHAIN& CLine() const { return m_line; }

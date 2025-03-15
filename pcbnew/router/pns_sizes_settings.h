@@ -59,8 +59,8 @@ public:
     void ClearLayerPairs();
     void AddLayerPair( int aL1, int aL2 );
 
-    // The working clearance, from the current net to anything else (without knowing the net of the
-    // other object).  Specific clearance to another object may be resolved differently.
+    // The optimal working clearance, from the current net to anything else (without knowing the 
+    // net of the other object).  Specific clearance to another object may be resolved differently.
     int Clearance() const { return m_clearance; }
     void SetClearance( int aClearance ) { m_clearance = aClearance; }
 
@@ -78,29 +78,31 @@ public:
     void SetBoardMinTrackWidth( int aWidth ) { m_boardMinTrackWidth = aWidth; }
 
     int DiffPairWidth() const { return m_diffPairWidth; }
+    void SetDiffPairWidth( int aWidth ) { m_diffPairWidth = aWidth; }
+    
     int DiffPairGap() const { return m_diffPairGap; }
+    void SetDiffPairGap( int aGap ) { m_diffPairGap = aGap; }
 
     int DiffPairViaGap() const
     {
         return m_diffPairViaGapSameAsTraceGap ? m_diffPairGap : m_diffPairViaGap;
     }
+    void SetDiffPairViaGap( int aGap ) { m_diffPairViaGap = aGap; }
 
     bool DiffPairViaGapSameAsTraceGap() const { return m_diffPairViaGapSameAsTraceGap; }
-
-    void SetDiffPairWidth( int aWidth ) { m_diffPairWidth = aWidth; }
-    void SetDiffPairGap( int aGap ) { m_diffPairGap = aGap; }
     void SetDiffPairViaGapSameAsTraceGap ( bool aEnable )
     {
         m_diffPairViaGapSameAsTraceGap = aEnable;
     }
-
-    void SetDiffPairViaGap( int aGap ) { m_diffPairViaGap = aGap; }
 
     int ViaDiameter() const { return m_viaDiameter; }
     void SetViaDiameter( int aDiameter ) { m_viaDiameter = aDiameter; }
 
     int ViaDrill() const { return m_viaDrill; }
     void SetViaDrill( int aDrill ) { m_viaDrill = aDrill; }
+
+    int ViaClearance() const { return m_viaClearance; }
+    void SetViaClearance( int aViaClearance ) { m_viaClearance = aViaClearance; }
 
     std::optional<int> PairedLayer( int aLayerId )
     {
@@ -131,9 +133,6 @@ public:
     wxString GetDiffPairGapSource() const { return m_diffPairGapSource; }
     void SetDiffPairGapSource( const wxString& aSource ) { m_diffPairGapSource = aSource; }
 
-    void SetDiffPairHoleToHole( int aHoleToHole ) { m_diffPairHoleToHole = aHoleToHole; }
-    int GetDiffPairHoleToHole() const { return m_diffPairHoleToHole; }
-
 private:
     int     m_clearance;
     int     m_minClearance;
@@ -144,6 +143,7 @@ private:
     VIATYPE m_viaType;
     int     m_viaDiameter;
     int     m_viaDrill;
+    int     m_viaClearance;
 
     int     m_diffPairWidth;
     int     m_diffPairGap;

@@ -221,15 +221,6 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
     if( Settings().AllowDRCViolations() )
         return true;
 
-    if( m_mode == PNS_MODE_ROUTE_DIFF_PAIR )
-    {
-        if( m_sizes.DiffPairGap() < m_sizes.MinClearance() )
-        {
-            SetFailureReason( _( "Diff pair gap is less than board minimum clearance." ) );
-            return false;
-        }
-    }
-
     ITEM_SET candidates = QueryHoverItems( aWhere );
     wxString failureReason;
 
@@ -762,30 +753,11 @@ bool ROUTER::movePlacing( const VECTOR2I& aP, ITEM* aEndItem )
             continue;
 
         const LINE* l = static_cast<const LINE*>( item );
-        int clearance = GetRuleResolver()->Clearance( item, nullptr );
-
-        m_iface->DisplayItem( l, clearance, false, PNS_HEAD_TRACE );
+        m_iface->DisplayItem( l, m_sizes.Clearance(), false, PNS_HEAD_TRACE );
 
         if( l->EndsWithVia() )
-        {
-            const VIA& via = l->Via();
-            clearance = GetRuleResolver()->Clearance( &via, nullptr );
-
-            if( via.HasHole() )
-            {
-                int holeClearance = GetRuleResolver()->Clearance( via.Hole(), nullptr );
-                int annularWidth = std::max( 0, via.Diameter( l->Layer() ) - via.Drill() ) / 2;
-                int excessHoleClearance = holeClearance - annularWidth;
-
-                if( excessHoleClearance > clearance )
-                    clearance = excessHoleClearance;
-            }
-
-            m_iface->DisplayItem( &l->Via(), clearance, false, PNS_HEAD_TRACE );
-        }
+            m_iface->DisplayItem( &l->Via(), m_sizes.ViaClearance(), false, PNS_HEAD_TRACE );
     }
-
-    //ITEM_SET tmp( &current );
 
     updateView( m_placer->CurrentNode( true ), current );
 
