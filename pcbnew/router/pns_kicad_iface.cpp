@@ -654,13 +654,15 @@ bool PNS_KICAD_IFACE_BASE::inheritTrackWidth( PNS::ITEM* aItem, int* aInheritedW
 
 
 bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* aStartItem,
-                                        PNS::NET_HANDLE aNet, VECTOR2D aStartPosition )
+                                        int aLayer, PNS::NET_HANDLE aNet, VECTOR2D aStartPosition )
 {
     BOARD_DESIGN_SETTINGS& bds = m_board->GetDesignSettings();
     PNS::CONSTRAINT        constraint;
 
-    if( aStartItem && m_startLayer < 0 )
-        m_startLayer = aStartItem->Layer();
+    if( aStartItem && aLayer < 0 )
+        aLayer = aStartItem->Layer();
+    if (aLayer < 0)
+        return false;
 
     aSizes.SetClearance( bds.m_MinClearance );
     aSizes.SetMinClearance( bds.m_MinClearance );
@@ -683,11 +685,11 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
     {
         PNS::SEGMENT dummyTrack;
         dummyTrack.SetEnds( aStartItem->Anchor( startAnchor ), aStartItem->Anchor( startAnchor ) );
-        dummyTrack.SetLayer( m_startLayer );
+        dummyTrack.SetLayer( aLayer );
         dummyTrack.SetNet( static_cast<NETINFO_ITEM*>( aStartItem->Net() ) );
 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_CLEARANCE, &dummyTrack,
-                                             nullptr, m_startLayer, &constraint ) )
+                                             nullptr, aLayer, &constraint ) )
         {
             if( constraint.m_Value.Min() >= bds.m_MinClearance )
             {
@@ -713,11 +715,11 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
     {
         PNS::SEGMENT dummyTrack;
         dummyTrack.SetEnds( aStartItem->Anchor( startAnchor ), aStartItem->Anchor( startAnchor ) );
-        dummyTrack.SetLayer( m_startLayer );
+        dummyTrack.SetLayer( aLayer );
         dummyTrack.SetNet( static_cast<NETINFO_ITEM*>( aStartItem->Net() ) );
 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_WIDTH, &dummyTrack, nullptr,
-                                             m_startLayer, &constraint ) )
+                                             aLayer, &constraint ) )
         {
             trackWidth = std::max( trackWidth, constraint.m_Value.Opt() );
             found = true;
@@ -755,13 +757,13 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
     if( bds.UseNetClassVia() && aStartItem )   // netclass value
     {
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_VIA_DIAMETER, &dummyVia,
-                                             nullptr, m_startLayer, &constraint ) )
+                                             nullptr, aLayer, &constraint ) )
         {
             viaDiameter = std::max( viaDiameter, constraint.m_Value.Opt() );
         }
 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_VIA_HOLE, &dummyVia,
-                                             nullptr, m_startLayer, &constraint ) )
+                                             nullptr, aLayer, &constraint ) )
         {
             viaDrill = std::max( viaDrill, constraint.m_Value.Opt() );
         }
@@ -795,17 +797,17 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
 
         PNS::SEGMENT dummyTrack;
         dummyTrack.SetEnds( aStartItem->Anchor( 0 ), aStartItem->Anchor( 0 ) );
-        dummyTrack.SetLayer( m_startLayer );
+        dummyTrack.SetLayer( aLayer );
         dummyTrack.SetNet( static_cast<NETINFO_ITEM*>( aStartItem->Net() ) );
 
         PNS::SEGMENT coupledTrack;
         dummyTrack.SetEnds( aStartItem->Anchor( 0 ), aStartItem->Anchor( 0 ) );
-        dummyTrack.SetLayer( m_startLayer );
+        dummyTrack.SetLayer( aLayer );
         dummyTrack.SetNet( static_cast<NETINFO_ITEM*>( coupledNet ) );
 
         if( !found
             && m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_WIDTH, &dummyTrack,
-                                                &coupledTrack, m_startLayer, &constraint ) )
+                                                &coupledTrack, aLayer, &constraint ) )
         {
             diffPairWidth = std::max( diffPairWidth, constraint.m_Value.Opt() );
 
@@ -814,7 +816,7 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
         }
 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_DIFF_PAIR_GAP, &dummyTrack,
-                                             &coupledTrack, m_startLayer, &constraint ) )
+                                             &coupledTrack, aLayer, &constraint ) )
         {
             diffPairGap = std::max( diffPairGap, constraint.m_Value.Opt() );
             diffPairViaGap = std::max( diffPairViaGap, constraint.m_Value.Opt() );
@@ -1098,7 +1100,6 @@ PNS_KICAD_IFACE_BASE::PNS_KICAD_IFACE_BASE()
     m_board = nullptr;
     m_world = nullptr;
     m_debugDecorator = nullptr;
-    m_startLayer = -1;
 }
 
 
@@ -2308,12 +2309,6 @@ int PNS_KICAD_IFACE_BASE::GetPNSLayerFromBoardLayer( PCB_LAYER_ID aLayer ) const
         return m_board->GetCopperLayerCount() - 1;
 
     return ( aLayer / 2 ) - 1;
-}
-
-
-void PNS_KICAD_IFACE_BASE::SetStartLayerFromPCBNew( PCB_LAYER_ID aLayer )
-{
-    m_startLayer = GetPNSLayerFromBoardLayer( aLayer );
 }
 
 

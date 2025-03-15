@@ -69,7 +69,7 @@ public:
     void UpdateItem( PNS::ITEM* aItem ) override {}
     void RemoveItem( PNS::ITEM* aItem ) override {}
     void Commit() override {}
-    bool ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* aStartItem,
+    bool ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* aStartItem, int aLayer,
                       PNS::NET_HANDLE aNet, VECTOR2D aStartPosition ) override { return false; }
     int StackupHeight( int aFirstLayer, int aSecondLayer ) const override { return 0; }
 

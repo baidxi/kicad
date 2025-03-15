@@ -1375,8 +1375,6 @@ bool PCB_TUNING_PATTERN::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
         }
     };
 
-    iface->SetStartLayerFromPCBNew( pcblayer );
-
     if( router->RoutingInProgress() )
     {
         router->StopRouting();

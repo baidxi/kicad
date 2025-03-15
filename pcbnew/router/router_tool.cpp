@@ -1188,10 +1188,8 @@ bool ROUTER_TOOL::prepareInteractive( VECTOR2D aStartPosition )
 
     PNS::SIZES_SETTINGS sizes( m_router->Sizes() );
 
-    m_iface->SetStartLayerFromPCBNew( pcbLayer );
-
     frame()->GetBoard()->GetDesignSettings().m_TempOverrideTrackWidth = false;
-    m_iface->ImportSizes( sizes, m_startItem, nullptr, aStartPosition );
+    m_iface->ImportSizes( sizes, m_startItem, m_iface->GetPNSLayerFromBoardLayer( pcbLayer ), nullptr, aStartPosition );
     sizes.AddLayerPair( m_iface->GetPNSLayerFromBoardLayer( frame()->GetScreen()->m_Route_Layer_TOP ),
                         m_iface->GetPNSLayerFromBoardLayer( frame()->GetScreen()->m_Route_Layer_BOTTOM ) );
 
@@ -2646,7 +2644,7 @@ int ROUTER_TOOL::onTrackViaSizeChanged( const TOOL_EVENT& aEvent )
     PNS::SIZES_SETTINGS sizes( m_router->Sizes() );
 
     if( !m_router->GetCurrentNets().empty() )
-        m_iface->ImportSizes( sizes, m_startItem, m_router->GetCurrentNets()[0], VECTOR2D() );
+        m_iface->ImportSizes( sizes, m_startItem, -1, m_router->GetCurrentNets()[0], VECTOR2D() );
 
     m_router->UpdateSizes( sizes );
 
