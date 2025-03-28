@@ -191,7 +191,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse03( ALLEGRO_PARSER<magic>& aParser )
 };
 
 template <ALLEGRO::MAGIC magic>
-uint32_t ALLEGRO_PARSER<magic>::Parse1C( ALLEGRO_PARSER<magic>& aParser )
+uint32_t ALLEGRO_PARSER<magic>::Parse1CPadStack( ALLEGRO_PARSER<magic>& aParser )
 {
     auto*    i = static_cast<ALLEGRO::T_1C_PAD_STACK<magic>*>( aParser.m_curAddr );
     uint32_t k = ALLEGRO_PARSER<magic>::DefaultParser<ALLEGRO::T_1C_PAD_STACK>( aParser );
@@ -245,7 +245,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse1D( ALLEGRO_PARSER<magic>& aParser )
 };
 
 template <ALLEGRO::MAGIC magic>
-uint32_t ALLEGRO_PARSER<magic>::Parse1E( ALLEGRO_PARSER<magic>& aParser )
+uint32_t ALLEGRO_PARSER<magic>::Parse1EModelInfo( ALLEGRO_PARSER<magic>& aParser )
 {
     ALLEGRO::T_1E* x1E_inst = new ALLEGRO::T_1E;
     memcpy( x1E_inst, aParser.m_curAddr, sizeof( ALLEGRO::T_1E_HEADER ) );
@@ -289,7 +289,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse1F( ALLEGRO_PARSER<magic>& aParser )
 }
 
 template <ALLEGRO::MAGIC magic>
-uint32_t ALLEGRO_PARSER<magic>::Parse21( ALLEGRO_PARSER& aParser )
+uint32_t ALLEGRO_PARSER<magic>::Parse21Metadata( ALLEGRO_PARSER& aParser )
 {
     auto* i = static_cast<ALLEGRO::T_21_HEADER*>( aParser.m_curAddr );
     if( i->r == 1304 )
@@ -333,7 +333,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse27( ALLEGRO_PARSER& aParser )
 }
 
 template <ALLEGRO::MAGIC magic>
-uint32_t ALLEGRO_PARSER<magic>::Parse2A( ALLEGRO_PARSER& aParser )
+uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
 {
     ALLEGRO::T_2A x2A_inst;
     memcpy( &x2A_inst.hdr, aParser.m_curAddr, sizeof( ALLEGRO::x2A_hdr ) );
@@ -379,7 +379,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse2A( ALLEGRO_PARSER& aParser )
 }
 
 template <ALLEGRO::MAGIC magic>
-uint32_t ALLEGRO_PARSER<magic>::Parse31( ALLEGRO_PARSER& aParser )
+uint32_t ALLEGRO_PARSER<magic>::Parse31StringGraphic( ALLEGRO_PARSER& aParser )
 {
     auto*    i = static_cast<ALLEGRO::T_31_STRING_GRAPHIC<magic>*>( aParser.m_curAddr );
     uint32_t k = ALLEGRO_PARSER<magic>::DefaultParser<ALLEGRO::T_31_STRING_GRAPHIC>( aParser );
@@ -1109,7 +1109,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
     uint32_t hole_k = aBrdShape.ptr4;
     while( IsType( hole_k, 0x34 ) )
     {
-        auto* i34 = static_cast<ALLEGRO::T_34<magic>*>( m_ptrs[hole_k] );
+        auto* i34 = static_cast<ALLEGRO::T_34_RULE_REGION<magic>*>( m_ptrs[hole_k] );
         // wxLogMessage( "Handling x34 0x%08X", local_ntohl( i34->k ) );
         uint32_t k = i34->ptr2;
 

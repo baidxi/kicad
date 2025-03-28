@@ -913,7 +913,7 @@ struct T_22
 
 // Connection (rat). Draws a line between two connected pads.
 template <MAGIC magic>
-struct T_23
+struct T_23_RAT
 {
     uint16_t   type;
     LAYER_INFO layer;
@@ -1396,7 +1396,7 @@ struct T_33_VIA
 
 // Keepout/keepin/etc.region
 template <MAGIC magic>
-struct T_34
+struct T_34_RULE_REGION
 {
     uint16_t   t;
     LAYER_INFO layer;

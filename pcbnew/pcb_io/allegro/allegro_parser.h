@@ -108,14 +108,14 @@ private:
     static uint32_t DefaultParser( ALLEGRO_PARSER& aParser );
 
     static uint32_t Parse03( ALLEGRO_PARSER& aParser );
-    static uint32_t Parse1C( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1CPadStack( ALLEGRO_PARSER& aParser );
     static uint32_t Parse1D( ALLEGRO_PARSER& aParser );
-    static uint32_t Parse1E( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse1EModelInfo( ALLEGRO_PARSER& aParser );
     static uint32_t Parse1F( ALLEGRO_PARSER& aParser );
-    static uint32_t Parse21( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse21Metadata( ALLEGRO_PARSER& aParser );
     static uint32_t Parse27( ALLEGRO_PARSER& aParser );
-    static uint32_t Parse2A( ALLEGRO_PARSER& aParser );
-    static uint32_t Parse31( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse2ALayerInfo( ALLEGRO_PARSER& aParser );
+    static uint32_t Parse31StringGraphic( ALLEGRO_PARSER& aParser );
     static uint32_t Parse35( ALLEGRO_PARSER& aParser );
     static uint32_t Parse36( ALLEGRO_PARSER& aParser );
     static uint32_t Parse3B( ALLEGRO_PARSER& aParser );
@@ -181,21 +181,21 @@ private:
         // 0x1B
         &DefaultParser<ALLEGRO::T_1B_NET>,
         // 0x1C
-        &Parse1C,
+        &Parse1CPadStack,
         // 0x1D
         &Parse1D,
         // 0x1E
-        &Parse1E,
+        &Parse1EModelInfo,
         // 0x1F
         &Parse1F,
         // 0x20
         &DefaultParser<ALLEGRO::T_20>,
         // 0x21
-        &Parse21,
+        &Parse21Metadata,
         // 0x22
         &DefaultParser<ALLEGRO::T_22>,
         // 0x23
-        &DefaultParser<ALLEGRO::T_23>,
+        &DefaultParser<ALLEGRO::T_23_RAT>,
         // 0x24
         &DefaultParser<ALLEGRO::T_24_RECTANGLE>,
         // 0x25
@@ -209,7 +209,7 @@ private:
         // 0x29
         nullptr,
         // 0x2A
-        &Parse2A,
+        &Parse2ALayerInfo,
         // 0x2B
         &DefaultParser<ALLEGRO::T_2B_FOOTPRINT>,
         // 0x2C
@@ -223,13 +223,13 @@ private:
         // 0x30
         &DefaultParser<ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER>,
         // 0x31
-        &Parse31,
+        &Parse31StringGraphic,
         // 0x32
         &DefaultParser<ALLEGRO::T_32_PLACED_PAD>,
         // 0x33
         &DefaultParser<ALLEGRO::T_33_VIA>,
         // 0x34
-        &DefaultParser<ALLEGRO::T_34>,
+        &DefaultParser<ALLEGRO::T_34_RULE_REGION>,
         // 0x35
         &Parse35,
         // 0x36
