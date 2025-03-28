@@ -101,8 +101,7 @@ public:
             return self;
         }
 
-        void Register( PCB_FILE_T aType, const wxString& aName,
-                       std::function<PCB_IO*( void )> aCreateFunc )
+        void Register( PCB_FILE_T aType, const wxString& aName, std::function<PCB_IO*( void )> aCreateFunc )
         {
             ENTRY ent;
             ent.m_type = aType;
@@ -141,8 +140,7 @@ public:
      */
     struct REGISTER_PLUGIN
     {
-        REGISTER_PLUGIN( PCB_FILE_T aType, const wxString& aName,
-                         std::function<PCB_IO*( void )> aCreateFunc )
+        REGISTER_PLUGIN( PCB_FILE_T aType, const wxString& aName, std::function<PCB_IO*( void )> aCreateFunc )
         {
             PLUGIN_REGISTRY::Instance()->Register( aType, aName, aCreateFunc );
         }
@@ -199,11 +197,9 @@ public:
      * @throw IO_ERROR if the #PLUGIN cannot be found, file cannot be found, or file cannot
      *                 be loaded.
      */
-    static BOARD* Load( PCB_FILE_T aFileType, const wxString& aFileName,
-                        BOARD*                             aAppendToMe = nullptr,
-                        const std::map<std::string, UTF8>* aProperties = nullptr,
-                        PROJECT*                           aProject = nullptr,
-                        PROGRESS_REPORTER*                 aProgressReporter = nullptr );
+    static BOARD* Load( PCB_FILE_T aFileType, const wxString& aFileName, BOARD* aAppendToMe = nullptr,
+                        const std::map<std::string, UTF8>* aProperties = nullptr, PROJECT* aProject = nullptr,
+                        PROGRESS_REPORTER* aProgressReporter = nullptr );
 
     /**
      * Write either a full \a aBoard to a storage file in a format that this implementation
@@ -230,9 +226,8 @@ public:
     /**
      * Convert a schematic symbol library to the latest KiCad format
      */
-    static bool ConvertLibrary( std::map<std::string, UTF8>* aOldFileProps,
-                                const wxString& aOldFilePath, const wxString& aNewFilePath,
-                                REPORTER* aReporter );
+    static bool ConvertLibrary( std::map<std::string, UTF8>* aOldFileProps, const wxString& aOldFilePath,
+                                const wxString& aNewFilePath, REPORTER* aReporter );
 };
 
 #endif // PCB_IO_MGR_H_
