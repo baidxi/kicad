@@ -37,11 +37,9 @@ namespace ALLEGRO
 {
 
 #if _MSC_VER
-#define COND_FIELD( COND, T, NAME )                                                                \
-    [[msvc::no_unique_address]] std::conditional_t<( COND ), T, std::monostate>( NAME );
+#define COND_FIELD( COND, T, NAME ) [[msvc::no_unique_address]] std::conditional_t<( COND ), T, std::monostate>( NAME );
 #else
-#define COND_FIELD( COND, T, NAME )                                                                \
-    [[no_unique_address]] std::conditional_t<( COND ), T, std::monostate>( NAME );
+#define COND_FIELD( COND, T, NAME ) [[no_unique_address]] std::conditional_t<( COND ), T, std::monostate>( NAME );
 #endif
 
 // This alternative to `sizeof` is used where conditional fields are at the end
@@ -109,14 +107,10 @@ struct LAYER_INFO
 };
 
 const std::map<ALLEGRO::LAYER_INFO, PCB_LAYER_ID> LAYER_MAPPING = {
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF1 }, F_SilkS },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF3 }, B_Paste },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF4 }, F_Paste },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF6 }, B_SilkS },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF7 }, F_SilkS },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xFA }, B_CrtYd },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xFB }, F_CrtYd },
-    { { ALLEGRO::LAYER_FAMILY::SILK, 0xFD }, F_SilkS },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF1 }, F_SilkS }, { { ALLEGRO::LAYER_FAMILY::SILK, 0xF3 }, B_Paste },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF4 }, F_Paste }, { { ALLEGRO::LAYER_FAMILY::SILK, 0xF6 }, B_SilkS },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xF7 }, F_SilkS }, { { ALLEGRO::LAYER_FAMILY::SILK, 0xFA }, B_CrtYd },
+    { { ALLEGRO::LAYER_FAMILY::SILK, 0xFB }, F_CrtYd }, { { ALLEGRO::LAYER_FAMILY::SILK, 0xFD }, F_SilkS },
 };
 
 enum class BRD_UNITS : uint8_t

@@ -30,9 +30,8 @@
 #include <boost/version.hpp>
 #if BOOST_VERSION >= 108100
 #include <boost/unordered/unordered_flat_map.hpp>
-#else
-#include <unordered_map>
 #endif
+#include <unordered_map>
 #include <optional>
 
 #include <wx/log.h>
@@ -40,8 +39,8 @@
 #include <base_units.h>
 #include <board.h>
 #include <board_design_settings.h>
-#include <geometry/eda_angle.h>
 #include <footprint.h>
+#include <geometry/eda_angle.h>
 #include <layer_ids.h>
 #include <lib_id.h>
 #include <pad.h>
@@ -70,16 +69,12 @@ private:
 
     void AddPad( FOOTPRINT* aFootprint, const ALLEGRO::T_32_PLACED_PAD<magic>& aBrdPlacedPad );
 
-    void AddText( BOARD_ITEM_CONTAINER&                              aContainer,
-                  const ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER<magic>& aStrWrapper );
-    void AddTrack( const ALLEGRO::T_1B_NET<magic>&   aBrdNet,
-                   const ALLEGRO::T_05_TRACK<magic>& aBrdTrack );
+    void AddText( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_30_STRING_GRAPHIC_WRAPPER<magic>& aStrWrapper );
+    void AddTrack( const ALLEGRO::T_1B_NET<magic>& aBrdNet, const ALLEGRO::T_05_TRACK<magic>& aBrdTrack );
     void AddVia( const ALLEGRO::T_33_VIA<magic>& aBrdVia );
-    void AddZone( BOARD_ITEM_CONTAINER&                          aContainer,
-                  const std::optional<ALLEGRO::T_1B_NET<magic>>& aBrdNet,
-                  const ALLEGRO::T_28_SHAPE<magic>&              aBrdShape );
-    void AddRectangle( BOARD_ITEM_CONTAINER&                 aContainer,
-                       const ALLEGRO::T_24_RECTANGLE<magic>& aBrdRect );
+    void AddZone( BOARD_ITEM_CONTAINER& aContainer, const std::optional<ALLEGRO::T_1B_NET<magic>>& aBrdNet,
+                  const ALLEGRO::T_28_SHAPE<magic>& aBrdShape );
+    void AddRectangle( BOARD_ITEM_CONTAINER& aContainer, const ALLEGRO::T_24_RECTANGLE<magic>& aBrdRect );
 
     void             Skip( std::size_t aSkipBytes );
     void             Log( const char* fmt... );
@@ -103,12 +98,11 @@ private:
     const ALLEGRO::T_36_08<magic>* FindFont( uint8_t aKey );
 
     constexpr uint32_t GetPadComponentCount( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack );
-    constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>*
-         GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack, uint32_t aIndex );
+    constexpr ALLEGRO::PAD_STACK_COMPONENT<magic>* GetPadComponent( const ALLEGRO::T_1C_PAD_STACK<magic>& aPadStack,
+                                                                    uint32_t                              aIndex );
     void SetPadShape( PAD& aPad, const ALLEGRO::PAD_STACK_COMPONENT<magic>& aPadStackComponent );
 
-    std::optional<wxString>
-    RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& aPlacedFootprint );
+    std::optional<wxString> RefdesLookup( const ALLEGRO::T_2D_PLACED_FOOTPRINT<magic>& aPlacedFootprint );
 
     template <template <ALLEGRO::MAGIC> typename T>
     static uint32_t DefaultParser( ALLEGRO_PARSER& aParser );
@@ -282,8 +276,31 @@ private:
 // Reimplemented so we do not require all of the corresponding header.
 constexpr uint32_t local_ntohl( uint32_t aX )
 {
-    return ( ( aX & 0x000000FF ) << 24 ) | ( ( aX & 0x0000FF00 ) << 8 )
-           | ( ( aX & 0x00FF0000 ) >> 8 ) | ( ( aX & 0xFF000000 ) >> 24 );
+    return ( ( aX & 0x000000FF ) << 24 ) | ( ( aX & 0x0000FF00 ) << 8 ) | ( ( aX & 0x00FF0000 ) >> 8 )
+           | ( ( aX & 0xFF000000 ) >> 24 );
 }
+
+// Helper function for building parser map below
+template <ALLEGRO::MAGIC magic>
+const std::function<void( BOARD*, const ALLEGRO_FILE& )> ParserFunc()
+{
+    return []( BOARD* aBoard, const ALLEGRO_FILE& aAllegroBrdFile )
+    {
+        ALLEGRO_PARSER<magic>( aBoard, aAllegroBrdFile ).Parse();
+    };
+}
+
+const std::unordered_map<uint32_t, std::function<void( BOARD*, const ALLEGRO_FILE& )>> PARSERS = { {
+        { 0x00130000, ParserFunc<ALLEGRO::A_160>() }, { 0x00130200, ParserFunc<ALLEGRO::A_160>() },
+        { 0x00130402, ParserFunc<ALLEGRO::A_162>() }, { 0x00130C03, ParserFunc<ALLEGRO::A_164>() },
+        { 0x00131003, ParserFunc<ALLEGRO::A_165>() }, { 0x00131503, ParserFunc<ALLEGRO::A_166>() },
+        { 0x00131504, ParserFunc<ALLEGRO::A_166>() }, { 0x00140400, ParserFunc<ALLEGRO::A_172>() },
+        { 0x00140500, ParserFunc<ALLEGRO::A_172>() }, { 0x00140501, ParserFunc<ALLEGRO::A_172>() },
+        { 0x00140502, ParserFunc<ALLEGRO::A_172>() }, { 0x00140600, ParserFunc<ALLEGRO::A_172>() },
+        { 0x00140700, ParserFunc<ALLEGRO::A_172>() }, { 0x00140900, ParserFunc<ALLEGRO::A_174>() },
+        { 0x00140901, ParserFunc<ALLEGRO::A_174>() }, { 0x00140902, ParserFunc<ALLEGRO::A_174>() },
+        { 0x00140E00, ParserFunc<ALLEGRO::A_174>() }, { 0x00141500, ParserFunc<ALLEGRO::A_175>() },
+        { 0x00141501, ParserFunc<ALLEGRO::A_175>() }, { 0x00141502, ParserFunc<ALLEGRO::A_175>() },
+} };
 
 #endif // ALLEGRO_PARSER_H_
