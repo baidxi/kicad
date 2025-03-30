@@ -1104,6 +1104,7 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
         zone->SetLocalClearance( 0 );
         zone->SetMinThickness( 0 );
         zone->SetOutline( outline.release() );
+        zone->SetPadConnection( ZONE_CONNECTION::INHERITED );
 
         PCB_LAYER_ID layer = EtchLayerToKi( aBrdShape.layer );
 
