@@ -293,8 +293,7 @@ BOOST_DATA_TEST_CASE( FindBoardPluginType, boost::unit_test::data::make( BoardPl
 }
 
 
-BOOST_DATA_TEST_CASE( GuessLibraryPluginType, boost::unit_test::data::make( LibraryPluginCases ),
-                      c )
+BOOST_DATA_TEST_CASE( GuessLibraryPluginType, boost::unit_test::data::make( LibraryPluginCases ), c )
 {
     wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() + c.m_file_rel_path );
 
