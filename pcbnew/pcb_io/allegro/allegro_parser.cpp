@@ -72,7 +72,7 @@ void ALLEGRO_PARSER<magic>::Parse()
     {
     case ALLEGRO::BRD_UNITS::IMPERIAL: m_scaleFactor = ( (double) 25400. ) / m_header->unit_divisor; break;
     case ALLEGRO::BRD_UNITS::METRIC: m_scaleFactor = ( (double) 1000000. ) / m_header->unit_divisor; break;
-    default: wxLogError( "Unrecognized units type: 0x%02X", m_header->units ); return;
+    default: THROW_IO_ERROR( wxString::Format( "Units 0x%02X not recognized.", m_header->units ) );
     };
 
     // Layer map

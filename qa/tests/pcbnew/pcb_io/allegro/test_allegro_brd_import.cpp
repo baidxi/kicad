@@ -47,6 +47,7 @@ BOOST_AUTO_TEST_CASE( AllegroInvalidBrdImport )
 {
     std::vector<std::pair<std::string, std::string>> tests = {
         { "Invalid_Magic.brd", "Board file magic=0x00149999 not recognized." },
+        { "Invalid_Units.brd", "Units 0x04 not recognized." },
         { "AVALON_corrupted.brd", "Do not have parser for t=0xFF000000 available." },
         { "file_missing.brd", "Failed to open file." },
     };
@@ -62,8 +63,7 @@ BOOST_AUTO_TEST_CASE( AllegroInvalidBrdImport )
                                    [expectedMessage]( IO_ERROR exception )
                                    {
                                        BOOST_TEST_MESSAGE( "Checking that exception message \""
-                                                           << exception.Problem()
-                                                           << "\" matches expected message \""
+                                                           << exception.Problem() << "\" matches expected message \""
                                                            << expectedMessage << "\"" );
                                        return exception.Problem() == expectedMessage;
                                    } );
