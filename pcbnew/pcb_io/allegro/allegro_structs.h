@@ -801,9 +801,9 @@ struct T_1C_PAD_STACK
     std::vector<PAD_STACK_COMPONENT<magic>> parts;
 };
 
-static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_164>>() == 21 * 4 );
-static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_165>>() == 29 * 4 );
-static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_172>>() == 48 * 4 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_164>>() == 84 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_165>>() == 116 );
+static_assert( sizeof_allegro_obj<T_1C_PAD_STACK<A_172>>() == 192 );
 
 static_assert( offsetof( T_1C_PAD_STACK<A_164>, layer_count ) == 50 );
 static_assert( offsetof( T_1C_PAD_STACK<A_172>, layer_count ) == 44 );
