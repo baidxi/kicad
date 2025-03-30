@@ -1077,25 +1077,24 @@ void ALLEGRO_PARSER<magic>::AddZone( BOARD_ITEM_CONTAINER&                      
     std::unique_ptr<SHAPE_POLY_SET> outline = std::make_unique<SHAPE_POLY_SET>();
     outline->AddOutline( ShapeStartingAt( &k ) );
 
-    uint32_t hole_k = aBrdShape.ptr4;
-    while( IsType( hole_k, 0x34 ) )
+    uint32_t cutout_k = aBrdShape.cutouts_ptr;
+    while( IsType( cutout_k, 0x34 ) )
     {
-        auto* i34 = static_cast<ALLEGRO::T_34_RULE_REGION<magic>*>( m_ptrs[hole_k] );
+        auto* i34 = static_cast<ALLEGRO::T_34_RULE_REGION<magic>*>( m_ptrs[cutout_k] );
         // wxLogMessage( "Handling x34 0x%08X", local_ntohl( i34->k ) );
-        uint32_t k = i34->ptr2;
+        uint32_t k = i34->first_segment_ptr;
 
-        SHAPE_LINE_CHAIN hole_chain = ShapeStartingAt( &k );
-        if( hole_chain.PointCount() >= 3 )
+        SHAPE_LINE_CHAIN cutout_chain = ShapeStartingAt( &k );
+        if( cutout_chain.PointCount() >= 3 )
         {
-            hole_chain.SetClosed( true );
-            // zone->AddPolygon( hole_chain );
-            outline->AddHole( hole_chain );
+            cutout_chain.SetClosed( true );
+            outline->AddHole( cutout_chain );
         }
         else
         {
             // wxLogMessage( "Skipping, why?" );
         }
-        hole_k = i34->next;
+        cutout_k = i34->next;
     }
 
     if( aBrdShape.layer.family == ALLEGRO::LAYER_FAMILY::COPPER )

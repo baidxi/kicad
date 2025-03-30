@@ -1006,7 +1006,7 @@ struct T_28_SHAPE
     uint32_t ptr3;
 
     // Points to `x34`?
-    uint32_t ptr4;
+    uint32_t cutouts_ptr;
 
     // Line segments that form shape (x01, x15, x16, x17)
     uint32_t first_segment_ptr;
@@ -1407,7 +1407,7 @@ struct T_34_RULE_REGION
     uint32_t ptr1; // x28
     COND_FIELD( magic >= A_172, uint32_t, un2 );
     uint32_t bitmask1;
-    uint32_t ptr2; // x01
+    uint32_t first_segment_ptr;
     uint32_t ptr3; // x03
 
     uint32_t un;
