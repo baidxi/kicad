@@ -41,9 +41,10 @@ uint32_t round_to_word( uint32_t aLength )
 
 double cfp_to_double( ALLEGRO::CADENCE_FP aAllegroFloat )
 {
-    ALLEGRO::CADENCE_FP swapped;
-    swapped.x = aAllegroFloat.y;
-    swapped.y = aAllegroFloat.x;
+    ALLEGRO::CADENCE_FP swapped{
+        .x = aAllegroFloat.y,
+        .y = aAllegroFloat.x,
+    };
     double g;
     std::memcpy( &g, &swapped, 8 );
     return g;
