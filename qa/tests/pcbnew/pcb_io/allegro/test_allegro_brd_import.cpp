@@ -15,21 +15,47 @@ struct ALLEGRO_BRD_IMPORT_FIXTURE
     PCB_IO_KICAD_SEXPR kicadPlugin;
 };
 
+enum ALLEGRO_BRD_ASSERTION_KIND
+{
+    LAYER_COUNT,
+};
+
+struct ALLEGRO_BRD_ASSERTION
+{
+    ALLEGRO_BRD_ASSERTION_KIND kind;
+    uint32_t                   predicate;
+};
+
 BOOST_FIXTURE_TEST_SUITE( AllegroBrdImport, ALLEGRO_BRD_IMPORT_FIXTURE )
 
 BOOST_AUTO_TEST_CASE( AllegroBrdImport )
 {
-    std::vector<wxString> tests = {
-        "AVALON.brd",
-        "BeagleBone-AI.brd",
-        "BeagleY-AI_PCB_V1.0_240105.brd",
-        "MAINBOARD_02_20181023.brd",
-        "OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd",
+    std::vector<std::pair<wxString, std::vector<ALLEGRO_BRD_ASSERTION>>> tests{
+        { "AVALON.brd",
+          {
+                  { LAYER_COUNT, 4 },
+          } },
+        { "BeagleBone-AI.brd",
+          {
+                  { LAYER_COUNT, 12 },
+          } },
+        { "BeagleY-AI_PCB_V1.0_240105.brd",
+          {
+                  { LAYER_COUNT, 14 },
+          } },
+        { "MAINBOARD_02_20181023.brd",
+          {
+                  { LAYER_COUNT, 2 },
+          } },
+        { "OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd",
+          {
+                  { LAYER_COUNT, 10 },
+          } },
     };
 
     std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/allegro/";
 
-    for( const wxString& brdName : tests )
+    for( const auto& [brdName, assertions] : tests )
     {
         wxString allegroBrdPath = dataPath + brdName;
         BOOST_TEST_CONTEXT( "Filename: " << allegroBrdPath )
@@ -37,7 +63,14 @@ BOOST_AUTO_TEST_CASE( AllegroBrdImport )
             // Parsing the files should not result in an exception
             BOOST_CHECK_NO_THROW( do {
                 BOARD* brd = allegroPlugin.LoadBoard( allegroBrdPath, nullptr );
-                BOOST_CHECK_NE( brd->GetCopperLayerCount(), 0 );
+                // BOOST_CHECK_NE( brd->GetCopperLayerCount(), 0 );
+                for( const auto& [assertionKind, predicate] : assertions )
+                {
+                    switch( assertionKind )
+                    {
+                    case LAYER_COUNT: BOOST_CHECK_EQUAL( brd->GetCopperLayerCount(), predicate );
+                    }
+                }
             } while( 0 ) );
         }
     }
