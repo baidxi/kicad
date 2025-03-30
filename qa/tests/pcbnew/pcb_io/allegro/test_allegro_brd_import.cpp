@@ -43,14 +43,19 @@ BOOST_AUTO_TEST_CASE( AllegroBrdImport )
           {
                   { LAYER_COUNT, 14 },
           } },
-        { "MAINBOARD_02_20181023.brd",
-          {
-                  { LAYER_COUNT, 2 },
-          } },
-        { "OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd",
-          {
-                  { LAYER_COUNT, 10 },
-          } },
+        {
+                "MAINBOARD_02_20181023.brd",
+                {
+                        { LAYER_COUNT, 2 },
+                },
+        },
+        {
+                "OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd",
+                {
+                        { LAYER_COUNT, 10 },
+                },
+        },
+        { "slugs_v2_1.brd", { { LAYER_COUNT, 4 } } },
     };
 
     std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/allegro/";

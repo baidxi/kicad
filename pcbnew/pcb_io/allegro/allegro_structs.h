@@ -1031,14 +1031,13 @@ struct T_28_SHAPE
     uint32_t TAIL;
 };
 
-struct x2A_hdr
+struct T_2A_HEADER
 {
     uint16_t t;
-    uint16_t size;
-    // uint32_t k;
+    uint16_t count;
 };
 
-struct x2A_layer_properties
+struct T_2A_LAYER_PROPERTIES
 {
     uint8_t has_bot_reference : 1;
     uint8_t has_top_reference : 1;
@@ -1056,31 +1055,35 @@ struct x2A_layer_properties
     uint8_t empty;
 };
 
-static_assert( sizeof( x2A_layer_properties ) == 4 );
+static_assert( sizeof( T_2A_LAYER_PROPERTIES ) == 4 );
 
-struct x2A_local_entry
+struct T_2A_LOCAL_LAYER_PROPERTIES
 {
-    std::string          s;
-    x2A_layer_properties properties;
+    char                  layer_name[32];
+    T_2A_LAYER_PROPERTIES properties;
 };
 
-struct x2A_reference_entry
+struct T_2A_REFERENCE_LAYER_PROPERTIES
 {
-    uint32_t             ptr;
-    x2A_layer_properties properties;
+    uint32_t              layer_name_str_ptr;
+    T_2A_LAYER_PROPERTIES properties;
 
     // Always null?
     uint32_t un1;
 };
 
 // Layer names
-struct T_2A
+template <MAGIC magic>
+struct T_2A_CUSTOM_LAYER
 {
-    x2A_hdr                          hdr;
-    bool                             references;
-    std::vector<x2A_local_entry>     local_entries;
-    std::vector<x2A_reference_entry> reference_entries;
-    uint32_t                         k;
+    T_2A_HEADER hdr;
+
+    // In older versions of the file format, layer info entries are embedded
+    // immediately in this struct. In later versions, there are pointers.
+    COND_FIELD( magic <= A_164, std::vector<T_2A_LOCAL_LAYER_PROPERTIES>, local_entries );
+    COND_FIELD( magic > A_164, std::vector<T_2A_REFERENCE_LAYER_PROPERTIES>, reference_entries );
+
+    uint32_t k;
 };
 
 template <MAGIC magic>

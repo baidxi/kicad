@@ -130,8 +130,7 @@ uint32_t ALLEGRO_PARSER<magic>::DefaultParser( ALLEGRO_PARSER<magic>& aParser )
 {
     auto* inst = static_cast<T<magic>*>( aParser.m_curAddr );
     aParser.m_ptrs[inst->k] = aParser.m_curAddr;
-    size_t size = ALLEGRO::sizeof_allegro_obj<T<magic>>();
-    aParser.Skip( size );
+    aParser.Skip( ALLEGRO::sizeof_allegro_obj<T<magic>>() );
     return inst->k;
 };
 
@@ -327,46 +326,33 @@ uint32_t ALLEGRO_PARSER<magic>::Parse27( ALLEGRO_PARSER& aParser )
 template <ALLEGRO::MAGIC magic>
 uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
 {
-    ALLEGRO::T_2A x2A_inst;
-    memcpy( &x2A_inst.hdr, aParser.m_curAddr, sizeof( ALLEGRO::x2A_hdr ) );
+    ALLEGRO::T_2A_CUSTOM_LAYER<magic> x2A_inst;
+    memcpy( &x2A_inst.hdr, aParser.m_curAddr, sizeof( ALLEGRO::T_2A_HEADER ) );
+    aParser.Skip( sizeof( ALLEGRO::T_2A_HEADER ) );
 
-    // f.read((char*)&x2A_inst.hdr, sizeof(x2A_hdr));
-    aParser.Skip( sizeof( ALLEGRO::x2A_hdr ) );
     if( magic >= ALLEGRO::A_174 )
     {
         aParser.Skip( 4 );
     }
 
-    if( magic <= ALLEGRO::A_164 )
+    for( uint16_t i = 0; i < x2A_inst.hdr.count; i++ )
     {
-        x2A_inst.references = false;
-        for( uint16_t i = 0; i < x2A_inst.hdr.size; i++ )
+        if constexpr( magic <= ALLEGRO::A_164 )
         {
-            char buf[36] = { 0 };
-            // f.read((char*)buf, 36);
-            memcpy( buf, aParser.m_curAddr, 36 );
-            aParser.Skip( 36 );
-            ALLEGRO::x2A_layer_properties suffix = *( (ALLEGRO::x2A_layer_properties*) &buf[32] );
-            ALLEGRO::x2A_local_entry      entry = ALLEGRO::x2A_local_entry{ std::string( buf ), suffix };
-            x2A_inst.local_entries.push_back( entry );
+            auto entry = static_cast<ALLEGRO::T_2A_LOCAL_LAYER_PROPERTIES*>( aParser.m_curAddr );
+            aParser.Skip( sizeof( *entry ) );
+            x2A_inst.local_entries.push_back( *entry );
+        }
+        else
+        {
+            auto entry = static_cast<ALLEGRO::T_2A_REFERENCE_LAYER_PROPERTIES*>( aParser.m_curAddr );
+            aParser.Skip( sizeof( *entry ) );
+            x2A_inst.reference_entries.push_back( *entry );
         }
     }
-    else
-    {
-        x2A_inst.references = true;
-        for( uint16_t i = 0; i < x2A_inst.hdr.size; i++ )
-        {
-            ALLEGRO::x2A_reference_entry entry;
-            // f.read((char*)&entry, sizeof(x2A_reference_entry));
-            memcpy( &entry, aParser.m_curAddr, sizeof( ALLEGRO::x2A_reference_entry ) );
-            aParser.Skip( sizeof( ALLEGRO::x2A_reference_entry ) );
-            x2A_inst.reference_entries.push_back( entry );
-        }
-    }
-    // f.read((char*)&x2A_inst.k, 4);
     x2A_inst.k = *static_cast<uint32_t*>( aParser.m_curAddr );
     aParser.Skip( 4 );
-    aParser.m_t2A_map[x2A_inst.k] = x2A_inst;
+    aParser.m_layerInfo[x2A_inst.k] = x2A_inst;
     return 0;
 }
 
@@ -553,16 +539,16 @@ uint8_t ALLEGRO_PARSER<magic>::GetCopperLayerCount()
     std::tuple<uint32_t, uint32_t> tup = m_layers[4];
     uint32_t                       ptr = std::get<1>( tup );
 
-    if( m_t2A_map.count( ptr ) > 0 )
+    if( m_layerInfo.count( ptr ) > 0 )
     {
-        const ALLEGRO::T_2A* x = &m_t2A_map.at( ptr );
-        if( x->references )
+        const ALLEGRO::T_2A_CUSTOM_LAYER<magic>* x = &m_layerInfo.at( ptr );
+        if constexpr( magic <= ALLEGRO::A_164 )
         {
-            m_layerCount = x->reference_entries.size();
+            m_layerCount = x->local_entries.size();
         }
         else
         {
-            m_layerCount = x->local_entries.size();
+            m_layerCount = x->reference_entries.size();
         }
         return m_layerCount;
     }

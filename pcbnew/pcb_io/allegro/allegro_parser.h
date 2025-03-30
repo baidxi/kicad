@@ -260,11 +260,11 @@ private:
     // 0 = not calculated yet
     uint16_t m_layerCount = 0;
 
-    std::vector<std::tuple<uint32_t, uint32_t>> m_layers;
-    std::map<uint32_t, char*>                   m_strings;
-    std::map<uint32_t, ALLEGRO::T_2A>           m_t2A_map;
-    std::map<uint32_t, ALLEGRO::T_1E>           m_t1E_map;
-    std::map<uint32_t, ALLEGRO::T_36<magic>*>   m_t36_map;
+    std::vector<std::tuple<uint32_t, uint32_t>>           m_layers;
+    std::map<uint32_t, char*>                             m_strings;
+    std::map<uint32_t, ALLEGRO::T_2A_CUSTOM_LAYER<magic>> m_layerInfo;
+    std::map<uint32_t, ALLEGRO::T_1E>                     m_t1E_map;
+    std::map<uint32_t, ALLEGRO::T_36<magic>*>             m_t36_map;
 
 #if BOOST_VERSION >= 108100
     boost::unordered_flat_map<uint32_t, void*> m_ptrs;
