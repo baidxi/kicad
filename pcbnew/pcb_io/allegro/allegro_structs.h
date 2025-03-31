@@ -25,6 +25,7 @@
 #ifndef ALLEGRO_STRUCTS_H_
 #define ALLEGRO_STRUCTS_H_
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <variant>
@@ -119,6 +120,12 @@ enum class BRD_UNITS : uint8_t
     METRIC = 0x03,
 };
 
+struct LAYER_MAP_ENTRY
+{
+    uint32_t x;             // Unknown
+    uint32_t layer_set_ptr; // Pointer to `T_2A_LAYER_SET`
+};
+
 struct HEADER
 {
     uint32_t magic;
@@ -168,16 +175,13 @@ struct HEADER
     uint32_t strings_count;
     uint32_t un10[53];
     uint32_t unit_divisor;
-    uint32_t un11[112];
+    uint32_t un11[110];
+
+    // Index in this list corresponds to `LAYER_FAMILY`.
+    std::array<LAYER_MAP_ENTRY, 26> layer_sets;
 };
 
 static_assert( offsetof( HEADER, unit_divisor ) == 620 );
-
-struct LAYER_MAP_ENTRY
-{
-    uint32_t x;             // Unknown
-    uint32_t layer_set_ptr; // Pointer to `T_2A_LAYER_SET`
-};
 
 // Curved line segment
 template <MAGIC magic>

@@ -45,7 +45,7 @@ double cfp_to_double( ALLEGRO::CADENCE_FP aAllegroFloat )
         .x = aAllegroFloat.y,
         .y = aAllegroFloat.x,
     };
-    double g;
+    double g = 0.;
     std::memcpy( &g, &swapped, 8 );
     return g;
 }
@@ -74,14 +74,6 @@ void ALLEGRO_PARSER<magic>::Parse()
     case ALLEGRO::BRD_UNITS::METRIC: m_scaleFactor = ( (double) 1000000. ) / m_header->unit_divisor; break;
     default: THROW_IO_ERROR( wxString::Format( "Units 0x%02hhX not recognized.", m_header->units ) );
     };
-
-    // Layer map
-    for( uint8_t i = 0; i < 25; i++ )
-    {
-        auto entry = static_cast<ALLEGRO::LAYER_MAP_ENTRY*>( m_curAddr );
-        Skip( sizeof( *entry ) );
-        m_layers.push_back( *entry );
-    }
 
     // Strings map
     m_curAddr = (char*) m_baseAddr + 0x1200;
@@ -326,8 +318,8 @@ uint32_t ALLEGRO_PARSER<magic>::Parse27( ALLEGRO_PARSER& aParser )
 template <ALLEGRO::MAGIC magic>
 uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
 {
-    ALLEGRO::T_2A_LAYER_SET<magic> x2A_inst;
-    memcpy( &x2A_inst.hdr, aParser.m_curAddr, sizeof( ALLEGRO::T_2A_HEADER ) );
+    ALLEGRO::T_2A_LAYER_SET<magic> layer_set;
+    memcpy( &layer_set.hdr, aParser.m_curAddr, sizeof( ALLEGRO::T_2A_HEADER ) );
     aParser.Skip( sizeof( ALLEGRO::T_2A_HEADER ) );
 
     if( magic >= ALLEGRO::A_174 )
@@ -335,24 +327,24 @@ uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
         aParser.Skip( 4 );
     }
 
-    for( uint16_t i = 0; i < x2A_inst.hdr.count; i++ )
+    for( uint16_t i = 0; i < layer_set.hdr.count; i++ )
     {
         if constexpr( magic <= ALLEGRO::A_164 )
         {
             auto entry = static_cast<ALLEGRO::T_2A_LOCAL_LAYER_PROPERTIES*>( aParser.m_curAddr );
             aParser.Skip( sizeof( *entry ) );
-            x2A_inst.local_entries.push_back( *entry );
+            layer_set.local_entries.push_back( *entry );
         }
         else
         {
             auto entry = static_cast<ALLEGRO::T_2A_REFERENCE_LAYER_PROPERTIES*>( aParser.m_curAddr );
             aParser.Skip( sizeof( *entry ) );
-            x2A_inst.reference_entries.push_back( *entry );
+            layer_set.reference_entries.push_back( *entry );
         }
     }
-    x2A_inst.k = *static_cast<uint32_t*>( aParser.m_curAddr );
+    layer_set.k = *static_cast<uint32_t*>( aParser.m_curAddr );
     aParser.Skip( 4 );
-    aParser.m_layerSetMap[x2A_inst.k] = x2A_inst;
+    aParser.m_layerSetMap[layer_set.k] = layer_set;
     return 0;
 }
 
@@ -537,17 +529,16 @@ void ALLEGRO_PARSER<magic>::ProcessLayers( const auto& aLayerSetEntries, const a
     uint8_t i = 0;
     for( const auto& entry : aLayerSetEntries )
     {
-        const PCB_LAYER_ID layer =
-                EtchLayerToKi( ALLEGRO::LAYER_INFO{ .family = ALLEGRO::LAYER_FAMILY::COPPER, .ordinal = i++ } );
-        m_board->SetLayerName( layer, aLayerNameFunc( entry ) );
+        auto layer = ALLEGRO::LAYER_INFO{ .family = ALLEGRO::LAYER_FAMILY::COPPER, .ordinal = i++ };
+        m_board->SetLayerName( EtchLayerToKi( layer ), *LookupBrdLayerName( layer ) );
     }
 }
 
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::UpdateLayerInfo()
 {
-    auto     copper_layers = m_layers[4];
-    uint32_t ptr = copper_layers.layer_set_ptr;
+    auto     layer_set = m_header->layer_sets.at( static_cast<uint8_t>( ALLEGRO::LAYER_FAMILY::COPPER ) );
+    uint32_t ptr = layer_set.layer_set_ptr;
 
     if( m_layerSetMap.count( ptr ) > 0 )
     {
@@ -1435,11 +1426,11 @@ bool ALLEGRO_PARSER<magic>::IsType( uint32_t aKey, uint8_t aType )
 }
 
 template <ALLEGRO::MAGIC magic>
-std::optional<wxString> ALLEGRO_PARSER<magic>::LookupString( uint32_t aKey )
+std::optional<wxString> ALLEGRO_PARSER<magic>::LookupString( uint32_t aKey ) const
 {
     if( m_strings.count( aKey ) > 0 )
     {
-        return wxString( m_strings[aKey] );
+        return wxString( m_strings.at( aKey ) );
     }
     return {};
 }
@@ -1455,6 +1446,31 @@ std::optional<PCB_LAYER_ID> ALLEGRO_PARSER<magic>::LookupPcbLayer( const ALLEGRO
     {
         return {};
     }
+}
+
+template <ALLEGRO::MAGIC magic>
+std::optional<wxString> ALLEGRO_PARSER<magic>::LookupBrdLayerName( const ALLEGRO::LAYER_INFO& aLayer ) const
+{
+    uint32_t ptr = m_header->layer_sets.at( static_cast<uint8_t>( aLayer.family ) ).layer_set_ptr;
+    if( m_layerSetMap.count( ptr ) > 0 )
+    {
+        const ALLEGRO::T_2A_LAYER_SET<magic>* layer_set = &m_layerSetMap.at( ptr );
+        if constexpr( magic <= ALLEGRO::A_164 )
+        {
+            if( layer_set->local_entries.size() > aLayer.ordinal )
+            {
+                return layer_set->local_entries[aLayer.ordinal].layer_name;
+            }
+        }
+        else
+        {
+            if( layer_set->reference_entries.size() > aLayer.ordinal )
+            {
+                return LookupString( layer_set->reference_entries[aLayer.ordinal].layer_name_str_ptr );
+            }
+        }
+    }
+    return {};
 }
 
 template <ALLEGRO::MAGIC magic>

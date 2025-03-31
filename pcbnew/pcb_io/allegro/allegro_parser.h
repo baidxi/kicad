@@ -86,8 +86,9 @@ private:
     NETINFO_ITEM*    NetInfo( const ALLEGRO::T_04_NET_ASSIGNMENT<magic>& aNetAssignment );
     SHAPE_LINE_CHAIN ShapeStartingAt( uint32_t* aKey );
 
-    std::optional<wxString>     LookupString( uint32_t aKey );
+    std::optional<wxString>     LookupString( uint32_t aKey ) const;
     std::optional<PCB_LAYER_ID> LookupPcbLayer( const ALLEGRO::LAYER_INFO& aLayer ) const;
+    std::optional<wxString>     LookupBrdLayerName( const ALLEGRO::LAYER_INFO& aLayer ) const;
 
     template <class SEGMENT_TYPE>
     void AddSegmentToChain( SHAPE_LINE_CHAIN& aChain, SEGMENT_TYPE* aSegment, bool aFirstSegment );
@@ -263,7 +264,6 @@ private:
     // 0 = not calculated yet
     uint16_t m_layerCount = 0;
 
-    std::vector<ALLEGRO::LAYER_MAP_ENTRY>              m_layers;
     std::map<uint32_t, char*>                          m_strings;
     std::map<uint32_t, ALLEGRO::T_2A_LAYER_SET<magic>> m_layerSetMap;
     std::map<uint32_t, ALLEGRO::T_1E>                  m_t1E_map;
