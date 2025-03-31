@@ -78,9 +78,9 @@ void ALLEGRO_PARSER<magic>::Parse()
     // Layer map
     for( uint8_t i = 0; i < 25; i++ )
     {
-        uint32_t xs[2] = { *( (uint32_t*) m_curAddr ), *( ( (uint32_t*) m_curAddr ) + 1 ) };
-        Skip( sizeof( xs ) );
-        m_layers.emplace_back( xs[0], xs[1] );
+        auto entry = static_cast<ALLEGRO::LAYER_MAP_ENTRY*>( m_curAddr );
+        Skip( sizeof( *entry ) );
+        m_layers.push_back( *entry );
     }
 
     // Strings map
@@ -326,7 +326,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse27( ALLEGRO_PARSER& aParser )
 template <ALLEGRO::MAGIC magic>
 uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
 {
-    ALLEGRO::T_2A_CUSTOM_LAYER<magic> x2A_inst;
+    ALLEGRO::T_2A_LAYER_SET<magic> x2A_inst;
     memcpy( &x2A_inst.hdr, aParser.m_curAddr, sizeof( ALLEGRO::T_2A_HEADER ) );
     aParser.Skip( sizeof( ALLEGRO::T_2A_HEADER ) );
 
@@ -352,7 +352,7 @@ uint32_t ALLEGRO_PARSER<magic>::Parse2ALayerInfo( ALLEGRO_PARSER& aParser )
     }
     x2A_inst.k = *static_cast<uint32_t*>( aParser.m_curAddr );
     aParser.Skip( 4 );
-    aParser.m_layerInfo[x2A_inst.k] = x2A_inst;
+    aParser.m_layerSetMap[x2A_inst.k] = x2A_inst;
     return 0;
 }
 
@@ -529,33 +529,45 @@ uint32_t ALLEGRO_PARSER<magic>::Parse3C( ALLEGRO_PARSER& aParser )
 }
 
 template <ALLEGRO::MAGIC magic>
-uint8_t ALLEGRO_PARSER<magic>::GetCopperLayerCount()
+void ALLEGRO_PARSER<magic>::ProcessLayers( const auto& aLayerSetEntries, const auto& aLayerNameFunc )
 {
-    if( m_layerCount > 1 )
+    m_layerCount = aLayerSetEntries.size();
+    m_board->SetCopperLayerCount( m_layerCount );
+
+    uint8_t i = 0;
+    for( const auto& entry : aLayerSetEntries )
     {
-        return m_layerCount;
+        const PCB_LAYER_ID layer =
+                EtchLayerToKi( ALLEGRO::LAYER_INFO{ .family = ALLEGRO::LAYER_FAMILY::COPPER, .ordinal = i++ } );
+        m_board->SetLayerName( layer, aLayerNameFunc( entry ) );
     }
+}
 
-    std::tuple<uint32_t, uint32_t> tup = m_layers[4];
-    uint32_t                       ptr = std::get<1>( tup );
+template <ALLEGRO::MAGIC magic>
+void ALLEGRO_PARSER<magic>::UpdateLayerInfo()
+{
+    auto     copper_layers = m_layers[4];
+    uint32_t ptr = copper_layers.layer_set_ptr;
 
-    if( m_layerInfo.count( ptr ) > 0 )
+    if( m_layerSetMap.count( ptr ) > 0 )
     {
-        const ALLEGRO::T_2A_CUSTOM_LAYER<magic>* x = &m_layerInfo.at( ptr );
+        const ALLEGRO::T_2A_LAYER_SET<magic>* x = &m_layerSetMap.at( ptr );
         if constexpr( magic <= ALLEGRO::A_164 )
         {
-            m_layerCount = x->local_entries.size();
+            ProcessLayers( x->local_entries,
+                           []( const auto& entry )
+                           {
+                               return entry.layer_name;
+                           } );
         }
         else
         {
-            m_layerCount = x->reference_entries.size();
+            ProcessLayers( x->reference_entries,
+                           [this]( const auto& entry )
+                           {
+                               return *LookupString( entry.layer_name_str_ptr );
+                           } );
         }
-        return m_layerCount;
-    }
-    else
-    {
-        wxLogMessage( "Unable to determine layer count" );
-        return -1;
     }
 }
 
@@ -1221,7 +1233,7 @@ void ALLEGRO_PARSER<magic>::AddRectangle( BOARD_ITEM_CONTAINER&                 
 template <ALLEGRO::MAGIC magic>
 void ALLEGRO_PARSER<magic>::BuildBoard()
 {
-    m_board->SetCopperLayerCount( GetCopperLayerCount() );
+    UpdateLayerInfo();
 
     auto* net = static_cast<ALLEGRO::T_1B_NET<magic>*>( m_ptrs[m_header->ll_x1B.head] );
     if( net != nullptr )
@@ -1520,7 +1532,7 @@ PCB_LAYER_ID ALLEGRO_PARSER<magic>::EtchLayerToKi( const ALLEGRO::LAYER_INFO& aL
     {
         return F_Cu;
     }
-    else if( aLayer.ordinal == GetCopperLayerCount() - 1 )
+    else if( aLayer.ordinal == m_layerCount - 1 )
     {
         return B_Cu;
     }

@@ -173,6 +173,12 @@ struct HEADER
 
 static_assert( offsetof( HEADER, unit_divisor ) == 620 );
 
+struct LAYER_MAP_ENTRY
+{
+    uint32_t x;             // Unknown
+    uint32_t layer_set_ptr; // Pointer to `T_2A_LAYER_SET`
+};
+
 // Curved line segment
 template <MAGIC magic>
 struct T_01_ARC
@@ -1074,7 +1080,7 @@ struct T_2A_REFERENCE_LAYER_PROPERTIES
 
 // Layer names
 template <MAGIC magic>
-struct T_2A_CUSTOM_LAYER
+struct T_2A_LAYER_SET
 {
     T_2A_HEADER hdr;
 
