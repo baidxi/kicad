@@ -86,6 +86,8 @@ public:
         return m_weight < aOther.m_weight;
     }
 
+    bool id_cmp( CN_EDGE aOther ) const;
+
     std::shared_ptr<const CN_ANCHOR> GetSourceNode() const { return m_source; }
     std::shared_ptr<const CN_ANCHOR> GetTargetNode() const { return m_target; }
 

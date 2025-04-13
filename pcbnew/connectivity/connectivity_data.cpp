@@ -720,7 +720,7 @@ void sortEdgesOnSerializationForStableOrdering( std::vector<CN_EDGE>& edges )
     std::sort(edges.begin(), edges.end(),
               [](const CN_EDGE& a, const CN_EDGE& b)
               {
-                  return a.SerializeToString() < b.SerializeToString();
+                  return a.id_cmp(b);
               });
 }
 
