@@ -1,0 +1,17 @@
+AVALON.BRD:
+License: Public domain/GPL 3 (https://github.com/GeorgeHahn/Avalon/blob/f57052b959ce447afe530130450fa4b140093cba/LICENSE)
+
+BeagleBone-AI.brd:
+License: CC-BY-4.0 (https://github.com/beagleboard/beaglebone-ai/blob/8e5f107ce0716a79e03dc2a995788488bd99c57f/LICENSE)
+
+BeagleY-AI_PCB_V1.0_240105.brd:
+License: CC-BY-4.0 (https://openbeagle.org/beagley-ai/beagley-ai/-/blob/c4c30e13adfb64c1feea3d927340288f7a261591/LICENSE)
+
+MAINBOARD_02_20181023.brd:
+License: CC-BY-SA-3.0 (https://github.com/AteamVentures/CREATABLE_D3/blob/e88341446109f16e9c14426649b1389b68e461ea/Hardware/LICENSE)
+
+OpenCellular_Connect-1_GBC_Life-3_Board_v1.1.brd:
+License: CC-BY-4.0 (https://github.com/Telecominfraproject/OpenCellular/blob/0d5d7b005327e4378bd5c7fd44d7b8dc5ab796f6/LICENSE-HARDWARE)
+
+slugs_v2_1.brd
+License: MIT (https://github.com/gottlieb/SLUGS/blob/f812d3ceb9c29a023088e55c0ef57c524110521c/LICENSE)
