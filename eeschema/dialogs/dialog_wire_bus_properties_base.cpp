@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 3.10.1-0-g8feb16b)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -66,7 +66,7 @@ DIALOG_WIRE_BUS_PROPERTIES_BASE::DIALOG_WIRE_BUS_PROPERTIES_BASE( wxWindow* pare
 	m_typeCombo = new wxBitmapComboBox( this, wxID_ANY, _("Combo!"), wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
 	m_typeCombo->SetMinSize( wxSize( 240,-1 ) );
 
-	gbSizer1->Add( m_typeCombo, wxGBPosition( 1, 1 ), wxGBSpan( 1, 4 ), wxEXPAND|wxALIGN_CENTER_VERTICAL, 5 );
+	gbSizer1->Add( m_typeCombo, wxGBPosition( 1, 1 ), wxGBSpan( 1, 4 ), wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
 
 	m_dotSizeLabel = new wxStaticText( this, wxID_ANY, _("Junction size:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_dotSizeLabel->Wrap( -1 );
@@ -80,6 +80,19 @@ DIALOG_WIRE_BUS_PROPERTIES_BASE::DIALOG_WIRE_BUS_PROPERTIES_BASE( wxWindow* pare
 	m_dotSizeUnits = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_dotSizeUnits->Wrap( -1 );
 	gbSizer1->Add( m_dotSizeUnits, wxGBPosition( 3, 2 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 3 );
+
+	m_busEntrySizeLabel = new wxStaticText( this, wxID_ANY, _("Bus entry size:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_busEntrySizeLabel->Wrap( -1 );
+	gbSizer1->Add( m_busEntrySizeLabel, wxGBPosition( 4, 0 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+
+	m_busEntrySizeCombo = new wxBitmapComboBox( this, wxID_ANY, _("__leave unchanged__"), wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
+	m_busEntrySizeCombo->SetMinSize( wxSize( 240,-1 ) );
+
+	gbSizer1->Add( m_busEntrySizeCombo, wxGBPosition( 4, 1 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxEXPAND|wxFIXED_MINSIZE, 5 );
+
+	m_busEntrySizeUnits = new wxStaticText( this, wxID_ANY, _("unit"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_busEntrySizeUnits->Wrap( -1 );
+	gbSizer1->Add( m_busEntrySizeUnits, wxGBPosition( 4, 2 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
 
 
 	mainSizer->Add( gbSizer1, 1, wxEXPAND|wxALL, 10 );

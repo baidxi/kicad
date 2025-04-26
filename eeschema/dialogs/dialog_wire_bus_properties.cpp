@@ -69,6 +69,7 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
     STROKE_PARAMS stroke;
     COLOR4D       color;
     int           dotSize = -1;     // set value to "not found"
+    VECTOR2I      busEntrySize( -1, -1 );
 
     for( SCH_ITEM* item : m_items )
     {
@@ -76,6 +77,11 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
         {
             stroke = item->GetStroke();
             color = stroke.GetColor();
+            if( item->Type() == SCH_BUS_WIRE_ENTRY_T )
+            {
+                SCH_BUS_ENTRY_BASE* busEntry = static_cast<SCH_BUS_ENTRY_BASE*>( item );
+                busEntrySize = busEntry->GetSize();
+            }
         }
         else
         {
@@ -160,6 +166,75 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataToWindow()
         m_junctionSize.SetValue( INDETERMINATE_ACTION );
     }
 
+    int largeSizeIndex = m_busEntrySizeCombo->FindString( busEntryLargeSize );
+    int smallSizeIndex = m_busEntrySizeCombo->FindString( busEntrySmallSize );
+    if( largeSizeIndex != wxNOT_FOUND )
+        m_busEntrySizeCombo->Delete( largeSizeIndex );
+    if( smallSizeIndex != wxNOT_FOUND )
+        m_busEntrySizeCombo->Delete( smallSizeIndex );
+
+    wxString msg;
+    switch( GetUserUnits() )
+    {
+    case EDA_UNITS::INCHES:
+        msg = _( "inches" );
+        busEntryLargeSize = "0.1";
+        busEntrySmallSize = "0.05";
+        break;
+    case EDA_UNITS::MILS:
+        msg = _( "mils" );
+        busEntryLargeSize = "100";
+        busEntrySmallSize = "50";
+        break;
+    case EDA_UNITS::MILLIMETRES:
+        msg = _( "mm" );
+        busEntryLargeSize = "2.54";
+        busEntrySmallSize = "1.27";
+        break;
+    default:
+        msg = _( "Units" );
+        busEntryLargeSize = _( "Large" );
+        busEntrySmallSize = _( "Small" );
+        break;
+    }
+    m_busEntrySizeUnits->SetLabel( msg );
+    m_busEntrySizeCombo->Append( busEntryLargeSize );
+    m_busEntrySizeCombo->Append( busEntrySmallSize );
+
+    if( std::all_of( m_items.begin(), m_items.end(),
+                     [&]( const SCH_ITEM* item )
+                     {
+                         return item->Type() != SCH_BUS_WIRE_ENTRY_T
+                                || static_cast<const SCH_BUS_ENTRY_BASE*>( item )->GetSize()
+                                           == busEntrySize;
+                     } ) )
+    {
+        if( busEntrySize.x >= 0 && busEntrySize.y >= 0 )
+        {
+            if( busEntrySize.x
+                == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 100 ) )
+                m_busEntrySizeCombo->SetStringSelection( busEntryLargeSize );
+            else if( busEntrySize.x
+                     == EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ) )
+                m_busEntrySizeCombo->SetStringSelection( busEntrySmallSize );
+            else
+            {
+                m_busEntrySizeCombo->SetStringSelection( INDETERMINATE_STYLE );
+            }
+        }
+        else
+        {
+            m_busEntrySizeLabel->Enable( false );
+            m_busEntrySizeCombo->Enable( false );
+            m_busEntrySizeUnits->Enable( false );
+            m_busEntrySizeCombo->SetStringSelection( INDETERMINATE_STYLE );
+        }
+    }
+    else
+    {
+        m_busEntrySizeCombo->SetStringSelection( INDETERMINATE_STYLE );
+    }
+
     return true;
 }
 
@@ -170,6 +245,7 @@ void DIALOG_WIRE_BUS_PROPERTIES::resetDefaults( wxCommandEvent& event )
     m_colorSwatch->SetSwatchColor( COLOR4D::UNSPECIFIED, false );
     m_typeCombo->SetStringSelection( DEFAULT_WIRE_STYLE_LABEL );
     m_junctionSize.SetValue( 0 );
+    m_busEntrySizeCombo->SetStringSelection( busEntryLargeSize );
 
     Refresh();
 }
@@ -218,6 +294,21 @@ bool DIALOG_WIRE_BUS_PROPERTIES::TransferDataFromWindow()
                 static_cast<SCH_LINE*>( item )->SetLineColor( color );
             else if( dynamic_cast<SCH_BUS_ENTRY_BASE*>( item ) )
                 static_cast<SCH_BUS_ENTRY_BASE*>( item )->SetBusEntryColor( color );
+
+            if( item->Type() == SCH_BUS_WIRE_ENTRY_T
+                && m_busEntrySizeCombo->GetStringSelection() != INDETERMINATE_STYLE )
+            {
+                if( m_busEntrySizeCombo->GetStringSelection() == busEntryLargeSize )
+
+                    static_cast<SCH_BUS_ENTRY_BASE*>( item )->SetSize( VECTOR2I(
+                            EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 100 ),
+                            EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS,
+                                                              100 ) ) );
+                else if( m_busEntrySizeCombo->GetStringSelection() == busEntrySmallSize )
+                    static_cast<SCH_BUS_ENTRY_BASE*>( item )->SetSize( VECTOR2I(
+                            EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ),
+                            EDA_UNIT_UTILS::UI::FromUserUnit( schIUScale, EDA_UNITS::MILS, 50 ) ) );
+            }
         }
         else
         {

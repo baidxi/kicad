@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 3.10.1-0-g8feb16b)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -53,6 +53,9 @@ class DIALOG_WIRE_BUS_PROPERTIES_BASE : public DIALOG_SHIM
 		wxStaticText* m_dotSizeLabel;
 		wxTextCtrl* m_dotSizeCtrl;
 		wxStaticText* m_dotSizeUnits;
+		wxStaticText* m_busEntrySizeLabel;
+		wxBitmapComboBox* m_busEntrySizeCombo;
+		wxStaticText* m_busEntrySizeUnits;
 		wxStaticText* m_helpLabel1;
 		wxStaticText* m_helpLabel2;
 		wxStdDialogButtonSizer* m_sdbSizer;
