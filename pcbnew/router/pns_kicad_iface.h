@@ -73,8 +73,8 @@ public:
     void UpdateItem( PNS::ITEM* aItem ) override;
     void RemoveItem( PNS::ITEM* aItem ) override;
     void Commit() override {}
-    bool ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* aStartItem, PNS::NET_HANDLE aNet,
-                      VECTOR2D aStartPosition ) override;
+    bool ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* aStartItem, int aLayer, 
+                      PNS::NET_HANDLE aNet, VECTOR2D aStartPosition ) override;
     int StackupHeight( int aFirstLayer, int aSecondLayer ) const override;
 
     int GetNetCode( PNS::NET_HANDLE aNet ) const override { return -1; }
@@ -96,9 +96,6 @@ public:
 
     PCB_LAYER_ID GetBoardLayerFromPNSLayer( int aLayer ) const override;
     int GetPNSLayerFromBoardLayer( PCB_LAYER_ID aLayer ) const override;
-
-    void SetStartLayerFromPCBNew( PCB_LAYER_ID aLayer );
-    void SetStartLayerFromPNS( int aLayer ) { m_startLayer = aLayer; }
 
     PNS_LAYER_RANGE SetLayersFromPCBNew( PCB_LAYER_ID aStartLayer, PCB_LAYER_ID aEndLayer );
 
@@ -129,7 +126,6 @@ protected:
 protected:
     PNS::NODE* m_world;
     BOARD*     m_board;
-    int        m_startLayer; // The starting layer, in PNS layer coordinates
 };
 
 class PNS_KICAD_IFACE : public PNS_KICAD_IFACE_BASE
