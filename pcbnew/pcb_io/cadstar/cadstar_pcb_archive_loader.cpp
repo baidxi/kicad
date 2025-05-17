@@ -139,6 +139,16 @@ void CADSTAR_PCB_ARCHIVE_LOADER::Load( BOARD* aBoard, PROJECT* aProject )
     loadNets();
     loadTextVariables();
 
+    for( const auto& UnsupportedLayerPair : Assignments.Codedefs.UnsupportedLayerPairs )
+    {
+        auto id = UnsupportedLayerPair.first;
+        auto type = UnsupportedLayerPair.second.UnsupportedChildID;
+        wxLogWarning( wxString::Format(
+            _( "The CADSTAR layerpair '%s' of type '%s' "
+               "is not supported by the KiCad importer and will be ignored" ),
+            id, type ) );
+    }
+
     if( Layout.Trunks.size() > 0 )
     {
         wxLogWarning(

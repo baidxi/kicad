@@ -300,7 +300,19 @@ void CADSTAR_PCB_ARCHIVE_PARSER::CODEDEFS_PCB::Parse( XNODE* aNode, PARSER_CONTE
         {
             LAYERPAIR layerpair;
             layerpair.Parse( cNode, aContext );
-            LayerPairs.insert( std::make_pair( layerpair.ID, layerpair ) );
+            if( layerpair.UnsupportedChildID.IsEmpty() )
+            {
+                LayerPairs.insert( std::make_pair( layerpair.ID, layerpair ) );
+            }
+            else
+            {
+                // keeping track of unsupported layerpairs such as "MANUAL" to warn
+                // the user after the import that they are ignored
+                // hoping that ignoring those layerpairs will not cause any problems
+                // further down during the import
+                UnsupportedLayerPairs.insert( std::make_pair( layerpair.ID, layerpair ) );
+            }
+
         }
         else if( nodeName == wxT( "SPCCLASSSPACE" ) )
         {
@@ -927,7 +939,8 @@ void CADSTAR_PCB_ARCHIVE_PARSER::LAYERPAIR::Parse( XNODE* aNode, PARSER_CONTEXT*
         }
         else
         {
-            THROW_UNKNOWN_NODE_IO_ERROR( aNode->GetChildren()->GetName(), location );
+            UnsupportedChildID = aNode->GetChildren()->GetName();
+            // THROW_UNKNOWN_NODE_IO_ERROR( aNode->GetChildren()->GetName(), location );
         }
 
         CheckNoNextNodes( aNode->GetChildren() );
