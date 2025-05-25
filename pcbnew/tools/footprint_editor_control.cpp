@@ -658,7 +658,12 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     explorerCommand.Replace( wxT( "%F" ), fileArg );
 
     if( !explorerCommand.IsEmpty() )
-        wxExecute( explorerCommand );
+    {
+#ifdef __WXGTK__
+        if( !DbusFileManagerPreselected( escapedFilePath ) )
+#endif
+            wxExecute( explorerCommand );
+    }
 
     return 0;
 }

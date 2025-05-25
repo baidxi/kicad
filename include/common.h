@@ -149,4 +149,14 @@ KICOMMON_API const wxString ResolveUriByEnvVars( const wxString& aUri, const PRO
 KICOMMON_API bool WarnUserIfOperatingSystemUnsupported();
 
 
-#endif // INCLUDE__COMMON_H_
+
+#ifdef __WXGTK__
+/**
+ * Opens a file preselected in file manager using Dbus on Linux
+ *
+ * @return true if there were no errors
+ */
+KICOMMON_API bool DbusFileManagerPreselected( wxString aPath );
+#endif  // __WXGTK__
+
+#endif  // INCLUDE__COMMON_H_

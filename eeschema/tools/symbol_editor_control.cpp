@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+
 #include "tools/symbol_editor_control.h"
 
 #include <advanced_config.h>
@@ -47,6 +48,11 @@
 
 #include <wx/filedlg.h>
 #include <kiplatform/ui.h>
+
+
+#ifdef __WXGTK__
+#include <common.h>
+#endif
 
 
 bool SYMBOL_EDITOR_CONTROL::Init()
@@ -430,7 +436,13 @@ int SYMBOL_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     explorerCommand.Replace( wxT( "%F" ), fileArg );
 
     if( !explorerCommand.IsEmpty() )
-        wxExecute( explorerCommand );
+    {
+
+#ifdef __WXGTK__
+        if( !DbusFileManagerPreselected( filePath ) )
+#endif
+            wxExecute( explorerCommand );
+    }
 
     return 0;
 }
