@@ -60,9 +60,6 @@ private:
 
     HANDLER_RESULT<commands::RunActionResponse> handleRunAction( const HANDLER_CONTEXT<commands::RunAction>& aCtx );
 
-    HANDLER_RESULT<commands::GetOpenDocumentsResponse> handleGetOpenDocuments(
-            const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
-
     HANDLER_RESULT<Empty> handleSaveDocument( const HANDLER_CONTEXT<commands::SaveDocument>& aCtx );
 
     HANDLER_RESULT<Empty> handleSaveCopyOfDocument(
@@ -156,6 +153,8 @@ protected:
                               const std::string& aClientName ) override;
 
     std::optional<EDA_ITEM*> getItemFromDocument( const DocumentSpecifier& aDocument, const KIID& aId ) override;
+
+    void handleGetOpenDocuments( DocumentSpecifier& aDocument ) override;
 
 private:
     PCB_EDIT_FRAME* frame() const;

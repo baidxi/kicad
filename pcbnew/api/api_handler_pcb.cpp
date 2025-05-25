@@ -57,8 +57,6 @@ API_HANDLER_PCB::API_HANDLER_PCB( PCB_EDIT_FRAME* aFrame ) :
         API_HANDLER_EDITOR( aFrame )
 {
     registerHandler<RunAction, RunActionResponse>( &API_HANDLER_PCB::handleRunAction );
-    registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
-            &API_HANDLER_PCB::handleGetOpenDocuments );
     registerHandler<SaveDocument, Empty>( &API_HANDLER_PCB::handleSaveDocument );
     registerHandler<SaveCopyOfDocument, Empty>( &API_HANDLER_PCB::handleSaveCopyOfDocument );
     registerHandler<RevertDocument, Empty>( &API_HANDLER_PCB::handleRevertDocument );
@@ -129,33 +127,6 @@ HANDLER_RESULT<RunActionResponse> API_HANDLER_PCB::handleRunAction(
     else
         response.set_status( RunActionStatus::RAS_INVALID );
 
-    return response;
-}
-
-
-HANDLER_RESULT<GetOpenDocumentsResponse> API_HANDLER_PCB::handleGetOpenDocuments(
-        const HANDLER_CONTEXT<GetOpenDocuments>& aCtx )
-{
-    if( aCtx.Request.type() != DocumentType::DOCTYPE_PCB )
-    {
-        ApiResponseStatus e;
-        // No message needed for AS_UNHANDLED; this is an internal flag for the API server
-        e.set_status( ApiStatusCode::AS_UNHANDLED );
-        return tl::unexpected( e );
-    }
-
-    GetOpenDocumentsResponse response;
-    common::types::DocumentSpecifier doc;
-
-    wxFileName fn( frame()->GetCurrentFileName() );
-
-    doc.set_type( DocumentType::DOCTYPE_PCB );
-    doc.set_board_filename( fn.GetFullName() );
-
-    doc.mutable_project()->set_name( frame()->Prj().GetProjectName().ToStdString() );
-    doc.mutable_project()->set_path( frame()->Prj().GetProjectDirectory().ToStdString() );
-
-    response.mutable_documents()->Add( std::move( doc ) );
     return response;
 }
 
@@ -1525,4 +1496,10 @@ HANDLER_RESULT<Empty> API_HANDLER_PCB::handleSetBoardEditorAppearanceSettings(
     frame()->GetCanvas()->Refresh();
 
     return Empty();
+}
+
+void API_HANDLER_PCB::handleGetOpenDocuments( DocumentSpecifier& aDocument )
+{
+    wxFileName fn( m_frame->GetCurrentFileName() );
+    aDocument.set_board_filename( fn.GetFullName() );
 }

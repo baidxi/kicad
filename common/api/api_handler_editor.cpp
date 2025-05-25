@@ -24,8 +24,13 @@
 #include <eda_item.h>
 #include <wx/wx.h>
 
-using namespace kiapi::common::commands;
+#include <api/common/types/base_types.pb.h>
+#include <project.h>
 
+using namespace kiapi::common::commands;
+using kiapi::common::commands::GetOpenDocuments;
+using kiapi::common::commands::GetOpenDocumentsResponse;
+using kiapi::common::types::DocumentType;
 
 API_HANDLER_EDITOR::API_HANDLER_EDITOR( EDA_BASE_FRAME* aFrame ) :
         API_HANDLER(),
@@ -37,6 +42,7 @@ API_HANDLER_EDITOR::API_HANDLER_EDITOR( EDA_BASE_FRAME* aFrame ) :
     registerHandler<UpdateItems, UpdateItemsResponse>( &API_HANDLER_EDITOR::handleUpdateItems );
     registerHandler<DeleteItems, DeleteItemsResponse>( &API_HANDLER_EDITOR::handleDeleteItems );
     registerHandler<HitTest, HitTestResponse>( &API_HANDLER_EDITOR::handleHitTest );
+    registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>( &API_HANDLER_EDITOR::handleGetOpenDocuments );
 }
 
 
@@ -351,5 +357,49 @@ HANDLER_RESULT<HitTestResponse> API_HANDLER_EDITOR::handleHitTest(
     else
         response.set_result( HitTestResult::HTR_NO_HIT );
 
+    return response;
+}
+
+HANDLER_RESULT<GetOpenDocumentsResponse>
+API_HANDLER_EDITOR::handleGetOpenDocuments( const HANDLER_CONTEXT<GetOpenDocuments>& aCtx )
+{
+    DocumentType requestedType = aCtx.Request.type();
+    // Handle project doc type, useful to get the project info/file without specify the final document (SCH, PCB)
+    if( requestedType == DocumentType::DOCTYPE_PROJECT && m_frame != nullptr )
+    {
+        GetOpenDocumentsResponse response;
+        DocumentSpecifier        doc;
+
+        wxFileName fn( m_frame->GetCurrentFileName() );
+
+        doc.set_type( thisDocumentType() );
+
+        doc.mutable_project()->set_name( m_frame->Prj().GetProjectName().ToStdString() );
+        doc.mutable_project()->set_path( m_frame->Prj().GetProjectDirectory().ToStdString() );
+
+        response.mutable_documents()->Add( std::move( doc ) );
+        return response;
+    }
+    //If not project, we check if the handler match.
+    if( requestedType != thisDocumentType() )
+    {
+        ApiResponseStatus e;
+
+        // No message needed for AS_UNHANDLED; this is an internal flag for the API server
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
+        return tl::unexpected( e );
+    }
+
+    GetOpenDocumentsResponse response;
+    DocumentSpecifier        doc;
+
+    doc.set_type( thisDocumentType() );
+
+    doc.mutable_project()->set_name( m_frame->Prj().GetProjectName().ToStdString() );
+    doc.mutable_project()->set_path( m_frame->Prj().GetProjectDirectory().ToStdString() );
+
+    handleGetOpenDocuments( doc );
+
+    response.mutable_documents()->Add( std::move( doc ) );
     return response;
 }
