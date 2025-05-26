@@ -1191,6 +1191,8 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     int  pkind     = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KIND" ), 0 );
     bool is_cutout = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISBOARDCUTOUT" ), false );
 
+    v7layer = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "V7_LAYER" ), wxEmptyString );
+    name = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "NAME" ), wxEmptyString );
     is_shapebased = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISSHAPEBASED" ), false );
     keepoutrestrictions = static_cast<uint8_t>(
             ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRIC" ), 0x1F ) );
@@ -1199,6 +1201,25 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     // Note: "the other subpolyindex" is "polygon"
     subpolyindex = static_cast<uint16_t>(
             ALTIUM_PROPS_UTILS::ReadInt( properties, "SUBPOLYINDEX", ALTIUM_POLYGON_NONE ) );
+
+    unionindex = ALTIUM_PROPS_UTILS::ReadOptInt( properties, "UNIONINDEX" );
+    padindex = ALTIUM_PROPS_UTILS::ReadOptInt( properties, "PADINDEX" );
+    arc_resolution = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, "ARCRESOLUTION", "0.1mil");
+    cavity_height = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, "CAVITYHEIGHT", "0mil");
+
+    // Note RFB:
+    // Sometimes the format could have vertices in the properties region, e.g. like below. In these
+    // cases a property "MAINCONTOURVERTEXCOUNT" will also be present containing the number of
+    // vertices. For now, I decided it is not worth it to parse it since the same data is present in
+    // the binary stream in all samples I have seen.
+    //  KIND0=0
+    //  VX0=-27mil
+    //  VY0=-15mil
+    //  CX0=0mil
+    //  CY0=0mil
+    //  SA0= 0.00000000000000E+0000
+    //  EA0= 0.00000000000000E+0000
+    //  R0=0mil
 
     switch( pkind )
     {

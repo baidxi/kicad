@@ -85,6 +85,8 @@ enum class ALTIUM_PCB_DIR
 
 
 class BOARD;
+class BOARD_CONNECTED_ITEM;
+class PAD;
 class FP_SHAPE;
 class PCB_SHAPE;
 class PCB_TEXTBOX;
@@ -182,11 +184,14 @@ private:
                                               const ACOMPONENTBODY6& aElem );
     void ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                          const CFB::COMPOUND_FILE_ENTRY* aEntry );
-    void ConvertPads6ToBoardItem( const APAD6& aElem );
-    void ConvertPads6ToFootprintItem( FOOTPRINT* aFootprint, const APAD6& aElem );
-    void ConvertPads6ToBoardItemOnNonCopper( const APAD6& aElem );
-    void ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, const APAD6& aElem );
-    void ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, const APAD6& aElem );
+    void ConvertPads6ToBoardItem( const APAD6& aElem, const int aPadIndex );
+    void ConvertPads6ToFootprintItem( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                      const int aPadIndex );
+    void ConvertPads6ToBoardItemOnNonCopper( const APAD6& aElem, const int aPadIndex );
+    void ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                              const int aPadIndex );
+    void ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                                 const int aPadIndex );
     void ParseVias6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                          const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ConvertVias6ToFootprintItem( FOOTPRINT* aFootprint, const AVIA6& aElem );
@@ -261,6 +266,7 @@ private:
                                            const ALTIUM_LAYER aAltiumLayer );
 
     FOOTPRINT* HelperGetFootprint( uint16_t aComponent ) const;
+    PAD* HelperGetPad( int aPadIndex ) const;
 
     void remapUnsureLayers( std::vector<ABOARD6_LAYER_STACKUP>& aStackup );
 
@@ -277,6 +283,7 @@ private:
     std::map<ALTIUM_RULE_KIND, std::vector<ARULE6>> m_rules;
     std::map<ALTIUM_RECORD, std::multimap<int, const AEXTENDED_PRIMITIVE_INFORMATION>>
             m_extendedPrimitiveInformationMaps;
+    std::map<int, BOARD_CONNECTED_ITEM*> m_padIndexMap;
 
     std::map<ALTIUM_LAYER, ZONE*>        m_outer_plane;
 

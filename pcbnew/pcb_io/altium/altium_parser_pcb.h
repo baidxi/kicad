@@ -562,8 +562,16 @@ struct AREGION6
     uint8_t      keepoutrestrictions;
     uint16_t     holecount;
 
+    wxString name;
+    wxString v7layer; ///< duplicate data? seems identical to 'layer' in the binary stream
+
+    std::optional<int> unionindex; ///< Unclear what unionindex refers to
+    std::optional<int> padindex;
+
     ALTIUM_REGION_KIND kind; // I assume this means if normal or keepout?
 
+    std::optional<int32_t>                   cavity_height; ///< Unclear what cavity height is
+    std::optional<int32_t>                   arc_resolution;
     std::vector<ALTIUM_VERTICE>              outline;
     std::vector<std::vector<ALTIUM_VERTICE>> holes;
 

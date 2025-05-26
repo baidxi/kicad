@@ -75,6 +75,29 @@ bool IsAltiumLayerAPlane( ALTIUM_LAYER aLayer )
     return aLayer >= ALTIUM_LAYER::INTERNAL_PLANE_1 && aLayer <= ALTIUM_LAYER::INTERNAL_PLANE_16;
 }
 
+
+PAD* ALTIUM_PCB::HelperGetPad( int aPadIndex ) const
+{
+    if( !m_padIndexMap.contains( aPadIndex ) )
+    {
+        THROW_IO_ERROR( wxString::Format( wxT( "Component creator tries to access pad id "
+                                               "%d, which does not exist" ),
+                                          aPadIndex ) );
+    }
+
+    BOARD_CONNECTED_ITEM* padBoardItem = m_padIndexMap.at( aPadIndex );
+
+    if( padBoardItem->Type() != PCB_PAD_T )
+    {
+        // Todo: graceful handling?
+        THROW_IO_ERROR( wxString::Format( wxT( "Pad %d is not on a copper layer, unexpected" ),
+                                          aPadIndex ) );
+    }
+
+    return static_cast<PAD*>( padBoardItem );
+}
+
+
 FOOTPRINT* ALTIUM_PCB::HelperGetFootprint( uint16_t aComponent ) const
 {
     if( aComponent == ALTIUM_COMPONENT_NONE || m_components.size() <= aComponent )
@@ -792,7 +815,7 @@ FOOTPRINT* ALTIUM_PCB::ParseFootprint( ALTIUM_PCB_COMPOUND_FILE& altiumLibFile,
         case ALTIUM_RECORD::PAD:
         {
             APAD6 pad( parser );
-            ConvertPads6ToFootprintItem( footprint.get(), pad );
+            ConvertPads6ToFootprintItem( footprint.get(), pad, primitiveIndex );
             break;
         }
         case ALTIUM_RECORD::VIA:
@@ -2662,6 +2685,11 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
 void ALTIUM_PCB::ConvertShapeBasedRegions6ToBoardItemOnLayer( const AREGION6& aElem,
                                                               PCB_LAYER_ID    aLayer )
 {
+    wxASSERT_MSG( !aElem.padindex.has_value(),
+                  wxT( "ConvertShapeBasedRegions6ToBoardItemOnLayer was called for a Region with a "
+                       "pad index! ConvertShapeBasedRegions6ToFootprintItemOnLayer should be "
+                       "called instead" ) );
+
     SHAPE_LINE_CHAIN linechain;
     HelperShapeLineChainFromAltiumVertices( linechain, aElem.outline );
 
@@ -2735,9 +2763,24 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItemOnLayer( FOOTPRINT*    
         polySet.AddHole( hole_linechain );
     }
 
-    if( aLayer == F_Cu || aLayer == B_Cu )
+    if( aElem.padindex.has_value() && LSET::AllCuMask().Contains( aLayer ) )
     {
-        // TODO(JE) padstacks -- not sure what should happen here yet
+        // Replace shape on layer of existing pad
+        int actualPadindex=aElem.padindex.value() - 1; // altium seems to index starting at 1?
+        PAD* pad = HelperGetPad( actualPadindex ); // throws if pad doesn't exist
+
+        pad->SetShape( aLayer, PAD_SHAPE::CUSTOM );
+        polySet.Move( -pad->GetPosition() );
+        polySet.Rotate( -pad->Padstack().GetOrientation() );
+        pad->AddPrimitivePoly( aLayer, polySet, 0, true );
+
+        // Ignore extended primitive information from the region - this appears to mean nothing
+        // for regions used in pads. It should have already been set correctly when the pad was
+        // loaded
+
+    }
+    else if( aLayer == F_Cu || aLayer == B_Cu )
+    {
         std::unique_ptr<PAD> pad = std::make_unique<PAD>( aFootprint );
 
         LSET padLayers;
@@ -3137,6 +3180,8 @@ void ALTIUM_PCB::ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
 
     ALTIUM_BINARY_PARSER reader( aAltiumPcbFile, aEntry );
 
+    int padindex = 0;
+
     while( reader.GetRemainingBytes() >= 4 /* TODO: use Header section of file */ )
     {
         checkpoint();
@@ -3144,12 +3189,12 @@ void ALTIUM_PCB::ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
 
         if( elem.component == ALTIUM_COMPONENT_NONE )
         {
-            ConvertPads6ToBoardItem( elem );
+            ConvertPads6ToBoardItem( elem, padindex++ );
         }
         else
         {
             FOOTPRINT* footprint = HelperGetFootprint( elem.component );
-            ConvertPads6ToFootprintItem( footprint, elem );
+            ConvertPads6ToFootprintItem( footprint, elem, padindex++ );
         }
     }
 
@@ -3158,13 +3203,13 @@ void ALTIUM_PCB::ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
 }
 
 
-void ALTIUM_PCB::ConvertPads6ToBoardItem( const APAD6& aElem )
+void ALTIUM_PCB::ConvertPads6ToBoardItem( const APAD6& aElem, const int aPadIndex )
 {
     // It is possible to place altium pads on non-copper layers -> we need to interpolate them using drawings!
     if( !IsAltiumLayerCopper( aElem.layer ) && !IsAltiumLayerAPlane( aElem.layer )
         && aElem.layer != ALTIUM_LAYER::MULTI_LAYER )
     {
-        ConvertPads6ToBoardItemOnNonCopper( aElem );
+        ConvertPads6ToBoardItemOnNonCopper( aElem, aPadIndex );
     }
     else
     {
@@ -3172,7 +3217,7 @@ void ALTIUM_PCB::ConvertPads6ToBoardItem( const APAD6& aElem )
         std::unique_ptr<FOOTPRINT> footprint = std::make_unique<FOOTPRINT>( m_board );
         footprint->SetPosition( aElem.position );
 
-        ConvertPads6ToFootprintItemOnCopper( footprint.get(), aElem );
+        ConvertPads6ToFootprintItemOnCopper( footprint.get(), aElem, aPadIndex );
 
         m_board->Add( footprint.release(), ADD_MODE::APPEND );
     }
@@ -3253,22 +3298,24 @@ void ALTIUM_PCB::ConvertVias6ToFootprintItem( FOOTPRINT* aFootprint, const AVIA6
 }
 
 
-void ALTIUM_PCB::ConvertPads6ToFootprintItem( FOOTPRINT* aFootprint, const APAD6& aElem )
+void ALTIUM_PCB::ConvertPads6ToFootprintItem( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                              const int aPadIndex )
 {
     // It is possible to place altium pads on non-copper layers -> we need to interpolate them using drawings!
     if( !IsAltiumLayerCopper( aElem.layer ) && !IsAltiumLayerAPlane( aElem.layer )
         && aElem.layer != ALTIUM_LAYER::MULTI_LAYER )
     {
-        ConvertPads6ToFootprintItemOnNonCopper( aFootprint, aElem );
+        ConvertPads6ToFootprintItemOnNonCopper( aFootprint, aElem, aPadIndex );
     }
     else
     {
-        ConvertPads6ToFootprintItemOnCopper( aFootprint, aElem );
+        ConvertPads6ToFootprintItemOnCopper( aFootprint, aElem, aPadIndex );
     }
 }
 
 
-void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, const APAD6& aElem )
+void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                                      const int aPadIndex )
 {
     std::unique_ptr<PAD> pad = std::make_unique<PAD>( aFootprint );
 
@@ -3596,11 +3643,13 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
     if( aElem.is_tent_bottom )
         pad->SetLayerSet( pad->GetLayerSet().reset( B_Mask ) );
 
-    aFootprint->Add( pad.release(), ADD_MODE::APPEND );
+    PAD* pad_ptr = pad.release();
+    m_padIndexMap.emplace( aPadIndex, pad_ptr );
+    aFootprint->Add( pad_ptr, ADD_MODE::APPEND );
 }
 
 
-void ALTIUM_PCB::ConvertPads6ToBoardItemOnNonCopper( const APAD6& aElem )
+void ALTIUM_PCB::ConvertPads6ToBoardItemOnNonCopper( const APAD6& aElem, const int aPadIndex )
 {
     PCB_LAYER_ID klayer = GetKicadLayer( aElem.layer );
 
@@ -3622,11 +3671,14 @@ void ALTIUM_PCB::ConvertPads6ToBoardItemOnNonCopper( const APAD6& aElem )
 
     HelperParsePad6NonCopper( aElem, klayer, pad.get() );
 
-    m_board->Add( pad.release(), ADD_MODE::APPEND );
+    PCB_SHAPE* pad_ptr = pad.release();
+    m_padIndexMap.emplace( aPadIndex, pad_ptr );
+    m_board->Add( pad_ptr, ADD_MODE::APPEND );
 }
 
 
-void ALTIUM_PCB::ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, const APAD6& aElem )
+void ALTIUM_PCB::ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, const APAD6& aElem,
+                                                         const int aPadIndex )
 {
     PCB_LAYER_ID klayer = GetKicadLayer( aElem.layer );
 
@@ -3668,7 +3720,9 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnNonCopper( FOOTPRINT* aFootprint, 
 
     HelperParsePad6NonCopper( aElem, klayer, pad.get() );
 
-    aFootprint->Add( pad.release(), ADD_MODE::APPEND );
+    PCB_SHAPE* pad_ptr = pad.release();
+    m_padIndexMap.emplace( aPadIndex, pad_ptr );
+    aFootprint->Add( pad_ptr, ADD_MODE::APPEND );
 }
 
 

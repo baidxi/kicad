@@ -46,11 +46,19 @@ int32_t ALTIUM_PROPS_UTILS::ConvertToKicadUnit( const double aValue )
 }
 
 
+std::optional<int> ALTIUM_PROPS_UTILS::ReadOptInt( const std::map<wxString, wxString>& aProps,
+                                                   const wxString& aKey )
+{
+    const std::map<wxString, wxString>::const_iterator& value = aProps.find( aKey );
+    return value == aProps.end() ? std::optional<int>{}  : wxAtoi( value->second );
+}
+
+
 int ALTIUM_PROPS_UTILS::ReadInt( const std::map<wxString, wxString>& aProps, const wxString& aKey,
                             int aDefault )
 {
-    const std::map<wxString, wxString>::const_iterator& value = aProps.find( aKey );
-    return value == aProps.end() ? aDefault : wxAtoi( value->second );
+    std::optional<int> opt = ReadOptInt(aProps, aKey);
+    return opt.has_value() ? opt.value() : aDefault;
 }
 
 
