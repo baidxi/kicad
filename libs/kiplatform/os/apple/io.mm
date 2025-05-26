@@ -78,29 +78,29 @@ bool KIPLATFORM::IO::MakeWriteable( const wxString& aFilePath )
 {
     NSString *path = [NSString stringWithUTF8String:aFilePath.utf8_str()];
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    
+
     NSError *error;
     NSDictionary *attributes = [fileManager attributesOfItemAtPath:path error:&error];
-    
+
     if( !attributes )
     {
         NSLog(@"Error retrieving file attributes: %@", error);
         return false;
     }
-    
+
     NSNumber *permissions = attributes[NSFilePosixPermissions];
-    
+
     if( permissions == nil )
     {
         return false;
     }
-    
+
     // Add user write permission (S_IWUSR = 0200)
     unsigned short currentPerms = [permissions unsignedShortValue];
     unsigned short newPerms = currentPerms | 0200;
-    
-    if( [fileManager setAttributes:@{NSFilePosixPermissions: @(newPerms)} 
-                        ofItemAtPath:path 
+
+    if( [fileManager setAttributes:@{NSFilePosixPermissions: @(newPerms)}
+                        ofItemAtPath:path
                                error:&error] )
     {
         return true;
@@ -117,6 +117,12 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
     wxFileName fn( aFileName );
 
     return fn.GetName().StartsWith( wxT( "." ) );
+}
+
+
+bool KIPLATFORM::IO::DbusFileManagerPreselected( wxString aPath )
+{
+    return false;
 }
 
 

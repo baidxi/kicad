@@ -877,15 +877,6 @@ include_directories( SYSTEM ${HarfBuzz_INCLUDE_DIRS} )
 
 find_package( Fontconfig REQUIRED )
 
-if( LINUX )
-find_package( PkgConfig REQUIRED ) # Include functions provided by PkgConfig module.
-
-pkg_check_modules( DBUS REQUIRED dbus-1 ) # This calls pkgconfig with appropriate arguments
-# Use results of pkg_check_modules() call.
-include_directories( ${DBUS_INCLUDE_DIRS} )
-link_directories( ${DBUS_LIBRARY_DIRS} )
-endif()
-
 # Include MinGW resource compiler.
 include( MinGWResourceCompiler )
 

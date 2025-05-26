@@ -50,9 +50,7 @@
 #include <kiplatform/ui.h>
 
 
-#ifdef __WXGTK__
-#include <common.h>
-#endif
+#include <kiplatform/io.h>
 
 
 bool SYMBOL_EDITOR_CONTROL::Init()
@@ -437,10 +435,8 @@ int SYMBOL_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     if( !explorerCommand.IsEmpty() )
     {
-
-#ifdef __WXGTK__
-        if( !DbusFileManagerPreselected( filePath ) )
-#endif
+        // If DBus call fails, on Linux, try the wx way.
+        if( !KIPLATFORM::IO::DbusFileManagerPreselected( filePath ) )
             wxExecute( explorerCommand );
     }
 

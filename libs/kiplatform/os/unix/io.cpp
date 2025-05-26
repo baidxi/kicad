@@ -23,6 +23,7 @@
 #include <wx/crt.h>
 #include <wx/string.h>
 #include <wx/filename.h>
+#include <wx/msgdlg.h>
 
 #include <climits>
 #include <dirent.h>
@@ -32,6 +33,8 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <dbus/dbus.h>
 
 FILE* KIPLATFORM::IO::SeqFOpen( const wxString& aPath, const wxString& aMode )
 {
@@ -92,6 +95,58 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
     wxFileName fn( aFileName );
 
     return fn.GetName().StartsWith( wxT( "." ) );
+}
+
+
+bool KIPLATFORM::IO::DbusFileManagerPreselected( wxString aPath )
+{
+    DBusMessageIter args;
+    DBusMessageIter argsIter;
+    DBusError       dbusErr;
+    dbus_error_init( &dbusErr );
+
+    DBusConnection* dbusConn = dbus_bus_get( DBUS_BUS_SESSION, &dbusErr );
+
+    if( dbus_error_is_set( &dbusErr ) )
+    {
+        wxString errMsg = wxString::Format( "DBus connection error (%s)\n", dbusErr.message );
+        wxMessageBox( errMsg );
+        dbus_error_free( &dbusErr );
+    }
+
+    wxCHECK_MSG( dbusConn != nullptr, false, "DBus connection error" );
+
+    DBusMessage* dbusMsg = dbus_message_new_method_call( "org.freedesktop.FileManager1",  // destination
+                                                         "/org/freedesktop/FileManager1", // object path
+                                                         "org.freedesktop.FileManager1",  // interface
+                                                         "ShowItems"                      // method
+    );
+
+    wxCHECK_MSG( dbusMsg != nullptr, false, "Null DBus message to: FileManager1, ShowItems" );
+
+    dbus_message_iter_init_append( dbusMsg, &args );
+
+    dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "s", &argsIter );
+
+    wxString fileArgDbus = wxString( "file:///" ) << aPath;
+
+    const char* uri = fileArgDbus;
+
+    wxCHECK_MSG( dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, &uri ), false,
+                 "DBus error: FileManager1, ShowItems" );
+
+    dbus_message_iter_close_container( &args, &argsIter );
+
+    const char* startup_id = "";
+
+    wxCHECK_MSG( dbus_message_iter_append_basic( &args, DBUS_TYPE_STRING, &startup_id ), false,
+                 "DBus error: FileManager1, ShowItems" );
+
+    dbus_connection_send( dbusConn, dbusMsg, nullptr );
+    dbus_connection_flush( dbusConn );
+    dbus_message_unref( dbusMsg );
+
+    return true;
 }
 
 

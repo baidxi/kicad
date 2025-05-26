@@ -87,7 +87,15 @@ elseif( UNIX )
     # Detect the secret library and configure it
     pkg_check_modules(secret REQUIRED libsecret-1)
     include_directories( SYSTEM ${secret_INCLUDE_DIRS} )
-    list( APPEND PLATFORM_LIBS ${secret_LIBRARIES} )
+
+    pkg_check_modules( DBUS REQUIRED dbus-1 )
+    include_directories( SYSTEM ${DBUS_INCLUDE_DIRS} )
+    link_directories( ${DBUS_LIBRARY_DIRS} )
+
+    list( APPEND
+        PLATFORM_LIBS
+        ${secret_LIBRARIES}
+        ${DBUS_LIBRARIES})
 
     # Detect Poppler library for printing and configure it
     find_package( Poppler REQUIRED )

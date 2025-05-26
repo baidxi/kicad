@@ -107,6 +107,13 @@ namespace IO
     bool IsFileHidden( const wxString& aFileName );
 
     /**
+    * Opens a file preselected in file manager using Dbus on Linux
+    *
+    * @return true if there were no errors
+    */
+    bool DbusFileManagerPreselected( wxString aPath );
+
+    /**
      * Adjusts a filename to be a long path compatible.
      * This is a no-op on non-Windows platforms.
      */

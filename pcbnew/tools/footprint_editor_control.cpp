@@ -55,6 +55,7 @@
 #include <kiway.h>
 #include <project_pcb.h>
 #include <view/view_controls.h>
+#include <kiplatform/io.h>
 
 #include <memory>
 
@@ -659,9 +660,8 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     if( !explorerCommand.IsEmpty() )
     {
-#ifdef __WXGTK__
-        if( !DbusFileManagerPreselected( escapedFilePath ) )
-#endif
+        // If DBus call fails, on Linux, try the wx way.
+        if( !KIPLATFORM::IO::DbusFileManagerPreselected( escapedFilePath ) )
             wxExecute( explorerCommand );
     }
 

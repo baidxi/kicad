@@ -391,13 +391,6 @@ target_link_libraries( kicommon
     ${PYTHON_LIBRARIES}
     )
 
-if( LINUX )
-
-target_link_libraries( kicommon
-    ${DBUS_LIBRARIES}
-    )
-
-endif()
 
 if( KICAD_USE_SENTRY )
     target_link_libraries( kicommon

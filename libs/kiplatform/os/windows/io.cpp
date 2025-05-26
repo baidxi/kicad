@@ -186,6 +186,12 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
 }
 
 
+bool KIPLATFORM::IO::DbusFileManagerPreselected( wxString aPath )
+{
+    return false;
+}
+
+
 void KIPLATFORM::IO::LongPathAdjustment( wxFileName& aFilename )
 {
     // dont shortcut this for shorter lengths as there are uses like directory
