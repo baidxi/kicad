@@ -98,55 +98,138 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
 }
 
 
-bool KIPLATFORM::IO::DbusFileManagerPreselected( wxString aPath )
+extern wxString GetFileExplorerCommand();
+bool LaunchExternal( const wxString& aPath );
+
+void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 {
-    DBusMessageIter args;
-    DBusMessageIter argsIter;
-    DBusError       dbusErr;
-    dbus_error_init( &dbusErr );
+    wxString path = aFileName.GetFullPath();
 
-    DBusConnection* dbusConn = dbus_bus_get( DBUS_BUS_SESSION, &dbusErr );
+    path.Replace( wxS( "\"" ), wxS( "_" ) );
 
-    if( dbus_error_is_set( &dbusErr ) )
+    auto isContainer =
+    []() -> bool
     {
-        wxString errMsg = wxString::Format( "DBus connection error (%s)\n", dbusErr.message );
-        wxMessageBox( errMsg );
-        dbus_error_free( &dbusErr );
+        if( std::getenv( "container" ) )
+        {
+            // flatpak
+            return true;
+        }
+        else if( std::getenv( "APPIMAGE" ) )
+        {
+            // AppImage
+            return true;
+        }
+        else if( std::getenv( "SNAP" ) )
+        {
+            // Snaps
+            return true;
+        }
+
+        return false; // No container
+    };
+
+    auto dbusMessageSend =
+    [ = ]() -> bool
+    {
+        DBusMessageIter args;
+        DBusMessageIter argsIter;
+        DBusError       dbusErr;
+        dbus_error_init( &dbusErr );
+
+        DBusConnection* dbusConn = dbus_bus_get( DBUS_BUS_SESSION, &dbusErr );
+
+        if( dbus_error_is_set( &dbusErr ) )
+        {
+            wxMessageBox( wxString::Format( "DBus connection error (%s)\n", dbusErr.message ) );
+            dbus_error_free( &dbusErr );
+        }
+
+        if( !dbusConn )
+        {
+            wxMessageBox( "DBus connection error" );
+
+            return false;
+        }
+
+        DBusMessage* dbusMsg = dbus_message_new_method_call( "org.freedesktop.FileManager1",  // destination
+                                                            "/org/freedesktop/FileManager1", // object path
+                                                            "org.freedesktop.FileManager1",  // interface
+                                                            "ShowItems"                      // method
+        );
+
+        if( !dbusMsg )
+        {
+            wxMessageBox( "Null DBus message to: FileManager1, ShowItems" );
+
+            return false;
+        }
+
+        dbus_message_iter_init_append( dbusMsg, &args );
+
+        dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "s", &argsIter );
+
+        wxString fileArgDbus = wxString( "file:///" ) << path;
+
+        const char* uri = fileArgDbus;
+
+        if( !dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, &uri ) )
+        {
+            wxMessageBox( "DBus error: FileManager1, ShowItems" );
+
+            return false;
+        }
+
+        dbus_message_iter_close_container( &args, &argsIter );
+
+        const char* startup_id = "";
+
+        if( !dbus_message_iter_append_basic( &args, DBUS_TYPE_STRING, &startup_id ) )
+        {
+            wxMessageBox( "DBus error: FileManager1, ShowItems" );
+
+            return false;
+        }
+
+        dbus_connection_send( dbusConn, dbusMsg, nullptr );
+        dbus_connection_flush( dbusConn );
+        dbus_message_unref( dbusMsg );
+
+        return true;
+    };
+
+    if( isContainer() )
+    {
+        wxMessageBox( "This not supported while running in a container/appimage/snap. (yet?)" );
+        /*
+        dbusMsg = dbus_message_new_method_call( "org.freedesktop.portal.Desktop",
+                                                "/org/freedesktop/portal/desktop",
+                                                "org.freedesktop.portal.OpenFile",
+                                                "OpenFile" );
+        */
     }
+    else
+    {
+        if( !dbusMessageSend() ) // If dbus fails try the wx way.
+        {
+            wxString explCommand = GetFileExplorerCommand();
 
-    wxCHECK_MSG( dbusConn != nullptr, false, "DBus connection error" );
+            if( explCommand.IsEmpty() )
+            {
+                path = aFileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
 
-    DBusMessage* dbusMsg = dbus_message_new_method_call( "org.freedesktop.FileManager1",  // destination
-                                                         "/org/freedesktop/FileManager1", // object path
-                                                         "org.freedesktop.FileManager1",  // interface
-                                                         "ShowItems"                      // method
-    );
+                if( !path.IsEmpty() && wxDirExists( path ) )
+                    LaunchExternal( path );
 
-    wxCHECK_MSG( dbusMsg != nullptr, false, "Null DBus message to: FileManager1, ShowItems" );
+                return;
+            }
 
-    dbus_message_iter_init_append( dbusMsg, &args );
+            explCommand.Replace( wxT( "%F" ), wxT( '"' + path + '"' ) );
 
-    dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "s", &argsIter );
-
-    wxString fileArgDbus = wxString( "file:///" ) << aPath;
-
-    const char* uri = fileArgDbus;
-
-    wxCHECK_MSG( dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, &uri ), false,
-                 "DBus error: FileManager1, ShowItems" );
-
-    dbus_message_iter_close_container( &args, &argsIter );
-
-    const char* startup_id = "";
-
-    wxCHECK_MSG( dbus_message_iter_append_basic( &args, DBUS_TYPE_STRING, &startup_id ), false,
-                 "DBus error: FileManager1, ShowItems" );
-
-    dbus_connection_send( dbusConn, dbusMsg, nullptr );
-    dbus_connection_flush( dbusConn );
-    dbus_message_unref( dbusMsg );
-
-    return true;
+            if( !explCommand.IsEmpty() )
+                    wxExecute( explCommand );
+        }
+    }
 }
 
 

@@ -28,6 +28,7 @@
 #include <project.h>
 #include <common.h>
 #include <confirm.h>
+#include <pgm_base.h>
 #include <env_vars.h>
 #include <advanced_config.h>
 #include <reporter.h>
@@ -794,4 +795,20 @@ bool WarnUserIfOperatingSystemUnsupported()
     dialog.ShowModal();
 
     return true;
+}
+
+wxString GetFileExplorerCommand()
+{
+    COMMON_SETTINGS* cfg = Pgm().GetCommonSettings();
+
+    wxString explCommand = cfg ? cfg->m_System.file_explorer : wxString( wxEmptyString );
+
+    if( !explCommand.IsEmpty() && !explCommand.EndsWith( "%F" ) )
+    {
+        wxMessageBox( _( "Missing/malformed file explorer argument '%F' in common settings." ) );
+
+        return wxString( wxEmptyString );
+    }
+
+    return explCommand;
 }

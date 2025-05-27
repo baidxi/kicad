@@ -158,4 +158,13 @@ KICOMMON_API bool WarnUserIfOperatingSystemUnsupported();
 KICOMMON_API bool DbusFileManagerPreselected( wxString aPath );
 #endif  // __WXGTK__
 
+
+/**
+ * Checks for the file explorer string value in settings.
+ *
+ * @return the command as entered in the settings, or a wxEmptyString
+ */
+KICOMMON_API wxString GetFileExplorerCommand();
+
+
 #endif  // INCLUDE__COMMON_H_

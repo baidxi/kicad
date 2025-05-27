@@ -107,13 +107,6 @@ namespace IO
     bool IsFileHidden( const wxString& aFileName );
 
     /**
-    * Opens a file preselected in file manager using Dbus on Linux
-    *
-    * @return true if there were no errors
-    */
-    bool DbusFileManagerPreselected( wxString aPath );
-
-    /**
      * Adjusts a filename to be a long path compatible.
      * This is a no-op on non-Windows platforms.
      */
@@ -128,6 +121,24 @@ namespace IO
      * @return Hash value that changes when any matching file is modified
      */
     long long TimestampDir( const wxString& aDirPath, const wxString& aFilespec );
+
+
+    /**
+    * Opens a file preselected in file manager.
+    *
+    * If the @ref "KICOMMON_API wxString GetFileExplorerCommand" returns empty,
+    * we only open the directory of the selection, else we continue to
+    * show a preselected file in the file manager window with @ref "LaunchExternal"
+    * on all platforms
+    *
+    * On Linux, if a container/appimage/snap: Not supported.
+    * On Linux, if not a container/appimage/snap: first checks Dbus, if fails
+    * checks @ref "wxExecute".
+    * On other platforms, it goes through the @ref "wxExecute"
+    *
+    * @return true if there were no errors
+    */
+    void OpenInDirectory( wxFileName fileName );
 } // namespace IO
 } // namespace KIPLATFORM
 

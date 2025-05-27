@@ -186,12 +186,6 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
 }
 
 
-bool KIPLATFORM::IO::DbusFileManagerPreselected( wxString aPath )
-{
-    return false;
-}
-
-
 void KIPLATFORM::IO::LongPathAdjustment( wxFileName& aFilename )
 {
     // dont shortcut this for shorter lengths as there are uses like directory
@@ -396,4 +390,32 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
 
     if( m_fileHandle )
         CloseHandle( m_fileHandle );
+}
+
+
+extern wxString GetFileExplorerCommand();
+extern bool LaunchExternal( const wxString& aPath );
+
+void KIPLATFORM::IO::OpenInDirectory( wxFileName fileName )
+{
+    wxString explCommand = GetFileExplorerCommand();
+
+    wxString path = fileName.GetFullPath();
+
+    path.Replace( wxS( "\"" ), wxS( "_" ) );
+
+    if( explCommand.IsEmpty() )
+    {
+        path = fileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
+
+        if( !path.IsEmpty() && wxDirExists( path ) )
+            LaunchExternal( path );
+
+        return;
+    }
+
+    explCommand.Replace( wxT( "%F" ), '"' + path + '"' );
+
+    if( !explCommand.IsEmpty() )
+            wxExecute( explCommand );
 }
