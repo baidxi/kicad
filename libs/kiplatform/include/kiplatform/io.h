@@ -126,19 +126,16 @@ namespace IO
     /**
     * Opens a file preselected in file manager.
     *
-    * If the @ref "KICOMMON_API wxString GetFileExplorerCommand" returns empty,
-    * we only open the directory of the selection, else we continue to
-    * show a preselected file in the file manager window with @ref "LaunchExternal"
-    * on all platforms
-    *
-    * On Linux, if a container/appimage/snap: Not supported.
-    * On Linux, if not a container/appimage/snap: first checks Dbus, if fails
-    * checks @ref "wxExecute".
-    * On other platforms, it goes through the @ref "wxExecute"
-    *
-    * @return true if there were no errors
+    * On Linux:                  If a container/appimage/snap: Not supported.
+    * 
+    * On Linux:                  If Not a container/appimage/snap: first checks Dbus.
+    * 
+    * If DBus fails OR !Linux:   If the @ref "KICOMMON_API wxString GetFileExplorerCommand" returns empty,
+    *                            we only open the directory of the selection with @ref "LaunchExternal",
+    *                            else we continue to show a preselected file in the file manager window
+    *                            with the common loader function.
     */
-    void OpenInDirectory( wxFileName fileName );
+    void OpenInDirectory( wxFileName aFileName );
 } // namespace IO
 } // namespace KIPLATFORM
 

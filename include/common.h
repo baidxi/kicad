@@ -166,5 +166,11 @@ KICOMMON_API bool DbusFileManagerPreselected( wxString aPath );
  */
 KICOMMON_API wxString GetFileExplorerCommand();
 
+/**
+ * A common mechanism used as a fallback only on Linux.
+ *
+ */
+KICOMMON_API void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
+
 
 #endif  // INCLUDE__COMMON_H_

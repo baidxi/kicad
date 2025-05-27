@@ -44,6 +44,8 @@
 #include <wx/utils.h>
 #include <wx/regex.h>
 
+#include <launch_ext.h>
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -811,4 +813,24 @@ wxString GetFileExplorerCommand()
     }
 
     return explCommand;
+}
+
+void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName )
+{
+    wxString explCommand = GetFileExplorerCommand();
+
+    if( explCommand.IsEmpty() )
+    {
+        wxString path = aFileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
+
+        if( !path.IsEmpty() && wxDirExists( path ) )
+            LaunchExternal( path );
+
+        return;
+    }
+
+    explCommand.Replace( wxT( "%F" ), wxT( '"' + aPath + '"' ) );
+
+    if( !explCommand.IsEmpty() )
+        wxExecute( explCommand );
 }

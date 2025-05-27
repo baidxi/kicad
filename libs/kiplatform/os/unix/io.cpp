@@ -98,8 +98,7 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
 }
 
 
-extern wxString GetFileExplorerCommand();
-bool LaunchExternal( const wxString& aPath );
+extern void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
 
 void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 {
@@ -212,22 +211,7 @@ void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
     {
         if( !dbusMessageSend() ) // If dbus fails try the wx way.
         {
-            wxString explCommand = GetFileExplorerCommand();
-
-            if( explCommand.IsEmpty() )
-            {
-                path = aFileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
-
-                if( !path.IsEmpty() && wxDirExists( path ) )
-                    LaunchExternal( path );
-
-                return;
-            }
-
-            explCommand.Replace( wxT( "%F" ), wxT( '"' + path + '"' ) );
-
-            if( !explCommand.IsEmpty() )
-                    wxExecute( explCommand );
+            CommonOpenInDirectory( path, aFileName);
         }
     }
 }

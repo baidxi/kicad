@@ -395,27 +395,13 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
 
 extern wxString GetFileExplorerCommand();
 extern bool LaunchExternal( const wxString& aPath );
+extern void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
 
-void KIPLATFORM::IO::OpenInDirectory( wxFileName fileName )
+void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 {
-    wxString explCommand = GetFileExplorerCommand();
-
-    wxString path = fileName.GetFullPath();
+    wxString path = aFileName.GetFullPath();
 
     path.Replace( wxS( "\"" ), wxS( "_" ) );
 
-    if( explCommand.IsEmpty() )
-    {
-        path = fileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
-
-        if( !path.IsEmpty() && wxDirExists( path ) )
-            LaunchExternal( path );
-
-        return;
-    }
-
-    explCommand.Replace( wxT( "%F" ), '"' + path + '"' );
-
-    if( !explCommand.IsEmpty() )
-            wxExecute( explCommand );
+    CommonOpenInDirectory( path, aFileName );
 }
