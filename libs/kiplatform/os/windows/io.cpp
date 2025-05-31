@@ -109,6 +109,7 @@ FILE* KIPLATFORM::IO::SeqFOpen( const wxString& aPath, const wxString& aMode )
 #endif
 }
 
+
 bool KIPLATFORM::IO::DuplicatePermissions( const wxString &aSrc, const wxString &aDest )
 {
     bool retval = false;

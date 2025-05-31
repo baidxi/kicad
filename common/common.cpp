@@ -799,6 +799,7 @@ bool WarnUserIfOperatingSystemUnsupported()
     return true;
 }
 
+
 wxString GetFileExplorerCommand()
 {
     COMMON_SETTINGS* cfg = Pgm().GetCommonSettings();
@@ -814,6 +815,7 @@ wxString GetFileExplorerCommand()
 
     return explCommand;
 }
+
 
 void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName )
 {
