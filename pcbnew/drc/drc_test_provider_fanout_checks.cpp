@@ -60,11 +60,6 @@ public:
     virtual bool Run() override;
 
     virtual const wxString GetName() const override { return wxT( "pad_fanout" ); };
-
-    virtual const wxString GetDescription() const override
-    {
-        return wxT( "Tests Fanout width from pads" );
-    }
 };
 
 
@@ -75,7 +70,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
         && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT )
         && !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_VIA_DISTANCE_CONSTRAINT ) )
     {
-        reportAux( wxT( "No fanout constraints found. Tests not run." ) );
+        REPORT_AUX( wxT( "No fanout constraints found. Tests not run." ) );
         return true; // continue with other tests
     }
 
@@ -600,7 +595,6 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
         }
     }
 
-    reportRuleStatistics();
 
     return !m_drcEngine->IsCancelled();
 }

@@ -736,8 +736,9 @@ wxString PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsMessage() const
 
 const std::vector<EDA_UNITS>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsTypes() const
 {
-    static const std::vector<EDA_UNITS> pcbUnits = { EDA_UNITS::MILS,    EDA_UNITS::MM, EDA_UNITS::INCH,
-                                                     EDA_UNITS::FS, EDA_UNITS::PS, EDA_UNITS::DEGREES, EDA_UNITS::PERCENT };
+    static const std::vector<EDA_UNITS> pcbUnits = { EDA_UNITS::MILS,     EDA_UNITS::MM,     EDA_UNITS::INCH,
+                                                     EDA_UNITS::FS,       EDA_UNITS::PS,     EDA_UNITS::DEGREES,
+                                                     EDA_UNITS::UNSCALED, EDA_UNITS::PERCENT };
 
     return pcbUnits;
 }
