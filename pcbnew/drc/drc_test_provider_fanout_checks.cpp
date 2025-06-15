@@ -513,8 +513,10 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
             }
         }
 
-        int actual_torque = pcbIUScale.mmToIU( std::sqrt( std::abs( torque ) ) );
-        int actual_force = pcbIUScale.mmToIU( force.EuclideanNorm() );
+        // The "torque" and "force" values are quantities without a clear physical quantity attached.
+        // The factor 1000 is chosen experimentally.
+        int actual_torque = static_cast<int>( std::sqrt( std::abs( torque ) ) * 1000 );
+        int actual_force = static_cast<int>( force.EuclideanNorm() * 1000 );
 
         auto force_constraint = m_drcEngine->EvalRules( FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT, footprint, nullptr,
                                                         footprint->GetLayer() );
@@ -530,9 +532,8 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY );
                 wxString                  msg;
 
-                msg = formatMsg( _( "(%s fanout force exceeded. %s; actual %s)" ),
-                                 force_constraint.GetName(), force_constraint.m_Value.Max(),
-                                 actual_force );
+                msg = wxString::Format( _( "(%s fanout mirror asymmetry exceeded %d; actual %d)" ),
+                                        force_constraint.GetName(), force_constraint.m_Value.Max(), actual_force );
 
                 drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
                 drcItem->SetItems( footprint, nullptr );
@@ -549,9 +550,8 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY );
                 wxString msg;
 
-                msg = formatMsg( _( "(%s fanout torque exceeded. %s; actual %s)" ),
-                                 torque_constraint.GetName(), torque_constraint.m_Value.Max(),
-                                 actual_torque );
+                msg = wxString::Format( _( "(%s fanout point asymmetry exceeded %d; actual %d)" ),
+                                        torque_constraint.GetName(), torque_constraint.m_Value.Max(), actual_torque );
 
                 drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
                 drcItem->SetItems( footprint, nullptr );
