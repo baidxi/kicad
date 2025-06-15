@@ -70,8 +70,8 @@
         "duplicate_footprints": "ignore",
         "extra_footprint": "ignore",
         "footprint": "ignore",
-        "footprint_fanout_force": "ignore",
-        "footprint_fanout_torque": "error",
+        "footprint_fanout_mirror_symmetry": "ignore",
+        "footprint_fanout_point_symmetry": "error",
         "footprint_filters_mismatch": "ignore",
         "footprint_symbol_mismatch": "ignore",
         "footprint_type_mismatch": "ignore",
@@ -234,7 +234,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "footprint_fanout_torque.kicad_pro",
+    "filename": "footprint_fanout_point_symmetry.kicad_pro",
     "version": 3
   },
   "net_settings": {

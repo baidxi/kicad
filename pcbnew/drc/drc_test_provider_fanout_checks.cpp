@@ -46,8 +46,8 @@
     Errors generated:
     - DRCE_PAD_FANOUT_RATIO
     - DRCE_PAD_FANOUT_VIA_DISTANCE
-    - DRCE_FOOTPRINT_FANOUT_FORCE
-    - DRCE_FOOTPRINT_FANOUT_TORQUE
+    - DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY
+    - DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY
 */
 
 class DRC_TEST_PROVIDER_FANOUT_CHECKS : public DRC_TEST_PROVIDER
@@ -71,8 +71,8 @@ public:
 bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 {
     if( !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_RATIO_CONSTRAINT )
-        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_FORCE_CONSTRAINT )
-        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_TORQUE_CONSTRAINT )
+        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT )
+        && !m_drcEngine->HasRulesForConstraintType( FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT )
         && !m_drcEngine->HasRulesForConstraintType( PAD_FANOUT_VIA_DISTANCE_CONSTRAINT ) )
     {
         reportAux( wxT( "No fanout constraints found. Tests not run." ) );
@@ -392,8 +392,8 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 
     auto checkFootprintSymmetry = [&]( const FOOTPRINT* footprint ) -> bool
     {
-        if( m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_FORCE )
-            && m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_TORQUE ) )
+        if( m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY )
+            && m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY ) )
         {
             return false;
         }
@@ -521,19 +521,18 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
         int actual_torque = pcbIUScale.mmToIU( std::sqrt( std::abs( torque ) ) );
         int actual_force = pcbIUScale.mmToIU( force.EuclideanNorm() );
 
-        auto force_constraint = m_drcEngine->EvalRules( FOOTPRINT_FANOUT_FORCE_CONSTRAINT,
-                                                        footprint, nullptr, footprint->GetLayer() );
+        auto force_constraint = m_drcEngine->EvalRules( FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT, footprint, nullptr,
+                                                        footprint->GetLayer() );
 
-        auto torque_constraint = m_drcEngine->EvalRules(
-                FOOTPRINT_FANOUT_TORQUE_CONSTRAINT, footprint, nullptr, footprint->GetLayer() );
+        auto torque_constraint = m_drcEngine->EvalRules( FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT, footprint, nullptr,
+                                                         footprint->GetLayer() );
 
-        if( force_constraint.m_Value.HasMax()
-            && force_constraint.GetSeverity() != RPT_SEVERITY_IGNORE
-            && !m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_FORCE ) )
+        if( force_constraint.m_Value.HasMax() && force_constraint.GetSeverity() != RPT_SEVERITY_IGNORE
+            && !m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY ) )
         {
             if( actual_force > force_constraint.m_Value.Max() )
             {
-                std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_FORCE );
+                std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY );
                 wxString                  msg;
 
                 msg = formatMsg( _( "(%s fanout force exceeded. %s; actual %s)" ),
@@ -547,14 +546,12 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 reportViolation( drcItem, footprint->GetPosition(), footprint->GetLayer() );
             }
         }
-        if( torque_constraint.m_Value.HasMax()
-            && torque_constraint.GetSeverity() != RPT_SEVERITY_IGNORE
-            && !m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_TORQUE ) )
+        if( torque_constraint.m_Value.HasMax() && torque_constraint.GetSeverity() != RPT_SEVERITY_IGNORE
+            && !m_drcEngine->IsErrorLimitExceeded( DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY ) )
         {
             if( actual_torque > torque_constraint.m_Value.Max() )
             {
-                std::shared_ptr<DRC_ITEM> drcItem =
-                        DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_TORQUE );
+                std::shared_ptr<DRC_ITEM> drcItem = DRC_ITEM::Create( DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY );
                 wxString msg;
 
                 msg = formatMsg( _( "(%s fanout torque exceeded. %s; actual %s)" ),

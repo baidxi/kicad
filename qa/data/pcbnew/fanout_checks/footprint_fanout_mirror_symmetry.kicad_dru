@@ -1,0 +1,5 @@
+(version 1)
+
+(rule "test footprint fanout mirror symmetry"
+	(constraint footprint_fanout_mirror_symmetry (max 0.1mm))
+)

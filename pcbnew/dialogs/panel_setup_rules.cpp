@@ -500,8 +500,8 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                     || token == wxT( "track_segment_length" )
                     || token == wxT( "pad_fanout_ratio" )
                     || token == wxT( "pad_fanout_via_distance" )
-                    || token == wxT( "footprint_fanout_force" )
-                    || token == wxT( "footprint_fanout_torque" )
+                    || token == wxT( "footprint_fanout_mirror_symmetry" )
+                    || token == wxT( "footprint_fanout_point_symmetry" )
                     || token == wxT( "via_count" )
                     || token == wxT( "via_diameter" )
                     || token == wxT( "zone_connection" );
@@ -727,8 +727,8 @@ void PANEL_SETUP_RULES::onScintillaCharAdded( wxStyledTextEvent &aEvent )
                           "track_segment_length|"
                           "pad_fanout_ratio|"
                           "pad_fanout_via_distance|"
-                          "footprint_fanout_force|"
-                          "footprint_fanout_torque|"
+                          "footprint_fanout_mirror_symmetry|"
+                          "footprint_fanout_point_symmetry|"
                           "via_count|"
                           "via_diameter|"
                           "zone_connection" );

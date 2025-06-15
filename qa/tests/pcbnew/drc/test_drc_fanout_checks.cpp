@@ -55,8 +55,8 @@ BOOST_FIXTURE_TEST_CASE( DRCFanoutChecks, DRC_REGRESSION_TEST_FIXTURE )
     {
         { "fanout_checks/pad_fanout_ratio", 4 },
         { "fanout_checks/footprint_fanout_combined", 8 },
-        { "fanout_checks/footprint_fanout_torque", 4 },
-        { "fanout_checks/footprint_fanout_force", 4 },
+        { "fanout_checks/footprint_fanout_point_symmetry", 4 },
+        { "fanout_checks/footprint_fanout_mirror_symmetry", 4 },
         { "fanout_checks/pad_fanout_via_distance", 2 },
     };
     // clang-format on
