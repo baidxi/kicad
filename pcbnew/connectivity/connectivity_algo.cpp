@@ -42,6 +42,32 @@
 #include <core/profile.h>
 #endif
 
+bool CN_EDGE::id_cmp( CN_EDGE aOther ) const
+{
+    auto srcid = m_source->Item()->Parent()->m_Uuid;
+    auto tgtid = m_target->Item()->Parent()->m_Uuid;
+    if (srcid < tgtid) {
+        auto tmp = tgtid;
+        tgtid = srcid;
+        srcid = tmp;
+    }
+
+    auto o_srcid = aOther.m_source->Item()->Parent()->m_Uuid;
+    auto o_tgtid = aOther.m_target->Item()->Parent()->m_Uuid;
+    if (o_srcid < o_tgtid) {
+        auto tmp = o_tgtid;
+        o_tgtid = o_srcid;
+        o_srcid = tmp;
+    }
+    if ((srcid > o_srcid) || (o_srcid > srcid))
+        return srcid > o_srcid;
+
+    if ((srcid > o_tgtid) || (o_tgtid > tgtid))
+        return tgtid > o_tgtid;
+
+    return m_weight > aOther.m_weight;
+}
+
 
 bool CN_CONNECTIVITY_ALGO::Remove( BOARD_ITEM* aItem )
 {
