@@ -459,7 +459,9 @@ int SCH_DRAWING_TOOLS::PlaceSymbol( const TOOL_EVENT& aEvent )
 
                 commit.Push( _( "Place Symbol" ) );
 
-                if( placeOneOnly )
+                if( placeOneOnly
+                    && !( toolParams.forcePlaceAllUnits
+                          && symbol->GetUnit() < symbol->GetUnitCount() ) )
                 {
                     m_frame->PopTool( aEvent );
                     break;
@@ -468,11 +470,14 @@ int SCH_DRAWING_TOOLS::PlaceSymbol( const TOOL_EVENT& aEvent )
                 SCH_SYMBOL* nextSymbol = nullptr;
 
                 if( m_frame->eeconfig()->m_SymChooserPanel.place_all_units
-                        || m_frame->eeconfig()->m_SymChooserPanel.keep_symbol )
+                        || m_frame->eeconfig()->m_SymChooserPanel.keep_symbol 
+                        || toolParams.forcePlaceAllUnits
+                    )
                 {
                     int new_unit = symbol->GetUnit();
 
-                    if( m_frame->eeconfig()->m_SymChooserPanel.place_all_units
+                    if( ( m_frame->eeconfig()->m_SymChooserPanel.place_all_units 
+                            || toolParams.forcePlaceAllUnits )
                         && symbol->GetUnit() < symbol->GetUnitCount() )
                     {
                         new_unit++;
@@ -662,9 +667,11 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
         return 0;
 
     bool placingDesignBlock = aEvent.IsAction( &SCH_ACTIONS::placeDesignBlock );
+    bool isApiPlaceSheet = aEvent.IsAction( &SCH_ACTIONS::apiPlaceSheet );
 
     std::unique_ptr<DESIGN_BLOCK> designBlock;
     wxString                      sheetFileName = wxEmptyString;
+    bool               place_as_sheet =  cfg->m_DesignBlockChooserPanel.place_as_sheet;
 
     if( placingDesignBlock )
     {
@@ -681,14 +688,21 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
             sheetFileName = designBlock->GetSchematicFile();
         }
     }
+    else if( isApiPlaceSheet )
+    {
+        const SCH_ACTIONS::PLACE_SHEET_PARAMS& toolParams = aEvent.Parameter<SCH_ACTIONS::PLACE_SHEET_PARAMS>();
+
+        sheetFileName = toolParams.sheetFileName;
+        place_as_sheet = toolParams.place_as_sheet;
+    }
     else
     {
         wxString* importSourceFile = aEvent.Parameter<wxString*>();
 
         if( importSourceFile != nullptr )
             sheetFileName = *importSourceFile;
-    }
-
+    }    
+    
     auto setCursor =
             [&]()
             {
@@ -873,7 +887,7 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
 
     // If we're placing sheet contents, we don't even want to run our tool loop, just add the items
     // to the canvas and run the move tool
-    if( !cfg->m_DesignBlockChooserPanel.place_as_sheet )
+    if( !place_as_sheet )
     {
             while( placeSheetContents() && cfg->m_DesignBlockChooserPanel.repeated_placement )
             {}
@@ -3581,6 +3595,7 @@ void SCH_DRAWING_TOOLS::setTransitions()
     Go( &SCH_DRAWING_TOOLS::TwoClickPlace,         SCH_ACTIONS::placeSheetPin.MakeEvent() );
     Go( &SCH_DRAWING_TOOLS::ImportSheet,           SCH_ACTIONS::placeDesignBlock.MakeEvent() );
     Go( &SCH_DRAWING_TOOLS::ImportSheet,           SCH_ACTIONS::importSheet.MakeEvent() );
+    Go( &SCH_DRAWING_TOOLS::ImportSheet,           SCH_ACTIONS::apiPlaceSheet.MakeEvent() );
     Go( &SCH_DRAWING_TOOLS::TwoClickPlace,         SCH_ACTIONS::placeSchematicText.MakeEvent() );
     Go( &SCH_DRAWING_TOOLS::DrawShape,             SCH_ACTIONS::drawRectangle.MakeEvent() );
     Go( &SCH_DRAWING_TOOLS::DrawShape,             SCH_ACTIONS::drawCircle.MakeEvent() );

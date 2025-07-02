@@ -186,6 +186,13 @@ public:
                               bool aShowErrorMsg = false );
 
     /**
+     * @brief Save the project symbol library tables to the disk
+     * 
+     * @return  True when all requested actions succeeded. 
+     */
+    bool SavePrjSymbolLibTables() { return saveSymbolLibTables( false, true ); }
+
+    /**
      * Display a list of loaded libraries and allows the user to select a library.
      *
      * This list is sorted, with the library cache always at end of the list

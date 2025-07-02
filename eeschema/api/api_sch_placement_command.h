@@ -1,0 +1,84 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+// Intermediate interfaces decoupled from the protocol buffer.
+
+#ifndef API_SCH_PLACEMENT_COMMAND_H
+#define API_SCH_PLACEMENT_COMMAND_H
+
+#include <api/api_design_resource.h>
+#include <api/api_design_content.h>
+#include <optional>
+
+// NOTE : The default JSON value for optional<STRUCT T>  is null instead of undefined.
+
+struct PLACE_SYMBOL_OPTION
+{
+    std::optional<bool> place_repeated_copies;
+    std::optional<bool> place_all_units;
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_SYMBOL_OPTION, place_repeated_copies, place_all_units )
+};
+
+struct PLACE_SYMBOL_RESOURCE_COMMAND
+{
+    COMPONENT_RESOURCE                 component;
+    std::optional<PLACE_SYMBOL_OPTION> option;
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_SYMBOL_RESOURCE_COMMAND, component, option )
+};
+
+
+struct PLACE_SYMBOL_CONTENT_COMMAND
+{
+    COMPONENT_CONTENT                  component;
+    std::optional<PLACE_SYMBOL_OPTION> option;
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_SYMBOL_CONTENT_COMMAND, component, option )
+};
+
+
+struct PLACE_DESIGN_BLOCK_OPTION
+{
+    std::optional<bool> place_as_sheet;
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_DESIGN_BLOCK_OPTION, place_as_sheet )
+};
+
+
+struct PLACE_DESIGN_BLOCK_RESOURCE_COMMAND
+{
+    DESIGN_BLOCK_RESOURCE                    design_block;
+    std::optional<PLACE_DESIGN_BLOCK_OPTION> option;
+
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_DESIGN_BLOCK_RESOURCE_COMMAND, design_block, option )
+};
+
+
+struct PLACE_DESIGN_BLOCK_CONTENT_COMMAND
+{
+    DESIGN_BLOCK_CONTENT                     design_block;
+    std::optional<PLACE_DESIGN_BLOCK_OPTION> option;
+
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE( PLACE_DESIGN_BLOCK_CONTENT_COMMAND, design_block, option )
+};
+
+
+#endif

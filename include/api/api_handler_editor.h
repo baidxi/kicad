@@ -25,6 +25,7 @@
 #include <api/common/commands/editor_commands.pb.h>
 #include <commit.h>
 #include <kiid.h>
+#include <memory>
 
 using namespace kiapi::common;
 using kiapi::common::types::DocumentSpecifier;
