@@ -282,6 +282,12 @@ KICAD_MANAGER_FRAME::KICAD_MANAGER_FRAME( wxWindow* parent, const wxString& titl
 
     // Ensure the window is on top
     Raise();
+
+    // Register a call to perform the on-startup tasks for this frame.
+    CallAfter( [&]()
+               {
+                    this->StartupTasks();
+               } );
 }
 
 
@@ -350,6 +356,37 @@ void KICAD_MANAGER_FRAME::onNotebookPageCloseRequest( wxAuiNotebookEvent& evt )
             evt.Veto();
         }
     }
+}
+
+
+void KICAD_MANAGER_FRAME::StartupTasks()
+{
+    KICAD_SETTINGS* settings = kicadSettings();
+
+    if( !Pgm().GetCommonSettings()->m_DoNotShowAgain.update_check_prompt )
+    {
+        auto prompt = new DIALOG_UPDATE_CHECK_PROMPT( this );
+        prompt->ShowModal();
+
+        Pgm().GetCommonSettings()->m_DoNotShowAgain.update_check_prompt = true;
+    }
+
+    if( KIPLATFORM::POLICY::GetPolicyBool( POLICY_KEY_PCM ) != KIPLATFORM::POLICY::PBOOL::DISABLED
+        && settings->m_PcmUpdateCheck )
+    {
+        if( !m_pcm )
+            CreatePCM();
+
+        m_pcm->RunBackgroundUpdate();
+    }
+
+#ifdef KICAD_UPDATE_CHECK
+    if( !m_updateManager && settings->m_KiCadUpdateCheck )
+    {
+        m_updateManager = std::make_unique<UPDATE_MANAGER>();
+        m_updateManager->CheckForUpdate( this );
+    }
+#endif
 }
 
 
@@ -1141,13 +1178,10 @@ void KICAD_MANAGER_FRAME::OnIdle( wxIdleEvent& aEvent )
      * earlier in project loading. This gives us the visual effect of a opened KiCad project but
      * with a "busy" progress reporter
      */
-    if( !m_openSavedWindows )
-        return;
-
-    m_openSavedWindows = false;
-
-    if( Pgm().GetCommonSettings()->m_Session.remember_open_files )
+    if( m_openSavedWindows && Pgm().GetCommonSettings()->m_Session.remember_open_files )
     {
+        m_openSavedWindows = false;
+
         int previousOpenCount =
                 std::count_if( Prj().GetLocalSettings().m_files.begin(),
                                Prj().GetLocalSettings().m_files.end(),
@@ -1194,33 +1228,6 @@ void KICAD_MANAGER_FRAME::OnIdle( wxIdleEvent& aEvent )
 
     // clear file states regardless if we opened windows or not due to setting
     Prj().GetLocalSettings().ClearFileState();
-
-    KICAD_SETTINGS* settings = kicadSettings();
-
-    if( !Pgm().GetCommonSettings()->m_DoNotShowAgain.update_check_prompt )
-    {
-        auto prompt = new DIALOG_UPDATE_CHECK_PROMPT( this );
-        prompt->ShowModal();
-
-        Pgm().GetCommonSettings()->m_DoNotShowAgain.update_check_prompt = true;
-    }
-
-    if( KIPLATFORM::POLICY::GetPolicyBool( POLICY_KEY_PCM ) != KIPLATFORM::POLICY::PBOOL::DISABLED
-        && settings->m_PcmUpdateCheck )
-    {
-        if( !m_pcm )
-            CreatePCM();
-
-        m_pcm->RunBackgroundUpdate();
-    }
-
-#ifdef KICAD_UPDATE_CHECK
-    if( !m_updateManager && settings->m_KiCadUpdateCheck )
-    {
-        m_updateManager = std::make_unique<UPDATE_MANAGER>();
-        m_updateManager->CheckForUpdate( this );
-    }
-#endif
 }
 
 

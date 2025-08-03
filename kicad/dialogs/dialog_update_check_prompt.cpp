@@ -60,3 +60,11 @@ bool DIALOG_UPDATE_CHECK_PROMPT::TransferDataToWindow()
 
     return true;
 }
+
+
+void DIALOG_UPDATE_CHECK_PROMPT::onApplyButton( wxCommandEvent& event )
+{
+    // The apply button in this dialog acts as the OK button to close the dialog,
+    // but the text in the dialog looks better as Apply instead.
+    wxPostEvent( this, wxCommandEvent( wxEVT_COMMAND_BUTTON_CLICKED, wxID_OK ) );
+}

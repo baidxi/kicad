@@ -33,6 +33,7 @@ public:
     DIALOG_UPDATE_CHECK_PROMPT( wxWindow* aParent );
 
 protected:
+    void onApplyButton( wxCommandEvent& event ) override;
     bool TransferDataFromWindow() override;
     bool TransferDataToWindow() override;
 };

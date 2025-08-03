@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 3.10.1-0-g8feb16b3)
+// C++ code generated with wxFormBuilder (version 4.0.0-0-g0efcecf-dirty)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -37,8 +37,11 @@ class DIALOG_UPDATE_CHECK_PROMPT_BASE : public DIALOG_SHIM
 		wxCheckBox* m_cbKiCadUpdates;
 		wxCheckBox* m_cbPCMUpdates;
 		wxStdDialogButtonSizer* m_sdbSizer;
-		wxButton* m_sdbSizerOK;
-		wxButton* m_sdbSizerCancel;
+		wxButton* m_sdbSizerApply;
+
+		// Virtual event handlers, override them in your derived class
+		virtual void onApplyButton( wxCommandEvent& event ) { event.Skip(); }
+
 
 	public:
 

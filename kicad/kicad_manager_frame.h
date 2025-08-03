@@ -48,6 +48,8 @@ public:
 
     ~KICAD_MANAGER_FRAME();
 
+    void StartupTasks();
+
     void OnIdle( wxIdleEvent& event );
 
     bool canCloseWindow( wxCloseEvent& aCloseEvent ) override;
