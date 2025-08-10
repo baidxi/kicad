@@ -43,6 +43,7 @@
 struct SCH_SYMBOL_INSTANCE
 {
     KIID_PATH m_Path;
+    KIID      m_Uuid;
 
     // Things that can be annotated:
     wxString  m_Reference;
@@ -69,6 +70,9 @@ struct SCH_SHEET_INSTANCE
 
     // The project name associated with this instance.
     wxString  m_ProjectName;
+
+    /// The symbol instances saved in this sheet instance.
+    std::vector<SCH_SYMBOL_INSTANCE> m_Symbols;
 };
 
 
@@ -176,6 +180,8 @@ public:
     {
         return m_sheets.erase( aPosition );
     }
+
+    std::vector<SCH_SHEET*>::iterator begin() { return m_sheets.begin(); }
 
     void Rehash();
 
@@ -407,6 +413,31 @@ public:
 
     void CheckForMissingSymbolInstances( const wxString& aProjectName );
 
+    /**
+     * Get all of the #SCH_SHEET_INSTANCE objects for this sheet path.
+     *
+     * All of the sheet instances inclue instances for projects other than the current project to
+     * prevent lost of sheet instance data for projects created before shared schematic instance
+     * data was stored in the first sheet of the other projects.
+     *
+     * @note This should only be called when saving instance data to the schematic file.
+     *
+     * @return All of the #SCH_SHEET_INSTANCE objects for this sheet path if any.
+     */
+    std::optional<std::vector<SCH_SHEET_INSTANCE>> GetInstance() const;
+
+    /**
+     * Get the #SCH_SHEET_PATH object where the #SCH_SHEET_INSTANCE objects for this sheet path are stored.
+     *
+     * This is determined by walking down the sheet path to find the first sheet that references a schematic
+     * file outside the current project path or any of it's sub-folders.  This is done to ensure saving
+     * instance data is never stored outside the current project.  If all schematics are saved in the
+     * current project path, then the last sheet in the path is returned.
+     *
+     * @return The #SCH_SHEET_PATH object to save the sheet instance data to.
+     */
+    SCH_SHEET_PATH GetStoredInstancesPath() const;
+
     bool operator==( const SCH_SHEET_PATH& d1 ) const;
 
     bool operator!=( const SCH_SHEET_PATH& d1 ) const { return !( *this == d1 ) ; }
@@ -415,6 +446,8 @@ public:
 
 private:
     void initFromOther( const SCH_SHEET_PATH& aOther );
+
+    std::vector<SCH_SYMBOL_INSTANCE> getSymbolInstances() const;
 
 protected:
     std::vector<SCH_SHEET*> m_sheets;
@@ -700,6 +733,15 @@ public:
 
     void CheckForMissingSymbolInstances( const wxString& aProjectName );
 
+    /**
+     * Restore the #SCH_SHEET_INSTANCE and #SCH_SYMBOL_INSTANCE objects for this sheet path.
+     *
+     * As of #SEXPR_SCHEMATIC_FILE_VERSION 20250809, #SCH_SYMBOL_INSTANCE data is stored in the #SCH_SHEET
+     * object returned by #SCH_SHEET_PATH::GetStoredInstancesSheet().  This required updating the hierarchical
+     * instance of the appropriate #SCH_SYMBOL object.
+     */
+    void RestoreLoadedSymbolInstances();
+
     bool HasPath( const KIID_PATH& aPath ) const;
 
     bool ContainsSheet( const SCH_SHEET* aSheet ) const;
@@ -714,6 +756,14 @@ public:
      *         if \a aScreen has no ordinal sheet path in the list.
      */
     std::optional<SCH_SHEET_PATH> GetOrdinalPath( const SCH_SCREEN* aScreen ) const;
+
+    /**
+     * Return the ordinal sheet path of \a aSheet.
+     *
+     * @return an optional #SCH_SHEET_PATH for the path of \a aSheet or an empty value
+     *         if \a aSheet is not the last #SCH_SHEET object in any sheet path in the list.
+     */
+    std::optional<SCH_SHEET_PATH> GetSheetPath( const SCH_SHEET* aSheet ) const;
 
 private:
     SCH_SHEET_PATH  m_currentSheetPath;

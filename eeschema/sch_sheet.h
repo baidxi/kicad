@@ -470,6 +470,13 @@ public:
 
     double Similarity( const SCH_ITEM& aOther ) const override;
 
+    /**
+     * Return the #SCH_SHEET_PATH of this sheet.
+     *
+     * @note: This **requires** that the current sheet hierarchy contains the this sheet.
+     */
+    SCH_SHEET_PATH findSelf() const;
+
     bool operator==( const SCH_ITEM& aOther ) const override;
 
 #if defined(DEBUG)
@@ -477,9 +484,6 @@ public:
 #endif
 
 protected:
-    friend SCH_SHEET_PATH;
-    friend SCH_IO_KICAD_SEXPR_PARSER;
-
     void setInstances( const std::vector<SCH_SHEET_INSTANCE>& aInstances )
     {
         m_instances = aInstances;
@@ -534,17 +538,13 @@ protected:
      */
     void renumberPins();
 
-    /**
-     * Get the sheetpath of this sheet.  NB: REQUIRES that the current sheet hierarchy contains
-     * the given sheet.
-     */
-    SCH_SHEET_PATH findSelf() const;
-
 private:
     bool doIsConnected( const VECTOR2I& aPosition ) const override;
 
-    friend class SCH_SHEET_PIN;
+    friend class SCH_IO_KICAD_SEXPR_PARSER;
     friend class SCH_SHEET_LIST;
+    friend class SCH_SHEET_PATH;
+    friend class SCH_SHEET_PIN;
 
 private:
     SCH_SCREEN*                 m_screen;       // Screen that contains the physical data for the
@@ -565,7 +565,7 @@ private:
     KIGFX::COLOR4D              m_borderColor;
     KIGFX::COLOR4D              m_backgroundColor;
 
-    std::vector<SCH_SHEET_INSTANCE> m_instances;
+    std::vector<SCH_SHEET_INSTANCE>  m_instances;
 };
 
 

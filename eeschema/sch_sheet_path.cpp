@@ -151,6 +151,18 @@ void SCH_SHEET_PATH::initFromOther( const SCH_SHEET_PATH& aOther )
 }
 
 
+std::vector<SCH_SYMBOL_INSTANCE> SCH_SHEET_PATH::getSymbolInstances() const
+{
+    std::vector<SCH_SYMBOL_INSTANCE> retv;
+
+    wxCHECK( LastScreen(), retv );
+
+    SCH_SYMBOL_INSTANCE instanceInSheet;
+
+    return LastScreen()->GetSymbolInstances( Path() );
+}
+
+
 bool SCH_SHEET_PATH::IsFullPath() const
 {
     // The root sheet path is empty.  All other sheet paths must start with the root sheet path.
@@ -671,6 +683,33 @@ void SCH_SHEET_PATH::RemoveSymbolInstances( const SCH_SHEET_PATH& aPrefixSheetPa
 }
 
 
+SCH_SHEET_PATH SCH_SHEET_PATH::GetStoredInstancesPath() const
+{
+    SCH_SHEET_PATH retv;
+
+    auto it = m_sheets.begin();
+
+    while( it != m_sheets.end() )
+    {
+        retv.push_back( *it );
+
+        // There is no sheet above the root sheet.
+        if( it == m_sheets.begin() )
+        {
+            ++it;
+            continue;
+        }
+
+        if( (*it)->GetScreen() && !(*it)->GetScreen()->InProjectPath() )
+            break;
+
+        ++it;
+    }
+
+    return retv;
+}
+
+
 void SCH_SHEET_PATH::CheckForMissingSymbolInstances( const wxString& aProjectName )
 {
     wxCHECK( !aProjectName.IsEmpty() && LastScreen(), /* void */ );
@@ -711,6 +750,102 @@ void SCH_SHEET_PATH::CheckForMissingSymbolInstances( const wxString& aProjectNam
             symbol->AddHierarchicalReference( symbolInstance );
         }
     }
+}
+
+
+std::optional<std::vector<SCH_SHEET_INSTANCE>> SCH_SHEET_PATH::GetInstance() const
+{
+    wxCHECK( size() >= 2, std::nullopt );          // The root sheet cannot have instances.
+    wxCHECK( Last(), std::nullopt );
+    wxCHECK( LastScreen(), std::nullopt );
+
+    std::set<KIID_PATH> addedPaths;
+    SCH_SHEET_PATH parentPath( *this );
+
+    if( !parentPath.empty() )
+        parentPath.pop_back();
+
+    SCH_SHEET_PATH saveToSheetPath = GetStoredInstancesPath();
+
+    wxCHECK( saveToSheetPath.Last(), std::nullopt );
+
+    const SCH_SHEET* saveToSheet = saveToSheetPath.Last();
+
+    std::vector<SCH_SHEET_INSTANCE> retv;
+
+    // If the linked schematic file exists outside the project path, fetch all of the symbol instances in
+    // the remaining hierarchy.
+    if( !LastScreen()->InProjectPath() && ( saveToSheet == Last() ) )
+    {
+        SCH_SHEET_INSTANCE instanceInSheet;
+
+        SCH_SHEET_LIST remainingHierarchy( Last() );
+
+        for( const SCH_SHEET_PATH& relativePath : remainingHierarchy )
+        {
+            SCH_SHEET_PATH symbolPath = parentPath + relativePath;
+            SCH_SHEET_PATH sheetPath = symbolPath;
+            sheetPath.pop_back();
+
+            const SCH_SHEET* sheet = relativePath.Last();
+
+            wxCHECK2( sheet && sheet->getInstance( instanceInSheet, sheetPath.Path() ), continue );
+
+            // The sheet UUID is included in the path below this sheet to find the externally defined sheets on load.
+            if( relativePath.size() == 1 )
+                instanceInSheet.m_Path = sheetPath.Path();
+            else
+                instanceInSheet.m_Path = symbolPath.Path();
+
+            instanceInSheet.m_Symbols = symbolPath.getSymbolInstances();
+            retv.emplace_back( instanceInSheet );
+
+            addedPaths.insert( sheetPath.Path() );
+        }
+    }
+    else if( saveToSheet != Last() )
+    {
+        // Add all paths already saved further up the hierarchical path so they don't get saved more than once.
+        SCH_SHEET_LIST remainingHierarchy( Last() );
+
+        for( const SCH_SHEET_PATH& relativePath : remainingHierarchy )
+        {
+            SCH_SHEET_PATH alreadySavedSheetPath = parentPath + relativePath;
+            alreadySavedSheetPath.pop_back();
+            addedPaths.insert( alreadySavedSheetPath.Path() );
+        }
+    }
+
+    const SCH_SHEET* prjRootSheet = &Last()->Schematic()->Root();
+
+    for( const SCH_SHEET_INSTANCE& instance : Last()->GetInstances() )
+    {
+        KIID_PATH instancePath = instance.m_Path;
+
+        // Remove instance if it's already been saved further up the hierarchy or the path is empty which is not
+        // valid.
+        if( addedPaths.count( instance.m_Path ) || instance.m_Path.empty() )
+            continue;
+
+        SCH_SHEET_INSTANCE tmp( instance );
+
+        if( instance.m_Path == parentPath.Path() )
+        {
+            tmp.m_Path = parentPath.Path();
+            tmp.m_Symbols = getSymbolInstances();
+            retv.emplace_back( tmp );
+        }
+        else if( instance.m_Path[0] != prjRootSheet->m_Uuid )
+        {
+            // Any sheet instances that are not part of this project are saved as is and will be adjusted the
+            // next time the other project is saved.
+            retv.emplace_back( tmp );
+        }
+
+        addedPaths.insert( tmp.m_Path );
+    }
+
+    return retv;
 }
 
 
@@ -1417,6 +1552,91 @@ void SCH_SHEET_LIST::RemoveSymbolInstances( const SCH_SHEET_PATH& aPrefixSheetPa
 }
 
 
+void SCH_SHEET_LIST::RestoreLoadedSymbolInstances()
+{
+    for( SCH_SHEET_PATH& sheetPath : *this )
+    {
+        SCH_SCREEN* screen = sheetPath.LastScreen();
+
+        wxCHECK2( screen, continue );
+
+        // Instance data is already loaded properly for files prior to storing symbol instances in sheet definition.
+        if( screen->GetFileFormatVersionAtLoad() < 20250809 )
+            continue;
+
+        if( sheetPath.size() == 1 )
+        {
+            for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+            {
+                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+
+                wxCHECK2( symbol, continue );
+
+                SCH_FIELD* refField = symbol->GetField( FIELD_T::REFERENCE );
+
+                wxCHECK2( refField, continue );
+
+                SCH_SYMBOL_INSTANCE inst;
+
+                inst.m_Path = sheetPath.Path();
+                inst.m_Reference = refField->GetText();
+                inst.m_Unit = symbol->GetUnit();
+                symbol->AddHierarchicalReference( inst );
+            }
+        }
+        else
+        {
+            SCH_SHEET_PATH storedInstancesPath = sheetPath.GetStoredInstancesPath();
+
+            wxCHECK2( storedInstancesPath.size() >= 2, continue );
+
+            SCH_SHEET_PATH storedInstancesParentPath = storedInstancesPath;
+            storedInstancesParentPath.pop_back();
+
+            // If the schematic version referenced by the path where the instance data should be stored prior to
+            // the updated instance saving implementation, all of the instance data is already loaded properly.
+            if( storedInstancesParentPath.LastScreen()->GetFileFormatVersionAtLoad() < 20250809 )
+                continue;
+
+            KIID_PATH storedInstancePath = sheetPath.Path();
+            SCH_SHEET_INSTANCE restoredInstance;
+
+            if( storedInstancesPath.Last() == sheetPath.Last() )
+                storedInstancePath.pop_back();
+
+            for( const SCH_SHEET_INSTANCE& sheetInstance : storedInstancesPath.Last()->GetInstances() )
+            {
+                if( storedInstancePath == sheetInstance.m_Path )
+                {
+                    restoredInstance = sheetInstance;
+                    break;
+                }
+            }
+
+            if( storedInstancesPath.Last() != sheetPath.Last() )
+            {
+                restoredInstance.m_Path = sheetPath.Path();
+                restoredInstance.m_Path.pop_back();
+                sheetPath.Last()->AddInstance( restoredInstance );
+            }
+
+            for( const SCH_SYMBOL_INSTANCE& instance : restoredInstance.m_Symbols )
+            {
+                SCH_SYMBOL_INSTANCE tmp( instance );
+
+                auto it = screen->m_symbols.find( tmp.m_Uuid );
+
+                if( it == screen->m_symbols.end() )
+                    continue;
+
+                tmp.m_Path = sheetPath.Path();
+                it->second->AddHierarchicalReference( tmp );
+            }
+        }
+    }
+}
+
+
 void SCH_SHEET_LIST::AddNewSheetInstances( const SCH_SHEET_PATH& aPrefixSheetPath,
                                            int aLastVirtualPageNumber )
 {
@@ -1541,9 +1761,24 @@ std::optional<SCH_SHEET_PATH> SCH_SHEET_LIST::GetOrdinalPath( const SCH_SCREEN* 
     if( !aScreen )
         return std::nullopt;
 
-    for( const SCH_SHEET_PATH& path: *this )
+    for( const SCH_SHEET_PATH& path : *this )
     {
         if( path.LastScreen() == aScreen )
+            return std::optional<SCH_SHEET_PATH>( path );
+    }
+
+    return std::nullopt;
+}
+
+
+std::optional<SCH_SHEET_PATH> SCH_SHEET_LIST::GetSheetPath( const SCH_SHEET* aSheet ) const
+{
+    if( !aSheet )
+        return std::nullopt;
+
+    for( const SCH_SHEET_PATH& path : *this )
+    {
+        if( path.Last() == aSheet )
             return std::optional<SCH_SHEET_PATH>( path );
     }
 

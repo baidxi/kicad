@@ -166,6 +166,9 @@ SCH_SHEET* SCH_IO_KICAD_SEXPR::LoadSchematicFile( const wxString& aFileName, SCH
         loadHierarchy( SCH_SHEET_PATH(), sheet );
     }
 
+    SCH_SHEET_LIST hierarchy( sheet );
+    hierarchy.RestoreLoadedSymbolInstances();
+
     wxASSERT( m_currentPath.size() == 1 );  // only the project path should remain
 
     m_currentPath.pop(); // Clear the path stack for next call to Load
@@ -809,7 +812,20 @@ void SCH_IO_KICAD_SEXPR::saveSymbol( SCH_SYMBOL* aSymbol, const SCHEMATIC& aSche
         }
     }
 
-    if( !aSymbol->GetInstances().empty() )
+    // As of file version 20250809, the instance data for the current project is saved in the sheet definition.
+    // Only instance data from other projects will be save until those projects are loaded and saved.
+    bool hasInstancesFromOtherProjects = false;
+
+    for( const SCH_SYMBOL_INSTANCE& inst : aSymbol->GetInstances() )
+    {
+        if( aSchematic.Hierarchy().HasPath( inst.m_Path ) )
+            continue;
+
+        hasInstancesFromOtherProjects = true;
+        break;
+    }
+
+    if( hasInstancesFromOtherProjects )
     {
         std::map<KIID, std::vector<SCH_SYMBOL_INSTANCE>> projectInstances;
 
@@ -830,7 +846,7 @@ void SCH_IO_KICAD_SEXPR::saveSymbol( SCH_SYMBOL* aSymbol, const SCHEMATIC& aSche
                               && !aSheetList.GetSheetPathByKIIDPath( inst.m_Path );
 
             // Keep all instance data when copying to the clipboard.  They may be needed on paste.
-            if( !aForClipboard && isOrphaned )
+            if( !aForClipboard && ( isOrphaned || aSchematic.Hierarchy().HasPath( inst.m_Path ) ) )
                 continue;
 
             auto it = projectInstances.find( inst.m_Path[0] );
@@ -1018,79 +1034,64 @@ void SCH_IO_KICAD_SEXPR::saveSheet( SCH_SHEET* aSheet, const SCH_SHEET_LIST& aSh
         m_out->Print( ")" );  // Closes pin token.
     }
 
-    // Save all sheet instances here except the root sheet instance.
-    std::vector< SCH_SHEET_INSTANCE > sheetInstances = aSheet->GetInstances();
+    // Save all sheet and symbol instances here except the root sheet instance.
+    std::set<KIID_PATH> addedPaths;
+    std::vector<SCH_SHEET_INSTANCE> instances;
+    SCH_SHEET_LIST instancePaths = aSheetList.FindAllSheetsForScreen( aSheet->GetScreen() );
 
-    auto it = sheetInstances.begin();
-
-    while( it != sheetInstances.end() )
+    for( const SCH_SHEET_PATH& path : instancePaths )
     {
-        if( it->m_Path.size() == 0 )
-            it = sheetInstances.erase( it );
-        else
-            it++;
+        if( path.Last() != aSheet )
+            continue;
+
+        std::optional<std::vector<SCH_SHEET_INSTANCE>> instance = path.GetInstance();
+
+        if( instance )
+        {
+            for( const SCH_SHEET_INSTANCE& sheetInstance : *instance )
+            {
+                if( addedPaths.count( sheetInstance.m_Path ) == 0 )
+                {
+                    instances.emplace_back( sheetInstance );
+                    addedPaths.insert( sheetInstance.m_Path );
+                }
+            }
+        }
     }
 
-    if( !sheetInstances.empty() )
+    if( !instances.empty() )
     {
         m_out->Print( "(instances" );
 
-        KIID lastProjectUuid;
-        KIID rootSheetUuid = m_schematic->Root().m_Uuid;
-        bool inProjectClause = false;
-
-        for( size_t i = 0; i < sheetInstances.size(); i++ )
+        for( const SCH_SHEET_INSTANCE& sheetInstance : instances )
         {
-            // If the instance data is part of this design but no longer has an associated sheet
-            // path, don't save it.  This prevents large amounts of orphaned instance data for the
-            // current project from accumulating in the schematic files.
-            //
-            // Keep all instance data when copying to the clipboard.  It may be needed on paste.
-            if( ( sheetInstances[i].m_Path[0] == rootSheetUuid )
-                    && !aSheetList.GetSheetPathByKIIDPath( sheetInstances[i].m_Path, false ) )
+            m_out->Print( "(path %s (page %s)", m_out->Quotew( sheetInstance.m_Path.AsString() ).c_str(),
+                          m_out->Quotew( sheetInstance.m_PageNumber ).c_str() );
+
+            if( !sheetInstance.m_Symbols.empty() )
             {
-                if( inProjectClause && ( ( i + 1 == sheetInstances.size() )
-                        || lastProjectUuid != sheetInstances[i+1].m_Path[0] ) )
+                KIID_PATH lastInstancePath;
+
+                for( const SCH_SYMBOL_INSTANCE& symbolInstance : sheetInstance.m_Symbols )
                 {
-                    m_out->Print( ")" );  // Closes `project` token.
-                    inProjectClause = false;
+                    m_out->Print( "(symbol" );
+
+                    m_out->Print( "(uuid %s) (reference %s) (unit %d)",
+                                  m_out->Quotew( symbolInstance.m_Uuid.AsString() ).c_str(),
+                                  m_out->Quotew( symbolInstance.m_Reference ).c_str(),
+                                  symbolInstance.m_Unit );
+
+                    m_out->Print( ")" );    // Closes `symbol` token.
                 }
-
-                continue;
             }
 
-            if( lastProjectUuid != sheetInstances[i].m_Path[0] )
-            {
-                wxString projectName;
-
-                if( sheetInstances[i].m_Path[0] == rootSheetUuid )
-                    projectName = m_schematic->Project().GetProjectName();
-                else
-                    projectName = sheetInstances[i].m_ProjectName;
-
-                lastProjectUuid = sheetInstances[i].m_Path[0];
-                m_out->Print( "(project %s", m_out->Quotew( projectName ).c_str() );
-                inProjectClause = true;
-            }
-
-            wxString path = sheetInstances[i].m_Path.AsString();
-
-            m_out->Print( "(path %s (page %s))",
-                          m_out->Quotew( path ).c_str(),
-                          m_out->Quotew( sheetInstances[i].m_PageNumber ).c_str() );
-
-            if( inProjectClause && ( ( i + 1 == sheetInstances.size() )
-                    || lastProjectUuid != sheetInstances[i+1].m_Path[0] ) )
-            {
-                m_out->Print( ")" );  // Closes `project` token.
-                inProjectClause = false;
-            }
+            m_out->Print( ")" );            // Closes `path` token.
         }
 
-        m_out->Print( ")" );        // Closes `instances` token.
+        m_out->Print( ")" );                // Closes `instances` token.
     }
 
-    m_out->Print( ")" );          // Closes sheet token.
+    m_out->Print( ")" );                    // Closes `sheet` token.
 }
 
 
