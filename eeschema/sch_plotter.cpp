@@ -535,6 +535,7 @@ void SCH_PLOTTER::createSVGFiles( const SCH_PLOT_OPTS& aPlotOpts,
             // so replace separators to create a unique filename:
             fname.Replace( "/", "_" );
             fname.Replace( "\\", "_" );
+            fname.Replace( ":", "_" );
             wxString   ext = SVG_PLOTTER::GetDefaultFileExtension();
             wxFileName plotFileName = createPlotFileName( aPlotOpts, fname, ext, aReporter );
 
