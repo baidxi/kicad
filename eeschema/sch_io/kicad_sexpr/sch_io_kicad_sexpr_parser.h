@@ -129,7 +129,7 @@ private:
 
     void checkpoint();
 
-    KIID parseKIID();
+    KIID parseKIID( bool aAutoIncrement = true );
 
     void parseHeader( TSCHEMATIC_T::T aHeaderType, int aFileVersion );
 
@@ -248,6 +248,9 @@ private:
     SCH_TABLECELL* parseSchTableCell();
     SCH_TABLE* parseSchTable();
     void parseBusAlias( SCH_SCREEN* aScreen );
+
+    void parseSymbolInstances( std::vector<SCH_SYMBOL_INSTANCE>& aInstances );
+    std::optional<SCH_SHEET_INSTANCE> parseSheetInstance();
 
     void resolveGroups( SCH_SCREEN* aParent );
 

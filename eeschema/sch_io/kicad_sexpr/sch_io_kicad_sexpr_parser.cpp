@@ -114,12 +114,15 @@ void SCH_IO_KICAD_SEXPR_PARSER::checkpoint()
 }
 
 
-KIID SCH_IO_KICAD_SEXPR_PARSER::parseKIID()
+KIID SCH_IO_KICAD_SEXPR_PARSER::parseKIID( bool aAutoIncrement )
 {
     KIID id( FromUTF8() );
 
-    while( m_uuids.count( id ) )
-        id.Increment();
+    if( aAutoIncrement )
+    {
+        while( m_uuids.count( id ) )
+            id.Increment();
+    }
 
     m_uuids.insert( id );
 
@@ -173,6 +176,169 @@ bool SCH_IO_KICAD_SEXPR_PARSER::parseMaybeAbsentBool( bool aDefaultValue )
     }
 
     return ret;
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseSymbolInstances( std::vector<SCH_SYMBOL_INSTANCE>& aInstances )
+{
+    SCH_SYMBOL_INSTANCE instance;
+
+    for( T token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        if( token != T_path )
+            Expecting( "path" );
+
+        NeedSYMBOL();
+        instance.m_Path = KIID_PATH( FromUTF8() );
+
+        for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+        {
+            if( token != T_LEFT )
+                Expecting( T_LEFT );
+
+            token = NextTok();
+
+            switch( token )
+            {
+            case T_reference:
+                NeedSYMBOL();
+                instance.m_Reference = FromUTF8();
+                NeedRIGHT();
+                break;
+
+            case T_unit:
+                instance.m_Unit = parseInt( "symbol unit" );
+                NeedRIGHT();
+                break;
+
+            case T_value:
+                NeedSYMBOL();
+
+                if( m_requiredVersion < 20250318 && FromUTF8() == "~" )
+                    instance.m_Value = wxEmptyString;
+                else
+                    instance.m_Value = FromUTF8();
+
+                NeedRIGHT();
+                break;
+
+            case T_footprint:
+                NeedSYMBOL();
+
+                if( m_requiredVersion < 20250318 && FromUTF8() == "~" )
+                    instance.m_Footprint = wxEmptyString;
+                else
+                    instance.m_Footprint = FromUTF8();
+
+                NeedRIGHT();
+                break;
+
+            default:
+                Expecting( "reference, unit, value or footprint" );
+            }
+        }
+
+        aInstances.emplace_back( instance );
+    }
+}
+
+
+std::optional<SCH_SHEET_INSTANCE> SCH_IO_KICAD_SEXPR_PARSER::parseSheetInstance()
+{
+    T token = CurTok();
+
+    wxCHECK_MSG( token == T_path, std::nullopt,
+                 wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as SCH_SHEET_INSTANCE." ) );
+
+    SCH_SHEET_INSTANCE instance;
+
+    NeedSYMBOL();
+    instance.m_Path = KIID_PATH( FromUTF8() );
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_page:
+        {
+            NeedSYMBOL();
+            instance.m_PageNumber = FromUTF8();
+
+            // Empty page numbers are not permitted
+            if( instance.m_PageNumber.IsEmpty() )
+            {
+                // Use hash character instead
+                instance.m_PageNumber = wxT( "#" );
+            }
+            else
+            {
+                // Whitespaces are not permitted
+                static std::vector<wxString> whitespaces = { wxT( "\r" ), wxT( "\n" ), wxT( "\t" ), wxT( " " ) };
+
+                for( wxString ch : whitespaces )
+                    instance.m_PageNumber.Replace( ch, wxEmptyString );
+            }
+
+            NeedRIGHT();
+            break;
+        }
+
+        case T_symbol:
+        {
+            SCH_SYMBOL_INSTANCE symbolInstance;
+
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                if( token != T_LEFT )
+                    Expecting( T_LEFT );
+
+                token = NextTok();
+
+                switch( token )
+                {
+                case T_uuid:
+                    NeedSYMBOL();
+                    symbolInstance.m_Uuid = parseKIID( false );
+                    NeedRIGHT();
+                    break;
+
+                case T_reference:
+                    NeedSYMBOL();
+                    symbolInstance.m_Reference = FromUTF8();
+                    NeedRIGHT();
+                    break;
+
+                case T_unit:
+                    symbolInstance.m_Unit = parseInt( "symbol unit" );
+                    NeedRIGHT();
+                    break;
+
+                default:
+                    Expecting( "reference, unit, or uuid" );
+                    break;
+                }
+            }
+
+            instance.m_Symbols.emplace_back( symbolInstance );
+            break;
+        }
+
+        default:
+            Expecting( "page or symbol" );
+        }
+    }
+
+    return instance;
 }
 
 
@@ -3254,72 +3420,14 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
                 NeedSYMBOL();
 
                 wxString projectName = FromUTF8();
+                std::vector<SCH_SYMBOL_INSTANCE> instances;
 
-                for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                parseSymbolInstances( instances );
+
+                for( SCH_SYMBOL_INSTANCE& instance : instances )
                 {
-                    if( token != T_LEFT )
-                        Expecting( T_LEFT );
-
-                    token = NextTok();
-
-                    if( token != T_path )
-                        Expecting( "path" );
-
-                    SCH_SYMBOL_INSTANCE instance;
-
                     instance.m_ProjectName = projectName;
-
-                    NeedSYMBOL();
-                    instance.m_Path = KIID_PATH( FromUTF8() );
-
-                    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
-                    {
-                        if( token != T_LEFT )
-                            Expecting( T_LEFT );
-
-                        token = NextTok();
-
-                        switch( token )
-                        {
-                        case T_reference:
-                            NeedSYMBOL();
-                            instance.m_Reference = FromUTF8();
-                            NeedRIGHT();
-                            break;
-
-                        case T_unit:
-                            instance.m_Unit = parseInt( "symbol unit" );
-                            NeedRIGHT();
-                            break;
-
-                        case T_value:
-                            NeedSYMBOL();
-
-                            if( m_requiredVersion < 20250318 && FromUTF8() == "~" )
-                                symbol->SetValueFieldText( wxEmptyString );
-                            else
-                                symbol->SetValueFieldText( FromUTF8() );
-
-                            NeedRIGHT();
-                            break;
-
-                        case T_footprint:
-                            NeedSYMBOL();
-
-                            if( m_requiredVersion < 20250318 && FromUTF8() == "~" )
-                                symbol->SetFootprintFieldText( wxEmptyString );
-                            else
-                                symbol->SetFootprintFieldText( FromUTF8() );
-
-                            NeedRIGHT();
-                            break;
-
-                        default:
-                            Expecting( "reference, unit, value or footprint" );
-                        }
-
-                        symbol->AddHierarchicalReference( instance );
-                    }
+                    symbol->AddHierarchicalReference( instance );
                 }
             }
 
@@ -3625,29 +3733,14 @@ SCH_SHEET* SCH_IO_KICAD_SEXPR_PARSER::parseSheet()
 
                 token = NextTok();
 
-                if( token != T_project )
-                    Expecting( "project" );
+                std::optional<SCH_SHEET_INSTANCE> instance;
+                wxString projectName;
 
-                NeedSYMBOL();
-
-                wxString projectName = FromUTF8();
-
-                for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                if( token == T_project )
                 {
-                    if( token != T_LEFT )
-                        Expecting( T_LEFT );
-
-                    token = NextTok();
-
-                    if( token != T_path )
-                        Expecting( "path" );
-
-                    SCH_SHEET_INSTANCE instance;
-
-                    instance.m_ProjectName = projectName;
-
                     NeedSYMBOL();
-                    instance.m_Path = KIID_PATH( FromUTF8() );
+
+                    projectName = FromUTF8();
 
                     for( token = NextTok(); token != T_RIGHT; token = NextTok() )
                     {
@@ -3656,42 +3749,32 @@ SCH_SHEET* SCH_IO_KICAD_SEXPR_PARSER::parseSheet()
 
                         token = NextTok();
 
-                        switch( token )
+                        if( token != T_path )
+                            Expecting( "path" );
+
+                        instance = parseSheetInstance();
+
+                        if( instance )
                         {
-                        case T_page:
-                        {
-                            NeedSYMBOL();
-                            instance.m_PageNumber = FromUTF8();
-
-                            // Empty page numbers are not permitted
-                            if( instance.m_PageNumber.IsEmpty() )
-                            {
-                                // Use hash character instead
-                                instance.m_PageNumber = wxT( "#" );
-                            }
-                            else
-                            {
-                                // Whitespaces are not permitted
-                                static std::vector<wxString> whitespaces =
-                                        { wxT( "\r" ),
-                                          wxT( "\n" ),
-                                          wxT( "\t" ),
-                                          wxT( " " ) };
-
-                                for( wxString ch : whitespaces )
-                                    instance.m_PageNumber.Replace( ch, wxEmptyString );
-                            }
-
-                            NeedRIGHT();
-                            break;
-                        }
-
-                        default:
-                            Expecting( "page" );
+                            instance->m_ProjectName = projectName;
+                            instances.emplace_back( *instance );
                         }
                     }
+                }
+                else if( token == T_path )
+                {
+                    instance = parseSheetInstance();
 
-                    instances.emplace_back( instance );
+
+                    if( instance )
+                    {
+                        instance->m_ProjectName = projectName;
+                        instances.emplace_back( *instance );
+                    }
+                }
+                else
+                {
+                    Expecting( "project or path" );
                 }
             }
 

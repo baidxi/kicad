@@ -635,6 +635,8 @@ public:
      */
     wxString GroupsSanityCheckInternal( bool repair );
 
+    std::vector<SCH_SYMBOL_INSTANCE> GetSymbolInstances( const KIID_PATH& aInstancePath ) const;
+
 private:
     friend SCH_EDIT_FRAME;     // Only to populate m_symbolInstances.
     friend SCH_IO_KICAD_SEXPR_PARSER;   // Only to load instance information from schematic file.
@@ -682,6 +684,9 @@ public:
     double m_LastZoomLevel;
 
 private:
+    friend class SCH_SHEET_PATH;
+    friend class SCH_SHEET_LIST;
+
     wxString    m_fileName;                 // File used to load the screen.
     int         m_fileFormatVersionAtLoad;
     int         m_refCount;                 // Number of sheets referencing this screen.
@@ -742,6 +747,8 @@ private:
      * be useful to detect unexpected hierarchy changes.
      */
     KIID m_uuid;
+
+    std::map<KIID, SCH_SYMBOL*> m_symbols;
 };
 
 

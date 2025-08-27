@@ -169,6 +169,8 @@ void SCH_SCREEN::Append( SCH_ITEM* aItem, bool aUpdateLibSymbol )
         {
             SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( aItem );
 
+            m_symbols[symbol->m_Uuid] = symbol;
+
             if( symbol->GetLibSymbolRef() )
             {
                 symbol->GetLibSymbolRef()->GetDrawItems().sort();
@@ -332,32 +334,37 @@ bool SCH_SCREEN::Remove( SCH_ITEM* aItem, bool aUpdateLibSymbol )
 {
     bool retv = m_rtree.remove( aItem );
 
-    // Check if the library symbol for the removed schematic symbol is still required.
-    if( retv && aItem->Type() == SCH_SYMBOL_T && aUpdateLibSymbol )
+    if( retv && aItem->Type() == SCH_SYMBOL_T )
     {
-        SCH_SYMBOL* removedSymbol = static_cast<SCH_SYMBOL*>( aItem );
+        m_symbols.erase( aItem->m_Uuid );
 
-        bool removeUnusedLibSymbol = true;
-
-        for( SCH_ITEM* item : Items().OfType( SCH_SYMBOL_T ) )
+        if( aUpdateLibSymbol )
         {
-            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+            // Check if the library symbol for the removed schematic symbol is still required.
+            SCH_SYMBOL* removedSymbol = static_cast<SCH_SYMBOL*>( aItem );
 
-            if( removedSymbol->GetSchSymbolLibraryName() == symbol->GetSchSymbolLibraryName() )
+            bool removeUnusedLibSymbol = true;
+
+            for( SCH_ITEM* item : Items().OfType( SCH_SYMBOL_T ) )
             {
-                removeUnusedLibSymbol = false;
-                break;
+                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+
+                if( removedSymbol->GetSchSymbolLibraryName() == symbol->GetSchSymbolLibraryName() )
+                {
+                    removeUnusedLibSymbol = false;
+                    break;
+                }
             }
-        }
 
-        if( removeUnusedLibSymbol )
-        {
-            auto it = m_libSymbols.find( removedSymbol->GetSchSymbolLibraryName() );
-
-            if( it != m_libSymbols.end() )
+            if( removeUnusedLibSymbol )
             {
-                delete it->second;
-                m_libSymbols.erase( it );
+                auto it = m_libSymbols.find( removedSymbol->GetSchSymbolLibraryName() );
+
+                if( it != m_libSymbols.end() )
+                {
+                    delete it->second;
+                    m_libSymbols.erase( it );
+                }
             }
         }
     }
@@ -1751,6 +1758,27 @@ bool SCH_SCREEN::InProjectPath() const
         thisScreenFn.RemoveLastDir();
 
     return thisScreenFn.GetPath() == thisProjectFn.GetPath();
+}
+
+
+std::vector<SCH_SYMBOL_INSTANCE> SCH_SCREEN::GetSymbolInstances( const KIID_PATH& aInstancePath ) const
+{
+    std::vector<SCH_SYMBOL_INSTANCE> retv;
+
+    SCH_SYMBOL_INSTANCE instanceInSheet;
+
+    for( const SCH_ITEM* item : Items().OfType( SCH_SYMBOL_T ) )
+    {
+        const SCH_SYMBOL* symbol = static_cast<const SCH_SYMBOL*>( item );
+
+        wxCHECK2( symbol, continue );
+        wxCHECK2( symbol->GetInstance( instanceInSheet, aInstancePath ), continue );
+
+        instanceInSheet.m_Uuid = symbol->m_Uuid;
+        retv.emplace_back( instanceInSheet );
+    }
+
+    return retv;
 }
 
 
