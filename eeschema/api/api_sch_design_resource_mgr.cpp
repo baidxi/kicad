@@ -106,7 +106,10 @@ LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveComponentToProject( COMPONENT_CONTE
         return {};
     }
 
-    auto lib_id = WriteSymbolFields( symbol_file_name, aComponent.attributes );
+    auto lib_id = WriteSymbolFields( symbol_file_name, aComponent.attributes,
+                                     RemoveFileExt( aComponent.footprints.size()
+                                                            ? aComponent.footprints.front().footprint.filename
+                                                            : aComponent.symbol.filename ) );
 
     if( !UpdateLibTable( API_LIB_SYMBOL_TABLE, symbol_nick_name, FormatAPISymbolURI( symbol_file_name ) ) )
     {
@@ -206,7 +209,8 @@ bool API_SCH_DESIGN_RESOURCE_MGR::UpdateLibTable( API_LIB_TABLE_T aLibT, const w
     return false;
 }
 
-LIB_ID API_SCH_DESIGN_RESOURCE_MGR::WriteSymbolFields( std::string const& aFileName, auto const& aFields )
+LIB_ID API_SCH_DESIGN_RESOURCE_MGR::WriteSymbolFields( std::string const& aFileName, auto const& aFields,
+                                                       auto const& aFootprintName )
 {
     const auto symbolTb = PROJECT_SCH::SchSymbolLibTable( &m_frame.Prj() );
 
@@ -265,7 +269,14 @@ LIB_ID API_SCH_DESIGN_RESOURCE_MGR::WriteSymbolFields( std::string const& aFileN
     }
 
     lib_sym->SetFields( fields );
-    lib_sym->GetFootprintField().SetText( FormatSymbolFpPropertyValue( aNickName ) );
+    lib_sym->GetFootprintField().SetText( FormatSymbolFpPropertyValue( aFootprintName ) );
+
+    for( auto& field : fields )
+    {
+        const auto is_value_ref = field.GetId() == FIELD_T::REFERENCE || field.GetId() == FIELD_T::VALUE;
+        field.SetVisible( is_value_ref );
+        field.SetShowInChooser( is_value_ref );
+    }
 
 
     const auto fp = *GetProjectResourceSavePath( SYMBOL_DIR, aFileName );
