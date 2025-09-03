@@ -23,6 +23,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include "settings/common_settings.h"
 #include <eda_base_frame.h>
 #include <kiplatform/app.h>
 #include <project.h>
@@ -817,7 +818,7 @@ wxString GetFileExplorerCommand()
 }
 
 
-void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName )
+void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName )
 {
     wxString explCommand = GetFileExplorerCommand();
 
@@ -830,8 +831,8 @@ void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName )
 
         return;
     }
-
-    explCommand.Replace( wxT( "%F" ), wxT( '"' + aPath + '"' ) );
+    
+    explCommand.Replace( wxT( "%F" ), aPath.BuildUnescapedURI() );
 
     if( !explCommand.IsEmpty() )
         wxExecute( explCommand );

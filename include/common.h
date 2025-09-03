@@ -39,6 +39,7 @@
 #include <wx/fileconf.h>
 #include <wx/string.h>
 #include <wx/process.h>
+#include <wx/uri.h>
 
 class PROJECT;
 class SEARCH_STACK;
@@ -148,17 +149,6 @@ KICOMMON_API const wxString ResolveUriByEnvVars( const wxString& aUri, const PRO
  */
 KICOMMON_API bool WarnUserIfOperatingSystemUnsupported();
 
-
-#ifdef __WXGTK__
-/**
- * Opens a file preselected in file manager using Dbus on Linux
- *
- * @return true if there were no errors
- */
-KICOMMON_API bool DbusFileManagerPreselected( wxString aPath );
-#endif  // __WXGTK__
-
-
 /**
  * Checks for the file explorer string value in settings.
  *
@@ -170,7 +160,7 @@ KICOMMON_API wxString GetFileExplorerCommand();
  * A common mechanism used as a fallback only on Linux.
  *
  */
-KICOMMON_API void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
+KICOMMON_API void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
 
 
 #endif  // INCLUDE__COMMON_H_

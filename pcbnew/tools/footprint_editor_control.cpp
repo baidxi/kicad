@@ -45,6 +45,7 @@
 #include <footprint.h>
 #include <pad.h>
 #include <pcb_group.h>
+#include <wx/uri.h>
 #include <zone.h>
 #include <footprint_library_adapter.h>
 #include <dialogs/dialog_cleanup_graphics.h>
@@ -611,7 +612,7 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     wxString    libName = libId.GetLibNickname();
     wxString    libItemName = libId.GetLibItemName();
-    wxString    path = wxEmptyString;
+    wxURI       fileURI;
 
     LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
     std::optional<wxString> optUri = manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, libName, true );
@@ -619,7 +620,8 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     if( !optUri )
         return 0;
 
-    path = *optUri;
+    if( optUri->IsEmpty() || !optUri.has_value() )
+        return 0;
 
     wxString fileExt = wxEmptyString;
 
@@ -627,7 +629,7 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     if( !libItemName.IsEmpty() )
         fileExt = FILEEXT::KiCadFootprintFileExtension;
 
-    wxFileName fileName( path, libItemName, fileExt );
+    wxFileName fileName( optUri.value(), libItemName, fileExt );
     wxString   explorerCommand;
 
     KIPLATFORM::IO::OpenInDirectory( fileName );

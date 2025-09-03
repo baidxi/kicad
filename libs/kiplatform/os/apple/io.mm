@@ -24,6 +24,7 @@
 #include <wx/crt.h>
 #include <wx/string.h>
 #include <wx/filename.h>
+#include <wx/uri.h>
 
 #include <climits>
 #include <dirent.h>
@@ -234,15 +235,13 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
 }
 
 
-extern wxString GetFileExplorerCommand();
-extern bool LaunchExternal( const wxString& aPath );
-extern void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
+extern void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
 
-void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
+KIPLATFORM::IO::DBUS_RET_CODE KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 {
-    wxString path = aFileName.GetFullPath();
+    wxURI fileURI( aFileName.GetFullPath() );
 
-    path.Replace( wxS( "\"" ), wxS( "_" ) );
+    CommonOpenInDirectory( fileURI, aFileName );
 
-    CommonOpenInDirectory( path, aFileName );
+    return KIPLATFORM::IO::DBUS_RET_CODE::FALLBACK_WX_OPENDIR;
 }

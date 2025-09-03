@@ -23,7 +23,6 @@
 #include <wx/crt.h>
 #include <wx/string.h>
 #include <wx/filename.h>
-#include <wx/msgdlg.h>
 
 #include <climits>
 #include <dirent.h>
@@ -35,6 +34,7 @@
 #include <unistd.h>
 
 #include <dbus/dbus.h>
+#include <wx/uri.h>
 
 FILE* KIPLATFORM::IO::SeqFOpen( const wxString& aPath, const wxString& aMode )
 {
@@ -99,38 +99,28 @@ bool KIPLATFORM::IO::IsFileHidden( const wxString& aFileName )
 }
 
 
-extern void CommonOpenInDirectory( wxString& aPath, wxFileName aFileName );
+extern void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
 
-void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
+KIPLATFORM::IO::DBUS_RET_CODE KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 {
     wxString path = aFileName.GetFullPath();
+    wxURI    fileURI( path );
 
-    path.Replace( wxS( "\"" ), wxS( "_" ) );
-
-    auto isContainer =
+    // clang-format off
+    auto isContainerForPortal =
     []() -> bool
     {
-        if( std::getenv( "container" ) )
-        {
-            // flatpak
-            return true;
-        }
+        if( std::getenv( "container" ) || std::getenv( "SNAP" ) )
+            return true; // flatpak & Snap
         else if( std::getenv( "APPIMAGE" ) )
-        {
-            // AppImage
-            return true;
-        }
-        else if( std::getenv( "SNAP" ) )
-        {
-            // Snaps
-            return true;
-        }
+            return false; // AppImage runs on standard DBus
 
-        return false; // No container
+        return false; // No container runs on standard DBus too
     };
+    // clang-format on
 
     auto dbusMessageSend =
-    [ = ]() -> bool
+    [ = ]() -> KIPLATFORM::IO::DBUS_RET_CODE
     {
         DBusMessageIter args;
         DBusMessageIter argsIter;
@@ -141,80 +131,76 @@ void KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
 
         if( dbus_error_is_set( &dbusErr ) )
         {
-            wxMessageBox( wxString::Format( "DBus connection error (%s)\n", dbusErr.message ) );
             dbus_error_free( &dbusErr );
+
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_CONNECTION_ERROR;
         }
 
         if( !dbusConn )
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_CONNECTION_ERROR;
+
+        DBusMessage* dbusMsg = nullptr;
+
+        // clang-format off
+        if( !isContainerForPortal() )
         {
-            wxMessageBox( "DBus connection error" );
-
-            return false;
+            dbusMsg = dbus_message_new_method_call( "org.freedesktop.FileManager1",
+                                                    "/org/freedesktop/FileManager1",
+                                                    "org.freedesktop.FileManager1",
+                                                    "ShowItems" );
         }
-
-        DBusMessage* dbusMsg = dbus_message_new_method_call( "org.freedesktop.FileManager1",  // destination
-                                                            "/org/freedesktop/FileManager1", // object path
-                                                            "org.freedesktop.FileManager1",  // interface
-                                                            "ShowItems"                      // method
-        );
+        else
+        {
+            dbusMsg = dbus_message_new_method_call( "org.freedesktop.portal.Desktop",
+                                                    "/org/freedesktop/portal/desktop",
+                                                    "org.freedesktop.portal.OpenURI",
+                                                    "OpenDirectory");
+        }
+        // clang-format on
 
         if( !dbusMsg )
-        {
-            wxMessageBox( "Null DBus message to: FileManager1, ShowItems" );
-
-            return false;
-        }
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_MESSAGE_ERROR;
 
         dbus_message_iter_init_append( dbusMsg, &args );
 
         dbus_message_iter_open_container( &args, DBUS_TYPE_ARRAY, "s", &argsIter );
 
-        wxString fileArgDbus = wxString( "file:///" ) << path;
+        wxString tmp( fileURI.BuildURI() );
 
-        const char* uri = fileArgDbus;
+        std::string utf8Path = std::string( tmp.mb_str() ); // Convert wxString to UTF-8
+        const char* cpath = utf8Path.c_str();                 // Get the C string pointer
 
-        if( !dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, &uri ) )
-        {
-            wxMessageBox( "DBus error: FileManager1, ShowItems" );
-
-            return false;
-        }
+        if( !dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, reinterpret_cast<const void*>( &cpath ) ) )
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_PATH_APPEND_ERROR;
 
         dbus_message_iter_close_container( &args, &argsIter );
 
         const char* startup_id = "";
 
-        if( !dbus_message_iter_append_basic( &args, DBUS_TYPE_STRING, &startup_id ) )
-        {
-            wxMessageBox( "DBus error: FileManager1, ShowItems" );
+        if( !dbus_message_iter_append_basic( &args, DBUS_TYPE_STRING, reinterpret_cast<const void*>( &startup_id ) ) )
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_ID_APPEND_ERROR;
 
-            return false;
+        if( !dbus_connection_send( dbusConn, dbusMsg, nullptr ) )
+        {
+            dbus_message_unref( dbusMsg );
+
+            return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_SEND_FAILED;
         }
 
-        dbus_connection_send( dbusConn, dbusMsg, nullptr );
         dbus_connection_flush( dbusConn );
         dbus_message_unref( dbusMsg );
 
-        return true;
+        return KIPLATFORM::IO::DBUS_RET_CODE::SUCCESS;
     };
 
-    if( isContainer() )
+    if( dbusMessageSend() != KIPLATFORM::IO::DBUS_RET_CODE::SUCCESS ) // If dbus fails try the wx way.
     {
-        wxMessageBox( "This not supported while running in a container/appimage/snap. (yet?)" );
-        /*
-        dbusMsg = dbus_message_new_method_call( "org.freedesktop.portal.Desktop",
-                                                "/org/freedesktop/portal/desktop",
-                                                "org.freedesktop.portal.OpenFile",
-                                                "OpenFile" );
-        */
+        CommonOpenInDirectory( fileURI, aFileName );
+
+        return KIPLATFORM::IO::DBUS_RET_CODE::FALLBACK_WX_OPENDIR;
     }
-    else
-    {
-        if( !dbusMessageSend() ) // If dbus fails try the wx way.
-        {
-            CommonOpenInDirectory( path, aFileName);
-        }
-    }
+
+    return KIPLATFORM::IO::DBUS_RET_CODE::SUCCESS;
 }
 
 
