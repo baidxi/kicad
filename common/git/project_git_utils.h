@@ -63,6 +63,38 @@ public:
     static wxString GetCurrentHash( const wxString& aProjectFile, bool aShort );
 
     /**
+     * Return the current git describe for the repository containing aProjectFile.
+     * This returns output similar to "git describe --tags --always", showing the
+     * last tag plus commit count since that tag (e.g., "v0.1.2-5-g1234567").
+     *
+     * @param aProjectFile Absolute path to any file within the repository (typically the
+     *                     project file path).
+     * @return wxString containing the describe string or "no revision" if unavailable.
+     */
+    static wxString GetCurrentDescribe( const wxString& aProjectFile );
+
+    /**
+     * Return the current git describe in short form for the repository containing aProjectFile.
+     * This returns the describe string without the hash part (e.g., "v0.1.2-5" instead of "v0.1.2-5-g1234567").
+     *
+     * @param aProjectFile Absolute path to any file within the repository (typically the
+     *                     project file path).
+     * @return wxString containing the short describe string or "no revision" if unavailable.
+     */
+    static wxString GetCurrentDescribeShort( const wxString& aProjectFile );
+
+    /**
+     * Return the current git tag for the repository containing aProjectFile.
+     * This returns only the pure tag name (e.g., "v0.1.2") if the current commit
+     * is exactly on a tag, otherwise returns the tag with commit count.
+     *
+     * @param aProjectFile Absolute path to any file within the repository (typically the
+     *                     project file path).
+     * @return wxString containing the tag name or "no tag" if unavailable.
+     */
+    static wxString GetCurrentTag( const wxString& aProjectFile );
+
+    /**
      * Remove version control from a directory by freeing the repository and
      * optionally removing the .git directory.
      *

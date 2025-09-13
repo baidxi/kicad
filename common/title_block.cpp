@@ -26,6 +26,8 @@
 #include <common.h>
 #include <title_block.h>
 #include <core/kicad_algo.h>
+#include <build_version.h>
+#include <cstdio>
 
 
 void TITLE_BLOCK::Format( OUTPUTFORMATTER* aFormatter ) const
