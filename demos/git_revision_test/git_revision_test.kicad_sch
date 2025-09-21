@@ -6,9 +6,11 @@
 	(paper "A4")
 	(title_block
 		(rev "${GIT_REV_SHORT}")
+		(company "GIT REV SHORT ${GIT_REV_SHORT}")
 		(comment 1 "GIT REVISION: ${GIT_REVISION}")
 		(comment 2 "GIT TAG: ${GIT_TAG}")
-		(comment 3 "GIT REV SHORT: ${GIT_REV_SHORT}")
+		(comment 3 "VCSHASH: ${VCSHASH}")
+		(comment 4 "VCSSHORTHASH: ${VCSSHORTHASH}")
 	)
 	(lib_symbols)
 	(sheet_instances

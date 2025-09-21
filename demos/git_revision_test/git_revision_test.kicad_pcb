@@ -10,6 +10,8 @@
 	(title_block
 		(rev "${GIT_REV_SHORT}")
 		(comment 1 "GIT REVISION: ${GIT_REVISION}")
+		(comment 2 "VCS HASH: ${VCSHASH}")
+		(comment 3 "VCS SHORT HASH: ${VCSSHORTHASH}")
 	)
 	(layers
 		(0 "F.Cu" signal)
