@@ -42,6 +42,7 @@ set( QA_COMMON_SRCS
     test_embedded_file_compress.cpp
     test_file_history.cpp
     test_filename_resolver.cpp
+    test_git_cache.cpp
     test_hotkey_store.cpp
     test_increment.cpp
     test_ki_any.cpp
