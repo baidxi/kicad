@@ -42,15 +42,15 @@ struct GitCacheFixture
     {
         // Initialize git library
         git_libgit2_init();
-        
+
         // Create a temporary directory for our test repository
         tempDir = wxFileName::CreateTempFileName( "kicad_git_cache_test" );
         wxRemoveFile( tempDir );
         wxMkdir( tempDir );
-        
+
         // Initialize a git repository in the temp directory
         git_repository* repo = nullptr;
-        int error = git_repository_init( &repo, tempDir.ToUTF8(), 0 );
+        int             error = git_repository_init( &repo, tempDir.ToUTF8(), 0 );
         if( error == 0 && repo )
         {
             // Create an initial commit to have something to cache
@@ -65,10 +65,10 @@ struct GitCacheFixture
 
         // Create test file path
         testFile = tempDir + wxFileName::GetPathSeparator() + "test.txt";
-        
+
         // Get reference to the git cache
         gitCache = &PROJECT_GIT_UTILS::GetGitCache();
-        
+
         // Clear cache before each test
         gitCache->InvalidateCache();
     }
@@ -78,13 +78,13 @@ struct GitCacheFixture
         // Clear cache after test
         if( gitCache )
             gitCache->InvalidateCache();
-            
+
         // Clean up temporary directory
         if( wxDirExists( tempDir ) )
         {
             wxFileName::Rmdir( tempDir, wxPATH_RMDIR_RECURSIVE );
         }
-        
+
         // Shutdown git library
         git_libgit2_shutdown();
     }
@@ -92,7 +92,7 @@ struct GitCacheFixture
     void CreateInitialCommit( git_repository* repo )
     {
         // Create a test file
-        wxString testFile = tempDir + wxFileName::GetPathSeparator() + "test.txt";
+        wxString   testFile = tempDir + wxFileName::GetPathSeparator() + "test.txt";
         wxTextFile file( testFile );
         file.Create();
         file.AddLine( "Initial commit content" );
@@ -105,7 +105,7 @@ struct GitCacheFixture
         {
             git_index_add_bypath( index, "test.txt" );
             git_index_write( index );
-            
+
             // Create tree from index
             git_oid tree_id;
             if( git_index_write_tree( &tree_id, index ) == 0 )
@@ -119,9 +119,8 @@ struct GitCacheFixture
                     {
                         // Create commit
                         git_oid commit_id;
-                        git_commit_create_v( &commit_id, repo, "HEAD", sig, sig, nullptr,
-                                           "Initial commit", tree, 0 );
-                        
+                        git_commit_create_v( &commit_id, repo, "HEAD", sig, sig, nullptr, "Initial commit", tree, 0 );
+
                         git_signature_free( sig );
                     }
                     git_tree_free( tree );
@@ -131,9 +130,9 @@ struct GitCacheFixture
         }
     }
 
-    wxString tempDir;
-    wxString testFile;
-    bool hasValidRepo;
+    wxString          tempDir;
+    wxString          testFile;
+    bool              hasValidRepo;
     GitDescribeCache* gitCache;
 };
 
@@ -154,16 +153,16 @@ BOOST_AUTO_TEST_CASE( TestHashCaching )
     wxString hash1 = gitCache->GetCurrentHash( testFile, false );
     BOOST_CHECK( !hash1.IsEmpty() );
     BOOST_CHECK( hash1 != "no hash" );
-    
+
     // Second call should return cached result (should be identical)
     wxString hash2 = gitCache->GetCurrentHash( testFile, false );
     BOOST_CHECK_EQUAL( hash1, hash2 );
-    
+
     // Test short hash
     wxString shortHash1 = gitCache->GetCurrentHash( testFile, true );
     wxString shortHash2 = gitCache->GetCurrentHash( testFile, true );
     BOOST_CHECK_EQUAL( shortHash1, shortHash2 );
-    
+
     // Short hash should be shorter than full hash
     BOOST_CHECK( shortHash1.Length() < hash1.Length() );
     BOOST_CHECK( shortHash1.Length() == 8 ); // Should be 8 characters
@@ -184,16 +183,16 @@ BOOST_AUTO_TEST_CASE( TestDescribeCaching )
     wxString describe1 = gitCache->GetCurrentDescribe( testFile );
     BOOST_CHECK( !describe1.IsEmpty() );
     BOOST_CHECK( describe1 != "no revision" );
-    
+
     // Second call should return cached result
     wxString describe2 = gitCache->GetCurrentDescribe( testFile );
     BOOST_CHECK_EQUAL( describe1, describe2 );
-    
+
     // Test short describe
     wxString shortDescribe1 = gitCache->GetCurrentDescribeShort( testFile );
     wxString shortDescribe2 = gitCache->GetCurrentDescribeShort( testFile );
     BOOST_CHECK_EQUAL( shortDescribe1, shortDescribe2 );
-    
+
     // Test tag
     wxString tag1 = gitCache->GetCurrentTag( testFile );
     wxString tag2 = gitCache->GetCurrentTag( testFile );
@@ -214,14 +213,14 @@ BOOST_AUTO_TEST_CASE( TestCacheInvalidation )
     // Get initial values
     wxString hash1 = gitCache->GetCurrentHash( testFile, false );
     wxString describe1 = gitCache->GetCurrentDescribe( testFile );
-    
+
     // Invalidate cache
     gitCache->InvalidateCache( testFile );
-    
+
     // Get values again - should recompute but be the same
     wxString hash2 = gitCache->GetCurrentHash( testFile, false );
     wxString describe2 = gitCache->GetCurrentDescribe( testFile );
-    
+
     // Values should be the same (same repository state)
     BOOST_CHECK_EQUAL( hash1, hash2 );
     BOOST_CHECK_EQUAL( describe1, describe2 );
@@ -240,13 +239,13 @@ BOOST_AUTO_TEST_CASE( TestCacheInvalidationAll )
 
     // Get initial values
     wxString hash1 = gitCache->GetCurrentHash( testFile, false );
-    
+
     // Invalidate all cache entries
     gitCache->InvalidateCache(); // Empty string should invalidate all
-    
+
     // Get value again - should recompute
     wxString hash2 = gitCache->GetCurrentHash( testFile, false );
-    
+
     // Values should be the same (same repository state)
     BOOST_CHECK_EQUAL( hash1, hash2 );
 }
@@ -257,20 +256,20 @@ BOOST_AUTO_TEST_CASE( TestCacheInvalidationAll )
 BOOST_AUTO_TEST_CASE( TestNonExistentRepository )
 {
     wxString nonExistentFile = "/non/existent/path/file.txt";
-    
+
     // All methods should return appropriate "no" values
     wxString hash = gitCache->GetCurrentHash( nonExistentFile, false );
     BOOST_CHECK_EQUAL( hash, "no hash" );
-    
+
     wxString shortHash = gitCache->GetCurrentHash( nonExistentFile, true );
     BOOST_CHECK_EQUAL( shortHash, "no hash" );
-    
+
     wxString describe = gitCache->GetCurrentDescribe( nonExistentFile );
     BOOST_CHECK_EQUAL( describe, "no git repo" );
-    
+
     wxString shortDescribe = gitCache->GetCurrentDescribeShort( nonExistentFile );
     BOOST_CHECK_EQUAL( shortDescribe, "no git repo" );
-    
+
     wxString tag = gitCache->GetCurrentTag( nonExistentFile );
     BOOST_CHECK_EQUAL( tag, "no tag" );
 }
@@ -291,13 +290,13 @@ BOOST_AUTO_TEST_CASE( TestCacheConsistency )
     wxString describe = gitCache->GetCurrentDescribe( testFile );
     wxString shortDescribe = gitCache->GetCurrentDescribeShort( testFile );
     wxString tag = gitCache->GetCurrentTag( testFile );
-    
+
     // All should be non-empty and not error values
     BOOST_CHECK( !hash.IsEmpty() && hash != "no hash" );
     BOOST_CHECK( !describe.IsEmpty() && describe != "no revision" );
     BOOST_CHECK( !shortDescribe.IsEmpty() && shortDescribe != "no revision" );
     BOOST_CHECK( !tag.IsEmpty() );
-    
+
     // Calling again should return identical cached values
     BOOST_CHECK_EQUAL( hash, gitCache->GetCurrentHash( testFile, false ) );
     BOOST_CHECK_EQUAL( describe, gitCache->GetCurrentDescribe( testFile ) );
@@ -318,17 +317,17 @@ BOOST_AUTO_TEST_CASE( TestMultipleProjectPaths )
 
     wxString file1 = testFile;
     wxString file2 = "/non/existent/path/file.txt";
-    
+
     // Get values for valid repository
     wxString hash1 = gitCache->GetCurrentHash( file1, false );
-    
+
     // Get values for non-existent repository
     wxString hash2 = gitCache->GetCurrentHash( file2, false );
-    
+
     // They should be different
     BOOST_CHECK( hash1 != hash2 );
     BOOST_CHECK_EQUAL( hash2, "no hash" );
-    
+
     // Calling again should return same cached values
     BOOST_CHECK_EQUAL( hash1, gitCache->GetCurrentHash( file1, false ) );
     BOOST_CHECK_EQUAL( hash2, gitCache->GetCurrentHash( file2, false ) );

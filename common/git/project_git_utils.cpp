@@ -126,7 +126,7 @@ void GitDescribeCache::updateCache( const wxString& aProjectFile )
                 char shortBuf[9];
                 git_oid_tostr( fullBuf, 41, oid );
                 git_oid_tostr( shortBuf, 9, oid );
-                
+
                 m_cache.fullHash = wxString::FromUTF8( fullBuf );
                 m_cache.shortHash = wxString::FromUTF8( shortBuf );
             }
@@ -175,12 +175,12 @@ void GitDescribeCache::updateCache( const wxString& aProjectFile )
 
                     // Calculate tag-only version
                     wxString tagResult = m_cache.fullDescribe;
-                    size_t commitCountPos = m_cache.fullDescribe.find( wxT( "-" ) );
+                    size_t   commitCountPos = m_cache.fullDescribe.find( wxT( "-" ) );
                     if( commitCountPos != wxString::npos )
                     {
                         // Check if this dash is followed by a number (commit count)
-                        if( commitCountPos + 1 < m_cache.fullDescribe.length() && 
-                            wxIsdigit( m_cache.fullDescribe[commitCountPos + 1] ) )
+                        if( commitCountPos + 1 < m_cache.fullDescribe.length()
+                            && wxIsdigit( m_cache.fullDescribe[commitCountPos + 1] ) )
                         {
                             tagResult = m_cache.fullDescribe.substr( 0, commitCountPos );
                         }
@@ -277,8 +277,8 @@ int PROJECT_GIT_UTILS::CreateBranch( git_repository* aRepo, const wxString& aBra
     return GetGitBackend()->CreateBranch( aRepo, aBranchName );
 }
 
-bool PROJECT_GIT_UTILS::RemoveVCS( git_repository*& aRepo, const wxString& aProjectPath,
-                                  bool aRemoveGitDir, wxString* aErrors )
+bool PROJECT_GIT_UTILS::RemoveVCS( git_repository*& aRepo, const wxString& aProjectPath, bool aRemoveGitDir,
+                                   wxString* aErrors )
 {
     return GetGitBackend()->RemoveVCS( aRepo, aProjectPath, aRemoveGitDir, aErrors );
 }
