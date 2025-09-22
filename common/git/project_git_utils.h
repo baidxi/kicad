@@ -27,9 +27,96 @@
 #include <git2.h>
 #include <wx/string.h>
 #include <import_export.h>
+#include <chrono>
 
 namespace KIGIT
 {
+
+/**
+ * Cache for git repository information with automatic invalidation.
+ * Manages cached values for hashes, describes, and tags with proper invalidation.
+ */
+class APIEXPORT GitDescribeCache
+{
+public:
+    GitDescribeCache();
+    ~GitDescribeCache() = default;
+
+    /**
+     * Get the current HEAD commit hash for the repository containing the given file.
+     *
+     * @param aProjectFile Absolute path to any file within the repository.
+     * @param aShort       If true, return the short (8 char) hash, otherwise full hash.
+     * @return wxString containing the hash or "no hash" if unavailable.
+     */
+    wxString GetCurrentHash( const wxString& aProjectFile, bool aShort );
+
+    /**
+     * Get the current git describe for the repository containing the given file.
+     * Returns output similar to "git describe --tags --always".
+     *
+     * @param aProjectFile Absolute path to any file within the repository.
+     * @return wxString containing the describe string or "no revision" if unavailable.
+     */
+    wxString GetCurrentDescribe( const wxString& aProjectFile );
+
+    /**
+     * Get the current git describe in short form (without hash part).
+     *
+     * @param aProjectFile Absolute path to any file within the repository.
+     * @return wxString containing the short describe string or "no revision" if unavailable.
+     */
+    wxString GetCurrentDescribeShort( const wxString& aProjectFile );
+
+    /**
+     * Get the current git tag name only.
+     *
+     * @param aProjectFile Absolute path to any file within the repository.
+     * @return wxString containing the tag name or "no tag" if unavailable.
+     */
+    wxString GetCurrentTag( const wxString& aProjectFile );
+
+    /**
+     * Invalidate cache for the given project file.
+     *
+     * @param aProjectFile Path to invalidate, or empty to invalidate all.
+     */
+    void InvalidateCache( const wxString& aProjectFile = wxEmptyString );
+
+private:
+    struct CacheEntry
+    {
+        wxString                              projectPath;
+        wxString                              fullHash;
+        wxString                              shortHash;
+        wxString                              fullDescribe;
+        wxString                              shortDescribe;
+        wxString                              tagOnly;
+        std::chrono::steady_clock::time_point lastUpdate;
+
+        bool isValid( const wxString& path ) const;
+        void clear();
+    };
+
+    static constexpr std::chrono::seconds CACHE_DURATION{ 30 };
+
+    CacheEntry m_cache;
+
+    /**
+     * Update cache with git information for the given project file.
+     *
+     * @param aProjectFile Path to the project file.
+     */
+    void updateCache( const wxString& aProjectFile );
+
+    /**
+     * Check if cache is valid for the given project file.
+     *
+     * @param aProjectFile Path to check.
+     * @return True if cache is valid and up-to-date.
+     */
+    bool isCacheValid( const wxString& aProjectFile ) const;
+};
 
 /** Utility class with helper functions for project level git operations. */
 class APIEXPORT PROJECT_GIT_UTILS
@@ -93,6 +180,13 @@ public:
      * @return wxString containing the tag name or "no tag" if unavailable.
      */
     static wxString GetCurrentTag( const wxString& aProjectFile );
+
+    /**
+     * Get the global git cache instance.
+     *
+     * @return Reference to the global GitDescribeCache instance.
+     */
+    static GitDescribeCache& GetGitCache();
 
     /**
      * Remove version control from a directory by freeing the repository and
