@@ -622,7 +622,7 @@ target_link_libraries( eeschema_kiface
         common
         eeschema_kiface_objects
         markdown_lib
-        scripting
+        $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:scripting>
         sexpr
         core
         Boost::headers

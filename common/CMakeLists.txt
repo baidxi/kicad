@@ -244,8 +244,6 @@ set( KICOMMON_SRCS
     singleton.cpp
     pgm_base.cpp
 
-    ../scripting/python_scripting.cpp
-
     io/kicad/kicad_io_utils.cpp    # needed by richio
     io/io_base.cpp
     io/io_utils.cpp
@@ -270,6 +268,12 @@ if( KICAD_IPC_API )
 
         ../scripting/python_manager.cpp
     )
+endif()
+
+if( NOT KICAD_DISABLE_PYTHON )
+    list( APPEND KICOMMON_SRCS
+        ../scripting/python_scripting.cpp
+        )
 endif()
 
 add_library( kicommon SHARED
@@ -319,7 +323,7 @@ target_link_libraries( kicommon
 	${Fontconfig_LIBRARIES}
 
     # needed because of python_scripting.cpp
-    ${PYTHON_LIBRARIES}
+    $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:${PYTHON_LIBRARIES}>
     )
 
 
@@ -375,6 +379,7 @@ target_include_directories( kicommon
     PUBLIC
         .
         ${CMAKE_BINARY_DIR}
+        ${CMAKE_SOURCE_DIR}/scripting
         $<TARGET_PROPERTY:dynamic_bitset,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:magic_enum,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:pegtl,INTERFACE_INCLUDE_DIRECTORIES>
@@ -817,9 +822,9 @@ target_link_libraries( common
     nanosvg
     dxflib_qcad
     tinyspline_lib
-    scripting
+    $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:scripting>
     nlohmann_json
-    pybind11::embed
+    $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:pybind11::embed>
     compoundfilereader
     Boost::headers
     # Database support needs these two

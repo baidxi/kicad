@@ -132,6 +132,14 @@ option( KICAD_SCRIPTING_WXPYTHON
     ON )
 mark_as_advanced( KICAD_SCRIPTING_WXPYTHON )
 
+option( KICAD_DISABLE_PYTHON
+    "Disable Python integrations and scripting support"
+    OFF )
+
+if( KICAD_DISABLE_PYTHON )
+    set( KICAD_SCRIPTING_WXPYTHON OFF CACHE BOOL "" FORCE )
+endif()
+
 option( KICAD_UPDATE_CHECK
     "Build in update check"
     ON )
@@ -303,6 +311,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pass defines into KiCad code based on the build options set
 add_compile_definitions( $<$<BOOL:${KICAD_SCRIPTING_WXPYTHON}>:KICAD_SCRIPTING_WXPYTHON> )
+add_compile_definitions( $<$<BOOL:${KICAD_DISABLE_PYTHON}>:KICAD_DISABLE_PYTHON> )
 add_compile_definitions( $<$<BOOL:${KICAD_SIGNAL_INTEGRITY}>:KICAD_SIGNAL_INTEGRITY> )
 
 add_compile_definitions( $<$<BOOL:${KICAD_USE_VALGRIND}>:KICAD_USE_VALGRIND> )
@@ -933,21 +942,22 @@ set( INC_AFTER
 # Find Python and other scripting resources
 #
 
-# SWIG 4.0 or later require for proper C++11 support.
-find_package( SWIG 4.0 REQUIRED )
-include( ${SWIG_USE_FILE} )
+if( NOT KICAD_DISABLE_PYTHON )
+    # SWIG 4.0 or later require for proper C++11 support.
+    find_package( SWIG 4.0 REQUIRED )
+    include( ${SWIG_USE_FILE} )
 
-set( PythonInterp_FIND_VERSION 3.6 )
-set( PythonLibs_FIND_VERSION 3.6 )
+    set( PythonInterp_FIND_VERSION 3.6 )
+    set( PythonLibs_FIND_VERSION 3.6 )
 
-find_package( PythonInterp ${PythonInterp_FIND_VERSION} )
+    find_package( PythonInterp ${PythonInterp_FIND_VERSION} )
 
-check_find_package_result( PYTHONINTERP_FOUND "Python Interpreter" )
+    check_find_package_result( PYTHONINTERP_FOUND "Python Interpreter" )
 
-# Get the correct Python site package install path from the Python interpreter found by
-# FindPythonInterp unless the user specifically defined a custom path.
-if( NOT PYTHON_SITE_PACKAGE_PATH )
-    execute_process( COMMAND ${PYTHON_EXECUTABLE} -c "import sys, sysconfig
+    # Get the correct Python site package install path from the Python interpreter found by
+    # FindPythonInterp unless the user specifically defined a custom path.
+    if( NOT PYTHON_SITE_PACKAGE_PATH )
+        execute_process( COMMAND ${PYTHON_EXECUTABLE} -c "import sys, sysconfig
 if 'deb_system' in sysconfig.get_scheme_names():
     scheme = 'deb_system'
 elif sys.version_info > (3, 10):
@@ -955,59 +965,60 @@ elif sys.version_info > (3, 10):
 else:
     scheme = sysconfig._get_default_scheme()
 print(\"%s\"%sysconfig.get_path('platlib', vars={'platbase': '.'}, scheme=scheme))"
-        OUTPUT_VARIABLE PYTHON_SITE_PACKAGE_PATH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
+            OUTPUT_VARIABLE PYTHON_SITE_PACKAGE_PATH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
 
-    if( NOT PYTHON_SITE_PACKAGE_PATH )
-        message( FATAL_ERROR "Error occurred while attempting to find the Python site library path." )
+        if( NOT PYTHON_SITE_PACKAGE_PATH )
+            message( FATAL_ERROR "Error occurred while attempting to find the Python site library path." )
+        endif()
     endif()
-endif()
 
-if( APPLE )
-    set( OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR ${OSX_BUNDLE_LIB_DIR}/Python.framework/Versions/${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages)
-    set( OSX_BUNDLE_INSTALL_PYTHON_SITE_PACKAGES_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}")
-    set( PYTHON_DEST "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}"
-        CACHE PATH "Python module install path."
-        )
+    if( APPLE )
+        set( OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR ${OSX_BUNDLE_LIB_DIR}/Python.framework/Versions/${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/lib/python${PYTHON_VERSION_MAJOR}.${PYTHON_VERSION_MINOR}/site-packages)
+        set( OSX_BUNDLE_INSTALL_PYTHON_SITE_PACKAGES_DIR "${OSX_BUNDLE_INSTALL_DIR}/${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}")
+        set( PYTHON_DEST "${OSX_BUNDLE_BUILD_DIR}/${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}"
+            CACHE PATH "Python module install path."
+            )
 
-    add_compile_definitions( OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR="${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}" )
-elseif( VCPKG_TOOLCHAIN )
-    set( PYTHON_DEST "${CMAKE_INSTALL_PREFIX}/bin/Lib/site-packages"
-        CACHE PATH "Python module install path."
-        )
-else()
-    set( PYTHON_DEST "${PYTHON_SITE_PACKAGE_PATH}"
-        CACHE PATH "Python module install path."
-        )
-
-    if( IS_ABSOLUTE ${PYTHON_SITE_PACKAGE_PATH} )
-        set( PYTHON_FULL_DEST "${PYTHON_SITE_PACKAGE_PATH}"
-            CACHE PATH "Python module full install path."
+        add_compile_definitions( OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR="${OSX_BUNDLE_PYTHON_SITE_PACKAGES_DIR}" )
+    elseif( VCPKG_TOOLCHAIN )
+        set( PYTHON_DEST "${CMAKE_INSTALL_PREFIX}/bin/Lib/site-packages"
+            CACHE PATH "Python module install path."
             )
     else()
-        set( PYTHON_FULL_DEST "${CMAKE_INSTALL_PREFIX}/${PYTHON_SITE_PACKAGE_PATH}"
-            CACHE PATH "Python module full install path."
+        set( PYTHON_DEST "${PYTHON_SITE_PACKAGE_PATH}"
+            CACHE PATH "Python module install path."
             )
+
+        if( IS_ABSOLUTE ${PYTHON_SITE_PACKAGE_PATH} )
+            set( PYTHON_FULL_DEST "${PYTHON_SITE_PACKAGE_PATH}"
+                CACHE PATH "Python module full install path."
+                )
+        else()
+            set( PYTHON_FULL_DEST "${CMAKE_INSTALL_PREFIX}/${PYTHON_SITE_PACKAGE_PATH}"
+                CACHE PATH "Python module full install path."
+                )
+        endif()
     endif()
+    message( STATUS "Python module install path: ${PYTHON_DEST}" )
+
+    find_package( PythonLibs 3.6 REQUIRED )
+
+    # pybind11 is header-only, so include the subdir
+    # USE_CROSSCOMPILING is needed to avoid pybind11 trying to run a non-native intrepreter
+    # It also makes no sense it needs a second flag in addition to CMAKE_CROSSCOMPILING
+    set( PYBIND11_USE_CROSSCOMPILING TRUE )
+    add_subdirectory(thirdparty/pybind11)
+
+    # Make sure that we get our pybind11 and not the system pybind11 (ours is patched to work with wx)
+    include_directories( BEFORE SYSTEM ${PYBIND11_INCLUDE_DIR} )
+
+    # Infrequently needed headers go at end of search paths, append to INC_AFTER which
+    # although is used for all components, should be a harmless hit for something like eeschema
+    # so long as unused search paths are at the end like this.
+    set( INC_AFTER ${INC_AFTER} ${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/scripting )
 endif()
-message( STATUS "Python module install path: ${PYTHON_DEST}" )
-
-find_package( PythonLibs 3.6 REQUIRED )
-
-# pybind11 is header-only, so include the subdir
-# USE_CROSSCOMPILING is needed to avoid pybind11 trying to run a non-native intrepreter
-# It also makes no sense it needs a second flag in addition to CMAKE_CROSSCOMPILING
-set( PYBIND11_USE_CROSSCOMPILING TRUE )
-add_subdirectory(thirdparty/pybind11)
-
-# Make sure that we get our pybind11 and not the system pybind11 (ours is patched to work with wx)
-include_directories( BEFORE SYSTEM ${PYBIND11_INCLUDE_DIR} )
-
-# Infrequently needed headers go at end of search paths, append to INC_AFTER which
-# although is used for all components, should be a harmless hit for something like eeschema
-# so long as unused search paths are at the end like this.
-set( INC_AFTER ${INC_AFTER} ${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/scripting )
 
 
 if( KICAD_SCRIPTING_WXPYTHON )

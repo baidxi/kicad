@@ -87,7 +87,7 @@ PRIVATE
     eeschema_kiface_objects
     common
     pcbcommon
-    scripting
+    $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:scripting>
     kimath
     qa_utils
     qa_schematic_utils

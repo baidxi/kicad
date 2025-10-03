@@ -29,6 +29,77 @@
 
 #include <python_scripting.h>
 
+#ifdef KICAD_DISABLE_PYTHON
+
+SCRIPTING::SCRIPTING()
+{}
+
+SCRIPTING::~SCRIPTING()
+{}
+
+bool SCRIPTING::IsModuleLoaded( std::string& )
+{
+    return false;
+}
+
+wxString SCRIPTING::PyScriptingPath( PATH_TYPE )
+{
+    return wxString();
+}
+
+wxString SCRIPTING::PyPluginsPath( PATH_TYPE )
+{
+    return wxString();
+}
+
+bool SCRIPTING::scriptingSetup()
+{
+    return false;
+}
+
+bool SCRIPTING::IsWxAvailable()
+{
+    return false;
+}
+
+void UpdatePythonEnvVar( const wxString&, const wxString& )
+{}
+
+void RedirectStdio()
+{}
+
+wxWindow* CreatePythonShellWindow( wxWindow*, const wxString& )
+{
+    return nullptr;
+}
+
+bool InitPythonScripting( const char*, const char* )
+{
+    return false;
+}
+
+bool IsWxPythonLoaded()
+{
+    return false;
+}
+
+wxString PyStringToWx( PyObject* )
+{
+    return wxString();
+}
+
+wxArrayString PyArrayStringToWx( PyObject* )
+{
+    return wxArrayString();
+}
+
+wxString PyErrStringWithTraceback()
+{
+    return wxString();
+}
+
+#else
+
 #undef pid_t
 #include <pybind11/embed.h>
 
@@ -587,3 +658,5 @@ wxString SCRIPTING::PyPluginsPath( PATH_TYPE aPathType )
     // creates issues when passing a command string to a python method by PyRun_SimpleString
     return PyScriptingPath( aPathType ) + '/' + "plugins";
 }
+
+#endif

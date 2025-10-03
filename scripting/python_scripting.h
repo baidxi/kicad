@@ -24,6 +24,61 @@
 #ifndef __PYTHON_SCRIPTING_H
 #define __PYTHON_SCRIPTING_H
 
+#include <wx/window.h>
+#include <wx/string.h>
+#include <wx/arrstr.h>
+
+#include <kicommon.h>
+
+#ifdef KICAD_DISABLE_PYTHON
+
+struct PyObject;
+
+class KICOMMON_API SCRIPTING
+{
+public:
+    SCRIPTING() {}
+    ~SCRIPTING() {}
+
+    SCRIPTING( SCRIPTING const& )       = delete;
+    void operator= ( SCRIPTING const& ) = delete;
+
+    static bool IsWxAvailable() { return false; }
+    static bool IsModuleLoaded( std::string& ) { return false; }
+
+    enum PATH_TYPE
+    {
+        STOCK,
+        USER,
+        THIRDPARTY
+    };
+
+    static wxString PyScriptingPath( PATH_TYPE = STOCK ) { return wxString(); }
+    static wxString PyPluginsPath( PATH_TYPE = STOCK ) { return wxString(); }
+
+private:
+    bool scriptingSetup() { return false; }
+};
+
+inline void UpdatePythonEnvVar( const wxString&, const wxString& ) {}
+inline void RedirectStdio() {}
+inline wxWindow* CreatePythonShellWindow( wxWindow*, const wxString& ) { return nullptr; }
+inline bool InitPythonScripting( const char*, const char* ) { return false; }
+inline bool IsWxPythonLoaded() { return false; }
+
+class KICOMMON_API PyLOCK
+{
+public:
+    PyLOCK() {}
+    ~PyLOCK() {}
+};
+
+inline wxString PyStringToWx( PyObject* ) { return wxString(); }
+inline wxArrayString PyArrayStringToWx( PyObject* ) { return wxArrayString(); }
+inline wxString PyErrStringWithTraceback() { return wxString(); }
+
+#else
+
 // undefs explained here: https://bugzilla.redhat.com/show_bug.cgi?id=427617
 
 #ifdef _POSIX_C_SOURCE
@@ -40,12 +95,6 @@
 #undef HAVE_CLOCK_GETTIME  // macro is defined in Python.h and causes redefine warning
 #include <Python.h>
 #undef HAVE_CLOCK_GETTIME
-
-#include <wx/window.h>
-#include <wx/string.h>
-#include <wx/arrstr.h>
-
-#include <kicommon.h>
 
 class KICOMMON_API SCRIPTING
 {
@@ -78,12 +127,6 @@ private:
     PyThreadState* m_python_thread_state;
 };
 
-/**
- * Set an environment variable in the current Python interpreter.
- *
- * @param aVar is the variable to set
- * @param aValue is the value to give it
- */
 KICOMMON_API void UpdatePythonEnvVar( const wxString& aVar, const wxString& aValue );
 
 KICOMMON_API void RedirectStdio();
@@ -103,5 +146,7 @@ public:
 KICOMMON_API wxString PyStringToWx( PyObject* str );
 KICOMMON_API wxArrayString PyArrayStringToWx( PyObject* arr );
 KICOMMON_API wxString       PyErrStringWithTraceback();
+
+#endif
 
 #endif    // __PYTHON_SCRIPTING_H

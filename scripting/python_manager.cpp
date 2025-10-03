@@ -32,6 +32,39 @@
 #include <thread_pool.h>
 #include <wx_filename.h>
 
+#ifdef KICAD_DISABLE_PYTHON
+
+PYTHON_MANAGER::PYTHON_MANAGER( const wxString& aInterpreterPath )
+{
+    wxUnusedVar( aInterpreterPath );
+}
+
+long PYTHON_MANAGER::Execute( const std::vector<wxString>&,
+        const std::function<void(int, const wxString&, const wxString&)>& aCallback,
+        const wxExecuteEnv*, bool )
+{
+    if( aCallback )
+        aCallback( -1, wxEmptyString, _( "Python scripting is disabled" ) );
+
+    return 0;
+}
+
+wxString PYTHON_MANAGER::FindPythonInterpreter()
+{
+    return wxString();
+}
+
+std::optional<wxString> PYTHON_MANAGER::GetPythonEnvironment( const wxString& )
+{
+    return std::nullopt;
+}
+
+std::optional<wxString> PYTHON_MANAGER::GetVirtualPython( const wxString& )
+{
+    return std::nullopt;
+}
+
+#else
 
 class PYTHON_PROCESS : public wxProcess
 {
@@ -185,8 +218,6 @@ wxString PYTHON_MANAGER::FindPythonInterpreter()
     if( pythonExe.IsFileExecutable() )
         return pythonExe.GetFullPath();
 
-    // Fall back on finding any Python in the user's path
-
 #ifdef _WIN32
     wxArrayString output;
 
@@ -250,3 +281,5 @@ std::optional<wxString> PYTHON_MANAGER::GetVirtualPython( const wxString& aNames
 
     return python.GetFullPath();
 }
+
+#endif
