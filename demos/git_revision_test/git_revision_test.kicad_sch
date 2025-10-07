@@ -1,0 +1,22 @@
+(kicad_sch
+	(version 20250901)
+	(generator "eeschema")
+	(generator_version "9.99")
+	(uuid "9abce64e-af17-4a95-9aa7-1e54b7c3db59")
+	(paper "A4")
+	(title_block
+		(rev "${GIT_REV_SHORT}")
+		(company "GIT REV SHORT ${GIT_REV_SHORT}")
+		(comment 1 "GIT REVISION: ${GIT_REVISION}")
+		(comment 2 "GIT TAG: ${GIT_TAG}")
+		(comment 3 "VCSHASH: ${VCSHASH}")
+		(comment 4 "VCSSHORTHASH: ${VCSSHORTHASH}")
+	)
+	(lib_symbols)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

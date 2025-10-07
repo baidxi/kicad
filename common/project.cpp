@@ -98,6 +98,66 @@ bool PROJECT::TextVarResolver( wxString* aToken ) const
         *aToken = KIGIT::PROJECT_GIT_UTILS::GetCurrentHash( GetProjectFullName(), true );
         return true;
     }
+    else if( aToken->IsSameAs( wxT( "GIT_REVISION" ) ) )
+    {
+        wxString projectFile = GetProjectFullName();
+        if( !projectFile.IsEmpty() && wxFileExists( projectFile ) )
+        {
+            try
+            {
+                *aToken = KIGIT::PROJECT_GIT_UTILS::GetCurrentDescribe( projectFile );
+            }
+            catch( ... )
+            {
+                *aToken = wxT( "git error" );
+            }
+        }
+        else
+        {
+            *aToken = wxT( "no project" );
+        }
+        return true;
+    }
+    else if( aToken->IsSameAs( wxT( "GIT_REV_SHORT" ) ) )
+    {
+        wxString projectFile = GetProjectFullName();
+        if( !projectFile.IsEmpty() && wxFileExists( projectFile ) )
+        {
+            try
+            {
+                *aToken = KIGIT::PROJECT_GIT_UTILS::GetCurrentDescribeShort( projectFile );
+            }
+            catch( ... )
+            {
+                *aToken = wxT( "git error" );
+            }
+        }
+        else
+        {
+            *aToken = wxT( "no project" );
+        }
+        return true;
+    }
+    else if( aToken->IsSameAs( wxT( "GIT_TAG" ) ) )
+    {
+        wxString projectFile = GetProjectFullName();
+        if( !projectFile.IsEmpty() && wxFileExists( projectFile ) )
+        {
+            try
+            {
+                *aToken = KIGIT::PROJECT_GIT_UTILS::GetCurrentTag( projectFile );
+            }
+            catch( ... )
+            {
+                *aToken = wxT( "git error" );
+            }
+        }
+        else
+        {
+            *aToken = wxT( "no project" );
+        }
+        return true;
+    }
     else if( GetTextVars().count( *aToken ) > 0 )
     {
         *aToken = GetTextVars().at( *aToken );
