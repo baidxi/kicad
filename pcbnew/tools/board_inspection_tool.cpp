@@ -283,18 +283,14 @@ wxString BOARD_INSPECTION_TOOL::InspectDRCErrorMenuText( const std::shared_ptr<R
     {
         return m_frame->GetRunMenuCommandDescription( PCB_ACTIONS::inspectClearance );
     }
-    else if( aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT
-            || aDRCItem->GetErrorCode() == DRCE_TEXT_THICKNESS
-            || aDRCItem->GetErrorCode() == DRCE_DIFF_PAIR_UNCOUPLED_LENGTH_TOO_LONG
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_ANGLE
-            || aDRCItem->GetErrorCode() == DRCE_TRACK_SEGMENT_LENGTH
-            || aDRCItem->GetErrorCode() == DRCE_VIA_DIAMETER
-            || aDRCItem->GetErrorCode() == DRCE_ANNULAR_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_DRILL_OUT_OF_RANGE
-            || aDRCItem->GetErrorCode() == DRCE_MICROVIA_DRILL_OUT_OF_RANGE
-            || aDRCItem->GetErrorCode() == DRCE_CONNECTION_WIDTH
-            || aDRCItem->GetErrorCode() == DRCE_ASSERTION_FAILURE )
+    else if( aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT || aDRCItem->GetErrorCode() == DRCE_LINE_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_DIFF_PAIR_UNCOUPLED_LENGTH_TOO_LONG
+             || aDRCItem->GetErrorCode() == DRCE_TRACK_WIDTH || aDRCItem->GetErrorCode() == DRCE_TRACK_ANGLE
+             || aDRCItem->GetErrorCode() == DRCE_TRACK_SEGMENT_LENGTH || aDRCItem->GetErrorCode() == DRCE_VIA_DIAMETER
+             || aDRCItem->GetErrorCode() == DRCE_ANNULAR_WIDTH || aDRCItem->GetErrorCode() == DRCE_DRILL_OUT_OF_RANGE
+             || aDRCItem->GetErrorCode() == DRCE_MICROVIA_DRILL_OUT_OF_RANGE
+             || aDRCItem->GetErrorCode() == DRCE_CONNECTION_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_ASSERTION_FAILURE )
     {
         return m_frame->GetRunMenuCommandDescription( PCB_ACTIONS::inspectConstraints );
     }
@@ -382,19 +378,18 @@ void BOARD_INSPECTION_TOOL::InspectDRCError( const std::shared_ptr<RC_ITEM>& aDR
                                      reportMax( m_frame, constraint ) ) );
         break;
 
-    case DRCE_TEXT_THICKNESS:
-        r = dialog->AddHTMLPage( _( "Text Thickness" ) );
-        reportHeader( _( "Text thickness resolution for:" ), a, r );
+    case DRCE_LINE_WIDTH:
+        r = dialog->AddHTMLPage( _( "Line width" ) );
+        reportHeader( _( "Line width resolution for:" ), a, r );
 
         if( compileError )
             reportCompileError( r );
 
-        constraint = drcEngine->EvalRules( TEXT_THICKNESS_CONSTRAINT, a, b, layer, r );
+        constraint = drcEngine->EvalRules( LINEWIDTH_CONSTRAINT, a, b, layer, r );
 
         r->Report( "" );
-        r->Report( wxString::Format( _( "Resolved thickness constraints: min %s; max %s." ),
-                                     reportMin( m_frame, constraint ),
-                                     reportMax( m_frame, constraint ) ) );
+        r->Report( wxString::Format( _( "Resolved line width constraints: min %s; max %s." ),
+                                     reportMin( m_frame, constraint ), reportMax( m_frame, constraint ) ) );
         break;
 
     case DRCE_TRACK_WIDTH:
@@ -1462,7 +1457,7 @@ int BOARD_INSPECTION_TOOL::InspectConstraints( const TOOL_EVENT& aEvent )
         r->Report( "" );
         reportHeader( _( "Text thickness resolution for:" ), item, r );
 
-        constraint = EVAL_RULES( TEXT_THICKNESS_CONSTRAINT, item, nullptr, UNDEFINED_LAYER, r );
+        constraint = EVAL_RULES( LINEWIDTH_CONSTRAINT, item, nullptr, UNDEFINED_LAYER, r );
 
         if( compileError )
             reportCompileError( r );

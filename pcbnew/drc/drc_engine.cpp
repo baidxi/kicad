@@ -208,12 +208,12 @@ void DRC_ENGINE::loadImplicitRules()
     silkTextHeightConstraint.Value().SetMin( bds.m_MinSilkTextHeight );
     rule->AddConstraint( silkTextHeightConstraint );
 
-    rule = createImplicitRule( _( "board setup constraints silk text thickness" ),
+    rule = createImplicitRule( _( "board setup constraints silk line with" ),
                                DRC_IMPLICIT_SOURCE::BOARD_SETUP_CONSTRAINT );
     rule->m_LayerCondition = LSET( { F_SilkS, B_SilkS } );
-    DRC_CONSTRAINT silkTextThicknessConstraint( TEXT_THICKNESS_CONSTRAINT );
-    silkTextThicknessConstraint.Value().SetMin( bds.m_MinSilkTextThickness );
-    rule->AddConstraint( silkTextThicknessConstraint );
+    DRC_CONSTRAINT lineWidthConstraint( LINEWIDTH_CONSTRAINT );
+    lineWidthConstraint.Value().SetMin( bds.m_MinSilkLineWidth );
+    rule->AddConstraint( lineWidthConstraint );
 
     rule = createImplicitRule( _( "board setup constraints hole" ), DRC_IMPLICIT_SOURCE::BOARD_SETUP_CONSTRAINT );
     DRC_CONSTRAINT holeClearanceConstraint( HOLE_CLEARANCE_CONSTRAINT );
@@ -1292,9 +1292,9 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                 case VIA_DIAMETER_CONSTRAINT:
                 case HOLE_SIZE_CONSTRAINT:
                 case TEXT_HEIGHT_CONSTRAINT:
-                case TEXT_THICKNESS_CONSTRAINT:
                 case DIFF_PAIR_GAP_CONSTRAINT:
                 case LENGTH_CONSTRAINT:
+                case LINEWIDTH_CONSTRAINT:
                 case CONNECTION_WIDTH_CONSTRAINT:
                 case HOLE_TO_HOLE_CONSTRAINT:
                 {
@@ -1356,7 +1356,7 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                             break;
 
                         case TEXT_HEIGHT_CONSTRAINT:
-                        case TEXT_THICKNESS_CONSTRAINT:
+                        case LINEWIDTH_CONSTRAINT:
                         case CONNECTION_WIDTH_CONSTRAINT:
                             REPORT( wxString::Format( _( "Checking %s: min %s." ),
                                                       EscapeHTML( c->constraint.GetName() ),

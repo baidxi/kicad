@@ -317,10 +317,9 @@ wxString DRC_TOOL::FixDRCErrorMenuText( const std::shared_ptr<RC_ITEM>& aDRCItem
     {
         return _( "Edit Pad Properties..." );
     }
-    else if( aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT
-                || aDRCItem->GetErrorCode() == DRCE_TEXT_THICKNESS
-                || aDRCItem->GetErrorCode() == DRCE_MIRRORED_TEXT_ON_FRONT_LAYER
-                || aDRCItem->GetErrorCode() == DRCE_NONMIRRORED_TEXT_ON_BACK_LAYER )
+    else if( aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT || aDRCItem->GetErrorCode() == DRCE_LINE_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_MIRRORED_TEXT_ON_FRONT_LAYER
+             || aDRCItem->GetErrorCode() == DRCE_NONMIRRORED_TEXT_ON_BACK_LAYER )
     {
         BOARD_ITEM* item = m_pcb->ResolveItem( aDRCItem->GetMainItemID() );
 
@@ -367,14 +366,11 @@ void DRC_TOOL::FixDRCError( const std::shared_ptr<RC_ITEM>& aDRCItem )
     {
         m_toolMgr->RunAction( PCB_ACTIONS::updatePcbFromSchematic );
     }
-    else if( aDRCItem->GetErrorCode() == DRCE_FOOTPRINT_TYPE_MISMATCH
-                || aDRCItem->GetErrorCode() == DRCE_FOOTPRINT
-                || aDRCItem->GetErrorCode() == DRCE_PADSTACK
-                || aDRCItem->GetErrorCode() == DRCE_PADSTACK_INVALID
-                || aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT
-                || aDRCItem->GetErrorCode() == DRCE_TEXT_THICKNESS
-                || aDRCItem->GetErrorCode() == DRCE_MIRRORED_TEXT_ON_FRONT_LAYER
-                || aDRCItem->GetErrorCode() == DRCE_NONMIRRORED_TEXT_ON_BACK_LAYER)
+    else if( aDRCItem->GetErrorCode() == DRCE_FOOTPRINT_TYPE_MISMATCH || aDRCItem->GetErrorCode() == DRCE_FOOTPRINT
+             || aDRCItem->GetErrorCode() == DRCE_PADSTACK || aDRCItem->GetErrorCode() == DRCE_PADSTACK_INVALID
+             || aDRCItem->GetErrorCode() == DRCE_TEXT_HEIGHT || aDRCItem->GetErrorCode() == DRCE_LINE_WIDTH
+             || aDRCItem->GetErrorCode() == DRCE_MIRRORED_TEXT_ON_FRONT_LAYER
+             || aDRCItem->GetErrorCode() == DRCE_NONMIRRORED_TEXT_ON_BACK_LAYER )
 
     {
         BOARD_ITEM* item = m_pcb->ResolveItem( aDRCItem->GetMainItemID() );

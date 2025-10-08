@@ -253,13 +253,13 @@ DRC_ITEM DRC_ITEM::silkClearance( DRCE_SILK_CLEARANCE,
         _HKI( "Silkscreen clearance" ),
         wxT( "silk_overlap" ) );
 
+DRC_ITEM DRC_ITEM::lineWidthOutOfRange( DRCE_LINE_WIDTH,
+        _HKI( "Line width out of range" ),
+        wxT( "line_width" ) );
+
 DRC_ITEM DRC_ITEM::textHeightOutOfRange( DRCE_TEXT_HEIGHT,
         _HKI( "Text height out of range" ),
         wxT( "text_height" ) );
-
-DRC_ITEM DRC_ITEM::textThicknessOutOfRange( DRCE_TEXT_THICKNESS,
-        _HKI( "Text thickness out of range" ),
-        wxT( "text_thickness" ) );
 
 DRC_ITEM DRC_ITEM::lengthOutOfRange( DRCE_LENGTH_OUT_OF_RANGE,
         _HKI( "Track length out of range" ),
@@ -367,7 +367,7 @@ std::vector<std::reference_wrapper<RC_ITEM>> DRC_ITEM::allItemTypes( {
         DRC_ITEM::silkMaskClearance,
         DRC_ITEM::silkEdgeClearance,
         DRC_ITEM::textHeightOutOfRange,
-        DRC_ITEM::textThicknessOutOfRange,
+        DRC_ITEM::lineWidthOutOfRange,
         DRC_ITEM::mirroredTextOnFrontLayer,
         DRC_ITEM::nonMirroredTextOnBackLayer,
 
@@ -453,7 +453,7 @@ std::shared_ptr<DRC_ITEM> DRC_ITEM::Create( int aErrorCode )
     case DRCE_SILK_EDGE_CLEARANCE:      return std::make_shared<DRC_ITEM>( silkEdgeClearance );
     case DRCE_SOLDERMASK_BRIDGE:        return std::make_shared<DRC_ITEM>( solderMaskBridge );
     case DRCE_TEXT_HEIGHT:              return std::make_shared<DRC_ITEM>( textHeightOutOfRange );
-    case DRCE_TEXT_THICKNESS:           return std::make_shared<DRC_ITEM>( textThicknessOutOfRange );
+    case DRCE_LINE_WIDTH:               return std::make_shared<DRC_ITEM>( lineWidthOutOfRange );
     case DRCE_LENGTH_OUT_OF_RANGE:      return std::make_shared<DRC_ITEM>( lengthOutOfRange );
     case DRCE_SKEW_OUT_OF_RANGE:        return std::make_shared<DRC_ITEM>( skewOutOfRange );
     case DRCE_VIA_COUNT_OUT_OF_RANGE:   return std::make_shared<DRC_ITEM>( viaCountOutOfRange );

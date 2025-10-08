@@ -99,7 +99,7 @@ enum PCB_DRC_CODE
     DRCE_SILK_EDGE_CLEARANCE,
     DRCE_SILK_CLEARANCE,          // silk-to-silk or silk-to-other clearance error
     DRCE_TEXT_HEIGHT,
-    DRCE_TEXT_THICKNESS,
+    DRCE_LINE_WIDTH,
 
     DRCE_LENGTH_OUT_OF_RANGE,
     DRCE_SKEW_OUT_OF_RANGE,
@@ -239,7 +239,7 @@ private:
     static DRC_ITEM solderMaskBridge;
     static DRC_ITEM silkClearance;
     static DRC_ITEM textHeightOutOfRange;
-    static DRC_ITEM textThicknessOutOfRange;
+    static DRC_ITEM lineWidthOutOfRange;
     static DRC_ITEM lengthOutOfRange;
     static DRC_ITEM skewOutOfRange;
     static DRC_ITEM viaCountOutOfRange;

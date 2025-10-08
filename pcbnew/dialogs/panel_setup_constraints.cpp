@@ -51,7 +51,7 @@ PANEL_SETUP_CONSTRAINTS::PANEL_SETUP_CONSTRAINTS( wxWindow* aParentWindow, PCB_E
         m_silkClearance( aFrame, m_silkClearanceLabel, m_silkClearanceCtrl, m_silkClearanceUnits ),
         m_minGrooveWidth( aFrame, m_minGrooveWidthLabel, m_minGrooveWidthCtrl, m_minGrooveWidthUnits ),
         m_minTextHeight( aFrame, m_textHeightLabel, m_textHeightCtrl, m_textHeightUnits ),
-        m_minTextThickness( aFrame, m_textThicknessLabel, m_textThicknessCtrl, m_textThicknessUnits ),
+        m_minLineWidth( aFrame, m_lineWidthLabel, m_lineWidthCtrl, m_lineWidthUnits ),
         m_maxError( aFrame, m_maxErrorTitle, m_maxErrorCtrl, m_maxErrorUnits )
 {
     m_Frame = aFrame;
@@ -117,7 +117,7 @@ bool PANEL_SETUP_CONSTRAINTS::TransferDataToWindow()
 
     m_silkClearance.SetValue( m_BrdSettings->m_SilkClearance );
     m_minTextHeight.SetValue( m_BrdSettings->m_MinSilkTextHeight );
-    m_minTextThickness.SetValue( m_BrdSettings->m_MinSilkTextThickness );
+    m_minLineWidth.SetValue( m_BrdSettings->m_MinSilkLineWidth );
 
     return true;
 }
@@ -183,7 +183,7 @@ bool PANEL_SETUP_CONSTRAINTS::TransferDataFromWindow()
 
     m_BrdSettings->m_SilkClearance = m_silkClearance.GetValue();
     m_BrdSettings->m_MinSilkTextHeight = m_minTextHeight.GetValue();
-    m_BrdSettings->m_MinSilkTextThickness = m_minTextThickness.GetValue();
+    m_BrdSettings->m_MinSilkLineWidth = m_minLineWidth.GetValue();
 
     return true;
 }
