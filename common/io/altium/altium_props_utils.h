@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <map>
+#include <optional>
 
 #include <wx/string.h>
 
@@ -35,6 +36,9 @@ class ALTIUM_PROPS_UTILS
 {
 public:
     static int32_t ConvertToKicadUnit( const double aValue );
+
+    static std::optional<int> ReadOptInt( const std::map<wxString, wxString>& aProps,
+                                          const wxString& aKey );
 
     static int ReadInt( const std::map<wxString, wxString>& aProps, const wxString& aKey,
                         int aDefault );
