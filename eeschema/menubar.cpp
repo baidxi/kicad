@@ -161,6 +161,7 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
     editMenu->Add( SCH_ACTIONS::editTextAndGraphics );
     editMenu->Add( SCH_ACTIONS::changeSymbols );
     editMenu->Add( SCH_ACTIONS::editPageNumber );
+    editMenu->Add( SCH_ACTIONS::editSubsheetNumbers );
 
     ACTION_MENU* submenuAttributes = new ACTION_MENU( false, selTool );
     submenuAttributes->SetTitle( _( "Attributes" ) );

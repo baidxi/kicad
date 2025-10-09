@@ -66,6 +66,7 @@
 #include <dialogs/dialog_text_properties.h>
 #include <dialogs/dialog_tablecell_properties.h>
 #include <dialogs/dialog_table_properties.h>
+#include <dialogs/dialog_edit_subsheet_pagenum.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <symbol_editor_settings.h>
@@ -3476,6 +3477,15 @@ int SCH_EDIT_TOOL::EditPageNumber( const TOOL_EVENT& aEvent )
 }
 
 
+int SCH_EDIT_TOOL::EditSubsheetNumbers( const TOOL_EVENT& aEvent )
+{
+    DIALOG_EDIT_SUBSHEET_PAGENUM dlg( m_frame );
+    dlg.ShowModal();
+
+    return 0;
+}
+
+
 int SCH_EDIT_TOOL::DdAppendFile( const TOOL_EVENT& aEvent )
 {
     return m_toolMgr->RunAction( SCH_ACTIONS::importSheet, aEvent.Parameter<wxString*>() );
@@ -3706,6 +3716,7 @@ void SCH_EDIT_TOOL::setTransitions()
     Go( &SCH_EDIT_TOOL::CleanupSheetPins,   SCH_ACTIONS::cleanupSheetPins.MakeEvent() );
     Go( &SCH_EDIT_TOOL::GlobalEdit,         SCH_ACTIONS::editTextAndGraphics.MakeEvent() );
     Go( &SCH_EDIT_TOOL::EditPageNumber,     SCH_ACTIONS::editPageNumber.MakeEvent() );
+    Go( &SCH_EDIT_TOOL::EditSubsheetNumbers,SCH_ACTIONS::editSubsheetNumbers.MakeEvent() );
 
     Go( &SCH_EDIT_TOOL::DdAppendFile,       SCH_ACTIONS::ddAppendFile.MakeEvent() );
     Go( &SCH_EDIT_TOOL::DdAddImage,        SCH_ACTIONS::ddAddImage.MakeEvent() );

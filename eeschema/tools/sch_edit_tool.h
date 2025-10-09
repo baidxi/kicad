@@ -55,6 +55,7 @@ public:
     int ChangeSymbols( const TOOL_EVENT& aEvent );
     int CycleBodyStyle( const TOOL_EVENT& aEvent );
     int EditPageNumber( const TOOL_EVENT& aEvent );
+    int EditSubsheetNumbers( const TOOL_EVENT& aEvent );
 
     /**
      * Change a text type to another one.

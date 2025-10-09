@@ -110,6 +110,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_database_lib_settings.cpp
     dialogs/dialog_edit_symbols_libid.cpp
     dialogs/dialog_edit_symbols_libid_base.cpp
+    dialogs/dialog_edit_subsheet_pagenum.cpp
+    dialogs/dialog_edit_subsheet_pagenum_base.cpp
     dialogs/dialog_eeschema_page_settings.cpp
     dialogs/dialog_erc.cpp
     dialogs/dialog_erc_base.cpp

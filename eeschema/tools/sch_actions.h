@@ -170,6 +170,7 @@ public:
     static TOOL_ACTION findNetInInspector;
     static TOOL_ACTION schematicSetup;
     static TOOL_ACTION editPageNumber;
+    static TOOL_ACTION editSubsheetNumbers;
     static TOOL_ACTION checkSymbol;
     static TOOL_ACTION diffSymbol;
     static TOOL_ACTION showBusSyntaxHelp;
