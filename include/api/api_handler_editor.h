@@ -39,7 +39,7 @@ class EDA_BASE_FRAME;
 class API_HANDLER_EDITOR : public API_HANDLER
 {
 public:
-    API_HANDLER_EDITOR( EDA_BASE_FRAME* aFrame = nullptr );
+    API_HANDLER_EDITOR( EDA_BASE_FRAME* aFrame );
 
 protected:
     /// If the header is valid, returns the item container
@@ -104,12 +104,18 @@ protected:
     virtual std::optional<EDA_ITEM*> getItemFromDocument( const DocumentSpecifier& aDocument,
                                                           const KIID& aId ) = 0;
 
+    virtual void handleGetOpenDocuments( DocumentSpecifier& aDocument ) = 0;
+
 protected:
     std::map<std::string, std::pair<KIID, std::unique_ptr<COMMIT>>> m_commits;
 
     std::set<std::string> m_activeClients;
 
     EDA_BASE_FRAME* m_frame;
+
+private:
+    HANDLER_RESULT<commands::GetOpenDocumentsResponse>
+    handleGetOpenDocuments( const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
 };
 
 #endif //KICAD_API_HANDLER_EDITOR_H

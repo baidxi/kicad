@@ -63,11 +63,10 @@ protected:
     std::optional<EDA_ITEM*> getItemFromDocument( const DocumentSpecifier& aDocument,
                                                   const KIID& aId ) override;
 
-private:
-    HANDLER_RESULT<commands::GetOpenDocumentsResponse> handleGetOpenDocuments(
-            const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
+    void handleGetOpenDocuments( DocumentSpecifier& aDocument ) override;
 
-    SCH_EDIT_FRAME* m_frame;
+private:
+    SCH_EDIT_FRAME* frame() const;
 };
 
 
