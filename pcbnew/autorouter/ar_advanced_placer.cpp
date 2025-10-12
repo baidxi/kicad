@@ -5,7 +5,7 @@
  * Author: Ayomide Adekoya
  * 
  * This is a minimal enhancement to the existing autoplacer that adds
- * crossing detection to the cost function. The key innovation is that
+ * crossing detection to the cost function. The key change is that
  * the original autoplacer ONLY considers distance, while this version
  * penalizes placements that would create trace crossings.
  */
@@ -34,7 +34,7 @@ double AR_ADVANCED_PLACER::computePlacementRatsnestCost( FOOTPRINT* aFootprint,
     // Start with the original cost (based on connection length)
     double baseCost = AR_AUTOPLACER::computePlacementRatsnestCost( aFootprint, aOffset );
     
-    // Now add our KEY INNOVATION: crossing penalty
+    // Now add our KEY change: crossing penalty
     double crossingPenalty = 0.0;
     int crossingCount = 0;
     

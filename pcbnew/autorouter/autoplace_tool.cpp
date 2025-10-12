@@ -26,9 +26,11 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <widgets/wx_progress_reporters.h>
+#include <wx/choicdlg.h>
 
-#include "ar_autoplacer.h"
 #include "autoplace_tool.h"
+#include "ar_autoplacer.h"
+#include "ar_advanced_placer.h"
 
 
 AUTOPLACE_TOOL::AUTOPLACE_TOOL() : PCB_TOOL_BASE( "pcbnew.Autoplacer" )
@@ -85,20 +87,57 @@ int AUTOPLACE_TOOL::autoplace( std::vector<FOOTPRINT*>& aFootprints )
 
     Activate();
 
-    AR_AUTOPLACER autoplacer( board() );
-    BOARD_COMMIT  commit( frame() );
+    // Ask user which algorithm to use
+    wxArrayString choices;
+    choices.Add( _( "Standard Placement" ) );
+    choices.Add( _( "Advanced Placement (Minimize Crossings)" ) );
+    
+    int choice = wxGetSingleChoiceIndex( _( "Select placement method:" ),
+                                         _( "Autoplace Options" ),
+                                         choices, frame() );
+    
+    if( choice == -1 )  // User cancelled
+        return 0;
+    
+    BOARD_COMMIT commit( frame() );
+    AR_RESULT result;
+    
+    if( choice == 1 )  // Advanced placement with crossing minimization
+    {
+        AR_ADVANCED_PLACER advancedPlacer( board() );
+        
+        std::shared_ptr<KIGFX::VIEW_OVERLAY> overlay = view()->MakeOverlay();
+        advancedPlacer.SetOverlay( overlay );
+        
+        fparent = frame();
+        std::function<int( FOOTPRINT* aFootprint )> callback = refreshCallback;
+        advancedPlacer.SetRefreshCallback( callback );
+        
+        WX_PROGRESS_REPORTER progressReporter( frame(), 
+                                              _( "Autoplace with Crossing Minimization" ), 
+                                              1, PR_CAN_ABORT );
+        advancedPlacer.SetProgressReporter( &progressReporter );
+        
+        // Call the same AutoplaceFootprints but with our enhanced cost function
+        result = advancedPlacer.AutoplaceFootprints( aFootprints, &commit, false );
+    }
+    else  // Standard placement
+    {
+        AR_AUTOPLACER autoplacer( board() );
 
-    std::shared_ptr<KIGFX::VIEW_OVERLAY> overlay = view()->MakeOverlay();
-    autoplacer.SetOverlay( overlay );
+        std::shared_ptr<KIGFX::VIEW_OVERLAY> overlay = view()->MakeOverlay();
+        autoplacer.SetOverlay( overlay );
 
-    fparent = frame();
-    std::function<int( FOOTPRINT* aFootprint )> callback = refreshCallback;
-    autoplacer.SetRefreshCallback( callback );
+        fparent = frame();
+        std::function<int( FOOTPRINT* aFootprint )> callback = refreshCallback;
+        autoplacer.SetRefreshCallback( callback );
 
-    WX_PROGRESS_REPORTER progressReporter( frame(), _( "Autoplace Footprints" ), 1, PR_CAN_ABORT );
-    autoplacer.SetProgressReporter( &progressReporter );
+        WX_PROGRESS_REPORTER progressReporter( frame(), _( "Autoplace Footprints" ), 
+                                              1, PR_CAN_ABORT );
+        autoplacer.SetProgressReporter( &progressReporter );
 
-    auto result = autoplacer.AutoplaceFootprints( aFootprints, &commit, false );
+        result = autoplacer.AutoplaceFootprints( aFootprints, &commit, false );
+    }
 
     if( result == AR_COMPLETED )
         commit.Push( _( "Autoplace Footprints" ) );

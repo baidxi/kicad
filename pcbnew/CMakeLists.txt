@@ -379,6 +379,7 @@ set( PCBNEW_CLASS_SRCS
 
     autorouter/spread_footprints.cpp
     autorouter/ar_autoplacer.cpp
+    autorouter/ar_advanced_placer.cpp
     autorouter/ar_matrix.cpp
     autorouter/autoplace_tool.cpp
 
