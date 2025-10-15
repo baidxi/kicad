@@ -33,7 +33,9 @@
 #include <gestfich.h>
 #include <paths.h>
 #include <pgm_base.h>
-#include <python_manager.h>
+#ifndef KICAD_DISABLE_PYTHON
+    #include <python_manager.h>
+#endif
 #include <settings/settings_manager.h>
 #include <settings/common_settings.h>
 
@@ -174,6 +176,7 @@ void API_PLUGIN_MANAGER::ReloadPlugins()
 
 void API_PLUGIN_MANAGER::RecreatePluginEnvironment( const wxString& aIdentifier )
 {
+#ifndef KICAD_DISABLE_PYTHON
     if( !m_pluginsCache.contains( aIdentifier ) )
         return;
 
@@ -202,6 +205,7 @@ void API_PLUGIN_MANAGER::RecreatePluginEnvironment( const wxString& aIdentifier 
         wxCommandEvent* evt = new wxCommandEvent( EDA_EVT_PLUGIN_MANAGER_JOB_FINISHED, wxID_ANY );
         QueueEvent( evt );
     }
+#endif // !KICAD_DISABLE_PYTHON
 }
 
 
@@ -239,6 +243,7 @@ void API_PLUGIN_MANAGER::InvokeAction( const wxString& aIdentifier )
 
     switch( plugin.Runtime().type )
     {
+#ifndef KICAD_DISABLE_PYTHON
     case PLUGIN_RUNTIME_TYPE::PYTHON:
     {
         py = PYTHON_MANAGER::GetVirtualPython( plugin.Identifier() );
@@ -327,6 +332,7 @@ void API_PLUGIN_MANAGER::InvokeAction( const wxString& aIdentifier )
 
         break;
     }
+#endif // !KICAD_DISABLE_PYTHON
 
     case PLUGIN_RUNTIME_TYPE::EXEC:
     {
@@ -404,7 +410,9 @@ void API_PLUGIN_MANAGER::processPluginDependencies()
                                                 plugin->Identifier() ) );
         m_environmentCache[plugin->Identifier()] = wxEmptyString;
 
+#ifndef KICAD_DISABLE_PYTHON
         if( plugin->Runtime().type != PLUGIN_RUNTIME_TYPE::PYTHON )
+#endif
         {
             wxLogTrace( traceApi, wxString::Format( "Manager: %s is not a Python plugin, all set",
                                                     plugin->Identifier() ) );
@@ -412,6 +420,7 @@ void API_PLUGIN_MANAGER::processPluginDependencies()
             continue;
         }
 
+#ifndef KICAD_DISABLE_PYTHON
         std::optional<wxString> env = PYTHON_MANAGER::GetPythonEnvironment( plugin->Identifier() );
 
         if( !env )
@@ -450,6 +459,7 @@ void API_PLUGIN_MANAGER::processPluginDependencies()
         job.env_path = envConfigPath.GetPath();
         m_jobs.emplace_back( job );
         addedAnyJobs = true;
+#endif // !KICAD_DISABLE_PYTHON
     }
 
     if( addedAnyJobs )
@@ -473,6 +483,7 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
 
     JOB& job = m_jobs.front();
 
+#ifndef KICAD_DISABLE_PYTHON
     if( job.type == JOB_TYPE::CREATE_ENV )
     {
         wxLogTrace( traceApi, "Manager: Using Python interpreter at %s",
@@ -669,6 +680,7 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
         wxCommandEvent* evt = new wxCommandEvent( EDA_EVT_PLUGIN_MANAGER_JOB_FINISHED, wxID_ANY );
         QueueEvent( evt );
     }
+#endif // !KICAD_DISABLE_PYTHON
 
     m_jobs.pop_front();
     wxLogTrace( traceApi, wxString::Format( "Manager: finished job; %zu left in queue",

@@ -83,8 +83,13 @@
 #define WXPYTHON_VERSION                "@WXPYTHON_VERSION@"
 #endif
 
+#if defined( KICAD_DISABLE_PYTHON )
+#define PYTHON_VERSION_MAJOR             0
+#define PYTHON_VERSION_MINOR             0
+#else
 #define PYTHON_VERSION_MAJOR             @PYTHON_VERSION_MAJOR@
 #define PYTHON_VERSION_MINOR             @PYTHON_VERSION_MINOR@
+#endif
 
 /// A file extension with a leading '.' is a suffix, and this one is used on
 /// top level program modules which implement the KIFACE.
@@ -92,9 +97,14 @@
 #define KIFACE_PREFIX                   "@KIFACE_PREFIX@"
 
 /// Allows scripts install directory to be referenced by the program code.
+#if defined( KICAD_DISABLE_PYTHON )
+#define PYTHON_DEST                     ""
+#define PYTHON_SITE_PACKAGE_PATH        ""
+#else
 #define PYTHON_DEST                     "@PYTHON_DEST@"
 
 #define PYTHON_SITE_PACKAGE_PATH        "@PYTHON_SITE_PACKAGE_PATH@"
+#endif
 
 /// Allows scripts install directory to be referenced by the program code.
 #define KICAD_DATA                      "@KICAD_DATA@"
@@ -116,6 +126,10 @@
 #cmakedefine NGSPICE_HAVE_CONFIG_H
 
 /// Path to the python executable that should be used by KiCad
+#if defined( KICAD_DISABLE_PYTHON )
+#define PYTHON_EXECUTABLE               ""
+#else
 #define PYTHON_EXECUTABLE               "@PYTHON_EXECUTABLE@"
+#endif
 
 #endif  // CONFIG_H_

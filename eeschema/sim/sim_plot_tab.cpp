@@ -557,7 +557,7 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
         {
             wxString runLabel;
             const std::vector<wxString>& labels = m_trace->GetMultiRunLabels();
-            
+
             if( m_sweepIndex >= 0 && m_sweepIndex < (int) labels.size() )
             {
                 runLabel = labels[m_sweepIndex];
@@ -566,7 +566,7 @@ void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
             {
                 runLabel = wxString::Format( _( "Run %d" ), m_sweepIndex + 1 );
             }
-            
+
             wxSize   runSize = aDC.GetTextExtent( runLabel );
             int      runX = textRect.GetRight() + 6;
             wxRect   runRect( wxPoint( runX, textRect.y ), runSize );

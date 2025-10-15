@@ -32,6 +32,29 @@ class ACTION_MENU;
 /**
  * Tool relating to pads and pad settings.
  */
+#ifdef KICAD_DISABLE_PYTHON
+
+class SCRIPTING_TOOL : public PCB_TOOL_BASE
+{
+public:
+    SCRIPTING_TOOL() : PCB_TOOL_BASE( "pcbnew.ScriptingTool" ) {}
+    ~SCRIPTING_TOOL() override {}
+
+    void Reset( RESET_REASON aReason ) override {}
+    bool Init() override { return false; }
+
+    static void ReloadPlugins() {}
+    static void ShowPluginFolder() {}
+
+private:
+    int reloadPlugins( const TOOL_EVENT& aEvent ) { return 0; }
+    static void callLoadPlugins() {}
+    int showPluginFolder( const TOOL_EVENT& aEvent ) { return 0; }
+    void setTransitions() override {}
+};
+
+#else
+
 class SCRIPTING_TOOL : public PCB_TOOL_BASE
 {
 public:
@@ -63,6 +86,8 @@ private:
     void setTransitions() override;
 
 };
+
+#endif
 
 
 #endif /* PCBNEW_PCB_SCRIPTING_TOOL_H_ */

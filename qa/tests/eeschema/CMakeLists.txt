@@ -131,7 +131,7 @@ PRIVATE
     kicommon
     pcbcommon
     3d-viewer
-    scripting
+    $<$<NOT:$<BOOL:${KICAD_DISABLE_PYTHON}>>:scripting>
     kimath
     qa_utils
     qa_schematic_utils

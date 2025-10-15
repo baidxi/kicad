@@ -32,6 +32,11 @@
  *
  * @param aNames is a wxString which will contain the filenames (separated by '\n')
  */
+#ifdef KICAD_DISABLE_PYTHON
+inline void pcbnewGetUnloadableScriptNames( wxString& ) {}
+inline void pcbnewGetScriptsSearchPaths( wxString& ) {}
+inline void pcbnewGetWizardsBackTrace( wxString& ) {}
+#else
 void        pcbnewGetUnloadableScriptNames( wxString& aNames );
 
 /**
@@ -47,6 +52,7 @@ void        pcbnewGetScriptsSearchPaths( wxString& aNames );
  * @param aNames is a wxString which will contain the trace
  */
 void        pcbnewGetWizardsBackTrace( wxString& aNames );
+#endif
 
 
 #endif    // __PYTHON_SCRIPTING_H

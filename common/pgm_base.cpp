@@ -480,7 +480,7 @@ bool PGM_BASE::InitPgm( bool aHeadless, bool aSkipPyInit, bool aIsUnitTest )
     // Load common settings from disk after setting up env vars
     GetSettingsManager().Load( commonSettings );
 
-#ifdef KICAD_IPC_API
+#if defined( KICAD_IPC_API ) && !defined( KICAD_DISABLE_PYTHON )
     // If user doesn't have a saved Python interpreter, try (potentially again) to find one
     if( commonSettings->m_Api.python_interpreter.IsEmpty() )
         commonSettings->m_Api.python_interpreter = PYTHON_MANAGER::FindPythonInterpreter();
@@ -504,10 +504,12 @@ bool PGM_BASE::InitPgm( bool aHeadless, bool aSkipPyInit, bool aIsUnitTest )
 
     GetNotificationsManager().Load();
 
+#ifndef KICAD_DISABLE_PYTHON
     // Create the python scripting stuff
     // Skip it for applications that do not use it
     if( !aSkipPyInit )
         m_python_scripting = std::make_unique<SCRIPTING>();
+#endif
 
     // TODO(JE): Remove this if apps are refactored to not assume Prj() always works
     // Need to create a project early for now (it can have an empty path for the moment)

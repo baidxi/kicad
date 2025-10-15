@@ -23,7 +23,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#ifndef KICAD_DISABLE_PYTHON
 #include <pcbnew_scripting_helpers.h>
+#endif
 #include <pgm_base.h>
 #include <cli_progress_reporter.h>
 #include <confirm.h>
@@ -60,7 +62,9 @@
 #include <panel_3D_display_options.h>
 #include <panel_3D_opengl_options.h>
 #include <panel_3D_raytracing_options.h>
+#ifndef KICAD_DISABLE_PYTHON
 #include <python_scripting.h>
+#endif
 
 #include "invoke_pcb_dialog.h"
 #include <wildcards_and_files_ext.h>
@@ -73,9 +77,11 @@
 
 #include <wx/crt.h>
 
+#ifndef KICAD_DISABLE_PYTHON
 /* init functions defined by swig */
 
 extern "C" PyObject* PyInit__pcbnew( void );
+#endif
 
 namespace PCB {
 
@@ -102,8 +108,10 @@ static struct IFACE : public KIFACE_BASE, public UNITS_PROVIDER
         {
             auto frame = new PCB_EDIT_FRAME( aKiway, aParent );
 
+#ifndef KICAD_DISABLE_PYTHON
             // give the scripting helpers access to our frame
             ScriptingSetPcbEditFrame( frame );
+#endif
 
             if( Kiface().IsSingle() )
             {
@@ -371,8 +379,10 @@ static struct IFACE : public KIFACE_BASE, public UNITS_PROVIDER
         case KIFACE_GLOBAL_FOOTPRINT_TABLE:
             return (void*) &GFootprintTable;
 
+#ifndef KICAD_DISABLE_PYTHON
         case KIFACE_SCRIPTING_LEGACY:
             return reinterpret_cast<void*>( PyInit__pcbnew );
+#endif
 
         default:
             return nullptr;

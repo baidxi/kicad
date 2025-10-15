@@ -3230,3 +3230,93 @@ void PCB_EDIT_FRAME::OnEditItemRequest( BOARD_ITEM* aItem )
         break;
     }
 }
+
+
+#ifdef KICAD_DISABLE_PYTHON
+// Stub implementations when Python is disabled
+#include <pcb_io/pcb_io_mgr.h>
+#include <io/io_mgr.h>
+#include <project/project_file.h>
+#include <settings/settings_manager.h>
+#include <widgets/wx_aui_art_providers.h>
+
+void PCB_EDIT_FRAME::addActionPluginTools( ACTION_TOOLBAR* )
+{
+    // No-op when Python is disabled
+}
+
+std::vector<std::variant<ACTION_PLUGIN*, const PLUGIN_ACTION*>> PCB_EDIT_FRAME::GetOrderedActionPlugins()
+{
+    // Return empty vector when Python is disabled
+    return {};
+}
+
+bool PCB_EDIT_FRAME::GetActionPluginButtonVisible( const wxString&, bool )
+{
+    // Return false when Python is disabled
+    return false;
+}
+
+void PCB_EDIT_FRAME::buildActionPluginMenus( ACTION_MENU* )
+{
+    // No-op when Python is disabled
+}
+
+// These are normally in pcbnew/python/scripting/pcbnew_scripting_helpers.cpp
+void ScriptingOnDestructPcbEditFrame( PCB_EDIT_FRAME* )
+{
+    // No-op when Python is disabled
+}
+
+BOARD* CreateEmptyBoard()
+{
+    // Minimal stub - Python scripting not available
+    BOARD* brd = new BOARD();
+    // Without Python, create a minimal project
+    brd->SetProject( nullptr );
+    return brd;
+}
+
+BOARD* LoadBoard( const wxString& aFileName, bool aSetActive )
+{
+    // Minimal stub for loading boards when Python is disabled
+    BOARD* brd = nullptr;
+    
+    try
+    {
+        brd = PCB_IO_MGR::Load( PCB_IO_MGR::KICAD_SEXP, aFileName );
+    }
+    catch( ... )
+    {
+        return nullptr;
+    }
+    
+    return brd;
+}
+
+bool SaveBoard( wxString& aFileName, BOARD* aBoard, PCB_IO_MGR::PCB_FILE_T aFormat, bool aSkipSettings )
+{
+    aBoard->BuildConnectivity();
+    aBoard->SynchronizeNetsAndNetClasses( false );
+
+    try
+    {
+        PCB_IO_MGR::Save( aFormat, aFileName, aBoard, nullptr );
+    }
+    catch( ... )
+    {
+        return false;
+    }
+
+    // Skip project settings when Python is disabled (no settings manager available)
+    
+    return true;
+}
+
+bool SaveBoard( wxString& aFileName, BOARD* aBoard, bool aSkipSettings )
+{
+    return SaveBoard( aFileName, aBoard, PCB_IO_MGR::KICAD_SEXP, aSkipSettings );
+}
+#endif
+
+
