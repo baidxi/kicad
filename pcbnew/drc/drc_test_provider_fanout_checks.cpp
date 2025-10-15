@@ -575,13 +575,13 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
 
     for( PAD* item : m_drcEngine->GetBoard()->GetPads() )
     {
-        returns.emplace_back( tp.submit( checkPadFanoutRatio, item ) );
-        returns.emplace_back( tp.submit( checkPadViaDistance, item ) );
+        returns.emplace_back( tp.submit_task( checkPadFanoutRatio, item ) );
+        returns.emplace_back( tp.submit_task( checkPadViaDistance, item ) );
     }
 
     for( FOOTPRINT* item : m_drcEngine->GetBoard()->Footprints() )
     {
-        returns.emplace_back( tp.submit( checkFootprintSymmetry, item ) );
+        returns.emplace_back( tp.submit_task( checkFootprintSymmetry, item ) );
     }
 
     for( std::future<bool>& ret : returns )
