@@ -462,6 +462,9 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString& aSymbolName,
                 field = new SCH_FIELD( symbol, FIELD_T::USER );
                 field->SetName( fieldName );
 
+                // Make sure it is visibile inside the symbol chooser
+                field->SetShowInChooser();
+
                 field->SetText( std::get<0>( fieldProperties ) );
                 field->SetVisible( std::get<1>( fieldProperties ) );
                 symbol->AddField( field );
