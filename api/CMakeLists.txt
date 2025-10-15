@@ -22,6 +22,7 @@ set( KIAPI_PROTO_SRCS
     common/envelope.proto
 
     common/types/base_types.proto
+    common/types/design_resources.proto
     common/types/enums.proto
     common/types/project_settings.proto
 
@@ -39,6 +40,7 @@ set( KIAPI_PROTO_SRCS
 
 # Generated C++ code must be in the build dir; it is dependent on the version of protoc installed
 set( KIAPI_CPP_BASEPATH ${CMAKE_CURRENT_BINARY_DIR}/cpp/api )
+set( KIAPI_PY_BASEPATH ${CMAKE_CURRENT_BINARY_DIR}/python/api)
 
 foreach( PROTO_SRC ${KIAPI_PROTO_SRCS} )
     string( REGEX REPLACE "\.proto$" ".pb.cc" CPP_SRC ${PROTO_SRC} )
@@ -49,8 +51,11 @@ foreach( PROTO_SRC ${KIAPI_PROTO_SRCS} )
 endforeach ()
 
 add_custom_command( COMMAND ${CMAKE_COMMAND} -E make_directory ${KIAPI_CPP_BASEPATH}
+                    COMMAND ${CMAKE_COMMAND} -E make_directory ${KIAPI_PY_BASEPATH}
     COMMAND ${Protobuf_PROTOC_EXECUTABLE}
     --cpp_out=dllexport_decl=KIAPI_IMPORTEXPORT:${KIAPI_CPP_BASEPATH}
+    --python_out=${KIAPI_PY_BASEPATH}
+    --pyi_out=${KIAPI_PY_BASEPATH}
     --proto_path=${CMAKE_CURRENT_SOURCE_DIR}/proto
     --experimental_allow_proto3_optional
     ${KIAPI_PROTO_SRCS}
@@ -59,7 +64,7 @@ add_custom_command( COMMAND ${CMAKE_COMMAND} -E make_directory ${KIAPI_CPP_BASEP
     DEPENDS ${KIAPI_PROTO_SRC_FULLPATHS}
     OUTPUT ${KIAPI_CPP_SRCS} ${KIAPI_CPP_HEADERS}
     )
-
+    
 # kiapi must be a shared DLL because the protobuf messages can only be initialized once
 add_library( kiapi SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/import_export.h

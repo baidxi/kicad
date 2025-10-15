@@ -101,6 +101,7 @@ set( QA_EESCHEMA_SRCS
     test_resolve_drivers.cpp
     test_saveas_copy_subsheets.cpp
     test_update_items_connectivity.cpp
+    test_place_symbol.cpp
 )
 
 if( WIN32 )

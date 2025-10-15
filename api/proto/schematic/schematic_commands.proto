@@ -19,6 +19,20 @@
 
 syntax = "proto3";
 
-package kiapi.schematic.types;
+package kiapi.schematic.commands;
+
+import "common/types/design_resources.proto";
 
 
+
+message PlaceSymbol
+{
+  // The symbol to place
+  kiapi.common.types.SymbolResource symbol_resource = 1;
+
+  // Keep the symbol selected for subsequent clicks
+  optional bool place_repeated_copies = 2;
+
+  // Sequentially place all units of the symbol.
+  optional bool place_all_units = 3;
+}
