@@ -71,7 +71,7 @@ BOOST_FIXTURE_TEST_CASE( DRCFanoutChecks, DRC_REGRESSION_TEST_FIXTURE )
 
         bds.m_DRCEngine->SetViolationHandler(
                 [&]( const std::shared_ptr<DRC_ITEM>& aItem, VECTOR2I aPos, int aLayer,
-                     DRC_CUSTOM_MARKER_HANDLER* aCustomHandler )
+                     const std::function<void( PCB_MARKER* )>& aPathGenerator )
                 {
                     if( bds.GetSeverity( aItem->GetErrorCode() ) == SEVERITY::RPT_SEVERITY_ERROR )
                         violations.push_back( *aItem );
