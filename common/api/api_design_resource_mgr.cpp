@@ -37,12 +37,13 @@
 #include <wx/wfstream.h>
 #include <wx/log.h>
 #include <api/api_design_resource.h>
+#include <project.h>
 
 constexpr auto kProjectResourceDirName = "kicad_api_libs";
 constexpr auto kTraceResourceIO = "API_RESOURCE_IO";
 
 
-API_DESIGN_RESOURCE_MGR::API_DESIGN_RESOURCE_MGR( EDA_BASE_FRAME& aFrame ) : m_frame( aFrame )
+API_DESIGN_RESOURCE_MGR::API_DESIGN_RESOURCE_MGR( PROJECT& aProject ) : m_project( aProject )
 {
 }
 
@@ -56,12 +57,12 @@ std::optional<std::string> API_DESIGN_RESOURCE_MGR::DownloadURL( std::string con
     curl.SetURL( aUrl );
     curl.Perform();
 
-    static const auto checkServerResponse = []( auto& aCurl )
+    static const auto checkServerResponse = [](KICAD_CURL_EASY& aCurl )
     {
         int statusCode = aCurl.GetResponseStatusCode();
         if( statusCode != 200 )
         {
-            wxLogWarning( "HTTP error: %d", statusCode );
+            wxLogTrace( "KI_TRACE_PLACE_SYMBOL", wxT( "%s:%s:%d * HTTP error: %d\n" ),  __FILE__,  __FUNCTION__, __LINE__ ,statusCode);
             return false;
         }
 
@@ -75,30 +76,6 @@ std::optional<std::string> API_DESIGN_RESOURCE_MGR::DownloadURL( std::string con
 
     return std::make_optional( curl.GetBuffer() );
 }
-
-std::string API_DESIGN_RESOURCE_MGR::ExtractFileName( std::string const& aUrl )
-{
-    auto pos = aUrl.find_last_of( '/' );
-
-    if( pos == std::string::npos || pos == aUrl.length() - 1 )
-    {
-        return {};
-    }
-
-    return aUrl.substr( pos + 1 );
-}
-
-// std::string API_DESIGN_RESOURCE_MGR::ExtactFileExtension( std::string const& aUrl )
-// {
-//     auto pos = aUrl.find_last_of( '.' );
-
-//     if( pos == std::string::npos || pos == aUrl.length() - 1 )
-//     {
-//         return {};
-//     }
-
-//     return aUrl.substr( pos + 1 );
-// }
 
 std::string API_DESIGN_RESOURCE_MGR::RemoveFileExt( std::string const& aFileName )
 {
@@ -182,7 +159,7 @@ bool API_DESIGN_RESOURCE_MGR::SetupProjectResourceDirs()
 
 wxString API_DESIGN_RESOURCE_MGR::GetProjectDirectory() const
 {
-    return m_frame.Prj().GetProjectPath();
+    return m_project.GetProjectPath();
 }
 
 std::optional<wxString> API_DESIGN_RESOURCE_MGR::GetProjectResourceDir( ProjectResourceDir aType )
@@ -261,7 +238,9 @@ SYMBOL_CONTENT API_DESIGN_RESOURCE_MGR::GetSymbolContent(SYMBOL_RESOURCE const& 
     {
         result.content = *symbol_content;
     }
-    result.filename = aResource.symbolname.empty() ? API_DESIGN_RESOURCE_MGR::FormatToValidFileName( API_DESIGN_RESOURCE_MGR::ExtractFileName( symbol_uri ) ) 
+
+    wxFileName fn(symbol_uri);
+    result.filename = aResource.symbolname.empty() ? API_DESIGN_RESOURCE_MGR::FormatToValidFileName( fn.GetFullName().ToStdString() ) 
                                                     : aResource.symbolname;
     return result;
 }

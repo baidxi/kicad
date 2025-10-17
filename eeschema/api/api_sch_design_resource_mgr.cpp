@@ -36,7 +36,7 @@
 #include <wx/log.h>
 
 
-API_SCH_DESIGN_RESOURCE_MGR::API_SCH_DESIGN_RESOURCE_MGR( EDA_BASE_FRAME& aFrame ) : API_DESIGN_RESOURCE_MGR( aFrame )
+API_SCH_DESIGN_RESOURCE_MGR::API_SCH_DESIGN_RESOURCE_MGR( PROJECT& aProject ) : API_DESIGN_RESOURCE_MGR( aProject )
 {
 }
 
@@ -53,11 +53,7 @@ LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( SYMBOL_CONTENT con
         return {};
     }
     const auto symbol_nick_name = RemoveFileExt( symbol_file_name );
-    if( !UpdateLibTable( API_LIB_SYMBOL_TABLE, symbol_nick_name, FormatAPISymbolURI( symbol_file_name ) ) )
-    {
-        wxLogError( "Failed to update symbol library table for %s", symbol_nick_name );
-        return {};
-    }
+
     const auto save_path = GetProjectResourceSavePath( SYMBOL_DIR, symbol_file_name );
     if(!save_path)
     {
@@ -69,7 +65,7 @@ LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( SYMBOL_CONTENT con
     try
     {
         IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
-        LIB_SYMBOL* asymbol = pi->LoadSymbol(*save_path, symbol_nick_name );//symbol_name  symbol_nick_name
+        LIB_SYMBOL* asymbol = pi->LoadSymbol(*save_path, symbol_nick_name );
         if(asymbol)
         {
             LIB_ID  lib_id = asymbol->GetLibId();
@@ -92,38 +88,3 @@ LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( SYMBOL_CONTENT con
     return lib_symbol;
 }
 
-bool API_SCH_DESIGN_RESOURCE_MGR::UpdateLibTable( API_LIB_TABLE_T aLibT, const wxString& aNickName,
-                                                  const wxString& aURI )
-{
-    static const auto libType = wxT( "KiCad" );
-    static const auto desc = wxT( "Added by schematic API" );
-
-    switch( aLibT )
-    {
-        case API_SCH_DESIGN_RESOURCE_MGR::API_LIB_SYMBOL_TABLE:
-        {
-            const auto symbolTb = PROJECT_SCH::SchSymbolLibTable( &m_frame.Prj() );
-            if( !symbolTb )
-            {
-                wxLogError( "Failed to get symbol library table." );
-                return false;
-            }
-
-            const auto row = new SYMBOL_LIB_TABLE_ROW( aNickName, aURI, libType, desc );
-
-            if( !symbolTb->InsertRow( row, true ) )
-            {
-                wxLogError( "Failed to add symbol library row: %s", aNickName );
-                return false;
-            }
-            symbolTb->Save( m_frame.Prj().SymbolLibTableName() );
-            static_cast<SCH_BASE_FRAME&>( m_frame ).SavePrjSymbolLibTables();
-            return true;
-        }
-        default:
-            break;
-    }
-
-
-    return false;
-}

@@ -36,7 +36,7 @@ message SymbolResource
 {
     // The URI to the .kicad_sym 
     string uri = 1;
-    string symbol_name = 2;
+    optional string symbol_name = 2;
 }
 
 

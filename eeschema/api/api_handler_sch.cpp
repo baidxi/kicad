@@ -37,13 +37,13 @@ using kiapi::common::types::ItemRequestStatus;
 API_HANDLER_SCH::API_HANDLER_SCH( SCH_EDIT_FRAME* aFrame ) :
         API_HANDLER_EDITOR(),
         m_frame( aFrame ),
-        m_resourceMgr(std::make_unique<API_SCH_DESIGN_RESOURCE_MGR>(*m_frame))
+        m_resourceMgr(std::make_unique<API_SCH_DESIGN_RESOURCE_MGR>(m_frame->Prj()))
 {
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
             &API_HANDLER_SCH::handleGetOpenDocuments );
             
-    registerHandler<PlaceSymbol, Empty>(
-            &API_HANDLER_SCH::handlePlaceSymbol );       
+    registerHandler<InteractivePlaceSymbol, Empty>(
+            &API_HANDLER_SCH::interactivePlaceSymbol );       
 }
 
 
@@ -58,8 +58,11 @@ bool API_HANDLER_SCH::validateDocumentInternal( const DocumentSpecifier& aDocume
     if( aDocument.type() != DocumentType::DOCTYPE_SCHEMATIC )
         return false;
 
+    // TODO(JE) need serdes for SCH_SHEET_PATH <> SheetPath
     return true;
 
+    //wxString currentPath = m_frame->GetCurrentSheet().PathAsString();
+    //return 0 == aDocument.sheet_path().compare( currentPath.ToStdString() );
 }
 
 

@@ -29,9 +29,7 @@
 #include <optional>
 #include <wx/string.h>
 
-class EDA_BASE_FRAME;
-struct DESIGN_BLOCK_CONTENT;
-struct COMPONENT_CONTENT;
+class PROJECT;
 struct SYMBOL_CONTENT;
 struct SYMBOL_RESOURCE;
 
@@ -55,14 +53,12 @@ public:
     };
 
 
-    API_DESIGN_RESOURCE_MGR( EDA_BASE_FRAME& aFrame );
+    API_DESIGN_RESOURCE_MGR( PROJECT& aProject );
 
     virtual ~API_DESIGN_RESOURCE_MGR();
 
     // Download the url conent
     static std::optional<std::string> DownloadURL( std::string const& aUrl );
-
-    static std::string ExtractFileName( std::string const& aUrl );
 
     static std::string RemoveFileExt( std::string const& aFileName );
 
@@ -90,7 +86,7 @@ private:
     bool SetupProjectResourceDirs();
 
 protected:
-    EDA_BASE_FRAME& m_frame;
+    PROJECT&        m_project;
 };
 
 

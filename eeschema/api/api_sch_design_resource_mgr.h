@@ -32,16 +32,13 @@ class LIB_SYMBOL;
 class API_SCH_DESIGN_RESOURCE_MGR : public API_DESIGN_RESOURCE_MGR
 {
 public:
-    API_SCH_DESIGN_RESOURCE_MGR( EDA_BASE_FRAME& aFrame );
+    API_SCH_DESIGN_RESOURCE_MGR(PROJECT& aProject);
 
     ~API_SCH_DESIGN_RESOURCE_MGR();
 
     // Save a symbol to project, return the new/updated libsymbol if successful
 
     LIB_SYMBOL* SaveSymbolToProject( SYMBOL_CONTENT const& aSymbol);
-
-
-    bool UpdateLibTable( API_LIB_TABLE_T aLibT, const wxString& aNickName, const wxString& aURI );
 
 
 };

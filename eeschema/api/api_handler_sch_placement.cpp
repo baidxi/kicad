@@ -57,12 +57,12 @@ namespace
         SYMBOL_RESOURCE resource;
         resource.uri = aProto.uri();
         resource.symbolname = aProto.symbol_name();
-
+        
         return resource;
     }
 }
 
-HANDLER_RESULT<Empty> API_HANDLER_SCH::handlePlaceSymbol( const HANDLER_CONTEXT<PlaceSymbol>& aCtx )
+HANDLER_RESULT<Empty> API_HANDLER_SCH::interactivePlaceSymbol( const HANDLER_CONTEXT<InteractivePlaceSymbol>& aCtx )
 {
     if( !aCtx.Request.has_symbol_resource() || aCtx.Request.symbol_resource().uri().empty() )
     {
@@ -89,17 +89,17 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handlePlaceSymbol( const HANDLER_CONTEXT<
         cmd.option->place_repeated_copies = aCtx.Request.place_repeated_copies();
     }
     
-    placeSymbol(cmd);
+    interactivePlaceSymbol(cmd);
 
     return {};
 }
 
-void API_HANDLER_SCH::placeSymbol( PLACE_SYMBOL_RESOURCE_COMMAND const& aCommand )
+void API_HANDLER_SCH::interactivePlaceSymbol( PLACE_SYMBOL_RESOURCE_COMMAND const& aCommand )
 {
-    placeSymbol( API_DESIGN_RESOURCE_MGR::GetSymbolContent(aCommand.symbol_resource), aCommand.option );
+    interactivePlaceSymbol( API_DESIGN_RESOURCE_MGR::GetSymbolContent(aCommand.symbol_resource), aCommand.option );
 }
 
-void API_HANDLER_SCH::placeSymbol( SYMBOL_CONTENT const&   aComponent, std::optional<PLACE_SYMBOL_OPTION> const& aOption )
+void API_HANDLER_SCH::interactivePlaceSymbol( SYMBOL_CONTENT const&   aComponent, std::optional<PLACE_SYMBOL_OPTION> const& aOption )
 {
     // Trigger loading the lazy ininitialized project symbol library table.
     void( PROJECT_SCH::SchSymbolLibTable( &m_frame->Prj() ) );

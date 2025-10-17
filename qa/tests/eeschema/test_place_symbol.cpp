@@ -43,7 +43,7 @@ using kiapi::common::types::ItemRequestStatus;
 
 void SerializePlaceSymbolResourceCommand(const PLACE_SYMBOL_RESOURCE_COMMAND& placeCommand, google::protobuf::Any& aContainer)
 {
-    kiapi::schematic::commands::PlaceSymbol  placeSymbol;
+    kiapi::schematic::commands::InteractivePlaceSymbol  placeSymbol;
     if(auto opt = placeCommand.option; opt && opt->place_repeated_copies)
     {
         placeSymbol.set_place_repeated_copies(*opt->place_repeated_copies);
@@ -60,7 +60,7 @@ void SerializePlaceSymbolResourceCommand(const PLACE_SYMBOL_RESOURCE_COMMAND& pl
 
 bool DeserializePlaceSymbolResourceCommand(const google::protobuf::Any& aContainer, PLACE_SYMBOL_RESOURCE_COMMAND& placeCommand)
 {
-    kiapi::schematic::commands::PlaceSymbol  placeSymbol;
+    kiapi::schematic::commands::InteractivePlaceSymbol  placeSymbol;
     if( !aContainer.UnpackTo(&placeSymbol))
     {
         return false;
