@@ -34,12 +34,17 @@ package kiapi.common.types;
 
 message SymbolResource
 {
-    // The URI to the .kicad_sym 
+    // The URI to the .kicad_sym
     string uri = 1;
     optional string symbol_name = 2;
 }
 
-
+message  SymbolConent
+{
+    // The Content of the .kicad_sym
+    string content = 1;
+    optional string symbol_name = 2;
+}
 
 
 

@@ -30,8 +30,6 @@
 #include <wx/string.h>
 
 class PROJECT;
-struct SYMBOL_CONTENT;
-struct SYMBOL_RESOURCE;
 
 class API_DESIGN_RESOURCE_MGR
 {
@@ -66,7 +64,7 @@ public:
 
     static wxString FormatAPISymbolURI( std::string const& aSymbolName);
 
-    static SYMBOL_CONTENT GetSymbolContent(SYMBOL_RESOURCE const& aResource);
+    static std::string    GetSymbolContent(std::string const& aUri);
 
     wxString GetProjectDirectory() const;
 

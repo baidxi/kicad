@@ -38,7 +38,7 @@ public:
 
     // Save a symbol to project, return the new/updated libsymbol if successful
 
-    LIB_SYMBOL* SaveSymbolToProject( SYMBOL_CONTENT const& aSymbol);
+    LIB_SYMBOL* SaveSymbolToProject( const std::string& aName, const std::string& aContent);
 
 
 };

@@ -36,7 +36,6 @@
 #include <wx/string.h>
 #include <wx/wfstream.h>
 #include <wx/log.h>
-#include <api/api_design_resource.h>
 #include <project.h>
 
 constexpr auto kProjectResourceDirName = "kicad_api_libs";
@@ -223,24 +222,13 @@ bool API_DESIGN_RESOURCE_MGR::WriteProjectResource( ProjectResourceDir aType, wx
     return WriteProjectResource( *savePath, aContent );
 }
 
-
-SYMBOL_CONTENT API_DESIGN_RESOURCE_MGR::GetSymbolContent(SYMBOL_RESOURCE const& aResource)
+std::string API_DESIGN_RESOURCE_MGR::GetSymbolContent(std::string const& aUri)
 {
-    const auto& symbol_uri = aResource.uri;
-    const auto  symbol_content = API_DESIGN_RESOURCE_MGR::DownloadURL( symbol_uri );
-    if( !symbol_content )
+    const auto  symbol_content = API_DESIGN_RESOURCE_MGR::DownloadURL( aUri );
+    if(!symbol_content.has_value())
     {
-        wxLogWarning( "Failed to download symbol from %s", symbol_uri );
+        wxLogError("Failed to get symbol content");
+        return "";
     }
-
-    SYMBOL_CONTENT  result;
-    if(symbol_content)
-    {
-        result.content = *symbol_content;
-    }
-
-    wxFileName fn(symbol_uri);
-    result.filename = aResource.symbolname.empty() ? API_DESIGN_RESOURCE_MGR::FormatToValidFileName( fn.GetFullName().ToStdString() ) 
-                                                    : aResource.symbolname;
-    return result;
+    return *symbol_content;
 }

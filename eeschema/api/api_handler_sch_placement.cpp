@@ -1,8 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
- * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
+ * Copyright (C) 2025 Liu Weijian <lweijian210@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -23,8 +22,7 @@
  */
 
 #include "api_sch_design_resource_mgr.h"
-#include <api/api_design_resource.h>
-#include "api_sch_placement_command.h"
+
 #include <api/api_design_content.h>
 #include <optional>
 #include <sch_actions.h>
@@ -39,72 +37,72 @@
 #include <wx/filename.h>
 
 #include <api/common/types/base_types.pb.h>
-#include <api/api_design_resource.h>
 #include <wx/log.h>
 #include <fmt/format.h>
 
-
 using namespace kiapi::common::commands;
-using kiapi::common::types::CommandStatus;
-using kiapi::common::types::DocumentType;
-using kiapi::common::types::ItemRequestStatus;
 
 
-namespace
+HANDLER_RESULT<Empty> API_HANDLER_SCH::interactivePlaceSymbol(const HANDLER_CONTEXT<InteractivePlaceSymbol>& aCtx)
 {
-    SYMBOL_RESOURCE ConvertProtoToSymbolResource( kiapi::common::types::SymbolResource const& aProto )
-    {
-        SYMBOL_RESOURCE resource;
-        resource.uri = aProto.uri();
-        resource.symbolname = aProto.symbol_name();
-        
-        return resource;
-    }
-}
-
-HANDLER_RESULT<Empty> API_HANDLER_SCH::interactivePlaceSymbol( const HANDLER_CONTEXT<InteractivePlaceSymbol>& aCtx )
-{
-    if( !aCtx.Request.has_symbol_resource() || aCtx.Request.symbol_resource().uri().empty() )
-    {
-        return {};
-    }
-    
-    auto symbol_resource = ConvertProtoToSymbolResource( aCtx.Request.symbol_resource() );
-    PLACE_SYMBOL_RESOURCE_COMMAND   cmd;
-    cmd.symbol_resource = symbol_resource;
+    std::string symbol_content;
+    std::string symbol_name;
+    bool place_all_units = true;
     if(aCtx.Request.has_place_all_units())
     {
-        if(!cmd.option.has_value())
-        {
-            cmd.option.emplace();
-        }
-        cmd.option->place_all_units = aCtx.Request.place_all_units();
+        place_all_units = aCtx.Request.place_all_units();
     }
-    if(aCtx.Request.has_place_repeated_copies())
+
+    switch (aCtx.Request.symbol_case())
     {
-        if(!cmd.option.has_value())
+        case InteractivePlaceSymbol::SymbolCase::kSymbolResource:
         {
-            cmd.option.emplace();
+            std::string symbol_uri = aCtx.Request.symbol_resource().uri();
+            
+            if(aCtx.Request.symbol_resource().has_symbol_name())
+            {
+                symbol_name = aCtx.Request.symbol_resource().symbol_name();
+            }
+            InteractivelyPlaceSymbolURL(symbol_name, symbol_uri, place_all_units);
+            break;
         }
-        cmd.option->place_repeated_copies = aCtx.Request.place_repeated_copies();
+        case InteractivePlaceSymbol::SymbolCase::kSymbolContent:
+        {
+            symbol_content = aCtx.Request.symbol_content().content();
+            if(aCtx.Request.symbol_content().has_symbol_name())
+            {
+                symbol_name    = aCtx.Request.symbol_content().symbol_name();
+            }
+            InteractivelyPlaceSymbolContent(symbol_name , symbol_content, place_all_units);
+            break;
+        }
+        default:
+        {
+            break;
+        }
+            
     }
-    
-    interactivePlaceSymbol(cmd);
 
     return {};
 }
 
-void API_HANDLER_SCH::interactivePlaceSymbol( PLACE_SYMBOL_RESOURCE_COMMAND const& aCommand )
+
+
+void API_HANDLER_SCH::InteractivelyPlaceSymbolURL(const std::string& aName, const std::string& aUrl, bool place_all_units)
 {
-    interactivePlaceSymbol( API_DESIGN_RESOURCE_MGR::GetSymbolContent(aCommand.symbol_resource), aCommand.option );
+    std::string symbol_content = API_DESIGN_RESOURCE_MGR::GetSymbolContent(aUrl);
+    wxFileName fn(aUrl);
+    std::string symbol_name = !aName.empty() ? aName : API_DESIGN_RESOURCE_MGR::FormatToValidFileName( fn.GetFullName().ToStdString() ) ;
+    InteractivelyPlaceSymbolContent(symbol_name, symbol_content, place_all_units);
+
 }
 
-void API_HANDLER_SCH::interactivePlaceSymbol( SYMBOL_CONTENT const&   aComponent, std::optional<PLACE_SYMBOL_OPTION> const& aOption )
+
+void API_HANDLER_SCH::InteractivelyPlaceSymbolContent(const std::string& aName, const std::string& aContent, bool place_all_units)
 {
-    // Trigger loading the lazy ininitialized project symbol library table.
     void( PROJECT_SCH::SchSymbolLibTable( &m_frame->Prj() ) );
 
-    auto libSymbol = m_resourceMgr->SaveSymbolToProject(aComponent);
+    auto libSymbol = m_resourceMgr->SaveSymbolToProject(aName, aContent);
 
     if( !libSymbol )
     {
@@ -117,5 +115,6 @@ void API_HANDLER_SCH::interactivePlaceSymbol( SYMBOL_CONTENT const&   aComponent
     m_frame->GetToolManager()->RunAction<SCH_ACTIONS::PLACE_SYMBOL_PARAMS>(
             SCH_ACTIONS::placeSymbol,
             { new SCH_SYMBOL( *libSymbol, &m_frame->GetCurrentSheet(), pickedSymbol, {}, &m_frame->Schematic() ), true,
-              true } );
+              place_all_units } );
+
 }

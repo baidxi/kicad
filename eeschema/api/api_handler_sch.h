@@ -40,8 +40,6 @@ class SCH_EDIT_FRAME;
 class SCH_ITEM;
 class API_SCH_DESIGN_RESOURCE_MGR;
 
-struct PLACE_SYMBOL_OPTION;
-struct PLACE_SYMBOL_RESOURCE_COMMAND;
 
 class API_HANDLER_SCH : public API_HANDLER_EDITOR
 {
@@ -86,16 +84,11 @@ private:
 
     std::unique_ptr<API_SCH_DESIGN_RESOURCE_MGR> m_resourceMgr;
 
+
 public:
+    void InteractivelyPlaceSymbolURL(const std::string& aName, const std::string& aUrl, bool place_all_units);
 
-    // Accepting the equivalent POD struct which is AI & Web friendly, download the symbol file and return the symbol content
-    void interactivePlaceSymbol(PLACE_SYMBOL_RESOURCE_COMMAND const& aCommand);
-
-    // Actual implementation for placing symbol interactively
-    void interactivePlaceSymbol(SYMBOL_CONTENT const& aSymbolContent,
-                    std::optional<PLACE_SYMBOL_OPTION> const& aOption);
-
-
+    void InteractivelyPlaceSymbolContent(const std::string& aName, const std::string& aContent, bool place_all_units);
 
 
 };

@@ -44,10 +44,11 @@ API_SCH_DESIGN_RESOURCE_MGR::~API_SCH_DESIGN_RESOURCE_MGR()
 {
 }
 
-LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( SYMBOL_CONTENT const& aSymbol)
+
+LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( const std::string& aName, const std::string& aContent)
 {
-    const auto& symbol_file_name = aSymbol.filename;
-    if( !WriteProjectResource( SYMBOL_DIR, symbol_file_name, aSymbol.content ) )
+    const auto& symbol_file_name = aName;
+    if( !WriteProjectResource( SYMBOL_DIR, symbol_file_name, aContent ) )
     {
         wxLogError( "Failed to save symbol %s to project", symbol_file_name );
         return {};
@@ -73,7 +74,6 @@ LIB_SYMBOL* API_SCH_DESIGN_RESOURCE_MGR::SaveSymbolToProject( SYMBOL_CONTENT con
             asymbol->SetLibId(lib_id);
             lib_symbol = new LIB_SYMBOL(*asymbol);
         }
-        
     }
     catch( const IO_ERROR& ioe )
     {

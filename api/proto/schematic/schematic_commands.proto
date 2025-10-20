@@ -33,11 +33,17 @@ message InteractivePlaceSymbol
   kiapi.common.types.DocumentSpecifier board = 1;
 
   // The symbol to place
-  kiapi.common.types.SymbolResource symbol_resource = 2;
+  // kiapi.common.types.SymbolResource symbol_resource = 2;
+  oneof symbol {
+    kiapi.common.types.SymbolResource symbol_resource = 2;
+    kiapi.common.types.SymbolConent symbol_content = 3;
+  }
 
   // Keep the symbol selected for subsequent clicks
-  optional bool place_repeated_copies = 3;
+  optional bool place_repeated_copies = 4;
 
   // Sequentially place all units of the symbol.
-  optional bool place_all_units = 4;
+  optional bool place_all_units = 5;
 }
+
+
