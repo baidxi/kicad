@@ -97,7 +97,7 @@ void IDX_HOLDER::AddElements( BOARD_COMMIT& aCommit )
                 s->SetStart( polypoints[i] );
                 s->SetEnd( polypoints[i + 1] );
                 group->AddItem( s );
-                aCommit.Stage( s, CHT_GROUP );
+                aCommit.Stage( s, CHT_ADD );
                 aCommit.Add( s );
             }
 

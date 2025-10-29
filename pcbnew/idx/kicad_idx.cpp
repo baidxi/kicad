@@ -108,16 +108,20 @@ void KICAD_IDX::AddAll()
                     std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
 
             if( ptr )
-            {
+            {                
+                LSET layers = GetLayers( *ptr );
+                if (layers.Seq().size() < 1 )
+                {
+                    continue;
+                }
 
-                
                 ZONE* zone = new ZONE( m_board );
                 zone->SetZoneName( x->m_id );
-                zone->SetLayerSet( GetLayers(   *ptr  ) );
+                zone->SetLayerSet( layers );
                 zone->SetIsRuleArea( true );
                 zone->SetHatchStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_FULL );
 
-                zone->SetDoNotAllowCopperPour( false );
+                zone->SetDoNotAllowZoneFills( false );
                 zone->SetDoNotAllowVias( false );
                 zone->SetDoNotAllowTracks( false );
                 zone->SetDoNotAllowFootprints( false );
@@ -133,7 +137,7 @@ void KICAD_IDX::AddAll()
                     {
                         zone->SetDoNotAllowPads( true );
                         zone->SetDoNotAllowTracks( true );
-                        zone->SetDoNotAllowCopperPour( true );
+                        zone->SetDoNotAllowZoneFills( true );
                     }
                     if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::VIA )
                     {
@@ -245,12 +249,12 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_CURVESET2D& aSet, LSET aLs
         {
             item = AddElement( *circle, aLset );
         }
-        m_commit->Push( "aaa" );
+        m_commit->Push( "" );
 
         if( item )
         {
             group->AddItem( item );
-            m_commit->Stage( item, CHT_GROUP );
+            m_commit->Stage( item, CHT_ADD );
             m_commit->Add( item );
         }
     }
@@ -339,7 +343,7 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_ARC& aArc, LSET aLset )
     group->SetName( aArc.m_id );
     m_commit->Add( group );
     group->AddItem( s );
-    m_commit->Stage( s, CHT_GROUP );
+    m_commit->Stage( s, CHT_ADD );
     m_commit->Add( s );
 
     return group;
@@ -368,7 +372,6 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
             {
                 VECTOR2I moveVector( aInstance.m_transformation.m_tx.m_value * 1e6 , aInstance      .m_transformation.m_ty.m_value * 1e6 );
                 result->Move( moveVector );
-                std::cout << "Transfo : " << moveVector << std::endl;
                 m_commit->Stage(  result, CHANGE_TYPE::CHT_MODIFY );
             }  
         }
@@ -390,7 +393,7 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_CIRCLE& aCircle, LSET aLse
         group->SetName( aCircle.m_id );
         m_commit->Add( group );
         group->AddItem( s );
-        m_commit->Stage( s, CHT_GROUP );
+        m_commit->Stage( s, CHT_ADD );
         m_commit->Add( s );
         return group;
     }
@@ -425,7 +428,7 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_POLYLINE& aPolyline, LSET 
         s->SetStart( polypoints[i] );
         s->SetEnd( polypoints[i + 1] );
         group->AddItem( s );
-        m_commit->Stage( s, CHT_GROUP );
+        m_commit->Stage( s, CHT_ADD );
         m_commit->Add( s );
     }
 
@@ -446,12 +449,14 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
 {
 
     double upper = aCurveSet.m_upperBound.m_value * 1e3 ;
-    double   lower = aCurveSet.m_lowerBound.m_value * 1e3   ;
+    double lower = aCurveSet.m_lowerBound.m_value * 1e3   ;
 
     std::vector<PCB_LAYER_ID> pli;
 
     int currentThickness = 0;
     int layerCount = 0  ;
+    
+    LSET result = LSET();
 
     for ( auto& layer : m_stackup )
     {
@@ -459,14 +464,8 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
         {
             layerCount++;
             pli.push_back( layer.first );
+            result.set( layer.first);
         }       
-    }                       
-
-    LSET result = LSET();
-    
-    if ( pli.size() > 0 )
-    {
-        result = LSET( LAYER_RANGE( pli.front(), pli.back(), layerCount ) );
     }
 
     return result;

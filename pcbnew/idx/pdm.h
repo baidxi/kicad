@@ -163,8 +163,6 @@ public:
                 m_tz = idx_property::EDMD_LENGTH_PROPERTY( *child );
                 
             child = child->GetNext();
-
-            std::cout << "TRANSFO  " << m_id << " :: " << m_tx.m_value << "  ,  " << m_ty.m_value << std::endl;         
         }
 
     };
