@@ -22,13 +22,22 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
 #ifndef IDX_PROPERTY_HEADER_H
 #define IDX_PROPERTY_HEADER_H
 
+#include <idx/idx_base.h>
+#include <idx/foundation.h>
+#include <wx/string.h>
+#include <memory>
+#include <vector>
 
+namespace idx_foundation
+{
+    class EDMD_OBJECT;
+}
 namespace idx_property
 {
+
 class ARRAY_EDMD_NAME;
 class EDMD_ANGLE_PROPERTY;
 class EDMD_BOOLEAN_PROPERTY_TYPE;
@@ -48,7 +57,7 @@ class EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE;
 class EDMD_UNIT;
 class EDMD_UNIT_AMPERAGE;
 class EDMD_UNIT_ANGLE;
-class EDMD_UNIT_CAPCITANCE;
+class EDMD_UNIT_CAPACITANCE;
 class EDMD_UNIT_LENGTH;
 class EDMD_UNIT_POWER;
 class EDMD_UNIT_SURFACE;
@@ -57,47 +66,36 @@ class EDMD_UNIT_VOLUME;
 class EDMD_UNIT_WEIGHT;
 class EDMD_UNIT_WORK;
 class EDMD_USER_PROPERTY;
-} // namespace idx_property
 
-#include <idx/idx_base.h>
-#include <idx/foundation.h>
-#include <wx/string.h>
-#include <memory>
-#include <vector>
-
-
-namespace idx_property
-{
 class ARRAY_EDMD_NAME : public IDX_BASE
 {
 public:
-    ARRAY_EDMD_NAME() : IDX_BASE() {};
+    ARRAY_EDMD_NAME();
     std::vector<wxString> m_EDMDname;
 };
 
-/**
-     * @brief 
-     * 
-     */
 class EDMD_CONSTRAINED_PROPERTY : public idx_foundation::EDMD_OBJECT
 {
 public:
-    EDMD_CONSTRAINED_PROPERTY( wxXmlNode aNode ) : idx_foundation::EDMD_OBJECT( aNode ) {};
-    EDMD_CONSTRAINED_PROPERTY() : idx_foundation::EDMD_OBJECT() {};
+    EDMD_CONSTRAINED_PROPERTY();
+    EDMD_CONSTRAINED_PROPERTY(wxXmlNode aNode);
+
     std::vector<EDMD_UNIT>                           m_validUnit;
     std::vector<wxString>                            m_validValues;
     std::vector<EDMD_CONSTRAINED_PROPERTY>           m_maxValue;
     std::vector<EDMD_CONSTRAINED_PROPERTY>           m_minValue;
     std::shared_ptr<idx_administration::EDMD_PERSON> m_originator;
-    bool                                             m_isChanged;
-    bool                                             m_isNew;
+    bool                                             m_isChanged = false;
+    bool                                             m_isNew = false;
 };
 
 class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_USER_PROPERTY( wxXmlNode aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode ) {};
-    std::vector<idx_foundation::EDMD_NAME> m_key;
+    EDMD_USER_PROPERTY(wxXmlNode aNode);
+
+    std::vector<idx_foundation::EDMD_NAME> m_keys;
+    wxString m_value;
 };
 
 enum class UNIT_FUNDAMENTAL
@@ -118,30 +116,10 @@ enum class UNIT_FUNDAMENTAL
 class EDMD_UNIT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_UNIT( wxXmlNode aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
-
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "foundation:UnitName" )
-                m_unitName = content;
-            else if( name == "property:Fundamental" )
-                m_fundamental = content;
-            else if( name == "foundation:DependendScaleFactor" )
-                content.ToCDouble( &m_scalingFactor );
-            else if( name == "foundation:DependsOn" )
-                m_dependsOnKey = content;
-
-            child = child->GetNext();
-        }
-    };
+    EDMD_UNIT(wxXmlNode aNode);
 
     wxString                   m_unitName;
-    double                     m_scalingFactor = 1;
+    double                     m_scalingFactor = 1.0;
     wxString                   m_fundamental = "";
     std::shared_ptr<EDMD_UNIT> m_dependsOn = nullptr;
 
@@ -152,102 +130,63 @@ protected:
 class EDMD_UNIT_AMPERAGE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_AMPERAGE( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_AMPERAGE(wxXmlNode aNode);
 };
-
 
 class EDMD_UNIT_ANGLE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_ANGLE( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_ANGLE(wxXmlNode aNode);
 };
 
 class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_CAPACITANCE( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_CAPACITANCE(wxXmlNode aNode);
 };
 
 class EDMD_UNIT_LENGTH : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_LENGTH( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_LENGTH(wxXmlNode aNode);
 };
 
 class EDMD_UNIT_POWER : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_POWER( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_POWER(wxXmlNode aNode);
 };
-
 
 class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_RESISTANCE( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_RESISTANCE(wxXmlNode aNode);
 };
 
 class EDMD_UNIT_SURFACE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_SURFACE( wxXmlNode aNode ) : EDMD_UNIT( aNode ) {};
+    EDMD_UNIT_SURFACE(wxXmlNode aNode);
 };
 
 class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_ANGLE_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
+    EDMD_ANGLE_PROPERTY();
+    EDMD_ANGLE_PROPERTY(wxXmlNode& aNode);
 
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "property:Value" )
-                content.ToCDouble( &m_value );
-            else
-            {
-            }
-            child = child->GetNext();
-        }
-    };
-
-    EDMD_ANGLE_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
-
-    double m_value;
-    //EDMD_UNIT_ANGLE m_unit;
+    double m_value = 0.0;
 };
-
 
 class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_LENGTH_PROPERTY( wxXmlNode& aNode ) : EDMD_CONSTRAINED_PROPERTY( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
+    EDMD_LENGTH_PROPERTY();
+    EDMD_LENGTH_PROPERTY(wxXmlNode& aNode);
 
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "property:Value" )
-                content.ToCDouble( &m_value );
-            else
-            {
-            }
-            child = child->GetNext();
-        }
-    };
-    EDMD_LENGTH_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
-
-    double m_value = 0;
-    //EDMD_UNIT_ANGLE m_unit;
+    double m_value = 0.0;
 };
-
 
 } // namespace idx_property
 
-#endif
+#endif // IDX_PROPERTY_HEADER_H

@@ -127,6 +127,13 @@ private:
 class EDMD_TRANSFORMATION : public idx_foundation::EDMD_OBJECT
 {
 public:
+
+    enum class TYPE
+    {
+        D2=2,
+        D3=3
+    };
+
     EDMD_TRANSFORMATION() : idx_foundation::EDMD_OBJECT() {};
     EDMD_TRANSFORMATION( wxXmlNode& aNode ) : idx_foundation::EDMD_OBJECT( aNode ) {
 
@@ -139,29 +146,39 @@ public:
 
             if( name == "pdm:xx" )
                 content.ToCDouble( &m_xx );
-            if( name == "pdm:xy" )
+            else if( name == "pdm:xy" )
                 content.ToCDouble( &m_xy );
-            if( name == "pdm:xz" )
+            else if( name == "pdm:xz" )
                 content.ToCDouble( &m_xz );
-            if( name == "pdm:yx" )
+            else if( name == "pdm:yx" )
                 content.ToCDouble( &m_yx );
-            if( name == "pdm:yy" )
+            else if( name == "pdm:yy" )
                 content.ToCDouble( &m_yy );
-            if( name == "pdm:yz" )
+            else if( name == "pdm:yz" )
                 content.ToCDouble( &m_yz );
-            if( name == "pdm:zx" )
+            else if( name == "pdm:zx" )
                 content.ToCDouble( &m_zx );
-            if( name == "pdm:zy" )
+            else if( name == "pdm:zy" )
                 content.ToCDouble( &m_zy );
-            if( name == "pdm:zz" )
+            else if( name == "pdm:zz" )
                 content.ToCDouble( &m_zz );
-            if( name == "pdm:tx" )
+            else if( name == "pdm:tx" )
                 m_tx = idx_property::EDMD_LENGTH_PROPERTY( *child );
-            if( name == "pdm:ty" )
+            else if( name == "pdm:ty" )
                 m_ty = idx_property::EDMD_LENGTH_PROPERTY( *child );
-            if( name == "pdm:tz" )
+            else if( name == "pdm:tz" )
                 m_tz = idx_property::EDMD_LENGTH_PROPERTY( *child );
+            else if ( name == "pdm:TransformationType" )
+            {
+                if( content == "d2" )
+                    m_type = TYPE::D2;
+                else if ( content == "d3" )
+                    m_type = TYPE::D3;
+                else
+                    std::cout << "unknown transformation type : " << content << std::endl;
                 
+            }
+
             child = child->GetNext();
         }
 
@@ -179,6 +196,7 @@ public:
     idx_property::EDMD_LENGTH_PROPERTY m_tx;
     idx_property::EDMD_LENGTH_PROPERTY m_ty;
     idx_property::EDMD_LENGTH_PROPERTY m_tz;
+    TYPE m_type = TYPE::D2;
 };
 
 
@@ -298,7 +316,95 @@ public:
 
             if( name == "pdm:ShapeElement" )
             {
+                std::cout << "SHAPE ELEMENT " << content << std::endl;
                 m_shapeElementRef.push_back( content );
+            }
+            child = child->GetNext();
+        }
+    };
+
+
+    void print( int aIndex=0, int aMaxIndex=5 )
+    {
+        if ( aIndex >= aMaxIndex )
+            return;
+            
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";
+        
+        std::cout << "--> ";
+
+        std:: cout << m_name << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
+
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";        
+        std::cout << "    shape elements: ";
+
+        for ( auto shapeelement: m_shapeElement)
+        {
+            std::cout << shapeelement->m_name;
+        }
+        std::cout << std::endl;
+
+    }
+
+
+    bool Resolve( IDX_REGISTRY& aRegistry )
+    {
+        bool result = true;
+        result &= idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+        result &= resolve<idx_pdm::EDMD_SHAPE_ELEMENT>( m_shapeElementRef, m_shapeElement, aRegistry );
+        for ( wxString ref : m_shapeElementRef )
+            std::cout << "resolved " << ref << ": " << result << std::endl;
+        return result;
+    };
+
+    std::vector<std::shared_ptr<EDMD_SHAPE_ELEMENT>> m_shapeElement;
+
+    std::vector<wxString> m_shapeElementRef;
+private:
+};
+
+
+class EDMD_FUNCTIONAL_ITEM_SHAPE : public EDMD_ITEM_SHAPE
+{
+public:
+    enum class TYPE
+    {
+        RIGID_AREA = 0,
+        FLEXIBLE_AREA,
+        STIFFENER,
+        USER_AREA,
+        PLACEMENT_GROUP, // NO LONGER USED BY IDX
+        MECHANICAL,      // NO LONGER USED BY IDX
+    };
+
+    EDMD_FUNCTIONAL_ITEM_SHAPE() :
+            EDMD_ITEM_SHAPE() {};
+    EDMD_FUNCTIONAL_ITEM_SHAPE( wxXmlNode& aNode ) :
+            EDMD_ITEM_SHAPE( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "pdm:EDMDFunctionalItemShapeType" )
+            {
+                if( content == "RigidArea" )
+                    m_type = TYPE::RIGID_AREA;
+                else if( content == "FlexibleArea" )
+                    m_type = TYPE::FLEXIBLE_AREA;
+                else if( content == "Stiffener" )
+                    m_type = TYPE::STIFFENER;
+                else if( content == "UserArea" )
+                    m_type = TYPE::USER_AREA;
+                else if( content == "PlacementGroupArea" )
+                    m_type = TYPE::PLACEMENT_GROUP;
+                else if( content == "MechanicalItem" )
+                    m_type = TYPE::MECHANICAL;
             }
             child = child->GetNext();
         }
@@ -307,18 +413,14 @@ public:
 
     bool Resolve( IDX_REGISTRY& aRegistry )
     {
-        bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
-
-        result &= resolve<idx_pdm::EDMD_SHAPE_ELEMENT>( m_shapeElementRef, m_shapeElement,
-                                                        aRegistry );
-
+        bool result = EDMD_ITEM_SHAPE::Resolve( aRegistry );
         return result;
     };
 
-    std::vector<std::shared_ptr<EDMD_SHAPE_ELEMENT>> m_shapeElement;
+
+    TYPE m_type;
 
 private:
-    std::vector<wxString> m_shapeElementRef;
 };
 
 
@@ -445,7 +547,6 @@ public:
     EDMD_STRATUM( wxXmlNode& aNode ) : EDMD_ITEM_SHAPE( aNode )
     {
         wxXmlNode* child = aNode.GetChildren();
-
         while( child )
         {
             const wxString content = child->GetNodeContent();
@@ -575,20 +676,43 @@ public:
 
             if ( name == "pdm:InstanceName" )
                 m_instanceName = idx_foundation::EDMD_NAME( *child );
-            if ( name == "pdm:Transformation" )
+            else if ( name == "pdm:Transformation" )
                 m_transformation = idx_pdm::EDMD_TRANSFORMATION( *child );
-            if ( name == "pdm:Item" )
+            else if ( name == "pdm:Item" )
                 m_itemRef = content;
-            if ( name == "pdm:InstanceUserAreaLayerName" )
+            else if ( name == "pdm:InstanceUserAreaLayerName" )
                 m_instanceUserAreaLayerName.emplace_back( *child );
-            if ( name == "pdm:zOffset")
+            else if ( name == "pdm:zOffset")
                 content.ToCDouble( &m_zOffset );
-
+            else if ( name == "foundation:Name" )
+            {
+                m_name = content;
+            }
+            else
+            {
+            }
             child = child->GetNext();
         }
 
     };
 
+
+    void print( int aIndex=0, int aMaxIndex=5 )
+    {
+        if ( aIndex >= aMaxIndex )
+            return;
+            
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";
+        
+        std::cout << "--> ";
+
+        std:: cout << m_name << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
+
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";        
+        std::cout << "    item ref: " << m_itemRef << std::endl;
+    }
 
     bool Resolve( IDX_REGISTRY& aRegistry )
     {
@@ -605,6 +729,7 @@ public:
     idx_pdm::EDMD_TRANSFORMATION m_transformation;
     std::shared_ptr<idx_pdm::EDMD_ITEM> m_item;
     std::vector<idx_foundation::EDMD_NAME> m_instanceUserAreaLayerName;
+    wxString m_name = "XXX";
     double m_zOffset = 0;
 
 private:
@@ -649,7 +774,7 @@ public:
             }
         else if( name == "pdm:ItemInstance" )
             {
-                m_itemInstance.emplace_back( *child );
+                m_itemInstance.emplace_back( std::make_shared<idx_pdm::EDMD_ITEM_INSTANCE>( *child ) );
             }
         else if( name == "pdm:Shape" )
             {                       
@@ -659,26 +784,53 @@ public:
         }
     };
 
+    void print( int aIndex=0, int aMaxIndex=5 )
+    {
+        if ( aIndex >= aMaxIndex )
+            return;
+
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";
+        
+        std::cout << "--> ";
+
+        std:: cout << m_id << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
+
+        for ( auto inst: m_itemInstance )
+        {
+            inst->print( aIndex+1 );
+        }
+        if ( m_shape )
+        {
+            m_shape->print( aIndex+1 );
+        }
+    }
+
 bool Resolve( IDX_REGISTRY& aRegistry )
     {
         bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+        bool result1, result2;
 
-        result &=
-                  resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
+        result1 = resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
+        result2 = resolve<EDMD_FUNCTIONAL_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
 
+
+        if( !result1 && !result2 )
+            result = false;
         for ( auto& instance : m_itemInstance )
-        {   
-            instance.Resolve( aRegistry );     
-        }
+            instance->Resolve( aRegistry );
 
-
+        if (m_shape)
+            result &= m_shape->Resolve( aRegistry );
+        else
+            std::cout << "no m_shape for " << m_name << std::endl;
         return result;
     };
 
     ITEM_TYPE m_itemType = ITEM_TYPE::SINGLE;
     std::vector<idx_foundation::EDMD_IDENTIFIER> m_identifier;
     std::vector<idx_foundation::EDMD_NAME> m_packageName;
-    std::vector<idx_pdm::EDMD_ITEM_INSTANCE> m_itemInstance;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_itemInstance;
     std::shared_ptr<idx_pdm::EDMD_ITEM_SHAPE> m_shape;
 
 private:
@@ -818,7 +970,7 @@ public:
     };
 
 bool Resolve( IDX_REGISTRY& aRegistry )
-    {
+    {        
         bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
 
         result &=

@@ -48,6 +48,8 @@ public:
     void ReadHeader( wxXmlDocument& aDoc );
     void ReadBody( wxXmlDocument& aDoc );
     void AddElements( BOARD_COMMIT& aCommit );
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>  GetBoardOutlineElements();
+
 
     std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
     std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>> m_actors;
@@ -57,6 +59,7 @@ public:
     std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE>>       m_curves;
     std::vector<std::shared_ptr<idx_geometry::EDMD_CURVESET2D>>  m_curvesets;
     std::vector<std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>    m_shapeElements;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>>         m_functionalItemShapes;
     std::vector<std::shared_ptr<idx_pdm::EDMD_STRATUM>>          m_stratums;
     std::vector<std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE>>          m_interStratums;
     std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>  m_keeps;
@@ -65,9 +68,28 @@ public:
 
 
     IDX_REGISTRY m_registry;
+
+
+    void print( int aIndex=0, int aMaxIndex=5 )
+    {
+        if ( aIndex >= aMaxIndex )
+            return;
+
+        for ( int i = 0; i < aIndex ; i++ )
+            std::cout << "\t";
+
+        std:: cout << "--> IDX_file" << std::endl;
+
+        for ( auto inst: m_items )
+        {
+            inst->print( aIndex+1 );
+        }
+    }
+
 };
 
 
+    
 void IDX_HOLDER::AddElements( BOARD_COMMIT& aCommit )
 {
     for( auto const& x : m_curves )
@@ -150,7 +172,11 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
 
     while( child )
     {
-        if( child->GetName() == "foundation:Body" )
+        if( child->GetName() == "foundation:Header" )
+        {
+            // Already handled
+        }
+        else if( child->GetName() == "foundation:Body" )
         {
             wxXmlNode* child2 = child->GetChildren();
 
@@ -164,6 +190,11 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
                     std::shared_ptr<idx_foundation::EDMD_SYSTEM> s =
                             std::make_shared<idx_foundation::EDMD_SYSTEM>( *child2 );
                     m_systems.push_back( s );
+                }
+                else if( name == "foundation:History" )
+                {
+                    std::shared_ptr<idx_annotation::EDMD_HISTORY> s =
+                            std::make_shared<idx_annotation::EDMD_HISTORY>( *child2 );
                 }
                 else if( name == "foundation:Person" )
                 {
@@ -236,7 +267,7 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
                     m_keeps.push_back( s );
                 }
                 else if( name == "foundation:Item" )
-                {       
+                {
                     std::shared_ptr<idx_pdm::EDMD_ITEM> s =
                             std::make_shared<idx_pdm::EDMD_ITEM>( *child2 );
                     m_registry.registerObject<idx_pdm::EDMD_ITEM>( s->m_id, s );
@@ -256,6 +287,14 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
                     m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
                     m_interStratums.push_back( s );
                 }
+
+                else if( name == "foundation:FunctionalItemShape" )
+                {
+                    std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
+                            std::make_shared<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( *child2 );
+                    m_registry.registerObject<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( s->m_id, s );
+                    m_functionalItemShapes.push_back( s );
+                }
                 else
                 {
                     std::cout << "unhandled keyword:" << name << std::endl;
@@ -265,7 +304,10 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
             }
             break;
         }
-
+        else
+        {
+            std::cout << "unhandled keyword:" << child->GetName() << std::endl;
+        }
         child = child->GetNext();
     }
 
@@ -291,8 +333,47 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
     for( auto& item : m_items )
     {
         item->Resolve( m_registry );
-    }   
+    }
+    std::cout << "Resolving functional shapes" << std::endl;
+    for( auto& fs : m_functionalItemShapes )
+    {
+        fs->Resolve( m_registry );
+    }
+
 }
 
 
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOutlineElements()
+{
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> result;
+    
+    for ( std::shared_ptr<idx_pdm::EDMD_ITEM> i : m_items )
+    {
+        for ( std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE> inst : i->m_itemInstance )
+        {
+            idx_property::EDMD_USER_PROPERTY* type = inst->GetUserProperty("TYPE");
+
+            if ( type && type->m_value == "BOARDOUTLINE" )
+            {
+            
+                result.push_back( inst );
+
+                std::cout << "BOARD OUTLINE isntance: "<< inst->m_name << std::endl;
+                std::cout << "\titem: "<< inst->m_item->m_id << std::endl;
+
+                for( auto const& z : inst->m_item->m_shape->m_shapeElement )
+                {
+                    std::cout << "\t\tshapeElement: " << z->m_id << std::endl;
+                }
+                for( auto const& z : inst->m_item->m_shape->m_shapeElementRef )
+                {
+                    std::cout << "\t\tshapeElement ref: " << z << std::endl;
+                }
+            }
+        }
+    }
+    return result;
+            
+}
 #endif

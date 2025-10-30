@@ -30,6 +30,7 @@
 #include <board_commit.h>
 #include <idx/idx.h>
 #include <board.h>
+#include <widgets/report_severity.h>
 
 class LSET;
 enum PCB_LAYER_ID : int;
@@ -44,16 +45,24 @@ public:
 
 
     void        AddAll();
-    BOARD_ITEM* AddElement( idx_geometry::EDMD_CURVESET2D&, LSET );
-    BOARD_ITEM* AddElement( idx_geometry::EDMD_POLYLINE&, LSET );
-    BOARD_ITEM* AddElement( idx_geometry::EDMD_CIRCLE&, LSET );
-    BOARD_ITEM* AddElement( idx_geometry::EDMD_ARC&, LSET );
-    BOARD_ITEM* AddElement( idx_pdm::EDMD_ITEM_INSTANCE& );
-    
+    void        AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
+    BOARD_ITEM* AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
+    BOARD_ITEM* AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
+
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVESET2D& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_ARC& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE&);
+
+    bool ApplyTransformation(BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo );
+
+
+    void Report( wxString aMsg, SEVERITY aSev = RPT_SEVERITY_INFO );
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetAllItemInstances();
 
     VECTOR2I  ArcMidPoint( idx_geometry::EDMD_ARC& );
     PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
-    SHAPE_ARC ConvertToKiCadArc( idx_geometry::EDMD_ARC& );
 
     void AddItem( BOARD_ITEM*, LSET );
     LSET GetLayers( idx_geometry::EDMD_CURVESET2D& );

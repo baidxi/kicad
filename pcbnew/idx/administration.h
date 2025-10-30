@@ -129,23 +129,86 @@ public:
      * @brief Abstract super type for Roles
      * 
      */
-class EDMD_ROLE
+class EDMD_ROLE : public IDX_BASE
 {
 public:
-    EDMD_ROLE( wxString aActor, wxString aRoleName ) :
-            m_actor( aActor ), m_roleName( aRoleName ) {};
+    EDMD_ROLE( wxString aActor = "" ) :
+            m_actor( aActor ),
+            m_roleName(),
+            IDX_BASE() {};
 
-    const wxString m_actor;
-    const wxString m_roleName;
+    EDMD_ROLE( wxXmlNode& aNode ) :
+            IDX_BASE()
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "administration:Actor" )
+                m_actor = content;
+            else if( name == "administration:RoleName" )
+                m_actor = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+
+    wxString                  m_actor;
+    idx_foundation::EDMD_NAME m_roleName;
+};
+
+
+class EDMD_ROLE_ON_OBJECT : public EDMD_ROLE
+{
+public:
+    EDMD_ROLE_ON_OBJECT() :
+            EDMD_ROLE() {};
+
+    EDMD_ROLE_ON_OBJECT( wxXmlNode& aNode ) :
+            EDMD_ROLE( aNode )
+    {
+        wxXmlNode* child = aNode.GetChildren();
+
+        return;
+        while( child )
+        {
+            const wxString content = child->GetNodeContent();
+            const wxString name = child->GetName();
+
+            if( name == "administration:Actor" )
+                m_actor = content;
+            else if( name == "administration:RoleName" )
+                m_actor = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    enum class ROLE_ON_ITEM_TYPE
+    {
+        OWNER = 0,
+        LISTENER,
+        NOOWNER,
+        NOLISTENER
+    };
+
+
+    ROLE_ON_ITEM_TYPE m_roleOnItemType;
 };
 
 class ADMINISTRATION : public IDX_BASE
 {
 public:
     ADMINISTRATION() :
-            IDX_BASE() {
-
-            };
+            IDX_BASE() {};
 };
 
 } // namespace idx_administration

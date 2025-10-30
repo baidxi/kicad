@@ -70,34 +70,68 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
     
 };
 
+void KICAD_IDX::Report( wxString aMsg, SEVERITY aSev )
+{
+    std::string prefix;
+    if ( aSev == RPT_SEVERITY_INFO )
+        return;
+    switch ( aSev )
+    {
+        case RPT_SEVERITY_UNDEFINED : prefix = "UNDEFINED: "; break;
+        case RPT_SEVERITY_INFO :      prefix = "INFO: "; break;
+        case RPT_SEVERITY_EXCLUSION : prefix = "EXCLUSION: "; break;
+        case RPT_SEVERITY_ACTION :    prefix = "ACTION: "; break;
+        case RPT_SEVERITY_WARNING :   prefix = "WARNING: "; break;
+        case RPT_SEVERITY_ERROR :     prefix = "ERROR: "; break;
+        default :                     prefix = "UNDEFINED: "; break;
+    }
+
+    std::cout << prefix << aMsg << std::endl;
+}
+
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> KICAD_IDX::GetAllItemInstances()
+{
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> result;
+
+
+    for( auto& item : m_holder->m_items )
+    {
+        std::cout << item->m_id << " - ";
+        for( auto& instance : item->m_itemInstance )
+        {
+            std::cout << instance->m_name << " - ";
+            result.push_back( instance );
+        }
+        std::cout << std::endl;
+    }
+
+    return result;
+}
+
+void KICAD_IDX::AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector )
+{
+
+    for( auto instance : aVector )
+    {
+        AddElement( *instance, {Eco1_User} );
+    }
+}
+
+
 
 void KICAD_IDX::AddAll()
 {
-    /*
-    for( auto const& x : m_holder->m_stratums )
+
+    std::cout << "ADDING BOARD EDGE ELEMENTS " << m_holder->GetBoardOutlineElements().size() << std::endl;
+    for ( auto edge : m_holder->GetBoardOutlineElements() )
     {
-        std::cout << "------------" << std::endl;
-        for( auto const& y : x->m_shapeElement )
-        {
-            std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
-                    std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
-
-            if( ptr )
-                AddElement( *ptr, LSET( { Edge_Cuts } ) );
-        }
+        AddElement( *edge, Edge_Cuts );
     }
-*/          
-    for ( auto const& item : m_holder->m_items )
-    {
-        std::cout << "------------" << std::endl;
-        std::cout << "Adding an item : " << item->m_id << std::endl;
 
-        for ( auto& instance: item->m_itemInstance )
-        {       
-            AddElement( instance );
-        }
-
-    }
+    std::cout << "ADDING INSTANCES" << std::endl;
+    for( auto instance : GetAllItemInstances() )
+        AddElement( *instance, {Eco2_User} );
 
 
     for( auto const& x : m_holder->m_keeps )
@@ -156,7 +190,7 @@ void KICAD_IDX::AddAll()
                         {
                             if( p )
                             {
-                                zone->AppendCorner( VECTOR2D( p->GetX(), p->GetY() ), -1 );
+                                zone->AppendCorner( VECTOR2D( p->GetX(), -p->GetY() ), -1 );
                             }
                         }
                     }
@@ -166,20 +200,11 @@ void KICAD_IDX::AddAll()
 
                     if( arc )
                     {
-                        VECTOR2I start =
-                                VECTOR2I( arc->GetStart()->GetX(), arc->GetStart()->GetY() );
-                        VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), arc->GetEnd()->GetY() );
-                        VECTOR2I mid = ( start + end ) / 2;
+                        VECTOR2I start = VECTOR2I( arc->GetStart()->GetX(), -arc->GetStart()->GetY() );
+                        VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), -arc->GetEnd()->GetY() );
+                        VECTOR2I mid = ArcMidPoint( *arc );
 
-
-                        double theta = arc->GetIncludeAngle().m_value * 3.1415 / 180;
-
-                        double L = start.Distance( end ) / 2;
-                        double R = L / sin( theta / 2 );
-                        double D = L / tan( theta / 2 );
-
-                        mid -= ( end - mid ).Perpendicular().Resize( R - D );
-                        SHAPE_ARC* s = new SHAPE_ARC( start, mid, end, 0 );
+                        SHAPE_ARC* s = new SHAPE_ARC( start, mid, end, 0);
 
                         SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
 
@@ -194,8 +219,7 @@ void KICAD_IDX::AddAll()
 
                     if( circle )
                     {
-                        VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(),
-                                                    circle->GetCenter()->GetY() );
+                        VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
                         int      radius = circle->GetRadius();
 
                         VECTOR2I start = center + VECTOR2I( 0, radius );
@@ -219,92 +243,64 @@ void KICAD_IDX::AddAll()
 }
 
 
-BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_CURVESET2D& aSet, LSET aLset )
-{
-    PCB_GROUP* group = nullptr;
 
+BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
+{
     int i = 0;
 
-    PCB_SHAPE* s = new PCB_SHAPE();
-    group = new PCB_GROUP( s );
-    group->SetName( aSet.m_id );
-    m_commit->Add( group );
-    for( std::shared_ptr<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>& model :
-         aSet.m_modelElement )
+    PCB_LAYER_ID layer = Eco2_User;
+
+    switch( aShape.m_type )
     {
-        BOARD_ITEM* item = nullptr;
-        auto        polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>( model );
-        auto        circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( model );
-        auto        arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>( model );
-
-        if( polyline )
-        {
-            item = AddElement( *polyline, aLset );
-        }
-        if( arc )
-        {
-            item = AddElement( *arc, aLset );
-        }
-        if( circle )
-        {
-            item = AddElement( *circle, aLset );
-        }
-        m_commit->Push( "" );
-
-        if( item )
-        {
-            group->AddItem( item );
-            m_commit->Stage( item, CHT_ADD );
-            m_commit->Add( item );
-        }
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA:
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA:
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER:
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA:
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL:
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: layer = PCB_LAYER_ID::Eco2_User;
     }
 
-    return group;
+
+    PCB_GROUP* group = new PCB_GROUP( nullptr );
+    group->SetName( aShape.m_id );
+    m_commit->Add( group );
+    for( auto const elt : aShape.m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( elt->m_definingShape );
+
+        if( ptr )
+        {
+            BOARD_ITEM* result;/*
+            result = AddElement( *ptr, LSET( { layer } ) );
+            if( result )
+            {
+                group->AddItem( result );
+                m_commit->Stage( result, CHANGE_TYPE::CHT_ADD );
+            }*/
+        }
+    }
+    return nullptr;
 }
 
 PCB_SHAPE KICAD_IDX::ConvertToKiCadShape( idx_geometry::EDMD_ARC& aArc )
 {
+
     PCB_SHAPE s( nullptr, SHAPE_T::ARC );
-    VECTOR2I  start = VECTOR2I( aArc.GetStart()->GetX(), aArc.GetStart()->GetY() );
-    VECTOR2I  end = VECTOR2I( aArc.GetEnd()->GetX(), aArc.GetEnd()->GetY() );
-    VECTOR2I  mid = ( start + end );
-
-    double theta = aArc.GetIncludeAngle().m_value * 3.1415 / 180;
-
-    double L = start.Distance( end ) / 2;
-    double R = L / sin( theta / 2 );
-    double D = L / tan( theta / 2 );
-
-    mid -= ( end - mid ).Perpendicular().Resize( R - D );
+    VECTOR2I  end = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I  start = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I  mid = ArcMidPoint( aArc );
     s.SetArcGeometry( start, mid, end );
 
     return s;
 }
 
 
-SHAPE_ARC KICAD_IDX::ConvertToKiCadArc( idx_geometry::EDMD_ARC& aArc )
-{
-    VECTOR2I start = VECTOR2I( aArc.GetStart()->GetX(), aArc.GetStart()->GetY() );
-    VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), aArc.GetEnd()->GetY() );
-    VECTOR2I mid = ( start + end );
-
-    double theta = aArc.GetIncludeAngle().m_value * 3.1415 / 180;
-
-    double L = start.Distance( end ) / 2;
-    double R = L / sin( theta / 2 );
-    double D = L / tan( theta / 2 );
-
-    mid -= ( end - mid ).Perpendicular().Resize( R - D );
-
-    return SHAPE_ARC( start, mid, end, 0 );
-}
-
-
 VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
 {
-    VECTOR2I start = VECTOR2I( aArc.GetStart()->GetX(), aArc.GetStart()->GetY() );
-    VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), aArc.GetEnd()->GetY() );
-    VECTOR2I mid = ( start + end );
+    VECTOR2I start = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I mid = ( start + end ) / 2;
 
     double theta = aArc.GetIncludeAngle().m_value * 3.1415 / 180;
 
@@ -312,127 +308,204 @@ VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
     double R = L / sin( theta / 2 );
     double D = L / tan( theta / 2 );
 
-    mid -= ( end - mid ).Perpendicular().Resize( R - D );
-
+    mid += ( end - mid ).Perpendicular().Resize( R - D );
 
     return mid;
 }
 
-BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_ARC& aArc, LSET aLset )
+
+
+bool KICAD_IDX::ApplyTransformation(BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo ) 
 {
-    PCB_SHAPE* s = new PCB_SHAPE( nullptr, SHAPE_T::ARC );
 
-    VECTOR2I start = VECTOR2I( aArc.GetStart()->GetX(), aArc.GetStart()->GetY() );
-    VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), aArc.GetEnd()->GetY() );
-    VECTOR2I mid = ( start + end ) / 2;
+        VECTOR2I moveVector( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
+        
+        double xx = aTransfo.m_xx;
+        double xy = aTransfo.m_xy;
+        double yx = aTransfo.m_yx;
+        double yy = aTransfo.m_yy;
 
+        if ( xx == -yy )
+        {
+            aItem->Mirror( VECTOR2I(0,0), FLIP_DIRECTION::LEFT_RIGHT );
+            xx = yy;
+            yx = -yx; 
+        }
 
-    double theta = aArc.GetIncludeAngle().m_value * 3.1415 / 180;
+        if ( (xx == yy) && (xy == -yx) )
+        {
+            if ( xx != 1 || xy != 0 )
+            {
+                aItem->Rotate( VECTOR2I(0,0), EDA_ANGLE( atan2(yx, xx), RADIANS_T ) );
+            }
+        }
+        else
+        {
+            return false;
+        }
 
-    double L = start.Distance( end ) / 2;
-    double R = L / sin( theta / 2 );
-    double D = L / tan( theta / 2 );
-
-    mid -= ( end - mid ).Perpendicular().Resize( R - D );
-    s->SetArcGeometry( start, mid, end );
-
-
-    AddItem( s, aLset );
-
-    PCB_GROUP* group = new PCB_GROUP( s );
-    group->SetName( aArc.m_id );
-    m_commit->Add( group );
-    group->AddItem( s );
-    m_commit->Stage( s, CHT_ADD );
-    m_commit->Add( s );
-
-    return group;
+        aItem->Move( moveVector );
+        return true;
 }
 
-
-BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
 {
     if ( !( aInstance.m_item ) )
+    {
+        this->Report( wxString::Format( wxT( "%s has no item" ), aInstance.m_name ) , RPT_SEVERITY_ERROR);
         return nullptr;
-
+    }
 
     if ( !( aInstance.m_item->m_shape ) )
+    {
+        this->Report( wxString::Format( wxT( "%s - %s has no shape" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
         return nullptr;
+    }
+        
+    LSET layers;
     
+    if ( aInstance.m_item->m_shape->m_shapeElement.size() < 1 )
+    {
+        this->Report( wxString::Format( wxT( "%s - %s shape has no shape element" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
+        for ( wxString ref: aInstance.m_item->m_shape->m_shapeElementRef )
+        {
+            std::cout << ref << std::endl;
+        }
+        return nullptr;
+    }
+
+    PCB_GROUP* group = new PCB_GROUP( nullptr );
+    group->SetName( aInstance.m_name );
+    m_commit->Add( group );
+    std::cout << " Instance has elemnts: " << aInstance.m_item->m_shape->m_shapeElement.size()  << std::endl;
+
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
+
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> curveset =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
 
-        if( ptr )
+        if( curveset )
         {
-            BOARD_ITEM* result;
-            result = AddElement( *ptr, LSET( { Edge_Cuts } ) );
-            if ( result )
+
+            for ( BOARD_ITEM* item : ConvertElement(*curveset) )
             {
-                VECTOR2I moveVector( aInstance.m_transformation.m_tx.m_value * 1e6 , aInstance      .m_transformation.m_ty.m_value * 1e6 );
-                result->Move( moveVector );
-                m_commit->Stage(  result, CHANGE_TYPE::CHT_MODIFY );
-            }  
+                item->SetLayer( aLayer );
+
+                if ( this->ApplyTransformation( item, aInstance.m_transformation ) )
+                {
+                    group->AddItem( item );
+                    m_commit->Stage( item, CHT_ADD );
+                    m_commit->Add( item );
+                    this->Report( wxString::Format( wxT( "%s - %s added" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_INFO);
+                }
+                else
+                {
+                    this->Report( wxString::Format( wxT( "%s - %s Error: Rotation is incorrect" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
+
+                }
+
+            }
         }
-    }
-
-    return nullptr;
-}
-
-
-BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_CIRCLE& aCircle, LSET aLset )
-{
-    if( aCircle.GetCenter() )
-    {
-        PCB_SHAPE* s = new PCB_SHAPE( nullptr, SHAPE_T::CIRCLE );
-        s->SetCenter( VECTOR2I( aCircle.GetCenter()->GetX(), aCircle.GetCenter()->GetY() ) );
-        s->SetRadius( aCircle.GetRadius() );
-        AddItem( s, aLset );
-        PCB_GROUP* group = new PCB_GROUP( s );
-        group->SetName( aCircle.m_id );
-        m_commit->Add( group );
-        group->AddItem( s );
-        m_commit->Stage( s, CHT_ADD );
-        m_commit->Add( s );
-        return group;
-    }
-    return nullptr;
-}
-
-
-BOARD_ITEM* KICAD_IDX::AddElement( idx_geometry::EDMD_POLYLINE& aPolyline, LSET aLset )
-{
-    std::vector<VECTOR2I> polypoints;
-
-    for( std::shared_ptr<idx_geometry::EDMD_POINT> p : aPolyline.m_point )
-    {
-        if( p )
+        else
         {
-            polypoints.emplace_back( p->GetX(), p->GetY() );
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ) , RPT_SEVERITY_ERROR );
         }
     }
 
-    PCB_SHAPE* s = new PCB_SHAPE();
+    return nullptr;
+}
 
-    PCB_GROUP* group = new PCB_GROUP( s );
-    group->SetName( aPolyline.m_id );
-    m_commit->Add( group );
 
-    for( size_t i = 0; i < polypoints.size() - 1; i++ )
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement(idx_geometry::EDMD_CURVESET2D& aSet)
+{
+    std::vector<BOARD_ITEM*> result;
+
+    for (const auto& model : aSet.m_modelElement)
     {
-        PCB_SHAPE* s = new PCB_SHAPE();
+        if (!model) continue;
 
-        AddItem( s, aLset );
-        s->SetWidth( aPolyline.m_thickness.m_value * 1e6 );
-        s->SetStart( polypoints[i] );
-        s->SetEnd( polypoints[i + 1] );
-        group->AddItem( s );
-        m_commit->Stage( s, CHT_ADD );
-        m_commit->Add( s );
+        if (auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>(model))
+        {
+            auto items = ConvertElement(*polyline);
+            result.insert(result.end(), std::make_move_iterator(items.begin()), std::make_move_iterator(items.end()));
+        }
+        else if (auto arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>(model))
+        {
+            auto items = ConvertElement(*arc);
+            result.insert(result.end(), std::make_move_iterator(items.begin()), std::make_move_iterator(items.end()));
+        }
+        else if (auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>(model))
+        {
+            auto items = ConvertElement(*circle);
+            result.insert(result.end(), std::make_move_iterator(items.begin()), std::make_move_iterator(items.end()));
+        }
     }
 
-    return group;
+    return result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement(idx_geometry::EDMD_POLYLINE& aPolyline)
+{
+    const auto& points = aPolyline.m_point;
+    size_t num_points = points.size();
+    if (num_points < 2) return {};
+
+    std::vector<BOARD_ITEM*> result;
+    result.reserve(num_points - 1);
+
+    double width = aPolyline.m_thickness.m_value * 1e6;
+
+    for (size_t i = 0; i < num_points - 1; ++i)
+    {
+        auto& p1 = points[i];
+        auto& p2 = points[i + 1];
+        if (!p1 || !p2) continue;
+
+        PCB_SHAPE* s = new PCB_SHAPE();
+        s->SetWidth(width);
+        s->SetStart(VECTOR2I(p1->GetX(), -p1->GetY()));
+        s->SetEnd(VECTOR2I(p2->GetX(), -p2->GetY()));
+
+        result.push_back(s);
+    }
+
+    return result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement(idx_geometry::EDMD_CIRCLE& aCircle)
+{
+    std::vector<BOARD_ITEM*> result;
+
+    if (auto center = aCircle.GetCenter())
+    {
+        PCB_SHAPE* s = new PCB_SHAPE(nullptr, SHAPE_T::CIRCLE);
+        s->SetCenter(VECTOR2I(center->GetX(), -center->GetY()));
+        s->SetRadius(aCircle.GetRadius());
+        result.push_back(s);
+    }
+
+    return result;
+}
+
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_ARC& aArc )
+{
+    std::vector<BOARD_ITEM*> result;
+
+    PCB_SHAPE* s = new PCB_SHAPE( nullptr, SHAPE_T::ARC );
+
+    VECTOR2I  end = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I  start = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I  mid = ArcMidPoint( aArc );
+    s->SetArcGeometry( start, mid, end );
+
+    result.push_back(s);
+    return result;
 }
 
 

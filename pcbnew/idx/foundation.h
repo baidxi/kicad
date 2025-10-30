@@ -25,6 +25,27 @@
 #ifndef IDX_FOUNDATION_HEADER_H
 #define IDX_FOUNDATION_HEADER_H
 
+#include <idx/idx_base.h>
+#include <wx/xml/xml.h>
+#include <memory>
+#include <map>
+
+namespace idx_administration
+{
+class EDMD_PERSON;
+}
+
+namespace idx_property
+{
+class EDMD_USER_PROPERTY;
+}
+
+
+namespace idx_geometry
+{
+class EDMD_POINT;
+}
+
 namespace idx_foundation
 {
 
@@ -39,114 +60,40 @@ class EDMD_NAME;
 class EDMD_OBJECT;
 class EDMD_PROCESS_INSTRUCTION;
 class EDMD_SYSTEM;
-} // namespace idx_foundation
 
-#include <idx/idx_base.h>
-#include <idx/property.h>
-#include <wx/xml/xml.h>
-#include <memory>
-
-namespace idx_administration
-{
-class EDMD_PERSON;
-}
-
-namespace idx_geometry
-{
-class EDMD_POINT;
-}
-
-namespace idx_foundation
-{
-
+/**
+ * @brief Base class for EDMD objects.
+ */
 class EDMD_OBJECT : public IDX_BASE
 {
 public:
-    EDMD_OBJECT() : IDX_BASE() {};
-    EDMD_OBJECT( wxXmlNode& aNode ) : IDX_BASE()
-    {
-        wxString isAttributeChanged;
-        aNode.GetAttribute( "id", &m_id );
-        aNode.GetAttribute( "isAttributeChanged", &isAttributeChanged );
-        m_isAttributeChanged = ( isAttributeChanged == "false" );
-    };
+    EDMD_OBJECT();
+    EDMD_OBJECT(wxXmlNode& aNode);
 
+    bool Resolve(IDX_REGISTRY& aRegistry);
 
-    bool Resolve( IDX_REGISTRY& aRegistry ) { return IDX_BASE::Resolve( aRegistry ); };
-
-    wxString m_id;
-    bool     m_isAttributeChanged;
-
-    /*
-    template <typename T >
-    void LinkPoints( std::map< wxString, std::shared_ptr<T>>& aVector )
-    {   
-
-        for ( auto x : m_pointsToLink )
-        {
-            wxString name = x.first;
-
-            std::cout << "Trying to link" << name << std::endl;
-            //std::shared_ptr<idx_geometry::EDMD_POINT>* destPtr = std::dynamic_pointer_cast<idx::geometry> x.second;
-            std::shared_ptr<idx_geometry::EDMD_POINT>* destPtr( dynamic_cast<std::shared_ptr<idx_geometry::EDMD_POINT>*  >( x.second ) );
-            std::cout << destPtr << std::endl;
-
-            for ( auto& ptr : aVector )
-            {
-                if ( ptr.second && ptr.second->m_id == name )
-                {
-
-            std::cout << "found " << name << std::endl;
-
-                    *destPtr = ptr.second;
-                    return;
-                }
-            }     
-        }
-    }
-    */
+    bool operator==(const EDMD_OBJECT& rhs);
 
 protected:
     std::map<wxString, std::shared_ptr<idx_foundation::EDMD_OBJECT>*> m_pointsToLink;
+
+public:
+    wxString m_id;
+    bool     m_isAttributeChanged = false;
 };
 
 
 class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
 {
 public:
-    EDMD_EXTENSIBLE_OBJECT() : EDMD_OBJECT() {};
+    EDMD_EXTENSIBLE_OBJECT();
+    EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode);
 
-    EDMD_EXTENSIBLE_OBJECT( wxXmlNode& aNode ) : EDMD_OBJECT( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
+    idx_property::EDMD_USER_PROPERTY* GetUserProperty(const wxString& aKey);
+    bool Resolve(IDX_REGISTRY& aRegistry);
 
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "foundation:Name" )
-                m_name = content;
-            else if( name == "foundation:Description" )
-                m_description = content;
-            else if( name == "foundation:DisplayName" )
-                m_displayName.emplace_back( *child );
-            else if( name == "foundation:DisplayDescription" )
-                m_displayDescription.emplace_back( *child );
-            else if( name == "foundation:UserProperty" )
-                m_userProperty.emplace_back( *child );
-            else
-            {
-            }
-            child = child->GetNext();
-        }
-    };
-
-    bool Resolve( IDX_REGISTRY& aRegistry ) { return EDMD_OBJECT::Resolve( aRegistry ); };
-
-
-    wxString                                      m_name = "";
-    wxString                                      m_description = "";
+    wxString                                      m_name;
+    wxString                                      m_description;
     std::vector<EDMD_NAME>                        m_displayDescription;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
@@ -156,14 +103,10 @@ public:
 class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT() {};
-    EDMD_COLLABORATION_OBJECT( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
+    EDMD_COLLABORATION_OBJECT();
+    EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode);
 
-
-    bool Resolve( IDX_REGISTRY& aRegistry )
-    {
-        return EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
-    };
+    bool Resolve(IDX_REGISTRY& aRegistry);
 };
 
 
@@ -183,51 +126,16 @@ public:
         FACTORYSTANDARD,
     };
 
-    EDMD_SYSTEM( wxXmlNode& aNode ) : EDMD_COLLABORATION_OBJECT( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
-
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "foundation:GlobalName" )
-                m_globalName = content;
-            else if( name == "foundation:WebServiceURI" )
-                m_webServiceURI = content;
-            else if( name == "foundation:Revision" )
-                m_revision = content;
-            else if( name == "foundation:SystemName" )
-                m_systemName = content;
-            else if( name == "foundation:InstanceName" )
-                m_instanceName = content;
-            else if( name == "foundation:systemOwner" )
-                m_systemOwner = content;
-            else if( name == "foundation:NeedsSelfContainedMessages" )
-            {
-                m_needsSelfContainedMessages = content == "true" ? true : false;
-            }
-            else
-            {
-            }
-            child = child->GetNext();
-        }
-    };
-
-    bool Resolve( IDX_REGISTRY& aRegistry )
-    {
-        return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
-    };
-
+    EDMD_SYSTEM(wxXmlNode& aNode);
+    bool Resolve(IDX_REGISTRY& aRegistry);
 
     SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
-    wxString    m_globalName = "";
-    wxString    m_webServiceURI = "";
-    wxString    m_revision = "";
-    wxString    m_systemName = "";
-    wxString    m_instanceName = "";
-    wxString    m_systemOwner = "";
+    wxString    m_globalName;
+    wxString    m_webServiceURI;
+    wxString    m_revision;
+    wxString    m_systemName;
+    wxString    m_instanceName;
+    wxString    m_systemOwner;
     bool        m_needsSelfContainedMessages = false;
 };
 
@@ -235,51 +143,26 @@ public:
 class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_HEADER( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode )
-    {
-        wxXmlNode* child = aNode.GetChildren();
+    EDMD_HEADER(wxXmlNode& aNode);
 
-        while( child )
-        {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
-
-            if( name == "foundation:Description" )
-                m_description = content;
-            else if( name == "foundation:CreatorName" )
-                m_creatorName = content;
-            else if( name == "foundation:CreatorCompany" )
-                m_creatorCompany = content;
-            else if( name == "foundation:CreatorSystem" )
-                m_creatorSystem = content;
-            else if( name == "foundation:PostProcessor" )
-                m_postProcessor = content;
-            else if( name == "foundation:PostProcessorVersion" )
-                m_postProcessorVersion = content;
-            else
-            {
-            }
-            child = child->GetNext();
-        }
-    };
-
-    wxString m_creatorName = "";
-    wxString m_creatorCompany = "";
-    wxString m_creatorSystem = "";
-    wxString m_postProcessor = "";
-    wxString m_postProcessorVersion = "";
-    //std::shared_ptr<IDX_EDMD_SYSTEM> = nullptr;
+    wxString m_creatorName;
+    wxString m_creatorCompany;
+    wxString m_creatorSystem;
+    wxString m_postProcessor;
+    wxString m_postProcessorVersion;
     std::shared_ptr<idx_administration::EDMD_PERSON> m_creator;
     wxDateTime                                       m_CreationDateTime;
     wxDateTime                                       m_ModifiedDateTime;
     bool                                             isSelfContained = true;
 };
 
+
 class EDMD_DATASET_BODY : public IDX_BASE
 {
 public:
-    EDMD_DATASET_BODY() : IDX_BASE() {};
+    EDMD_DATASET_BODY();
 };
+
 
 class EDMD_PROCESS_INSTRUCTION : public EDMD_EXTENSIBLE_OBJECT
 {
@@ -289,60 +172,62 @@ public:
     std::shared_ptr<EDMD_SYSTEM> m_targetSystem;
 };
 
+
 class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASET( wxXmlNode& aNode ) : EDMD_OBJECT( aNode ), m_header( aNode ) {};
+    EDMD_DATASET(wxXmlNode& aNode);
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;
     std::vector<EDMD_PROCESS_INSTRUCTION> m_processInstruction;
 };
 
+
 class EDMD_DATASETBODY : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASETBODY( wxXmlNode& aNode ) : EDMD_OBJECT( aNode ) {};
-
-    // To be completed
+    EDMD_DATASETBODY(wxXmlNode& aNode);
 };
+
 
 class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_DESIGNATOR() : EDMD_EXTENSIBLE_OBJECT() {};
-    EDMD_DESIGNATOR( wxXmlNode& aNode ) : EDMD_EXTENSIBLE_OBJECT( aNode ) {};
+    EDMD_DESIGNATOR();
+    EDMD_DESIGNATOR(wxXmlNode& aNode);
 
-    std::shared_ptr<EDMD_SYSTEM> m_systemScope;
-    bool                         m_persistant = false;
-    wxString                     m_originatorId = "";
-    bool                         m_isOriginator = false;
+    wxString m_systemScopeRef;
+    bool     m_persistant = false;
+    wxString m_originatorId;
+    bool     m_isOriginator = false;
 };
 
 
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_IDENTIFIER( wxXmlNode& aNode ) : EDMD_DESIGNATOR( aNode ) {};
+    EDMD_IDENTIFIER(wxXmlNode& aNode);
 
-    wxString                                      m_number = "";
-    wxString                                      m_version = "";
-    wxString                                      m_revision = "";
-    wxString                                      m_sequence = "";
+    wxString                                      m_number;
+    wxString                                      m_version;
+    wxString                                      m_revision;
+    wxString                                      m_sequence;
     std::vector<EDMD_NAME>                        m_name;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
 };
 
+
 class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_NAME( ) : EDMD_DESIGNATOR() {};
-    EDMD_NAME( wxXmlNode& aNode ) : EDMD_DESIGNATOR( aNode ) {};
+    EDMD_NAME();
+    EDMD_NAME(wxXmlNode& aNode);
+
     wxString m_objectName;
 };
 
-
 } // namespace idx_foundation
 
-#endif
+#endif // IDX_FOUNDATION_HEADER_H

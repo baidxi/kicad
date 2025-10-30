@@ -34,6 +34,7 @@
 #include <memory>
 #include <typeindex>
 
+
 class IDX_BASE;
 
 // Registry to manage different types of objects
@@ -48,9 +49,18 @@ public:
         registry[name] = object;
     }
 
+
+    template <typename T>
+    void resolveRegistryFailed( wxString aName )
+    {
+        std::cerr << "Warning: Object " << aName << " not found in registry. ( " << typeid( T ).name() << " )"
+                  << std::endl;
+    }
+
+
     // Resolve an object of any type by name
     template <typename T>
-    std::shared_ptr<IDX_BASE> resolve( const wxString& name )
+    std::shared_ptr<IDX_BASE> resolve( const wxString& name, bool suppressWarning = false )
     {
         const auto& registry = getRegistry<T>();
         auto        it = registry.find( name );
@@ -60,7 +70,8 @@ public:
         }
         else
         {
-            std::cerr << "Warning: Object " << name << " not found in registry. ( " << typeid( T ).name() <<  " )" << std::endl;
+            if( !suppressWarning )
+                resolveRegistryFailed<T>( name );
             return nullptr;
         }
     }
@@ -107,13 +118,21 @@ public:
     bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
 
 protected:
+    virtual void unknownKeywordIDX( wxString aName )
+    {
+        wxString error = wxString::Format( wxT( "Unhandled IDX keyword: %s for class: %s" ), aName,
+                                           wxString::FromUTF8( typeid( *this ).name() ) // Converts char* to wxString
+        );
+        std::cout << error << std::endl;
+    }
+
     template <typename T, typename U>
-    bool resolve( wxString aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry )
+    bool resolve( wxString aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry, bool aSuppressWarning = false )
     {
         if( !aDest )
             return false;
 
-        auto resolvedPoint = aRegistry.resolve<T>( aName );
+        auto resolvedPoint = aRegistry.resolve<T>( aName, aSuppressWarning );
 
         if( !resolvedPoint )
             return false;
@@ -124,8 +143,8 @@ protected:
 
 
     template <typename T, typename U>
-    bool resolve( std::vector<wxString>& aName, std::vector<std::shared_ptr<U>>& aDest,
-                  IDX_REGISTRY& aRegistry )
+    bool resolve( std::vector<wxString>& aName, std::vector<std::shared_ptr<U>>& aDest, IDX_REGISTRY& aRegistry,
+                  bool suppressWarning = false )
     {
         bool result = true;
 
@@ -133,13 +152,17 @@ protected:
         {
             std::shared_ptr<U> tmp;
 
-            if( resolve<U>( name, &tmp, aRegistry ) )
+            if( resolve<U>( name, &tmp, aRegistry, suppressWarning ) )
                 aDest.push_back( tmp );
             else
                 result = false;
         }
+
+        aName = {}; // To prevent double inclusions.
         return result;
     }
+
+    bool resolved = false;
 };
 
 #endif
