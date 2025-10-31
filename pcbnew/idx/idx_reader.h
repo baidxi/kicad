@@ -49,6 +49,11 @@ public:
     void ReadBody( wxXmlDocument& aDoc );
     void AddElements( BOARD_COMMIT& aCommit );
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>  GetBoardOutlineElements();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> GetKeepZones();
+
 
 
     std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
@@ -86,6 +91,11 @@ public:
         }
     }
 
+private:
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_boardOutline;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_NPTH;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_PTH;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_others;
 };
 
 
@@ -261,8 +271,15 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
                 }
                 else if( name == "foundation:KeepOut" )
                 {
-                    std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT> s =
-                            std::make_shared<idx_pdm::EDMD_KEEP_CONSTRAINT>( *child2 );
+                    std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s =
+                            std::make_shared<idx_pdm::EDMD_KEEPOUT>( *child2 );
+                    //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+                    m_keeps.push_back( s );
+                }
+                else if( name == "foundation:KeepIn" )
+                {
+                    std::shared_ptr<idx_pdm::EDMD_KEEPIN> s =
+                            std::make_shared<idx_pdm::EDMD_KEEPIN>( *child2 );
                     //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
                     m_keeps.push_back( s );
                 }
@@ -340,40 +357,89 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
         fs->Resolve( m_registry );
     }
 
+    m_boardOutline = {};
+    m_NPTH = {};
+    m_PTH = {};
+
+
+    for (const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_items)
+    {
+        for (const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance)
+        {
+            bool handled = false;
+
+            // Check for board outline
+            if (auto type = inst->GetUserProperty("TYPE"))
+            {
+                if (type->m_value == "BOARDOUTLINE")
+                {
+                    m_boardOutline.push_back(inst);
+                    handled = true;
+                    continue;
+                }
+            }
+
+            // Check for interstratum features
+            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>(inst->m_item->m_shape);
+            if (interstratum)
+            {
+                using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
+                switch (interstratum->m_interstratumFeatureType)
+                {
+                    case FT::BOARD_CUTOUT:
+                        m_boardOutline.push_back(inst);
+                        handled = true;
+                        continue;
+                    case FT::CUTOUT:
+                        m_NPTH.push_back(inst);
+                        handled = true;
+                        continue;
+                    case FT::PLATED_CUTOUT:
+                        m_PTH.push_back(inst);
+                        handled = true;
+                        continue;
+                    default:
+                        break;
+                }
+            }
+
+            // If not stored anywhere, push to m_others
+            if (!handled)
+                m_others.push_back(inst);
+        }
+    }
+
+    
 }
 
 
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOutlineElements()
 {
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> result;
-    
-    for ( std::shared_ptr<idx_pdm::EDMD_ITEM> i : m_items )
-    {
-        for ( std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE> inst : i->m_itemInstance )
-        {
-            idx_property::EDMD_USER_PROPERTY* type = inst->GetUserProperty("TYPE");
-
-            if ( type && type->m_value == "BOARDOUTLINE" )
-            {
-            
-                result.push_back( inst );
-
-                std::cout << "BOARD OUTLINE isntance: "<< inst->m_name << std::endl;
-                std::cout << "\titem: "<< inst->m_item->m_id << std::endl;
-
-                for( auto const& z : inst->m_item->m_shape->m_shapeElement )
-                {
-                    std::cout << "\t\tshapeElement: " << z->m_id << std::endl;
-                }
-                for( auto const& z : inst->m_item->m_shape->m_shapeElementRef )
-                {
-                    std::cout << "\t\tshapeElement ref: " << z << std::endl;
-                }
-            }
-        }
-    }
-    return result;
-            
+    return m_boardOutline;
 }
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetNPTH()
+{
+    return m_NPTH; 
+}
+
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetPTH()
+{
+    return m_PTH;
+}
+
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetOthers()
+{
+    return m_others;
+}
+
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> IDX_HOLDER::GetKeepZones()
+{
+    return m_keeps;
+}
+
 #endif

@@ -32,6 +32,10 @@
 #include <layer_range.h>    
 
 
+#include <footprint.h>
+#include <pad.h>
+#include <pcb_track.h>
+
 KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
         m_board( aBoard ), m_commit( aCommit )
 {
@@ -65,8 +69,10 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
             }
 
             currentThickness += bsi->GetThickness();
+            
         }
     }
+
     
 };
 
@@ -118,26 +124,168 @@ void KICAD_IDX::AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INST
     }
 }
 
+void KICAD_IDX::SetKeepRules( ZONE& aZone, idx_pdm::EDMD_KEEP_CONSTRAINT& aKeep )
+{
+    aZone.SetIsRuleArea( true );
+    aZone.SetHatchStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_FULL );
+    
+    aZone.SetDoNotAllowZoneFills( false );
+    aZone.SetDoNotAllowVias( false );
+    aZone.SetDoNotAllowTracks( false );
+    aZone.SetDoNotAllowFootprints( false );
+    aZone.SetDoNotAllowPads( false );
+
+    if (dynamic_cast<idx_pdm::EDMD_KEEPOUT*>(&aKeep))
+    {
+
+        for( auto& purpose : aKeep.m_purpose )
+        {
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT )
+            {
+                aZone.SetDoNotAllowFootprints( true );
+            }
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::ROUTE )
+            {
+                aZone.SetDoNotAllowPads( true );
+                aZone.SetDoNotAllowTracks( true );
+                aZone.SetDoNotAllowZoneFills( true );
+            }
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::VIA )
+            {
+                aZone.SetDoNotAllowVias( true );
+            }
+        }
+    }
+}
+
+
+void KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+
+    if ( !CheckInstance(aInstance) )
+        return;
+
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
+
+        if ( !curveset )
+        {
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ) , RPT_SEVERITY_ERROR );
+            continue;
+        }
+
+        for (const auto& model : curveset->m_modelElement)
+        {
+            if (auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>(model))
+            {
+                std::cout << "Adding an NPTH" << std::endl;
+
+                // Assuming GetRadius() returns in internal KiCad units (nanometers)
+                double diameter = circle->GetRadius() * 2;
+                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
+                auto npth = new FOOTPRINT(m_board);
+                auto pad  = new PAD(npth);
+
+                pad->SetDrillSize({diameter, diameter});
+                pad->SetPosition( {0,0} );
+                pad->SetAttribute(PAD_ATTRIB::NPTH);
+
+                std::cout << center << std::endl;
+                npth->SetPosition( center );
+                //m_board->Add(npth);
+                npth->Add(pad);
+
+                this->ApplyTransformation( npth, aInstance.m_transformation );
+
+                // Stage and add to the commit
+                m_commit->Stage(npth, CHT_ADD);
+                m_commit->Add(npth);
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+void KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+
+    if ( !CheckInstance(aInstance) )
+        return;
+
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
+
+        if ( !curveset )
+        {
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ) , RPT_SEVERITY_ERROR );
+            continue;
+        }
+
+        for (const auto& model : curveset->m_modelElement)
+        {
+            if (auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>(model))
+            {
+                // Assuming GetRadius() returns in internal KiCad units (nanometers)
+                double diameter = circle->GetRadius() * 2;
+                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX()*1e6, -circle->GetCenter()->GetY()*1e6 );
+                auto via = new PCB_VIA(m_board);
+                via->SetFrontTentingMode( TENTING_MODE::NOT_TENTED );
+                via->SetBackTentingMode( TENTING_MODE::NOT_TENTED );
+                via->SetDrill( diameter );
+                via->SetPosition( center );
+
+                this->ApplyTransformation( via, aInstance.m_transformation );
+
+                // Stage and add to the commit
+                m_commit->Stage(via, CHT_ADD);
+                m_commit->Add(via);
+            }
+        }
+    }
+    return;
+}
 
 
 void KICAD_IDX::AddAll()
 {
 
-    std::cout << "ADDING BOARD EDGE ELEMENTS " << m_holder->GetBoardOutlineElements().size() << std::endl;
     for ( auto edge : m_holder->GetBoardOutlineElements() )
     {
         AddElement( *edge, Edge_Cuts );
     }
 
-    std::cout << "ADDING INSTANCES" << std::endl;
-    for( auto instance : GetAllItemInstances() )
+
+    for ( auto npth : m_holder->GetNPTH() )
+    {
+        AddNPTH( *npth );
+    }
+
+
+    for ( auto pth : m_holder->GetPTH() )
+    {
+        AddPTH( *pth );
+    }
+
+    for( auto instance : m_holder->GetOthers() )
         AddElement( *instance, {Eco2_User} );
 
 
-    for( auto const& x : m_holder->m_keeps )
+    for( auto const& x : m_holder->GetKeepZones() )
     {
+        std::cout << "ZONE" << std::endl;
         for( auto const& y : x->m_shapeElement )
         {
+
+            std::cout << "A Shape" << std::endl;
             std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
                     std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
 
@@ -146,38 +294,15 @@ void KICAD_IDX::AddAll()
                 LSET layers = GetLayers( *ptr );
                 if (layers.Seq().size() < 1 )
                 {
+                    std::cout << "Dropped because no layer" << std::endl;
                     continue;
                 }
+                std::cout << layers << std::endl;
 
                 ZONE* zone = new ZONE( m_board );
                 zone->SetZoneName( x->m_id );
                 zone->SetLayerSet( layers );
-                zone->SetIsRuleArea( true );
-                zone->SetHatchStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_FULL );
-
-                zone->SetDoNotAllowZoneFills( false );
-                zone->SetDoNotAllowVias( false );
-                zone->SetDoNotAllowTracks( false );
-                zone->SetDoNotAllowFootprints( false );
-                zone->SetDoNotAllowPads( false );
-
-                for( auto& purpose : x->m_purpose )
-                {
-                    if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT )
-                    {
-                        zone->SetDoNotAllowFootprints( true );
-                    }
-                    if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::ROUTE )
-                    {
-                        zone->SetDoNotAllowPads( true );
-                        zone->SetDoNotAllowTracks( true );
-                        zone->SetDoNotAllowZoneFills( true );
-                    }
-                    if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::VIA )
-                    {
-                        zone->SetDoNotAllowVias( true );
-                    }
-                }
+                this->SetKeepRules( *zone, *x );
 
                 for( auto const& z : ptr->m_modelElement )
                 {
@@ -314,65 +439,83 @@ VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
 }
 
 
+VECTOR2I GetTransfoTranslation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    VECTOR2I moveVector( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
+    return moveVector;
+}
+
+
+EDA_ANGLE GetTransfoRotation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    double xx = aTransfo.m_xx;
+    double xy = aTransfo.m_xy;
+    double yx = aTransfo.m_yx;
+    double yy = aTransfo.m_yy;
+
+    if ( xx == -yy )
+    {
+        xx = yy;
+        yx = -yx; 
+    }
+
+    if ( (xx == yy) && (xy == -yx) )
+    {
+        if ( xx != 1 || xy != 0 )
+        {
+            return EDA_ANGLE( atan2(yx, xx), RADIANS_T );
+        }
+    }
+    // Inconsistent rotation matrix
+    return EDA_ANGLE(0);
+}
+
+
+bool GetTransfoFlipped( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    double xx = aTransfo.m_xx;
+    double yy = aTransfo.m_yy;
+
+    return ( xx == -yy );
+}
 
 bool KICAD_IDX::ApplyTransformation(BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo ) 
 {
-
-        VECTOR2I moveVector( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
-        
-        double xx = aTransfo.m_xx;
-        double xy = aTransfo.m_xy;
-        double yx = aTransfo.m_yx;
-        double yy = aTransfo.m_yy;
-
-        if ( xx == -yy )
-        {
+        if (GetTransfoFlipped( aTransfo) )
             aItem->Mirror( VECTOR2I(0,0), FLIP_DIRECTION::LEFT_RIGHT );
-            xx = yy;
-            yx = -yx; 
-        }
+        aItem->Rotate( {0,0}, GetTransfoRotation( aTransfo ) );
+        aItem->Move( GetTransfoTranslation( aTransfo ) );
 
-        if ( (xx == yy) && (xy == -yx) )
-        {
-            if ( xx != 1 || xy != 0 )
-            {
-                aItem->Rotate( VECTOR2I(0,0), EDA_ANGLE( atan2(yx, xx), RADIANS_T ) );
-            }
-        }
-        else
-        {
-            return false;
-        }
-
-        aItem->Move( moveVector );
         return true;
 }
 
-BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
+bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
 {
     if ( !( aInstance.m_item ) )
     {
         this->Report( wxString::Format( wxT( "%s has no item" ), aInstance.m_name ) , RPT_SEVERITY_ERROR);
-        return nullptr;
+        return false;
     }
 
     if ( !( aInstance.m_item->m_shape ) )
     {
         this->Report( wxString::Format( wxT( "%s - %s has no shape" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
-        return nullptr;
+        return false;
     }
-        
-    LSET layers;
-    
+            
     if ( aInstance.m_item->m_shape->m_shapeElement.size() < 1 )
     {
         this->Report( wxString::Format( wxT( "%s - %s shape has no shape element" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
-        for ( wxString ref: aInstance.m_item->m_shape->m_shapeElementRef )
-        {
-            std::cout << ref << std::endl;
-        }
-        return nullptr;
+        return false;
     }
+    return true;
+}
+
+BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
+{
+
+    if ( !CheckInstance(aInstance) )
+        return nullptr;
 
     PCB_GROUP* group = new PCB_GROUP( nullptr );
     group->SetName( aInstance.m_name );
@@ -391,20 +534,11 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_L
             for ( BOARD_ITEM* item : ConvertElement(*curveset) )
             {
                 item->SetLayer( aLayer );
-
-                if ( this->ApplyTransformation( item, aInstance.m_transformation ) )
-                {
-                    group->AddItem( item );
-                    m_commit->Stage( item, CHT_ADD );
-                    m_commit->Add( item );
-                    this->Report( wxString::Format( wxT( "%s - %s added" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_INFO);
-                }
-                else
-                {
-                    this->Report( wxString::Format( wxT( "%s - %s Error: Rotation is incorrect" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_ERROR);
-
-                }
-
+                this->ApplyTransformation( item, aInstance.m_transformation );
+                group->AddItem( item );
+                m_commit->Stage( item, CHT_ADD );
+                m_commit->Add( item );
+                this->Report( wxString::Format( wxT( "%s - %s added" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_INFO);
             }
         }
         else
@@ -522,12 +656,15 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
 {
 
     double upper = aCurveSet.m_upperBound.m_value * 1e3 ;
-    double lower = aCurveSet.m_lowerBound.m_value * 1e3   ;
+    double lower = aCurveSet.m_lowerBound.m_value * 1e3 ;
+
+    std::cout << lower << std::endl;
+    std::cout << upper << std::endl;
 
     std::vector<PCB_LAYER_ID> pli;
 
     int currentThickness = 0;
-    int layerCount = 0  ;
+    int layerCount = 0;
     
     LSET result = LSET();
 

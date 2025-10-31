@@ -49,10 +49,20 @@ public:
     BOARD_ITEM* AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
     BOARD_ITEM* AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
 
+
+    // Convert IDX shapes to BOARD_ITEM*
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVESET2D& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_ARC& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE&);
+
+    bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
+
+    void AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
+    void AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
+
+
+    void SetKeepRules( ZONE&, idx_pdm::EDMD_KEEP_CONSTRAINT&);
 
     bool ApplyTransformation(BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo );
 

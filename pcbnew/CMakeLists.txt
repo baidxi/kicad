@@ -373,9 +373,11 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
-     idx/kicad_idx.cpp
-     idx/property.cpp
      idx/foundation.cpp
+     idx/geometry.cpp
+     idx/kicad_idx.cpp
+     idx/pdm.cpp
+     idx/property.cpp
     )
 
 set( PCBNEW_CLASS_SRCS
