@@ -118,6 +118,17 @@ public:
     bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
 
 protected:
+
+    void ParseChildren( wxXmlNode& node )
+    {
+        for (wxXmlNode* child = node.GetChildren(); child; child = child->GetNext())
+        {
+            if (!this->Parse(*child))
+                this->unknownKeywordIDX(child->GetName());
+        }
+    }
+
+
     virtual bool Parse( wxXmlNode& aNode ) { return false; };
     bool m_topLevel = false;
 

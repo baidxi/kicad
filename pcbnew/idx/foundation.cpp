@@ -69,20 +69,9 @@ EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT() : EDMD_OBJECT() {}
 EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_OBJECT(aNode, false)
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_EXTENSIBLE_OBJECT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_EXTENSIBLE_OBJECT::Parse( wxXmlNode& aNode )
@@ -148,19 +137,9 @@ EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT(
 EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_COLLABORATION_OBJECT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_COLLABORATION_OBJECT::Parse( wxXmlNode& aNode )
@@ -279,20 +258,9 @@ EDMD_DESIGNATOR::EDMD_DESIGNATOR() : EDMD_EXTENSIBLE_OBJECT() {}
 EDMD_DESIGNATOR::EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_DESIGNATOR::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_DESIGNATOR::Parse( wxXmlNode& aNode )
@@ -324,20 +292,9 @@ EDMD_NAME::EDMD_NAME() : EDMD_DESIGNATOR() {}
 
 EDMD_NAME::EDMD_NAME(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false)
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_NAME::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_NAME::Parse( wxXmlNode& aNode )

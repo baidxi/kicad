@@ -58,18 +58,8 @@ bool EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve(IDX_REGISTRY& aRegistry)
 EDMD_CURVE::EDMD_CURVE(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(aNode, false), m_thickness()
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_CURVE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -170,18 +160,8 @@ EDMD_COMPOSITE_CURVE::EDMD_COMPOSITE_CURVE(wxXmlNode& aNode)
 EDMD_POLYLINE::EDMD_POLYLINE(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_CURVE(aNode, false)
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_POLYLINE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -405,18 +385,8 @@ EDMD_POINT_ON_CURVE_INTERSECTION::EDMD_POINT_ON_CURVE_INTERSECTION(wxXmlNode& aN
 EDMD_CARTESIAN_POINT::EDMD_CARTESIAN_POINT(wxXmlNode& aNode, bool aTopLevel)
     : EDMD_POINT(aNode, false)
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_CARTESIAN_POINT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 

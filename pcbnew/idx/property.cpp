@@ -49,18 +49,8 @@ bool EDMD_CONSTRAINED_PROPERTY::Parse( wxXmlNode& aNode )
 EDMD_USER_PROPERTY::EDMD_USER_PROPERTY( wxXmlNode& aNode, bool aTopLevel )
     : EDMD_CONSTRAINED_PROPERTY(aNode, false)
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_USER_PROPERTY::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 

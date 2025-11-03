@@ -64,20 +64,9 @@ EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( wxXmlNode& aNode ) : EDMD_COLLAB
 
 EDMD_TRANSFORMATION::EDMD_TRANSFORMATION( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_OBJECT( aNode, false )
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_TRANSFORMATION::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_TRANSFORMATION::Parse( wxXmlNode& aNode )
@@ -171,19 +160,8 @@ bool EDMD_TRANSFORMATION::Parse( wxXmlNode& aNode )
 
 EDMD_SHAPE_ELEMENT::EDMD_SHAPE_ELEMENT( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_SHAPE_ELEMENT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -280,19 +258,8 @@ bool EDMD_SHAPE_ELEMENT::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_ITEM_SHAPE::EDMD_ITEM_SHAPE( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_ITEM_SHAPE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -465,21 +432,9 @@ EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( wxXmlNode& aNode ) : idx_found
 
 EDMD_STRATUM::EDMD_STRATUM( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
-    
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_ITEM_SHAPE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
-    
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_STRATUM::Parse( wxXmlNode& aNode )
@@ -535,21 +490,9 @@ bool EDMD_STRATUM::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_KEEP_CONSTRAINT::EDMD_KEEP_CONSTRAINT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
-    
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_KEEP_CONSTRAINT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
-    
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_KEEP_CONSTRAINT::Parse( wxXmlNode& aNode )
@@ -604,19 +547,9 @@ bool EDMD_KEEP_CONSTRAINT::Parse( wxXmlNode& aNode )
 
 EDMD_KEEPOUT::EDMD_KEEPOUT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_KEEP_CONSTRAINT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 // -----------------------------------------------------
@@ -626,19 +559,9 @@ EDMD_KEEPOUT::EDMD_KEEPOUT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONST
 
 EDMD_KEEPIN::EDMD_KEEPIN( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_KEEP_CONSTRAINT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 // -----------------------------------------------------
@@ -648,19 +571,8 @@ EDMD_KEEPIN::EDMD_KEEPIN( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRA
 
 EDMD_ITEM_INSTANCE::EDMD_ITEM_INSTANCE( wxXmlNode& aNode, bool aTopLevel ) : EDMD_EXTENSIBLE_OBJECT( aNode, false )
 {
-
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_ITEM_INSTANCE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -739,20 +651,9 @@ bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_ITEM::EDMD_ITEM( wxXmlNode& aNode, bool aTopLevel ) : EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_ITEM::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 
 bool EDMD_ITEM::Parse( wxXmlNode& aNode )
@@ -846,18 +747,8 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_ASSEMBLY_COMPONENT::EDMD_ASSEMBLY_COMPONENT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
-    if ( !aTopLevel )
-        return;
-    
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_ASSEMBLY_COMPONENT::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }   
+    if ( aTopLevel )
+        ParseChildren( aNode );
 };
 
 
@@ -904,20 +795,9 @@ bool EDMD_ASSEMBLY_COMPONENT::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_INTERSTRATUM_FEATURE::EDMD_INTERSTRATUM_FEATURE( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
-
-    if( !aTopLevel )
-        return;
-
-    wxXmlNode* child = aNode.GetChildren();
-
-    while (child)
-    {
-        if ( !this->EDMD_INTERSTRATUM_FEATURE::Parse( *child ) )
-            this->unknownKeywordIDX( child->GetName() );
-
-        child = child->GetNext();
-    }
-}
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
 bool EDMD_INTERSTRATUM_FEATURE::Parse(wxXmlNode& aNode)
 {
