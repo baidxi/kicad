@@ -1410,10 +1410,21 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
 int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
     BOARD_COMMIT commit( frame() );
+    
+    wxFileDialog fileDialog( m_frame, _( "IDX baseline file" ), wxEmptyString, wxEmptyString,
+                             _( "All Files" ) + wxT( " (*.*)|*.*" ),
+                             wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
-    KICAD_IDX* kidx = new KICAD_IDX( "test_idx_v4.5.idx", board(), &commit );
-    kidx->AddAll();
-    return 1;
+    if( fileDialog.ShowModal() == wxID_OK )
+    {
+        wxString path;
+        path = fileDialog.GetPath();
+        KICAD_IDX* kidx = new KICAD_IDX( path, board(), &commit );
+        kidx->AddAll();
+
+    }
+    return 0;
+
 }
 
 

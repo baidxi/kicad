@@ -81,7 +81,6 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
         RegisterUIUpdateHandler( item->GetId(), cond );
     }
 
-    fileMenu->Add( PCB_ACTIONS::importIDX );
     fileMenu->Add( PCB_ACTIONS::appendBoard );
     fileMenu->Add( PCB_ACTIONS::compareBoardWithFile );
 
@@ -146,6 +145,8 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     submenuExport->Add( PCB_ACTIONS::exportFootprints,  ACTION_MENU::NORMAL, _( "Footprints..." ) );
 
     fileMenu->Add( submenuExport );
+
+    fileMenu->Add( PCB_ACTIONS::importIDX );
 
     // Fabrication Outputs submenu
     ACTION_MENU* submenuFabOutputs = new ACTION_MENU( false, selTool );

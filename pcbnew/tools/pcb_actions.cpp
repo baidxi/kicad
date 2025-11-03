@@ -1592,8 +1592,8 @@ TOOL_ACTION PCB_ACTIONS::unlock( TOOL_ACTION_ARGS()
 TOOL_ACTION PCB_ACTIONS::importIDX( TOOL_ACTION_ARGS()
         .Name( "pcbnew.EditorControl.importIDXs" )
         .Scope( AS_GLOBAL )
-        .FriendlyName( _( "Import IDX" ) )
-        .Tooltip( _( "Open another board and append its contents to this board" ) )
+        .FriendlyName( _( "MCAD synchronization...") )
+        .Tooltip( _( "use IDX files to import / export design with mechanical CAD tools" ) )
         .Icon( BITMAPS::add_board ) );
 
 TOOL_ACTION PCB_ACTIONS::highlightNet( TOOL_ACTION_ARGS()
