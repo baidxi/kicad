@@ -40,7 +40,7 @@ public:
             idx_foundation::EDMD_COLLABORATION_OBJECT() {};
 
     EDMD_HISTORY( wxXmlNode& aNode ) :
-            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode )
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
         wxXmlNode* child = aNode.GetChildren();
 

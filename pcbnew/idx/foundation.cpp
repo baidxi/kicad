@@ -36,12 +36,18 @@ namespace idx_foundation
 
 EDMD_OBJECT::EDMD_OBJECT() : IDX_BASE() {}
 
-EDMD_OBJECT::EDMD_OBJECT(wxXmlNode& aNode) : IDX_BASE()
+EDMD_OBJECT::EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel ) : IDX_BASE()
 {
     wxString isAttributeChanged;
     aNode.GetAttribute("id", &m_id);
     aNode.GetAttribute("isAttributeChanged", &isAttributeChanged);
     m_isAttributeChanged = (isAttributeChanged == "false");
+}
+
+
+bool EDMD_OBJECT::Parse( wxXmlNode& aNode )
+{
+    return true;
 }
 
 bool EDMD_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
@@ -60,30 +66,59 @@ bool EDMD_OBJECT::operator==(const EDMD_OBJECT& rhs)
 
 EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT() : EDMD_OBJECT() {}
 
-EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode)
-    : EDMD_OBJECT(aNode)
+EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_OBJECT(aNode, false)
 {
+
+    if( !aTopLevel )
+        return;
+
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "foundation:Name")
-            m_name = content;
-        else if (name == "foundation:Description")
-            m_description = content;
-        else if (name == "foundation:DisplayName")
-            m_displayName.emplace_back(*child);
-        else if (name == "foundation:DisplayDescription")
-            m_displayDescription.emplace_back(*child);
-        else if (name == "foundation:UserProperty")
-            m_userProperty.emplace_back(*child);
+        if ( !this->EDMD_EXTENSIBLE_OBJECT::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
     }
 }
+
+
+bool EDMD_EXTENSIBLE_OBJECT::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    if (name == "foundation:Name")
+    {
+        m_name = content;
+        return true;
+    }
+    else if (name == "foundation:Description")
+    {
+        m_description = content;
+        return true;
+    }
+    else if (name == "foundation:DisplayName")
+    {
+        m_displayName.emplace_back(aNode, true);
+        return true;
+    }
+    else if (name == "foundation:DisplayDescription")
+    {
+        m_displayDescription.emplace_back(aNode, true);
+        return true;
+    }
+    else if (name == "foundation:UserProperty")
+    {
+        m_userProperty.emplace_back(aNode, true);
+        return true;
+    }
+
+    return this->EDMD_OBJECT::Parse( aNode );
+}
+
 
 idx_property::EDMD_USER_PROPERTY*
 EDMD_EXTENSIBLE_OBJECT::GetUserProperty(const wxString& aKey)
@@ -110,9 +145,27 @@ bool EDMD_EXTENSIBLE_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
 
 EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT() {}
 
-EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode)
-    : EDMD_EXTENSIBLE_OBJECT(aNode)
+EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
+    if ( !aTopLevel )
+        return;
+    
+    wxXmlNode* child = aNode.GetChildren();
+
+    while (child)
+    {
+        if ( !this->EDMD_COLLABORATION_OBJECT::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
+
+        child = child->GetNext();
+    }
+}
+
+
+bool EDMD_COLLABORATION_OBJECT::Parse( wxXmlNode& aNode )
+{
+    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 }
 
 bool EDMD_COLLABORATION_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
@@ -124,7 +177,7 @@ bool EDMD_COLLABORATION_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
 // EDMD_SYSTEM
 // -----------------------------------------------------
 
-EDMD_SYSTEM::EDMD_SYSTEM(wxXmlNode& aNode) : EDMD_COLLABORATION_OBJECT(aNode)
+EDMD_SYSTEM::EDMD_SYSTEM(wxXmlNode& aNode) : EDMD_COLLABORATION_OBJECT(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -161,7 +214,7 @@ bool EDMD_SYSTEM::Resolve(IDX_REGISTRY& aRegistry)
 // EDMD_HEADER
 // -----------------------------------------------------
 
-EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode) : EDMD_EXTENSIBLE_OBJECT(aNode)
+EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel) : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -182,6 +235,12 @@ EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode) : EDMD_EXTENSIBLE_OBJECT(aNode)
             m_postProcessor = content;
         else if (name == "foundation:PostProcessorVersion")
             m_postProcessorVersion = content;
+        else if (name == "foundation:UserProperty")
+        {
+            m_userProperty.emplace_back(aNode, true);
+        }
+        else
+            unknownKeywordIDX( name );
 
         child = child->GetNext();
     }
@@ -198,7 +257,7 @@ EDMD_DATASET_BODY::EDMD_DATASET_BODY() : IDX_BASE() {}
 // -----------------------------------------------------
 
 EDMD_DATASET::EDMD_DATASET(wxXmlNode& aNode)
-    : EDMD_OBJECT(aNode), m_header(aNode)
+    : EDMD_OBJECT(aNode, false), m_header(aNode, false)
 {
 }
 
@@ -207,7 +266,7 @@ EDMD_DATASET::EDMD_DATASET(wxXmlNode& aNode)
 // -----------------------------------------------------
 
 EDMD_DATASETBODY::EDMD_DATASETBODY(wxXmlNode& aNode)
-    : EDMD_OBJECT(aNode)
+    : EDMD_OBJECT(aNode, false)
 {
 }
 
@@ -217,28 +276,45 @@ EDMD_DATASETBODY::EDMD_DATASETBODY(wxXmlNode& aNode)
 
 EDMD_DESIGNATOR::EDMD_DESIGNATOR() : EDMD_EXTENSIBLE_OBJECT() {}
 
-EDMD_DESIGNATOR::EDMD_DESIGNATOR(wxXmlNode& aNode)
-    : EDMD_EXTENSIBLE_OBJECT(aNode)
+EDMD_DESIGNATOR::EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
+
+    if( !aTopLevel )
+        return;
+
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "foundation:SystemScope")
-            m_systemScopeRef = content;
+        if ( !this->EDMD_DESIGNATOR::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
     }
+}
+
+
+bool EDMD_DESIGNATOR::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    
+    if (name == "foundation:SystemScope")
+    {
+        m_systemScopeRef = content;
+        return true;
+    }
+        
+    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 }
 
 // -----------------------------------------------------
 // EDMD_IDENTIFIER
 // -----------------------------------------------------
 
-EDMD_IDENTIFIER::EDMD_IDENTIFIER(wxXmlNode& aNode) : EDMD_DESIGNATOR(aNode) {}
+EDMD_IDENTIFIER::EDMD_IDENTIFIER(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false) {}
 
 // -----------------------------------------------------
 // EDMD_NAME
@@ -246,20 +322,37 @@ EDMD_IDENTIFIER::EDMD_IDENTIFIER(wxXmlNode& aNode) : EDMD_DESIGNATOR(aNode) {}
 
 EDMD_NAME::EDMD_NAME() : EDMD_DESIGNATOR() {}
 
-EDMD_NAME::EDMD_NAME(wxXmlNode& aNode) : EDMD_DESIGNATOR(aNode)
+EDMD_NAME::EDMD_NAME(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false)
 {
+
+    if( !aTopLevel )
+        return;
+
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "foundation:ObjectName")
-            m_objectName = content;
+        if ( !this->EDMD_NAME::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
     }
+}
+
+
+bool EDMD_NAME::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    
+    if (name == "foundation:ObjectName")
+    {
+        m_objectName = content;
+        return true;
+    }
+        
+    return this->EDMD_DESIGNATOR::Parse( aNode );
 }
 
 } // namespace idx_foundation

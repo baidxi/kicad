@@ -37,7 +37,7 @@ class EDMD_ACTOR : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_ACTOR() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
-    EDMD_ACTOR( wxXmlNode& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode ) {};
+    EDMD_ACTOR( wxXmlNode& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
 };
 /**
      * @brief Representation of a natural person

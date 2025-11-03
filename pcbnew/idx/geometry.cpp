@@ -36,9 +36,15 @@ EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT()
     : idx_foundation::EDMD_COLLABORATION_OBJECT()
 {}
 
-EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(wxXmlNode& aNode)
-    : idx_foundation::EDMD_COLLABORATION_OBJECT(aNode)
+EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(wxXmlNode& aNode, bool aTopLevel )
+    : idx_foundation::EDMD_COLLABORATION_OBJECT(aNode, false)
 {}
+
+
+bool EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Parse( wxXmlNode& aNode )
+{
+    return this->idx_foundation::EDMD_COLLABORATION_OBJECT::Parse( aNode ) ;
+}
 
 bool EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve(IDX_REGISTRY& aRegistry)
 {
@@ -49,26 +55,39 @@ bool EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve(IDX_REGISTRY& aRegistry)
 // EDMD_CURVE
 // --------------------------------------------------------------------------
 
-EDMD_CURVE::EDMD_CURVE(wxXmlNode& aNode)
-    : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(aNode), m_thickness()
+EDMD_CURVE::EDMD_CURVE(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(aNode, false), m_thickness()
 {
-    m_thickness.m_value = 0;
-
+    if ( !aTopLevel )
+        return;
+    
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "d2:Thickness")
-        {
-            m_thickness = idx_property::EDMD_LENGTH_PROPERTY(*child);
-        }
+        if ( !this->EDMD_CURVE::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
+    }   
+};
+
+
+bool EDMD_CURVE::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    
+    if (name == "d2:Thickness")
+    {
+        m_thickness = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+        return true;
     }
+
+    return this->EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Parse( aNode );
 }
+
 
 EDMD_CURVE::~EDMD_CURVE() = default;
 
@@ -82,7 +101,7 @@ bool EDMD_CURVE::Resolve(IDX_REGISTRY& aRegistry)
 // --------------------------------------------------------------------------
 
 EDMD_HYPERBOLA::EDMD_HYPERBOLA(wxXmlNode& aNode)
-    : m_semiMajor(aNode), m_semiMinor(aNode), EDMD_CURVE(aNode)
+    : m_semiMajor(aNode), m_semiMinor(aNode), EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -90,7 +109,7 @@ EDMD_HYPERBOLA::EDMD_HYPERBOLA(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_TRIMMED_CURVE::EDMD_TRIMMED_CURVE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -98,7 +117,7 @@ EDMD_TRIMMED_CURVE::EDMD_TRIMMED_CURVE(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_LINE::EDMD_LINE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -106,7 +125,7 @@ EDMD_LINE::EDMD_LINE(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_BSPLINE_CURVE::EDMD_BSPLINE_CURVE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {
     m_curveForm = EDMD_BSPLINE_CURVE_FORM::UNSPECIFIED;
     m_closedCurve = false;
@@ -118,7 +137,7 @@ EDMD_BSPLINE_CURVE::EDMD_BSPLINE_CURVE(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_COMPOSITE_CURVE::EDMD_COMPOSITE_CURVE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
     std::vector<wxString> refnames;
@@ -148,23 +167,37 @@ EDMD_COMPOSITE_CURVE::EDMD_COMPOSITE_CURVE(wxXmlNode& aNode)
 // EDMD_POLYLINE
 // --------------------------------------------------------------------------
 
-EDMD_POLYLINE::EDMD_POLYLINE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+EDMD_POLYLINE::EDMD_POLYLINE(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_CURVE(aNode, false)
 {
+    if ( !aTopLevel )
+        return;
+    
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "d2:Point")
-        {
-            m_pointRef.push_back(content);
-        }
+        if ( !this->EDMD_POLYLINE::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
+    }   
+};
+
+
+bool EDMD_POLYLINE::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    
+    if (name == "d2:Point")
+    {
+        m_pointRef.push_back(content);
+        return true;
     }
+
+    return this->EDMD_CURVE::Parse( aNode );
 }
 
 bool EDMD_POLYLINE::Resolve(IDX_REGISTRY& aRegistry)
@@ -220,7 +253,7 @@ bool EDMD_CURVESET2D::Resolve(IDX_REGISTRY& aRegistry)
 // --------------------------------------------------------------------------
 
 EDMD_ARC::EDMD_ARC(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -257,7 +290,7 @@ idx_property::EDMD_ANGLE_PROPERTY& EDMD_ARC::GetIncludeAngle() { return m_includ
 // --------------------------------------------------------------------------
 
 EDMD_ELLIPSE::EDMD_ELLIPSE(wxXmlNode& aNode)
-    : m_semiMinor(aNode), m_semiMajor(aNode), EDMD_CURVE(aNode)
+    : m_semiMinor(aNode), m_semiMajor(aNode), EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -268,8 +301,8 @@ EDMD_POINT::EDMD_POINT()
     : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT()
 {}
 
-EDMD_POINT::EDMD_POINT(wxXmlNode& aNode)
-    : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(aNode)
+EDMD_POINT::EDMD_POINT(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(aNode, false)
 {}
 
 double EDMD_POINT::GetX() const { return 0; }
@@ -281,7 +314,7 @@ EDMD_POINT::~EDMD_POINT() = default;
 // --------------------------------------------------------------------------
 
 EDMD_CIRCLE::EDMD_CIRCLE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {}
 
 bool EDMD_CIRCLE::Resolve(IDX_REGISTRY& aRegistry)
@@ -346,7 +379,7 @@ double EDMD_CIRCLE_CENTER::GetRadius() const { return m_diameter.m_value / 2 * 1
 // --------------------------------------------------------------------------
 
 EDMD_OFFSET_CURVE::EDMD_OFFSET_CURVE(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode), m_selfIntersects(false)
+    : EDMD_CURVE(aNode, false), m_selfIntersects(false)
 {}
 
 // --------------------------------------------------------------------------
@@ -354,40 +387,56 @@ EDMD_OFFSET_CURVE::EDMD_OFFSET_CURVE(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_PARABOLA::EDMD_PARABOLA(wxXmlNode& aNode)
-    : EDMD_CURVE(aNode)
+    : EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
 // EDMD_POINT_ON_CURVE_INTERSECTION
 // --------------------------------------------------------------------------
 
-EDMD_POINT_ON_CURVE_INTERSECTION::EDMD_POINT_ON_CURVE_INTERSECTION(wxXmlNode& aNode)
-    : EDMD_POINT(aNode)
+EDMD_POINT_ON_CURVE_INTERSECTION::EDMD_POINT_ON_CURVE_INTERSECTION(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_POINT(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
 // EDMD_CARTESIAN_POINT
 // --------------------------------------------------------------------------
 
-EDMD_CARTESIAN_POINT::EDMD_CARTESIAN_POINT(wxXmlNode& aNode)
-    : EDMD_POINT(aNode)
+EDMD_CARTESIAN_POINT::EDMD_CARTESIAN_POINT(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_POINT(aNode, false)
 {
+    if ( !aTopLevel )
+        return;
+    
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "d2:X")
-            m_x = idx_property::EDMD_LENGTH_PROPERTY(*child);
-        if (name == "d2:Y")
-            m_y = idx_property::EDMD_LENGTH_PROPERTY(*child);
-        if (name == "d2:Z")
-            m_z = idx_property::EDMD_LENGTH_PROPERTY(*child);
+        if ( !this->EDMD_CARTESIAN_POINT::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
-    }
+    }   
+};
+
+
+bool EDMD_CARTESIAN_POINT::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    
+    if (name == "d2:X")
+        m_x = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+    else if (name == "d2:Y")
+        m_y = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+    else if (name == "d2:Z")
+        m_z = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+    else
+        return false;
+    return true;
+
+    return this->EDMD_POINT::Parse( aNode );
 }
 
 double EDMD_CARTESIAN_POINT::GetX() const { return m_x.m_value * 1e6; }
@@ -397,8 +446,8 @@ double EDMD_CARTESIAN_POINT::GetY() const { return m_y.m_value * 1e6; }
 // EDMD_POINT_ON_CURVE_DISTANCE
 // --------------------------------------------------------------------------
 
-EDMD_POINT_ON_CURVE_DISTANCE::EDMD_POINT_ON_CURVE_DISTANCE(wxXmlNode& aNode)
-    : m_distance(aNode), EDMD_POINT(aNode)
+EDMD_POINT_ON_CURVE_DISTANCE::EDMD_POINT_ON_CURVE_DISTANCE(wxXmlNode& aNode, bool aTopLevel)
+    : m_distance(aNode), EDMD_POINT(aNode, false)
 {}
 
 } // namespace idx_geometry

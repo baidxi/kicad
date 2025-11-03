@@ -118,6 +118,9 @@ public:
     bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
 
 protected:
+    virtual bool Parse( wxXmlNode& aNode ) { return false; };
+    bool m_topLevel = false;
+
     virtual void unknownKeywordIDX( wxString aName )
     {
         wxString error = wxString::Format( wxT( "Unhandled IDX keyword: %s for class: %s" ), aName,

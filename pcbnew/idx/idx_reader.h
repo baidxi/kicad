@@ -41,12 +41,11 @@ class IDX_HOLDER
 public:
     IDX_HOLDER( wxXmlDocument& aDoc )
     {
-        ReadHeader( aDoc );
-        ReadBody( aDoc );
+        Read( aDoc );
     };
 
-    void ReadHeader( wxXmlDocument& aDoc );
-    void ReadBody( wxXmlDocument& aDoc );
+    void Read( wxXmlDocument& aDoc );
+    void ReadBody( wxXmlNode& aDoc );
     void AddElements( BOARD_COMMIT& aCommit );
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>  GetBoardOutlineElements();
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH();
@@ -153,173 +152,159 @@ void IDX_HOLDER::AddElements( BOARD_COMMIT& aCommit )
     aCommit.Push( "Import IDX" );
 }
 
-void IDX_HOLDER::ReadHeader( wxXmlDocument& aDoc )
+void IDX_HOLDER::ReadBody( wxXmlNode& aNode )
 {
-    m_header = nullptr;
+    wxXmlNode* child2 = aNode.GetChildren();
 
-    wxXmlNode* child = aDoc.GetRoot()->GetChildren();
-    std::cout << "Trying to read header..." << std::endl;
-
-    while( child )
+    while( child2 )
     {
-        std::cout << child->GetName() << std::endl;
-
-        if( child->GetName() == "foundation:Header" )
+        const wxString content = child2->GetNodeContent();
+        const wxString name = child2->GetName();
+        
+        if( name == "foundation:System" )
         {
-            m_header = std::make_shared<idx_foundation::EDMD_HEADER>( *child );
-            break;
+            std::shared_ptr<idx_foundation::EDMD_SYSTEM> s =
+                    std::make_shared<idx_foundation::EDMD_SYSTEM>( *child2 );
+            m_systems.push_back( s );
+        }
+        else if( name == "foundation:History" )
+        {
+            std::shared_ptr<idx_annotation::EDMD_HISTORY> s =
+                    std::make_shared<idx_annotation::EDMD_HISTORY>( *child2 );
+        }
+        else if( name == "foundation:Person" )
+        {
+            std::shared_ptr<idx_administration::EDMD_PERSON> s =
+                    std::make_shared<idx_administration::EDMD_PERSON>( *child2 );
+            m_actors.push_back( s );
+        }
+        else if( name == "foundation:UnitLength" )
+        {
+            std::shared_ptr<idx_property::EDMD_UNIT> s =
+                    std::make_shared<idx_property::EDMD_UNIT>( *child2 );
+            m_units.push_back( s );
+        }
+        else if( name == "foundation:CartesianPoint" )
+        {
+            std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
+                    std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( *child2, true );
+            m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        }
+        else if( name == "foundation:PolyLine" )
+        {
+            std::shared_ptr<idx_geometry::EDMD_POLYLINE> s =
+                    std::make_shared<idx_geometry::EDMD_POLYLINE>( *child2, true );
+            m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                    s->m_id, s );
+            m_curves.push_back( s );
+        }
+        else if( name == "foundation:CircleCenter" )
+        {
+            std::shared_ptr<idx_geometry::EDMD_CIRCLE_CENTER> s =
+                    std::make_shared<idx_geometry::EDMD_CIRCLE_CENTER>( *child2 );
+            m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                    s->m_id, s );
+            m_curves.push_back( s );
+        }
+        else if( name == "foundation:Arc" )
+        {
+            std::shared_ptr<idx_geometry::EDMD_ARC> s =
+                    std::make_shared<idx_geometry::EDMD_ARC>( *child2 );
+            m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
+                    s->m_id, s );
+            m_curves.push_back( s );
+        }
+        else if( name == "foundation:CurveSet2d" )
+        {
+            std::shared_ptr<idx_geometry::EDMD_CURVESET2D> s =
+                    std::make_shared<idx_geometry::EDMD_CURVESET2D>( *child2 );
+            m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+            m_curvesets.push_back( s );
+        }
+        else if( name == "foundation:ShapeElement" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT> s =
+                    std::make_shared<idx_pdm::EDMD_SHAPE_ELEMENT>( *child2, true );
+            m_registry.registerObject<idx_pdm::EDMD_SHAPE_ELEMENT>( s->m_id, s );
+            m_shapeElements.push_back( s );
+        }
+        else if( name == "foundation:Stratum" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_STRATUM> s =
+                    std::make_shared<idx_pdm::EDMD_STRATUM>( *child2, true );
+            m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+            m_stratums.push_back( s );
+        }
+        else if( name == "foundation:KeepOut" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s =
+                    std::make_shared<idx_pdm::EDMD_KEEPOUT>( *child2, true );
+            //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+            m_keeps.push_back( s );
+        }
+        else if( name == "foundation:KeepIn" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_KEEPIN> s =
+                    std::make_shared<idx_pdm::EDMD_KEEPIN>( *child2, true );
+            //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+            m_keeps.push_back( s );
+        }
+        else if( name == "foundation:Item" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_ITEM> s =
+                    std::make_shared<idx_pdm::EDMD_ITEM>( *child2, true );
+            m_registry.registerObject<idx_pdm::EDMD_ITEM>( s->m_id, s );
+            m_items.push_back( s );
+        }
+        else if( name == "foundation:AssemblyComponent" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT> s =
+                    std::make_shared<idx_pdm::EDMD_ASSEMBLY_COMPONENT>( *child2, true );
+            m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+            m_assemblies.push_back( s );  
+        }
+        else if( name == "foundation:InterStratumFeature" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE> s =
+                    std::make_shared<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( *child2, true );
+            m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+            m_interStratums.push_back( s );
         }
 
-        child = child->GetNext();
+        else if( name == "foundation:FunctionalItemShape" )
+        {
+            std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
+                    std::make_shared<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( *child2 );
+            m_registry.registerObject<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( s->m_id, s );
+            m_functionalItemShapes.push_back( s );
+        }
+        else
+        {
+            std::cout << "unhandled keyword:" << name << std::endl;
+        }
+        
+        child2 = child2->GetNext();
     }
 }
 
 
-void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
+void IDX_HOLDER::Read( wxXmlDocument& aDoc )
 {
+
+    m_header = nullptr;
+
     wxXmlNode* child = aDoc.GetRoot()->GetChildren();
-    std::cout << "Trying to read body..." << std::endl;
+    std::cout << "Trying to read IDX file..." << std::endl;
 
     while( child )
     {
         if( child->GetName() == "foundation:Header" )
         {
-            // Already handled
+            m_header = std::make_shared<idx_foundation::EDMD_HEADER>( *child, true );
         }
         else if( child->GetName() == "foundation:Body" )
         {
-            wxXmlNode* child2 = child->GetChildren();
-
-            while( child2 )
-            {
-                const wxString content = child2->GetNodeContent();
-                const wxString name = child2->GetName();
-                
-                if( name == "foundation:System" )
-                {
-                    std::shared_ptr<idx_foundation::EDMD_SYSTEM> s =
-                            std::make_shared<idx_foundation::EDMD_SYSTEM>( *child2 );
-                    m_systems.push_back( s );
-                }
-                else if( name == "foundation:History" )
-                {
-                    std::shared_ptr<idx_annotation::EDMD_HISTORY> s =
-                            std::make_shared<idx_annotation::EDMD_HISTORY>( *child2 );
-                }
-                else if( name == "foundation:Person" )
-                {
-                    std::shared_ptr<idx_administration::EDMD_PERSON> s =
-                            std::make_shared<idx_administration::EDMD_PERSON>( *child2 );
-                    m_actors.push_back( s );
-                }
-                else if( name == "foundation:UnitLength" )
-                {
-                    std::shared_ptr<idx_property::EDMD_UNIT> s =
-                            std::make_shared<idx_property::EDMD_UNIT>( *child2 );
-                    m_units.push_back( s );
-                }
-                else if( name == "foundation:CartesianPoint" )
-                {
-                    std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
-                            std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( *child2 );
-                    m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
-                }
-                else if( name == "foundation:PolyLine" )
-                {
-                    std::shared_ptr<idx_geometry::EDMD_POLYLINE> s =
-                            std::make_shared<idx_geometry::EDMD_POLYLINE>( *child2 );
-                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
-                            s->m_id, s );
-                    m_curves.push_back( s );
-                }
-                else if( name == "foundation:CircleCenter" )
-                {
-                    std::shared_ptr<idx_geometry::EDMD_CIRCLE_CENTER> s =
-                            std::make_shared<idx_geometry::EDMD_CIRCLE_CENTER>( *child2 );
-                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
-                            s->m_id, s );
-                    m_curves.push_back( s );
-                }
-                else if( name == "foundation:Arc" )
-                {
-                    std::shared_ptr<idx_geometry::EDMD_ARC> s =
-                            std::make_shared<idx_geometry::EDMD_ARC>( *child2 );
-                    m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>(
-                            s->m_id, s );
-                    m_curves.push_back( s );
-                }
-                else if( name == "foundation:CurveSet2d" )
-                {
-                    std::shared_ptr<idx_geometry::EDMD_CURVESET2D> s =
-                            std::make_shared<idx_geometry::EDMD_CURVESET2D>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
-                    m_curvesets.push_back( s );
-                }
-                else if( name == "foundation:ShapeElement" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT> s =
-                            std::make_shared<idx_pdm::EDMD_SHAPE_ELEMENT>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_SHAPE_ELEMENT>( s->m_id, s );
-                    m_shapeElements.push_back( s );
-                }
-                else if( name == "foundation:Stratum" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_STRATUM> s =
-                            std::make_shared<idx_pdm::EDMD_STRATUM>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
-                    m_stratums.push_back( s );
-                }
-                else if( name == "foundation:KeepOut" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s =
-                            std::make_shared<idx_pdm::EDMD_KEEPOUT>( *child2 );
-                    //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
-                    m_keeps.push_back( s );
-                }
-                else if( name == "foundation:KeepIn" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_KEEPIN> s =
-                            std::make_shared<idx_pdm::EDMD_KEEPIN>( *child2 );
-                    //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
-                    m_keeps.push_back( s );
-                }
-                else if( name == "foundation:Item" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_ITEM> s =
-                            std::make_shared<idx_pdm::EDMD_ITEM>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_ITEM>( s->m_id, s );
-                    m_items.push_back( s );
-                }
-                else if( name == "foundation:AssemblyComponent" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT> s =
-                            std::make_shared<idx_pdm::EDMD_ASSEMBLY_COMPONENT>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
-                    m_assemblies.push_back( s );  
-                }
-                else if( name == "foundation:InterStratumFeature" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE> s =
-                            std::make_shared<idx_pdm::EDMD_INTERSTRATUM_FEATURE     >( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
-                    m_interStratums.push_back( s );
-                }
-
-                else if( name == "foundation:FunctionalItemShape" )
-                {
-                    std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
-                            std::make_shared<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( *child2 );
-                    m_registry.registerObject<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( s->m_id, s );
-                    m_functionalItemShapes.push_back( s );
-                }
-                else
-                {
-                    std::cout << "unhandled keyword:" << name << std::endl;
-                }
-                
-                child2 = child2->GetNext();
-            }
-            break;
+            this->ReadBody( *child );
         }
         else
         {
@@ -371,8 +356,12 @@ void IDX_HOLDER::ReadBody( wxXmlDocument& aDoc )
             // Check for board outline
             if (auto type = inst->GetUserProperty("TYPE"))
             {
+                std::cout << "Has type " << std::endl ;
+
                 if (type->m_value == "BOARDOUTLINE")
                 {
+                    std::cout << "BOARD OUTLINE FOUND " << std::endl ;
+
                     m_boardOutline.push_back(inst);
                     handled = true;
                     continue;

@@ -77,8 +77,11 @@ public:
 class EDMD_CONSTRAINED_PROPERTY : public idx_foundation::EDMD_OBJECT
 {
 public:
-    EDMD_CONSTRAINED_PROPERTY();
-    EDMD_CONSTRAINED_PROPERTY(wxXmlNode aNode);
+    EDMD_CONSTRAINED_PROPERTY(){};
+    EDMD_CONSTRAINED_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
+
+    bool Parse( wxXmlNode& aNode );
+
 
     std::vector<EDMD_UNIT>                           m_validUnit;
     std::vector<wxString>                            m_validValues;
@@ -92,7 +95,8 @@ public:
 class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_USER_PROPERTY(wxXmlNode aNode);
+    EDMD_USER_PROPERTY (wxXmlNode& aNode, bool aTopLevel );
+    bool Parse( wxXmlNode& aNode );
 
     std::vector<idx_foundation::EDMD_NAME> m_keys;
     wxString m_value;

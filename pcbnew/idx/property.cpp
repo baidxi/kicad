@@ -34,45 +34,59 @@ ARRAY_EDMD_NAME::ARRAY_EDMD_NAME() : IDX_BASE() {}
 
 // ------------------- EDMD_CONSTRAINED_PROPERTY -------------------
 
-EDMD_CONSTRAINED_PROPERTY::EDMD_CONSTRAINED_PROPERTY(wxXmlNode aNode)
-    : idx_foundation::EDMD_OBJECT(aNode)
+EDMD_CONSTRAINED_PROPERTY::EDMD_CONSTRAINED_PROPERTY(wxXmlNode& aNode, bool aTopLevel )
+    : idx_foundation::EDMD_OBJECT(aNode, false)
 {
 }
 
-EDMD_CONSTRAINED_PROPERTY::EDMD_CONSTRAINED_PROPERTY()
-    : idx_foundation::EDMD_OBJECT()
+bool EDMD_CONSTRAINED_PROPERTY::Parse( wxXmlNode& aNode )
 {
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
 // ------------------- EDMD_USER_PROPERTY -------------------
 
-EDMD_USER_PROPERTY::EDMD_USER_PROPERTY(wxXmlNode aNode)
-    : EDMD_CONSTRAINED_PROPERTY(aNode)
+EDMD_USER_PROPERTY::EDMD_USER_PROPERTY( wxXmlNode& aNode, bool aTopLevel )
+    : EDMD_CONSTRAINED_PROPERTY(aNode, false)
 {
+    if ( !aTopLevel )
+        return;
+    
     wxXmlNode* child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "property:Key")
-            m_keys.emplace_back(*child);
-        else if (name == "property:Value")
-            m_value = content;
+        if ( !this->EDMD_USER_PROPERTY::Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
 
         child = child->GetNext();
+    }   
+};
+
+
+bool EDMD_USER_PROPERTY::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    if (name == "property:Key")
+    {
+        m_keys.emplace_back( aNode, true );
+        return true;
+    }
+    else if (name == "property:Value")
+    {
+        m_value = content;
+        return true;
     }
 
-    if (!m_keys.empty())
-    {
-    }
+    return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
 }
 
 // ------------------- EDMD_UNIT -------------------
 
 EDMD_UNIT::EDMD_UNIT(wxXmlNode aNode)
-    : idx_foundation::EDMD_COLLABORATION_OBJECT(aNode)
+    : idx_foundation::EDMD_COLLABORATION_OBJECT(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -107,7 +121,7 @@ EDMD_UNIT_SURFACE::EDMD_UNIT_SURFACE(wxXmlNode aNode) : EDMD_UNIT(aNode) {}
 // ------------------- EDMD_ANGLE_PROPERTY -------------------
 
 EDMD_ANGLE_PROPERTY::EDMD_ANGLE_PROPERTY(wxXmlNode& aNode)
-    : EDMD_CONSTRAINED_PROPERTY(aNode)
+    : EDMD_CONSTRAINED_PROPERTY(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -128,7 +142,7 @@ EDMD_ANGLE_PROPERTY::EDMD_ANGLE_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {}
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
 
 EDMD_LENGTH_PROPERTY::EDMD_LENGTH_PROPERTY(wxXmlNode& aNode)
-    : EDMD_CONSTRAINED_PROPERTY(aNode)
+    : EDMD_CONSTRAINED_PROPERTY(aNode, false)
 {
     wxXmlNode* child = aNode.GetChildren();
 

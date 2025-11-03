@@ -68,13 +68,14 @@ class EDMD_OBJECT : public IDX_BASE
 {
 public:
     EDMD_OBJECT();
-    EDMD_OBJECT(wxXmlNode& aNode);
+    EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
 
     bool operator==(const EDMD_OBJECT& rhs);
 
 protected:
+    bool Parse( wxXmlNode& aNode ) override;
     std::map<wxString, std::shared_ptr<idx_foundation::EDMD_OBJECT>*> m_pointsToLink;
 
 public:
@@ -87,10 +88,12 @@ class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
 {
 public:
     EDMD_EXTENSIBLE_OBJECT();
-    EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode);
+    EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel);
 
     idx_property::EDMD_USER_PROPERTY* GetUserProperty(const wxString& aKey);
     bool Resolve(IDX_REGISTRY& aRegistry);
+    bool Parse( wxXmlNode& aNode ) override;
+
 
     wxString                                      m_name;
     wxString                                      m_description;
@@ -104,9 +107,10 @@ class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_COLLABORATION_OBJECT();
-    EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode);
+    EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
+    bool Parse( wxXmlNode& aNode ) override;
 };
 
 
@@ -143,7 +147,7 @@ public:
 class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_HEADER(wxXmlNode& aNode);
+    EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel);
 
     wxString m_creatorName;
     wxString m_creatorCompany;
@@ -195,7 +199,9 @@ class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_DESIGNATOR();
-    EDMD_DESIGNATOR(wxXmlNode& aNode);
+    EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel);
+
+    bool Parse( wxXmlNode& aNode ) override;
 
     wxString m_systemScopeRef;
     bool     m_persistant = false;
@@ -207,7 +213,7 @@ public:
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_IDENTIFIER(wxXmlNode& aNode);
+    EDMD_IDENTIFIER(wxXmlNode& aNode, bool aTopLevel);
 
     wxString                                      m_number;
     wxString                                      m_version;
@@ -223,7 +229,10 @@ class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
     EDMD_NAME();
-    EDMD_NAME(wxXmlNode& aNode);
+    EDMD_NAME(wxXmlNode& aNode, bool aTopLevel);
+
+    bool Parse( wxXmlNode& aNode );
+
 
     wxString m_objectName;
 };
