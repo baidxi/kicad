@@ -71,7 +71,7 @@ bool EDMD_CURVE::Parse( wxXmlNode& aNode )
     
     if (name == "d2:Thickness")
     {
-        m_thickness = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+        m_thickness = idx_property::EDMD_LENGTH_PROPERTY(aNode, true);
         return true;
     }
 
@@ -91,7 +91,7 @@ bool EDMD_CURVE::Resolve(IDX_REGISTRY& aRegistry)
 // --------------------------------------------------------------------------
 
 EDMD_HYPERBOLA::EDMD_HYPERBOLA(wxXmlNode& aNode)
-    : m_semiMajor(aNode), m_semiMinor(aNode), EDMD_CURVE(aNode, false)
+    : m_semiMajor(aNode, true), m_semiMinor(aNode, true), EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -207,11 +207,11 @@ EDMD_CURVESET2D::EDMD_CURVESET2D(wxXmlNode& aNode)
 
         if (name == "d2:LowerBound")
         {
-            m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY(*child);
+            m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY(*child, true);
         }
         else if (name == "d2:UpperBound")
         {
-            m_upperBound = idx_property::EDMD_LENGTH_PROPERTY(*child);
+            m_upperBound = idx_property::EDMD_LENGTH_PROPERTY(*child, true);
         }
         else if (name == "d2:DetailedGeometricModelElement")
         {
@@ -247,7 +247,7 @@ EDMD_ARC::EDMD_ARC(wxXmlNode& aNode)
         if (name == "d2:EndPoint")
             m_endPointRef = content;
         if (name == "d2:IncludeAngle")
-            m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY(*child);
+            m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY(*child, true);
 
         child = child->GetNext();
     }
@@ -270,7 +270,7 @@ idx_property::EDMD_ANGLE_PROPERTY& EDMD_ARC::GetIncludeAngle() { return m_includ
 // --------------------------------------------------------------------------
 
 EDMD_ELLIPSE::EDMD_ELLIPSE(wxXmlNode& aNode)
-    : m_semiMinor(aNode), m_semiMajor(aNode), EDMD_CURVE(aNode, false)
+    : m_semiMinor(aNode, true), m_semiMajor(aNode, true), EDMD_CURVE(aNode, false)
 {}
 
 // --------------------------------------------------------------------------
@@ -322,7 +322,7 @@ EDMD_CIRCLE_3POINTS::EDMD_CIRCLE_3POINTS(wxXmlNode& aNode)
 // --------------------------------------------------------------------------
 
 EDMD_CIRCLE_CENTER::EDMD_CIRCLE_CENTER(wxXmlNode& aNode)
-    : m_diameter(aNode), EDMD_CIRCLE(aNode)
+    : m_diameter(aNode, false), EDMD_CIRCLE(aNode)
 {
     wxXmlNode* child = aNode.GetChildren();
 
@@ -337,7 +337,7 @@ EDMD_CIRCLE_CENTER::EDMD_CIRCLE_CENTER(wxXmlNode& aNode)
         }
         else if (name == "d2:Diameter")
         {
-            m_diameter = idx_property::EDMD_LENGTH_PROPERTY(*child);
+            m_diameter = idx_property::EDMD_LENGTH_PROPERTY(*child, true);
         }
 
         child = child->GetNext();
@@ -397,11 +397,11 @@ bool EDMD_CARTESIAN_POINT::Parse( wxXmlNode& aNode )
 
     
     if (name == "d2:X")
-        m_x = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+        m_x = idx_property::EDMD_LENGTH_PROPERTY(aNode, true);
     else if (name == "d2:Y")
-        m_y = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+        m_y = idx_property::EDMD_LENGTH_PROPERTY(aNode, true);
     else if (name == "d2:Z")
-        m_z = idx_property::EDMD_LENGTH_PROPERTY(aNode);
+        m_z = idx_property::EDMD_LENGTH_PROPERTY(aNode, true);
     else
         return false;
     return true;
@@ -417,7 +417,7 @@ double EDMD_CARTESIAN_POINT::GetY() const { return m_y.m_value * 1e6; }
 // --------------------------------------------------------------------------
 
 EDMD_POINT_ON_CURVE_DISTANCE::EDMD_POINT_ON_CURVE_DISTANCE(wxXmlNode& aNode, bool aTopLevel)
-    : m_distance(aNode), EDMD_POINT(aNode, false)
+    : m_distance(aNode, true), EDMD_POINT(aNode, false)
 {}
 
 } // namespace idx_geometry

@@ -292,6 +292,8 @@ class EDMD_KEEPOUT : public EDMD_KEEP_CONSTRAINT
 public:
     EDMD_KEEPOUT(){};
     EDMD_KEEPOUT(wxXmlNode& aNode, bool aTopLevel );
+    bool Parse( wxXmlNode& aNode ){ return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+
 };
 
 
@@ -300,6 +302,9 @@ class EDMD_KEEPIN : public EDMD_KEEP_CONSTRAINT
 public:
     EDMD_KEEPIN(){};
     EDMD_KEEPIN(wxXmlNode& aNode, bool aTopLevel);
+
+    
+    bool Parse( wxXmlNode& aNode ){ return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 };
 
 class EDMD_ITEM_INSTANCE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
@@ -345,6 +350,7 @@ public:
     std::vector<idx_foundation::EDMD_NAME> m_packageName;
     std::vector<std::shared_ptr<EDMD_ITEM_INSTANCE>> m_itemInstance;
     std::shared_ptr<EDMD_ITEM_SHAPE> m_shape;
+    bool m_baseline = false;
 
 private:
     wxString m_shapeRef;

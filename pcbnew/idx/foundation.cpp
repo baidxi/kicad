@@ -47,7 +47,7 @@ EDMD_OBJECT::EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel ) : IDX_BASE()
 
 bool EDMD_OBJECT::Parse( wxXmlNode& aNode )
 {
-    return true;
+    return false;
 }
 
 bool EDMD_OBJECT::Resolve(IDX_REGISTRY& aRegistry)

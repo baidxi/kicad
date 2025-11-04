@@ -121,17 +121,17 @@ bool EDMD_TRANSFORMATION::Parse( wxXmlNode& aNode )
     }
     else if( name == "pdm:tx" )
     {
-        m_tx = idx_property::EDMD_LENGTH_PROPERTY( aNode );
+        m_tx = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
     else if( name == "pdm:ty" )
     {
-        m_ty = idx_property::EDMD_LENGTH_PROPERTY( aNode );
+        m_ty = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
     else if( name == "pdm:tz" )
     {
-        m_tz = idx_property::EDMD_LENGTH_PROPERTY( aNode );
+        m_tz = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
     else if ( name == "pdm:TransformationType" )
@@ -225,7 +225,7 @@ bool EDMD_SHAPE_ELEMENT::Parse(wxXmlNode& aNode)
     }
     else if (name == "pdm:Inverted")
     {
-        m_inverted = (content == "true" || content == "1");
+        m_inverted = (content == "true");
         return true;
     }
     else if (name == "pdm:DefiningShape")
@@ -689,6 +689,11 @@ bool EDMD_ITEM::Parse( wxXmlNode& aNode )
     else if( name == "pdm:Shape" )
         {                       
             m_shapeRef = content;
+            return true;
+        }
+    else if( name == "pdm:BaseLine" )
+        {                       
+            m_baseline = (content == "true");;
             return true;
         }
 

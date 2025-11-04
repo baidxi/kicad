@@ -35,6 +35,7 @@ namespace idx_foundation
 {
     class EDMD_OBJECT;
 }
+
 namespace idx_property
 {
 
@@ -70,18 +71,18 @@ class EDMD_USER_PROPERTY;
 class ARRAY_EDMD_NAME : public IDX_BASE
 {
 public:
-    ARRAY_EDMD_NAME();
+    ARRAY_EDMD_NAME(){};
+    ARRAY_EDMD_NAME(wxXmlNode& aNode, bool aTopLevel);
     std::vector<wxString> m_EDMDname;
 };
 
 class EDMD_CONSTRAINED_PROPERTY : public idx_foundation::EDMD_OBJECT
 {
 public:
-    EDMD_CONSTRAINED_PROPERTY(){};
+    EDMD_CONSTRAINED_PROPERTY() {};
     EDMD_CONSTRAINED_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
 
-    bool Parse( wxXmlNode& aNode );
-
+    bool Parse(wxXmlNode& aNode);
 
     std::vector<EDMD_UNIT>                           m_validUnit;
     std::vector<wxString>                            m_validValues;
@@ -95,8 +96,9 @@ public:
 class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_USER_PROPERTY (wxXmlNode& aNode, bool aTopLevel );
-    bool Parse( wxXmlNode& aNode );
+    EDMD_USER_PROPERTY(){};
+    EDMD_USER_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
+    bool Parse(wxXmlNode& aNode);
 
     std::vector<idx_foundation::EDMD_NAME> m_keys;
     wxString m_value;
@@ -117,10 +119,14 @@ enum class UNIT_FUNDAMENTAL
     CAPACITANCE,
 };
 
+// ------------------- EDMD_UNIT -------------------
+
 class EDMD_UNIT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_UNIT(wxXmlNode aNode);
+    EDMD_UNIT(){};
+    EDMD_UNIT(wxXmlNode& aNode, bool aTopLevel);
+    bool Parse(wxXmlNode& aNode);
 
     wxString                   m_unitName;
     double                     m_scalingFactor = 1.0;
@@ -131,62 +137,77 @@ protected:
     wxString m_dependsOnKey = "";
 };
 
+// ------------------- Subclasses -------------------
+
 class EDMD_UNIT_AMPERAGE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_AMPERAGE(wxXmlNode aNode);
+    EDMD_UNIT_AMPERAGE(){};
+    EDMD_UNIT_AMPERAGE(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_ANGLE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_ANGLE(wxXmlNode aNode);
+    EDMD_UNIT_ANGLE(){};
+    EDMD_UNIT_ANGLE(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_CAPACITANCE(wxXmlNode aNode);
+    EDMD_UNIT_CAPACITANCE(){};
+    EDMD_UNIT_CAPACITANCE(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_LENGTH : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_LENGTH(wxXmlNode aNode);
+    EDMD_UNIT_LENGTH(){};
+    EDMD_UNIT_LENGTH(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_POWER : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_POWER(wxXmlNode aNode);
+    EDMD_UNIT_POWER(){};
+    EDMD_UNIT_POWER(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_RESISTANCE(wxXmlNode aNode);
+    EDMD_UNIT_RESISTANCE(){};
+    EDMD_UNIT_RESISTANCE(wxXmlNode& aNode, bool aTopLevel);
 };
 
 class EDMD_UNIT_SURFACE : public EDMD_UNIT
 {
 public:
-    EDMD_UNIT_SURFACE(wxXmlNode aNode);
+    EDMD_UNIT_SURFACE(){};
+    EDMD_UNIT_SURFACE(wxXmlNode& aNode, bool aTopLevel);
 };
+
+// ------------------- EDMD_ANGLE_PROPERTY -------------------
 
 class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_ANGLE_PROPERTY();
-    EDMD_ANGLE_PROPERTY(wxXmlNode& aNode);
+    EDMD_ANGLE_PROPERTY(){};
+    EDMD_ANGLE_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
+    bool Parse(wxXmlNode& aNode);
 
     double m_value = 0.0;
 };
 
+// ------------------- EDMD_LENGTH_PROPERTY -------------------
+
 class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_LENGTH_PROPERTY();
-    EDMD_LENGTH_PROPERTY(wxXmlNode& aNode);
+    EDMD_LENGTH_PROPERTY(){};
+    EDMD_LENGTH_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
+    bool Parse(wxXmlNode& aNode);
 
     double m_value = 0.0;
 };

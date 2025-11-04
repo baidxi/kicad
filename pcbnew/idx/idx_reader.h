@@ -46,6 +46,8 @@ public:
 
     void Read( wxXmlDocument& aDoc );
     void ReadBody( wxXmlNode& aDoc );
+    void ReadProcessInstruction( wxXmlNode& aDoc );
+    
     void AddElements( BOARD_COMMIT& aCommit );
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>  GetBoardOutlineElements();
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH();
@@ -181,7 +183,7 @@ void IDX_HOLDER::ReadBody( wxXmlNode& aNode )
         else if( name == "foundation:UnitLength" )
         {
             std::shared_ptr<idx_property::EDMD_UNIT> s =
-                    std::make_shared<idx_property::EDMD_UNIT>( *child2 );
+                    std::make_shared<idx_property::EDMD_UNIT>( *child2, true );
             m_units.push_back( s );
         }
         else if( name == "foundation:CartesianPoint" )
@@ -280,7 +282,29 @@ void IDX_HOLDER::ReadBody( wxXmlNode& aNode )
         }
         else
         {
-            std::cout << "unhandled keyword:" << name << std::endl;
+            std::cout << "unhandled body keyword:" << name << std::endl;
+        }
+        
+        child2 = child2->GetNext();
+    }
+}
+
+
+void IDX_HOLDER::ReadProcessInstruction( wxXmlNode& aNode )
+{
+    wxXmlNode* child2 = aNode.GetChildren();
+
+    while( child2 )
+    {
+        const wxString content = child2->GetNodeContent();
+        const wxString name = child2->GetName();
+        
+        if( false )
+        {
+        }
+        else
+        {
+            std::cout << "unhandled body keyword:" << name << std::endl;
         }
         
         child2 = child2->GetNext();
@@ -305,6 +329,10 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
         else if( child->GetName() == "foundation:Body" )
         {
             this->ReadBody( *child );
+        }
+        else if( child->GetName() == "foundation:ProcessInstruction" )
+        {
+            this->ReadProcessInstruction( *child );
         }
         else
         {
