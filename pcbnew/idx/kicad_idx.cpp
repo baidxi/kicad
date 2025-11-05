@@ -159,11 +159,12 @@ void KICAD_IDX::SetKeepRules( ZONE& aZone, idx_pdm::EDMD_KEEP_CONSTRAINT& aKeep 
 }
 
 
-void KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+std::vector<BOARD_ITEM*> KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
 {
+    std::vector<BOARD_ITEM*> m_result;
 
     if ( !CheckInstance(aInstance) )
-        return;
+        return m_result;
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
@@ -181,9 +182,6 @@ void KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
         {
             if (auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>(model))
             {
-                std::cout << "Adding an NPTH" << std::endl;
-
-                // Assuming GetRadius() returns in internal KiCad units (nanometers)
                 double diameter = circle->GetRadius() * 2;
                 VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
                 auto npth = new FOOTPRINT(m_board);
@@ -193,30 +191,27 @@ void KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
                 pad->SetPosition( {0,0} );
                 pad->SetAttribute(PAD_ATTRIB::NPTH);
 
-                std::cout << center << std::endl;
                 npth->SetPosition( center );
-                //m_board->Add(npth);
                 npth->Add(pad);
 
                 this->ApplyTransformation( npth, aInstance.m_transformation );
 
-                // Stage and add to the commit
-                m_commit->Stage(npth, CHT_ADD);
-                m_commit->Add(npth);
+                m_result.push_back( npth );
             }
         }
     }
 
-    return;
+    return m_result;
 }
 
 
 
-void KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+std::vector<BOARD_ITEM*> KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
 {
+    std::vector<BOARD_ITEM*> m_result;
 
     if ( !CheckInstance(aInstance) )
-        return;
+        return m_result;
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
@@ -237,132 +232,195 @@ void KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
                 // Assuming GetRadius() returns in internal KiCad units (nanometers)
                 double diameter = circle->GetRadius() * 2;
                 VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX()*1e6, -circle->GetCenter()->GetY()*1e6 );
-                auto via = new PCB_VIA(m_board);
-                via->SetFrontTentingMode( TENTING_MODE::NOT_TENTED );
-                via->SetBackTentingMode( TENTING_MODE::NOT_TENTED );
-                via->SetDrill( diameter );
-                via->SetPosition( center );
+                auto pth = new PCB_VIA(m_board);
+                pth->SetFrontTentingMode( TENTING_MODE::NOT_TENTED );
+                pth->SetBackTentingMode( TENTING_MODE::NOT_TENTED );
+                pth->SetDrill( diameter );
+                pth->SetPosition( center );
 
-                this->ApplyTransformation( via, aInstance.m_transformation );
-
-                // Stage and add to the commit
-                m_commit->Stage(via, CHT_ADD);
-                m_commit->Add(via);
+                this->ApplyTransformation( pth, aInstance.m_transformation );
+                m_result.push_back( pth );
             }
         }
     }
-    return;
+
+    return m_result;
 }
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aKeep )
+{
+    std::vector<BOARD_ITEM*> m_result;
+     
+    for( auto const& y : aKeep.m_shapeElement )
+    {
+
+        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
+
+        if( ptr )
+        {                
+            LSET layers = GetLayers( *ptr );
+            if (layers.Seq().size() < 1 )
+            {
+                continue;
+            }
+            std::cout << layers << std::endl;
+
+            ZONE* zone = new ZONE( m_board );
+            zone->SetZoneName( aKeep.m_id );
+            zone->SetLayerSet( layers );
+            this->SetKeepRules( *zone, aKeep );
+
+            for( auto const& z : ptr->m_modelElement )
+            {
+                auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>( z );
+
+                if( polyline )
+                {
+                    zone->SetIsRuleArea( true );
+                    for( std::shared_ptr<idx_geometry::EDMD_POINT> p : polyline->m_point )
+                    {
+                        if( p )
+                        {
+                            zone->AppendCorner( VECTOR2D( p->GetX(), -p->GetY() ), -1 );
+                        }
+                    }
+                }
+
+
+                auto arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>( z );
+
+                if( arc )
+                {
+                    VECTOR2I start = VECTOR2I( arc->GetStart()->GetX(), -arc->GetStart()->GetY() );
+                    VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), -arc->GetEnd()->GetY() );
+                    VECTOR2I mid = ArcMidPoint( *arc );
+
+                    SHAPE_ARC* s = new SHAPE_ARC( start, mid, end, 0);
+
+                    SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
+
+                    for( const VECTOR2I p : buffer->CPoints() )
+                    {
+                        zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
+                    }
+                }
+
+
+                auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( z );
+
+                if( circle )
+                {
+                    VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
+                    int      radius = circle->GetRadius();
+
+                    VECTOR2I start = center + VECTOR2I( 0, radius );
+                    VECTOR2I mid = center - VECTOR2I( 0, radius );
+
+                    SHAPE_ARC* s = new SHAPE_ARC( start, mid, start, 0 );
+
+                    SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
+
+                    for( const VECTOR2I p : buffer->CPoints() )
+                    {
+                        zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
+                    }
+                }
+                m_result.push_back( zone );
+            }
+        }
+    }
+    return m_result;
+}
+
+
+std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
+{
+    std::vector<KICAD_IDX_CHANGE> m_result;
+
+    for ( auto edge : m_holder->GetBoardOutlineElements() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
+        change.m_items = AddElement( *edge, {Edge_Cuts} );
+        change.m_name = edge->m_name;
+        m_result.push_back( change );
+    }
+
+    for( auto keep : m_holder->GetKeepZones() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
+        change.m_items = AddZone( *keep );
+        change.m_name = keep->m_name;
+        m_result.push_back( change );
+    }
+
+    for ( auto cmp : m_holder->GetComponents() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
+        change.m_items = AddElement( *cmp, {User_1} );
+        change.m_name = cmp->m_name;
+        m_result.push_back( change );
+    }
+
+    for ( auto npth : m_holder->GetNPTH() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
+        change.m_items = AddNPTH( *npth );
+        change.m_name = npth->m_name;
+        m_result.push_back( change );
+    }
+
+    for ( auto pth : m_holder->GetPTH() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
+        change.m_items = AddPTH( *pth );
+        change.m_name = pth->m_name;
+        m_result.push_back( change );
+    }
+
+    for ( auto other : m_holder->GetOthers() )
+    {
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
+        change.m_items = AddElement( *other, {User_1} );
+        change.m_name = other->m_name;
+        m_result.push_back( change );
+    }
+
+    return m_result;
+}
+
+
 
 
 void KICAD_IDX::AddAll()
 {
+    PCB_GROUP* group = new PCB_GROUP( nullptr );
 
-    for ( auto edge : m_holder->GetBoardOutlineElements() )
+    for ( KICAD_IDX_CHANGE edge: GetChanges() )
     {
-        AddElement( *edge, Edge_Cuts );
+
+        group->SetName( "" );
+        m_commit->Add( group );
+
+        for ( BOARD_ITEM* item: edge.m_items )
+        {
+            group->AddItem( item );
+            m_commit->Stage( item, CHT_ADD );
+            m_commit->Add( item );
+        }
     }
 
-
-    for ( auto npth : m_holder->GetNPTH() )
-    {
-        AddNPTH( *npth );
-    }
-
-
-    for ( auto pth : m_holder->GetPTH() )
-    {
-        AddPTH( *pth );
-    }
-
-    for( auto instance : m_holder->GetOthers() )
-        AddElement( *instance, {Eco2_User} );
 
 
     for( auto const& x : m_holder->GetKeepZones() )
     {
-        std::cout << "ZONE" << std::endl;
-        for( auto const& y : x->m_shapeElement )
-        {
-
-            std::cout << "A Shape" << std::endl;
-            std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
-                    std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
-
-            if( ptr )
-            {                
-                LSET layers = GetLayers( *ptr );
-                if (layers.Seq().size() < 1 )
-                {
-                    std::cout << "Dropped because no layer" << std::endl;
-                    continue;
-                }
-                std::cout << layers << std::endl;
-
-                ZONE* zone = new ZONE( m_board );
-                zone->SetZoneName( x->m_id );
-                zone->SetLayerSet( layers );
-                this->SetKeepRules( *zone, *x );
-
-                for( auto const& z : ptr->m_modelElement )
-                {
-                    auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>( z );
-
-                    if( polyline )
-                    {
-                        zone->SetIsRuleArea( true );
-                        for( std::shared_ptr<idx_geometry::EDMD_POINT> p : polyline->m_point )
-                        {
-                            if( p )
-                            {
-                                zone->AppendCorner( VECTOR2D( p->GetX(), -p->GetY() ), -1 );
-                            }
-                        }
-                    }
-
-
-                    auto arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>( z );
-
-                    if( arc )
-                    {
-                        VECTOR2I start = VECTOR2I( arc->GetStart()->GetX(), -arc->GetStart()->GetY() );
-                        VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), -arc->GetEnd()->GetY() );
-                        VECTOR2I mid = ArcMidPoint( *arc );
-
-                        SHAPE_ARC* s = new SHAPE_ARC( start, mid, end, 0);
-
-                        SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
-
-                        for( const VECTOR2I p : buffer->CPoints() )
-                        {
-                            zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
-                        }
-                    }
-
-
-                    auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( z );
-
-                    if( circle )
-                    {
-                        VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
-                        int      radius = circle->GetRadius();
-
-                        VECTOR2I start = center + VECTOR2I( 0, radius );
-                        VECTOR2I mid = center - VECTOR2I( 0, radius );
-
-                        SHAPE_ARC* s = new SHAPE_ARC( start, mid, start, 0 );
-
-                        SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
-
-                        for( const VECTOR2I p : buffer->CPoints() )
-                        {
-                            zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
-                        }
-                    }
-                    m_commit->Add( zone );
-                }
-            }
-        }
+        AddZone( *x );
     }
     m_commit->Push( "Import IDX" );
 }
@@ -511,16 +569,15 @@ bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
     return true;
 }
 
-BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
 {
 
-    if ( !CheckInstance(aInstance) )
-        return nullptr;
+    std::vector<BOARD_ITEM*> m_result;
 
-    PCB_GROUP* group = new PCB_GROUP( nullptr );
-    group->SetName( aInstance.m_name );
-    m_commit->Add( group );
-    std::cout << " Instance has elemnts: " << aInstance.m_item->m_shape->m_shapeElement.size()  << std::endl;
+    if ( !CheckInstance(aInstance) )
+        return m_result;
+ 
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
@@ -535,11 +592,7 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_L
             {
                 item->SetLayer( aLayer );
                 this->ApplyTransformation( item, aInstance.m_transformation );
-                group->AddItem( item );
-                m_commit->Stage( item, CHT_ADD );
-                m_commit->Add( item );
-                this->Report( wxString::Format( wxT( "%s - %s added" ), aInstance.m_name, aInstance.m_item->m_id ) , RPT_SEVERITY_INFO);
-            }
+                m_result.push_back( item );       }
         }
         else
         {
@@ -547,7 +600,7 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_L
         }
     }
 
-    return nullptr;
+    return m_result;
 }
 
 

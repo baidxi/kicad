@@ -49,7 +49,8 @@ public:
     void ReadProcessInstruction( wxXmlNode& aDoc );
     
     void AddElements( BOARD_COMMIT& aCommit );
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>  GetBoardOutlineElements();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents();
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH();
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH();
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers();
@@ -94,6 +95,7 @@ public:
 
 private:
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_boardOutline;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_components;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_NPTH;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_PTH;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_others;
@@ -420,6 +422,14 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
                 }
             }
 
+
+            if( !inst->m_name.IsEmpty() )
+            {
+                m_components.push_back(inst);
+                handled = true;
+                continue;
+            }
+
             // If not stored anywhere, push to m_others
             if (!handled)
                 m_others.push_back(inst);
@@ -439,6 +449,11 @@ std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOu
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetNPTH()
 {
     return m_NPTH; 
+}
+
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetComponents()
+{
+    return m_components; 
 }
 
 

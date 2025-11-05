@@ -93,6 +93,7 @@
 #include <pcb_io/pcb_io.h>
 #include <wx/hyperlink.h>
 #include <idx/kicad_idx.h>
+#include <idx/dialog_idx_review.h>
 
 using namespace std::placeholders;
 
@@ -1420,6 +1421,22 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
         wxString path;
         path = fileDialog.GetPath();
         KICAD_IDX* kidx = new KICAD_IDX( path, board(), &commit );
+
+        DIALOG_IDX_REVIEW dlg( m_frame, kidx );
+        bool                      cancelled;
+
+        RunMainStack(
+                [&]()
+                {
+                    cancelled = dlg.ShowModal() != wxID_OK;
+                } );
+
+        if( cancelled )
+        {
+        }
+        else
+        {   
+        }
         kidx->AddAll();
 
     }

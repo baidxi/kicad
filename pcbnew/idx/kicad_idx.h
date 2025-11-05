@@ -38,6 +38,32 @@ enum PCB_LAYER_ID : int;
 //bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit );
 class IDX_HOLDER;
 
+
+
+class KICAD_IDX_CHANGE
+{
+
+    public:
+    
+    enum class ELEMENT_TYPE
+    {
+        BOARD_OUTLINE=0,
+        RULE_ZONE,
+        NPTH,
+        PTH,
+        KEEP,
+        COMPONENT,
+        OTHER
+    };
+
+    KICAD_IDX_CHANGE(){};
+    std::vector<BOARD_ITEM*> m_items;
+    ELEMENT_TYPE m_type;
+    wxString m_name;
+    bool baseline = true;
+};
+
+
 class KICAD_IDX
 {
 public:
@@ -46,7 +72,7 @@ public:
 
     void        AddAll();
     void        AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
-    BOARD_ITEM* AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
+    std::vector<BOARD_ITEM*> AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
     BOARD_ITEM* AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
 
 
@@ -56,10 +82,14 @@ public:
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE&);
 
+    // Abstraction
+    std::vector<KICAD_IDX_CHANGE> GetChanges();
+
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
 
-    void AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
-    void AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
+    std::vector<BOARD_ITEM*> AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
+    std::vector<BOARD_ITEM*> AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
+    std::vector<BOARD_ITEM*> AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aInstance );
 
 
     void SetKeepRules( ZONE&, idx_pdm::EDMD_KEEP_CONSTRAINT&);
@@ -82,5 +112,7 @@ public:
     BOARD*                        m_board;
     std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup; 
 };
+
+
 
 #endif

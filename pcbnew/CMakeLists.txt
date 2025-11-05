@@ -373,6 +373,8 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
+     idx/dialog_idx_review_base.cpp
+     idx/dialog_idx_review.cpp
      idx/foundation.cpp
      idx/geometry.cpp
      idx/kicad_idx.cpp
