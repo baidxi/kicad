@@ -75,6 +75,11 @@ bool EDMD_USER_PROPERTY::Parse( wxXmlNode& aNode )
         m_value = content;
         return true;
     }
+    else if (name == "property:Unit")
+    {
+        m_value = content;
+        return true;
+    }
 
     return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
 }
@@ -171,8 +176,18 @@ bool EDMD_ANGLE_PROPERTY::Parse(wxXmlNode& aNode)
 
     if (name == "property:Value")
         return content.ToCDouble(&m_value);
-
-    return this->EDMD_CONSTRAINED_PROPERTY::Parse(aNode);
+    else if (name == "property:Unit")
+    {
+        if ( content == "degrees" || content == "grad" )
+        {
+            m_unit = content;
+            return true;
+        }
+        else
+            return false;
+    }
+    else
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse(aNode);
 }
 
 // ------------------- EDMD_LENGTH_PROPERTY -------------------

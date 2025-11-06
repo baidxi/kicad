@@ -91,6 +91,8 @@ public:
     std::shared_ptr<idx_administration::EDMD_PERSON> m_originator;
     bool                                             m_isChanged = false;
     bool                                             m_isNew = false;
+
+    wxString                                         m_unit;
 };
 
 class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY

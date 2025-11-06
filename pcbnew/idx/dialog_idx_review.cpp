@@ -19,6 +19,9 @@ enum IDX_REVIEW_COLS
     ACCEPT = 0,
     NAME,
     TYPE,
+    COMMENT,
+    STATUS,
+    REJECT_COMMENT,
     NB_COLS
 };
 
@@ -37,7 +40,10 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, KICAD_IDX* aIDX )
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::ACCEPT, _( "" ) );
     m_changeGrid->SetColFormatBool( IDX_REVIEW_COLS::ACCEPT );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::NAME, _( "Name" ) );
-    m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::TYPE, _( "Type" ) ); 
+    m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::TYPE, _( "Type" ) );
+    m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::STATUS, _( "Status" ) );
+    m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::COMMENT, _( "Comment" ) );
+    m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::REJECT_COMMENT, _( "Reject Comment" ) ); 
     prepareCanvas();
     m_changeGrid->AutoSizeColumn( IDX_REVIEW_COLS::ACCEPT );
 
