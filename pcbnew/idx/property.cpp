@@ -210,4 +210,27 @@ bool EDMD_LENGTH_PROPERTY::Parse(wxXmlNode& aNode)
     return this->EDMD_CONSTRAINED_PROPERTY::Parse(aNode);
 }
 
+// ------------------- EDMD_LOGIC_PROPERTY -------------------
+
+EDMD_LOGIC_PROPERTY::EDMD_LOGIC_PROPERTY(wxXmlNode& aNode, bool aTopLevel)
+    : EDMD_CONSTRAINED_PROPERTY(aNode, false)
+{
+    if ( aTopLevel )
+        ParseChildren(aNode);
+}
+
+bool EDMD_LOGIC_PROPERTY::Parse(wxXmlNode& aNode)
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+    if (name == "property:Value")
+    {
+        m_value = ( content == "true");
+        return true;
+    }
+
+    return this->EDMD_CONSTRAINED_PROPERTY::Parse(aNode);
+}
+
 } // namespace idx_property

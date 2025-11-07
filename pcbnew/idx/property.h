@@ -214,6 +214,19 @@ public:
     double m_value = 0.0;
 };
 
+
+// ------------------- EDMD_LOGIC_PROPERTY -------------------
+
+class EDMD_LOGIC_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_LOGIC_PROPERTY(){};
+    EDMD_LOGIC_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
+    bool Parse(wxXmlNode& aNode);
+
+    double m_value = true;
+};
+
 } // namespace idx_property
 
 #endif // IDX_PROPERTY_HEADER_H

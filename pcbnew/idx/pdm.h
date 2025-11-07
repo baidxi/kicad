@@ -350,7 +350,10 @@ public:
     std::vector<idx_foundation::EDMD_NAME> m_packageName;
     std::vector<std::shared_ptr<EDMD_ITEM_INSTANCE>> m_itemInstance;
     std::shared_ptr<EDMD_ITEM_SHAPE> m_shape;
-    bool m_baseline = false;
+    //ShapeTransformation
+    idx_property::EDMD_LOGIC_PROPERTY m_accept;
+    //ClearanceState
+    idx_property::EDMD_LOGIC_PROPERTY m_baseline;
 
 private:
     wxString m_shapeRef;

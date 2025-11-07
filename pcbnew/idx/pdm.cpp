@@ -693,7 +693,12 @@ bool EDMD_ITEM::Parse( wxXmlNode& aNode )
         }
     else if( name == "pdm:BaseLine" )
         {                       
-            m_baseline = (content == "true");;
+            m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
+            return true;
+        }
+    else if( name == "pdm:Accept" )
+        {                       
+            m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
             return true;
         }
 
