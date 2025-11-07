@@ -1437,7 +1437,7 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
         else
         {   
         }
-        kidx->AddAll();
+        kidx->Apply( dlg.GetAccepted() );
 
     }
     return 0;

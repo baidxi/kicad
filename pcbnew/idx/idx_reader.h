@@ -386,12 +386,8 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
             // Check for board outline
             if (auto type = inst->GetUserProperty("TYPE"))
             {
-                std::cout << "Has type " << std::endl ;
-
                 if (type->m_value == "BOARDOUTLINE")
                 {
-                    std::cout << "BOARD OUTLINE FOUND " << std::endl ;
-
                     m_boardOutline.push_back(inst);
                     handled = true;
                     continue;

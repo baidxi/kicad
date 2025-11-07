@@ -274,7 +274,7 @@ bool EDMD_ITEM_SHAPE::Parse( wxXmlNode& aNode )
         return true;
     }
 
-    return this->EDMD_OBJECT::Parse( aNode );
+    return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 }
 
 

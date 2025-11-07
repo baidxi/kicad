@@ -149,6 +149,9 @@ class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 public:
     EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel);
 
+
+    bool Parse( wxXmlNode& aNode ) override;
+    
     wxString m_creatorName;
     wxString m_creatorCompany;
     wxString m_creatorSystem;

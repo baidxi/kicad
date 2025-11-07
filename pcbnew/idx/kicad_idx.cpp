@@ -69,9 +69,25 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
             }
 
             currentThickness += bsi->GetThickness();
-            
         }
     }
+
+    
+    for ( auto inst : m_holder->GetBoardOutlineElements() )
+    {
+        // Check for board outline
+        if (auto prop = inst->GetUserProperty("THICKNESS"))
+        {
+            std::cout << "previous board thickness " << m_boardThickness << std::endl;
+
+            std::cout << "thickness : |" << prop->m_value << "|" << std::endl; 
+            if( ! prop->m_value.ToCDouble(&m_boardThickness) )
+            {
+                std::cout << "Invalid board thickness " << m_boardThickness << std::endl;
+            }
+        }
+    }
+
 
     
 };
@@ -103,13 +119,10 @@ std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> KICAD_IDX::GetAllItemI
 
     for( auto& item : m_holder->m_items )
     {
-        std::cout << item->m_id << " - ";
         for( auto& instance : item->m_itemInstance )
         {
-            std::cout << instance->m_name << " - ";
             result.push_back( instance );
         }
-        std::cout << std::endl;
     }
 
     return result;
@@ -264,7 +277,6 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aKee
             {
                 continue;
             }
-            std::cout << layers << std::endl;
 
             ZONE* zone = new ZONE( m_board );
             zone->SetZoneName( aKeep.m_id );
@@ -421,6 +433,27 @@ void KICAD_IDX::AddAll()
     for( auto const& x : m_holder->GetKeepZones() )
     {
         AddZone( *x );
+    }
+    m_commit->Push( "Import IDX" );
+}
+
+
+void KICAD_IDX::Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector )
+{
+    PCB_GROUP* group = new PCB_GROUP( nullptr );
+
+    for ( auto change: aVector )
+    {
+
+        group->SetName( "" );
+        m_commit->Add( group );
+
+        for ( BOARD_ITEM* item: change->m_items )
+        {
+            group->AddItem( item );
+            m_commit->Stage( item, CHT_ADD );
+            m_commit->Add( item );
+        }
     }
     m_commit->Push( "Import IDX" );
 }
@@ -711,9 +744,6 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
     double upper = aCurveSet.m_upperBound.m_value * 1e3 ;
     double lower = aCurveSet.m_lowerBound.m_value * 1e3 ;
 
-    std::cout << lower << std::endl;
-    std::cout << upper << std::endl;
-
     std::vector<PCB_LAYER_ID> pli;
 
     int currentThickness = 0;
@@ -729,6 +759,14 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
             pli.push_back( layer.first );
             result.set( layer.first);
         }       
+    }
+
+    std::cout << upper << std::endl;
+    std::cout << lower << std::endl;
+    std::cout << m_boardThickness * 1e3 << std::endl;
+    if ( upper == m_boardThickness * 1e3 || lower == m_boardThickness * 1e3  )
+    {
+        result.set(F_Cu);
     }
 
     return result;

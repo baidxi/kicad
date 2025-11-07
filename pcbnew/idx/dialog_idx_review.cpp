@@ -45,7 +45,7 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, KICAD_IDX* aIDX )
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::COMMENT, _( "Comment" ) );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::REJECT_COMMENT, _( "Reject Comment" ) ); 
     prepareCanvas();
-    m_changeGrid->AutoSizeColumn( IDX_REVIEW_COLS::ACCEPT );
+    m_changeGrid->AutoSizeColumns();
 
     // Center and fit the dialog
     Layout();
@@ -81,6 +81,14 @@ void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange)
     m_changeGrid->SetCellValue( row, IDX_REVIEW_COLS::NAME, aChange.m_name );
     m_changeGrid->SetCellValue( row, IDX_REVIEW_COLS::TYPE, typeStr );
     m_changeGrid->SetCellValue( row, IDX_REVIEW_COLS::ACCEPT, "1" );
+    m_changeGrid->SetCellValue( row, IDX_REVIEW_COLS::STATUS, aChange.baseline ? "Baseline" : "Change" );
+    m_changeGrid->SetCellValue( row, IDX_REVIEW_COLS::COMMENT, "" );
+
+    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::NAME );
+    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::TYPE );
+    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::ACCEPT );
+    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::STATUS );
+    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::COMMENT );
 
     m_objects.push_back( aChange.m_items );
 }
@@ -112,8 +120,16 @@ void DIALOG_IDX_REVIEW::prepareCanvas()
 
     for ( KICAD_IDX_CHANGE& change: m_idx->GetChanges() )
     {
-        AddChange( change );
-        for ( BOARD_ITEM* item: change.m_items )
+        
+        m_changes.emplace_back(
+            true,
+            std::make_shared<KICAD_IDX_CHANGE>(change)
+        );
+        auto last_change = m_changes.back().second;
+        m_changes.back().first = true; // accept by default
+        AddChange( *last_change );
+
+        for ( BOARD_ITEM* item: last_change->m_items )
         {
             if ( bb )
                 bb->Merge( item->ViewBBox() );
@@ -121,7 +137,8 @@ void DIALOG_IDX_REVIEW::prepareCanvas()
                 bb = new BOX2I( item->ViewBBox() );
             view->Add( item );
         }
-}
+    }
+
     view->SetBoundary( BOX2D( bb->GetOrigin(), bb->GetSize() * 1.2 ) );
     view->SetViewport( BOX2D( bb->GetOrigin(), bb->GetSize() ) );
     view->SetScale( view->GetScale() * 0.7 );
@@ -146,9 +163,9 @@ void DIALOG_IDX_REVIEW::OnGridCellClick(wxGridEvent& event)
         
         // Set the new value for the checkbox
         m_changeGrid->SetCellValue(row, col, newValue);
+        m_changes[row].first = (newValue == "1");
     }
 
-    // If you still want to process the item highlighting logic
     KIGFX::VIEW* view = m_panelPreview->GetView();
     int j = 0;
     BOX2I bb;
@@ -238,6 +255,7 @@ void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
 {
     for ( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
     {
+        m_changes[i].first = true;
         m_changeGrid->SetCellValue( i, IDX_REVIEW_COLS::ACCEPT, "1" );
     }
 }
@@ -246,6 +264,32 @@ void DIALOG_IDX_REVIEW::OnRejectAll( wxCommandEvent& event )
 {
     for ( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
     {
+        m_changes[i].first = false;
         m_changeGrid->SetCellValue( i, IDX_REVIEW_COLS::ACCEPT, "0" );
     }
+}
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> DIALOG_IDX_REVIEW::GetAccepted()
+{
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
+
+    for ( auto& change : m_changes )
+    {
+        if ( change.first )
+            result.push_back (change.second); 
+    }
+    return result;
+}
+
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> DIALOG_IDX_REVIEW::GetRejected()
+{
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
+
+    for ( auto& change : m_changes )
+    {
+        if ( !change.first )
+            result.push_back (change.second); 
+    }
+    return result;
 }

@@ -48,6 +48,7 @@ class KICAD_IDX_CHANGE
     enum class ELEMENT_TYPE
     {
         BOARD_OUTLINE=0,
+        BOARD_THICKNESS,
         RULE_ZONE,
         NPTH,
         PTH,
@@ -57,9 +58,19 @@ class KICAD_IDX_CHANGE
     };
 
     KICAD_IDX_CHANGE(){};
+    
+    KICAD_IDX_CHANGE( const KICAD_IDX_CHANGE& aChange){
+        m_items = aChange.m_items;
+        m_type = aChange.m_type;
+        m_name = aChange.m_name;
+        m_value = aChange.m_value;
+        baseline = aChange.baseline;
+    };
+
     std::vector<BOARD_ITEM*> m_items;
     ELEMENT_TYPE m_type;
     wxString m_name;
+    double m_value;
     bool baseline = true;
 };
 
@@ -74,6 +85,8 @@ public:
     void        AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
     std::vector<BOARD_ITEM*> AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
     BOARD_ITEM* AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
+    void        Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector );
+
 
 
     // Convert IDX shapes to BOARD_ITEM*
@@ -110,7 +123,8 @@ public:
     std::shared_ptr<IDX_HOLDER>   m_holder;
     BOARD_COMMIT*                 m_commit;
     BOARD*                        m_board;
-    std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup; 
+    std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup;
+    double                        m_boardThickness;
 };
 
 

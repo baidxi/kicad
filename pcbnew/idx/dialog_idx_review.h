@@ -17,6 +17,9 @@ public:
     ~DIALOG_IDX_REVIEW() override;
 
     bool TransferDataToWindow();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> GetAccepted();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> GetRejected();
+
 
 protected:
     void OnGridCellClick( wxGridEvent& event ) override;
@@ -38,6 +41,7 @@ private:
     KICAD_IDX*      m_idx;
 
     std::vector<std::vector<BOARD_ITEM*>> m_objects;
+    std::vector<std::pair<bool, std::shared_ptr<KICAD_IDX_CHANGE>>> m_changes;;
 
 
 };

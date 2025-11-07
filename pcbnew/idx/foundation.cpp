@@ -195,34 +195,56 @@ bool EDMD_SYSTEM::Resolve(IDX_REGISTRY& aRegistry)
 
 EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel) : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
-    wxXmlNode* child = aNode.GetChildren();
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
 
-    while (child)
+
+
+
+bool EDMD_HEADER::Parse( wxXmlNode& aNode )
+{
+    const wxString name = aNode.GetName();
+    const wxString content = aNode.GetNodeContent();
+
+
+    if (name == "foundation:Description")
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
-
-        if (name == "foundation:Description")
-            m_description = content;
-        else if (name == "foundation:CreatorName")
-            m_creatorName = content;
-        else if (name == "foundation:CreatorCompany")
-            m_creatorCompany = content;
-        else if (name == "foundation:CreatorSystem")
-            m_creatorSystem = content;
-        else if (name == "foundation:PostProcessor")
-            m_postProcessor = content;
-        else if (name == "foundation:PostProcessorVersion")
-            m_postProcessorVersion = content;
-        else if (name == "foundation:UserProperty")
-        {
-            m_userProperty.emplace_back(aNode, true);
-        }
-        else
-            unknownKeywordIDX( name );
-
-        child = child->GetNext();
+        m_description = content;
+        return true;
     }
+    else if (name == "foundation:CreatorName")
+    {
+        m_creatorName = content;
+        return true;
+    }
+    else if (name == "foundation:CreatorCompany")
+    {
+        m_creatorCompany = content;
+        return true;
+    }
+    else if (name == "foundation:CreatorSystem")
+    {
+        m_creatorSystem = content;
+        return true;
+    }
+    else if (name == "foundation:PostProcessor")
+    {
+        m_postProcessor = content;
+        return true;
+    }
+    else if (name == "foundation:PostProcessorVersion")
+    {
+        m_postProcessorVersion = content;
+        return true;
+    }
+    else if (name == "foundation:UserProperty")
+    {
+        m_userProperty.emplace_back(aNode, true);
+        return true;
+    }
+        
+    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 }
 
 // -----------------------------------------------------
