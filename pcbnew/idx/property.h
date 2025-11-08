@@ -82,7 +82,7 @@ public:
     EDMD_CONSTRAINED_PROPERTY() {};
     EDMD_CONSTRAINED_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
 
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     std::vector<EDMD_UNIT>                           m_validUnit;
     std::vector<wxString>                            m_validValues;
@@ -100,7 +100,7 @@ class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_USER_PROPERTY(){};
     EDMD_USER_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     std::vector<idx_foundation::EDMD_NAME> m_keys;
     wxString m_value;
@@ -128,7 +128,7 @@ class EDMD_UNIT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_UNIT(){};
     EDMD_UNIT(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     wxString                   m_unitName;
     double                     m_scalingFactor = 1.0;
@@ -197,7 +197,7 @@ class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_ANGLE_PROPERTY(){};
     EDMD_ANGLE_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     double m_value = 0.0;
 };
@@ -209,7 +209,7 @@ class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LENGTH_PROPERTY(){};
     EDMD_LENGTH_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     double m_value = 0.0;
 };
@@ -222,7 +222,7 @@ class EDMD_LOGIC_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LOGIC_PROPERTY(){};
     EDMD_LOGIC_PROPERTY(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse(wxXmlNode& aNode);
+    bool Parse(wxXmlNode& aNode) override;
 
     double m_value = true;
 };

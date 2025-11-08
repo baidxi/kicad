@@ -112,8 +112,6 @@ public:
 
     void Report( wxString aMsg, SEVERITY aSev = RPT_SEVERITY_INFO );
 
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetAllItemInstances();
-
     VECTOR2I  ArcMidPoint( idx_geometry::EDMD_ARC& );
     PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
 

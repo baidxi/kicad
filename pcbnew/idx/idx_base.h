@@ -35,6 +35,103 @@
 #include <typeindex>
 
 
+namespace idx_administration
+{
+class EDMD_PERSON;
+class EDMD_ACTOR;
+}
+
+namespace idx_property
+{
+class ARRAY_EDMD_NAME;
+class EDMD_ANGLE_PROPERTY;
+class EDMD_BOOLEAN_PROPERTY_TYPE;
+class EDMD_CLEARANCE_STATE_PROPERTY;
+class EDMD_COLOR_PROPERTY;
+class EDMD_CONSTRAINED_PROPERTY;
+class EDMD_CUTOUT_SIDE_PROPERTY;
+class EDMD_DATETIME_PROPERTY;
+class EDMD_INTEGER_PROPERTY;
+class EDMD_LENGTH_PROPERTY;
+class EDMD_LOGIC_PROPERTY;
+class EDMD_PIN_TYPE_PROPERTY_TYPE;
+class EDMD_PROPERTY;
+class EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE;
+class EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE;
+class EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE;
+class EDMD_UNIT;
+class EDMD_UNIT_AMPERAGE;
+class EDMD_UNIT_ANGLE;
+class EDMD_UNIT_CAPACITANCE;
+class EDMD_UNIT_LENGTH;
+class EDMD_UNIT_POWER;
+class EDMD_UNIT_SURFACE;
+class EDMD_UNIT_VOLTAGE;
+class EDMD_UNIT_VOLUME;
+class EDMD_UNIT_WEIGHT;
+class EDMD_UNIT_WORK;
+class EDMD_USER_PROPERTY;
+}
+
+
+namespace idx_geometry
+{
+class EDMD_ARC;
+class EDMD_BSPLINE_CURVE;
+class EDMD_CARTESIAN_POINT;
+class EDMD_CIRCLE;
+class EDMD_CIRCLE_3POINTS;
+class EDMD_CIRCLE_CENTER;
+class EDMD_COMPOSITE_CURVE;
+class EDMD_CURVE;
+class EDMD_CURVESET2D;
+class EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT;
+class EDMD_ELLIPSE;
+class EDMD_HYPERBOLA;
+class EDMD_LINE;
+class EDMD_OFFSET_CURVE;
+class EDMD_PARABOLA;
+class EDMD_POINT;
+class EDMD_POINT_ON_CURVE_DISTANCE;
+class EDMD_POINT_ON_CURVE_INTERSECTION;
+class EDMD_POLYLINE;
+class EDMD_TRIMMED_CURVE;
+}
+
+
+namespace idx_pdm
+{
+class EDMD_SHAPE_ELEMENT;
+class EDMD_FUNCTIONAL_ITEM_SHAPE;
+class EDMD_STRATUM;
+class EDMD_INTERSTRATUM_FEATURE;
+class EDMD_KEEP_CONSTRAINT;
+class EDMD_ITEM;
+class EDMD_ITEM_INSTANCE;
+class EDMD_ASSEMBLY_COMPONENT;
+}
+
+namespace idx_annotation
+{
+class EDMD_HISTORY;
+}
+
+namespace idx_foundation
+{
+class EDMD_COLLABORATION_OBJECT;
+class EDMD_DATASET;
+class EDMD_DATASET_BODY;
+class EDMD_DESIGNATOR;
+class EDMD_EXTENSIBLE_OBJECT;
+class EDMD_HEADER;
+class EDMD_IDENTIFIER;
+class EDMD_NAME;
+class EDMD_OBJECT;
+class EDMD_PROCESS_INSTRUCTION;
+class EDMD_SYSTEM;
+}
+
+
 class IDX_BASE;
 
 // Registry to manage different types of objects
@@ -116,6 +213,14 @@ public:
     IDX_BASE() {};
     virtual ~IDX_BASE() = default; // Virtual destructor makes the class polymorphic
     bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
+
+
+    enum OPTIONAL_LOGIC: int
+    {
+        UNSPECIFIED=-1,
+        LOGIC_FALSE=0,
+        LOGIC_TRUE=1
+    };
 
 protected:
 

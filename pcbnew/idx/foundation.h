@@ -30,36 +30,9 @@
 #include <memory>
 #include <map>
 
-namespace idx_administration
-{
-class EDMD_PERSON;
-}
-
-namespace idx_property
-{
-class EDMD_USER_PROPERTY;
-}
-
-
-namespace idx_geometry
-{
-class EDMD_POINT;
-}
 
 namespace idx_foundation
 {
-
-class EDMD_COLLABORATION_OBJECT;
-class EDMD_DATASET;
-class EDMD_DATASET_BODY;
-class EDMD_DESIGNATOR;
-class EDMD_EXTENSIBLE_OBJECT;
-class EDMD_HEADER;
-class EDMD_IDENTIFIER;
-class EDMD_NAME;
-class EDMD_OBJECT;
-class EDMD_PROCESS_INSTRUCTION;
-class EDMD_SYSTEM;
 
 /**
  * @brief Base class for EDMD objects.
@@ -80,7 +53,7 @@ protected:
 
 public:
     wxString m_id;
-    bool     m_isAttributeChanged = false;
+    enum OPTIONAL_LOGIC m_isAttributeChanged = UNSPECIFIED;
 };
 
 
@@ -148,6 +121,7 @@ class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_HEADER();
 
 
     bool Parse( wxXmlNode& aNode ) override;
@@ -167,7 +141,34 @@ public:
 class EDMD_DATASET_BODY : public IDX_BASE
 {
 public:
-    EDMD_DATASET_BODY();
+    EDMD_DATASET_BODY( wxXmlNode& aNode );
+    EDMD_DATASET_BODY(){};
+
+    bool Parse( wxXmlNode& aNode ) override;
+
+
+    IDX_REGISTRY m_registry;
+
+    std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>> m_actors;
+    std::vector<std::shared_ptr<idx_foundation::EDMD_SYSTEM>>    m_systems;
+    std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>        m_units;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_POINT>>       m_points;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE>>       m_curves;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVESET2D>>  m_curvesets;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>    m_shapeElements;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>>         m_functionalItemShapes;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_STRATUM>>          m_stratums;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE>>          m_interStratums;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>  m_keeps;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM>>             m_items;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT>> m_assemblies;
+
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_boardOutline;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_components;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_NPTH;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_PTH;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_others;
 };
 
 
@@ -183,18 +184,12 @@ public:
 class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
+    EDMD_DATASET();
     EDMD_DATASET(wxXmlNode& aNode);
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;
     std::vector<EDMD_PROCESS_INSTRUCTION> m_processInstruction;
-};
-
-
-class EDMD_DATASETBODY : public EDMD_OBJECT
-{
-public:
-    EDMD_DATASETBODY(wxXmlNode& aNode);
 };
 
 
@@ -234,7 +229,7 @@ public:
     EDMD_NAME();
     EDMD_NAME(wxXmlNode& aNode, bool aTopLevel);
 
-    bool Parse( wxXmlNode& aNode );
+    bool Parse( wxXmlNode& aNode ) override;
 
 
     wxString m_objectName;

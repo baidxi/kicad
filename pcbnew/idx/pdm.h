@@ -247,7 +247,7 @@ public:
     EDMD_STRATUM(wxXmlNode& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode );
+    bool Parse( wxXmlNode& aNode ) override;
 
 
     std::vector<std::shared_ptr<EDMD_STRATUM_TECHNOLOGY>> m_stratumTechnology;
@@ -278,7 +278,7 @@ class EDMD_KEEP_CONSTRAINT : public EDMD_ITEM_SHAPE
 public:
     EDMD_KEEP_CONSTRAINT(){};
     EDMD_KEEP_CONSTRAINT(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse( wxXmlNode& );
+    bool Parse( wxXmlNode& aNode ) override;
 
     std::vector<KEEP_CONSTRAINT_PURPOSE> m_purpose;
     std::vector<idx_property::EDMD_CONSTRAINED_PROPERTY> m_keepConstraintCondition;
@@ -292,7 +292,7 @@ class EDMD_KEEPOUT : public EDMD_KEEP_CONSTRAINT
 public:
     EDMD_KEEPOUT(){};
     EDMD_KEEPOUT(wxXmlNode& aNode, bool aTopLevel );
-    bool Parse( wxXmlNode& aNode ){ return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    bool Parse( wxXmlNode& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 
 };
 
@@ -304,7 +304,7 @@ public:
     EDMD_KEEPIN(wxXmlNode& aNode, bool aTopLevel);
 
     
-    bool Parse( wxXmlNode& aNode ){ return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    bool Parse( wxXmlNode& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 };
 
 class EDMD_ITEM_INSTANCE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
@@ -315,7 +315,7 @@ public:
 
     void print(int aIndex = 0, int aMaxIndex = 5);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& );
+    bool Parse( wxXmlNode& aNode ) override;
 
 
     idx_foundation::EDMD_NAME m_instanceName;

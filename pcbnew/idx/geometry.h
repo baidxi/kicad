@@ -35,28 +35,6 @@
 namespace idx_geometry
 {
 
-// Forward declarations
-class EDMD_ARC;
-class EDMD_BSPLINE_CURVE;
-class EDMD_CARTESIAN_POINT;
-class EDMD_CIRCLE;
-class EDMD_CIRCLE_3POINTS;
-class EDMD_CIRCLE_CENTER;
-class EDMD_COMPOSITE_CURVE;
-class EDMD_CURVE;
-class EDMD_CURVESET2D;
-class EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT;
-class EDMD_ELLIPSE;
-class EDMD_HYPERBOLA;
-class EDMD_LINE;
-class EDMD_OFFSET_CURVE;
-class EDMD_PARABOLA;
-class EDMD_POINT;
-class EDMD_POINT_ON_CURVE_DISTANCE;
-class EDMD_POINT_ON_CURVE_INTERSECTION;
-class EDMD_POLYLINE;
-class EDMD_TRIMMED_CURVE;
-
 // --------------------------------------------------------------------------
 // Class declarations (no function bodies)
 // --------------------------------------------------------------------------

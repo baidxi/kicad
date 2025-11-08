@@ -112,22 +112,6 @@ void KICAD_IDX::Report( wxString aMsg, SEVERITY aSev )
 }
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> KICAD_IDX::GetAllItemInstances()
-{
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> result;
-
-
-    for( auto& item : m_holder->m_items )
-    {
-        for( auto& instance : item->m_itemInstance )
-        {
-            result.push_back( instance );
-        }
-    }
-
-    return result;
-}
-
 void KICAD_IDX::AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector )
 {
 
