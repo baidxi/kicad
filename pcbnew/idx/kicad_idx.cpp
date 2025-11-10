@@ -78,12 +78,26 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
         // Check for board outline
         if (auto prop = inst->GetUserProperty("THICKNESS"))
         {
-            std::cout << "previous board thickness " << m_boardThickness << std::endl;
-
-            std::cout << "thickness : |" << prop->m_value << "|" << std::endl; 
-            if( ! prop->m_value.ToCDouble(&m_boardThickness) )
+            try
             {
-                std::cout << "Invalid board thickness " << m_boardThickness << std::endl;
+                double thickness = prop->parseDouble( prop->m_value );
+
+                if (thickness <= 0.0 )
+                {
+                    std::cout << "Invalid board thickness " << thickness << std::endl;
+                }
+                else
+                {
+                    m_boardThickness = thickness;
+                }
+            }
+            catch (const std::invalid_argument& e)
+            {
+                std::cout << "Invalid numeric value for thickness: " << prop->m_value << std::endl;
+            }
+            catch (const std::out_of_range& e)
+            {
+                std::cout << "Thickness value out of range: " << prop->m_value << std::endl;
             }
         }
     }
@@ -745,9 +759,6 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
         }       
     }
 
-    std::cout << upper << std::endl;
-    std::cout << lower << std::endl;
-    std::cout << m_boardThickness * 1e3 << std::endl;
     if ( upper == m_boardThickness * 1e3 || lower == m_boardThickness * 1e3  )
     {
         result.set(F_Cu);

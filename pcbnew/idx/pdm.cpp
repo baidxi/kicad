@@ -32,23 +32,23 @@ namespace idx_pdm
 // EDMD_SHAPE_DESCRIPTION
 // -----------------------------------------------------
 
-EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( wxXmlNode& aNode ) : EDMD_COLLABORATION_OBJECT( aNode, false )
+EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode ) : EDMD_COLLABORATION_OBJECT( aNode, false )
     {
-        wxXmlNode* child = aNode.GetChildren();
+        auto child = aNode.GetChildren();
 
         while( child )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-            if( name == "pdm:ShapeDescriptionType" )
+            if( IDX_keyword_compare( name, "pdm:ShapeDescriptionType" ) )
             {
-                if( content == "GeometricModel" )
+                if( IDX_keyword_compare( content, "GeometricModel" ) )
                     m_shapeDescriptionType = SHAPE_DESCRIPTION_TYPE::GEOMETRIC_MODEL;
-                else if( content == "ExternalGeometricModel" )
+                else if( IDX_keyword_compare( content, "ExternalGeometricModel" ) )
                     m_shapeDescriptionType = SHAPE_DESCRIPTION_TYPE::EXTERNAL_GEOMETRIC_MODEL;
             }
-            else if( name == "pdm::BoundingBox" )
+            else if( IDX_keyword_compare( name, "pdm::BoundingBox" ) )
             {
                 m_boudingBoxRef = content;
             }
@@ -62,92 +62,88 @@ EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( wxXmlNode& aNode ) : EDMD_COLLAB
 // -----------------------------------------------------
 
 
-EDMD_TRANSFORMATION::EDMD_TRANSFORMATION( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_OBJECT( aNode, false )
+EDMD_TRANSFORMATION::EDMD_TRANSFORMATION( IDX_XML_NODE& aNode, bool aTopLevel ) : idx_foundation::EDMD_OBJECT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_TRANSFORMATION::Parse( wxXmlNode& aNode )
+bool EDMD_TRANSFORMATION::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString content = aNode.GetNodeContent();
-    const wxString name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
 
-    if( name == "pdm:xx" )
+    if( IDX_keyword_compare( name, "pdm:xx" ) )
     {
-        content.ToCDouble( &m_xx );
+        m_xx = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:xy" )
+    else if( IDX_keyword_compare( name, "pdm:xy" ) )
     {
-        content.ToCDouble( &m_xy );
+        m_xy = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:xz" )
+    else if( IDX_keyword_compare( name, "pdm:xz" ) )
     {
-        content.ToCDouble( &m_xz );
+        m_xz = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:yx" )
+    else if( IDX_keyword_compare( name, "pdm:yx" ) )
     {
-        content.ToCDouble( &m_yx );
+        m_yx = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:yy" )
+    else if( IDX_keyword_compare( name, "pdm:yy" ) )
     {
-        content.ToCDouble( &m_yy );
+        m_yy = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:yz" )
+    else if( IDX_keyword_compare( name, "pdm:yz" ) )
     {
-        content.ToCDouble( &m_yz );
+        m_yz = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:zx" )
+    else if( IDX_keyword_compare( name, "pdm:zx" ) )
     {
-        content.ToCDouble( &m_zx );
+        m_zx = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:zy" )
+    else if( IDX_keyword_compare( name, "pdm:zy" ) )
     {
-        content.ToCDouble( &m_zy );
+        m_zy = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:zz" )
+    else if( IDX_keyword_compare( name, "pdm:zz" ) )
     {
-        content.ToCDouble( &m_zz );
+        m_zz = parseDouble( content );
         return true;
     }
-    else if( name == "pdm:tx" )
+    else if( IDX_keyword_compare( name, "pdm:tx" ) )
     {
         m_tx = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
-    else if( name == "pdm:ty" )
+    else if( IDX_keyword_compare( name, "pdm:ty" ) )
     {
         m_ty = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
-    else if( name == "pdm:tz" )
+    else if( IDX_keyword_compare( name, "pdm:tz" ) )
     {
         m_tz = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
         return true;
     }
-    else if ( name == "pdm:TransformationType" )
+    else if ( IDX_keyword_compare( name, "pdm:TransformationType" ) )
     {
-        if( content == "d2" )
-        {
+        if( IDX_keyword_compare( content, "d2" ) )
             m_type = TYPE::D2;
-            return true;
-        }
-        else if ( content == "d3" )
-        {
+        else if ( IDX_keyword_compare( content, "d3" ) )
             m_type = TYPE::D3;
-            return true;
-        }
         else
-            return false;           
+            invalidValueIDX( name, content );
+
+        return true;         
     }
     
     return this->EDMD_OBJECT::Parse( aNode );
@@ -158,77 +154,79 @@ bool EDMD_TRANSFORMATION::Parse( wxXmlNode& aNode )
 // EDMD_SHAPE_ELEMENT
 // -----------------------------------------------------
 
-EDMD_SHAPE_ELEMENT::EDMD_SHAPE_ELEMENT( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+EDMD_SHAPE_ELEMENT::EDMD_SHAPE_ELEMENT( IDX_XML_NODE& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_SHAPE_ELEMENT::Parse(wxXmlNode& aNode)
+bool EDMD_SHAPE_ELEMENT::Parse(IDX_XML_NODE& aNode)
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if (name == "pdm:ShapeElementType")
+    if (IDX_keyword_compare( name, "pdm:ShapeElementType" ))
     {
-        if (content == "NonFeatureShapeElement")
+        if (IDX_keyword_compare( content, "NonFeatureShapeElement" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::NON_FEATURE_SHAPE_ELEMENT;
-        else if (content == "FeatureShapeElement")
+        else if (IDX_keyword_compare( content, "FeatureShapeElement" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::FEATURE_SHAPE_ELEMENT;
-        else if (content == "PartFeature")
+        else if (IDX_keyword_compare( content, "PartFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PART_FEATURE;
-        else if (content == "PartMountingFeature")
+        else if (IDX_keyword_compare( content, "PartMountingFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PART_MOUNTING_FEATURE;
-        else if (content == "ComponentTerminationPassageTemplateTerminal")
+        else if (IDX_keyword_compare( content, "ComponentTerminationPassageTemplateTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_TERMINAL;
-        else if (content == "ComponentTerminationPassageTemplateInterfaceTerminal")
+        else if (IDX_keyword_compare( content, "ComponentTerminationPassageTemplateInterfaceTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_INTERFACE_TERMINAL;
-        else if (content == "ComponentTerminationPassageTemplateJoinTerminal")
+        else if (IDX_keyword_compare( content, "ComponentTerminationPassageTemplateJoinTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_JOIN_TERMINAL;
-        else if (content == "PrintedPartCrossSectionTemplateTerminal")
+        else if (IDX_keyword_compare( content, "PrintedPartCrossSectionTemplateTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PRINTED_PART_CROSS_SECTION_TEMPLATE_TERMINAL;
-        else if (content == "PrintedPartTemplateInterfaceTerminal")
+        else if (IDX_keyword_compare( content, "PrintedPartTemplateInterfaceTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_INTERFACE_TERMINAL;
-        else if (content == "PrintedPartTemplateJoinTerminal")
+        else if (IDX_keyword_compare( content, "PrintedPartTemplateJoinTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_JOIN_TERMINAL;
-        else if (content == "StructuredPrintedPartTemplateTerminal")
+        else if (IDX_keyword_compare( content, "StructuredPrintedPartTemplateTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::STRUCTURED_PRINTED_PART_TEMPLATE_TERMINAL;
-        else if (content == "PrintedPartTemplateTerminal")
+        else if (IDX_keyword_compare( content, "PrintedPartTemplateTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_TERMINAL;
-        else if (content == "PartToolingFeature")
+        else if (IDX_keyword_compare( content, "PartToolingFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PART_TOOLING_FEATURE;
-        else if (content == "FiducialPartFeature")
+        else if (IDX_keyword_compare( content, "FiducialPartFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::FIDUCIAL_PART_FEATURE;
-        else if (content == "ThermalFeature")
+        else if (IDX_keyword_compare( content, "ThermalFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::THERMAL_FEATURE;
-        else if (content == "TestPointPartFeature")
+        else if (IDX_keyword_compare( content, "TestPointPartFeature" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::TEST_POINT_PART_FEATURE;
-        else if (content == "ConnectionZone")
+        else if (IDX_keyword_compare( content, "ConnectionZone" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::CONNECTION_ZONE;
-        else if (content == "ComponentTerminal")
+        else if (IDX_keyword_compare( content, "ComponentTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::COMPONENT_TERMINAL;
-        else if (content == "BareDieComponentTerminal")
+        else if (IDX_keyword_compare( content, "BareDieComponentTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::BARE_DIE_COMPONENT_TERMINAL;
-        else if (content == "Land")
+        else if (IDX_keyword_compare( content, "Land" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::LAND;
-        else if (content == "Package")
+        else if (IDX_keyword_compare( content, "Package" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PACKAGE;
-        else if (content == "PackageTerminal")
+        else if (IDX_keyword_compare( content, "PackageTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::PACKAGE_TERMINAL;
-        else if (content == "ViaTerminal")
+        else if (IDX_keyword_compare( content, "ViaTerminal" ))
             m_shapeElementType = SHAPE_ELEMENT_TYPE::VIA_TERMINAL;
         else
-            return false;
+        {
+            invalidValueIDX( name, content );
+        }
 
         return true;
     }
-    else if (name == "pdm:Inverted")
+    else if (IDX_keyword_compare( name, "pdm:Inverted" ))
     {
-        m_inverted = (content == "true");
+        m_inverted = (IDX_keyword_compare( content, "true" ));
         return true;
     }
-    else if (name == "pdm:DefiningShape")
+    else if (IDX_keyword_compare( name, "pdm:DefiningShape" ))
     {
         m_definingShapeRef = content;
         // ✅ m_definingShapeRef modified
@@ -256,19 +254,19 @@ bool EDMD_SHAPE_ELEMENT::Resolve( IDX_REGISTRY& aRegistry )
 // EDMD_ITEM_SHAPE
 // -----------------------------------------------------
 
-EDMD_ITEM_SHAPE::EDMD_ITEM_SHAPE( wxXmlNode& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+EDMD_ITEM_SHAPE::EDMD_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_ITEM_SHAPE::Parse( wxXmlNode& aNode )
+bool EDMD_ITEM_SHAPE::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if( name == "pdm:ShapeElement" )
+    if( IDX_keyword_compare( name, "pdm:ShapeElement" ) )
     {
         m_shapeElementRef.push_back( content );
         return true;
@@ -280,26 +278,6 @@ bool EDMD_ITEM_SHAPE::Parse( wxXmlNode& aNode )
 
 void EDMD_ITEM_SHAPE::print( int aIndex, int aMaxIndex )
 {
-    if ( aIndex >= aMaxIndex )
-        return;
-        
-    for ( int i = 0; i < aIndex ; i++ )
-        std::cout << "\t";
-    
-    std::cout << "--> ";
-
-    std:: cout << m_name << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
-
-    for ( int i = 0; i < aIndex ; i++ )
-        std::cout << "\t";        
-    std::cout << "    shape elements: ";
-
-    for ( auto shapeelement: m_shapeElement)
-    {
-        std::cout << shapeelement->m_name;
-    }
-    std::cout << std::endl;
-
 }
 
 
@@ -308,8 +286,6 @@ bool EDMD_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
     bool result = true;
     result &= idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
     result &= resolve<idx_pdm::EDMD_SHAPE_ELEMENT>( m_shapeElementRef, m_shapeElement, aRegistry );
-    for ( wxString ref : m_shapeElementRef )
-        std::cout << "resolved " << ref << ": " << result << std::endl;
     return result;
 }
 
@@ -319,29 +295,29 @@ bool EDMD_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
 // -----------------------------------------------------
 
 
-EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( wxXmlNode& aNode ) :
+EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode ) :
             EDMD_ITEM_SHAPE( aNode, false )
 {
-    wxXmlNode* child = aNode.GetChildren();
+    auto child = aNode.GetChildren();
 
     while( child )
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
 
-        if( name == "pdm:EDMDFunctionalItemShapeType" )
+        if( IDX_keyword_compare( name, "pdm:EDMDFunctionalItemShapeType" ) )
         {
-            if( content == "RigidArea" )
+            if( IDX_keyword_compare( content, "RigidArea" ) )
                 m_type = TYPE::RIGID_AREA;
-            else if( content == "FlexibleArea" )
+            else if( IDX_keyword_compare( content, "FlexibleArea" ) )
                 m_type = TYPE::FLEXIBLE_AREA;
-            else if( content == "Stiffener" )
+            else if( IDX_keyword_compare( content, "Stiffener" ) )
                 m_type = TYPE::STIFFENER;
-            else if( content == "UserArea" )
+            else if( IDX_keyword_compare( content, "UserArea" ) )
                 m_type = TYPE::USER_AREA;
-            else if( content == "PlacementGroupArea" )
+            else if( IDX_keyword_compare( content, "PlacementGroupArea" ) )
                 m_type = TYPE::PLACEMENT_GROUP;
-            else if( content == "MechanicalItem" )
+            else if( IDX_keyword_compare( content, "MechanicalItem" ) )
                 m_type = TYPE::MECHANICAL;
         }
         child = child->GetNext();
@@ -361,62 +337,62 @@ bool EDMD_FUNCTIONAL_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
 // -----------------------------------------------------
 
 
-EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( wxXmlNode& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-    wxXmlNode* child = aNode.GetChildren();
+    auto child = aNode.GetChildren();
 
     while( child )
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
 
-        if( name == "pdm:StratumTechnologyType" )
+        if( IDX_keyword_compare( name, "pdm:StratumTechnologyType" ) )
         {
-            if( content == "Design" )
+            if( IDX_keyword_compare( content, "Design" ) )
                 m_stratumTechnologyType = STRATUM_TECHNOLOGY_TYPE::DESIGN;
-            else if( content == "Documentation" )
+            else if( IDX_keyword_compare( content, "Documentation" ) )
                 m_stratumTechnologyType = STRATUM_TECHNOLOGY_TYPE::DOCUMENTATION;
         }
-        else if( name == "pdm:LayerPurpose" )
+        else if( IDX_keyword_compare( name, "pdm:LayerPurpose" ) )
         {
-            if( content == "SolderMask" )
+            if( IDX_keyword_compare( content, "SolderMask" ) )
                 m_layerPurpose = LAYER_PURPOSE::SOLDERMASK;
-            else if( content == "SolderPaste" )
+            else if( IDX_keyword_compare( content, "SolderPaste" ) )
                 m_layerPurpose = LAYER_PURPOSE::SOLDERPASTE;
-            else if( content == "SilkScreen" )
+            else if( IDX_keyword_compare( content, "SilkScreen" ) )
                 m_layerPurpose = LAYER_PURPOSE::SILKSCREEN;
-            else if( content == "GenericLayer" )
+            else if( IDX_keyword_compare( content, "GenericLayer" ) )
                 m_layerPurpose = LAYER_PURPOSE::GENERIC_LAYER;
-            else if( content == "Glue" )
+            else if( IDX_keyword_compare( content, "Glue" ) )
                 m_layerPurpose = LAYER_PURPOSE::GLUE;
-            else if( content == "GlueMask" )
+            else if( IDX_keyword_compare( content, "GlueMask" ) )
                 m_layerPurpose = LAYER_PURPOSE::GLUEMASK;
-            else if( content == "PasteMask" )
+            else if( IDX_keyword_compare( content, "PasteMask" ) )
                 m_layerPurpose = LAYER_PURPOSE::PASTEMASK;
-            else if( content == "OtherSignal" )
+            else if( IDX_keyword_compare( content, "OtherSignal" ) )
                 m_layerPurpose = LAYER_PURPOSE::OTHER_SIGNAL;
-            else if( content == "LandsOnly" )
+            else if( IDX_keyword_compare( content, "LandsOnly" ) )
                 m_layerPurpose = LAYER_PURPOSE::LANDS_ONLY;
-            else if( content == "PowerOrGround" )
+            else if( IDX_keyword_compare( content, "PowerOrGround" ) )
                 m_layerPurpose = LAYER_PURPOSE::POWER_OR_GROUND;
-            else if( content == "EmbeddedPassiveCapacitorDielectric" )
+            else if( IDX_keyword_compare( content, "EmbeddedPassiveCapacitorDielectric" ) )
                 m_layerPurpose = LAYER_PURPOSE::EMBEDDED_PASSIVE_CAPACITOR_DIELECTRIC;
-            else if( content == "Dielectric" )
+            else if( IDX_keyword_compare( content, "Dielectric" ) )
                 m_layerPurpose = LAYER_PURPOSE::DIELECTRIC;
-            else if( content == "EmbeddedPassiveResistor" )
+            else if( IDX_keyword_compare( content, "EmbeddedPassiveResistor" ) )
                 m_layerPurpose = LAYER_PURPOSE::EMBEDDED_PASSIVE_RESISTOR;
         }
-        else if( name == "pdm:LayerPositionType" )
+        else if( IDX_keyword_compare( name, "pdm:LayerPositionType" ) )
         {
-            if( content == "Primary" )
+            if( IDX_keyword_compare( content, "Primary" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::PRIMARY;
-            else if( content == "Secondary" )
+            else if( IDX_keyword_compare( content, "Secondary" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::SECONDARY;
-            else if( content == "All" )
+            else if( IDX_keyword_compare( content, "All" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::ALL;
-            else if( content == "External" )
+            else if( IDX_keyword_compare( content, "External" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::EXTERNAL;
-            else if( content == "Internal" )
+            else if( IDX_keyword_compare( content, "Internal" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::INTERNAL;
         }
 
@@ -430,40 +406,40 @@ EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( wxXmlNode& aNode ) : idx_found
 // -----------------------------------------------------
 
 
-EDMD_STRATUM::EDMD_STRATUM( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
+EDMD_STRATUM::EDMD_STRATUM( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_STRATUM::Parse( wxXmlNode& aNode )
+bool EDMD_STRATUM::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if( name == "pdm:StratumTechnology" )
+    if( IDX_keyword_compare( name, "pdm:StratumTechnology" ) )
     {
         m_stratumTechnologyRef.push_back( content );
         return true;
     }
-    else if( name == "pdm:StratumType" )
+    else if( IDX_keyword_compare( name, "pdm:StratumType" ) )
     {
         return false;
     }
-    else if( name == "pdm:StratumSurfaceDesignation" )
+    else if( IDX_keyword_compare( name, "pdm:StratumSurfaceDesignation" ) )
     {
-        if( content == "AverageSurface" )
+        if( IDX_keyword_compare( content, "AverageSurface" ) )
         {
             m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::AVERAGE_SURFACE;
             return true;
         }
-        else if( content == "PrimarySurface" )
+        else if( IDX_keyword_compare( content, "PrimarySurface" ) )
         {
             m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::PRIMARY_SURFACE;    
             return true;
         }
-        else if( content == "SecondarySurface" )
+        else if( IDX_keyword_compare( content, "SecondarySurface" ) )
         {
             m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::SECONDARY_SURFACE;
             return true;
@@ -488,49 +464,49 @@ bool EDMD_STRATUM::Resolve( IDX_REGISTRY& aRegistry )
 // -----------------------------------------------------
 
 
-EDMD_KEEP_CONSTRAINT::EDMD_KEEP_CONSTRAINT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
+EDMD_KEEP_CONSTRAINT::EDMD_KEEP_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_KEEP_CONSTRAINT::Parse( wxXmlNode& aNode )
+bool EDMD_KEEP_CONSTRAINT::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if( name == "pdm:Purpose" )
+    if( IDX_keyword_compare( name, "pdm:Purpose" ) )
     {
-        if( content == "Thermal" )
+        if( IDX_keyword_compare( content, "Thermal" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::THERMAL );
-        else if( content == "GenericClearance" )
+        else if( IDX_keyword_compare( content, "GenericClearance" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::GENERIC_CLEARANCE );
-        else if( content == "Shock" )
+        else if( IDX_keyword_compare( content, "Shock" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::SHOCK );
-        else if( content == "Vibration" )
+        else if( IDX_keyword_compare( content, "Vibration" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::VIBRATION );
-        else if( content == "ElectromagneticCompatibility" )
+        else if( IDX_keyword_compare( content, "ElectromagneticCompatibility" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::EMC );
-        else if( content == "ComponentPlacement" )
+        else if( IDX_keyword_compare( content, "ComponentPlacement" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT );
-        else if( content == "Route" )
+        else if( IDX_keyword_compare( content, "Route" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::ROUTE );
-        else if( content == "Via" )
+        else if( IDX_keyword_compare( content, "Via" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::VIA );
-        else if( content == "TestPoint" )
+        else if( IDX_keyword_compare( content, "TestPoint" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::TESTPOINT );
-        else if( content == "ValueLimit" )
+        else if( IDX_keyword_compare( content, "ValueLimit" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::VALUELIMIT );
-        else if( content == "Plane" )
+        else if( IDX_keyword_compare( content, "Plane" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::PLANE );
-        else if( content == "Other" )
+        else if( IDX_keyword_compare( content, "Other" ) )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::OTHER );
         else
-            return false;
+            invalidValueIDX( name, content );
         return true;
     }
-    else if( name == "pdm:KeepConstraintCondition" )
+    else if( IDX_keyword_compare( name, "pdm:KeepConstraintCondition" ) )
     {
         m_keepConstraintCondition.emplace_back( aNode, true );
         return true;
@@ -545,7 +521,7 @@ bool EDMD_KEEP_CONSTRAINT::Parse( wxXmlNode& aNode )
 // -----------------------------------------------------
 
 
-EDMD_KEEPOUT::EDMD_KEEPOUT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
+EDMD_KEEPOUT::EDMD_KEEPOUT( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
@@ -557,7 +533,7 @@ EDMD_KEEPOUT::EDMD_KEEPOUT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONST
 // -----------------------------------------------------
 
 
-EDMD_KEEPIN::EDMD_KEEPIN( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
+EDMD_KEEPIN::EDMD_KEEPIN( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRAINT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
@@ -569,44 +545,44 @@ EDMD_KEEPIN::EDMD_KEEPIN( wxXmlNode& aNode, bool aTopLevel ) : EDMD_KEEP_CONSTRA
 // -----------------------------------------------------
 
 
-EDMD_ITEM_INSTANCE::EDMD_ITEM_INSTANCE( wxXmlNode& aNode, bool aTopLevel ) : EDMD_EXTENSIBLE_OBJECT( aNode, false )
+EDMD_ITEM_INSTANCE::EDMD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_EXTENSIBLE_OBJECT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_ITEM_INSTANCE::Parse( wxXmlNode& aNode )
+bool EDMD_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if ( name == "pdm:InstanceName" )
+    if ( IDX_keyword_compare( name, "pdm:InstanceName" ) )
     {
         m_instanceName = idx_foundation::EDMD_NAME( aNode, true );
         return true;
     }
-    else if ( name == "pdm:Transformation" )
+    else if ( IDX_keyword_compare( name, "pdm:Transformation" ) )
     {
         m_transformation = idx_pdm::EDMD_TRANSFORMATION( aNode, true );
         return true;
     }
-    else if ( name == "pdm:Item" )
+    else if ( IDX_keyword_compare( name, "pdm:Item" ) )
     {
         m_itemRef = content;
         return true;
     }
-    else if ( name == "pdm:InstanceUserAreaLayerName" )
+    else if ( IDX_keyword_compare( name, "pdm:InstanceUserAreaLayerName" ) )
     {
         m_instanceUserAreaLayerName.emplace_back( aNode, true );
         return true;
     }
-    else if ( name == "pdm:zOffset")
+    else if ( IDX_keyword_compare( name, "pdm:zOffset" ))
     {
-        content.ToCDouble( &m_zOffset );
+        m_zOffset = parseDouble( content );
         return true;
     }
-    else if ( name == "foundation:Name" )
+    else if ( IDX_keyword_compare( name, "foundation:Name" ) )
     {
         m_name = content;
         return true;
@@ -618,19 +594,7 @@ bool EDMD_ITEM_INSTANCE::Parse( wxXmlNode& aNode )
 
 void EDMD_ITEM_INSTANCE::print( int aIndex, int aMaxIndex )
 {
-    if ( aIndex >= aMaxIndex )
-        return;
-        
-    for ( int i = 0; i < aIndex ; i++ )
-        std::cout << "\t";
-    
-    std::cout << "--> ";
 
-    std:: cout << m_name << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
-
-    for ( int i = 0; i < aIndex ; i++ )
-        std::cout << "\t";        
-    std::cout << "    item ref: " << m_itemRef << std::endl;
 }
 
 bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
@@ -649,54 +613,54 @@ bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 // EDMD_ITEM
 // -----------------------------------------------------
 
-EDMD_ITEM::EDMD_ITEM( wxXmlNode& aNode, bool aTopLevel ) : EDMD_COLLABORATION_OBJECT( aNode, false )
+EDMD_ITEM::EDMD_ITEM( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_COLLABORATION_OBJECT( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_ITEM::Parse( wxXmlNode& aNode )
+bool EDMD_ITEM::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-   if( name == "pdm:ItemType" )
+   if( IDX_keyword_compare( name, "pdm:ItemType" ) )
         {
-            if( content == "single" )
+            if( IDX_keyword_compare( content, "single" ) )
                 m_itemType = ITEM_TYPE::SINGLE;
-            else if( content == "assembly" )
+            else if( IDX_keyword_compare( content, "assembly" ) )
                 m_itemType = ITEM_TYPE::ASSEMBLY;
             else
-                return false;
+                invalidValueIDX( name, content );
             return true;
         }
-    else if( name == "pdm:Identifier" )
+    else if( IDX_keyword_compare( name, "pdm:Identifier" ) )
         {
             m_identifier.emplace_back( aNode, true);
             return true;
         }
-    else if( name == "pdm:PackageName" )
+    else if( IDX_keyword_compare( name, "pdm:PackageName" ) )
         {
             m_packageName.emplace_back( aNode, true );
             return true;
         }
-    else if( name == "pdm:ItemInstance" )
+    else if( IDX_keyword_compare( name, "pdm:ItemInstance" ) )
         {
             m_itemInstance.emplace_back( std::make_shared<idx_pdm::EDMD_ITEM_INSTANCE>( aNode, true ) );
             return true;
         }
-    else if( name == "pdm:Shape" )
+    else if( IDX_keyword_compare( name, "pdm:Shape" ) )
         {                       
             m_shapeRef = content;
             return true;
         }
-    else if( name == "pdm:BaseLine" )
+    else if( IDX_keyword_compare( name, "pdm:BaseLine" ) )
         {                       
             m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
             return true;
         }
-    else if( name == "pdm:Accept" )
+    else if( IDX_keyword_compare( name, "pdm:Accept" ) )
         {                       
             m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
             return true;
@@ -708,24 +672,6 @@ bool EDMD_ITEM::Parse( wxXmlNode& aNode )
 
 void EDMD_ITEM::print( int aIndex, int aMaxIndex )
 {
-    if ( aIndex >= aMaxIndex )
-        return;
-
-    for ( int i = 0; i < aIndex ; i++ )
-        std::cout << "\t";
-    
-    std::cout << "--> ";
-
-    std:: cout << m_id << " ( " << wxString::FromUTF8( typeid( *this ).name()  ) << " )" << std::endl;
-
-    for ( auto inst: m_itemInstance )
-    {
-        inst->print( aIndex+1 );
-    }
-    if ( m_shape )
-    {
-        m_shape->print( aIndex+1 );
-    }
 }
 
 bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
@@ -733,8 +679,8 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
     bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
     bool result1, result2;
 
-    result1 = resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
-    result2 = resolve<EDMD_FUNCTIONAL_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
+    result1 = resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
+    result2 = resolve<EDMD_FUNCTIONAL_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
 
 
     if( !result1 && !result2 )
@@ -755,30 +701,30 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 // EDMD_ASSEMBLY_COMPONENT
 // -----------------------------------------------------
 
-EDMD_ASSEMBLY_COMPONENT::EDMD_ASSEMBLY_COMPONENT( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
+EDMD_ASSEMBLY_COMPONENT::EDMD_ASSEMBLY_COMPONENT( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
 
-bool EDMD_ASSEMBLY_COMPONENT::Parse( wxXmlNode& aNode )
+bool EDMD_ASSEMBLY_COMPONENT::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
 
-    if( name == "pdm:AssemblyComponentType" )
+    if( IDX_keyword_compare( name, "pdm:AssemblyComponentType" ) )
     {
-        if( content == "AssemblyGroupComponent" )
+        if( IDX_keyword_compare( content, "AssemblyGroupComponent" ) )
             m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::ASSEMBLY_GROUP_COMPONENT;
-        else if( content == "LaminateComponent" )
+        else if( IDX_keyword_compare( content, "LaminateComponent" ) )
             m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::LAMINATE_COMPONENT;
-        else if( content == "ThermalComponent" )
+        else if( IDX_keyword_compare( content, "ThermalComponent" ) )
             m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::THERMAL_COMPONENT;
-        else if( content == "Physical" )
+        else if( IDX_keyword_compare( content, "Physical" ) )
             m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::PHYSICAL;
-        else if( content == "Padstack" )
+        else if( IDX_keyword_compare( content, "Padstack" ) )
             m_assemblyComponentType = ASSEMBLY_COMPONENT_TYPE::PADSTACK;
         else
             return false;
@@ -803,57 +749,57 @@ bool EDMD_ASSEMBLY_COMPONENT::Resolve( IDX_REGISTRY& aRegistry )
 // EDMD_INTERSTRATUM_FEATURE
 // -----------------------------------------------------
 
-EDMD_INTERSTRATUM_FEATURE::EDMD_INTERSTRATUM_FEATURE( wxXmlNode& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
+EDMD_INTERSTRATUM_FEATURE::EDMD_INTERSTRATUM_FEATURE( IDX_XML_NODE& aNode, bool aTopLevel ) : EDMD_ITEM_SHAPE( aNode, false )
 {
     if ( aTopLevel )
         ParseChildren( aNode );
 };
 
-bool EDMD_INTERSTRATUM_FEATURE::Parse(wxXmlNode& aNode)
+bool EDMD_INTERSTRATUM_FEATURE::Parse(IDX_XML_NODE& aNode)
 {
-    const wxString content = aNode.GetNodeContent();
-    const wxString name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
 
-    if (name == "pdm:InterStratumFeatureType")
+    if (IDX_keyword_compare( name, "pdm:InterStratumFeatureType" ))
     {
-        if (content == "UnsupportedPassage")
+        if (IDX_keyword_compare( content, "UnsupportedPassage" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::UNSUPPORTED_PASSAGE;
-        else if (content == "StratumFeatureTemplateComponent")
+        else if (IDX_keyword_compare( content, "StratumFeatureTemplateComponent" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::STRATUM_FEATURE_TEMPLATE_COMPONENT;
-        else if (content == "CutoutEdgeSegment")
+        else if (IDX_keyword_compare( content, "CutoutEdgeSegment" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUTOUT_EDGE_SEGMENT;
-        else if (content == "PlatedCutoutEdgeSegment")
+        else if (IDX_keyword_compare( content, "PlatedCutoutEdgeSegment" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT_EDGE_SEGMENT;
-        else if (content == "Cutout")
+        else if (IDX_keyword_compare( content, "Cutout" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUTOUT;
-        else if (content == "PlatedInterStratumFeature")
+        else if (IDX_keyword_compare( content, "PlatedInterStratumFeature" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_INTERSTRATUM_FEATURE;
-        else if (content == "PlatedPassage")
+        else if (IDX_keyword_compare( content, "PlatedPassage" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_PASSAGE;
-        else if (content == "MilledCutout")
+        else if (IDX_keyword_compare( content, "MilledCutout" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::MILLED_CUTOUT;
-        else if (content == "PlatedCutout")
+        else if (IDX_keyword_compare( content, "PlatedCutout" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT;
-        else if (content == "Via")
+        else if (IDX_keyword_compare( content, "Via" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::VIA;
-        else if (content == "PhysicalConnectivityInterruptingCutout")
+        else if (IDX_keyword_compare( content, "PhysicalConnectivityInterruptingCutout" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::PHYSICAL_CONNECTIVITY_INTERRUPTING_CUTOUT;
-        else if (content == "ComponentTerminationPassage")
+        else if (IDX_keyword_compare( content, "ComponentTerminationPassage" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::COMPONENT_TERMINATION_PASSAGE;
-        else if (content == "FilledVia")
+        else if (IDX_keyword_compare( content, "FilledVia" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::FILLED_VIA;
-        else if (content == "MechanicalComponent")
+        else if (IDX_keyword_compare( content, "MechanicalComponent" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::MECHANICAL_COMPONENT;
-        else if (content == "CustomElectroMechanicalComponent")
+        else if (IDX_keyword_compare( content, "CustomElectroMechanicalComponent" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::CUSTOM_ELECTROMECHANICAL_COMPONENT;
-        else if (content == "BoardCutout")
+        else if (IDX_keyword_compare( content, "BoardCutout" ))
             m_interstratumFeatureType = INTERSTRATUM_FEATURE_TYPE::BOARD_CUTOUT;
         else
-            return false;
+            invalidValueIDX( name, content);
 
         return true;
     }
-    else if (name == "pdm:Stratum")
+    else if (IDX_keyword_compare( name, "pdm:Stratum" ))
     {
         m_stratumRef.push_back(content);
         return true;

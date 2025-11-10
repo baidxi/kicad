@@ -27,13 +27,22 @@
 
 
 #include <map>
-#include <wx/string.h>
 #include <wx/datetime.h>
 #include <wx/xml/xml.h>
 #include <iostream>
 #include <memory>
 #include <typeindex>
+#include <iostream>
+#include <sstream>
+#include <string>
 
+// Here we define some helper functions, we don't want to use std::string.
+// Hopefuly, this code will be shared with open sources MCAD softwares
+
+bool IDX_keyword_compare( std::string a, std::string b );
+
+
+class IDX_XML_NODE;
 
 namespace idx_administration
 {
@@ -140,24 +149,23 @@ class IDX_REGISTRY
 public:
     // Register a new object of any type
     template <typename T>
-    void registerObject( const wxString& name, std::shared_ptr<T> object )
+    void registerObject( const std::string& name, std::shared_ptr<T> object )
     {
         auto& registry = getRegistry<T>();
         registry[name] = object;
     }
 
-
     template <typename T>
-    void resolveRegistryFailed( wxString aName )
+    void resolveRegistryFailed( std::string aName )
     {
         std::cerr << "Warning: Object " << aName << " not found in registry. ( " << typeid( T ).name() << " )"
-                  << std::endl;
+                    << std::endl;
     }
 
 
     // Resolve an object of any type by name
     template <typename T>
-    std::shared_ptr<IDX_BASE> resolve( const wxString& name, bool suppressWarning = false )
+    std::shared_ptr<IDX_BASE> resolve( const std::string& name, bool suppressWarning = false )
     {
         const auto& registry = getRegistry<T>();
         auto        it = registry.find( name );
@@ -176,34 +184,12 @@ public:
 private:
     // Helper function to get the registry for a specific type
     template <typename T>
-    std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>& getRegistry()
+    std::unordered_map<std::string, std::shared_ptr<IDX_BASE>>& getRegistry()
     {
         return registries[typeid( T )];
     }
 
-    /*
-const std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>& getRegistry() const {
-    // Try to find the registry for the type T
-    auto registryIt = registries.find(typeid(T));
-    if (registryIt != registries.end()) {
-        // If found, return a reference to the inner map
-        return registryIt->second;
-    }
-    */
-    /*
-    template <typename T>
-    const std::unordered_map<wxString, std::shared_ptr<EDMD_OBJECT>>& getRegistry() const {
-        auto it = registries.find(typeid(T));
-        if (it != registries.end()) {
-            return it->second;
-        } else {
-            static const std::unordered_map<wxString, std::shared_ptr<idx::EDMD_OBJECT>> emptyRegistry;
-            return emptyRegistry;
-        }
-    }
-    */
-
-    std::unordered_map<std::type_index, std::unordered_map<wxString, std::shared_ptr<IDX_BASE>>>
+    std::unordered_map<std::type_index, std::unordered_map<std::string, std::shared_ptr<IDX_BASE>>>
             registries;
 };
 
@@ -212,7 +198,7 @@ class IDX_BASE
 public:
     IDX_BASE() {};
     virtual ~IDX_BASE() = default; // Virtual destructor makes the class polymorphic
-    bool Resolve( IDX_REGISTRY& aRegistry ) { return true; };
+    bool Resolve( IDX_REGISTRY& aRegistry );
 
 
     enum OPTIONAL_LOGIC: int
@@ -222,36 +208,66 @@ public:
         LOGIC_TRUE=1
     };
 
+    enum REPORT_LEVEL: int
+    {
+        INFO = 0,
+        ACTION,
+        WARNING,
+        ERROR
+    };
+
+
+double parseDouble(const std::string& inputStr)
+{
+    std::string str = inputStr;
+
+    // Remove leading/trailing whitespace
+    str.erase(0, str.find_first_not_of(" \t\n\r"));
+    str.erase(str.find_last_not_of(" \t\n\r") + 1);
+
+    // Replace comma with dot
+    std::replace(str.begin(), str.end(), ',', '.');
+
+    // Use stringstream with C locale to ensure '.' is decimal separator
+    std::istringstream iss(str);
+    iss.imbue(std::locale::classic()); // "C" locale
+
+    double value;
+    if (!(iss >> value)) {
+        std::cerr << "Error: '" << inputStr << "' is not a valid double.\n";
+        return 0.0;
+    }
+
+    // Make sure there are no extra characters after the number
+    char leftover;
+    if (iss >> leftover) {
+        std::cerr << "Error: Extra characters after number in '" << inputStr << "'.\n";
+        return 0.0;
+    }
+
+    return value;
+}
 protected:
 
-    void ParseChildren( wxXmlNode& node )
-    {
-        for (wxXmlNode* child = node.GetChildren(); child; child = child->GetNext())
-        {
-            if (!this->Parse(*child))
-                this->unknownKeywordIDX(child->GetName());
-        }
-    }
+    // Function to report in your CAD software
+    void Report( std::string aMsg, REPORT_LEVEL aLvl );
+    void ParseChildren( IDX_XML_NODE& node );
 
-
-    virtual bool Parse( wxXmlNode& aNode ) { return false; };
+    virtual bool Parse( IDX_XML_NODE& aNode ) { return false; };
     bool m_topLevel = false;
 
-    virtual void unknownKeywordIDX( wxString aName )
-    {
-        wxString error = wxString::Format( wxT( "Unhandled IDX keyword: %s for class: %s" ), aName,
-                                           wxString::FromUTF8( typeid( *this ).name() ) // Converts char* to wxString
-        );
-        std::cout << error << std::endl;
-    }
+    void unknownKeywordIDX( std::string aName );
+    void invalidValueIDX(std::string aKeyword, std::string aValue);
+
+
 
     template <typename T, typename U>
-    bool resolve( wxString aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry, bool aSuppressWarning = false )
+    bool resolve( std::string aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry )
     {
         if( !aDest )
             return false;
 
-        auto resolvedPoint = aRegistry.resolve<T>( aName, aSuppressWarning );
+        auto resolvedPoint = aRegistry.resolve<T>( aName );
 
         if( !resolvedPoint )
             return false;
@@ -260,18 +276,16 @@ protected:
         return true;
     }
 
-
     template <typename T, typename U>
-    bool resolve( std::vector<wxString>& aName, std::vector<std::shared_ptr<U>>& aDest, IDX_REGISTRY& aRegistry,
-                  bool suppressWarning = false )
+    bool resolve( std::vector<std::string>& aName, std::vector<std::shared_ptr<U>>& aDest, IDX_REGISTRY& aRegistry )
     {
         bool result = true;
 
-        for( wxString& name : aName )
+        for( std::string& name : aName )
         {
             std::shared_ptr<U> tmp;
 
-            if( resolve<U>( name, &tmp, aRegistry, suppressWarning ) )
+            if( resolve<U>( name, &tmp, aRegistry ) )
                 aDest.push_back( tmp );
             else
                 result = false;
@@ -280,8 +294,32 @@ protected:
         aName = {}; // To prevent double inclusions.
         return result;
     }
-
-    bool resolved = false;
 };
+
+
+class IDX_XML_NODE
+{
+public:
+    virtual ~IDX_XML_NODE() = default;
+
+    // --- Basic accessors ---
+    virtual std::string GetName() const = 0;
+    virtual std::string GetAttribute(const std::string& name, const std::string& defaultValue) const = 0;
+    virtual std::string GetNodeContent() const = 0;
+    virtual void SetAttribute(const std::string& name, const std::string& value) = 0;
+
+    virtual std::string GetText() const = 0;
+    virtual void SetText(const std::string& text) = 0;
+
+    // --- Tree navigation ---
+    virtual std::shared_ptr<IDX_XML_NODE> GetParent() const = 0;
+    virtual std::shared_ptr<IDX_XML_NODE> GetChildren() const = 0;
+    virtual std::shared_ptr<IDX_XML_NODE> AppendChild(const std::string& name) = 0;
+    virtual std::shared_ptr<IDX_XML_NODE> GetNext() const = 0;
+
+    // --- Utility ---
+    virtual void RemoveChild(const std::shared_ptr<IDX_XML_NODE>& child) = 0;
+};
+
 
 #endif

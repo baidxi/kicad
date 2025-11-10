@@ -43,18 +43,18 @@ class EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT : public idx_foundation::EDMD_COLLAB
 {
 public:
     EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT();
-    EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT(IDX_XML_NODE& aNode, bool aTopLevel);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode) override;
+    bool Parse( IDX_XML_NODE& aNode) override;
 };
 
 class EDMD_CURVE : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
 {
 public:
-    EDMD_CURVE(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_CURVE(IDX_XML_NODE& aNode, bool aTopLevel);
     virtual ~EDMD_CURVE();
     virtual bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode) override;
+    bool Parse( IDX_XML_NODE& aNode) override;
 
     idx_property::EDMD_LENGTH_PROPERTY m_thickness;
 };
@@ -64,7 +64,7 @@ public:
 class EDMD_HYPERBOLA : public EDMD_CURVE
 {
 public:
-    EDMD_HYPERBOLA(wxXmlNode& aNode);
+    EDMD_HYPERBOLA(IDX_XML_NODE& aNode);
 
     std::shared_ptr<EDMD_POINT> m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
@@ -74,7 +74,7 @@ public:
 class EDMD_TRIMMED_CURVE : public EDMD_CURVE
 {
 public:
-    EDMD_TRIMMED_CURVE(wxXmlNode& aNode);
+    EDMD_TRIMMED_CURVE(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_POINT> m_start;
     std::shared_ptr<EDMD_POINT> m_end;
@@ -83,7 +83,7 @@ public:
 class EDMD_LINE : public EDMD_CURVE
 {
 public:
-    EDMD_LINE(wxXmlNode& aNode);
+    EDMD_LINE(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_CURVE> m_point;
     std::shared_ptr<EDMD_POINT> m_vector;
 };
@@ -101,7 +101,7 @@ enum class EDMD_BSPLINE_CURVE_FORM
 class EDMD_BSPLINE_CURVE : public EDMD_CURVE
 {
 public:
-    EDMD_BSPLINE_CURVE(wxXmlNode& aNode);
+    EDMD_BSPLINE_CURVE(IDX_XML_NODE& aNode);
 
     int m_degree;
     std::vector<std::shared_ptr<EDMD_POINT>> m_controlPointsList;
@@ -113,28 +113,28 @@ public:
 class EDMD_COMPOSITE_CURVE : public EDMD_CURVE
 {
 public:
-    EDMD_COMPOSITE_CURVE(wxXmlNode& aNode);
+    EDMD_COMPOSITE_CURVE(IDX_XML_NODE& aNode);
     std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
 };
 
 class EDMD_POLYLINE : public EDMD_CURVE
 {
 public:
-    EDMD_POLYLINE(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_POLYLINE(IDX_XML_NODE& aNode, bool aTopLevel);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode) override;
+    bool Parse( IDX_XML_NODE& aNode) override;
 
     std::vector<std::shared_ptr<EDMD_POINT>> m_point;
 
 private:
-    std::vector<wxString> m_pointRef;
+    std::vector<std::string> m_pointRef;
 };
 
 class EDMD_CURVESET2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
 {
 public:
     EDMD_CURVESET2D();
-    EDMD_CURVESET2D(wxXmlNode& aNode);
+    EDMD_CURVESET2D(IDX_XML_NODE& aNode);
     bool Resolve(IDX_REGISTRY& aRegistry);
 
     idx_property::EDMD_LENGTH_PROPERTY m_lowerBound;
@@ -142,13 +142,13 @@ public:
     std::vector<std::shared_ptr<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>> m_modelElement;
 
 private:
-    std::vector<wxString> m_modelElementRef;
+    std::vector<std::string> m_modelElementRef;
 };
 
 class EDMD_ARC : public EDMD_CURVE
 {
 public:
-    EDMD_ARC(wxXmlNode& aNode);
+    EDMD_ARC(IDX_XML_NODE& aNode);
     bool Resolve(IDX_REGISTRY& aRegistry);
     std::shared_ptr<EDMD_POINT> GetStart();
     std::shared_ptr<EDMD_POINT> GetEnd();
@@ -158,14 +158,14 @@ private:
     std::shared_ptr<EDMD_POINT> m_startPoint;
     std::shared_ptr<EDMD_POINT> m_endPoint;
     idx_property::EDMD_ANGLE_PROPERTY m_includeAngle;
-    wxString m_startPointRef;
-    wxString m_endPointRef;
+    std::string m_startPointRef;
+    std::string m_endPointRef;
 };
 
 class EDMD_ELLIPSE : public EDMD_CURVE
 {
 public:
-    EDMD_ELLIPSE(wxXmlNode& aNode);
+    EDMD_ELLIPSE(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_POINT> m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
@@ -175,7 +175,7 @@ class EDMD_POINT : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
 {
 public:
     EDMD_POINT();
-    EDMD_POINT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_POINT(IDX_XML_NODE& aNode, bool aTopLevel);
     virtual double GetX() const;
     virtual double GetY() const;
     virtual ~EDMD_POINT();
@@ -184,7 +184,7 @@ public:
 class EDMD_CIRCLE : public EDMD_CURVE
 {
 public:
-    EDMD_CIRCLE(wxXmlNode& aNode);
+    EDMD_CIRCLE(IDX_XML_NODE& aNode);
     virtual bool Resolve(IDX_REGISTRY& aRegistry);
     virtual std::shared_ptr<EDMD_POINT> GetCenter() const;
     virtual double GetRadius() const;
@@ -193,7 +193,7 @@ public:
 class EDMD_CIRCLE_3POINTS : public EDMD_CIRCLE
 {
 public:
-    EDMD_CIRCLE_3POINTS(wxXmlNode& aNode);
+    EDMD_CIRCLE_3POINTS(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_POINT> m_p1;
     std::shared_ptr<EDMD_POINT> m_p2;
     std::shared_ptr<EDMD_POINT> m_p3;
@@ -202,7 +202,7 @@ public:
 class EDMD_CIRCLE_CENTER : public EDMD_CIRCLE
 {
 public:
-    EDMD_CIRCLE_CENTER(wxXmlNode& aNode);
+    EDMD_CIRCLE_CENTER(IDX_XML_NODE& aNode);
     bool Resolve(IDX_REGISTRY& aRegistry);
     std::shared_ptr<EDMD_POINT> GetCenter() const override;
     double GetRadius() const override;
@@ -210,13 +210,13 @@ public:
 private:
     std::shared_ptr<EDMD_POINT> m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_diameter;
-    wxString m_centerRef;
+    std::string m_centerRef;
 };
 
 class EDMD_OFFSET_CURVE : public EDMD_CURVE
 {
 public:
-    EDMD_OFFSET_CURVE(wxXmlNode& aNode);
+    EDMD_OFFSET_CURVE(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_CURVE> m_basisCurve;
     idx_property::EDMD_LENGTH_PROPERTY m_distance;
     bool m_selfIntersects;
@@ -225,7 +225,7 @@ public:
 class EDMD_PARABOLA : public EDMD_CURVE
 {
 public:
-    EDMD_PARABOLA(wxXmlNode& aNode);
+    EDMD_PARABOLA(IDX_XML_NODE& aNode);
     std::shared_ptr<EDMD_POINT> m_focus;
     std::shared_ptr<EDMD_POINT> m_parabola;
 };
@@ -233,17 +233,17 @@ public:
 class EDMD_POINT_ON_CURVE_INTERSECTION : public EDMD_POINT
 {
 public:
-    EDMD_POINT_ON_CURVE_INTERSECTION(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_POINT_ON_CURVE_INTERSECTION(IDX_XML_NODE& aNode, bool aTopLevel);
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_CURVE> m_intersector;
-    bool Parse( wxXmlNode& aNode) override;
+    bool Parse( IDX_XML_NODE& aNode) override;
 };
 
 class EDMD_CARTESIAN_POINT : public EDMD_POINT
 {
 public:
-    EDMD_CARTESIAN_POINT(wxXmlNode& aNode, bool aTOpLevel);
-    bool Parse( wxXmlNode& aNode) override;
+    EDMD_CARTESIAN_POINT(IDX_XML_NODE& aNode, bool aTOpLevel);
+    bool Parse( IDX_XML_NODE& aNode) override;
     double GetX() const override;
     double GetY() const override;
 
@@ -256,8 +256,8 @@ private:
 class EDMD_POINT_ON_CURVE_DISTANCE : public EDMD_POINT
 {
 public:
-    EDMD_POINT_ON_CURVE_DISTANCE(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse( wxXmlNode& aNode) override;
+    EDMD_POINT_ON_CURVE_DISTANCE(IDX_XML_NODE& aNode, bool aTopLevel);
+    bool Parse( IDX_XML_NODE& aNode) override;
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_POINT> m_start;
     idx_property::EDMD_LENGTH_PROPERTY m_distance;

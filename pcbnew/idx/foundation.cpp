@@ -39,9 +39,9 @@ namespace idx_foundation
 
 EDMD_OBJECT::EDMD_OBJECT() : IDX_BASE() {}
 
-EDMD_OBJECT::EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel ) : IDX_BASE()
+EDMD_OBJECT::EDMD_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel ) : IDX_BASE()
 {
-    wxString isAttributeChanged;
+    std::string isAttributeChanged;
     m_id = aNode.GetAttribute("id", "");
 
     isAttributeChanged = aNode.GetAttribute("isAttributeChanged", "");
@@ -54,7 +54,7 @@ EDMD_OBJECT::EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel ) : IDX_BASE()
         m_isAttributeChanged = UNSPECIFIED;
 }
 
-bool EDMD_OBJECT::Parse( wxXmlNode& aNode )
+bool EDMD_OBJECT::Parse( IDX_XML_NODE& aNode )
 {
     return false;
 }
@@ -75,7 +75,7 @@ bool EDMD_OBJECT::operator==(const EDMD_OBJECT& rhs)
 
 EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT() : EDMD_OBJECT() {}
 
-EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel)
+EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel)
     : EDMD_OBJECT(aNode, false)
 {
     if ( aTopLevel )
@@ -83,32 +83,32 @@ EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel)
 };
 
 
-bool EDMD_EXTENSIBLE_OBJECT::Parse( wxXmlNode& aNode )
+bool EDMD_EXTENSIBLE_OBJECT::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if (name == "foundation:Name")
+    if (IDX_keyword_compare( name, "foundation:Name" ))
     {
         m_name = content;
         return true;
     }
-    else if (name == "foundation:Description")
+    else if (IDX_keyword_compare( name, "foundation:Description" ))
     {
         m_description = content;
         return true;
     }
-    else if (name == "foundation:DisplayName")
+    else if (IDX_keyword_compare( name, "foundation:DisplayName" ))
     {
         m_displayName.emplace_back(aNode, true);
         return true;
     }
-    else if (name == "foundation:DisplayDescription")
+    else if (IDX_keyword_compare( name, "foundation:DisplayDescription" ))
     {
         m_displayDescription.emplace_back(aNode, true);
         return true;
     }
-    else if (name == "foundation:UserProperty")
+    else if (IDX_keyword_compare( name, "foundation:UserProperty" ))
     {
         m_userProperty.emplace_back(aNode, true);
         return true;
@@ -119,7 +119,7 @@ bool EDMD_EXTENSIBLE_OBJECT::Parse( wxXmlNode& aNode )
 
 
 idx_property::EDMD_USER_PROPERTY*
-EDMD_EXTENSIBLE_OBJECT::GetUserProperty(const wxString& aKey)
+EDMD_EXTENSIBLE_OBJECT::GetUserProperty(const std::string& aKey)
 {
     for (auto& prop : m_userProperty)
     {
@@ -143,7 +143,7 @@ bool EDMD_EXTENSIBLE_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
 
 EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT() : EDMD_EXTENSIBLE_OBJECT() {}
 
-EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTopLevel)
+EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel)
     : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
     if ( aTopLevel )
@@ -151,7 +151,7 @@ EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTop
 };
 
 
-bool EDMD_COLLABORATION_OBJECT::Parse( wxXmlNode& aNode )
+bool EDMD_COLLABORATION_OBJECT::Parse( IDX_XML_NODE& aNode )
 {
     return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 }
@@ -165,29 +165,29 @@ bool EDMD_COLLABORATION_OBJECT::Resolve(IDX_REGISTRY& aRegistry)
 // EDMD_SYSTEM
 // -----------------------------------------------------
 
-EDMD_SYSTEM::EDMD_SYSTEM(wxXmlNode& aNode) : EDMD_COLLABORATION_OBJECT(aNode, false)
+EDMD_SYSTEM::EDMD_SYSTEM(IDX_XML_NODE& aNode) : EDMD_COLLABORATION_OBJECT(aNode, false)
 {
-    wxXmlNode* child = aNode.GetChildren();
+    auto child = aNode.GetChildren();
 
     while (child)
     {
-        const wxString content = child->GetNodeContent();
-        const wxString name = child->GetName();
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
 
-        if (name == "foundation:GlobalName")
+        if (IDX_keyword_compare( name, "foundation:GlobalName" ))
             m_globalName = content;
-        else if (name == "foundation:WebServiceURI")
+        else if (IDX_keyword_compare( name, "foundation:WebServiceURI" ))
             m_webServiceURI = content;
-        else if (name == "foundation:Revision")
+        else if (IDX_keyword_compare( name, "foundation:Revision" ))
             m_revision = content;
-        else if (name == "foundation:SystemName")
+        else if (IDX_keyword_compare( name, "foundation:SystemName" ))
             m_systemName = content;
-        else if (name == "foundation:InstanceName")
+        else if (IDX_keyword_compare( name, "foundation:InstanceName" ))
             m_instanceName = content;
-        else if (name == "foundation:systemOwner")
+        else if (IDX_keyword_compare( name, "foundation:systemOwner" ))
             m_systemOwner = content;
-        else if (name == "foundation:NeedsSelfContainedMessages")
-            m_needsSelfContainedMessages = (content == "true");
+        else if (IDX_keyword_compare( name, "foundation:NeedsSelfContainedMessages" ))
+            m_needsSelfContainedMessages = (IDX_keyword_compare( content, "true" ));
 
         child = child->GetNext();
     }
@@ -202,7 +202,7 @@ bool EDMD_SYSTEM::Resolve(IDX_REGISTRY& aRegistry)
 // EDMD_HEADER
 // -----------------------------------------------------
 
-EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel) : EDMD_EXTENSIBLE_OBJECT(aNode, false)
+EDMD_HEADER::EDMD_HEADER(IDX_XML_NODE& aNode, bool aTopLevel) : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
     if ( aTopLevel )
         ParseChildren( aNode );
@@ -211,43 +211,43 @@ EDMD_HEADER::EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel) : EDMD_EXTENSIBLE_OBJ
 
 
 
-bool EDMD_HEADER::Parse( wxXmlNode& aNode )
+bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
 
-    if (name == "foundation:Description")
+    if (IDX_keyword_compare( name, "foundation:Description" ))
     {
         m_description = content;
         return true;
     }
-    else if (name == "foundation:CreatorName")
+    else if (IDX_keyword_compare( name, "foundation:CreatorName" ))
     {
         m_creatorName = content;
         return true;
     }
-    else if (name == "foundation:CreatorCompany")
+    else if (IDX_keyword_compare( name, "foundation:CreatorCompany" ))
     {
         m_creatorCompany = content;
         return true;
     }
-    else if (name == "foundation:CreatorSystem")
+    else if (IDX_keyword_compare( name, "foundation:CreatorSystem" ))
     {
         m_creatorSystem = content;
         return true;
     }
-    else if (name == "foundation:PostProcessor")
+    else if (IDX_keyword_compare( name, "foundation:PostProcessor" ))
     {
         m_postProcessor = content;
         return true;
     }
-    else if (name == "foundation:PostProcessorVersion")
+    else if (IDX_keyword_compare( name, "foundation:PostProcessorVersion" ))
     {
         m_postProcessorVersion = content;
         return true;
     }
-    else if (name == "foundation:UserProperty")
+    else if (IDX_keyword_compare( name, "foundation:UserProperty" ))
     {
         m_userProperty.emplace_back(aNode, true);
         return true;
@@ -260,46 +260,46 @@ bool EDMD_HEADER::Parse( wxXmlNode& aNode )
 // EDMD_DATASET_BODY
 // -----------------------------------------------------
 
-EDMD_DATASET_BODY::EDMD_DATASET_BODY( wxXmlNode& aNode ) : IDX_BASE()
+EDMD_DATASET_BODY::EDMD_DATASET_BODY( IDX_XML_NODE& aNode ) : IDX_BASE()
 {
     ParseChildren( aNode );
 }
 
-bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
+bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
-    if( name == "foundation:System" )
+    if( IDX_keyword_compare( name, "foundation:System" ) )
     {
         std::shared_ptr<idx_foundation::EDMD_SYSTEM> s =
                 std::make_shared<idx_foundation::EDMD_SYSTEM>( aNode );
         m_systems.push_back( s );
     }
-    else if( name == "foundation:History" )
+    else if( IDX_keyword_compare( name, "foundation:History" ) )
     {
         std::shared_ptr<idx_annotation::EDMD_HISTORY> s =
                 std::make_shared<idx_annotation::EDMD_HISTORY>( aNode );
     }
-    else if( name == "foundation:Person" )
+    else if( IDX_keyword_compare( name, "foundation:Person" ) )
     {
         std::shared_ptr<idx_administration::EDMD_PERSON> s =
                 std::make_shared<idx_administration::EDMD_PERSON>( aNode );
         m_actors.push_back( s );
     }
-    else if( name == "foundation:UnitLength" )
+    else if( IDX_keyword_compare( name, "foundation:UnitLength" ) )
     {
         std::shared_ptr<idx_property::EDMD_UNIT> s =
                 std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
         m_units.push_back( s );
     }
-    else if( name == "foundation:CartesianPoint" )
+    else if( IDX_keyword_compare( name, "foundation:CartesianPoint" ) )
     {
         std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
                 std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( aNode, true );
         m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
     }
-    else if( name == "foundation:PolyLine" )
+    else if( IDX_keyword_compare( name, "foundation:PolyLine" ) )
     {
         std::shared_ptr<idx_geometry::EDMD_POLYLINE> s =
                 std::make_shared<idx_geometry::EDMD_POLYLINE>( aNode, true );
@@ -307,7 +307,7 @@ bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
                 s->m_id, s );
         m_curves.push_back( s );
     }
-    else if( name == "foundation:CircleCenter" )
+    else if( IDX_keyword_compare( name, "foundation:CircleCenter" ) )
     {
         std::shared_ptr<idx_geometry::EDMD_CIRCLE_CENTER> s =
                 std::make_shared<idx_geometry::EDMD_CIRCLE_CENTER>( aNode );
@@ -315,7 +315,7 @@ bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
                 s->m_id, s );
         m_curves.push_back( s );
     }
-    else if( name == "foundation:Arc" )
+    else if( IDX_keyword_compare( name, "foundation:Arc" ) )
     {
         std::shared_ptr<idx_geometry::EDMD_ARC> s =
                 std::make_shared<idx_geometry::EDMD_ARC>( aNode );
@@ -323,56 +323,56 @@ bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
                 s->m_id, s );
         m_curves.push_back( s );
     }
-    else if( name == "foundation:CurveSet2d" )
+    else if( IDX_keyword_compare( name, "foundation:CurveSet2d" ) )
     {
         std::shared_ptr<idx_geometry::EDMD_CURVESET2D> s =
                 std::make_shared<idx_geometry::EDMD_CURVESET2D>( aNode );
         m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
         m_curvesets.push_back( s );
     }
-    else if( name == "foundation:ShapeElement" )
+    else if( IDX_keyword_compare( name, "foundation:ShapeElement" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT> s =
                 std::make_shared<idx_pdm::EDMD_SHAPE_ELEMENT>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_SHAPE_ELEMENT>( s->m_id, s );
         m_shapeElements.push_back( s );
     }
-    else if( name == "foundation:Stratum" )
+    else if( IDX_keyword_compare( name, "foundation:Stratum" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_STRATUM> s =
                 std::make_shared<idx_pdm::EDMD_STRATUM>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_stratums.push_back( s );
     }
-    else if( name == "foundation:KeepOut" )
+    else if( IDX_keyword_compare( name, "foundation:KeepOut" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s =
                 std::make_shared<idx_pdm::EDMD_KEEPOUT>( aNode, true );
         //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
         m_keeps.push_back( s );
     }
-    else if( name == "foundation:KeepIn" )
+    else if( IDX_keyword_compare( name, "foundation:KeepIn" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_KEEPIN> s =
                 std::make_shared<idx_pdm::EDMD_KEEPIN>( aNode, true );
         //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
         m_keeps.push_back( s );
     }
-    else if( name == "foundation:Item" )
+    else if( IDX_keyword_compare( name, "foundation:Item" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_ITEM> s =
                 std::make_shared<idx_pdm::EDMD_ITEM>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM>( s->m_id, s );
         m_items.push_back( s );
     }
-    else if( name == "foundation:AssemblyComponent" )
+    else if( IDX_keyword_compare( name, "foundation:AssemblyComponent" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT> s =
                 std::make_shared<idx_pdm::EDMD_ASSEMBLY_COMPONENT>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_assemblies.push_back( s );  
     }
-    else if( name == "foundation:InterStratumFeature" )
+    else if( IDX_keyword_compare( name, "foundation:InterStratumFeature" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE> s =
                 std::make_shared<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( aNode, true );
@@ -380,7 +380,7 @@ bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
         m_interStratums.push_back( s );
     }
 
-    else if( name == "foundation:FunctionalItemShape" )
+    else if( IDX_keyword_compare( name, "foundation:FunctionalItemShape" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
                 std::make_shared<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( aNode );
@@ -400,7 +400,7 @@ bool EDMD_DATASET_BODY::Parse( wxXmlNode& aNode )
 // EDMD_DATASET
 // -----------------------------------------------------
 
-EDMD_DATASET::EDMD_DATASET(wxXmlNode& aNode)
+EDMD_DATASET::EDMD_DATASET(IDX_XML_NODE& aNode)
     : EDMD_OBJECT(aNode, false)
 {
 }
@@ -411,7 +411,7 @@ EDMD_DATASET::EDMD_DATASET(wxXmlNode& aNode)
 
 EDMD_DESIGNATOR::EDMD_DESIGNATOR() : EDMD_EXTENSIBLE_OBJECT() {}
 
-EDMD_DESIGNATOR::EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel)
+EDMD_DESIGNATOR::EDMD_DESIGNATOR(IDX_XML_NODE& aNode, bool aTopLevel)
     : EDMD_EXTENSIBLE_OBJECT(aNode, false)
 {
     if ( aTopLevel )
@@ -419,13 +419,13 @@ EDMD_DESIGNATOR::EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel)
 };
 
 
-bool EDMD_DESIGNATOR::Parse( wxXmlNode& aNode )
+bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
     
-    if (name == "foundation:SystemScope")
+    if (IDX_keyword_compare( name, "foundation:SystemScope" ))
     {
         m_systemScopeRef = content;
         return true;
@@ -438,7 +438,7 @@ bool EDMD_DESIGNATOR::Parse( wxXmlNode& aNode )
 // EDMD_IDENTIFIER
 // -----------------------------------------------------
 
-EDMD_IDENTIFIER::EDMD_IDENTIFIER(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false) {}
+EDMD_IDENTIFIER::EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false) {}
 
 // -----------------------------------------------------
 // EDMD_NAME
@@ -446,7 +446,7 @@ EDMD_IDENTIFIER::EDMD_IDENTIFIER(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGN
 
 EDMD_NAME::EDMD_NAME() : EDMD_DESIGNATOR() {}
 
-EDMD_NAME::EDMD_NAME(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false)
+EDMD_NAME::EDMD_NAME(IDX_XML_NODE& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false)
 {
     if ( aNode.GetAttribute("Persistant", "false") == "true" )
         m_persistant = true;
@@ -465,13 +465,13 @@ EDMD_NAME::EDMD_NAME(wxXmlNode& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, 
 };
 
 
-bool EDMD_NAME::Parse( wxXmlNode& aNode )
+bool EDMD_NAME::Parse( IDX_XML_NODE& aNode )
 {
-    const wxString name = aNode.GetName();
-    const wxString content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
 
     
-    if (name == "foundation:ObjectName")
+    if (IDX_keyword_compare( name, "foundation:ObjectName" ))
     {
         m_objectName = content;
         return true;

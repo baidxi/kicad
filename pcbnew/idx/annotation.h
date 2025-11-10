@@ -39,17 +39,17 @@ public:
     EDMD_HISTORY() :
             idx_foundation::EDMD_COLLABORATION_OBJECT() {};
 
-    EDMD_HISTORY( wxXmlNode& aNode ) :
+    EDMD_HISTORY( IDX_XML_NODE& aNode ) :
             idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
-        wxXmlNode* child = aNode.GetChildren();
+        auto child = aNode.GetChildren();
 
         while( child )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-            if( name == "annotation:HistoryName" )
+            if( IDX_keyword_compare( name, "annotation:HistoryName" ) )
             {
                 m_historyName.m_objectName = content;
             }

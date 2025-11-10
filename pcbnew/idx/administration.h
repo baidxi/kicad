@@ -37,7 +37,7 @@ class EDMD_ACTOR : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_ACTOR() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
-    EDMD_ACTOR( wxXmlNode& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
+    EDMD_ACTOR( IDX_XML_NODE& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
 };
 /**
      * @brief Representation of a natural person
@@ -47,32 +47,32 @@ public:
 class EDMD_PERSON : public EDMD_ACTOR
 {
 public:
-    EDMD_PERSON( wxString aSurname, wxString aGivenName, wxString aInitials, wxString aEmailAddress,
-                 wxString aPhoneNumber, wxString aFaxNumber ) :
+    EDMD_PERSON( std::string aSurname, std::string aGivenName, std::string aInitials, std::string aEmailAddress,
+                 std::string aPhoneNumber, std::string aFaxNumber ) :
             EDMD_ACTOR(), m_surname( aSurname ), m_givenName( aGivenName ), m_initials( aInitials ),
             m_emailAddress( aEmailAddress ), m_phoneNumber( aPhoneNumber ),
             m_faxNumber( aFaxNumber ) {};
 
-    EDMD_PERSON( wxXmlNode& aNode ) : EDMD_ACTOR( aNode )
+    EDMD_PERSON( IDX_XML_NODE& aNode ) : EDMD_ACTOR( aNode )
     {
-        wxXmlNode* child = aNode.GetChildren();
+        auto child = aNode.GetChildren();
 
         while( child )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-            if( name == "administration:SurName" )
+            if( IDX_keyword_compare( name, "administration:SurName" ) )
                 m_surname = content;
-            else if( name == "administration:GivenName" )
+            else if( IDX_keyword_compare( name, "administration:GivenName" ) )
                 m_givenName = content;
-            else if( name == "administration:Initials" )
+            else if( IDX_keyword_compare( name, "administration:Initials" ) )
                 m_initials = content;
-            else if( name == "adminitration:EMailAddress" )
+            else if( IDX_keyword_compare( name, "adminitration:EMailAddress" ) )
                 m_emailAddress = content;
-            else if( name == "adminitration:PhoneNumber" )
+            else if( IDX_keyword_compare( name, "adminitration:PhoneNumber" ) )
                 m_phoneNumber = content;
-            else if( name == "administration:FaxNumber" )
+            else if( IDX_keyword_compare( name, "administration:FaxNumber" ) )
                 m_faxNumber = content;
             else
             {
@@ -81,12 +81,12 @@ public:
         }
     }
 
-    wxString m_surname;
-    wxString m_givenName;
-    wxString m_initials;
-    wxString m_emailAddress;
-    wxString m_phoneNumber;
-    wxString m_faxNumber;
+    std::string m_surname;
+    std::string m_givenName;
+    std::string m_initials;
+    std::string m_emailAddress;
+    std::string m_phoneNumber;
+    std::string m_faxNumber;
 };
 
 /**
@@ -96,19 +96,19 @@ public:
 class EDMD_ORGANISATION
 {
 public:
-    EDMD_ORGANISATION( wxString aOrganisationNAme, wxString aSite, wxString aStreetNumber,
-                       wxString aStreet, wxString aPCcode, wxString aCountry, wxString aUri ) :
+    EDMD_ORGANISATION( std::string aOrganisationNAme, std::string aSite, std::string aStreetNumber,
+                       std::string aStreet, std::string aPCcode, std::string aCountry, std::string aUri ) :
             m_organisationName( aOrganisationNAme ), m_site( aSite ),
             m_streetNumber( aStreetNumber ), m_street( aStreet ), m_PCcode( aPCcode ),
             m_country( aCountry ), m_uri( aUri ) {};
 
-    const wxString m_organisationName;
-    const wxString m_site;
-    const wxString m_streetNumber;
-    const wxString m_street;
-    const wxString m_PCcode;
-    const wxString m_country;
-    const wxString m_uri;
+    const std::string m_organisationName;
+    const std::string m_site;
+    const std::string m_streetNumber;
+    const std::string m_street;
+    const std::string m_PCcode;
+    const std::string m_country;
+    const std::string m_uri;
 };
 
 /**
@@ -132,24 +132,24 @@ public:
 class EDMD_ROLE : public IDX_BASE
 {
 public:
-    EDMD_ROLE( wxString aActor = "" ) :
+    EDMD_ROLE( std::string aActor = "" ) :
             m_actor( aActor ),
             m_roleName(),
             IDX_BASE() {};
 
-    EDMD_ROLE( wxXmlNode& aNode ) :
+    EDMD_ROLE( IDX_XML_NODE& aNode ) :
             IDX_BASE()
     {
-        wxXmlNode* child = aNode.GetChildren();
+        auto child = aNode.GetChildren();
 
         while( child )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-            if( name == "administration:Actor" )
+            if( IDX_keyword_compare( name, "administration:Actor" ) )
                 m_actor = content;
-            else if( name == "administration:RoleName" )
+            else if( IDX_keyword_compare( name, "administration:RoleName" ) )
                 m_actor = content;
             else
             {
@@ -159,7 +159,7 @@ public:
     }
 
 
-    wxString                  m_actor;
+    std::string                  m_actor;
     idx_foundation::EDMD_NAME m_roleName;
 };
 
@@ -170,20 +170,20 @@ public:
     EDMD_ROLE_ON_OBJECT() :
             EDMD_ROLE() {};
 
-    EDMD_ROLE_ON_OBJECT( wxXmlNode& aNode ) :
+    EDMD_ROLE_ON_OBJECT( IDX_XML_NODE& aNode ) :
             EDMD_ROLE( aNode )
     {
-        wxXmlNode* child = aNode.GetChildren();
+        auto child = aNode.GetChildren();
 
         return;
         while( child )
         {
-            const wxString content = child->GetNodeContent();
-            const wxString name = child->GetName();
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-            if( name == "administration:Actor" )
+            if( IDX_keyword_compare( name, "administration:Actor" ) )
                 m_actor = content;
-            else if( name == "administration:RoleName" )
+            else if( IDX_keyword_compare( name, "administration:RoleName" ) )
                 m_actor = content;
             else
             {

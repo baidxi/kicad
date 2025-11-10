@@ -29,6 +29,7 @@
 #include <math/vector2d.h>
 #include <pcb_shape.h>
 #include <pcb_group.h>
+#include <idx/CAD_software.h>
 
 
 #ifndef IDX_READER_H
@@ -45,14 +46,14 @@ public:
     };
 
     void Read( wxXmlDocument& aDoc );
-    void ReadProcessInstruction( wxXmlNode& aDoc );
+    void ReadProcessInstruction( IDX_XML_NODE& aDoc );
     
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements();
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents();
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH();
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH();
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers();
-    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> GetKeepZones();
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> GetKeepZones() const;
 
     std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
     std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_dataset_body;
@@ -62,14 +63,14 @@ private:
 };
 
 
-void IDX_HOLDER::ReadProcessInstruction( wxXmlNode& aNode )
+void IDX_HOLDER::ReadProcessInstruction( IDX_XML_NODE& aNode )
 {
-    wxXmlNode* child2 = aNode.GetChildren();
+    auto child2 = aNode.GetChildren();
 
     while( child2 )
     {
-        const wxString content = child2->GetNodeContent();
-        const wxString name = child2->GetName();
+        const std::string content = child2->GetNodeContent();
+        const std::string name = child2->GetName();
         
         if( false )
         {
@@ -89,26 +90,27 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
 
     m_header = nullptr;
 
-    wxXmlNode* child = aDoc.GetRoot()->GetChildren();
+    std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( aDoc.GetRoot()->GetChildren() );
     std::cout << "Trying to read IDX file..." << std::endl;
 
     while( child )
-    {
-        if( child->GetName() == "foundation:Header" )
+    {    
+        std::string name = child->GetName();
+        
+        if ( IDX_keyword_compare( name, "foundation:Header" ) )
         {
             m_header = std::make_shared<idx_foundation::EDMD_HEADER>( *child, true );
         }
-        else if( child->GetName() == "foundation:Body" )
+        else if ( IDX_keyword_compare( name, "foundation:Body" ) )
         {
             m_dataset_body = std::make_shared<idx_foundation::EDMD_DATASET_BODY>( *child );
         }
-        else if( child->GetName() == "foundation:ProcessInstruction" )
+        else if ( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
         {
             this->ReadProcessInstruction( *child );
         }
         else
         {
-            std::cout << "unhandled keyword:" << child->GetName() << std::endl;
         }
         child = child->GetNext();
     }
@@ -185,7 +187,7 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
             }
 
 
-            if( !inst->m_name.IsEmpty() )
+            if( !inst->m_name.empty() )
             {
                 m_dataset_body->m_components.push_back(inst);
                 handled = true;
@@ -203,35 +205,35 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
 
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOutlineElements()
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOutlineElements() const
 {
     return m_dataset_body->m_boardOutline;
 }
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetNPTH()
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetNPTH() const
 {
     return m_dataset_body->m_NPTH; 
 }
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetComponents()
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetComponents() const
 {
     return m_dataset_body->m_components; 
 }
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetPTH()
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetPTH() const
 {
     return m_dataset_body->m_PTH;
 }
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetOthers()
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetOthers() const
 {
     return m_dataset_body->m_others;
 }
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> IDX_HOLDER::GetKeepZones()
+std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> IDX_HOLDER::GetKeepZones() const
 {
     return m_dataset_body->m_keeps;
 }

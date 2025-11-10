@@ -41,18 +41,17 @@ class EDMD_OBJECT : public IDX_BASE
 {
 public:
     EDMD_OBJECT();
-    EDMD_OBJECT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
 
     bool operator==(const EDMD_OBJECT& rhs);
 
 protected:
-    bool Parse( wxXmlNode& aNode ) override;
-    std::map<wxString, std::shared_ptr<idx_foundation::EDMD_OBJECT>*> m_pointsToLink;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 public:
-    wxString m_id;
+    std::string m_id;
     enum OPTIONAL_LOGIC m_isAttributeChanged = UNSPECIFIED;
 };
 
@@ -61,15 +60,15 @@ class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
 {
 public:
     EDMD_EXTENSIBLE_OBJECT();
-    EDMD_EXTENSIBLE_OBJECT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_EXTENSIBLE_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
 
-    idx_property::EDMD_USER_PROPERTY* GetUserProperty(const wxString& aKey);
+    idx_property::EDMD_USER_PROPERTY* GetUserProperty(const std::string& aKey);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
-    wxString                                      m_name;
-    wxString                                      m_description;
+    std::string                                      m_name;
+    std::string                                      m_description;
     std::vector<EDMD_NAME>                        m_displayDescription;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
@@ -80,10 +79,10 @@ class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_COLLABORATION_OBJECT();
-    EDMD_COLLABORATION_OBJECT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_COLLABORATION_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 
@@ -103,16 +102,16 @@ public:
         FACTORYSTANDARD,
     };
 
-    EDMD_SYSTEM(wxXmlNode& aNode);
+    EDMD_SYSTEM(IDX_XML_NODE& aNode);
     bool Resolve(IDX_REGISTRY& aRegistry);
 
     SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
-    wxString    m_globalName;
-    wxString    m_webServiceURI;
-    wxString    m_revision;
-    wxString    m_systemName;
-    wxString    m_instanceName;
-    wxString    m_systemOwner;
+    std::string    m_globalName;
+    std::string    m_webServiceURI;
+    std::string    m_revision;
+    std::string    m_systemName;
+    std::string    m_instanceName;
+    std::string    m_systemOwner;
     bool        m_needsSelfContainedMessages = false;
 };
 
@@ -120,17 +119,17 @@ public:
 class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_HEADER(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_HEADER(IDX_XML_NODE& aNode, bool aTopLevel);
     EDMD_HEADER();
 
 
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
     
-    wxString m_creatorName;
-    wxString m_creatorCompany;
-    wxString m_creatorSystem;
-    wxString m_postProcessor;
-    wxString m_postProcessorVersion;
+    std::string m_creatorName;
+    std::string m_creatorCompany;
+    std::string m_creatorSystem;
+    std::string m_postProcessor;
+    std::string m_postProcessorVersion;
     std::shared_ptr<idx_administration::EDMD_PERSON> m_creator;
     wxDateTime                                       m_CreationDateTime;
     wxDateTime                                       m_ModifiedDateTime;
@@ -141,10 +140,10 @@ public:
 class EDMD_DATASET_BODY : public IDX_BASE
 {
 public:
-    EDMD_DATASET_BODY( wxXmlNode& aNode );
+    EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
     EDMD_DATASET_BODY(){};
 
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     IDX_REGISTRY m_registry;
@@ -185,7 +184,7 @@ class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
     EDMD_DATASET();
-    EDMD_DATASET(wxXmlNode& aNode);
+    EDMD_DATASET(IDX_XML_NODE& aNode);
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;
@@ -197,13 +196,13 @@ class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_DESIGNATOR();
-    EDMD_DESIGNATOR(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_DESIGNATOR(IDX_XML_NODE& aNode, bool aTopLevel);
 
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
-    wxString m_systemScopeRef;
+    std::string m_systemScopeRef;
     bool     m_persistant = false;
-    wxString m_originatorId;
+    std::string m_originatorId;
     bool     m_isOriginator = false;
 };
 
@@ -211,12 +210,12 @@ public:
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_IDENTIFIER(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel);
 
-    wxString                                      m_number;
-    wxString                                      m_version;
-    wxString                                      m_revision;
-    wxString                                      m_sequence;
+    std::string                                      m_number;
+    std::string                                      m_version;
+    std::string                                      m_revision;
+    std::string                                      m_sequence;
     std::vector<EDMD_NAME>                        m_name;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
@@ -227,12 +226,12 @@ class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
     EDMD_NAME();
-    EDMD_NAME(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_NAME(IDX_XML_NODE& aNode, bool aTopLevel);
 
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
-    wxString m_objectName;
+    std::string m_objectName;
 };
 
 } // namespace idx_foundation

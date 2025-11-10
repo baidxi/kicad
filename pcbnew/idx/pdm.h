@@ -92,13 +92,13 @@ class EDMD_SHAPE_DESCRIPTION : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_SHAPE_DESCRIPTION(){};
-    EDMD_SHAPE_DESCRIPTION(wxXmlNode& aNode);
+    EDMD_SHAPE_DESCRIPTION(IDX_XML_NODE& aNode);
 
     SHAPE_DESCRIPTION_TYPE m_shapeDescriptionType;
     std::shared_ptr<EDMD_SHAPE_DESCRIPTION> m_boundingBox;
 
 private:
-    wxString m_boudingBoxRef;
+    std::string m_boudingBoxRef;
 };
 
 class EDMD_TRANSFORMATION : public idx_foundation::EDMD_OBJECT
@@ -111,9 +111,9 @@ public:
     };
 
     EDMD_TRANSFORMATION(){};
-    EDMD_TRANSFORMATION(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_TRANSFORMATION(IDX_XML_NODE& aNode, bool aTopLevel);
 
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     double m_xx = 1;
@@ -135,10 +135,10 @@ class EDMD_SHAPE_ELEMENT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_SHAPE_ELEMENT(){};
-    EDMD_SHAPE_ELEMENT(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_SHAPE_ELEMENT(IDX_XML_NODE& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     bool m_inverted;
     SHAPE_ELEMENT_TYPE m_shapeElementType;
@@ -146,23 +146,23 @@ public:
     std::shared_ptr<EDMD_SHAPE_DESCRIPTION> m_definingShape;
 
 private:
-    wxString m_definingShapeRef;
+    std::string m_definingShapeRef;
 };
 
 class EDMD_ITEM_SHAPE : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_ITEM_SHAPE(){};
-    EDMD_ITEM_SHAPE(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_ITEM_SHAPE(IDX_XML_NODE& aNode, bool aTopLevel);
 
     void print(int aIndex = 0, int aMaxIndex = 5);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
     bool Resolve(IDX_REGISTRY& aRegistry);
 
     std::vector<std::shared_ptr<EDMD_SHAPE_ELEMENT>> m_shapeElement;
 
 private:
-    std::vector<wxString> m_shapeElementRef;
+    std::vector<std::string> m_shapeElementRef;
 };
 
 class EDMD_FUNCTIONAL_ITEM_SHAPE : public EDMD_ITEM_SHAPE
@@ -179,7 +179,7 @@ public:
     };
 
     EDMD_FUNCTIONAL_ITEM_SHAPE(){};
-    EDMD_FUNCTIONAL_ITEM_SHAPE(wxXmlNode& aNode);
+    EDMD_FUNCTIONAL_ITEM_SHAPE(IDX_XML_NODE& aNode);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
 
@@ -224,7 +224,7 @@ class EDMD_STRATUM_TECHNOLOGY : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_STRATUM_TECHNOLOGY(){};
-    EDMD_STRATUM_TECHNOLOGY(wxXmlNode& aNode);
+    EDMD_STRATUM_TECHNOLOGY(IDX_XML_NODE& aNode);
 
     LAYER_POSITION_TYPE m_layerPositionType;
     STRATUM_TECHNOLOGY_TYPE m_stratumTechnologyType;
@@ -244,17 +244,17 @@ class EDMD_STRATUM : public EDMD_ITEM_SHAPE
 {
 public:
     EDMD_STRATUM(){};
-    EDMD_STRATUM(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_STRATUM(IDX_XML_NODE& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     std::vector<std::shared_ptr<EDMD_STRATUM_TECHNOLOGY>> m_stratumTechnology;
     STRATUM_SURFACE_DESIGNATION m_stratumSurfaceDesignation;
 
 private:
-    std::vector<wxString> m_stratumTechnologyRef;
+    std::vector<std::string> m_stratumTechnologyRef;
 };
 
 enum class KEEP_CONSTRAINT_PURPOSE
@@ -277,8 +277,8 @@ class EDMD_KEEP_CONSTRAINT : public EDMD_ITEM_SHAPE
 {
 public:
     EDMD_KEEP_CONSTRAINT(){};
-    EDMD_KEEP_CONSTRAINT(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse( wxXmlNode& aNode ) override;
+    EDMD_KEEP_CONSTRAINT(IDX_XML_NODE& aNode, bool aTopLevel);
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::vector<KEEP_CONSTRAINT_PURPOSE> m_purpose;
     std::vector<idx_property::EDMD_CONSTRAINED_PROPERTY> m_keepConstraintCondition;
@@ -291,8 +291,8 @@ class EDMD_KEEPOUT : public EDMD_KEEP_CONSTRAINT
 {
 public:
     EDMD_KEEPOUT(){};
-    EDMD_KEEPOUT(wxXmlNode& aNode, bool aTopLevel );
-    bool Parse( wxXmlNode& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    EDMD_KEEPOUT(IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 
 };
 
@@ -301,32 +301,32 @@ class EDMD_KEEPIN : public EDMD_KEEP_CONSTRAINT
 {
 public:
     EDMD_KEEPIN(){};
-    EDMD_KEEPIN(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_KEEPIN(IDX_XML_NODE& aNode, bool aTopLevel);
 
     
-    bool Parse( wxXmlNode& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 };
 
 class EDMD_ITEM_INSTANCE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_ITEM_INSTANCE(){};
-    EDMD_ITEM_INSTANCE(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_ITEM_INSTANCE(IDX_XML_NODE& aNode, bool aTopLevel);
 
     void print(int aIndex = 0, int aMaxIndex = 5);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     idx_foundation::EDMD_NAME m_instanceName;
     EDMD_TRANSFORMATION m_transformation;
     std::shared_ptr<EDMD_ITEM> m_item;
     std::vector<idx_foundation::EDMD_NAME> m_instanceUserAreaLayerName;
-    wxString m_name;
+    std::string m_name;
     double m_zOffset;
 
 private:
-    wxString m_itemRef;
+    std::string m_itemRef;
 };
 
 enum class ITEM_TYPE
@@ -339,11 +339,11 @@ class EDMD_ITEM : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_ITEM(){};
-    EDMD_ITEM(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_ITEM(IDX_XML_NODE& aNode, bool aTopLevel);
 
     void print(int aIndex = 0, int aMaxIndex = 5);
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     ITEM_TYPE m_itemType;
     std::vector<idx_foundation::EDMD_IDENTIFIER> m_identifier;
@@ -356,7 +356,7 @@ public:
     idx_property::EDMD_LOGIC_PROPERTY m_baseline;
 
 private:
-    wxString m_shapeRef;
+    std::string m_shapeRef;
 };
 
 enum class ASSEMBLY_COMPONENT_TYPE
@@ -372,8 +372,8 @@ class EDMD_ASSEMBLY_COMPONENT : public EDMD_ITEM_SHAPE
 {
 public:
     EDMD_ASSEMBLY_COMPONENT(){};
-    EDMD_ASSEMBLY_COMPONENT(wxXmlNode& aNode, bool aTopLevel);
-    bool Parse( wxXmlNode& aNode ) override;
+    EDMD_ASSEMBLY_COMPONENT(IDX_XML_NODE& aNode, bool aTopLevel);
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     bool Resolve(IDX_REGISTRY& aRegistry);
 
@@ -407,16 +407,16 @@ class EDMD_INTERSTRATUM_FEATURE : public EDMD_ITEM_SHAPE
 {
 public:
     EDMD_INTERSTRATUM_FEATURE(){};
-    EDMD_INTERSTRATUM_FEATURE(wxXmlNode& aNode, bool aTopLevel);
+    EDMD_INTERSTRATUM_FEATURE(IDX_XML_NODE& aNode, bool aTopLevel);
 
     bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( wxXmlNode& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::vector<std::shared_ptr<EDMD_STRATUM>> m_stratum;
     INTERSTRATUM_FEATURE_TYPE m_interstratumFeatureType;
 
 private:
-    std::vector<wxString> m_stratumRef;
+    std::vector<std::string> m_stratumRef;
 };
 
 } // namespace idx_pdm
