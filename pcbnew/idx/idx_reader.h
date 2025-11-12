@@ -100,7 +100,6 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
                 auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( inst->m_item->m_shape );
                 if( keep )
                 {
-                    std::cout << inst->m_name << " is a keep zone" << std::endl;
                     m_dataset->m_body.m_keepZones.push_back( inst );
                     continue;
                 }

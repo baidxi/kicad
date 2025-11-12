@@ -144,9 +144,9 @@ class EDMD_ROLE : public IDX_BASE
 {
 public:
     EDMD_ROLE( std::string aActor = "" ) :
+            IDX_BASE(),
             m_actor( aActor ),
-            m_roleName(),
-            IDX_BASE() {};
+            m_roleName() {};
 
     EDMD_ROLE( IDX_XML_NODE& aNode ) :
             IDX_BASE()

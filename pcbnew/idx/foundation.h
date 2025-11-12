@@ -43,12 +43,12 @@ public:
     EDMD_OBJECT();
     EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Resolve( IDX_REGISTRY& aRegistry );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     bool operator==( const EDMD_OBJECT& rhs );
 
 protected:
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
 public:
     std::string         m_id;
@@ -62,16 +62,18 @@ public:
     EDMD_EXTENSIBLE_OBJECT();
     EDMD_EXTENSIBLE_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    idx_property::EDMD_USER_PROPERTY* GetUserProperty( const std::string& aKey );
-    bool                              Resolve( IDX_REGISTRY& aRegistry );
-    bool                              Parse( IDX_XML_NODE& aNode ) override;
+    std::shared_ptr<idx_property::EDMD_USER_PROPERTY> GetUserProperty( const std::string& aKey );
+    virtual bool                                      Resolve( IDX_REGISTRY& aRegistry ) override;
 
 
-    std::string                                   m_name;
-    std::string                                   m_description;
-    std::vector<EDMD_NAME>                        m_displayDescription;
-    std::vector<EDMD_NAME>                        m_displayName;
-    std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
+    std::string                                                    m_name;
+    std::string                                                    m_description;
+    std::vector<std::shared_ptr<EDMD_NAME>>                        m_displayDescription;
+    std::vector<std::shared_ptr<EDMD_NAME>>                        m_displayName;
+    std::vector<std::shared_ptr<idx_property::EDMD_USER_PROPERTY>> m_userProperty;
+
+protected:
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 
@@ -81,8 +83,8 @@ public:
     EDMD_COLLABORATION_OBJECT();
     EDMD_COLLABORATION_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Resolve( IDX_REGISTRY& aRegistry );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 
@@ -103,7 +105,7 @@ public:
     };
 
     EDMD_SYSTEM( IDX_XML_NODE& aNode );
-    bool Resolve( IDX_REGISTRY& aRegistry );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
     std::string m_globalName;
@@ -123,7 +125,7 @@ public:
     EDMD_HEADER() {};
 
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_creatorName;
     std::string m_creatorCompany;
@@ -156,7 +158,7 @@ public:
     EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
     EDMD_DATASET_BODY() {};
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     IDX_REGISTRY m_registry;
@@ -213,9 +215,9 @@ public:
     EDMD_DATASET_BODY                                      m_body;
     std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
-    bool Resolve( IDX_REGISTRY& aRegistry );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 
@@ -225,7 +227,7 @@ public:
     EDMD_DESIGNATOR();
     EDMD_DESIGNATOR( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_systemScopeRef;
     bool        m_persistant = false;
@@ -240,15 +242,14 @@ public:
     EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel );
 
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::string                                   m_number;
-    std::string                                   m_version;
-    std::string                                   m_revision;
-    std::string                                   m_sequence;
-    std::vector<EDMD_NAME>                        m_name;
-    std::vector<EDMD_NAME>                        m_displayName;
-    std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
+    std::string                             m_number;
+    std::string                             m_version;
+    std::string                             m_revision;
+    std::string                             m_sequence;
+    std::vector<std::shared_ptr<EDMD_NAME>> m_name;
+    std::vector<std::shared_ptr<EDMD_NAME>> m_displayName;
 };
 
 
@@ -258,7 +259,7 @@ public:
     EDMD_NAME();
     EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     std::string m_objectName;

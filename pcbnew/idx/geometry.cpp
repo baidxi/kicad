@@ -94,9 +94,9 @@ bool EDMD_CURVE::Resolve( IDX_REGISTRY& aRegistry )
 // --------------------------------------------------------------------------
 
 EDMD_HYPERBOLA::EDMD_HYPERBOLA( IDX_XML_NODE& aNode ) :
+        EDMD_CURVE( aNode, false ),
         m_semiMajor( aNode, true ),
-        m_semiMinor( aNode, true ),
-        EDMD_CURVE( aNode, false )
+        m_semiMinor( aNode, true )
 {
 }
 
@@ -268,9 +268,9 @@ idx_property::EDMD_ANGLE_PROPERTY& EDMD_ARC::GetIncludeAngle()
 // --------------------------------------------------------------------------
 
 EDMD_ELLIPSE::EDMD_ELLIPSE( IDX_XML_NODE& aNode ) :
+        EDMD_CURVE( aNode, false ),
         m_semiMinor( aNode, true ),
-        m_semiMajor( aNode, true ),
-        EDMD_CURVE( aNode, false )
+        m_semiMajor( aNode, true )
 {
 }
 
@@ -336,8 +336,8 @@ EDMD_CIRCLE_3POINTS::EDMD_CIRCLE_3POINTS( IDX_XML_NODE& aNode ) :
 // --------------------------------------------------------------------------
 
 EDMD_CIRCLE_CENTER::EDMD_CIRCLE_CENTER( IDX_XML_NODE& aNode ) :
-        m_diameter( aNode, false ),
-        EDMD_CIRCLE( aNode )
+        EDMD_CIRCLE( aNode ),
+        m_diameter( aNode, false )
 {
     auto child = aNode.GetChildren();
 
@@ -448,8 +448,8 @@ double EDMD_CARTESIAN_POINT::GetY() const
 // --------------------------------------------------------------------------
 
 EDMD_POINT_ON_CURVE_DISTANCE::EDMD_POINT_ON_CURVE_DISTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
-        m_distance( aNode, true ),
-        EDMD_POINT( aNode, false )
+        EDMD_POINT( aNode, false ),
+        m_distance( aNode, true )
 {
 }
 

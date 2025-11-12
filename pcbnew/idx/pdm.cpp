@@ -77,65 +77,29 @@ bool EDMD_TRANSFORMATION::Parse( IDX_XML_NODE& aNode )
     const std::string name = aNode.GetName();
 
     if( IDX_keyword_compare( name, "pdm:xx" ) )
-    {
         m_xx = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:xy" ) )
-    {
         m_xy = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:xz" ) )
-    {
         m_xz = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:yx" ) )
-    {
         m_yx = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:yy" ) )
-    {
         m_yy = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:yz" ) )
-    {
         m_yz = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:zx" ) )
-    {
         m_zx = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:zy" ) )
-    {
         m_zy = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:zz" ) )
-    {
         m_zz = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:tx" ) )
-    {
         m_tx = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:ty" ) )
-    {
         m_ty = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:tz" ) )
-    {
         m_tz = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:TransformationType" ) )
     {
         if( IDX_keyword_compare( content, "d2" ) )
@@ -144,11 +108,10 @@ bool EDMD_TRANSFORMATION::Parse( IDX_XML_NODE& aNode )
             m_type = TYPE::D3;
         else
             invalidValueIDX( name, content );
-
-        return true;
     }
-
-    return this->EDMD_OBJECT::Parse( aNode );
+    else
+        return this->EDMD_OBJECT::Parse( aNode );
+    return true;
 }
 
 
@@ -565,37 +528,20 @@ bool EDMD_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
     const std::string content = aNode.GetNodeContent();
 
     if( IDX_keyword_compare( name, "pdm:InstanceName" ) )
-    {
         m_instanceName = idx_foundation::EDMD_NAME( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:Transformation" ) )
-    {
         m_transformation = idx_pdm::EDMD_TRANSFORMATION( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:Item" ) )
-    {
         m_itemRef = content;
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:InstanceUserAreaLayerName" ) )
-    {
         m_instanceUserAreaLayerName.emplace_back( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:zOffset" ) )
-    {
         m_zOffset = parseDouble( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "foundation:Name" ) )
-    {
         m_name = content;
-        return true;
-    }
-
-    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+    return true;
 }
 
 
@@ -605,12 +551,10 @@ void EDMD_ITEM_INSTANCE::print( int aIndex, int aMaxIndex )
 
 bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 {
-    bool result = idx_foundation::EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
-    bool tmp;
-    tmp &= resolve<idx_pdm::EDMD_ITEM>( m_itemRef, &m_item, aRegistry );
-
-
-    return result && tmp;
+    bool result = true;
+    result &= idx_foundation::EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
+    result &= resolve<idx_pdm::EDMD_ITEM>( m_itemRef, &m_item, aRegistry );
+    return result;
 }
 
 
@@ -683,7 +627,6 @@ void EDMD_ITEM::print( int aIndex, int aMaxIndex )
 bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
-    bool result1, result2;
 
     if( !m_shapeRef.empty() )
     {

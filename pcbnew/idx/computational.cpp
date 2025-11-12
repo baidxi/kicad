@@ -55,7 +55,7 @@ bool EDMD_PROCESS_INSTRUCTION_SEND_CHANGES::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "computational:Changes" ) )
     {
-        m_transaction = EDMD_TRANSACTION( aNode, true );
+        m_transaction = std::make_shared<EDMD_TRANSACTION>( aNode, true );
         return true;
     }
     return this->EDMD_PROCESS_INSTRUCTION::Parse( aNode );
@@ -191,17 +191,17 @@ bool EDMD_CHANGE::Parse( IDX_XML_NODE& aNode )
 
     if( IDX_keyword_compare( name, "computational:NewItem" ) )
     {
-        m_newItem = idx_foundation::EDMD_IDENTIFIER( aNode, true );
+        m_newItem = std::make_shared<idx_foundation::EDMD_IDENTIFIER>( aNode, true );
         return true;
     }
     else if( IDX_keyword_compare( name, "computational:PredecessorItem" ) )
     {
-        m_predecessorItem = idx_foundation::EDMD_IDENTIFIER( aNode, true );
+        m_predecessorItem = std::make_shared<idx_foundation::EDMD_IDENTIFIER>( aNode, true );
         return true;
     }
     else if( IDX_keyword_compare( name, "computational:DeletedInstanceName" ) )
     {
-        m_deletedInstanceName.emplace_back( aNode, true );
+        m_deletedInstanceName.emplace_back( std::make_shared<idx_foundation::EDMD_NAME>( aNode, true ) );
         return true;
     }
     return this->EDMD_ABSTRACT_CHANGE::Parse( aNode );

@@ -199,7 +199,7 @@ class IDX_BASE
 public:
     IDX_BASE() {};
     virtual ~IDX_BASE() = default; // Virtual destructor makes the class polymorphic
-    bool Resolve( IDX_REGISTRY& aRegistry );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry );
 
 
     enum OPTIONAL_LOGIC : int

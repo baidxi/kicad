@@ -97,43 +97,29 @@ bool EDMD_EXTENSIBLE_OBJECT::Parse( IDX_XML_NODE& aNode )
     const std::string content = aNode.GetNodeContent();
 
     if( IDX_keyword_compare( name, "foundation:Name" ) )
-    {
         m_name = content;
-        return true;
-    }
     else if( IDX_keyword_compare( name, "foundation:Description" ) )
-    {
         m_description = content;
-        return true;
-    }
     else if( IDX_keyword_compare( name, "foundation:DisplayName" ) )
-    {
-        m_displayName.emplace_back( aNode, true );
-        return true;
-    }
+        m_displayName.emplace_back( std::make_shared<EDMD_NAME>( aNode, true ) );
     else if( IDX_keyword_compare( name, "foundation:DisplayDescription" ) )
-    {
-        m_displayDescription.emplace_back( aNode, true );
-        return true;
-    }
+        m_displayName.emplace_back( std::make_shared<EDMD_NAME>( aNode, true ) );
     else if( IDX_keyword_compare( name, "foundation:UserProperty" ) )
-    {
-        m_userProperty.emplace_back( aNode, true );
-        return true;
-    }
-
-    return this->EDMD_OBJECT::Parse( aNode );
+        m_userProperty.emplace_back( std::make_shared<idx_property::EDMD_USER_PROPERTY>( aNode, true ) );
+    else
+        return this->EDMD_OBJECT::Parse( aNode );
+    return true;
 }
 
 
-idx_property::EDMD_USER_PROPERTY* EDMD_EXTENSIBLE_OBJECT::GetUserProperty( const std::string& aKey )
+std::shared_ptr<idx_property::EDMD_USER_PROPERTY> EDMD_EXTENSIBLE_OBJECT::GetUserProperty( const std::string& aKey )
 {
-    for( auto& prop : m_userProperty )
+    for( auto prop : m_userProperty )
     {
-        for( const auto& key : prop.m_keys )
+        for( const auto& key : prop->m_keys )
         {
             if( key.m_objectName == aKey )
-                return &prop;
+                return prop;
         }
     }
     return nullptr;
@@ -239,8 +225,6 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
         m_postProcessor = content;
     else if( IDX_keyword_compare( name, "foundation:PostProcessorVersion" ) )
         m_postProcessorVersion = content;
-    else if( IDX_keyword_compare( name, "foundation:UserProperty" ) )
-        m_userProperty.emplace_back( aNode, true );
     else if( IDX_keyword_compare( name, "foundation:Creator" ) )
         m_creatorRef = content;
     else if( IDX_keyword_compare( name, "foundation:System" ) )

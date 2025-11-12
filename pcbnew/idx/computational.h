@@ -50,7 +50,7 @@ public:
     EDMD_ABSTRACT_CHANGE();
     EDMD_ABSTRACT_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 private:
     std::string                                      m_actorRef;
@@ -104,7 +104,7 @@ public:
     EDMD_TRANSACTION( IDX_XML_NODE& aNode, bool aTopLevel );
     std::vector<std::shared_ptr<EDMD_ABSTRACT_CHANGE>> m_changes;
 
-    bool Parse( IDX_XML_NODE& aNode );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 
@@ -117,12 +117,12 @@ public:
     EDMD_CHANGE();
     EDMD_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 
-    idx_foundation::EDMD_DESIGNATOR        m_newItem;
-    idx_foundation::EDMD_DESIGNATOR        m_predecessorItem;
-    std::vector<idx_foundation::EDMD_NAME> m_deletedInstanceName;
+    std::shared_ptr<idx_foundation::EDMD_DESIGNATOR>        m_newItem;
+    std::shared_ptr<idx_foundation::EDMD_DESIGNATOR>        m_predecessorItem;
+    std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_deletedInstanceName;
 };
 
 
@@ -135,12 +135,12 @@ public:
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES();
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
 private:
     std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
     std::string                                      m_actorRef;
-    EDMD_TRANSACTION                                 m_transaction;
+    std::shared_ptr<EDMD_TRANSACTION>                m_transaction;
 };
 
 

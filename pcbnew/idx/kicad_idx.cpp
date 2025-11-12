@@ -37,8 +37,8 @@
 #include <pcb_track.h>
 
 KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
-        m_board( aBoard ),
-        m_commit( aCommit )
+        m_commit( aCommit ),
+        m_board( aBoard )
 {
     wxXmlDocument doc;
 
@@ -193,7 +193,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInsta
                 auto     npth = new FOOTPRINT( m_board );
                 auto     pad = new PAD( npth );
 
-                pad->SetDrillSize( { diameter, diameter } );
+                pad->SetDrillSize( VECTOR2I( diameter, diameter ) );
                 pad->SetPosition( { 0, 0 } );
                 pad->SetAttribute( PAD_ATTRIB::NPTH );
 
@@ -274,7 +274,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
             }
 
             ZONE* zone = new ZONE( m_board );
-            zone->SetZoneName( aInst.m_name );
+            zone->SetZoneName( keep->m_id );
             zone->SetLayerSet( layers );
             this->SetKeepRules( *zone, *keep );
 
@@ -307,7 +307,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
                     SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
 
-                    for( const VECTOR2I p : buffer->CPoints() )
+                    for( const VECTOR2I& p : buffer->CPoints() )
                     {
                         zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
                     }
@@ -328,7 +328,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
                     SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
 
-                    for( const VECTOR2I p : buffer->CPoints() )
+                    for( const VECTOR2I& p : buffer->CPoints() )
                     {
                         zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
                     }
@@ -475,10 +475,6 @@ void KICAD_IDX::Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector )
 
 BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
 {
-    int i = 0;
-
-    PCB_LAYER_ID layer = Eco2_User;
-
     switch( aShape.m_type )
     {
     case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA:
@@ -486,27 +482,21 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
     case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER:
     case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA:
     case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: layer = PCB_LAYER_ID::Eco2_User;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: break;
     }
 
 
     PCB_GROUP* group = new PCB_GROUP( nullptr );
     group->SetName( aShape.m_id );
     m_commit->Add( group );
-    for( auto const elt : aShape.m_shapeElement )
+    for( auto const& elt : aShape.m_shapeElement )
     {
         std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( elt->m_definingShape );
 
         if( ptr )
         {
-            BOARD_ITEM* result; /*
-            result = AddElement( *ptr, LSET( { layer } ) );
-            if( result )
-            {
-                group->AddItem( result );
-                m_commit->Stage( result, CHANGE_TYPE::CHT_ADD );
-            }*/
+            // TODO
         }
     }
     return nullptr;
@@ -762,16 +752,12 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVESET2D& aCurveSet )
 
     std::vector<PCB_LAYER_ID> pli;
 
-    int currentThickness = 0;
-    int layerCount = 0;
-
     LSET result = LSET();
 
     for( auto& layer : m_stackup )
     {
         if( layer.second >= lower && layer.second <= upper )
         {
-            layerCount++;
             pli.push_back( layer.first );
             result.set( layer.first );
         }
