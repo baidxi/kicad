@@ -24,6 +24,7 @@
 
 #include "foundation.h"
 #include <idx/property.h>
+#include <idx/computational.h>
 #include <idx/geometry.h>
 #include <idx/administration.h>
 #include <idx/annotation.h>
@@ -401,7 +402,70 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
 EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode ) :
         EDMD_OBJECT( aNode, false )
 {
+    ParseChildren( aNode );
 }
+
+
+bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    std::cout << "Parsing " << name << std::endl;
+
+    if( IDX_keyword_compare( name, "foundation:Header" ) )
+        m_header = idx_foundation::EDMD_HEADER( aNode, true );
+    else if( IDX_keyword_compare( name, "foundation:Body" ) )
+        m_body = idx_foundation::EDMD_DATASET_BODY( aNode );
+    else if( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
+    {
+        std::string type = aNode.GetAttribute( "xsi:type", "" );
+
+        if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" ) )
+            m_processInstruction.push_back(
+                    std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( aNode, true ) );
+        else if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" ) )
+            m_processInstruction.push_back(
+                    std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( aNode, true ) );
+        else
+            invalidValueIDX( name, type );
+    }
+    else
+        return this->EDMD_OBJECT::Parse( aNode );
+    return true;
+}
+
+
+bool EDMD_DATASET::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = true;
+
+    for( auto& curve : m_body.m_curves )
+        result &= curve->Resolve( m_body.m_registry );
+
+    for( auto& curveset : m_body.m_curvesets )
+        result &= curveset->Resolve( m_body.m_registry );
+
+    for( auto& shapeE : m_body.m_shapeElements )
+        result &= shapeE->Resolve( m_body.m_registry );
+
+    for( auto& stratum : m_body.m_stratums )
+        result &= stratum->Resolve( m_body.m_registry );
+
+    for( auto& interstratum : m_body.m_interStratums )
+        result &= interstratum->Resolve( m_body.m_registry );
+
+    for( auto& keep : m_body.m_keeps )
+        result &= keep->Resolve( m_body.m_registry );
+
+    for( auto& item : m_body.m_items )
+        result &= item->Resolve( m_body.m_registry );
+
+    for( auto& fs : m_body.m_functionalItemShapes )
+        result &= fs->Resolve( m_body.m_registry );
+
+    return result;
+}
+
 
 // -----------------------------------------------------
 // EDMD_DESIGNATOR

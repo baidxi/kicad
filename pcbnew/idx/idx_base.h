@@ -48,7 +48,7 @@ namespace idx_administration
 {
 class EDMD_PERSON;
 class EDMD_ACTOR;
-}
+} // namespace idx_administration
 
 namespace idx_property
 {
@@ -80,7 +80,7 @@ class EDMD_UNIT_VOLUME;
 class EDMD_UNIT_WEIGHT;
 class EDMD_UNIT_WORK;
 class EDMD_USER_PROPERTY;
-}
+} // namespace idx_property
 
 
 namespace idx_geometry
@@ -105,7 +105,7 @@ class EDMD_POINT_ON_CURVE_DISTANCE;
 class EDMD_POINT_ON_CURVE_INTERSECTION;
 class EDMD_POLYLINE;
 class EDMD_TRIMMED_CURVE;
-}
+} // namespace idx_geometry
 
 
 namespace idx_pdm
@@ -118,7 +118,7 @@ class EDMD_KEEP_CONSTRAINT;
 class EDMD_ITEM;
 class EDMD_ITEM_INSTANCE;
 class EDMD_ASSEMBLY_COMPONENT;
-}
+} // namespace idx_pdm
 
 namespace idx_annotation
 {
@@ -138,7 +138,7 @@ class EDMD_NAME;
 class EDMD_OBJECT;
 class EDMD_PROCESS_INSTRUCTION;
 class EDMD_SYSTEM;
-}
+} // namespace idx_foundation
 
 
 class IDX_BASE;
@@ -159,18 +159,20 @@ public:
     void resolveRegistryFailed( std::string aName )
     {
         std::cerr << "Warning: Object " << aName << " not found in registry. ( " << typeid( T ).name() << " )"
-                    << std::endl;
+                  << std::endl;
     }
 
 
     // Resolve an object of any type by name
     template <typename T>
-    std::shared_ptr<IDX_BASE> resolve( const std::string& name, bool suppressWarning = false )
+    std::shared_ptr<IDX_BASE> resolve( const std::string& name, bool suppressWarning )
     {
         const auto& registry = getRegistry<T>();
         auto        it = registry.find( name );
         if( it != registry.end() )
         {
+            //std::cerr << "Success : Object " << name << " found in registry. ( " << typeid( T ).name() << " )"
+            //          << std::endl;
             return std::dynamic_pointer_cast<T>( it->second );
         }
         else
@@ -189,8 +191,7 @@ private:
         return registries[typeid( T )];
     }
 
-    std::unordered_map<std::type_index, std::unordered_map<std::string, std::shared_ptr<IDX_BASE>>>
-            registries;
+    std::unordered_map<std::type_index, std::unordered_map<std::string, std::shared_ptr<IDX_BASE>>> registries;
 };
 
 class IDX_BASE
@@ -201,14 +202,14 @@ public:
     bool Resolve( IDX_REGISTRY& aRegistry );
 
 
-    enum OPTIONAL_LOGIC: int
+    enum OPTIONAL_LOGIC : int
     {
-        UNSPECIFIED=-1,
-        LOGIC_FALSE=0,
-        LOGIC_TRUE=1
+        UNSPECIFIED = -1,
+        LOGIC_FALSE = 0,
+        LOGIC_TRUE = 1
     };
 
-    enum REPORT_LEVEL: int
+    enum REPORT_LEVEL : int
     {
         INFO = 0,
         ACTION,
@@ -217,62 +218,63 @@ public:
     };
 
 
-double parseDouble(const std::string& inputStr)
-{
-    std::string str = inputStr;
+    double parseDouble( const std::string& inputStr )
+    {
+        std::string str = inputStr;
 
-    // Remove leading/trailing whitespace
-    str.erase(0, str.find_first_not_of(" \t\n\r"));
-    str.erase(str.find_last_not_of(" \t\n\r") + 1);
+        // Remove leading/trailing whitespace
+        str.erase( 0, str.find_first_not_of( " \t\n\r" ) );
+        str.erase( str.find_last_not_of( " \t\n\r" ) + 1 );
 
-    // Replace comma with dot
-    std::replace(str.begin(), str.end(), ',', '.');
+        // Replace comma with dot
+        std::replace( str.begin(), str.end(), ',', '.' );
 
-    // Use stringstream with C locale to ensure '.' is decimal separator
-    std::istringstream iss(str);
-    iss.imbue(std::locale::classic()); // "C" locale
+        // Use stringstream with C locale to ensure '.' is decimal separator
+        std::istringstream iss( str );
+        iss.imbue( std::locale::classic() ); // "C" locale
 
-    double value;
-    if (!(iss >> value)) {
-        std::cerr << "Error: '" << inputStr << "' is not a valid double.\n";
-        return 0.0;
+        double value;
+        if( !( iss >> value ) )
+        {
+            std::cerr << "Error: '" << inputStr << "' is not a valid double.\n";
+            return 0.0;
+        }
+
+        // Make sure there are no extra characters after the number
+        char leftover;
+        if( iss >> leftover )
+        {
+            std::cerr << "Error: Extra characters after number in '" << inputStr << "'.\n";
+            return 0.0;
+        }
+
+        return value;
     }
 
-    // Make sure there are no extra characters after the number
-    char leftover;
-    if (iss >> leftover) {
-        std::cerr << "Error: Extra characters after number in '" << inputStr << "'.\n";
-        return 0.0;
-    }
-
-    return value;
-}
 protected:
-
     // Function to report in your CAD software
     void Report( std::string aMsg, REPORT_LEVEL aLvl );
     void ParseChildren( IDX_XML_NODE& node );
 
     virtual bool Parse( IDX_XML_NODE& aNode ) { return false; };
-    bool m_topLevel = false;
+    bool         m_topLevel = false;
 
     void unknownKeywordIDX( std::string aName );
-    void invalidValueIDX(std::string aKeyword, std::string aValue);
-
+    void invalidValueIDX( std::string aKeyword, std::string aValue );
 
 
     template <typename T, typename U>
-    bool resolve( std::string aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry )
+    bool resolve( std::string aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry, bool aSuppressWarning = false )
     {
         if( !aDest )
             return false;
 
-        auto resolvedPoint = aRegistry.resolve<T>( aName );
+        auto resolvedPoint = aRegistry.resolve<T>( aName, aSuppressWarning );
 
         if( !resolvedPoint )
             return false;
 
-        *aDest = std::dynamic_pointer_cast<U> ( resolvedPoint )     ;
+        *aDest = std::dynamic_pointer_cast<U>( resolvedPoint );
         return true;
     }
 
@@ -304,21 +306,21 @@ public:
 
     // --- Basic accessors ---
     virtual std::string GetName() const = 0;
-    virtual std::string GetAttribute(const std::string& name, const std::string& defaultValue) const = 0;
+    virtual std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const = 0;
     virtual std::string GetNodeContent() const = 0;
-    virtual void SetAttribute(const std::string& name, const std::string& value) = 0;
+    virtual void        SetAttribute( const std::string& name, const std::string& value ) = 0;
 
     virtual std::string GetText() const = 0;
-    virtual void SetText(const std::string& text) = 0;
+    virtual void        SetText( const std::string& text ) = 0;
 
     // --- Tree navigation ---
     virtual std::shared_ptr<IDX_XML_NODE> GetParent() const = 0;
     virtual std::shared_ptr<IDX_XML_NODE> GetChildren() const = 0;
-    virtual std::shared_ptr<IDX_XML_NODE> AppendChild(const std::string& name) = 0;
+    virtual std::shared_ptr<IDX_XML_NODE> AppendChild( const std::string& name ) = 0;
     virtual std::shared_ptr<IDX_XML_NODE> GetNext() const = 0;
 
     // --- Utility ---
-    virtual void RemoveChild(const std::shared_ptr<IDX_XML_NODE>& child) = 0;
+    virtual void RemoveChild( const std::shared_ptr<IDX_XML_NODE>& child ) = 0;
 };
 
 

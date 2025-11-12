@@ -120,7 +120,7 @@ class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_HEADER( IDX_XML_NODE& aNode, bool aTopLevel );
-    EDMD_HEADER();
+    EDMD_HEADER() {};
 
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -208,9 +208,13 @@ public:
     EDMD_DATASET();
     EDMD_DATASET( IDX_XML_NODE& aNode );
 
-    EDMD_HEADER                           m_header;
-    EDMD_DATASET_BODY                     m_body;
-    std::vector<EDMD_PROCESS_INSTRUCTION> m_processInstruction;
+    EDMD_HEADER                                            m_header;
+    EDMD_DATASET_BODY                                      m_body;
+    std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    bool Resolve( IDX_REGISTRY& aRegistry );
 };
 
 

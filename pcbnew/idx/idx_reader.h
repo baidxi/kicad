@@ -40,211 +40,120 @@
 class IDX_HOLDER
 {
 public:
-    IDX_HOLDER( wxXmlDocument& aDoc )
-    {
-        Read( aDoc );
-    };
+    IDX_HOLDER( wxXmlDocument& aDoc ) { Read( aDoc ); };
 
     void Read( wxXmlDocument& aDoc );
-    void ReadProcessInstruction( IDX_XML_NODE& aDoc );
-    
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers() const;
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetBoardOutlineElements() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetComponents() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetNPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetOthers() const;
     std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> GetKeepZones() const;
 
-    std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
-    std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_dataset_body;
-    std::shared_ptr<idx_foundation::EDMD_PROCESS_INSTRUCTION> m_processInstruction;
+    std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
 
 
 private:
 };
 
 
-void IDX_HOLDER::ReadProcessInstruction( IDX_XML_NODE& aNode )
-{
-    auto child2 = aNode.GetChildren();
-
-    while( child2 )
-    {
-        const std::string content = child2->GetNodeContent();
-        const std::string name = child2->GetName();
-        
-        if( false )
-        {
-        }
-        else
-        {
-            std::cout << "unhandled body keyword:" << name << std::endl;
-        }
-        
-        child2 = child2->GetNext();
-    }
-}
-
-
 void IDX_HOLDER::Read( wxXmlDocument& aDoc )
 {
-
-    m_header = nullptr;
-
-    std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( aDoc.GetRoot()->GetChildren() );
+    std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( aDoc.GetRoot() );
     std::cout << "Trying to read IDX file..." << std::endl;
 
-    while( child )
-    {    
-        std::string name = child->GetName();
-        
-        if ( IDX_keyword_compare( name, "foundation:Header" ) )
-        {
-            m_header = std::make_shared<idx_foundation::EDMD_HEADER>( *child, true );
-        }
-        else if ( IDX_keyword_compare( name, "foundation:Body" ) )
-        {
-            m_dataset_body = std::make_shared<idx_foundation::EDMD_DATASET_BODY>( *child );
-        }
-        else if ( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
-        {
-            std::string type = child->GetAttribute("xsi:type", "");
+    m_dataset = std::make_shared<idx_foundation::EDMD_DATASET>( *child );
+    m_dataset->Resolve( m_dataset->m_body.m_registry );
 
-            if ( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" ) )   
-                m_processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( *child, true );
-            else if ( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" ) )
-                m_processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( *child, true );
-            else
-                std::cout << "unknown process instruction: " << type << " -- " << std::endl;
-        }
-        else
-        {
-            std::cout << "unknown keword : " << name << std::endl;
-        }
-        child = child->GetNext();
-    }
 
-    std::cout << "Resolving curves " << std::endl;
-    for( auto& curve : m_dataset_body->m_curves )
-        curve->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving curvesets " << std::endl;
-    for( auto& curveset : m_dataset_body->m_curvesets )
-        curveset->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving shapeElements " << std::endl;
-    for( auto& shapeE : m_dataset_body->m_shapeElements )
-        shapeE->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving stratum " << std::endl;
-    for( auto& stratum : m_dataset_body->m_stratums )
-        stratum->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving interstratum " << std::endl;
-    for( auto& interstratum : m_dataset_body->m_interStratums )
-        interstratum->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving keeps " << std::endl;
-    for( auto& keep : m_dataset_body->m_keeps )
-        keep->Resolve( m_dataset_body->m_registry );
-    std::cout << "Resolving items " << std::endl;
-    for( auto& item : m_dataset_body->m_items )
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_dataset->m_body.m_items )
     {
-        item->Resolve( m_dataset_body->m_registry );
-    }
-    std::cout << "Resolving functional shapes" << std::endl;
-    for( auto& fs : m_dataset_body->m_functionalItemShapes )
-    {
-        fs->Resolve( m_dataset_body->m_registry );
-    }
-
-
-    for (const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_dataset_body->m_items)
-    {
-        for (const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance)
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance )
         {
             bool handled = false;
 
             // Check for board outline
-            if (auto type = inst->GetUserProperty("TYPE"))
+            if( auto type = inst->GetUserProperty( "TYPE" ) )
             {
-                if (type->m_value == "BOARDOUTLINE")
+                if( type->m_value == "BOARDOUTLINE" )
                 {
-                    m_dataset_body->m_boardOutline.push_back(inst);
+                    m_dataset->m_body.m_boardOutline.push_back( inst );
                     handled = true;
                     continue;
                 }
             }
 
             // Check for interstratum features
-            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>(inst->m_item->m_shape);
-            if (interstratum)
+            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( inst->m_item->m_shape );
+            if( interstratum )
             {
                 using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
-                switch (interstratum->m_interstratumFeatureType)
+                switch( interstratum->m_interstratumFeatureType )
                 {
-                    case FT::BOARD_CUTOUT:
-                        m_dataset_body->m_boardOutline.push_back(inst);
-                        handled = true;
-                        continue;
-                    case FT::CUTOUT:
-                        m_dataset_body->m_NPTH.push_back(inst);
-                        handled = true;
-                        continue;
-                    case FT::PLATED_CUTOUT:
-                        m_dataset_body->m_PTH.push_back(inst);
-                        handled = true;
-                        continue;
-                    default:
-                        break;
+                case FT::BOARD_CUTOUT:
+                    m_dataset->m_body.m_boardOutline.push_back( inst );
+                    handled = true;
+                    continue;
+                case FT::CUTOUT:
+                    m_dataset->m_body.m_NPTH.push_back( inst );
+                    handled = true;
+                    continue;
+                case FT::PLATED_CUTOUT:
+                    m_dataset->m_body.m_PTH.push_back( inst );
+                    handled = true;
+                    continue;
+                default: break;
                 }
             }
 
 
             if( !inst->m_name.empty() )
             {
-                m_dataset_body->m_components.push_back(inst);
+                m_dataset->m_body.m_components.push_back( inst );
                 handled = true;
                 continue;
             }
 
             // If not stored anywhere, push to m_others
-            if (!handled)
-                m_dataset_body->m_others.push_back(inst);
+            if( !handled )
+                m_dataset->m_body.m_others.push_back( inst );
         }
     }
-
-    
 }
-
 
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetBoardOutlineElements() const
 {
-    return m_dataset_body->m_boardOutline;
+    return m_dataset->m_body.m_boardOutline;
 }
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetNPTH() const
 {
-    return m_dataset_body->m_NPTH; 
+    return m_dataset->m_body.m_NPTH;
 }
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetComponents() const
 {
-    return m_dataset_body->m_components; 
+    return m_dataset->m_body.m_components;
 }
 
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetPTH() const
 {
-    return m_dataset_body->m_PTH;
+    return m_dataset->m_body.m_PTH;
 }
 
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetOthers() const
 {
-    return m_dataset_body->m_others;
+    return m_dataset->m_body.m_others;
 }
 
 
 std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> IDX_HOLDER::GetKeepZones() const
 {
-    return m_dataset_body->m_keeps;
+    return m_dataset->m_body.m_keeps;
 }
 
 #endif
