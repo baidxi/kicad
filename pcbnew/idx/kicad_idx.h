@@ -57,21 +57,18 @@ class KICAD_IDX_CHANGE
         OTHER
     };
 
-    KICAD_IDX_CHANGE(){};
-    
-    KICAD_IDX_CHANGE( const KICAD_IDX_CHANGE& aChange){
-        m_items = aChange.m_items;
-        m_type = aChange.m_type;
-        m_name = aChange.m_name;
-        m_value = aChange.m_value;
-        baseline = aChange.baseline;
-    };
+    KICAD_IDX_CHANGE( IDX_BASE& aIdx ): m_idx( aIdx ) {};
 
     std::vector<BOARD_ITEM*> m_items;
     ELEMENT_TYPE m_type;
     wxString m_name;
     double m_value;
     bool baseline = true;
+
+   // void Accept(){};
+   // void Reject(){};
+    private:
+    IDX_BASE& m_idx;
 };
 
 
@@ -96,7 +93,9 @@ public:
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE&);
 
     // Abstraction
+    std::vector<KICAD_IDX_CHANGE> Process();
     std::vector<KICAD_IDX_CHANGE> GetChanges();
+    std::vector<KICAD_IDX_CHANGE> Baseline();
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
 

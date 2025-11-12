@@ -23,7 +23,7 @@
  */
 
 #include <idx/idx_base.h>
-
+#include <typeinfo>
 
 // Here we define some helper functions, we don't want to use std::string.
 // Hopefuly, this code will be shared with open sources MCAD softwares
@@ -35,7 +35,7 @@ bool IDX_keyword_compare( std::string a, std::string b )
 }
 
 
-bool IDX_BASE::Resolve( IDX_REGISTRY& aRegistry ) { return true; };
+bool IDX_BASE::Resolve( IDX_REGISTRY& aRegistry ) { return false; };
 
 void IDX_BASE::ParseChildren( IDX_XML_NODE& node )
 {
@@ -53,7 +53,7 @@ void IDX_BASE::ParseChildren( IDX_XML_NODE& node )
 
 void IDX_BASE::unknownKeywordIDX( std::string aName )
 {
-    this->Report( "unknown keyword: " + aName , WARNING );
+    this->Report("unknown keyword: " + aName + " for class " + typeid(*this).name(), WARNING);
 }
 
 

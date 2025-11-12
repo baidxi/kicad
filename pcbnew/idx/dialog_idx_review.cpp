@@ -118,7 +118,7 @@ void DIALOG_IDX_REVIEW::prepareCanvas()
     
     BOX2I* bb = nullptr;
 
-    for ( KICAD_IDX_CHANGE& change: m_idx->GetChanges() )
+    for ( KICAD_IDX_CHANGE& change: m_idx->Process() )
     {
         
         m_changes.emplace_back(

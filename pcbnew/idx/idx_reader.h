@@ -57,6 +57,7 @@ public:
 
     std::shared_ptr<idx_foundation::EDMD_HEADER> m_header;
     std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_dataset_body;
+    std::shared_ptr<idx_foundation::EDMD_PROCESS_INSTRUCTION> m_processInstruction;
 
 
 private:
@@ -107,10 +108,18 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
         }
         else if ( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
         {
-            this->ReadProcessInstruction( *child );
+            std::string type = child->GetAttribute("xsi:type", "");
+
+            if ( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" ) )   
+                m_processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( *child, true );
+            else if ( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" ) )
+                m_processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( *child, true );
+            else
+                std::cout << "unknown process instruction: " << type << " -- " << std::endl;
         }
         else
         {
+            std::cout << "unknown keword : " << name << std::endl;
         }
         child = child->GetNext();
     }

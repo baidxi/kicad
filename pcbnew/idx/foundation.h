@@ -130,6 +130,19 @@ public:
     std::string m_creatorSystem;
     std::string m_postProcessor;
     std::string m_postProcessorVersion;
+
+    std::string m_systemRef;
+    std::string m_creatorRef;
+    std::string m_globalUnitLengthRef;
+    std::string m_globalUnitAmperageRef;
+    std::string m_globalUnitAngleRef;
+    std::string m_globalUnitCapacitanceRef;
+    std::string m_globalUnitPowerRef;
+    std::string m_globalUnitResistanceRef;
+    std::string m_globalUnitVoltageRef;
+    std::string m_globalUnitWeightRef;
+    std::string m_globalUnitWorkRef;
+
     std::shared_ptr<idx_administration::EDMD_PERSON> m_creator;
     wxDateTime                                       m_CreationDateTime;
     wxDateTime                                       m_ModifiedDateTime;
@@ -174,9 +187,17 @@ public:
 class EDMD_PROCESS_INSTRUCTION : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
+    enum class PROCESS_TYPE
+    {
+        BASELINE = 0,
+        SEND_CHANGES
+    };
+    EDMD_PROCESS_INSTRUCTION(): EDMD_EXTENSIBLE_OBJECT(){};
+    EDMD_PROCESS_INSTRUCTION(IDX_XML_NODE& aNode, bool aTopLevel);
     std::shared_ptr<EDMD_OBJECT> m_subject;
     std::shared_ptr<EDMD_OBJECT> m_object;
     std::shared_ptr<EDMD_SYSTEM> m_targetSystem;
+    PROCESS_TYPE m_processType;
 };
 
 
@@ -211,6 +232,9 @@ class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
     EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel);
+
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string                                      m_number;
     std::string                                      m_version;

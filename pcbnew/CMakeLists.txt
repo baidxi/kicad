@@ -373,6 +373,7 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
+     idx/computational.cpp
      idx/CAD_software.cpp
      idx/dialog_idx_review_base.cpp
      idx/dialog_idx_review.cpp

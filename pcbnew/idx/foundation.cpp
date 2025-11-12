@@ -218,42 +218,45 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
 
 
     if (IDX_keyword_compare( name, "foundation:Description" ))
-    {
         m_description = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:CreatorName" ))
-    {
         m_creatorName = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:CreatorCompany" ))
-    {
         m_creatorCompany = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:CreatorSystem" ))
-    {
         m_creatorSystem = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:PostProcessor" ))
-    {
         m_postProcessor = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:PostProcessorVersion" ))
-    {
         m_postProcessorVersion = content;
-        return true;
-    }
     else if (IDX_keyword_compare( name, "foundation:UserProperty" ))
-    {
         m_userProperty.emplace_back(aNode, true);
-        return true;
-    }
-        
-    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+    else if (IDX_keyword_compare( name, "foundation:Creator" ))
+        m_creatorRef = content;
+    else if (IDX_keyword_compare( name, "foundation:System" ))
+        m_systemRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitLength" ))
+        m_globalUnitLengthRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitAmperage" ))
+        m_globalUnitAmperageRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitAngle" ))
+        m_globalUnitAngleRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitCapacitance" ))
+        m_globalUnitCapacitanceRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitPower" ))
+        m_globalUnitPowerRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitResistance" ))
+        m_globalUnitResistanceRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitVoltage" ))
+        m_globalUnitVoltageRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitWeight" ))
+        m_globalUnitWeightRef = content;
+    else if (IDX_keyword_compare( name, "foundation:GlobalUnitWork" ))
+        m_globalUnitWorkRef = content;
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+
+    return true;
 }
 
 // -----------------------------------------------------
@@ -438,8 +441,43 @@ bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
 // EDMD_IDENTIFIER
 // -----------------------------------------------------
 
-EDMD_IDENTIFIER::EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false) {}
+EDMD_IDENTIFIER::EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel) : EDMD_DESIGNATOR(aNode, false)
+{
+    if ( aNode.GetAttribute("Persistant", "false") == "true" )
+        m_persistant = true;
+    else
+        m_persistant = false;
 
+    if ( aNode.GetAttribute("IsOriginator", "false") == "true" )
+        m_isOriginator = true;
+    else
+        m_isOriginator = false;
+
+    m_originatorId = aNode.GetAttribute("OriginatorId", "");
+
+    if ( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_IDENTIFIER::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    
+    if (IDX_keyword_compare( name, "foundation:Number" ) )
+        m_number = content;
+    else if (IDX_keyword_compare( name, "foundation:Version" ) )
+        m_version = content;
+    else if (IDX_keyword_compare( name, "foundation:Revision" ) )
+        m_revision = content;
+    else if (IDX_keyword_compare( name, "foundation:Sequence" ) )
+        m_sequence = content;
+    else
+        return this->EDMD_DESIGNATOR::Parse( aNode );
+    return true;
+}
 // -----------------------------------------------------
 // EDMD_NAME
 // -----------------------------------------------------
@@ -479,4 +517,18 @@ bool EDMD_NAME::Parse( IDX_XML_NODE& aNode )
     return this->EDMD_DESIGNATOR::Parse( aNode );
 }
 
-} // namespace idx_foundation
+
+
+// -----------------------------------------------------
+// EDMD_DESIGNATOR
+// -----------------------------------------------------
+
+
+EDMD_PROCESS_INSTRUCTION::EDMD_PROCESS_INSTRUCTION(IDX_XML_NODE& aNode, bool aTopLevel)
+    : EDMD_EXTENSIBLE_OBJECT( aNode, false)
+{
+    if ( aTopLevel )
+        ParseChildren( aNode );
+};
+
+}// namespace idx_foundation

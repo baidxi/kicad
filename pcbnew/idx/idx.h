@@ -28,4 +28,5 @@
 #include <idx/administration.h>
 #include <idx/pdm.h>
 #include <idx/annotation.h>
+#include <idx/computational.h>
 

@@ -343,14 +343,13 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aKee
     return m_result;
 }
 
-
-std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
+std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
 {
     std::vector<KICAD_IDX_CHANGE> m_result;
 
     for ( auto edge : m_holder->GetBoardOutlineElements() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *edge );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
         change.m_items = AddElement( *edge, {Edge_Cuts} );
         change.m_name = edge->m_name;
@@ -359,7 +358,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
     for( auto keep : m_holder->GetKeepZones() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *keep );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
         change.m_items = AddZone( *keep );
         change.m_name = keep->m_name;
@@ -368,7 +367,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
     for ( auto cmp : m_holder->GetComponents() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *cmp );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
         change.m_items = AddElement( *cmp, {User_1} );
         change.m_name = cmp->m_name;
@@ -377,7 +376,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
     for ( auto npth : m_holder->GetNPTH() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *npth );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
         change.m_items = AddNPTH( *npth );
         change.m_name = npth->m_name;
@@ -386,7 +385,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
     for ( auto pth : m_holder->GetPTH() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *pth );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
         change.m_items = AddPTH( *pth );
         change.m_name = pth->m_name;
@@ -395,7 +394,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
     for ( auto other : m_holder->GetOthers() )
     {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE();
+        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *other );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
         change.m_items = AddElement( *other, {User_1} );
         change.m_name = other->m_name;
@@ -403,6 +402,31 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
     }
 
     return m_result;
+}
+
+std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
+{
+    if ( ! m_holder->m_processInstruction )
+        return {};
+    idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE type;
+    type = m_holder->m_processInstruction->m_processType;
+
+    if ( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::BASELINE )
+    {
+        return Baseline();
+    }
+    if ( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
+    {
+        return GetChanges();
+    }
+    return {};
+}
+
+
+
+std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
+{
+    return {};
 }
 
 
