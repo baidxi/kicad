@@ -264,6 +264,18 @@ public:
 };
 
 
+class IbisBoardPin : public IBIS_INPUT
+{
+public:
+    IbisBoardPin( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
+
+    virtual ~IbisBoardPin(){};
+
+    std::string m_name;
+    std::string m_signalName;
+};
+
+
 class IbisComponentPinMapping : public IBIS_INPUT
 {
 public:
@@ -334,6 +346,20 @@ public:
     IbisDiffPin                             m_diffPin;
 
     bool Check() override;
+};
+
+
+class IbisBoardDescription : public IBIS_INPUT
+{
+public:
+    IbisBoardDescription( REPORTER* aReporter ) : IBIS_INPUT( aReporter ){};
+
+    virtual ~IbisBoardDescription(){};
+
+    std::string               m_name = "";
+    std::string               m_manufacturer = "";
+    int                       m_numberOfPins;
+    std::vector<IbisBoardPin> m_pins;
 };
 
 
@@ -551,6 +577,23 @@ enum class IBIS_MODEL_POLARITY
     NON_INVERTING
 };
 
+enum class IBIS_SUBMODEL_MODE
+{
+    DRIVING,
+    NON_DRIVING,
+    ALL
+};
+
+class IbisSubmodel : IBIS_INPUT
+{
+    public:
+        IbisSubmodel( REPORTER* aReporter ):
+            IBIS_INPUT( aReporter )
+        {};
+
+    std::string        m_name;
+    IBIS_SUBMODEL_MODE m_mode;
+};
 
 class IbisModel : IBIS_INPUT
 {
@@ -610,7 +653,7 @@ public:
     std::vector<IbisWaveform*> m_risingWaveforms;
     std::vector<IbisWaveform*> m_fallingWaveforms;
     IbisRamp                   m_ramp;
-
+    std::vector<IbisSubmodel>  m_submodels;
     bool Check() override;
 };
 
@@ -651,11 +694,12 @@ public:
     virtual ~IbisFile()
     {};
 
-    IbisHeader                      m_header;
-    std::vector<IbisComponent>      m_components;
-    std::vector<IbisModelSelector>  m_modelSelectors;
-    std::vector<IbisModel>          m_models;
-    std::vector<IbisPackageModel>   m_packageModels;
+    IbisHeader                        m_header;
+    std::vector<IbisComponent>        m_components;
+    std::vector<IbisModelSelector>    m_modelSelectors;
+    std::vector<IbisModel>            m_models;
+    std::vector<IbisPackageModel>     m_packageModels;
+    std::vector<IbisBoardDescription> m_boardDescriptions;
 };
 
 
@@ -676,7 +720,8 @@ enum class IBIS_PARSER_CONTINUE
     VT_TABLE,
     RAMP,
     WAVEFORM,
-    PACKAGEMODEL_PINS
+    PACKAGEMODEL_PINS,
+    ADDSUBMODEL
 };
 
 enum class IBIS_PARSER_CONTEXT
@@ -687,6 +732,7 @@ enum class IBIS_PARSER_CONTEXT
     MODEL,
     PACKAGEMODEL,
     PACKAGEMODEL_MODELDATA,
+    BOARD_DESCRIPTION,
     END
 };
 
@@ -709,11 +755,12 @@ public:
     int   m_lineIndex = 0;
     int   m_lineLength = 0;
 
-    IbisFile           m_ibisFile;
-    IbisComponent*     m_currentComponent = nullptr;
-    IbisModelSelector* m_currentModelSelector = nullptr;
-    IbisModel*         m_currentModel = nullptr;
-    IbisPackageModel*  m_currentPackageModel = nullptr;
+    IbisFile                     m_ibisFile;
+    IbisComponent*               m_currentComponent = nullptr;
+    IbisBoardDescription*        m_currentBoardDescription = nullptr;
+    IbisModelSelector*           m_currentModelSelector = nullptr;
+    IbisModel*                   m_currentModel = nullptr;
+    IbisPackageModel*            m_currentPackageModel = nullptr;
     std::shared_ptr<IBIS_MATRIX> m_currentMatrix = nullptr;
     int                m_currentMatrixRow = 0;
     int                m_currentMatrixRowIndex = 0;
@@ -756,35 +803,36 @@ private:
      * @return True in case of success
      */
     bool parseComponent( std::string& aKeyword );
-
-    /** @brief Parse a single keyword in the component context
-     *
-     * @param aKeyword Keyword
-     * @return True in case of success
-     */
-    bool parseModelSelector( std::string& aKeyword );
-
     /** @brief Parse a single keyword in the model selector context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
-    bool parseModel( std::string& aKeyword );
-
+    bool parseModelSelector( std::string& aKeyword );
     /** @brief Parse a single keyword in the model context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
-    bool parsePackageModel( std::string& aKeyword );
-
+    bool parseModel( std::string& aKeyword );
     /** @brief Parse a single keyword in the package model context
      *
      * @param aKeyword Keyword
      * @return True in case of success
      */
+    bool parsePackageModel( std::string& aKeyword );
+    /** @brief Parse a single keyword in the package model model data context
+     *
+     * @param aKeyword Keyword
+     * @return True in case of success
+     */
     bool parsePackageModelModelData( std::string& );
-
+    /** @brief Parse a single keyword in the board description context
+     *
+     * @param aKeyword Keyword
+     * @return True in case of success
+     */
+    bool parseBoardDescription( std::string& aKeyword );
     /** @brief Parse a double according to the ibis standard
      *
      * @param aDest Where the double should be stored
@@ -844,6 +892,7 @@ private:
     bool readModelSelector();
     bool readModel();
     bool readPackageModelPins();
+    bool readAddSubmodel();
 
     /** @brief Ibis can change the character used for comments */
     bool changeCommentChar();

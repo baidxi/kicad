@@ -624,6 +624,38 @@ bool IbisModel::Check()
             Report( _( "Invalid Ramp" ), RPT_SEVERITY_ERROR );
     }
 
+    for( IbisSubmodel sm : this->m_submodels )
+    {
+        if( this->m_type == IBIS_MODEL_TYPE::SERIES
+            || this->m_type == IBIS_MODEL_TYPE::SERIES_SWITCH )
+        {
+            Report( _( "'Switch' and 'Series switch' model types cannot have submodels" ),
+                    RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        if( ( this->m_type == IBIS_MODEL_TYPE::OUTPUT
+              || this->m_type == IBIS_MODEL_TYPE::OUTPUT_ECL )
+            && sm.m_mode == IBIS_SUBMODEL_MODE::NON_DRIVING )
+        {
+            Report( _( "Model and submodel are incompatible" ), RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        if( ( this->m_type == IBIS_MODEL_TYPE::INPUT_STD
+              || this->m_type == IBIS_MODEL_TYPE::INPUT_ECL )
+            && sm.m_mode == IBIS_SUBMODEL_MODE::DRIVING )
+        {
+            Report( _( "Model and submodel are incompatible" ), RPT_SEVERITY_ERROR );
+            status = false;
+            break;
+        }
+
+        // IBIS_SUBMODEL_MODE::ALL is valid for all model types, except series and series_switch
+    }
+
     return status;
 }
 
@@ -1269,6 +1301,7 @@ bool IbisParser::changeContext( std::string& aKeyword )
         case IBIS_PARSER_CONTEXT::MODEL: status &= m_currentModel->Check(); break;
         case IBIS_PARSER_CONTEXT::MODELSELECTOR: status &= m_currentModelSelector->Check(); break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL: status &= m_currentPackageModel->Check(); break;
+        case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION: status &= m_currentBoardDescription->Check(); break;
         case IBIS_PARSER_CONTEXT::END:
             Report( "Cannot change context after [END]" );
             status = false;
@@ -1343,6 +1376,28 @@ bool IbisParser::changeContext( std::string& aKeyword )
                 m_continue = IBIS_PARSER_CONTINUE::NONE;
             }
         }
+        else if( compareIbisWord( aKeyword.c_str(), "Begin_Board_Description" ) )
+        {
+            IbisBoardDescription BD( m_Reporter );
+            status &= storeString( BD.m_name, false );
+
+            m_ibisFile.m_boardDescriptions.push_back( BD );
+            m_currentBoardDescription = &( m_ibisFile.m_boardDescriptions.back() );
+            m_context = IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION;
+        }
+        else if( compareIbisWord( aKeyword.c_str(), "End_Board_Description" ) )
+        {
+            if( m_currentBoardDescription != nullptr )
+            {
+                m_context = IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION;
+                m_continue = IBIS_PARSER_CONTINUE::NONE;
+            }
+            else // .ebd file, we just go back to header, to get the [END] keyword
+            {    // This will cause the header to be checked twice.
+                m_context = IBIS_PARSER_CONTEXT::HEADER;
+                m_continue = IBIS_PARSER_CONTINUE::NONE;
+            }
+        }
         else
         {
             status = false;
@@ -1355,7 +1410,8 @@ bool IbisParser::changeContext( std::string& aKeyword )
             case IBIS_PARSER_CONTEXT::MODELSELECTOR:          context_string += "MODEL_SELECTOR";           break;
             case IBIS_PARSER_CONTEXT::MODEL:                  context_string += "MODEL";                    break;
             case IBIS_PARSER_CONTEXT::PACKAGEMODEL:           context_string += "PACKAGE_MODEL";            break;
-            case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA: context_string += "PACKAGE_MODEL_MODEL_DATA"; break;
+            case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION:      context_string += "BOARD_DESCRIPTION";        break;
+	    case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA: context_string += "PACKAGE_MODEL_MODEL_DATA"; break;
             default:                                          context_string += "???";                      break;
             }
 
@@ -1488,6 +1544,13 @@ bool IbisParser::parseModel( std::string& aKeyword )
         status = readTypMinMaxValue( m_currentModel->m_Rpower );
     else if( compareIbisWord( aKeyword.c_str(), "Rgnd" ) )
         status = readTypMinMaxValue( m_currentModel->m_Rgnd );
+    else if( compareIbisWord( aKeyword.c_str(), "Add_Submodel" ) )
+        status = readAddSubmodel();
+    else if( compareIbisWord( aKeyword.c_str(), "Driver_Schedule" ) )
+    {
+        Report( _( "The [Driver Schedule] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
     else
         status = changeContext( aKeyword );
 
@@ -2053,6 +2116,58 @@ bool IbisParser::readModel()
 }
 
 
+bool IbisParser::readAddSubmodel()
+{
+    bool               status = true;
+    std::string        name;
+    IBIS_SUBMODEL_MODE mode;
+    std::string        subparam;
+
+    m_continue = IBIS_PARSER_CONTINUE::ADDSUBMODEL;
+
+    if( readWord( subparam ) )
+    {
+        name = subparam;
+    }
+    else
+    {
+        return true; // empty line
+    }
+
+    if( status && readWord( subparam ) )
+    {
+        if( compareIbisWord( subparam.c_str(), "All" ) )
+            mode = IBIS_SUBMODEL_MODE::ALL;
+        else if( compareIbisWord( subparam.c_str(), "Driving" ) )
+            mode = IBIS_SUBMODEL_MODE::DRIVING;
+        else if( compareIbisWord( subparam.c_str(), "Non-driving" ) )
+            mode = IBIS_SUBMODEL_MODE::NON_DRIVING;
+        else
+        {
+            std::stringstream message;
+            message << _( "Unknown mode for submodel: " ) << subparam;
+            Report( message.str(), RPT_SEVERITY_ERROR );
+            status = false;
+        }
+    }
+    else
+    {
+        Report( _( "Missing mode for submodel" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+
+    if( status )
+    {
+        IbisSubmodel submodel( m_Reporter );
+        submodel.m_name = name;
+        submodel.m_mode = mode;
+        m_currentModel->m_submodels.push_back( submodel );
+    }
+
+    return status;
+}
+
+
 bool IbisParser::parseHeader( std::string& aKeyword )
 {
     bool status = true;
@@ -2141,6 +2256,46 @@ bool IbisParser::parseComponent( std::string& aKeyword )
         status = false;
     }
 
+    return status;
+}
+
+bool IbisParser::parseBoardDescription( std::string& aKeyword )
+{
+    bool status = true;
+    if( compareIbisWord( aKeyword.c_str(), "Manufacturer" ) )
+    {
+        status &= storeString( m_currentBoardDescription->m_manufacturer, true );
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Number_Of_Pins" ) )
+    {
+        status &= readInt( m_currentBoardDescription->m_numberOfPins );
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Pin_List" ) )
+    {
+        Report( _( "The [Pin List] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Path_Description" ) )
+    {
+        Report( _( "The [Path Description] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Reference_Designator_Map" ) )
+    {
+        Report( _( "The [Path Description] keyword is not implemented" ), RPT_SEVERITY_ERROR );
+        status = false;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Diff_Pin" ) )
+    {
+        status &= readDiffPin();
+    }
+    else
+    {
+        if( !changeContext( aKeyword ) )
+        {
+            status = false;
+        }
+    }
     return status;
 }
 
@@ -2536,6 +2691,9 @@ bool IbisParser::onNewLine()
             break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL:
             status &= parsePackageModel( keyword );
+	    break;
+        case IBIS_PARSER_CONTEXT::BOARD_DESCRIPTION:
+            status &= parseBoardDescription( keyword );
             break;
         case IBIS_PARSER_CONTEXT::PACKAGEMODEL_MODELDATA:
             status &= parsePackageModelModelData( keyword );
@@ -2600,6 +2758,9 @@ bool IbisParser::onNewLine()
             break;
         case IBIS_PARSER_CONTINUE::MATRIX:
             status &= readMatrix( m_currentMatrix );
+            break;
+        case IBIS_PARSER_CONTINUE::ADDSUBMODEL:
+	    status &= readAddSubmodel();
             break;
         case IBIS_PARSER_CONTINUE::NONE:
         default:
