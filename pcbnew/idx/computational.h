@@ -1,9 +1,25 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Copyright (C) 2024 KiCad Developers
+ * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * @author Fabien Corona <f.corona<at>laposte.net>
  *
- * License: GNU GPL v2 or later
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
 #ifndef IDX_COMPUTATIONAL_HEADER_H
@@ -18,7 +34,8 @@
 #include <string>
 #include <iostream>
 
-namespace idx_computational {
+namespace idx_computational
+{
 
 class EDMD_ABSTRACT_CHANGE;
 class EDMD_CHANGE;
@@ -31,12 +48,12 @@ class EDMD_ABSTRACT_CHANGE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_ABSTRACT_CHANGE();
-    EDMD_ABSTRACT_CHANGE(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_ABSTRACT_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse(IDX_XML_NODE& aNode);
+    bool Parse( IDX_XML_NODE& aNode );
 
 private:
-    std::string m_actorRef;
+    std::string                                      m_actorRef;
     std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
 };
 
@@ -73,7 +90,7 @@ class EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION : public idx_foundation::
 {
 public:
     EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION();
-    EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
 
@@ -84,10 +101,10 @@ class EDMD_TRANSACTION : public EDMD_ABSTRACT_CHANGE
 {
 public:
     EDMD_TRANSACTION();
-    EDMD_TRANSACTION(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_TRANSACTION( IDX_XML_NODE& aNode, bool aTopLevel );
     std::vector<std::shared_ptr<EDMD_ABSTRACT_CHANGE>> m_changes;
 
-    bool Parse(IDX_XML_NODE& aNode);
+    bool Parse( IDX_XML_NODE& aNode );
 };
 
 
@@ -98,18 +115,15 @@ class EDMD_CHANGE : public EDMD_ABSTRACT_CHANGE
 {
 public:
     EDMD_CHANGE();
-    EDMD_CHANGE(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse(IDX_XML_NODE& aNode);
+    bool Parse( IDX_XML_NODE& aNode );
 
 
-    idx_foundation::EDMD_DESIGNATOR m_newItem;
-    idx_foundation::EDMD_DESIGNATOR m_predecessorItem;
+    idx_foundation::EDMD_DESIGNATOR        m_newItem;
+    idx_foundation::EDMD_DESIGNATOR        m_predecessorItem;
     std::vector<idx_foundation::EDMD_NAME> m_deletedInstanceName;
-
 };
-
-
 
 
 // -----------------------------
@@ -119,15 +133,14 @@ class EDMD_PROCESS_INSTRUCTION_SEND_CHANGES : public idx_foundation::EDMD_PROCES
 {
 public:
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES();
-    EDMD_PROCESS_INSTRUCTION_SEND_CHANGES(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_PROCESS_INSTRUCTION_SEND_CHANGES( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse(IDX_XML_NODE& aNode);
+    bool Parse( IDX_XML_NODE& aNode );
 
 private:
     std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
-    std::string m_actorRef;
-    EDMD_TRANSACTION m_transaction;
-    
+    std::string                                      m_actorRef;
+    EDMD_TRANSACTION                                 m_transaction;
 };
 
 
@@ -138,12 +151,11 @@ class EDMD_PROCESS_INSTRUCTION_SEND_INFO : public idx_foundation::EDMD_PROCESS_I
 {
 public:
     EDMD_PROCESS_INSTRUCTION_SEND_INFO();
-    EDMD_PROCESS_INSTRUCTION_SEND_INFO(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_PROCESS_INSTRUCTION_SEND_INFO( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
 
 } // namespace idx_computational
-
 
 
 #endif // IDX_COMPUTATIONAL_HEADER_H

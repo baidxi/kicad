@@ -36,8 +36,10 @@ namespace idx_administration
 class EDMD_ACTOR : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_ACTOR() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
-    EDMD_ACTOR( IDX_XML_NODE& aNode ) : idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
+    EDMD_ACTOR() :
+            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_ACTOR( IDX_XML_NODE& aNode ) :
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
 };
 /**
      * @brief Representation of a natural person
@@ -49,11 +51,16 @@ class EDMD_PERSON : public EDMD_ACTOR
 public:
     EDMD_PERSON( std::string aSurname, std::string aGivenName, std::string aInitials, std::string aEmailAddress,
                  std::string aPhoneNumber, std::string aFaxNumber ) :
-            EDMD_ACTOR(), m_surname( aSurname ), m_givenName( aGivenName ), m_initials( aInitials ),
-            m_emailAddress( aEmailAddress ), m_phoneNumber( aPhoneNumber ),
+            EDMD_ACTOR(),
+            m_surname( aSurname ),
+            m_givenName( aGivenName ),
+            m_initials( aInitials ),
+            m_emailAddress( aEmailAddress ),
+            m_phoneNumber( aPhoneNumber ),
             m_faxNumber( aFaxNumber ) {};
 
-    EDMD_PERSON( IDX_XML_NODE& aNode ) : EDMD_ACTOR( aNode )
+    EDMD_PERSON( IDX_XML_NODE& aNode ) :
+            EDMD_ACTOR( aNode )
     {
         auto child = aNode.GetChildren();
 
@@ -96,11 +103,15 @@ public:
 class EDMD_ORGANISATION
 {
 public:
-    EDMD_ORGANISATION( std::string aOrganisationNAme, std::string aSite, std::string aStreetNumber,
-                       std::string aStreet, std::string aPCcode, std::string aCountry, std::string aUri ) :
-            m_organisationName( aOrganisationNAme ), m_site( aSite ),
-            m_streetNumber( aStreetNumber ), m_street( aStreet ), m_PCcode( aPCcode ),
-            m_country( aCountry ), m_uri( aUri ) {};
+    EDMD_ORGANISATION( std::string aOrganisationNAme, std::string aSite, std::string aStreetNumber, std::string aStreet,
+                       std::string aPCcode, std::string aCountry, std::string aUri ) :
+            m_organisationName( aOrganisationNAme ),
+            m_site( aSite ),
+            m_streetNumber( aStreetNumber ),
+            m_street( aStreet ),
+            m_PCcode( aPCcode ),
+            m_country( aCountry ),
+            m_uri( aUri ) {};
 
     const std::string m_organisationName;
     const std::string m_site;
@@ -159,7 +170,7 @@ public:
     }
 
 
-    std::string                  m_actor;
+    std::string               m_actor;
     idx_foundation::EDMD_NAME m_roleName;
 };
 

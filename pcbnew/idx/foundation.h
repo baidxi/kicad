@@ -41,17 +41,17 @@ class EDMD_OBJECT : public IDX_BASE
 {
 public:
     EDMD_OBJECT();
-    EDMD_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Resolve(IDX_REGISTRY& aRegistry);
+    bool Resolve( IDX_REGISTRY& aRegistry );
 
-    bool operator==(const EDMD_OBJECT& rhs);
+    bool operator==( const EDMD_OBJECT& rhs );
 
 protected:
     bool Parse( IDX_XML_NODE& aNode ) override;
 
 public:
-    std::string m_id;
+    std::string         m_id;
     enum OPTIONAL_LOGIC m_isAttributeChanged = UNSPECIFIED;
 };
 
@@ -60,15 +60,15 @@ class EDMD_EXTENSIBLE_OBJECT : public EDMD_OBJECT
 {
 public:
     EDMD_EXTENSIBLE_OBJECT();
-    EDMD_EXTENSIBLE_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_EXTENSIBLE_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    idx_property::EDMD_USER_PROPERTY* GetUserProperty(const std::string& aKey);
-    bool Resolve(IDX_REGISTRY& aRegistry);
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    idx_property::EDMD_USER_PROPERTY* GetUserProperty( const std::string& aKey );
+    bool                              Resolve( IDX_REGISTRY& aRegistry );
+    bool                              Parse( IDX_XML_NODE& aNode ) override;
 
 
-    std::string                                      m_name;
-    std::string                                      m_description;
+    std::string                                   m_name;
+    std::string                                   m_description;
     std::vector<EDMD_NAME>                        m_displayDescription;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
@@ -79,9 +79,9 @@ class EDMD_COLLABORATION_OBJECT : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_COLLABORATION_OBJECT();
-    EDMD_COLLABORATION_OBJECT(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_COLLABORATION_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Resolve(IDX_REGISTRY& aRegistry);
+    bool Resolve( IDX_REGISTRY& aRegistry );
     bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
@@ -102,16 +102,16 @@ public:
         FACTORYSTANDARD,
     };
 
-    EDMD_SYSTEM(IDX_XML_NODE& aNode);
-    bool Resolve(IDX_REGISTRY& aRegistry);
+    EDMD_SYSTEM( IDX_XML_NODE& aNode );
+    bool Resolve( IDX_REGISTRY& aRegistry );
 
     SYSTEM_TYPE m_systemType = SYSTEM_TYPE::UNDEFINED;
-    std::string    m_globalName;
-    std::string    m_webServiceURI;
-    std::string    m_revision;
-    std::string    m_systemName;
-    std::string    m_instanceName;
-    std::string    m_systemOwner;
+    std::string m_globalName;
+    std::string m_webServiceURI;
+    std::string m_revision;
+    std::string m_systemName;
+    std::string m_instanceName;
+    std::string m_systemOwner;
     bool        m_needsSelfContainedMessages = false;
 };
 
@@ -119,12 +119,12 @@ public:
 class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
-    EDMD_HEADER(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_HEADER( IDX_XML_NODE& aNode, bool aTopLevel );
     EDMD_HEADER();
 
 
     bool Parse( IDX_XML_NODE& aNode ) override;
-    
+
     std::string m_creatorName;
     std::string m_creatorCompany;
     std::string m_creatorSystem;
@@ -154,26 +154,26 @@ class EDMD_DATASET_BODY : public IDX_BASE
 {
 public:
     EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
-    EDMD_DATASET_BODY(){};
+    EDMD_DATASET_BODY() {};
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 
 
     IDX_REGISTRY m_registry;
 
-    std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>> m_actors;
-    std::vector<std::shared_ptr<idx_foundation::EDMD_SYSTEM>>    m_systems;
-    std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>        m_units;
-    std::vector<std::shared_ptr<idx_geometry::EDMD_POINT>>       m_points;
-    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE>>       m_curves;
-    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVESET2D>>  m_curvesets;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>    m_shapeElements;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>>         m_functionalItemShapes;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_STRATUM>>          m_stratums;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE>>          m_interStratums;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>  m_keeps;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM>>             m_items;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT>> m_assemblies;
+    std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>>      m_actors;
+    std::vector<std::shared_ptr<idx_foundation::EDMD_SYSTEM>>         m_systems;
+    std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>             m_units;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_POINT>>            m_points;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE>>            m_curves;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVESET2D>>       m_curvesets;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>         m_shapeElements;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>> m_functionalItemShapes;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_STRATUM>>               m_stratums;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE>>  m_interStratums;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>       m_keeps;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM>>                  m_items;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT>>    m_assemblies;
 
 
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_boardOutline;
@@ -192,12 +192,13 @@ public:
         BASELINE = 0,
         SEND_CHANGES
     };
-    EDMD_PROCESS_INSTRUCTION(): EDMD_EXTENSIBLE_OBJECT(){};
-    EDMD_PROCESS_INSTRUCTION(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_PROCESS_INSTRUCTION() :
+            EDMD_EXTENSIBLE_OBJECT() {};
+    EDMD_PROCESS_INSTRUCTION( IDX_XML_NODE& aNode, bool aTopLevel );
     std::shared_ptr<EDMD_OBJECT> m_subject;
     std::shared_ptr<EDMD_OBJECT> m_object;
     std::shared_ptr<EDMD_SYSTEM> m_targetSystem;
-    PROCESS_TYPE m_processType;
+    PROCESS_TYPE                 m_processType;
 };
 
 
@@ -205,7 +206,7 @@ class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
     EDMD_DATASET();
-    EDMD_DATASET(IDX_XML_NODE& aNode);
+    EDMD_DATASET( IDX_XML_NODE& aNode );
 
     EDMD_HEADER                           m_header;
     EDMD_DATASET_BODY                     m_body;
@@ -217,29 +218,29 @@ class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_DESIGNATOR();
-    EDMD_DESIGNATOR(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_DESIGNATOR( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_systemScopeRef;
-    bool     m_persistant = false;
+    bool        m_persistant = false;
     std::string m_originatorId;
-    bool     m_isOriginator = false;
+    bool        m_isOriginator = false;
 };
 
 
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
-    EDMD_IDENTIFIER(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel );
 
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::string                                      m_number;
-    std::string                                      m_version;
-    std::string                                      m_revision;
-    std::string                                      m_sequence;
+    std::string                                   m_number;
+    std::string                                   m_version;
+    std::string                                   m_revision;
+    std::string                                   m_sequence;
     std::vector<EDMD_NAME>                        m_name;
     std::vector<EDMD_NAME>                        m_displayName;
     std::vector<idx_property::EDMD_USER_PROPERTY> m_userProperty;
@@ -250,7 +251,7 @@ class EDMD_NAME : public EDMD_DESIGNATOR
 {
 public:
     EDMD_NAME();
-    EDMD_NAME(IDX_XML_NODE& aNode, bool aTopLevel);
+    EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 

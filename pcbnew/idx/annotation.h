@@ -22,13 +22,11 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
 #ifndef IDX_ANNOTATION_H
 #define IDX_ANNOTATION_H
-#include <idx/idx_base.h>
 #include <idx/foundation.h>
+#include <idx/idx_base.h>
 #include <memory>
-
 
 namespace idx_annotation
 {
