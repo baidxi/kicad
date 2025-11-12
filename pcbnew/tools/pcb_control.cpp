@@ -1411,10 +1411,9 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
 int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
     BOARD_COMMIT commit( frame() );
-    
+
     wxFileDialog fileDialog( m_frame, _( "IDX baseline file" ), wxEmptyString, wxEmptyString,
-                             _( "All Files" ) + wxT( " (*.*)|*.*" ),
-                             wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+                             _( "All Files" ) + wxT( " (*.*)|*.*" ), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
 
     if( fileDialog.ShowModal() == wxID_OK )
     {
@@ -1423,7 +1422,7 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
         KICAD_IDX* kidx = new KICAD_IDX( path, board(), &commit );
 
         DIALOG_IDX_REVIEW dlg( m_frame, kidx );
-        bool                      cancelled;
+        bool              cancelled;
 
         RunMainStack(
                 [&]()
@@ -1435,10 +1434,9 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
         {
         }
         else
-        {   
+        {
         }
         kidx->Apply( dlg.GetAccepted() );
-
     }
     return 0;
 

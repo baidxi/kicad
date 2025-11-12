@@ -55,7 +55,7 @@ DIALOG_BARCODE_PROPERTIES::DIALOG_BARCODE_PROPERTIES( PCB_BASE_FRAME* aParent, P
         m_knockoutMarginX( aParent, m_marginXLabel, m_marginXCtrl, m_marginXUnits ),
         m_knockoutMarginY( aParent, m_marginYLabel, m_marginYCtrl, m_marginYUnits )
 {
-    m_currentBarcode  = aBarcode; // aBarcode can not be NULL (no FOOTPRINT editor?)
+    m_currentBarcode = aBarcode; // aBarcode can not be NULL (no FOOTPRINT editor?)
 
     m_board = m_parent->GetBoard();
 
