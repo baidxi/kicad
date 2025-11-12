@@ -49,16 +49,12 @@ bool EDMD_PROCESS_INSTRUCTION_SEND_CHANGES::Parse( IDX_XML_NODE& aNode )
     const std::string content = aNode.GetNodeContent();
 
     if( IDX_keyword_compare( name, "computational:Actor" ) )
-    {
         m_actorRef = content;
-        return true;
-    }
     else if( IDX_keyword_compare( name, "computational:Changes" ) )
-    {
         m_transaction = std::make_shared<EDMD_TRANSACTION>( aNode, true );
-        return true;
-    }
-    return this->EDMD_PROCESS_INSTRUCTION::Parse( aNode );
+    else
+        return this->EDMD_PROCESS_INSTRUCTION::Parse( aNode );
+    return true;
 }
 
 

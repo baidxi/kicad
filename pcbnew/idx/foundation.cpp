@@ -118,7 +118,7 @@ std::shared_ptr<idx_property::EDMD_USER_PROPERTY> EDMD_EXTENSIBLE_OBJECT::GetUse
     {
         for( const auto& key : prop->m_keys )
         {
-            if( key.m_objectName == aKey )
+            if( key->m_objectName == aKey )
                 return prop;
         }
     }

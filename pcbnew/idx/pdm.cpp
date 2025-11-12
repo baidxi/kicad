@@ -471,15 +471,13 @@ bool EDMD_KEEP_CONSTRAINT::Parse( IDX_XML_NODE& aNode )
             m_purpose.push_back( KEEP_CONSTRAINT_PURPOSE::OTHER );
         else
             invalidValueIDX( name, content );
-        return true;
     }
     else if( IDX_keyword_compare( name, "pdm:KeepConstraintCondition" ) )
-    {
-        m_keepConstraintCondition.emplace_back( aNode, true );
-        return true;
-    }
-
-    return this->EDMD_ITEM_SHAPE::Parse( aNode );
+        m_keepConstraintCondition.emplace_back(
+                std::make_shared<idx_property::EDMD_CONSTRAINED_PROPERTY>( aNode, true ) );
+    else
+        return this->EDMD_ITEM_SHAPE::Parse( aNode );
+    return true;
 }
 
 

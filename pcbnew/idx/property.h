@@ -84,13 +84,13 @@ public:
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::vector<EDMD_UNIT>                           m_validUnit;
-    std::vector<std::string>                         m_validValues;
-    std::vector<EDMD_CONSTRAINED_PROPERTY>           m_maxValue;
-    std::vector<EDMD_CONSTRAINED_PROPERTY>           m_minValue;
-    std::shared_ptr<idx_administration::EDMD_PERSON> m_originator;
-    bool                                             m_isChanged = false;
-    bool                                             m_isNew = false;
+    std::vector<std::shared_ptr<EDMD_UNIT>>                 m_validUnit;
+    std::vector<std::string>                                m_validValues;
+    std::vector<std::shared_ptr<EDMD_CONSTRAINED_PROPERTY>> m_maxValue;
+    std::vector<std::shared_ptr<EDMD_CONSTRAINED_PROPERTY>> m_minValue;
+    std::shared_ptr<idx_administration::EDMD_PERSON>        m_originator;
+    bool                                                    m_isChanged = false;
+    bool                                                    m_isNew = false;
 
     std::string m_unit;
 };
@@ -102,8 +102,8 @@ public:
     EDMD_USER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::vector<idx_foundation::EDMD_NAME> m_keys;
-    std::string                            m_value;
+    std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_keys;
+    std::string                                             m_value;
 };
 
 enum class UNIT_FUNDAMENTAL

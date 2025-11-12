@@ -280,8 +280,8 @@ public:
     EDMD_KEEP_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::vector<KEEP_CONSTRAINT_PURPOSE>                 m_purpose;
-    std::vector<idx_property::EDMD_CONSTRAINED_PROPERTY> m_keepConstraintCondition;
+    std::vector<KEEP_CONSTRAINT_PURPOSE>                                  m_purpose;
+    std::vector<std::shared_ptr<idx_property::EDMD_CONSTRAINED_PROPERTY>> m_keepConstraintCondition;
 
 private:
 };
