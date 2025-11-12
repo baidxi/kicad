@@ -349,13 +349,13 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     else if( IDX_keyword_compare( name, "foundation:KeepOut" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s = std::make_shared<idx_pdm::EDMD_KEEPOUT>( aNode, true );
-        //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_keeps.push_back( s );
     }
     else if( IDX_keyword_compare( name, "foundation:KeepIn" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_KEEPIN> s = std::make_shared<idx_pdm::EDMD_KEEPIN>( aNode, true );
-        //m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_keeps.push_back( s );
     }
     else if( IDX_keyword_compare( name, "foundation:Item" ) )

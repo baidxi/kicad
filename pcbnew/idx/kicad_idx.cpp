@@ -251,11 +251,16 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstan
     return m_result;
 }
 
-std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aKeep )
+std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst )
 {
-    std::vector<BOARD_ITEM*> m_result;
+    std::vector<BOARD_ITEM*>                       m_result;
+    std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT> keep =
+            std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( aInst.m_item->m_shape );
 
-    for( auto const& y : aKeep.m_shapeElement )
+    if( !keep )
+        return {};
+
+    for( auto const& y : keep->m_shapeElement )
     {
         std::shared_ptr<idx_geometry::EDMD_CURVESET2D> ptr =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( y->m_definingShape );
@@ -269,9 +274,9 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aKee
             }
 
             ZONE* zone = new ZONE( m_board );
-            zone->SetZoneName( aKeep.m_id );
+            zone->SetZoneName( aInst.m_name );
             zone->SetLayerSet( layers );
-            this->SetKeepRules( *zone, aKeep );
+            this->SetKeepRules( *zone, *keep );
 
             for( auto const& z : ptr->m_modelElement )
             {

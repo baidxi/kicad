@@ -181,6 +181,7 @@ public:
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_NPTH;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_PTH;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_others;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_keepZones;
 };
 
 

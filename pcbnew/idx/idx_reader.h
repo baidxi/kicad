@@ -44,12 +44,12 @@ public:
 
     void Read( wxXmlDocument& aDoc );
 
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetBoardOutlineElements() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetComponents() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetNPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>   GetOthers() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> GetKeepZones() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers() const;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetKeepZones() const;
 
     std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
 
@@ -71,15 +71,12 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
     {
         for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance )
         {
-            bool handled = false;
-
             // Check for board outline
             if( auto type = inst->GetUserProperty( "TYPE" ) )
             {
                 if( type->m_value == "BOARDOUTLINE" )
                 {
                     m_dataset->m_body.m_boardOutline.push_back( inst );
-                    handled = true;
                     continue;
                 }
             }
@@ -91,33 +88,31 @@ void IDX_HOLDER::Read( wxXmlDocument& aDoc )
                 using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
                 switch( interstratum->m_interstratumFeatureType )
                 {
-                case FT::BOARD_CUTOUT:
-                    m_dataset->m_body.m_boardOutline.push_back( inst );
-                    handled = true;
-                    continue;
-                case FT::CUTOUT:
-                    m_dataset->m_body.m_NPTH.push_back( inst );
-                    handled = true;
-                    continue;
-                case FT::PLATED_CUTOUT:
-                    m_dataset->m_body.m_PTH.push_back( inst );
-                    handled = true;
-                    continue;
+                case FT::BOARD_CUTOUT: m_dataset->m_body.m_boardOutline.push_back( inst ); continue;
+                case FT::CUTOUT: m_dataset->m_body.m_NPTH.push_back( inst ); continue;
+                case FT::PLATED_CUTOUT: m_dataset->m_body.m_PTH.push_back( inst ); continue;
                 default: break;
                 }
             }
 
+            if( inst->m_item && inst->m_item->m_shape )
+            {
+                auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( inst->m_item->m_shape );
+                if( keep )
+                {
+                    std::cout << inst->m_name << " is a keep zone" << std::endl;
+                    m_dataset->m_body.m_keepZones.push_back( inst );
+                    continue;
+                }
+            }
 
             if( !inst->m_name.empty() )
             {
                 m_dataset->m_body.m_components.push_back( inst );
-                handled = true;
                 continue;
             }
 
-            // If not stored anywhere, push to m_others
-            if( !handled )
-                m_dataset->m_body.m_others.push_back( inst );
+            m_dataset->m_body.m_others.push_back( inst );
         }
     }
 }
@@ -151,9 +146,9 @@ std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetOthers(
 }
 
 
-std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>> IDX_HOLDER::GetKeepZones() const
+std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> IDX_HOLDER::GetKeepZones() const
 {
-    return m_dataset->m_body.m_keeps;
+    return m_dataset->m_body.m_keepZones;
 }
 
 #endif

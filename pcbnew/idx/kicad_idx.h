@@ -39,15 +39,12 @@ enum PCB_LAYER_ID : int;
 class IDX_HOLDER;
 
 
-
 class KICAD_IDX_CHANGE
 {
-
-    public:
-    
+public:
     enum class ELEMENT_TYPE
     {
-        BOARD_OUTLINE=0,
+        BOARD_OUTLINE = 0,
         BOARD_THICKNESS,
         RULE_ZONE,
         NPTH,
@@ -57,17 +54,18 @@ class KICAD_IDX_CHANGE
         OTHER
     };
 
-    KICAD_IDX_CHANGE( IDX_BASE& aIdx ): m_idx( aIdx ) {};
+    KICAD_IDX_CHANGE( IDX_BASE& aIdx ) :
+            m_idx( aIdx ) {};
 
     std::vector<BOARD_ITEM*> m_items;
-    ELEMENT_TYPE m_type;
-    wxString m_name;
-    double m_value;
-    bool baseline = true;
+    ELEMENT_TYPE             m_type;
+    wxString                 m_name;
+    double                   m_value;
+    bool                     baseline = true;
 
-   // void Accept(){};
-   // void Reject(){};
-    private:
+    // void Accept(){};
+    // void Reject(){};
+private:
     IDX_BASE& m_idx;
 };
 
@@ -78,19 +76,18 @@ public:
     KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit );
 
 
-    void        AddAll();
-    void        AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
+    void                     AddAll();
+    void                     AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
     std::vector<BOARD_ITEM*> AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
-    BOARD_ITEM* AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
-    void        Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector );
-
+    BOARD_ITEM*              AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
+    void                     Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector );
 
 
     // Convert IDX shapes to BOARD_ITEM*
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVESET2D& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_ARC& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
-    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE&);
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE& );
 
     // Abstraction
     std::vector<KICAD_IDX_CHANGE> Process();
@@ -101,12 +98,12 @@ public:
 
     std::vector<BOARD_ITEM*> AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
     std::vector<BOARD_ITEM*> AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
-    std::vector<BOARD_ITEM*> AddZone( idx_pdm::EDMD_KEEP_CONSTRAINT& aInstance );
+    std::vector<BOARD_ITEM*> AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
 
 
-    void SetKeepRules( ZONE&, idx_pdm::EDMD_KEEP_CONSTRAINT&);
+    void SetKeepRules( ZONE&, idx_pdm::EDMD_KEEP_CONSTRAINT& );
 
-    bool ApplyTransformation(BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo );
+    bool ApplyTransformation( BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo );
 
 
     void Report( wxString aMsg, SEVERITY aSev = RPT_SEVERITY_INFO );
@@ -117,13 +114,12 @@ public:
     void AddItem( BOARD_ITEM*, LSET );
     LSET GetLayers( idx_geometry::EDMD_CURVESET2D& );
 
-    std::shared_ptr<IDX_HOLDER>   m_holder;
-    BOARD_COMMIT*                 m_commit;
-    BOARD*                        m_board;
+    std::shared_ptr<IDX_HOLDER>               m_holder;
+    BOARD_COMMIT*                             m_commit;
+    BOARD*                                    m_board;
     std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup;
-    double                        m_boardThickness;
+    double                                    m_boardThickness;
 };
-
 
 
 #endif
