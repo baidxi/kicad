@@ -128,7 +128,7 @@ void KICAD_IDX::AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INST
 {
     for( auto instance : aVector )
     {
-        AddElement( *instance, { Eco1_User } );
+        AddElement( *instance, Eco1_User );
     }
 }
 
@@ -348,7 +348,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *edge );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
-        change.m_items = AddElement( *edge, { Edge_Cuts } );
+        change.m_items = AddElement( *edge, Edge_Cuts );
         change.m_name = edge->m_name;
         m_result.push_back( change );
     }
@@ -366,7 +366,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *cmp );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
-        change.m_items = AddElement( *cmp, { User_1 } );
+        change.m_items = AddElement( *cmp, User_1 );
         change.m_name = cmp->m_name;
         m_result.push_back( change );
     }
@@ -393,7 +393,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *other );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
-        change.m_items = AddElement( *other, { User_1 } );
+        change.m_items = AddElement( *other, User_1 );
         change.m_name = other->m_name;
         m_result.push_back( change );
     }
