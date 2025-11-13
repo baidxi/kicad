@@ -31,33 +31,35 @@
 bool IDX_keyword_compare( std::string a, std::string b )
 {
     // case sensitive compare
-    return a.compare(b) == 0;
+    return a.compare( b ) == 0;
 }
 
 
-bool IDX_BASE::Resolve( IDX_REGISTRY& aRegistry ) { return false; };
+bool IDX_BASE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return false;
+};
 
 void IDX_BASE::ParseChildren( IDX_XML_NODE& node )
 {
-    for (auto child = node.GetChildren(); child; child = child->GetNext())
+    for( auto child = node.GetChildren(); child; child = child->GetNext() )
     {
-        if (!child)
+        if( !child )
             continue;
 
-        if (!this->Parse(*child))
-            this->unknownKeywordIDX(child->GetName());
+        if( !this->Parse( *child ) )
+            this->unknownKeywordIDX( child->GetName() );
     }
 }
 
 
-
 void IDX_BASE::unknownKeywordIDX( std::string aName )
 {
-    this->Report("unknown keyword: " + aName + " for class " + typeid(*this).name(), WARNING);
+    this->Report( "unknown keyword: " + aName + " for class " + typeid( *this ).name(), IDX_WARNING );
 }
 
 
 void IDX_BASE::invalidValueIDX( std::string aKeyWord, std::string aValue )
 {
-    this->Report( "Invalid value " + aValue + " for " + aKeyWord , WARNING );
+    this->Report( "Invalid value " + aValue + " for " + aKeyWord, IDX_WARNING );
 }

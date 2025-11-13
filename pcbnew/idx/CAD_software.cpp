@@ -25,15 +25,15 @@
 #include "CAD_software.h"
 
 // ----------------- IDX_BASE -----------------
-void IDX_BASE::Report( std::string aMsg, REPORT_LEVEL aLvl )
+void IDX_BASE::Report( std::string aMsg, IDX_REPORT_LEVEL aLvl )
 {
     wxString ws( aMsg.c_str(), wxConvUTF8 );
     switch( aLvl )
     {
-    case REPORT_LEVEL::INFO: std::cout << "INFO: "; break;
-    case REPORT_LEVEL::ACTION: std::cout << "ACTION: "; break;
-    case REPORT_LEVEL::WARNING: std::cout << "WARNING: "; break;
-    case REPORT_LEVEL::ERROR: std::cout << "ERROR: "; break;
+    case IDX_REPORT_LEVEL::IDX_INFO: std::cout << "INFO: "; break;
+    case IDX_REPORT_LEVEL::IDX_ACTION: std::cout << "ACTION: "; break;
+    case IDX_REPORT_LEVEL::IDX_WARNING: std::cout << "WARNING: "; break;
+    case IDX_REPORT_LEVEL::IDX_ERROR: std::cout << "ERROR: "; break;
     }
     std::cout << aMsg << std::endl;
 }

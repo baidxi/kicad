@@ -209,12 +209,12 @@ public:
         LOGIC_TRUE = 1
     };
 
-    enum REPORT_LEVEL : int
+    enum IDX_REPORT_LEVEL : int
     {
-        INFO = 0,
-        ACTION,
-        WARNING,
-        ERROR
+        IDX_INFO = 0,
+        IDX_ACTION,
+        IDX_WARNING,
+        IDX_ERROR
     };
 
 
@@ -253,7 +253,7 @@ public:
 
 protected:
     // Function to report in your CAD software
-    void Report( std::string aMsg, REPORT_LEVEL aLvl );
+    void Report( std::string aMsg, IDX_REPORT_LEVEL aLvl );
     void ParseChildren( IDX_XML_NODE& node );
 
     virtual bool Parse( IDX_XML_NODE& aNode ) { return false; };
