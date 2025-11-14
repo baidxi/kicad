@@ -35,11 +35,7 @@
 
 struct DRC_REGRESSION_TEST_FIXTURE
 {
-    // clang-format off
-    DRC_REGRESSION_TEST_FIXTURE() :
-            m_settingsManager( true /* headless */ )
-    { }
-    // clang-format on
+    DRC_REGRESSION_TEST_FIXTURE() {}
 
     SETTINGS_MANAGER       m_settingsManager;
     std::unique_ptr<BOARD> m_board;
