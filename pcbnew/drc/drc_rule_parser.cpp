@@ -577,7 +577,6 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
                     || c.m_Type == TRACK_ANGLE_CONSTRAINT
                     || c.m_Type == VIA_DANGLING_CONSTRAINT
                     || c.m_Type == BRIDGED_MASK_CONSTRAINT
-                    || c.m_Type == PAD_FANOUT_RATIO_CONSTRAINT
                     || c.m_Type == FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT
                     || c.m_Type == FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT;
 
