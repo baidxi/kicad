@@ -23,7 +23,6 @@
  */
 
 #include <idx/kicad_idx.h>
-#include <idx/idx_reader.h>
 #include <lset.h>
 #include <layer_ids.h>
 #include <zone.h>
@@ -36,7 +35,7 @@
 #include <pad.h>
 #include <pcb_track.h>
 
-KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
+KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit, bool aHeaderOnly ) :
         m_commit( aCommit ),
         m_board( aBoard )
 {
@@ -45,7 +44,10 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit )
     if( !doc.Load( aFilename ) )
         return;
 
-    m_holder = std::make_unique<IDX_HOLDER>( doc );
+    m_holder = std::make_unique<IDX_HOLDER>( doc, aHeaderOnly );
+
+    if( !m_board || aHeaderOnly )
+        return;
 
     BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
     BOARD_STACKUP          stackup = dsnSettings.GetStackupDescriptor();
@@ -403,6 +405,11 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
 
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
 {
+    if( !m_holder )
+        return {};
+    if( !m_holder->m_dataset )
+        return {};
+
     if( m_holder->m_dataset->m_processInstruction.size() < 1 )
         return {};
 

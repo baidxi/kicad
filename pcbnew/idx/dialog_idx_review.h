@@ -26,6 +26,7 @@
 #define DIALOG_IDX_REVIEW_H
 
 #include "dialog_idx_review_base.h"
+#include <wx/dir.h>
 
 class PCB_BASE_FRAME;
 class BOARD;
@@ -37,7 +38,7 @@ class KICAD_IDX;
 class DIALOG_IDX_REVIEW : public DIALOG__IDX_REVIEW_BASE
 {
 public:
-    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, KICAD_IDX* aIDX );
+    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, std::shared_ptr<KICAD_IDX> aIDX );
     ~DIALOG_IDX_REVIEW() override;
 
     bool                                           TransferDataToWindow();
@@ -49,8 +50,14 @@ protected:
     void OnGridCellClick( wxGridEvent& event ) override;
     void OnAcceptAll( wxCommandEvent& event ) override;
     void OnRejectAll( wxCommandEvent& event ) override;
+    void onItemActivated( wxDataViewEvent& event ) override;
+    void OnCollaborationFolderText( wxCommandEvent& event ) override;
+    void onBrowseButton( wxCommandEvent& event ) override;
 
 private:
+    void loadDir( const wxString& aDir );
+    bool loadIDX( std::shared_ptr<KICAD_IDX> aIDX );
+    void clearIDX();
     void prepareCanvas();
     void refreshPreview();
     void OnResize( wxSizeEvent& event );
@@ -59,10 +66,11 @@ private:
 
 
 private:
-    PCB_BASE_FRAME* m_parent;
-    BOARD*          m_board;
-    BOARD*          m_dummyBoard;
-    KICAD_IDX*      m_idx;
+    std::shared_ptr<wxDir>     m_dir;
+    PCB_BASE_FRAME*            m_parent;
+    BOARD*                     m_board;
+    BOARD*                     m_dummyBoard;
+    std::shared_ptr<KICAD_IDX> m_idx;
 
     std::vector<std::vector<BOARD_ITEM*>>                           m_objects;
     std::vector<std::pair<bool, std::shared_ptr<KICAD_IDX_CHANGE>>> m_changes;

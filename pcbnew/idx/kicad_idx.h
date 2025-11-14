@@ -31,12 +31,10 @@
 #include <idx/idx.h>
 #include <board.h>
 #include <widgets/report_severity.h>
+#include <idx/idx_reader.h>
 
 class LSET;
 enum PCB_LAYER_ID : int;
-
-//bool read_IDX( wxString aFilename, BOARD_COMMIT* aCommit );
-class IDX_HOLDER;
 
 
 class KICAD_IDX_CHANGE
@@ -73,7 +71,7 @@ private:
 class KICAD_IDX
 {
 public:
-    KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit );
+    KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit, bool aHeaderOnly = false );
 
 
     void                     AddAll();

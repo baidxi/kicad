@@ -221,6 +221,10 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
         m_creatorCompany = content;
     else if( IDX_keyword_compare( name, "foundation:CreatorSystem" ) )
         m_creatorSystem = content;
+    else if( IDX_keyword_compare( name, "foundation:CreationDateTime" ) )
+        m_creationDateTime = content;
+    else if( IDX_keyword_compare( name, "foundation:ModifiedDateTime" ) )
+        m_modifiedDateTime = content;
     else if( IDX_keyword_compare( name, "foundation:PostProcessor" ) )
         m_postProcessor = content;
     else if( IDX_keyword_compare( name, "foundation:PostProcessorVersion" ) )
@@ -362,7 +366,12 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_interStratums.push_back( s );
     }
-
+    /*
+    else if( IDX_keyword_compare( name, "foundation:ExternalSource" ) )
+    {
+        // TODO
+    }
+        */
     else if( IDX_keyword_compare( name, "foundation:FunctionalItemShape" ) )
     {
         std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
@@ -383,9 +392,10 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
 // EDMD_DATASET
 // -----------------------------------------------------
 
-EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode ) :
+EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
         EDMD_OBJECT( aNode, false )
 {
+    m_headerOnly = aHeaderOnly;
     ParseChildren( aNode );
 }
 
@@ -395,6 +405,10 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
     std::cout << "Parsing " << name << std::endl;
+
+    if( m_headerOnly && !IDX_keyword_compare( name, "foundation:Header" ) )
+        return true;
+
 
     if( IDX_keyword_compare( name, "foundation:Header" ) )
         m_header = idx_foundation::EDMD_HEADER( aNode, true );

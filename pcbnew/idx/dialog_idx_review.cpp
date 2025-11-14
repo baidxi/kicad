@@ -34,9 +34,9 @@
 #include <settings/color_settings.h>
 #include <math/box2.h>
 #include <idx/kicad_idx.h>
+#include <wx/dirdlg.h>
 
 #include "dialog_idx_review.h"
-
 
 enum IDX_REVIEW_COLS
 {
@@ -50,13 +50,12 @@ enum IDX_REVIEW_COLS
 };
 
 
-DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, KICAD_IDX* aIDX ) :
+DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, std::shared_ptr<KICAD_IDX> aIDX ) :
         DIALOG__IDX_REVIEW_BASE( aParent ),
         m_parent( aParent ),
         m_board( aParent->GetBoard() ),
         m_dummyBoard( nullptr )
 {
-    m_idx = aIDX;
     // Create a dummy board for preview (copy or minimal subset)
     m_dummyBoard = m_board;
 
@@ -69,6 +68,7 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, KICAD_IDX* aIDX )
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::COMMENT, _( "Comment" ) );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::REJECT_COMMENT, _( "Reject Comment" ) );
     prepareCanvas();
+
     m_changeGrid->AutoSizeColumns();
 
     // Center and fit the dialog
@@ -117,6 +117,7 @@ void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange )
     m_objects.push_back( aChange.m_items );
 }
 
+
 void DIALOG_IDX_REVIEW::prepareCanvas()
 {
     // Initialize the GAL preview panel
@@ -136,35 +137,6 @@ void DIALOG_IDX_REVIEW::prepareCanvas()
 
     // Connect resize event
     Bind( wxEVT_SIZE, &DIALOG_IDX_REVIEW::OnResize, this );
-
-
-    m_objects = {};
-
-    BOX2I* bb = nullptr;
-
-    for( KICAD_IDX_CHANGE& change : m_idx->Process() )
-    {
-        m_changes.emplace_back( true, std::make_shared<KICAD_IDX_CHANGE>( change ) );
-        auto last_change = m_changes.back().second;
-        m_changes.back().first = true; // accept by default
-        AddChange( *last_change );
-
-        for( BOARD_ITEM* item : last_change->m_items )
-        {
-            if( bb )
-                bb->Merge( item->ViewBBox() );
-            else
-                bb = new BOX2I( item->ViewBBox() );
-            view->Add( item );
-        }
-    }
-
-    view->SetBoundary( BOX2D( bb->GetOrigin(), bb->GetSize() * 1.2 ) );
-    view->SetViewport( BOX2D( bb->GetOrigin(), bb->GetSize() ) );
-    view->SetScale( view->GetScale() * 0.7 );
-
-    // Start rendering
-    m_panelPreview->StartDrawing();
 }
 
 void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
@@ -288,6 +260,7 @@ void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
     }
 }
 
+
 void DIALOG_IDX_REVIEW::OnRejectAll( wxCommandEvent& event )
 {
     for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
@@ -297,6 +270,21 @@ void DIALOG_IDX_REVIEW::OnRejectAll( wxCommandEvent& event )
     }
 }
 
+void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
+{
+    wxDataViewItem item = event.GetItem();
+    if( item.IsOk() )
+    {
+        unsigned int row = m_history->ItemToRow( item );
+        wxString     filename = m_history->GetTextValue( row, 0 );
+
+        clearIDX();
+
+        wxString fullpath = m_dir->GetNameWithSep() + filename;
+        m_idx = std::make_shared<KICAD_IDX>( fullpath, nullptr, nullptr );
+        loadIDX( m_idx );
+    }
+}
 std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> DIALOG_IDX_REVIEW::GetAccepted()
 {
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
@@ -320,4 +308,127 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> DIALOG_IDX_REVIEW::GetRejected()
             result.push_back( change.second );
     }
     return result;
+}
+
+bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
+{
+    if( !aIDX )
+        return false;
+
+    m_panelPreview->StopDrawing();
+
+    KIGFX::VIEW* view = m_panelPreview->GetView();
+    m_idx = aIDX;
+
+
+    BOX2I* bb = nullptr;
+
+    for( KICAD_IDX_CHANGE& change : m_idx->Process() )
+    {
+        m_changes.emplace_back( true, std::make_shared<KICAD_IDX_CHANGE>( change ) );
+        auto last_change = m_changes.back().second;
+        m_changes.back().first = true; // accept by default
+        AddChange( *last_change );
+
+        for( BOARD_ITEM* item : last_change->m_items )
+        {
+            if( bb )
+                bb->Merge( item->ViewBBox() );
+            else
+                bb = new BOX2I( item->ViewBBox() );
+            view->Add( item );
+        }
+    }
+    if( bb )
+    {
+        view->SetBoundary( BOX2D( bb->GetOrigin(), bb->GetSize() * 1.2 ) );
+        view->SetViewport( BOX2D( bb->GetOrigin(), bb->GetSize() ) );
+        view->SetScale( view->GetScale() * 0.7 );
+    }
+    m_panelPreview->StartDrawing();
+    return true;
+}
+
+
+void DIALOG_IDX_REVIEW::clearIDX()
+{
+    m_objects = {};
+    m_changes = {};
+    m_panelPreview->StopDrawing();
+
+    m_changeGrid->DeleteRows( 0, m_changeGrid->GetNumberRows() );
+    m_objects = {};
+
+    KIGFX::VIEW* view = m_panelPreview->GetView();
+
+    if( !view )
+        return;
+
+    view->Clear();
+    m_panelPreview->StartDrawing();
+
+    m_panelPreview->Refresh();
+}
+
+
+void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
+{
+    if( !m_history )
+        return;
+
+    // Add a column if it has none
+    if( m_history->GetColumnCount() == 0 )
+    {
+        m_history->AppendTextColumn( "File Name" );
+        m_history->AppendTextColumn( "Software" );
+        m_history->AppendTextColumn( "Date" );
+    }
+
+    m_dir = std::make_shared<wxDir>( aDir );
+
+    if( !m_dir->IsOpened() )
+    {
+        wxLogError( "Cannot open directory: %s", aDir );
+        return;
+    }
+
+    wxString filename;
+    bool     cont = m_dir->GetFirst( &filename, "*.idx", wxDIR_FILES );
+
+    while( cont )
+    {
+        wxString fullpath = aDir + wxFILE_SEP_PATH + filename;
+
+        wxVector<wxVariant> row;
+
+        KICAD_IDX* kidx = new KICAD_IDX( fullpath, nullptr, nullptr, true );
+
+        row.push_back( wxVariant( filename ) );
+        row.push_back( wxVariant( kidx->m_holder->m_dataset->m_header.m_creatorSystem ) );
+        row.push_back( wxVariant( kidx->m_holder->m_dataset->m_header.m_creationDateTime ) );
+        m_history->AppendItem( row );
+
+
+        cont = m_dir->GetNext( &filename );
+    }
+}
+
+
+void DIALOG_IDX_REVIEW::OnCollaborationFolderText( wxCommandEvent& event )
+{
+    loadDir( m_collaborationFolderInput->GetValue() );
+}
+
+
+void DIALOG_IDX_REVIEW::onBrowseButton( wxCommandEvent& event )
+{
+    wxDirDialog dirDialog( this, _( "Select collaboration folder" ), wxEmptyString,
+                           wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST );
+
+    if( dirDialog.ShowModal() == wxID_OK )
+    {
+        wxString folder = dirDialog.GetPath();
+        m_collaborationFolderInput->SetValue( folder );
+        m_collaborationFolderInput->SetModified( true );
+    }
 }

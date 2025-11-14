@@ -92,7 +92,9 @@ class EDMD_SHAPE_DESCRIPTION : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_SHAPE_DESCRIPTION() {};
-    EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode );
+    EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
 
     SHAPE_DESCRIPTION_TYPE                  m_shapeDescriptionType;
     std::shared_ptr<EDMD_SHAPE_DESCRIPTION> m_boundingBox;

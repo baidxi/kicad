@@ -185,7 +185,7 @@ EDMD_CURVESET2D::EDMD_CURVESET2D() :
 }
 
 EDMD_CURVESET2D::EDMD_CURVESET2D( IDX_XML_NODE& aNode ) :
-        idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode )
+        idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode, false )
 {
     auto child = aNode.GetChildren();
 

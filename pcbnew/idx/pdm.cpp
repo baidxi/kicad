@@ -32,7 +32,7 @@ namespace idx_pdm
 // EDMD_SHAPE_DESCRIPTION
 // -----------------------------------------------------
 
-EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode ) :
+EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_COLLABORATION_OBJECT( aNode, false )
 {
     auto child = aNode.GetChildren();
@@ -57,6 +57,28 @@ EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode ) :
     }
 }
 
+
+bool EDMD_SHAPE_DESCRIPTION::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string content = aNode.GetNodeContent();
+    const std::string name = aNode.GetName();
+
+    if( IDX_keyword_compare( name, "pdm:ShapeDescriptionType" ) )
+    {
+        if( IDX_keyword_compare( content, "GeometricModel" ) )
+            m_shapeDescriptionType = SHAPE_DESCRIPTION_TYPE::GEOMETRIC_MODEL;
+        else if( IDX_keyword_compare( content, "ExternalGeometricModel" ) )
+            m_shapeDescriptionType = SHAPE_DESCRIPTION_TYPE::EXTERNAL_GEOMETRIC_MODEL;
+        else
+            invalidValueIDX( name, content );
+    }
+    else if( IDX_keyword_compare( name, "pdm::BoundingBox" ) )
+        m_boudingBoxRef = content;
+    else
+        return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+    return true;
+}
 
 // -----------------------------------------------------
 // EDMD_TRANSFORMATION

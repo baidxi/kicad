@@ -146,8 +146,8 @@ public:
     std::string m_globalUnitWorkRef;
 
     std::shared_ptr<idx_administration::EDMD_PERSON> m_creator;
-    wxDateTime                                       m_CreationDateTime;
-    wxDateTime                                       m_ModifiedDateTime;
+    std::string                                      m_creationDateTime;
+    std::string                                      m_modifiedDateTime;
     bool                                             isSelfContained = true;
 };
 
@@ -209,7 +209,7 @@ class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
     EDMD_DATASET();
-    EDMD_DATASET( IDX_XML_NODE& aNode );
+    EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly );
 
     EDMD_HEADER                                            m_header;
     EDMD_DATASET_BODY                                      m_body;
@@ -218,6 +218,7 @@ public:
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    bool         m_headerOnly;
 };
 
 

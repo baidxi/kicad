@@ -1412,32 +1412,24 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
     BOARD_COMMIT commit( frame() );
 
-    wxFileDialog fileDialog( m_frame, _( "IDX baseline file" ), wxEmptyString, wxEmptyString,
-                             _( "All Files" ) + wxT( " (*.*)|*.*" ), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+    auto kidx = std::make_shared<KICAD_IDX>( "", board(), &commit );
 
-    if( fileDialog.ShowModal() == wxID_OK )
+    DIALOG_IDX_REVIEW dlg( m_frame, kidx );
+    bool              cancelled;
+
+    RunMainStack(
+            [&]()
+            {
+                cancelled = dlg.ShowModal() != wxID_OK;
+            } );
+
+    if( cancelled )
     {
-        wxString path;
-        path = fileDialog.GetPath();
-        KICAD_IDX* kidx = new KICAD_IDX( path, board(), &commit );
-
-        DIALOG_IDX_REVIEW dlg( m_frame, kidx );
-        bool              cancelled;
-
-        RunMainStack(
-                [&]()
-                {
-                    cancelled = dlg.ShowModal() != wxID_OK;
-                } );
-
-        if( cancelled )
-        {
-        }
-        else
-        {
-        }
-        kidx->Apply( dlg.GetAccepted() );
     }
+    else
+    {
+    }
+    kidx->Apply( dlg.GetAccepted() );
     return 0;
 }
 
