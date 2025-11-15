@@ -22,45 +22,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef IDX_ANNOTATION_H
-#define IDX_ANNOTATION_H
-#include <idx/foundation.h>
-#include <idx/idx_base.h>
-#include <memory>
-
-namespace idx_annotation
-{
-
-class EDMD_HISTORY : public idx_foundation::EDMD_COLLABORATION_OBJECT
-{
-public:
-    EDMD_HISTORY() :
-            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
-
-    EDMD_HISTORY( IDX_XML_NODE& aNode ) :
-            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
-    {
-        auto child = aNode.GetChildren();
-
-        while( child )
-        {
-            const std::string content = child->GetNodeContent();
-            const std::string name = child->GetName();
-
-            if( IDX_keyword_compare( name, "annotation:HistoryName" ) )
-            {
-                m_historyName.m_objectName = content;
-            }
-            else
-            {
-                unknownKeywordIDX( name );
-            }
-            child = child->GetNext();
-        }
-    }
-
-    idx_foundation::EDMD_NAME m_historyName;
-};
-
-} // namespace idx_annotation
-#endif
+#include <idx/kidx/schema/property.h>
+#include <idx/kidx/schema/foundation.h>
+#include <idx/kidx/schema/geometry.h>
+#include <idx/kidx/schema/administration.h>
+#include <idx/kidx/schema/pdm.h>
+#include <idx/kidx/schema/annotation.h>
+#include <idx/kidx/schema/computational.h>

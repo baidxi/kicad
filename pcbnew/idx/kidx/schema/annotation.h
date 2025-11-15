@@ -22,48 +22,45 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#ifndef IDX_EXTERNAL_HEADER_H
-#define IDX_EXTERNAL_HEADER_H
-
-#include <idx/idx_base.h>
-#include <idx/foundation.h>
-#include <idx/pdm.h>
-#include <wx/xml/xml.h>
+#ifndef IDX_ANNOTATION_H
+#define IDX_ANNOTATION_H
+#include <idx/kidx/schema/foundation.h>
+#include <idx/kidx/schema/idx_base.h>
 #include <memory>
-#include <map>
 
-
-namespace idx_external
+namespace idx_annotation
 {
 
-class EDMD_EXTERNAL_SOURCE : public idx_foundation::EDMD_COLLABORATION_OBJECT
+class EDMD_HISTORY : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_EXTERNAL_SOURCE() {};
-    EDMD_EXTERNAL_SOURCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_HISTORY() :
+            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
 
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    EDMD_HISTORY( IDX_XML_NODE& aNode ) :
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+    {
+        auto child = aNode.GetChildren();
 
+        while( child )
+        {
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
 
-    std::string m_mimeType;
-    std::string m_location;
+            if( IDX_keyword_compare( name, "annotation:HistoryName" ) )
+            {
+                m_historyName.m_objectName = content;
+            }
+            else
+            {
+                unknownKeywordIDX( name );
+            }
+            child = child->GetNext();
+        }
+    }
+
+    idx_foundation::EDMD_NAME m_historyName;
 };
 
-
-class EDMD_EXTERNAL_GEOMETRIC_MODEL : public idx_pdm::EDMD_SHAPE_DESCRIPTION
-{
-public:
-    EDMD_EXTERNAL_GEOMETRIC_MODEL() {};
-    EDMD_EXTERNAL_GEOMETRIC_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
-
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
-
-
-    std::string m_externalSourceRef;
-
-    std::shared_ptr<EDMD_EXTERNAL_SOURCE> m_externalSource;
-};
-
-} // namespace idx_external
-
-#endif // IDX_EXTERNAL_HEADER_H
+} // namespace idx_annotation
+#endif

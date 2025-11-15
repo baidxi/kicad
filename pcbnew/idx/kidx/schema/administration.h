@@ -25,8 +25,8 @@
 
 #ifndef IDX_ADMINISTRATION_H
 #define IDX_ADMINISTRATION_H
-#include <idx/idx_base.h>
-#include <idx/foundation.h>
+#include <idx/kidx/schema/idx_base.h>
+#include <idx/kidx/schema/foundation.h>
 #include <memory>
 
 

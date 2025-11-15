@@ -22,11 +22,48 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <idx/property.h>
-#include <idx/foundation.h>
-#include <idx/geometry.h>
-#include <idx/administration.h>
-#include <idx/pdm.h>
-#include <idx/annotation.h>
-#include <idx/computational.h>
+#ifndef IDX_EXTERNAL_HEADER_H
+#define IDX_EXTERNAL_HEADER_H
 
+#include <idx/kidx/schema/idx_base.h>
+#include <idx/kidx/schema/foundation.h>
+#include <idx/kidx/schema/pdm.h>
+#include <wx/xml/xml.h>
+#include <memory>
+#include <map>
+
+
+namespace idx_external
+{
+
+class EDMD_EXTERNAL_SOURCE : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_EXTERNAL_SOURCE() {};
+    EDMD_EXTERNAL_SOURCE( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+
+
+    std::string m_mimeType;
+    std::string m_location;
+};
+
+
+class EDMD_EXTERNAL_GEOMETRIC_MODEL : public idx_pdm::EDMD_SHAPE_DESCRIPTION
+{
+public:
+    EDMD_EXTERNAL_GEOMETRIC_MODEL() {};
+    EDMD_EXTERNAL_GEOMETRIC_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+
+
+    std::string m_externalSourceRef;
+
+    std::shared_ptr<EDMD_EXTERNAL_SOURCE> m_externalSource;
+};
+
+} // namespace idx_external
+
+#endif // IDX_EXTERNAL_HEADER_H

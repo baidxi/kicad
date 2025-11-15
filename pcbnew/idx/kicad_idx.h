@@ -28,7 +28,7 @@
 
 #include <wx/xml/xml.h>
 #include <board_commit.h>
-#include <idx/idx.h>
+#include <idx/kidx/kidx.h>
 #include <board.h>
 #include <widgets/report_severity.h>
 #include <idx/idx_reader.h>

@@ -373,18 +373,18 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
-     idx/computational.cpp
+     idx/kidx/schema/computational.cpp
+     idx/kidx/schema/external.cpp
+     idx/kidx/schema/foundation.cpp
+     idx/kidx/schema/geometry.cpp
+     idx/kidx/schema/idx_base.cpp
+     idx/kidx/schema/pdm.cpp
      idx/CAD_software.cpp
+     idx/kidx/schema/property.cpp
      idx/dialog_idx_review_base.cpp
      idx/dialog_idx_review.cpp
-     idx/external.cpp
-     idx/foundation.cpp
-     idx/geometry.cpp
-     idx/idx_base.cpp
      idx/idx_reader.cpp
      idx/kicad_idx.cpp
-     idx/pdm.cpp
-     idx/property.cpp
     )
 
 set( PCBNEW_CLASS_SRCS

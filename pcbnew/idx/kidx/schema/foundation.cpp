@@ -23,11 +23,11 @@
  */
 
 #include "foundation.h"
-#include <idx/property.h>
-#include <idx/computational.h>
-#include <idx/geometry.h>
-#include <idx/administration.h>
-#include <idx/annotation.h>
+#include <idx/kidx/schema/property.h>
+#include <idx/kidx/schema/computational.h>
+#include <idx/kidx/schema/geometry.h>
+#include <idx/kidx/schema/administration.h>
+#include <idx/kidx/schema/annotation.h>
 #include <iostream>
 
 

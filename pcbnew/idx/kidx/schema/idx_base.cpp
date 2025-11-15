@@ -22,7 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <idx/idx_base.h>
+#include <idx/kidx/schema/idx_base.h>
 #include <typeinfo>
 
 // Here we define some helper functions, we don't want to use std::string.

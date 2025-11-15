@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include <idx/idx_base.h>
+#include <idx/kidx/schema/idx_base.h>
 #include <wx/string.h>
 #include <wx/xml/xml.h>
 #include <iostream>

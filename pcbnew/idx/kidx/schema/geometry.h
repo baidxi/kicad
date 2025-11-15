@@ -26,9 +26,9 @@
 #define IDX_GEOMETRY_HEADER_H
 
 #include <wx/xml/xml.h>
-#include <idx/foundation.h>
-#include <idx/property.h>
-#include <idx/pdm.h>
+#include <idx/kidx/schema/foundation.h>
+#include <idx/kidx/schema/property.h>
+#include <idx/kidx/schema/pdm.h>
 #include <memory>
 #include <vector>
 

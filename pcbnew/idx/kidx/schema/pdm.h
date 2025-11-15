@@ -25,9 +25,9 @@
 #ifndef IDX_PDM_H
 #define IDX_PDM_H
 
-#include <idx/idx_base.h>
-#include <idx/property.h>
-#include <idx/foundation.h>
+#include <idx/kidx/schema/idx_base.h>
+#include <idx/kidx/schema/property.h>
+#include <idx/kidx/schema/foundation.h>
 
 namespace idx_pdm
 {

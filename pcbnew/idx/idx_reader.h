@@ -22,7 +22,7 @@
 #ifndef IDX_READER_H
 #define IDX_READER_H
 
-#include <idx/idx.h>
+#include <idx/kidx/kidx.h>
 #include <iostream>
 #include <board_commit.h>
 #include <math/vector2d.h>

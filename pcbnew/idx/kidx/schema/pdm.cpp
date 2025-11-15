@@ -22,7 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <idx/pdm.h>
+#include <idx/kidx/schema/pdm.h>
 #include <iostream>
 
 namespace idx_pdm

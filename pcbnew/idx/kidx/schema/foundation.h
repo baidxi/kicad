@@ -25,7 +25,7 @@
 #ifndef IDX_FOUNDATION_HEADER_H
 #define IDX_FOUNDATION_HEADER_H
 
-#include <idx/idx_base.h>
+#include <idx/kidx/schema/idx_base.h>
 #include <wx/xml/xml.h>
 #include <memory>
 #include <map>

@@ -22,7 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <idx/external.h>
+#include <idx/kidx/schema/external.h>
 #include <iostream>
 
 namespace idx_external

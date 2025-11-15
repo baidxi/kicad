@@ -25,8 +25,8 @@
 #ifndef IDX_PROPERTY_HEADER_H
 #define IDX_PROPERTY_HEADER_H
 
-#include <idx/idx_base.h>
-#include <idx/foundation.h>
+#include <idx/kidx/schema/idx_base.h>
+#include <idx/kidx/schema/foundation.h>
 #include <wx/string.h>
 #include <memory>
 #include <vector>
