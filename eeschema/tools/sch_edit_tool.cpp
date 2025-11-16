@@ -3479,8 +3479,205 @@ int SCH_EDIT_TOOL::EditPageNumber( const TOOL_EVENT& aEvent )
 
 int SCH_EDIT_TOOL::EditSubsheetNumbers( const TOOL_EVENT& aEvent )
 {
+    enum ORIENTATION : int
+    {
+        TOP_LEFT = 0,
+        TOP_CENTER = 1,
+        TOP_RIGHT = 2,
+        MID_LEFT = 3,
+        MID_CENTER = 4,
+        MID_RIGHT = 5,
+        BOTTOM_LEFT = 6,
+        BOTTOM_CENTER = 7,
+        BOTTOM_RIGHT = 8
+    };
+
+    enum POSITION : int
+    {
+        INSIDE = 0,
+        OUTSIDE = 1
+    };
+
+    enum ACTION : int
+    {
+        ADD = 0,
+        REMOVE = 1
+    };
+
     DIALOG_EDIT_SUBSHEET_PAGENUM dlg( m_frame );
-    dlg.ShowModal();
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return 0;
+
+    int            item_count = 0;
+    const wxString pageFieldName( wxT( "PageNum" ) );
+
+    for( SCH_ITEM* item : m_frame->GetScreen()->Items().OfType( SCH_SHEET_T ) )
+    {
+        SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item );
+
+        auto getFieldPage = [&]() -> SCH_FIELD*
+        {
+            SCH_FIELD* result = nullptr;
+
+            for( SCH_FIELD& field : sheet->GetFields() )
+            {
+                if( field.GetName().Contains( pageFieldName ) )
+                    result = &field;
+            }
+
+            return result;
+        };
+
+        auto setTextPosition = [&]( SCH_FIELD* aItem, int aOriention, int aPosition )
+        {
+            const VECTOR2I sheet_pos = sheet->GetPosition();
+            const VECTOR2I sheet_size = sheet->GetSize();
+            const int      grid_size = m_frame->Schematic().Settings().m_PinSymbolSize;
+
+            GR_TEXT_H_ALIGN_T hAlign = GR_TEXT_H_ALIGN_INDETERMINATE;
+            GR_TEXT_V_ALIGN_T vAlign = GR_TEXT_V_ALIGN_INDETERMINATE;
+            VECTOR2I          pos_offset( 0, 0 );
+
+            switch( aOriention )
+            {
+            case ORIENTATION::TOP_LEFT:
+                hAlign = GR_TEXT_H_ALIGN_LEFT;
+                vAlign = GR_TEXT_V_ALIGN_TOP;
+                pos_offset.x = grid_size;
+                pos_offset.y = grid_size;
+                break;
+
+            case ORIENTATION::TOP_CENTER:
+                hAlign = GR_TEXT_H_ALIGN_CENTER;
+                vAlign = GR_TEXT_V_ALIGN_TOP;
+                pos_offset.x = sheet_size.x / 2;
+                pos_offset.y = grid_size;
+                break;
+
+            case ORIENTATION::TOP_RIGHT:
+                hAlign = GR_TEXT_H_ALIGN_RIGHT;
+                vAlign = GR_TEXT_V_ALIGN_TOP;
+                pos_offset.x = sheet_size.x - grid_size;
+                pos_offset.y = grid_size;
+                break;
+
+            case ORIENTATION::MID_LEFT:
+                hAlign = GR_TEXT_H_ALIGN_LEFT;
+                vAlign = GR_TEXT_V_ALIGN_CENTER;
+                pos_offset.x = grid_size;
+                pos_offset.y = sheet_size.y / 2;
+                break;
+
+            case ORIENTATION::MID_CENTER:
+                hAlign = GR_TEXT_H_ALIGN_CENTER;
+                vAlign = GR_TEXT_V_ALIGN_CENTER;
+                pos_offset.x = sheet_size.x / 2;
+                pos_offset.y = sheet_size.y / 2;
+                break;
+
+            case ORIENTATION::MID_RIGHT:
+                hAlign = GR_TEXT_H_ALIGN_RIGHT;
+                vAlign = GR_TEXT_V_ALIGN_CENTER;
+                pos_offset.x = sheet_size.x - grid_size;
+                pos_offset.y = sheet_size.y / 2;
+                break;
+
+            case ORIENTATION::BOTTOM_LEFT:
+                hAlign = GR_TEXT_H_ALIGN_LEFT;
+                vAlign = GR_TEXT_V_ALIGN_BOTTOM;
+                pos_offset.x = grid_size;
+                pos_offset.y = sheet_size.y - grid_size;
+                break;
+
+            case ORIENTATION::BOTTOM_CENTER:
+                hAlign = GR_TEXT_H_ALIGN_CENTER;
+                vAlign = GR_TEXT_V_ALIGN_BOTTOM;
+                pos_offset.x = sheet_size.x / 2;
+                pos_offset.y = sheet_size.y - grid_size;
+                break;
+
+            case ORIENTATION::BOTTOM_RIGHT:
+                hAlign = GR_TEXT_H_ALIGN_RIGHT;
+                vAlign = GR_TEXT_V_ALIGN_BOTTOM;
+                pos_offset.x = sheet_size.x - grid_size;
+                pos_offset.y = sheet_size.y - grid_size;
+                break;
+
+            default: break;
+            }
+
+            if( aPosition == POSITION::OUTSIDE )
+            {
+                if( vAlign == GR_TEXT_V_ALIGN_TOP )
+                {
+                    vAlign = GR_TEXT_V_ALIGN_BOTTOM;
+                    pos_offset.y -= 2 * grid_size;
+                }
+                else if( vAlign == GR_TEXT_V_ALIGN_BOTTOM )
+                {
+                    vAlign = GR_TEXT_V_ALIGN_TOP;
+                    pos_offset.y += 2 * grid_size;
+                }
+                else if( vAlign == GR_TEXT_V_ALIGN_CENTER )
+                {
+                    if( hAlign == GR_TEXT_H_ALIGN_LEFT )
+                    {
+                        hAlign = GR_TEXT_H_ALIGN_RIGHT;
+                        pos_offset -= 2 * grid_size;
+                    }
+                    else if( hAlign == GR_TEXT_H_ALIGN_RIGHT )
+                    {
+                        hAlign = GR_TEXT_H_ALIGN_LEFT;
+                        pos_offset += 2 * grid_size;
+                    }
+                }
+            }
+
+            aItem->SetHorizJustify( hAlign );
+            aItem->SetVertJustify( vAlign );
+            aItem->SetPosition( sheet_pos + pos_offset );
+        };
+
+        if( sheet->IsTopLevelSheet() )
+            break;
+
+        SCH_FIELD* pagefield = nullptr;
+        pagefield = getFieldPage();
+
+        if( dlg.GetAction() == ACTION::ADD )
+        {
+            if( pagefield == nullptr )
+                pagefield = &sheet->GetFields().emplace_back(
+                        std::move( SCH_FIELD( item, FIELD_T::META_DATA, pageFieldName ) ) );
+
+            pagefield->SetText( dlg.GetFieldName() + ": ${#}" );
+            setTextPosition( pagefield, dlg.GetOrientation(), dlg.GetPosition() );
+            pagefield->SetVisible( true );
+            item_count++;
+        }
+        else
+        {
+            if( pagefield != nullptr )
+            {
+                for( size_t i = 0; i < sheet->GetFields().size(); i++ )
+                {
+                    if( sheet->GetFields().at( i ).GetName().Contains( pageFieldName ) )
+                    {
+                        sheet->GetFields().erase( sheet->GetFields().begin() + i );
+                        item_count++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if( item_count == 0 )
+    {
+        wxMessageBox( wxT( "No items have been updated." ) );
+    }
+
+    m_frame->HardRedraw();
 
     return 0;
 }

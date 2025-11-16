@@ -33,6 +33,18 @@ public:
     DIALOG_EDIT_SUBSHEET_PAGENUM( SCH_EDIT_FRAME* aParent );
     ~DIALOG_EDIT_SUBSHEET_PAGENUM() override;
 
+    wxString GetFieldName() { return m_pageFieldName; };
+    void     SetFieldName( const wxString& aFieldName ) { m_pageFieldName = aFieldName; };
+
+    int  GetOrientation() { return m_orientation; };
+    void SetOrientation( const int aOrientation ) { m_orientation = aOrientation; };
+
+    int  GetPosition() { return m_position; };
+    void SetPosition( const int aPosition ) { m_position = aPosition; };
+
+    int  GetAction() { return m_action; };
+    void SetAction( const int aAction ) { m_action = aAction; };
+
     virtual void OnChangedDefaultName( wxCommandEvent& event ) override;
 
 private:
@@ -40,6 +52,11 @@ private:
 
 private:
     SCH_EDIT_FRAME* m_frame;
+
+    wxString m_pageFieldName;
+    int      m_orientation = 0;
+    int      m_position = 0;
+    int      m_action = 0;
 };
 
 #endif

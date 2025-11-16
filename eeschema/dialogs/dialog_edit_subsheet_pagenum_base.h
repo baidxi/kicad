@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6-dirty)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -52,7 +52,7 @@ class DIALOG_EDIT_SUBSHEET_PAGENUM_BASE : public DIALOG_SHIM
 
 	public:
 
-		DIALOG_EDIT_SUBSHEET_PAGENUM_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Edit Subsheet Page Numbers"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxCAPTION );
+		DIALOG_EDIT_SUBSHEET_PAGENUM_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Add/Remove page numbering of the sub-sheets"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxCAPTION );
 
 		~DIALOG_EDIT_SUBSHEET_PAGENUM_BASE();
 

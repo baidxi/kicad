@@ -364,6 +364,7 @@ SCH_LAYER_ID SCH_FIELD::GetDefaultLayer() const
     case FIELD_T::VALUE:           return LAYER_VALUEPART;
     case FIELD_T::SHEET_NAME:      return LAYER_SHEETNAME;
     case FIELD_T::SHEET_FILENAME:  return LAYER_SHEETFILENAME;
+    case FIELD_T::META_DATA:       // Same as SHEET_USER
     case FIELD_T::SHEET_USER:      return LAYER_SHEETFIELDS;
     case FIELD_T::INTERSHEET_REFS: return LAYER_INTERSHEET_REFS;
     default:                       return LAYER_FIELDS;

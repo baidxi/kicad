@@ -51,7 +51,8 @@ enum class FIELD_T : int
     INTERSHEET_REFS,        ///< Global label cross-reference page numbers
     SHEET_NAME,
     SHEET_FILENAME,
-    SHEET_USER
+    SHEET_USER,
+    META_DATA               ///< Meta data, e.g. Page number of the sheet
 };
 
 #define MANDATORY_FIELDS { FIELD_T::REFERENCE,        \
