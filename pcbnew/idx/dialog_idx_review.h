@@ -38,7 +38,7 @@ class KICAD_IDX;
 class DIALOG_IDX_REVIEW : public DIALOG__IDX_REVIEW_BASE
 {
 public:
-    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, std::shared_ptr<KICAD_IDX> aIDX );
+    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent );
     ~DIALOG_IDX_REVIEW() override;
 
     bool                                           TransferDataToWindow();
@@ -74,6 +74,7 @@ private:
 
     std::vector<std::vector<BOARD_ITEM*>>                           m_objects;
     std::vector<std::pair<bool, std::shared_ptr<KICAD_IDX_CHANGE>>> m_changes;
+    std::vector<bool>                                               m_historyReady;
     ;
 };
 

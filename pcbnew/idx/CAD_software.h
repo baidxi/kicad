@@ -25,8 +25,11 @@
 #pragma once
 
 #include <idx/kidx/schema/idx_base.h>
+#include <idx/kidx/sync/sync.h>
 #include <wx/string.h>
 #include <wx/xml/xml.h>
+#include <wx/string.h>
+#include <wx/dir.h>
 #include <iostream>
 #include <memory>
 
@@ -34,7 +37,7 @@
 class IDX_XML_NODE_KICAD : public IDX_XML_NODE
 {
 public:
-    explicit IDX_XML_NODE_KICAD( wxXmlNode* node );
+    IDX_XML_NODE_KICAD( wxXmlNode* node );
 
     std::string GetName() const override;
     std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const override;
@@ -50,4 +53,34 @@ public:
 
 private:
     wxXmlNode* m_node;
+};
+
+
+class IDX_XML_DOCUMENT_KICAD : public IDX_XML_DOCUMENT
+{
+public:
+    IDX_XML_DOCUMENT_KICAD( wxXmlDocument* );
+
+
+private:
+    wxXmlDocument* m_doc;
+};
+
+
+class IDX_FILE_REGISTRY_KICAD : public IDX_FILE_REGISTRY
+{
+public:
+    IDX_FILE_REGISTRY_KICAD() {};
+
+    bool Load( const std::string& aPath, const std::string& aFile );
+};
+
+
+class KIDX_REGISTRY_KICAD : public KIDX_REGISTRY
+{
+public:
+    KIDX_REGISTRY_KICAD() :
+            KIDX_REGISTRY() {};
+
+    bool LoadFolder( const wxString& aFolder );
 };

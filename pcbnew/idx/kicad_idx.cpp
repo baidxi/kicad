@@ -399,7 +399,6 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         change.m_name = other->m_name;
         m_result.push_back( change );
     }
-
     return m_result;
 }
 

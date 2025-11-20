@@ -388,6 +388,37 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
 }
 
 
+bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = true;
+
+    for( auto& curve : m_curves )
+        result &= curve->Resolve( aRegistry );
+
+    for( auto& curveset : m_curvesets )
+        result &= curveset->Resolve( aRegistry );
+
+    for( auto& shapeE : m_shapeElements )
+        result &= shapeE->Resolve( aRegistry );
+
+    for( auto& stratum : m_stratums )
+        result &= stratum->Resolve( aRegistry );
+
+    for( auto& interstratum : m_interStratums )
+        result &= interstratum->Resolve( aRegistry );
+
+    for( auto& keep : m_keeps )
+        result &= keep->Resolve( aRegistry );
+
+    for( auto& item : m_items )
+        result &= item->Resolve( aRegistry );
+
+    for( auto& fs : m_functionalItemShapes )
+        result &= fs->Resolve( aRegistry );
+
+    return result;
+}
+
 // -----------------------------------------------------
 // EDMD_DATASET
 // -----------------------------------------------------
@@ -404,9 +435,9 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    std::cout << "Parsing " << name << std::endl;
 
-    if( m_headerOnly && !IDX_keyword_compare( name, "foundation:Header" ) )
+    if( m_headerOnly && !IDX_keyword_compare( name, "foundation:Header" )
+        && !IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
         return true;
 
 
@@ -419,11 +450,24 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
         std::string type = aNode.GetAttribute( "xsi:type", "" );
 
         if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" ) )
-            m_processInstruction.push_back(
-                    std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( aNode, true ) );
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( aNode, true ) );
+            }
+            m_baseline = true;
+        }
+
         else if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" ) )
-            m_processInstruction.push_back(
-                    std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( aNode, true ) );
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( aNode, true ) );
+            }
+        }
         else
             invalidValueIDX( name, type );
     }
@@ -433,37 +477,66 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
 }
 
 
-bool EDMD_DATASET::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_DATASET::Resolve()
 {
-    bool result = true;
-
-    for( auto& curve : m_body.m_curves )
-        result &= curve->Resolve( m_body.m_registry );
-
-    for( auto& curveset : m_body.m_curvesets )
-        result &= curveset->Resolve( m_body.m_registry );
-
-    for( auto& shapeE : m_body.m_shapeElements )
-        result &= shapeE->Resolve( m_body.m_registry );
-
-    for( auto& stratum : m_body.m_stratums )
-        result &= stratum->Resolve( m_body.m_registry );
-
-    for( auto& interstratum : m_body.m_interStratums )
-        result &= interstratum->Resolve( m_body.m_registry );
-
-    for( auto& keep : m_body.m_keeps )
-        result &= keep->Resolve( m_body.m_registry );
-
-    for( auto& item : m_body.m_items )
-        result &= item->Resolve( m_body.m_registry );
-
-    for( auto& fs : m_body.m_functionalItemShapes )
-        result &= fs->Resolve( m_body.m_registry );
-
-    return result;
+    return m_body.Resolve( m_body.m_registry );
 }
 
+
+void EDMD_DATASET::Prepare()
+{
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_body.m_items )
+    {
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance )
+        {
+            if( auto type = inst->GetUserProperty( "TYPE" ) )
+            {
+                if( type->m_value == "BOARDOUTLINE" )
+                {
+                    m_body.m_boardOutline.push_back( inst );
+                    continue;
+                }
+            }
+
+            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( inst->m_item->m_shape );
+            if( interstratum )
+            {
+                using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
+                switch( interstratum->m_interstratumFeatureType )
+                {
+                case FT::BOARD_CUTOUT: m_body.m_boardOutline.push_back( inst ); continue;
+                case FT::CUTOUT: m_body.m_NPTH.push_back( inst ); continue;
+                case FT::PLATED_CUTOUT: m_body.m_PTH.push_back( inst ); continue;
+                default: break;
+                }
+            }
+
+            if( inst->m_item && inst->m_item->m_shape )
+            {
+                auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( inst->m_item->m_shape );
+                if( keep )
+                {
+                    m_body.m_keepZones.push_back( inst );
+                    continue;
+                }
+            }
+
+            if( !inst->m_name.empty() )
+            {
+                m_body.m_components.push_back( inst );
+                continue;
+            }
+
+            m_body.m_others.push_back( inst );
+        }
+    }
+}
+
+
+bool EDMD_DATASET::IsBaseline()
+{
+    return m_baseline;
+}
 
 // -----------------------------------------------------
 // EDMD_DESIGNATOR

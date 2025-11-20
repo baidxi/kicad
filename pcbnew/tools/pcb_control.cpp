@@ -1414,7 +1414,7 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 
     auto kidx = std::make_shared<KICAD_IDX>( "", board(), &commit );
 
-    DIALOG_IDX_REVIEW dlg( m_frame, kidx );
+    DIALOG_IDX_REVIEW dlg( m_frame );
     bool              cancelled;
 
     RunMainStack(

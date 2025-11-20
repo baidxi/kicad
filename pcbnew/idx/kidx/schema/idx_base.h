@@ -324,4 +324,12 @@ public:
 };
 
 
+class IDX_XML_DOCUMENT
+{
+public:
+    IDX_XML_DOCUMENT() {};
+    virtual ~IDX_XML_DOCUMENT() = default;
+};
+
+
 #endif

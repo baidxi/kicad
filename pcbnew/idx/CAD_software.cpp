@@ -23,6 +23,7 @@
  */
 
 #include "CAD_software.h"
+#include <idx/kidx/kidx.h>
 
 // ----------------- IDX_BASE -----------------
 void IDX_BASE::Report( std::string aMsg, IDX_REPORT_LEVEL aLvl )
@@ -124,4 +125,61 @@ std::shared_ptr<IDX_XML_NODE> IDX_XML_NODE_KICAD::GetNext() const
     if( !m_node || !m_node->GetNext() )
         return nullptr;
     return std::make_shared<IDX_XML_NODE_KICAD>( m_node->GetNext() );
+}
+
+
+IDX_XML_DOCUMENT_KICAD::IDX_XML_DOCUMENT_KICAD( wxXmlDocument* aDoc ) :
+        m_doc( aDoc )
+{
+}
+
+bool IDX_FILE_REGISTRY_KICAD::Load( const std::string& aPath, const std::string& aFile )
+{
+    wxXmlDocument doc;
+    wxString      fullpath = aPath + wxFILE_SEP_PATH + aFile;
+
+    if( !doc.Load( fullpath ) )
+        return false;
+
+
+    std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( doc.GetRoot() );
+
+    std::shared_ptr<idx_foundation::EDMD_DATASET> dataset =
+            std::make_shared<idx_foundation::EDMD_DATASET>( *child, true );
+
+
+    if( !dataset )
+        return false;
+
+    m_soft = dataset->m_header.m_creatorSystem;
+    m_path = fullpath;
+    m_name = aFile;
+    m_author = dataset->m_header.m_creatorName;
+    m_baseline = dataset->IsBaseline();
+
+    return true;
+}
+
+
+bool KIDX_REGISTRY_KICAD::LoadFolder( const wxString& aFolder )
+{
+    auto folder = std::make_shared<wxDir>( aFolder );
+
+    if( !folder->IsOpened() )
+        return false;
+
+    wxString filename;
+    bool     cont = folder->GetFirst( &filename, "*.idx", wxDIR_FILES );
+
+    while( cont )
+    {
+        std::shared_ptr<IDX_FILE_REGISTRY_KICAD> file = std::make_shared<IDX_FILE_REGISTRY_KICAD>();
+        file->Load( aFolder.ToStdString(), filename.ToStdString() );
+        m_files.push_back( file );
+
+        cont = folder->GetNext( &filename );
+    }
+
+
+    return true;
 }

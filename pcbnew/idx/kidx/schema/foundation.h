@@ -158,6 +158,7 @@ public:
     EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
     EDMD_DATASET_BODY() {};
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
 
@@ -215,10 +216,16 @@ public:
     EDMD_DATASET_BODY                                      m_body;
     std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
 
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    bool Parse( IDX_XML_NODE& aNode );
 
-    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    bool         m_headerOnly;
+    bool Resolve();
+    void Prepare();
+
+    bool IsBaseline();
+
+private:
+    bool m_baseline = false;
+    bool m_headerOnly;
 };
 
 

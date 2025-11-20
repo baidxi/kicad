@@ -379,6 +379,7 @@ set( PCBNEW_IDX
      idx/kidx/schema/geometry.cpp
      idx/kidx/schema/idx_base.cpp
      idx/kidx/schema/pdm.cpp
+     idx/kidx/sync/sync.cpp
      idx/CAD_software.cpp
      idx/kidx/schema/property.cpp
      idx/dialog_idx_review_base.cpp
