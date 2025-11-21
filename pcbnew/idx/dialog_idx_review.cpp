@@ -56,6 +56,8 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
         m_board( aParent->GetBoard() ),
         m_dummyBoard( nullptr )
 {
+    if( !m_changeGrid )
+        return;
     // Create a dummy board for preview (copy or minimal subset)
     m_dummyBoard = m_board;
     m_commit = aCommit;
@@ -84,6 +86,9 @@ DIALOG_IDX_REVIEW::~DIALOG_IDX_REVIEW()
 
 void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange )
 {
+    if( !m_changeGrid )
+        return;
+
     m_changeGrid->AppendRows( 1 );
 
     wxString typeStr = "";
@@ -146,24 +151,40 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
     int row = event.GetRow();
     int col = event.GetCol();
 
+    if( !m_changeGrid || row < 0 || row >= (int) m_changes.size() )
+    {
+        event.Skip();
+        return;
+    }
+
+
     // Only toggle the checkbox when the "ACCEPT" column is clicked
     if( col == IDX_REVIEW_COLS::ACCEPT )
     {
-        // Get the current value of the checkbox cell
         wxString currentValue = m_changeGrid->GetCellValue( row, col );
+        wxString newValue = ( currentValue == "1" ) ? "0" : "1";
 
-        // Toggle the checkbox value
-        wxString newValue = ( currentValue == "1" ) ? "0" : "1"; // Toggle between "1" (checked) and "0" (unchecked)
-
-        // Set the new value for the checkbox
         m_changeGrid->SetCellValue( row, col, newValue );
         m_changes[row].first = ( newValue == "1" );
     }
 
+    if( !m_panelPreview )
+    {
+        event.Skip();
+        return;
+    }
+
     KIGFX::VIEW* view = m_panelPreview->GetView();
-    int          j = 0;
-    BOX2I        bb;
-    bool         atLeastOne = false;
+
+    if( !view )
+    {
+        event.Skip();
+        return;
+    }
+
+    int   j = 0;
+    BOX2I bb;
+    bool  atLeastOne = false;
     m_changeGrid->SelectRow( row );
 
     for( auto& objectGroup : m_objects )
@@ -254,6 +275,9 @@ void DIALOG_IDX_REVIEW::OnCancel( wxCommandEvent& event )
 
 void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
 {
+    if( !m_changeGrid )
+        return;
+
     for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
     {
         m_changes[i].first = true;
@@ -264,6 +288,9 @@ void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
 
 void DIALOG_IDX_REVIEW::OnRejectAll( wxCommandEvent& event )
 {
+    if( !m_changeGrid )
+        return;
+
     for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
     {
         m_changes[i].first = false;
@@ -279,10 +306,16 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
         return;
     if( !m_dir )
         return;
+    if( !m_history )
+        return;
 
 
     unsigned int row = m_history->ItemToRow( item );
-    wxString     filename = m_history->GetTextValue( row, 0 );
+
+    if( row >= m_historyReady.size() )
+        return;
+
+    wxString filename = m_history->GetTextValue( row, 0 );
 
     if( !m_historyReady[row] )
     {
@@ -340,29 +373,38 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> DIALOG_IDX_REVIEW::GetRejected()
 
 bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
 {
-    if( !aIDX )
+    if( !aIDX || !m_panelPreview )
         return false;
 
     m_panelPreview->StopDrawing();
 
     KIGFX::VIEW* view = m_panelPreview->GetView();
+
+
+    if( !view )
+        return false;
+
     m_idx = aIDX;
+    std::unique_ptr<BOX2I> bb;
 
-
-    BOX2I* bb = nullptr;
     for( KICAD_IDX_CHANGE& change : m_idx->Process() )
     {
         m_changes.emplace_back( true, std::make_shared<KICAD_IDX_CHANGE>( change ) );
         auto last_change = m_changes.back().second;
+
         m_changes.back().first = true; // accept by default
         AddChange( *last_change );
 
         for( BOARD_ITEM* item : last_change->m_items )
         {
+            if( !item )
+                continue;
+
             if( bb )
                 bb->Merge( item->ViewBBox() );
             else
-                bb = new BOX2I( item->ViewBBox() );
+                bb = std::make_unique<BOX2I>( item->ViewBBox() );
+
             view->Add( item );
         }
     }
@@ -379,23 +421,25 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
 
 void DIALOG_IDX_REVIEW::clearIDX()
 {
-    m_objects = {};
-    m_changes = {};
-    m_panelPreview->StopDrawing();
+    m_objects.clear();
+    m_changes.clear();
 
-    m_changeGrid->DeleteRows( 0, m_changeGrid->GetNumberRows() );
-    m_objects = {};
 
-    KIGFX::VIEW* view = m_panelPreview->GetView();
+    if( m_changeGrid )
+        m_changeGrid->DeleteRows( 0, m_changeGrid->GetNumberRows() );
 
-    if( !view )
-        return;
+    if( m_panelPreview )
+    {
+        m_panelPreview->StopDrawing();
+        KIGFX::VIEW* view = m_panelPreview->GetView();
+        if( view )
+            view->Clear();
 
-    view->Clear();
-    m_panelPreview->StartDrawing();
-
-    m_panelPreview->Refresh();
+        m_panelPreview->StartDrawing();
+        m_panelPreview->Refresh();
+    }
 }
+
 
 wxString StrikeText( const wxString& aTxt )
 {
@@ -428,7 +472,6 @@ wxString Format( std::shared_ptr<IDX_FILE_REGISTRY> aFile, const wxString& aTxt 
 
 void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
 {
-    std::cout << "trying to load dir " << aDir << std::endl;
     if( !m_history )
         return;
 
@@ -454,14 +497,14 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
     m_dir = std::make_shared<wxDir>( aDir );
     m_reg = std::make_shared<KIDX_REGISTRY_KICAD>( "/home/fabien/Documents/kicad-dev/kicad-git/test.kicad_idx" );
 
-    if( !m_reg->LoadFolder( aDir ); )
+    if( !m_reg->LoadFolder( aDir ) )
     {
         wxLogError( "Cannot open directory: %s", aDir );
         return;
     }
 
     m_reg->ComputeNext();
-    m_historyReady = {};
+    m_historyReady.clear();
 
 
     for( std::shared_ptr<IDX_FILE_REGISTRY> file : m_reg->GetFiles() )
@@ -507,11 +550,12 @@ void DIALOG_IDX_REVIEW::onBrowseButton( wxCommandEvent& event )
 
 void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
 {
-    if( m_reg )
+    if( m_reg && m_idx && m_currentFile )
     {
         m_idx->Apply( GetAccepted() );
         m_currentFile->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
         m_reg->Save();
     }
+
     EndModal( wxID_OK );
 }
