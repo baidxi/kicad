@@ -58,6 +58,8 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
 {
     if( !m_changeGrid )
         return;
+
+
     // Create a dummy board for preview (copy or minimal subset)
     m_dummyBoard = m_board;
     m_commit = aCommit;
@@ -77,6 +79,14 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
     // Center and fit the dialog
     Layout();
     Centre();
+
+    m_reg = std::make_shared<KIDX_REGISTRY_KICAD>( "/home/fabien/Documents/kicad-dev/kicad-git/test.kicad_idx" );
+
+    if( !m_reg->GetPath().empty() )
+    {
+        m_collaborationFolderInput->SetValue( m_reg->GetPath() );
+        m_collaborationFolderInput->SetModified( true );
+    }
 }
 
 
@@ -495,7 +505,6 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
     }
 
     m_dir = std::make_shared<wxDir>( aDir );
-    m_reg = std::make_shared<KIDX_REGISTRY_KICAD>( "/home/fabien/Documents/kicad-dev/kicad-git/test.kicad_idx" );
 
     if( !m_reg->LoadFolder( aDir ) )
     {
@@ -505,6 +514,7 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
 
     m_reg->ComputeNext();
     m_historyReady.clear();
+    m_history->DeleteAllItems();
 
 
     for( std::shared_ptr<IDX_FILE_REGISTRY> file : m_reg->GetFiles() )
