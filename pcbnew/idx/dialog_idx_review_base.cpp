@@ -171,6 +171,10 @@ DIALOG__IDX_REVIEW_BASE::DIALOG__IDX_REVIEW_BASE( wxWindow* parent, wxWindowID i
                           wxCommandEventHandler( DIALOG__IDX_REVIEW_BASE::OnAcceptAll ), NULL, this );
     m_rejectAll->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED,
                           wxCommandEventHandler( DIALOG__IDX_REVIEW_BASE::OnRejectAll ), NULL, this );
+    m_sdbSizer1Apply->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG__IDX_REVIEW_BASE::OnApply ),
+                               NULL, this );
+    m_sdbSizer1Cancel->Connect( wxEVT_COMMAND_BUTTON_CLICKED,
+                                wxCommandEventHandler( DIALOG__IDX_REVIEW_BASE::OnCancel ), NULL, this );
     m_collaborationFolderInput->Connect( wxEVT_COMMAND_TEXT_UPDATED,
                                          wxCommandEventHandler( DIALOG__IDX_REVIEW_BASE::OnCollaborationFolderText ),
                                          NULL, this );

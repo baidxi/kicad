@@ -304,6 +304,7 @@ class IDX_XML_NODE
 public:
     virtual ~IDX_XML_NODE() = default;
 
+    virtual void AddAttribute( const std::string& name, const std::string& Value ) = 0;
     // --- Basic accessors ---
     virtual std::string GetName() const = 0;
     virtual std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const = 0;

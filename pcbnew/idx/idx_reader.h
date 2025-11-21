@@ -39,13 +39,6 @@ public:
 
     void Read( wxXmlDocument& aDoc, bool aHeaderOnly );
 
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers() const;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetKeepZones() const;
-
     std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
 
 private:

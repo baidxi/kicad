@@ -38,7 +38,7 @@ class KICAD_IDX;
 class DIALOG_IDX_REVIEW : public DIALOG__IDX_REVIEW_BASE
 {
 public:
-    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent );
+    DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCommit );
     ~DIALOG_IDX_REVIEW() override;
 
     bool                                           TransferDataToWindow();
@@ -54,6 +54,9 @@ protected:
     void OnCollaborationFolderText( wxCommandEvent& event ) override;
     void onBrowseButton( wxCommandEvent& event ) override;
 
+    void OnApply( wxCommandEvent& event ) override;
+    void OnCancel( wxCommandEvent& event ) override;
+
 private:
     void loadDir( const wxString& aDir );
     bool loadIDX( std::shared_ptr<KICAD_IDX> aIDX );
@@ -61,8 +64,9 @@ private:
     void prepareCanvas();
     void refreshPreview();
     void OnResize( wxSizeEvent& event );
-    void OnCancel( wxCommandEvent& event );
     void AddChange( KICAD_IDX_CHANGE& aChange );
+
+    std::shared_ptr<idx_foundation::EDMD_DATASET> m_loadedDataset;
 
 
 private:
@@ -71,11 +75,13 @@ private:
     BOARD*                     m_board;
     BOARD*                     m_dummyBoard;
     std::shared_ptr<KICAD_IDX> m_idx;
+    BOARD_COMMIT*              m_commit;
 
     std::vector<std::vector<BOARD_ITEM*>>                           m_objects;
     std::vector<std::pair<bool, std::shared_ptr<KICAD_IDX_CHANGE>>> m_changes;
     std::vector<bool>                                               m_historyReady;
-    ;
+    std::shared_ptr<KIDX_REGISTRY_KICAD>                            m_reg;
+    std::shared_ptr<IDX_FILE_REGISTRY>                              m_currentFile;
 };
 
 #endif // DIALOG_IDX_REVIEW_H

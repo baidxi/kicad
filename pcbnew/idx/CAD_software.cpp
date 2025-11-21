@@ -50,6 +50,15 @@ std::string IDX_XML_NODE_KICAD::GetName() const
     return m_node != nullptr ? m_node->GetName().ToStdString() : "nullptr";
 }
 
+
+void IDX_XML_NODE_KICAD::AddAttribute( const std::string& aName, const std::string& aValue )
+{
+    if( !m_node )
+        return;
+    m_node->AddAttribute( aName, aValue );
+}
+
+
 std::string IDX_XML_NODE_KICAD::GetAttribute( const std::string& name, const std::string& defaultValue ) const
 {
     if( !m_node )
@@ -151,11 +160,17 @@ bool IDX_FILE_REGISTRY_KICAD::Load( const std::string& aPath, const std::string&
     if( !dataset )
         return false;
 
+    std::cout << fullpath << std::endl;
+    std::cout << dataset->m_header.m_creatorSystem << std::endl;
+    std::cout << dataset->m_header.m_creatorName << std::endl;
+    std::cout << dataset->m_header.m_creationDateTime << std::endl;
+
     m_soft = dataset->m_header.m_creatorSystem;
     m_path = fullpath;
     m_name = aFile;
     m_author = dataset->m_header.m_creatorName;
     m_baseline = dataset->IsBaseline();
+    m_date = dataset->m_header.m_creationDateTime;
 
     return true;
 }
@@ -168,6 +183,8 @@ bool KIDX_REGISTRY_KICAD::LoadFolder( const wxString& aFolder )
     if( !folder->IsOpened() )
         return false;
 
+    m_path = aFolder.ToStdString();
+
     wxString filename;
     bool     cont = folder->GetFirst( &filename, "*.idx", wxDIR_FILES );
 
@@ -175,11 +192,110 @@ bool KIDX_REGISTRY_KICAD::LoadFolder( const wxString& aFolder )
     {
         std::shared_ptr<IDX_FILE_REGISTRY_KICAD> file = std::make_shared<IDX_FILE_REGISTRY_KICAD>();
         file->Load( aFolder.ToStdString(), filename.ToStdString() );
-        m_files.push_back( file );
+
+        if( !IsFileKnown( file ) )
+            m_files.push_back( file );
 
         cont = folder->GetNext( &filename );
     }
 
 
     return true;
+}
+
+#include <wx/xml/xml.h>
+#include <wx/filefn.h>
+#include <wx/wfstream.h>
+#include <wx/stdpaths.h>
+#include <iostream>
+
+
+KIDX_REGISTRY_KICAD::KIDX_REGISTRY_KICAD( const std::string& aFile ) :
+        KIDX_REGISTRY( aFile )
+{
+    LoadFromFile( aFile );
+}
+
+bool KIDX_REGISTRY_KICAD::LoadFromFile( const std::string& aFile )
+{
+    wxXmlDocument doc;
+
+    // Ensure the file exists
+    if( !wxFileExists( aFile ) )
+    {
+        std::cerr << "File does not exist: " << aFile << std::endl;
+        return false;
+    }
+
+    wxFileInputStream input( aFile );
+    if( !input.IsOk() )
+    {
+        std::cerr << "Cannot open file: " << aFile << std::endl;
+        return false;
+    }
+
+    // Load XML
+    if( !doc.Load( input ) )
+    {
+        std::cerr << "Failed to parse XML file: " << aFile << std::endl;
+        return false;
+    }
+
+    // Root element <IDX_register>
+    wxXmlNode* root = doc.GetRoot();
+    if( !root || root->GetName() != "IDX_register" )
+    {
+        std::cerr << "Invalid XML root node" << std::endl;
+        return false;
+    }
+
+    // Example: read version attribute
+    wxString version = root->GetAttribute( "version", "unknown" );
+    std::cout << "Registry version: " << version << std::endl;
+
+    // Parse children (<folder>, <file>, ...)
+    for( wxXmlNode* child = root->GetChildren(); child; child = child->GetNext() )
+    {
+        if( child->GetName() == "folder" )
+        {
+            m_path = child->GetAttribute( "path", "" );
+        }
+        else if( child->GetName() == "file" )
+        {
+            m_files.push_back( std::make_shared<IDX_FILE_REGISTRY>() );
+            m_files.back()->SetName( child->GetAttribute( "name", "" ).ToStdString() );
+            m_files.back()->SetDate( child->GetAttribute( "date", "" ).ToStdString() );
+            m_files.back()->SetDate( child->GetAttribute( "date", "" ).ToStdString() );
+            m_files.back()->SetSoft( child->GetAttribute( "software", "" ).ToStdString() );
+            m_files.back()->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
+        }
+    }
+
+    return true;
+}
+
+void KIDX_REGISTRY_KICAD::Save()
+{
+    // Create the root XML document + root node
+    wxXmlDocument doc;
+    wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "IDX_register" );
+    auto          root_idx = std::make_shared<IDX_XML_NODE_KICAD>( root );
+    doc.SetRoot( root );
+
+    this->writeXml( root_idx );
+    // Save the XML file
+    wxFileOutputStream output( m_file );
+    if( !output.IsOk() )
+    {
+        std::cerr << "Error: Cannot open file for writing: " << m_file << std::endl;
+        return;
+    }
+
+    if( !doc.Save( output ) )
+    {
+        std::cerr << "Error: Failed to save XML to " << m_file << std::endl;
+        return;
+    }
+
+    std::cout << "Saved XML successfully." << std::endl;
 }

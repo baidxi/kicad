@@ -210,7 +210,7 @@ class EDMD_DATASET : public EDMD_OBJECT
 {
 public:
     EDMD_DATASET();
-    EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly );
+    EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly = false );
 
     EDMD_HEADER                                            m_header;
     EDMD_DATASET_BODY                                      m_body;
@@ -222,6 +222,23 @@ public:
     void Prepare();
 
     bool IsBaseline();
+
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetBoardOutlineElements() const
+    {
+        return m_body.m_boardOutline;
+    }
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetNPTH() const { return m_body.m_NPTH; }
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetComponents() const { return m_body.m_components; }
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetPTH() const { return m_body.m_PTH; }
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetOthers() const { return m_body.m_others; }
+
+    std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetKeepZones() const { return m_body.m_keepZones; }
+
 
 private:
     bool m_baseline = false;

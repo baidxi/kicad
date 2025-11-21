@@ -35,20 +35,11 @@
 #include <pad.h>
 #include <pcb_track.h>
 
-KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit, bool aHeaderOnly ) :
+KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
         m_commit( aCommit ),
-        m_board( aBoard )
+        m_board( aBoard ),
+        m_dataset( aDataset )
 {
-    wxXmlDocument doc;
-
-    if( !doc.Load( aFilename ) )
-        return;
-
-    m_holder = std::make_unique<IDX_HOLDER>( doc, aHeaderOnly );
-
-    if( !m_board || aHeaderOnly )
-        return;
-
     BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
     BOARD_STACKUP          stackup = dsnSettings.GetStackupDescriptor();
     stackup.SynchronizeWithBoard( &dsnSettings );
@@ -76,7 +67,7 @@ KICAD_IDX::KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit, 
     }
 
 
-    for( auto inst : m_holder->GetBoardOutlineElements() )
+    for( auto inst : m_dataset->GetBoardOutlineElements() )
     {
         // Check for board outline
         if( auto prop = inst->GetUserProperty( "THICKNESS" ) )
@@ -346,8 +337,9 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
 {
     std::vector<KICAD_IDX_CHANGE> m_result;
 
-    for( auto edge : m_holder->GetBoardOutlineElements() )
+    for( auto edge : m_dataset->GetBoardOutlineElements() )
     {
+        std::cout << "board outline" << std::endl;
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *edge );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
         change.m_items = AddElement( *edge, Edge_Cuts );
@@ -355,7 +347,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         m_result.push_back( change );
     }
 
-    for( auto keep : m_holder->GetKeepZones() )
+    for( auto keep : m_dataset->GetKeepZones() )
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *keep );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
@@ -364,7 +356,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         m_result.push_back( change );
     }
 
-    for( auto cmp : m_holder->GetComponents() )
+    for( auto cmp : m_dataset->GetComponents() )
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *cmp );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
@@ -373,7 +365,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         m_result.push_back( change );
     }
 
-    for( auto npth : m_holder->GetNPTH() )
+    for( auto npth : m_dataset->GetNPTH() )
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *npth );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
@@ -382,7 +374,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         m_result.push_back( change );
     }
 
-    for( auto pth : m_holder->GetPTH() )
+    for( auto pth : m_dataset->GetPTH() )
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *pth );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
@@ -391,7 +383,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
         m_result.push_back( change );
     }
 
-    for( auto other : m_holder->GetOthers() )
+    for( auto other : m_dataset->GetOthers() )
     {
         KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *other );
         change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
@@ -404,16 +396,14 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
 
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
 {
-    if( !m_holder )
-        return {};
-    if( !m_holder->m_dataset )
+    if( !m_dataset )
         return {};
 
-    if( m_holder->m_dataset->m_processInstruction.size() < 1 )
+    if( m_dataset->m_processInstruction.size() < 1 )
         return {};
 
     idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE type;
-    type = m_holder->m_dataset->m_processInstruction[0]->m_processType;
+    type = m_dataset->m_processInstruction[0]->m_processType;
 
     if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::BASELINE )
     {
@@ -430,32 +420,6 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 {
     return {};
-}
-
-
-void KICAD_IDX::AddAll()
-{
-    PCB_GROUP* group = new PCB_GROUP( nullptr );
-
-    for( KICAD_IDX_CHANGE edge : GetChanges() )
-    {
-        group->SetName( "" );
-        m_commit->Add( group );
-
-        for( BOARD_ITEM* item : edge.m_items )
-        {
-            group->AddItem( item );
-            m_commit->Stage( item, CHT_ADD );
-            m_commit->Add( item );
-        }
-    }
-
-
-    for( auto const& x : m_holder->GetKeepZones() )
-    {
-        AddZone( *x );
-    }
-    m_commit->Push( "Import IDX" );
 }
 
 
@@ -616,21 +580,28 @@ bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
 
 std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
 {
+    std::cout << "Adding element" << std::endl;
     std::vector<BOARD_ITEM*> m_result;
 
     if( !CheckInstance( aInstance ) )
         return m_result;
 
+    std::cout << "Instance is OK" << std::endl;
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
+        std::cout << "Shape Element" << std::endl;
         std::shared_ptr<idx_geometry::EDMD_CURVESET2D> curveset =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
 
         if( curveset )
         {
+            std::cout << "Curveset" << std::endl;
+
             for( BOARD_ITEM* item : ConvertElement( *curveset ) )
             {
+                std::cout << "Converting.." << std::endl;
+
                 item->SetLayer( aLayer );
                 this->ApplyTransformation( item, aInstance.m_transformation );
                 m_result.push_back( item );

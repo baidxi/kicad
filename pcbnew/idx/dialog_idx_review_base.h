@@ -68,6 +68,8 @@ protected:
     virtual void OnGridCellClick( wxGridEvent& event ) { event.Skip(); }
     virtual void OnAcceptAll( wxCommandEvent& event ) { event.Skip(); }
     virtual void OnRejectAll( wxCommandEvent& event ) { event.Skip(); }
+    virtual void OnApply( wxCommandEvent& event ) { event.Skip(); }
+    virtual void OnCancel( wxCommandEvent& event ) { event.Skip(); }
     virtual void OnCollaborationFolderText( wxCommandEvent& event ) { event.Skip(); }
     virtual void onBrowseButton( wxCommandEvent& event ) { event.Skip(); }
     virtual void onItemActivated( wxDataViewEvent& event ) { event.Skip(); }

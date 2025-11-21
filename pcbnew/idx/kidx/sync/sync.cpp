@@ -27,12 +27,15 @@
 #include <iostream>
 #include <stdexcept>
 #include <filesystem>
+#include "../kidx.h"
 
 
-KIDX_REGISTRY::KIDX_REGISTRY()
+KIDX_REGISTRY::KIDX_REGISTRY( const std::string& aFile ) :
+        m_file( aFile )
 {
+    std::ifstream in( aFile );
+    m_baselined = in.good();
 }
-
 
 bool KIDX_REGISTRY::IsFileKnown( const std::shared_ptr<IDX_FILE_REGISTRY> aFile ) const
 {
@@ -62,6 +65,31 @@ void KIDX_REGISTRY::ComputeNext()
 {
     for( std::shared_ptr<IDX_FILE_REGISTRY> file : GetFiles() )
     {
-        file->m_next = file->IsBaseline();
+        if( !m_baselined )
+            file->m_next = file->IsBaseline();
+    }
+}
+
+void KIDX_REGISTRY::writeXml( std::shared_ptr<IDX_XML_NODE> aRoot )
+{
+    if( !aRoot )
+        return;
+
+    aRoot->SetAttribute( "version", "1.0" );
+
+
+    auto child = aRoot->AppendChild( "folder" );
+    child->SetAttribute( "path", this->GetPath() );
+
+    for( auto file : m_files )
+    {
+        if( file->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_UNPROCESSED )
+            continue;
+
+        auto child = aRoot->AppendChild( "file" );
+        child->SetAttribute( "name", file->GetName() );
+        child->SetAttribute( "author", file->GetAuthor() );
+        child->SetAttribute( "date", file->GetDate() );
+        child->SetAttribute( "software", file->GetSoft() );
     }
 }

@@ -50,7 +50,7 @@ enum IDX_REVIEW_COLS
 };
 
 
-DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent ) :
+DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCommit ) :
         DIALOG__IDX_REVIEW_BASE( aParent ),
         m_parent( aParent ),
         m_board( aParent->GetBoard() ),
@@ -58,6 +58,7 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent ) :
 {
     // Create a dummy board for preview (copy or minimal subset)
     m_dummyBoard = m_board;
+    m_commit = aCommit;
 
     m_changeGrid->AppendCols( IDX_REVIEW_COLS::NB_COLS );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::ACCEPT, _( "" ) );
@@ -292,7 +293,22 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
     clearIDX();
 
     wxString fullpath = m_dir->GetNameWithSep() + filename;
-    m_idx = std::make_shared<KICAD_IDX>( fullpath, m_board, nullptr );
+
+
+    wxXmlDocument doc;
+
+    if( !doc.Load( fullpath ) )
+        return;
+
+    std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( doc.GetRoot() );
+
+    m_loadedDataset = std::make_shared<idx_foundation::EDMD_DATASET>( *child );
+    m_loadedDataset->Resolve();
+    m_loadedDataset->Prepare();
+
+    m_idx = std::make_shared<KICAD_IDX>( m_loadedDataset, m_board, m_commit );
+
+    m_currentFile = m_reg->GetFiles()[row];
     loadIDX( m_idx );
 }
 
@@ -395,6 +411,21 @@ wxString GreyText( const wxString& aTxt )
     return "<span color='grey'>" + aTxt + "</span>";
 }
 
+wxString Format( std::shared_ptr<IDX_FILE_REGISTRY> aFile, const wxString& aTxt )
+{
+    wxString result = aTxt;
+
+    if( aFile->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED )
+        result = GreyText( result );
+    else if( aFile->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED_DELETED )
+        result = GreyText( StrikeText( result ) );
+    if( aFile->IsProbablyNext() )
+    {
+        result = BoldText( result );
+    }
+    return result;
+}
+
 void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
 {
     std::cout << "trying to load dir " << aDir << std::endl;
@@ -404,35 +435,36 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
     // Add a column if it has none
     if( m_history->GetColumnCount() == 0 )
     {
-        m_history->AppendTextColumn( "Raw Name" ); // column 0
-
-        auto* renderer = new wxDataViewTextRenderer( "string", wxDATAVIEW_CELL_INERT );
-        renderer->EnableMarkup( true );
-
-        auto* column = new wxDataViewColumn( _( "File Name" ), renderer, 1, 200, wxALIGN_LEFT );
-        m_history->AppendColumn( column ); // column 1
-
-        m_history->AppendTextColumn( _( "Software" ) ); // column 2
-        m_history->AppendTextColumn( _( "Date" ) );     // column 3
-
+        m_history->AppendTextColumn( "Raw Name" ); // Don't translate, it is not user-facing
         m_history->GetColumn( 0 )->SetHidden( true );
+
+        auto* r1 = new wxDataViewTextRenderer( "string", wxDATAVIEW_CELL_INERT );
+        r1->EnableMarkup( true );
+        m_history->AppendColumn( new wxDataViewColumn( _( "File Name" ), r1, 1, 200, wxALIGN_LEFT ) );
+
+        auto* r2 = new wxDataViewTextRenderer( "string", wxDATAVIEW_CELL_INERT );
+        r2->EnableMarkup( true );
+        m_history->AppendColumn( new wxDataViewColumn( _( "Software" ), r2, 2, 200, wxALIGN_LEFT ) );
+
+        auto* r3 = new wxDataViewTextRenderer( "string", wxDATAVIEW_CELL_INERT );
+        r3->EnableMarkup( true );
+        m_history->AppendColumn( new wxDataViewColumn( _( "Date" ), r3, 3, 200, wxALIGN_LEFT ) );
     }
 
     m_dir = std::make_shared<wxDir>( aDir );
-    KIDX_REGISTRY_KICAD reg;
+    m_reg = std::make_shared<KIDX_REGISTRY_KICAD>( "/home/fabien/Documents/kicad-dev/kicad-git/test.kicad_idx" );
 
-    if( !m_dir->IsOpened() )
+    if( !m_reg->LoadFolder( aDir ); )
     {
         wxLogError( "Cannot open directory: %s", aDir );
         return;
     }
 
-    reg.LoadFolder( aDir );
-    reg.ComputeNext();
+    m_reg->ComputeNext();
     m_historyReady = {};
 
 
-    for( std::shared_ptr<IDX_FILE_REGISTRY> file : reg.GetFiles() )
+    for( std::shared_ptr<IDX_FILE_REGISTRY> file : m_reg->GetFiles() )
     {
         wxVector<wxVariant> row;
 
@@ -441,27 +473,13 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
 
         wxString name = rawname;
 
-        if( file->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED )
-            name = GreyText( name );
-        else if( file->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED_DELETED )
-            name = GreyText( StrikeText( name ) );
+        m_historyReady.push_back( file->IsProbablyNext() );
 
-        if( file->IsProbablyNext() )
-        {
-            name = BoldText( name );
-            m_historyReady.push_back( true );
-        }
-        else
-        {
-            m_historyReady.push_back( false );
-        }
-        std::cout << name << " : " << ( file->IsProbablyNext() ? " true " : "false " ) << std::endl;
 
         row.push_back( wxVariant( rawname ) );
-        row.push_back( wxVariant( name ) );
-        row.push_back( wxVariant( file->GetSoft() ) );
-        row.push_back( wxVariant( file->GetAuthor() ) );
-        row.push_back( wxVariant( file->GetDate() ) );
+        row.push_back( wxVariant( Format( file, name ) ) );
+        row.push_back( wxVariant( Format( file, file->GetSoft() ) ) );
+        row.push_back( wxVariant( Format( file, file->GetDate() ) ) );
 
         m_history->AppendItem( row );
     }
@@ -485,4 +503,15 @@ void DIALOG_IDX_REVIEW::onBrowseButton( wxCommandEvent& event )
         m_collaborationFolderInput->SetValue( folder );
         m_collaborationFolderInput->SetModified( true );
     }
+}
+
+void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
+{
+    if( m_reg )
+    {
+        m_idx->Apply( GetAccepted() );
+        m_currentFile->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
+        m_reg->Save();
+    }
+    EndModal( wxID_OK );
 }

@@ -71,10 +71,8 @@ private:
 class KICAD_IDX
 {
 public:
-    KICAD_IDX( wxString aFilename, BOARD* aBoard, BOARD_COMMIT* aCommit, bool aHeaderOnly = false );
+    KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, BOARD* aBoard, BOARD_COMMIT* aCommit );
 
-
-    void                     AddAll();
     void                     AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
     std::vector<BOARD_ITEM*> AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
     BOARD_ITEM*              AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
@@ -112,7 +110,8 @@ public:
     void AddItem( BOARD_ITEM*, LSET );
     LSET GetLayers( idx_geometry::EDMD_CURVESET2D& );
 
-    std::shared_ptr<IDX_HOLDER>               m_holder;
+    std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
+
     BOARD_COMMIT*                             m_commit;
     BOARD*                                    m_board;
     std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup;

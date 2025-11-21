@@ -1412,9 +1412,8 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
 {
     BOARD_COMMIT commit( frame() );
 
-    auto kidx = std::make_shared<KICAD_IDX>( "", board(), &commit );
 
-    DIALOG_IDX_REVIEW dlg( m_frame );
+    DIALOG_IDX_REVIEW dlg( m_frame, &commit );
     bool              cancelled;
 
     RunMainStack(
@@ -1429,7 +1428,6 @@ int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
     else
     {
     }
-    kidx->Apply( dlg.GetAccepted() );
     return 0;
 }
 

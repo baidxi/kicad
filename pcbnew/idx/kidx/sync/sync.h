@@ -26,7 +26,13 @@
 #include <vector>
 #include <memory>
 
+namespace idx_foundation
+{
+class EDMD_DATASET;
+}
+
 class KIDX_REGISTRY;
+class IDX_XML_NODE;
 
 class IDX_FILE_REGISTRY
 {
@@ -57,6 +63,12 @@ public:
     const STATUS      GetStatus() const { return m_status; };
     const bool        IsBaseline() const { return m_baseline; };
     const bool        IsProbablyNext() const { return m_next; };
+    void              SetAuthor( const std::string aValue ) { m_author = aValue; };
+    void              SetDate( const std::string aValue ) { m_date = aValue; };
+    void              SetName( const std::string aValue ) { m_name = aValue; };
+    void              SetPath( const std::string aValue ) { m_path = aValue; };
+    void              SetSoft( const std::string aValue ) { m_soft = aValue; };
+    void              SetStatus( const STATUS aStatus ) { m_status = aStatus; };
 
     friend class KIDX_REGISTRY;
 
@@ -67,17 +79,17 @@ protected:
     std::string m_name;
     std::string m_path;
     std::string m_soft;
-    bool        m_baseline;
-    bool        m_next;
+    bool        m_baseline = false;
+    bool        m_next = false;
 
-    STATUS m_status;
+    STATUS m_status = STATUS::IDX_UNPROCESSED;
 };
 
 
 class KIDX_REGISTRY
 {
 public:
-    KIDX_REGISTRY();
+    KIDX_REGISTRY( const std::string& aFile );
     bool IsFileKnown( const std::shared_ptr<IDX_FILE_REGISTRY> aFile ) const;
 
     void ComputeNext();
@@ -92,7 +104,15 @@ public:
         return true;
     };
 
+
+    void         MarkProcessed( std::shared_ptr<IDX_FILE_REGISTRY> aDataset ) {};
+    virtual void Save() {};
+    void         writeXml( std::shared_ptr<IDX_XML_NODE> aRoot );
+
+
 protected:
+    std::string                                     m_file;
+    bool                                            m_baselined = false;
     std::vector<std::shared_ptr<IDX_FILE_REGISTRY>> m_files;
     std::string                                     m_path;
     std::string                                     m_collaborationFolder;

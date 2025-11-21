@@ -39,6 +39,8 @@ class IDX_XML_NODE_KICAD : public IDX_XML_NODE
 public:
     IDX_XML_NODE_KICAD( wxXmlNode* node );
 
+    void AddAttribute( const std::string& name, const std::string& Value );
+
     std::string GetName() const override;
     std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const override;
     void        SetAttribute( const std::string& name, const std::string& value ) override;
@@ -51,7 +53,6 @@ public:
     std::string                   GetNodeContent() const override;
     std::shared_ptr<IDX_XML_NODE> GetNext() const override;
 
-private:
     wxXmlNode* m_node;
 };
 
@@ -79,8 +80,9 @@ public:
 class KIDX_REGISTRY_KICAD : public KIDX_REGISTRY
 {
 public:
-    KIDX_REGISTRY_KICAD() :
-            KIDX_REGISTRY() {};
+    KIDX_REGISTRY_KICAD( const std::string& aFile );
+    bool LoadFromFile( const std::string& aFile );
 
     bool LoadFolder( const wxString& aFolder );
+    void Save() override;
 };
