@@ -21,10 +21,10 @@
 #include <kiplatform/ui.h>
 
 #include <wx/choice.h>
+#include <wx/log.h>
 #include <wx/nonownedwnd.h>
 #include <wx/settings.h>
 #include <wx/window.h>
-#include <wx/log.h>
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
@@ -51,14 +51,11 @@ bool KIPLATFORM::UI::IsDarkTheme()
     wxSystemAppearance appearance = wxSystemSettings::GetAppearance();
     return appearance.IsDark();
 #else
-    wxColour bg = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
+    const wxColour bg = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
 
-    // Weighted W3C formula
-    double brightness = ( bg.Red() / 255.0 ) * 0.299 +
+    return (( bg.Red() / 255.0 ) * 0.299 +
         ( bg.Green() / 255.0 ) * 0.587 +
-        ( bg.Blue() / 255.0 ) * 0.117;
-
-    return brightness < 0.5;
+        ( bg.Blue() / 255.0 ) * 0.117) < 0.5;
 #endif
 }
 

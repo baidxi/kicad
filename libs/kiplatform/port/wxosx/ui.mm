@@ -37,14 +37,11 @@ bool KIPLATFORM::UI::IsDarkTheme()
     NSString *appearanceName = [[NSAppearance currentAppearance] name];
     return !![appearanceName containsString:@"Dark"];
 #else
-    wxColour bg = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
+    const wxColour bg = wxSystemSettings::GetColour( wxSYS_COLOUR_WINDOW );
 
-    // Weighted W3C formula
-    double brightness = ( bg.Red() / 255.0 ) * 0.299 +
-                        ( bg.Green() / 255.0 ) * 0.587 +
-                        ( bg.Blue() / 255.0 ) * 0.117;
-
-    return brightness < 0.5;
+    return (( bg.Red() / 255.0 ) * 0.299 +
+        ( bg.Green() / 255.0 ) * 0.587 +
+        ( bg.Blue() / 255.0 ) * 0.117) < 0.5;
 #endif
 }
 
