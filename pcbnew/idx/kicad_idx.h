@@ -55,7 +55,12 @@ public:
     KICAD_IDX_CHANGE( IDX_BASE& aIdx ) :
             m_idx( aIdx ) {};
 
-    std::vector<BOARD_ITEM*> m_items;
+
+    ELEMENT_TYPE GetType( idx_pdm::EDMD_ITEM_INSTANCE& aInst );
+
+
+    std::vector<BOARD_ITEM*> m_newItems;
+    std::vector<BOARD_ITEM*> m_predecessorItems;
     ELEMENT_TYPE             m_type;
     wxString                 m_name;
     double                   m_value;
@@ -78,6 +83,9 @@ public:
     BOARD_ITEM*              AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE );
     void                     Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector );
 
+    std::vector<BOARD_ITEM*> ConvertInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInst, bool aPredecessor = false );
+
+    std::shared_ptr<KICAD_IDX_CHANGE> ConvertChange( idx_computational::EDMD_CHANGE& aChange );
 
     // Convert IDX shapes to BOARD_ITEM*
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVESET2D& );
@@ -86,9 +94,9 @@ public:
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE& );
 
     // Abstraction
-    std::vector<KICAD_IDX_CHANGE> Process();
-    std::vector<KICAD_IDX_CHANGE> GetChanges();
-    std::vector<KICAD_IDX_CHANGE> Baseline();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> Process();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> GetChanges();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> Baseline();
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
 

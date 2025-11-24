@@ -130,7 +130,7 @@ void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange )
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::STATUS );
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::COMMENT );
 
-    m_objects.push_back( aChange.m_items );
+    m_objects.push_back( aChange.m_newItems );
 }
 
 
@@ -160,6 +160,7 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
     // Get the row and column of the clicked cell
     int row = event.GetRow();
     int col = event.GetCol();
+    std::cout << "clik click" << std::endl;
 
     if( !m_changeGrid || row < 0 || row >= (int) m_changes.size() )
     {
@@ -183,6 +184,8 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
         event.Skip();
         return;
     }
+
+    m_panelPreview->StopDrawing();
 
     KIGFX::VIEW* view = m_panelPreview->GetView();
 
@@ -222,6 +225,44 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
         }
         j++;
     }
+    std::cout << "Looking for new items " << std::endl;
+
+    for( BOARD_ITEM* item : m_changes[row].second->m_newItems )
+    {
+        if( !item )
+            continue;
+
+        PCB_SHAPE* pcbShape = dynamic_cast<PCB_SHAPE*>( item );
+
+        if( pcbShape )
+        {
+            PCB_SHAPE* copy = new PCB_SHAPE();
+            copy->CopyFrom( item );
+            copy->SetLayer( Eco1_User );
+            copy->SetWidth( ( copy->GetWidth() ) );
+
+            view->Add( copy );
+        }
+    }
+
+
+    for( BOARD_ITEM* item : m_changes[row].second->m_predecessorItems )
+    {
+        if( !item )
+            continue;
+
+        PCB_SHAPE* pcbShape = dynamic_cast<PCB_SHAPE*>( item );
+
+        if( pcbShape )
+        {
+            PCB_SHAPE* copy = new PCB_SHAPE();
+            copy->CopyFrom( item );
+            copy->SetLayer( Eco2_User );
+            copy->SetWidth( ( copy->GetWidth() ) );
+
+            view->Add( copy );
+        }
+    }
 
     // Adjust the viewport to highlight the relevant area
     if( atLeastOne )
@@ -229,8 +270,9 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
         view->SetViewport( BOX2D( bb.GetOrigin(), bb.GetSize() ) );
         view->SetScale( view->GetScale() * 0.1 );
     }
-    m_panelPreview->Refresh(); // Refresh the preview to show the changes
 
+    m_panelPreview->StartDrawing();
+    m_panelPreview->Refresh();
     event.Skip(); // Allow default event handling to propagate
 }
 
@@ -397,15 +439,18 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
     m_idx = aIDX;
     std::unique_ptr<BOX2I> bb;
 
-    for( KICAD_IDX_CHANGE& change : m_idx->Process() )
+    for( std::shared_ptr<KICAD_IDX_CHANGE>& change : m_idx->Process() )
     {
-        m_changes.emplace_back( true, std::make_shared<KICAD_IDX_CHANGE>( change ) );
+        if( !change )
+            continue;
+
+        m_changes.emplace_back( true, std::make_shared<KICAD_IDX_CHANGE>( *change ) );
         auto last_change = m_changes.back().second;
 
         m_changes.back().first = true; // accept by default
         AddChange( *last_change );
 
-        for( BOARD_ITEM* item : last_change->m_items )
+        for( BOARD_ITEM* item : last_change->m_newItems )
         {
             if( !item )
                 continue;

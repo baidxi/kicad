@@ -305,59 +305,76 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
     return m_result;
 }
 
+KICAD_IDX_CHANGE::ELEMENT_TYPE KICAD_IDX_CHANGE::GetType( idx_pdm::EDMD_ITEM_INSTANCE& aInst )
+{
+    switch( aInst.GetType() )
+    {
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE: return KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
 
-std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPIN:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPOUT: return KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT: return KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH: return KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH: return KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
+
+    default: return KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER; break;
+    }
+}
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInst, bool aPredecessor )
+{
+    switch( aInst.GetType() )
+    {
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE: return AddElement( aInst, Edge_Cuts );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPIN:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPOUT: return AddZone( aInst );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT: return AddElement( aInst, User_1 );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH: return AddNPTH( aInst );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH: return AddNPTH( aInst );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER: return AddElement( aInst, User_2 );
+
+    default: return {};
+    }
+}
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
 {
     std::cout << "processing baseline" << std::endl;
-    std::vector<KICAD_IDX_CHANGE> result;
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
+
 
     for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
     {
-        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : item->m_itemInstance )
+        if( !item )
+            continue;
+
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
         {
-            if( !inst )
+            if( !instance )
                 continue;
 
-            KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *inst );
-            change.m_name = inst->m_name;
+            std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
 
-            switch( inst->GetType() )
-            {
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE:
-                change.m_items = AddElement( *inst, Edge_Cuts );
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
-                break;
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPIN:
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPOUT:
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
-                change.m_items = AddZone( *inst );
-                break;
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT:
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
-                change.m_items = AddElement( *inst, User_1 );
-                break;
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH:
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
-                change.m_items = AddNPTH( *inst );
-                break;
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH:
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
-                change.m_items = AddNPTH( *inst );
-                break;
-            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER:
-                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
-                change.m_items = AddElement( *inst, User_2 );
-                break;
-            default: break;
-            }
-            result.push_back( change );
+            kChange->m_name = instance->m_id;
+            kChange->m_type = kChange->GetType( *instance );
+            kChange->m_newItems = ConvertInstance( *instance );
+
+            result.push_back( kChange );
         }
     }
 
     return result;
 }
 
-std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Process()
 {
     if( !m_dataset )
         return {};
@@ -379,12 +396,58 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
     return {};
 }
 
+std::shared_ptr<KICAD_IDX_CHANGE> KICAD_IDX::ConvertChange( idx_computational::EDMD_CHANGE& aChange )
+{
+    std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( aChange );
 
-std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
+    // NewItem is only one that is mandatory
+    if( !aChange.m_newItem )
+        return {};
+
+
+    bool found = false;
+
+    if( m_dataset->GetItem( *( aChange.m_newItem ) ) )
+    {
+        auto item = m_dataset->GetItem( *( aChange.m_newItem ) );
+
+        if( item )
+        {
+            for( auto instance : item->m_itemInstance )
+            {
+                if( !instance )
+                    continue;
+
+                kChange->m_name = instance->m_id;
+                kChange->m_type = kChange->GetType( *instance );
+                kChange->m_newItems = ConvertInstance( *instance );
+            }
+        }
+    }
+
+    if( aChange.m_predecessorItem && m_dataset->GetItem( *( aChange.m_predecessorItem ) ) )
+    {
+        auto elmt = m_dataset->GetItem( *( aChange.m_predecessorItem ) );
+
+        if( elmt )
+        {
+            for( auto instance : elmt->m_itemInstance )
+            {
+                if( !instance )
+                    continue;
+                kChange->m_predecessorItems = ConvertInstance( *instance );
+            }
+        }
+    }
+
+    return kChange;
+}
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::GetChanges()
 {
     std::cout << "processing changes" << std::endl;
 
-    std::vector<KICAD_IDX_CHANGE> result;
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
 
 
     for( auto instruction : m_dataset->m_processInstruction )
@@ -400,41 +463,10 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 
         for( auto change : instr->m_transaction->m_changes )
         {
-            std::shared_ptr<idx_computational::EDMD_CHANGE> c =
-                    std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change );
-
-
-            if( !c )
+            if( !std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) )
                 continue;
 
-            // NewItem is only one that is mandatory
-            if( !c->m_newItem )
-                continue;
-
-
-            bool found = false;
-
-            if( m_dataset->GetItem( *( c->m_newItem ) ) )
-            {
-                auto elmt = m_dataset->GetItem( *( c->m_newItem ) );
-
-                for( auto instance : elmt->m_itemInstance )
-                {
-                    KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *instance );
-                    change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
-                    change.m_items = AddElement( *instance, User_1 );
-                    change.m_name = instance->m_name;
-                    result.push_back( change );
-                }
-            }
-
-            if( c->m_predecessorItem && m_dataset->GetItem( *( c->m_predecessorItem ) ) )
-            {
-            }
-
-            if( c->m_predecessorItem )
-            {
-            }
+            result.push_back( ConvertChange( *std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) ) );
         }
     }
 
@@ -451,7 +483,7 @@ void KICAD_IDX::Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector )
         group->SetName( "" );
         m_commit->Add( group );
 
-        for( BOARD_ITEM* item : change->m_items )
+        for( BOARD_ITEM* item : change->m_newItems )
         {
             group->AddItem( item );
             m_commit->Stage( item, CHT_ADD );
