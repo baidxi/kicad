@@ -273,6 +273,7 @@ bool EDMD_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
     bool result = true;
     result &= idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
     result &= resolve<idx_pdm::EDMD_SHAPE_ELEMENT>( m_shapeElementRef, m_shapeElement, aRegistry );
+
     return result;
 }
 
@@ -408,35 +409,32 @@ bool EDMD_STRATUM::Parse( IDX_XML_NODE& aNode )
     const std::string content = aNode.GetNodeContent();
 
     if( IDX_keyword_compare( name, "pdm:StratumTechnology" ) )
-    {
         m_stratumTechnologyRef.push_back( content );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:StratumType" ) )
     {
-        return false;
+        if( IDX_keyword_compare( content, "DocumentationLayerStratum" ) )
+            m_type = TYPE::DOCUMENTATION;
+        else if( IDX_keyword_compare( content, "DesignLayerStratum" ) )
+            m_type = TYPE::DESIGN;
+        else
+            invalidValueIDX( name, content );
     }
     else if( IDX_keyword_compare( name, "pdm:StratumSurfaceDesignation" ) )
     {
         if( IDX_keyword_compare( content, "AverageSurface" ) )
-        {
             m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::AVERAGE_SURFACE;
-            return true;
-        }
         else if( IDX_keyword_compare( content, "PrimarySurface" ) )
-        {
             m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::PRIMARY_SURFACE;
-            return true;
-        }
-        else if( IDX_keyword_compare( content, "SecondarySurface" ) )
-        {
-            m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::SECONDARY_SURFACE;
-            return true;
-        }
-        return false;
-    }
 
-    return this->EDMD_ITEM_SHAPE::Parse( aNode );
+        else if( IDX_keyword_compare( content, "SecondarySurface" ) )
+            m_stratumSurfaceDesignation = STRATUM_SURFACE_DESIGNATION::SECONDARY_SURFACE;
+        else
+            invalidValueIDX( name, content );
+    }
+    else
+        return this->EDMD_ITEM_SHAPE::Parse( aNode );
+
+    return true;
 }
 
 bool EDMD_STRATUM::Resolve( IDX_REGISTRY& aRegistry )
@@ -564,6 +562,41 @@ bool EDMD_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+const EDMD_ITEM_INSTANCE::TYPE EDMD_ITEM_INSTANCE::GetType() const
+{
+    if( auto type = GetUserProperty( "TYPE" ) )
+    {
+        if( type->m_value == "BOARDOUTLINE" )
+            return TYPE::BOARD_OUTLINE;
+    }
+
+
+    auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( m_item->m_shape );
+    if( interstratum )
+    {
+        using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
+        switch( interstratum->m_interstratumFeatureType )
+        {
+        case FT::BOARD_CUTOUT: return TYPE::BOARD_OUTLINE;
+        case FT::CUTOUT: return TYPE::NPTH;
+        case FT::PLATED_CUTOUT: return TYPE::PTH;
+        default: break;
+        }
+    }
+
+    if( m_item && m_item->m_shape )
+    {
+        auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( m_item->m_shape );
+        if( keep )
+            return TYPE::KEEPOUT;
+    }
+
+    if( !m_name.empty() )
+        return TYPE::COMPONENT;
+
+    return TYPE::OTHER;
+}
+
 
 void EDMD_ITEM_INSTANCE::print( int aIndex, int aMaxIndex )
 {
@@ -603,40 +636,27 @@ bool EDMD_ITEM::Parse( IDX_XML_NODE& aNode )
             m_itemType = ITEM_TYPE::ASSEMBLY;
         else
             invalidValueIDX( name, content );
-        return true;
     }
     else if( IDX_keyword_compare( name, "pdm:Identifier" ) )
-    {
         m_identifier.emplace_back( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:PackageName" ) )
-    {
         m_packageName.emplace_back( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:ItemInstance" ) )
-    {
         m_itemInstance.emplace_back( std::make_shared<idx_pdm::EDMD_ITEM_INSTANCE>( aNode, true ) );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:Shape" ) )
-    {
         m_shapeRef = content;
-        return true;
-    }
-    else if( IDX_keyword_compare( name, "pdm:BaseLine" ) )
-    {
-        m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
-        return true;
-    }
     else if( IDX_keyword_compare( name, "pdm:Accept" ) )
-    {
         m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
-        return true;
-    }
+    else if( IDX_keyword_compare( name, "pdm:BaseLine" ) )
+        m_baseline = idx_property::EDMD_LOGIC_PROPERTY( aNode, true );
+    else if( IDX_keyword_compare( name, "pdm:ReferenceName" ) )
+        m_referenceName = content;
+    else if( IDX_keyword_compare( name, "pdm:AssembleToName" ) )
+        m_assembleToName = content;
+    else
+        return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 
-    return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+    return true;
 }
 
 
@@ -646,13 +666,18 @@ void EDMD_ITEM::print( int aIndex, int aMaxIndex )
 
 bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 {
-    bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+    bool result = true;
+
+    result &= idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
 
     if( !m_shapeRef.empty() )
     {
-        result = resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
-        if( !result )
-            result = resolve<EDMD_FUNCTIONAL_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
+        bool tmp = resolve<EDMD_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry, true );
+
+        if( !tmp )
+        {
+            result &= resolve<EDMD_FUNCTIONAL_ITEM_SHAPE>( m_shapeRef, &m_shape, aRegistry );
+        }
     }
 
     for( auto& instance : m_itemInstance )
@@ -705,11 +730,7 @@ bool EDMD_ASSEMBLY_COMPONENT::Parse( IDX_XML_NODE& aNode )
 
 bool EDMD_ASSEMBLY_COMPONENT::Resolve( IDX_REGISTRY& aRegistry )
 {
-    bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
-
-    //result &=
-    //          resolve<EDMD_SHAPE_DESCRIPTION>( m_shapeRef, &m_shape, aRegistry );
-
+    bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
     return result;
 }
 

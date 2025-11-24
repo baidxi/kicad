@@ -120,8 +120,8 @@ public:
     bool Parse( IDX_XML_NODE& aNode ) override;
 
 
-    std::shared_ptr<idx_foundation::EDMD_DESIGNATOR>        m_newItem;
-    std::shared_ptr<idx_foundation::EDMD_DESIGNATOR>        m_predecessorItem;
+    std::shared_ptr<idx_foundation::EDMD_IDENTIFIER>        m_newItem;
+    std::shared_ptr<idx_foundation::EDMD_IDENTIFIER>        m_predecessorItem;
     std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_deletedInstanceName;
 };
 
@@ -137,10 +137,11 @@ public:
 
     bool Parse( IDX_XML_NODE& aNode ) override;
 
-private:
-    std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
-    std::string                                      m_actorRef;
     std::shared_ptr<EDMD_TRANSACTION>                m_transaction;
+    std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
+
+private:
+    std::string m_actorRef;
 };
 
 

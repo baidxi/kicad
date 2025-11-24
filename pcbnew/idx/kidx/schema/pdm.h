@@ -162,9 +162,9 @@ public:
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::vector<std::shared_ptr<EDMD_SHAPE_ELEMENT>> m_shapeElement;
+    std::vector<std::string>                         m_shapeElementRef;
 
 private:
-    std::vector<std::string> m_shapeElementRef;
 };
 
 class EDMD_FUNCTIONAL_ITEM_SHAPE : public EDMD_ITEM_SHAPE
@@ -245,6 +245,12 @@ enum class STRATUM_SURFACE_DESIGNATION
 class EDMD_STRATUM : public EDMD_ITEM_SHAPE
 {
 public:
+    enum class TYPE
+    {
+        DOCUMENTATION = 0,
+        DESIGN
+    };
+
     EDMD_STRATUM() {};
     EDMD_STRATUM( IDX_XML_NODE& aNode, bool aTopLevel );
 
@@ -254,6 +260,7 @@ public:
 
     std::vector<std::shared_ptr<EDMD_STRATUM_TECHNOLOGY>> m_stratumTechnology;
     STRATUM_SURFACE_DESIGNATION                           m_stratumSurfaceDesignation;
+    TYPE                                                  m_type = TYPE::DESIGN;
 
 private:
     std::vector<std::string> m_stratumTechnologyRef;
@@ -319,6 +326,18 @@ public:
     bool         Parse( IDX_XML_NODE& aNode ) override;
 
 
+    enum class TYPE
+    {
+        BOARD_OUTLINE = 0,
+        KEEPIN,
+        KEEPOUT,
+        NPTH,
+        PTH,
+        COMPONENT,
+        OTHER
+    };
+
+    const TYPE                             GetType() const;
     idx_foundation::EDMD_NAME              m_instanceName;
     EDMD_TRANSFORMATION                    m_transformation;
     std::shared_ptr<EDMD_ITEM>             m_item;
@@ -355,9 +374,13 @@ public:
     idx_property::EDMD_LOGIC_PROPERTY m_accept;
     //ClearanceState
     idx_property::EDMD_LOGIC_PROPERTY m_baseline;
+    std::string                       m_referenceName;
+    std::string                       m_assembleToName;
+    //PackagePin
 
 private:
     std::string m_shapeRef;
+    std::string m_3dModelRef;
 };
 
 enum class ASSEMBLY_COMPONENT_TYPE

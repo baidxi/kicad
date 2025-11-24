@@ -26,7 +26,7 @@
 #include <idx/kidx/kidx.h>
 
 // ----------------- IDX_BASE -----------------
-void IDX_BASE::Report( std::string aMsg, IDX_REPORT_LEVEL aLvl )
+void IDX_BASE::Report( std::string aMsg, IDX_REPORT_LEVEL aLvl ) const
 {
     wxString ws( aMsg.c_str(), wxConvUTF8 );
     switch( aLvl )
@@ -159,11 +159,6 @@ bool IDX_FILE_REGISTRY_KICAD::Load( const std::string& aPath, const std::string&
 
     if( !dataset )
         return false;
-
-    std::cout << fullpath << std::endl;
-    std::cout << dataset->m_header.m_creatorSystem << std::endl;
-    std::cout << dataset->m_header.m_creatorName << std::endl;
-    std::cout << dataset->m_header.m_creationDateTime << std::endl;
 
     m_soft = dataset->m_header.m_creatorSystem;
     m_path = fullpath;

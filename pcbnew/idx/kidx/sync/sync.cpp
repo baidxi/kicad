@@ -67,6 +67,10 @@ void KIDX_REGISTRY::ComputeNext()
     {
         if( !m_baselined )
             file->m_next = file->IsBaseline();
+        else
+        {
+            file->m_next = !file->IsBaseline();
+        }
     }
 }
 

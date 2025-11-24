@@ -62,7 +62,7 @@ public:
     EDMD_EXTENSIBLE_OBJECT();
     EDMD_EXTENSIBLE_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    std::shared_ptr<idx_property::EDMD_USER_PROPERTY> GetUserProperty( const std::string& aKey );
+    std::shared_ptr<idx_property::EDMD_USER_PROPERTY> GetUserProperty( const std::string& aKey ) const;
     virtual bool                                      Resolve( IDX_REGISTRY& aRegistry ) override;
 
 
@@ -240,6 +240,10 @@ public:
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> GetKeepZones() const { return m_body.m_keepZones; }
 
 
+    double GetBoardThickness() const;
+
+    std::shared_ptr<idx_pdm::EDMD_ITEM> GetItem( const idx_foundation::EDMD_IDENTIFIER& aId ) const;
+
 private:
     bool m_baseline = false;
     bool m_headerOnly;
@@ -275,6 +279,14 @@ public:
     std::string                             m_sequence;
     std::vector<std::shared_ptr<EDMD_NAME>> m_name;
     std::vector<std::shared_ptr<EDMD_NAME>> m_displayName;
+
+    bool operator==( EDMD_IDENTIFIER const& aOther ) const
+    {
+        return IDX_keyword_compare( m_systemScopeRef, aOther.m_systemScopeRef )
+               && IDX_keyword_compare( m_number, aOther.m_number ) && IDX_keyword_compare( m_version, aOther.m_version )
+               && IDX_keyword_compare( m_revision, aOther.m_revision )
+               && IDX_keyword_compare( m_sequence, aOther.m_sequence );
+    }
 };
 
 

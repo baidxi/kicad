@@ -66,35 +66,7 @@ KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, BO
         }
     }
 
-
-    for( auto inst : m_dataset->GetBoardOutlineElements() )
-    {
-        // Check for board outline
-        if( auto prop = inst->GetUserProperty( "THICKNESS" ) )
-        {
-            try
-            {
-                double thickness = prop->parseDouble( prop->m_value );
-
-                if( thickness <= 0.0 )
-                {
-                    std::cout << "Invalid board thickness " << thickness << std::endl;
-                }
-                else
-                {
-                    m_boardThickness = thickness;
-                }
-            }
-            catch( const std::invalid_argument& e )
-            {
-                std::cout << "Invalid numeric value for thickness: " << prop->m_value << std::endl;
-            }
-            catch( const std::out_of_range& e )
-            {
-                std::cout << "Thickness value out of range: " << prop->m_value << std::endl;
-            }
-        }
-    }
+    m_boardThickness = aDataset->GetBoardThickness();
 };
 
 void KICAD_IDX::Report( wxString aMsg, SEVERITY aSev )
@@ -333,65 +305,56 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
     return m_result;
 }
 
+
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Baseline()
 {
-    std::vector<KICAD_IDX_CHANGE> m_result;
+    std::cout << "processing baseline" << std::endl;
+    std::vector<KICAD_IDX_CHANGE> result;
 
-    for( auto edge : m_dataset->GetBoardOutlineElements() )
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
     {
-        std::cout << "board outline" << std::endl;
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *edge );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
-        change.m_items = AddElement( *edge, Edge_Cuts );
-        change.m_name = edge->m_name;
-        m_result.push_back( change );
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : item->m_itemInstance )
+        {
+            if( !inst )
+                continue;
+
+            KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *inst );
+            change.m_name = inst->m_name;
+
+            switch( inst->GetType() )
+            {
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE:
+                change.m_items = AddElement( *inst, Edge_Cuts );
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
+                break;
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPIN:
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEPOUT:
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
+                change.m_items = AddZone( *inst );
+                break;
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT:
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
+                change.m_items = AddElement( *inst, User_1 );
+                break;
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH:
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
+                change.m_items = AddNPTH( *inst );
+                break;
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH:
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
+                change.m_items = AddNPTH( *inst );
+                break;
+            case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER:
+                change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
+                change.m_items = AddElement( *inst, User_2 );
+                break;
+            default: break;
+            }
+            result.push_back( change );
+        }
     }
 
-    for( auto keep : m_dataset->GetKeepZones() )
-    {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *keep );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
-        change.m_items = AddZone( *keep );
-        change.m_name = keep->m_name;
-        m_result.push_back( change );
-    }
-
-    for( auto cmp : m_dataset->GetComponents() )
-    {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *cmp );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
-        change.m_items = AddElement( *cmp, User_1 );
-        change.m_name = cmp->m_name;
-        m_result.push_back( change );
-    }
-
-    for( auto npth : m_dataset->GetNPTH() )
-    {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *npth );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
-        change.m_items = AddNPTH( *npth );
-        change.m_name = npth->m_name;
-        m_result.push_back( change );
-    }
-
-    for( auto pth : m_dataset->GetPTH() )
-    {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *pth );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
-        change.m_items = AddPTH( *pth );
-        change.m_name = pth->m_name;
-        m_result.push_back( change );
-    }
-
-    for( auto other : m_dataset->GetOthers() )
-    {
-        KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *other );
-        change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
-        change.m_items = AddElement( *other, User_1 );
-        change.m_name = other->m_name;
-        m_result.push_back( change );
-    }
-    return m_result;
+    return result;
 }
 
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
@@ -409,7 +372,7 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
     {
         return Baseline();
     }
-    if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
+    else if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
     {
         return GetChanges();
     }
@@ -419,7 +382,63 @@ std::vector<KICAD_IDX_CHANGE> KICAD_IDX::Process()
 
 std::vector<KICAD_IDX_CHANGE> KICAD_IDX::GetChanges()
 {
-    return {};
+    std::cout << "processing changes" << std::endl;
+
+    std::vector<KICAD_IDX_CHANGE> result;
+
+
+    for( auto instruction : m_dataset->m_processInstruction )
+    {
+        std::shared_ptr<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES> instr =
+                std::dynamic_pointer_cast<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( instruction );
+
+        if( !instr )
+        {
+            std::cout << "Process instruction dropped" << std::endl;
+            continue;
+        }
+
+        for( auto change : instr->m_transaction->m_changes )
+        {
+            std::shared_ptr<idx_computational::EDMD_CHANGE> c =
+                    std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change );
+
+
+            if( !c )
+                continue;
+
+            // NewItem is only one that is mandatory
+            if( !c->m_newItem )
+                continue;
+
+
+            bool found = false;
+
+            if( m_dataset->GetItem( *( c->m_newItem ) ) )
+            {
+                auto elmt = m_dataset->GetItem( *( c->m_newItem ) );
+
+                for( auto instance : elmt->m_itemInstance )
+                {
+                    KICAD_IDX_CHANGE change = KICAD_IDX_CHANGE( *instance );
+                    change.m_type = KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER;
+                    change.m_items = AddElement( *instance, User_1 );
+                    change.m_name = instance->m_name;
+                    result.push_back( change );
+                }
+            }
+
+            if( c->m_predecessorItem && m_dataset->GetItem( *( c->m_predecessorItem ) ) )
+            {
+            }
+
+            if( c->m_predecessorItem )
+            {
+            }
+        }
+    }
+
+    return result;
 }
 
 
@@ -580,28 +599,20 @@ bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
 
 std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
 {
-    std::cout << "Adding element" << std::endl;
     std::vector<BOARD_ITEM*> m_result;
 
     if( !CheckInstance( aInstance ) )
         return m_result;
 
-    std::cout << "Instance is OK" << std::endl;
-
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
-        std::cout << "Shape Element" << std::endl;
         std::shared_ptr<idx_geometry::EDMD_CURVESET2D> curveset =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVESET2D>( z->m_definingShape );
 
         if( curveset )
         {
-            std::cout << "Curveset" << std::endl;
-
             for( BOARD_ITEM* item : ConvertElement( *curveset ) )
             {
-                std::cout << "Converting.." << std::endl;
-
                 item->SetLayer( aLayer );
                 this->ApplyTransformation( item, aInstance.m_transformation );
                 m_result.push_back( item );

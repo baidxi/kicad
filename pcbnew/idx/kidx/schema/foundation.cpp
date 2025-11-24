@@ -112,7 +112,8 @@ bool EDMD_EXTENSIBLE_OBJECT::Parse( IDX_XML_NODE& aNode )
 }
 
 
-std::shared_ptr<idx_property::EDMD_USER_PROPERTY> EDMD_EXTENSIBLE_OBJECT::GetUserProperty( const std::string& aKey )
+std::shared_ptr<idx_property::EDMD_USER_PROPERTY>
+EDMD_EXTENSIBLE_OBJECT::GetUserProperty( const std::string& aKey ) const
 {
     for( auto prop : m_userProperty )
     {
@@ -401,6 +402,9 @@ bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
     for( auto& shapeE : m_shapeElements )
         result &= shapeE->Resolve( aRegistry );
 
+    for( auto& assembly : m_assemblies )
+        result &= assembly->Resolve( aRegistry );
+
     for( auto& stratum : m_stratums )
         result &= stratum->Resolve( aRegistry );
 
@@ -538,6 +542,54 @@ bool EDMD_DATASET::IsBaseline()
     return m_baseline;
 }
 
+double EDMD_DATASET::GetBoardThickness() const
+{
+    double result = 0;
+
+    for( auto inst : GetBoardOutlineElements() )
+    {
+        // Check for board outline
+        if( auto prop = inst->GetUserProperty( "THICKNESS" ) )
+        {
+            try
+            {
+                double thickness = prop->parseDouble( prop->m_value );
+
+                if( thickness < 0.0 )
+                    // Solid Edge uses 0 for incremental changes when thickness does not change
+                    Report( "Invalid board thickness - negative", IDX_REPORT_LEVEL::IDX_ERROR );
+                else
+                    result += thickness;
+            }
+            catch( const std::invalid_argument& e )
+            {
+                Report( "Invalid board thickness - nan", IDX_REPORT_LEVEL::IDX_ERROR );
+            }
+            catch( const std::out_of_range& e )
+            {
+                Report( "Invalid board thickness - out of range", IDX_REPORT_LEVEL::IDX_ERROR );
+            }
+        }
+    }
+
+    return result;
+}
+
+
+std::shared_ptr<idx_pdm::EDMD_ITEM> EDMD_DATASET::GetItem( const idx_foundation::EDMD_IDENTIFIER& aId ) const
+{
+    for( const auto& item : m_body.m_items )
+    {
+        for( const auto& identifier : item->m_identifier )
+        {
+            if( identifier == aId )
+            {
+                return item;
+            }
+        }
+    }
+    return nullptr;
+}
 // -----------------------------------------------------
 // EDMD_DESIGNATOR
 // -----------------------------------------------------
@@ -562,12 +614,11 @@ bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
 
 
     if( IDX_keyword_compare( name, "foundation:SystemScope" ) )
-    {
         m_systemScopeRef = content;
-        return true;
-    }
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 
-    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+    return true;
 }
 
 // -----------------------------------------------------

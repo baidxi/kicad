@@ -25,7 +25,6 @@
 #ifndef IDX_BASE_H
 #define IDX_BASE_H
 
-
 #include <map>
 #include <wx/datetime.h>
 #include <wx/xml/xml.h>
@@ -35,12 +34,12 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 
 // Here we define some helper functions, we don't want to use std::string.
-// Hopefuly, this code will be shared with open sources MCAD softwares
+// Hopefully, this code will be shared with open sources MCAD softwares
 
 bool IDX_keyword_compare( std::string a, std::string b );
-
 
 class IDX_XML_NODE;
 
@@ -82,7 +81,6 @@ class EDMD_UNIT_WORK;
 class EDMD_USER_PROPERTY;
 } // namespace idx_property
 
-
 namespace idx_geometry
 {
 class EDMD_ARC;
@@ -106,7 +104,6 @@ class EDMD_POINT_ON_CURVE_INTERSECTION;
 class EDMD_POLYLINE;
 class EDMD_TRIMMED_CURVE;
 } // namespace idx_geometry
-
 
 namespace idx_pdm
 {
@@ -162,29 +159,30 @@ public:
                   << std::endl;
     }
 
-
-    // Resolve an object of any type by name
+    // Resolve object by name. Return shared_ptr<IDX_BASE>.
     template <typename T>
     std::shared_ptr<IDX_BASE> resolve( const std::string& name, bool suppressWarning )
     {
         const auto& registry = getRegistry<T>();
         auto        it = registry.find( name );
+
         if( it != registry.end() )
         {
-            //std::cerr << "Success : Object " << name << " found in registry. ( " << typeid( T ).name() << " )"
-            //          << std::endl;
-            return std::dynamic_pointer_cast<T>( it->second );
+            return it->second; // return raw stored pointer
         }
         else
         {
+            std::cerr << "FAILED : Object " << name << " not found in registry. ( " << typeid( T ).name() << " )"
+                      << std::endl;
+
             if( !suppressWarning )
                 resolveRegistryFailed<T>( name );
+
             return nullptr;
         }
     }
 
 private:
-    // Helper function to get the registry for a specific type
     template <typename T>
     std::unordered_map<std::string, std::shared_ptr<IDX_BASE>>& getRegistry()
     {
@@ -198,9 +196,8 @@ class IDX_BASE
 {
 public:
     IDX_BASE() {};
-    virtual ~IDX_BASE() = default; // Virtual destructor makes the class polymorphic
+    virtual ~IDX_BASE() = default;
     virtual bool Resolve( IDX_REGISTRY& aRegistry );
-
 
     enum OPTIONAL_LOGIC : int
     {
@@ -216,7 +213,6 @@ public:
         IDX_WARNING,
         IDX_ERROR
     };
-
 
     double parseDouble( const std::string& inputStr )
     {
@@ -252,16 +248,14 @@ public:
     }
 
 protected:
-    // Function to report in your CAD software
-    void Report( std::string aMsg, IDX_REPORT_LEVEL aLvl );
-    void ParseChildren( IDX_XML_NODE& node );
-
+    void         Report( std::string aMsg, IDX_REPORT_LEVEL aLvl ) const;
+    void         ParseChildren( IDX_XML_NODE& node );
     virtual bool Parse( IDX_XML_NODE& aNode ) { return false; };
-    bool         m_topLevel = false;
+
+    bool m_topLevel = false;
 
     void unknownKeywordIDX( std::string aName );
     void invalidValueIDX( std::string aKeyword, std::string aValue );
-
 
     template <typename T, typename U>
     bool resolve( std::string aName, std::shared_ptr<U>* aDest, IDX_REGISTRY& aRegistry, bool aSuppressWarning = false )
@@ -269,13 +263,15 @@ protected:
         if( !aDest )
             return false;
 
-        auto resolvedPoint = aRegistry.resolve<T>( aName, aSuppressWarning );
+        auto resolvedPoint = aRegistry.resolve<U>( aName, aSuppressWarning );
 
         if( !resolvedPoint )
             return false;
 
+        // Single dynamic cast
         *aDest = std::dynamic_pointer_cast<U>( resolvedPoint );
-        return true;
+
+        return static_cast<bool>( *aDest );
     }
 
     template <typename T, typename U>
@@ -287,17 +283,25 @@ protected:
         {
             std::shared_ptr<U> tmp;
 
-            if( resolve<U>( name, &tmp, aRegistry ) )
+            if( resolve<T, U>( name, &tmp, aRegistry ) )
+            {
                 aDest.push_back( tmp );
+            }
+
             else
+            {
                 result = false;
+            }
         }
 
-        aName = {}; // To prevent double inclusions.
+        aName = {};
         return result;
     }
 };
 
+// -----------------------------------------------------------------------------
+// IDX_XML_NODE
+// -----------------------------------------------------------------------------
 
 class IDX_XML_NODE
 {
@@ -305,7 +309,7 @@ public:
     virtual ~IDX_XML_NODE() = default;
 
     virtual void AddAttribute( const std::string& name, const std::string& Value ) = 0;
-    // --- Basic accessors ---
+
     virtual std::string GetName() const = 0;
     virtual std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const = 0;
     virtual std::string GetNodeContent() const = 0;
@@ -314,16 +318,13 @@ public:
     virtual std::string GetText() const = 0;
     virtual void        SetText( const std::string& text ) = 0;
 
-    // --- Tree navigation ---
     virtual std::shared_ptr<IDX_XML_NODE> GetParent() const = 0;
     virtual std::shared_ptr<IDX_XML_NODE> GetChildren() const = 0;
     virtual std::shared_ptr<IDX_XML_NODE> AppendChild( const std::string& name ) = 0;
     virtual std::shared_ptr<IDX_XML_NODE> GetNext() const = 0;
 
-    // --- Utility ---
     virtual void RemoveChild( const std::shared_ptr<IDX_XML_NODE>& child ) = 0;
 };
-
 
 class IDX_XML_DOCUMENT
 {
@@ -331,6 +332,5 @@ public:
     IDX_XML_DOCUMENT() {};
     virtual ~IDX_XML_DOCUMENT() = default;
 };
-
 
 #endif
