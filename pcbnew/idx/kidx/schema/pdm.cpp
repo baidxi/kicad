@@ -562,7 +562,7 @@ bool EDMD_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
-const EDMD_ITEM_INSTANCE::TYPE EDMD_ITEM_INSTANCE::GetType() const
+EDMD_ITEM_INSTANCE::TYPE EDMD_ITEM_INSTANCE::GetType() const
 {
     if( auto type = GetUserProperty( "TYPE" ) )
     {

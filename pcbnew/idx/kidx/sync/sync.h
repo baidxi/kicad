@@ -60,9 +60,9 @@ public:
     const std::string GetName() const { return m_name; };
     const std::string GetPath() const { return m_path; };
     const std::string GetSoft() const { return m_soft; };
-    const STATUS      GetStatus() const { return m_status; };
-    const bool        IsBaseline() const { return m_baseline; };
-    const bool        IsProbablyNext() const { return m_next; };
+    STATUS            GetStatus() const { return m_status; };
+    bool              IsBaseline() const { return m_baseline; };
+    bool              IsProbablyNext() const { return m_next; };
     void              SetAuthor( const std::string aValue ) { m_author = aValue; };
     void              SetDate( const std::string aValue ) { m_date = aValue; };
     void              SetName( const std::string aValue ) { m_name = aValue; };

@@ -561,11 +561,11 @@ double EDMD_DATASET::GetBoardThickness() const
                 else
                     result += thickness;
             }
-            catch( const std::invalid_argument& e )
+            catch( const std::invalid_argument& )
             {
                 Report( "Invalid board thickness - nan", IDX_REPORT_LEVEL::IDX_ERROR );
             }
-            catch( const std::out_of_range& e )
+            catch( const std::out_of_range& )
             {
                 Report( "Invalid board thickness - out of range", IDX_REPORT_LEVEL::IDX_ERROR );
             }

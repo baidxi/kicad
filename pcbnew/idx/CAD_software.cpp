@@ -145,7 +145,9 @@ IDX_XML_DOCUMENT_KICAD::IDX_XML_DOCUMENT_KICAD( wxXmlDocument* aDoc ) :
 bool IDX_FILE_REGISTRY_KICAD::Load( const std::string& aPath, const std::string& aFile )
 {
     wxXmlDocument doc;
-    wxString      fullpath = aPath + wxFILE_SEP_PATH + aFile;
+    wxString      fullpath = wxString::FromUTF8( aPath.c_str() );
+    fullpath += wxFILE_SEP_PATH;
+    fullpath += wxString::FromUTF8( aFile.c_str() );
 
     if( !doc.Load( fullpath ) )
         return false;

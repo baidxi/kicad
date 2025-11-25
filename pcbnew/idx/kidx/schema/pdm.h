@@ -321,10 +321,6 @@ public:
     EDMD_ITEM_INSTANCE() {};
     EDMD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    void         print( int aIndex = 0, int aMaxIndex = 5 );
-    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    bool         Parse( IDX_XML_NODE& aNode ) override;
-
 
     enum class TYPE
     {
@@ -337,7 +333,12 @@ public:
         OTHER
     };
 
-    const TYPE                             GetType() const;
+
+    void         print( int aIndex = 0, int aMaxIndex = 5 );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    TYPE         GetType() const;
+
     idx_foundation::EDMD_NAME              m_instanceName;
     EDMD_TRANSFORMATION                    m_transformation;
     std::shared_ptr<EDMD_ITEM>             m_item;

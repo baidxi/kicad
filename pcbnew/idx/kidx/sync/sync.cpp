@@ -90,10 +90,10 @@ void KIDX_REGISTRY::writeXml( std::shared_ptr<IDX_XML_NODE> aRoot )
         if( file->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_UNPROCESSED )
             continue;
 
-        auto child = aRoot->AppendChild( "file" );
-        child->SetAttribute( "name", file->GetName() );
-        child->SetAttribute( "author", file->GetAuthor() );
-        child->SetAttribute( "date", file->GetDate() );
-        child->SetAttribute( "software", file->GetSoft() );
+        auto child2 = aRoot->AppendChild( "file" );
+        child2->SetAttribute( "name", file->GetName() );
+        child2->SetAttribute( "author", file->GetAuthor() );
+        child2->SetAttribute( "date", file->GetDate() );
+        child2->SetAttribute( "software", file->GetSoft() );
     }
 }

@@ -428,10 +428,9 @@ bool EDMD_CARTESIAN_POINT::Parse( IDX_XML_NODE& aNode )
     else if( IDX_keyword_compare( name, "d2:Z" ) )
         m_z = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
     else
-        return false;
-    return true;
+        return this->EDMD_POINT::Parse( aNode );
 
-    return this->EDMD_POINT::Parse( aNode );
+    return true;
 }
 
 double EDMD_CARTESIAN_POINT::GetX() const
