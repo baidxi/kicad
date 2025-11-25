@@ -1,8 +1,4 @@
-#if KICAD_IS_NIGHTLY
-icon_qa_common ICON "../../resources/bitmaps_png/icons/icon_kicad_nightly.ico"
-#else
 icon_qa_common ICON "../../resources/bitmaps_png/icons/icon_kicad.ico"
-#endif
 
 #define RC_VER_FILE_DESCRIPTION "KiCad QA KiMath " KICAD_WIN32_RC_PRODVER_STR
 #define RC_VER_INTERNALNAME "qa_kimath"
