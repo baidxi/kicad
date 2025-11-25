@@ -327,6 +327,7 @@ public:
                                     const std::pair<IbisWaveform*, IbisWaveform*>& aPair,
                                     const KIBIS_PARAMETER&                         aParam );
 
+    std::string generateWF( const IbisWaveform& aWF, const KIBIS_PARAMETER& aParam );
 
     /** @brief Copy a waveform, and substract the first value to all samples
      *
@@ -361,8 +362,12 @@ public:
     KIBIS_COMPONENT* m_parent;
 
     std::vector<double> m_t, m_Ku, m_Kd;
+    std::vector<double> m_tR, m_KuR, m_KdR;
+    std::vector<double> m_tF, m_KuF, m_KdF;
 
     std::vector<KIBIS_MODEL*> m_models;
+
+    void WritePinParasitics( std::string& aDest, const KIBIS_PARAMETER& aParam );
 
     bool writeSpiceDriver( std::string& aDest, const std::string& aName, KIBIS_MODEL& aModel,
                            const KIBIS_PARAMETER& aParam );
@@ -438,6 +443,7 @@ public:
      * @param aSimul The simulation to run, multiline spice directives
      */
     void getKuKdFromFile( const std::string& aSimul );
+    void getKuKd( KIBIS_MODEL& aModel, const KIBIS_PARAMETER& aParam );
 
     KIBIS_PIN* m_complementaryPin = nullptr;
 
