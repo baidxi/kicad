@@ -157,7 +157,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                         msg = formatMsg( _( "(%s min via distance %s; actual %s)" ),
                                          constraint.GetName(), length_limit, len );
 
-                        drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                        drcItem->SetErrorMessage( drcItem->GetErrorText( true ) + wxS( " " ) + msg );
                         drcItem->SetItems( pad, via );
                         drcItem->SetViolatingRule( constraint.GetParentRule() );
 
@@ -302,7 +302,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                     msg = formatMsg( _( "(%s max fanout width %s; actual %s)" ),
                                      constraint.GetName(), constraintWidth, actual );
 
-                    drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                    drcItem->SetErrorMessage( drcItem->GetErrorText( true ) + wxS( " " ) + msg );
                     drcItem->SetItems( pad, other );
                     drcItem->SetViolatingRule( constraint.GetParentRule() );
 
@@ -372,7 +372,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                         msg = formatMsg( _( "(%s max fanout width %s; actual %s)" ),
                                          constraint.GetName(), constraintWidth, actual );
 
-                        drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                        drcItem->SetErrorMessage( drcItem->GetErrorText( true ) + wxS( " " ) + msg );
                         drcItem->SetItems( pad, zone );
                         drcItem->SetViolatingRule( constraint.GetParentRule() );
 
@@ -535,7 +535,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 msg = wxString::Format( _( "(%s fanout mirror asymmetry exceeded %d; actual %d)" ),
                                         force_constraint.GetName(), force_constraint.m_Value.Max(), actual_force );
 
-                drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                drcItem->SetErrorMessage( drcItem->GetErrorText( true ) + wxS( " " ) + msg );
                 drcItem->SetItems( footprint, nullptr );
                 drcItem->SetViolatingRule( force_constraint.GetParentRule() );
 
@@ -553,7 +553,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                 msg = wxString::Format( _( "(%s fanout point asymmetry exceeded %d; actual %d)" ),
                                         torque_constraint.GetName(), torque_constraint.m_Value.Max(), actual_torque );
 
-                drcItem->SetErrorMessage( drcItem->GetErrorText() + wxS( " " ) + msg );
+                drcItem->SetErrorMessage( drcItem->GetErrorText( true ) + wxS( " " ) + msg );
                 drcItem->SetItems( footprint, nullptr );
                 drcItem->SetViolatingRule( torque_constraint.GetParentRule() );
 
