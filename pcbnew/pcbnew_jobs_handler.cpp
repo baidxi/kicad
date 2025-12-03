@@ -387,6 +387,35 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
               } );
 }
 
+PCBNEW_JOBS_HANDLER::~PCBNEW_JOBS_HANDLER()
+{
+}
+
+
+TOOL_MANAGER* PCBNEW_JOBS_HANDLER::getToolManager( BOARD* aBrd )
+{
+    TOOL_MANAGER* toolManager = nullptr;
+    if( Pgm().IsGUI() )
+    {
+        // we assume the PCB we are working on here is the one in the frame
+        // so use the frame's tool manager
+        PCB_EDIT_FRAME* editFrame = (PCB_EDIT_FRAME*) m_kiway->Player( FRAME_PCB_EDITOR, false );
+        if( editFrame )
+            toolManager = editFrame->GetToolManager();
+    }
+    else
+    {
+        if( m_toolManager == nullptr )
+        {
+            m_toolManager = std::make_unique<TOOL_MANAGER>();
+        }
+
+        toolManager = m_toolManager.get();
+
+        toolManager->SetEnvironment( aBrd, nullptr, nullptr, Kiface().KifaceSettings(), nullptr );
+    }
+    return toolManager;
+}
 
 BOARD* PCBNEW_JOBS_HANDLER::getBoard( const wxString& aPath )
 {
@@ -2646,7 +2675,7 @@ int PCBNEW_JOBS_HANDLER::JobPcbImport( JOB* aJob )
         BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second, true );
         try
         {
-            IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::PluginFind( PCB_IO_MGR::PCB_FILE_T::KICAD_SEXP ) );
+            IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
             pi->SetProgressReporter( m_progressReporter );
             pi->SaveBoard( aConvertJob->m_outputFile, brd );
         }
