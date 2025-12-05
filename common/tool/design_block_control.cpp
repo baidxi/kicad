@@ -43,21 +43,42 @@ void DESIGN_BLOCK_CONTROL::Reset( RESET_REASON aReason )
 
 void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 {
-    auto pinnedLib =
-            [this]( const SELECTION& aSel )
+    auto checkPinnedStatus = [this]( bool aPin )
+    {
+        bool      result = true;
+        LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
+        if( libTree )
+        {
+            std::vector<LIB_TREE_NODE*> selection;
+            libTree->GetSelectedTreeNodes( selection );
+
+            for( const LIB_TREE_NODE* lib : selection )
             {
-                //
-                LIB_TREE_NODE* current = getCurrentTreeNode();
-                return current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY
-                       && current->m_Pinned;
+                if( lib && lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && lib->m_Pinned != aPin )
+                {
+                    result = false;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            result = false;
+        }
+
+        return result;
+    };
+
+    auto pinnedLib =
+            [checkPinnedStatus]( const SELECTION& aSel )
+            {
+                return checkPinnedStatus( true );
             };
 
     auto unpinnedLib =
-            [this](const SELECTION& aSel )
+            [checkPinnedStatus](const SELECTION& aSel )
             {
-                LIB_TREE_NODE* current = getCurrentTreeNode();
-                return current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY
-                       && !current->m_Pinned;
+                return checkPinnedStatus( false );
             };
 
     aMenu->AddItem( ACTIONS::pinLibrary, unpinnedLib, 1 );
@@ -72,15 +93,30 @@ void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 
 int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
 {
-    LIB_TREE_NODE* current = getCurrentTreeNode();
+    LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
 
-    if( current && !current->m_Pinned )
+    if( !libTree )
+        return -1;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : selection )
     {
-        m_frame->Prj().PinLibrary( current->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-        current->m_Pinned = true;
+        if( node && node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && !node->m_Pinned )
+        {
+            m_frame->Prj().PinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+            node->m_Pinned = true;
+            changed = true;
+        }
+    }
+
+    if( changed )
+    {
         getDesignBlockPane()->RefreshLibs();
         notifyOtherFrames();
-
         return 0;
     }
 
@@ -90,15 +126,30 @@ int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
 
 int DESIGN_BLOCK_CONTROL::UnpinLibrary( const TOOL_EVENT& aEvent )
 {
-    LIB_TREE_NODE* current = getCurrentTreeNode();
+    LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
 
-    if( current && current->m_Pinned )
+    if( !libTree )
+        return -1;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : selection )
     {
-        m_frame->Prj().UnpinLibrary( current->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-        current->m_Pinned = false;
+        if( node && node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && node->m_Pinned )
+        {
+            m_frame->Prj().UnpinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+            node->m_Pinned = false;
+            changed = true;
+        }
+    }
+
+    if( changed )
+    {
         getDesignBlockPane()->RefreshLibs();
         notifyOtherFrames();
-
         return 0;
     }
 

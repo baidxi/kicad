@@ -1060,25 +1060,74 @@ void LIB_TREE::onItemContextMenu( wxDataViewEvent& aEvent )
     }
     else
     {
-        LIB_TREE_NODE* current = GetCurrentTreeNode();
+        std::vector<LIB_TREE_NODE*> selection;
+        GetSelectedTreeNodes( selection );
 
-        if( current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+        // Check if all selected items are libraries
+        bool allLibraries = !selection.empty();
+        bool allPinned = true;
+        bool allUnpinned = true;
+
+        for( LIB_TREE_NODE* node : selection )
+        {
+            if( !node || node->m_Type != LIB_TREE_NODE::TYPE::LIBRARY )
+            {
+                allLibraries = false;
+                break;
+            }
+
+            if( node->m_Pinned )
+                allUnpinned = false;
+            else
+                allPinned = false;
+        }
+
+        if( allLibraries )
         {
             ACTION_MENU menu( true, nullptr );
 
-            if( current->m_Pinned )
+            // If all are pinned, show unpin option
+            if( allPinned )
             {
                 menu.Add( ACTIONS::unpinLibrary );
 
                 if( GetPopupMenuSelectionFromUser( menu ) != wxID_NONE )
-                    m_adapter->UnpinLibrary( current );
+                {
+                    for( LIB_TREE_NODE* node : selection )
+                        m_adapter->UnpinLibrary( node );
+                }
             }
-            else
+            // If all are unpinned, show pin option
+            else if( allUnpinned )
             {
                 menu.Add( ACTIONS::pinLibrary );
 
                 if( GetPopupMenuSelectionFromUser( menu ) != wxID_NONE )
-                    m_adapter->PinLibrary( current );
+                {
+                    for( LIB_TREE_NODE* node : selection )
+                        m_adapter->PinLibrary( node );
+                }
+            }
+            // If mixed, show both options
+            else
+            {
+                menu.Add( ACTIONS::pinLibrary );
+                menu.Add( ACTIONS::unpinLibrary );
+
+                int result = GetPopupMenuSelectionFromUser( menu );
+
+                if( result != wxID_NONE )
+                {
+                    bool shouldPin = ( result == ACTIONS::pinLibrary.GetUIId() );
+
+                    for( LIB_TREE_NODE* node : selection )
+                    {
+                        if( shouldPin && !node->m_Pinned )
+                            m_adapter->PinLibrary( node );
+                        else if( !shouldPin && node->m_Pinned )
+                            m_adapter->UnpinLibrary( node );
+                    }
+                }
             }
         }
     }
