@@ -24,6 +24,7 @@
 #include <dialog_design_block_properties.h>
 #include <mail_type.h>
 #include <kiway.h>
+#include <algorithm>
 
 
 DESIGN_BLOCK_CONTROL::~DESIGN_BLOCK_CONTROL()
@@ -52,9 +53,34 @@ void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
             std::vector<LIB_TREE_NODE*> selection;
             libTree->GetSelectedTreeNodes( selection );
 
-            for( const LIB_TREE_NODE* lib : selection )
+            for( const LIB_TREE_NODE* node : selection )
             {
-                if( lib && lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && lib->m_Pinned != aPin )
+                if( !node )
+                    continue;
+
+                const LIB_TREE_NODE* libraryNode = nullptr;
+
+                // If it's a library, use it directly
+                if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+                {
+                    libraryNode = node;
+                }
+                // If it's a child item, find its parent library
+                else
+                {
+                    const LIB_TREE_NODE* parent = node->m_Parent;
+                    while( parent )
+                    {
+                        if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+                        {
+                            libraryNode = parent;
+                            break;
+                        }
+                        parent = parent->m_Parent;
+                    }
+                }
+
+                if( libraryNode && libraryNode->m_Pinned != aPin )
                 {
                     result = false;
                     break;
@@ -101,16 +127,53 @@ int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
     std::vector<LIB_TREE_NODE*> selection;
     libTree->GetSelectedTreeNodes( selection );
 
-    bool changed = false;
+    // Collect unique library nodes (or parent libraries of child items)
+    std::vector<LIB_TREE_NODE*> libraryNodes;
 
     for( LIB_TREE_NODE* node : selection )
     {
-        if( node && node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && !node->m_Pinned )
+        if( !node )
+            continue;
+
+        LIB_TREE_NODE* libraryNode = nullptr;
+
+        // If it's a library, use it directly
+        if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
         {
-            m_frame->Prj().PinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-            node->m_Pinned = true;
-            changed = true;
+            libraryNode = node;
         }
+        // If it's a child item, find its parent library
+        else
+        {
+            LIB_TREE_NODE* parent = node->m_Parent;
+            while( parent )
+            {
+                if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+                {
+                    libraryNode = parent;
+                    break;
+                }
+                parent = parent->m_Parent;
+            }
+        }
+
+        // Add library node if found and not already in the list
+        if( libraryNode && !libraryNode->m_Pinned )
+        {
+            if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
+            {
+                libraryNodes.push_back( libraryNode );
+            }
+        }
+    }
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : libraryNodes )
+    {
+        m_frame->Prj().PinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+        node->m_Pinned = true;
+        changed = true;
     }
 
     if( changed )
@@ -134,16 +197,53 @@ int DESIGN_BLOCK_CONTROL::UnpinLibrary( const TOOL_EVENT& aEvent )
     std::vector<LIB_TREE_NODE*> selection;
     libTree->GetSelectedTreeNodes( selection );
 
-    bool changed = false;
+    // Collect unique library nodes (or parent libraries of child items)
+    std::vector<LIB_TREE_NODE*> libraryNodes;
 
     for( LIB_TREE_NODE* node : selection )
     {
-        if( node && node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && node->m_Pinned )
+        if( !node )
+            continue;
+
+        LIB_TREE_NODE* libraryNode = nullptr;
+
+        // If it's a library, use it directly
+        if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
         {
-            m_frame->Prj().UnpinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-            node->m_Pinned = false;
-            changed = true;
+            libraryNode = node;
         }
+        // If it's a child item, find its parent library
+        else
+        {
+            LIB_TREE_NODE* parent = node->m_Parent;
+            while( parent )
+            {
+                if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+                {
+                    libraryNode = parent;
+                    break;
+                }
+                parent = parent->m_Parent;
+            }
+        }
+
+        // Add library node if found and not already in the list
+        if( libraryNode && libraryNode->m_Pinned )
+        {
+            if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
+            {
+                libraryNodes.push_back( libraryNode );
+            }
+        }
+    }
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : libraryNodes )
+    {
+        m_frame->Prj().UnpinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+        node->m_Pinned = false;
+        changed = true;
     }
 
     if( changed )
