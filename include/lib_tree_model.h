@@ -106,6 +106,16 @@ public:
     static bool Compare( LIB_TREE_NODE const& aNode1, LIB_TREE_NODE const& aNode2,
                          bool aUseScores );
 
+    /**
+     * Get the library node for this node.
+     * If this node is a library, returns itself.
+     * If this is a child node, traverses up to find the parent library.
+     * 
+     * @return pointer to the library node, or nullptr if not found
+     */
+    LIB_TREE_NODE* GetLibraryNode();
+    const LIB_TREE_NODE* GetLibraryNode() const;
+
     LIB_TREE_NODE();
     virtual ~LIB_TREE_NODE() {}
 

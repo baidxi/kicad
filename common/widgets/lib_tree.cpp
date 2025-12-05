@@ -1073,27 +1073,7 @@ void LIB_TREE::onItemContextMenu( wxDataViewEvent& aEvent )
             if( !node )
                 continue;
 
-            LIB_TREE_NODE* libraryNode = nullptr;
-
-            // If it's a library, use it directly
-            if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-            {
-                libraryNode = node;
-            }
-            // If it's a child item, find its parent library
-            else
-            {
-                LIB_TREE_NODE* parent = node->m_Parent;
-                while( parent )
-                {
-                    if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                    {
-                        libraryNode = parent;
-                        break;
-                    }
-                    parent = parent->m_Parent;
-                }
-            }
+            LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
 
             // Add library node if found and not already in the list
             if( libraryNode )

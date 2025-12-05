@@ -23,6 +23,7 @@
 
 
 class EDA_DRAW_FRAME;
+class LIB_TREE_NODE;
 
 /**
  * Module editor specific tools.
@@ -47,6 +48,14 @@ public:
 
 private:
     void changeSelectedPinStatus( const bool aPin );
+
+    /**
+     * Collect unique library nodes from the current selection.
+     * For child items (symbols/footprints), their parent libraries are collected.
+     * 
+     * @return vector of unique library nodes
+     */
+    std::vector<LIB_TREE_NODE*> getUniqueLibrariesFromSelection();
 
     /// Set up handlers for various events.
     void setTransitions() override;

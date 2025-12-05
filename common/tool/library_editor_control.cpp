@@ -41,69 +41,52 @@ void LIBRARY_EDITOR_CONTROL::Reset( RESET_REASON aReason )
 
 void LIBRARY_EDITOR_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 {
-    auto checkPinnedStatus = [this]( bool aPin )
+    auto hasUnpinnedLibs = [this]( const SELECTION& aSel )
     {
-        bool      result = true;
         LIB_TREE* libTree = m_frame->GetLibTree();
-        if( libTree )
+        if( !libTree )
+            return false;
+
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
         {
-            std::vector<LIB_TREE_NODE*> selection;
-            libTree->GetSelectedTreeNodes( selection );
+            if( !node )
+                continue;
 
-            for( const LIB_TREE_NODE* node : selection )
-            {
-                if( !node )
-                    continue;
-
-                const LIB_TREE_NODE* libraryNode = nullptr;
-
-                // If it's a library, use it directly
-                if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                {
-                    libraryNode = node;
-                }
-                // If it's a child item, find its parent library
-                else
-                {
-                    const LIB_TREE_NODE* parent = node->m_Parent;
-                    while( parent )
-                    {
-                        if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                        {
-                            libraryNode = parent;
-                            break;
-                        }
-                        parent = parent->m_Parent;
-                    }
-                }
-
-                if( libraryNode && libraryNode->m_Pinned != aPin )
-                {
-                    result = false;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            result = false;
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && !libraryNode->m_Pinned )
+                return true;
         }
 
-        return result;
+        return false;
     };
 
-    auto pinnedLibSelectedCondition = [checkPinnedStatus]( const SELECTION& aSel )
+    auto hasPinnedLibs = [this]( const SELECTION& aSel )
     {
-        return checkPinnedStatus( true );
+        LIB_TREE* libTree = m_frame->GetLibTree();
+        if( !libTree )
+            return false;
+
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && libraryNode->m_Pinned )
+                return true;
+        }
+
+        return false;
     };
 
-    auto unpinnedLibSelectedCondition = [checkPinnedStatus]( const SELECTION& aSel )
-    {
-        return checkPinnedStatus( false );
-    };
-
-    aMenu->AddItem( ACTIONS::pinLibrary,        unpinnedLibSelectedCondition, 1 );
-    aMenu->AddItem( ACTIONS::unpinLibrary,      pinnedLibSelectedCondition, 1 );
+    aMenu->AddItem( ACTIONS::pinLibrary,        hasUnpinnedLibs, 1 );
+    aMenu->AddItem( ACTIONS::unpinLibrary,      hasPinnedLibs, 1 );
     aMenu->AddSeparator( 1 );
 
     aMenu->AddSeparator( 400 );
@@ -122,82 +105,67 @@ void LIBRARY_EDITOR_CONTROL::regenerateLibraryTree()
         libTree->CenterLibId( target );
 }
 
+
+std::vector<LIB_TREE_NODE*> LIBRARY_EDITOR_CONTROL::getUniqueLibrariesFromSelection()
+{
+    std::vector<LIB_TREE_NODE*> uniqueLibraries;
+    LIB_TREE* libTree = m_frame->GetLibTree();
+
+    if( !libTree )
+        return uniqueLibraries;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    for( LIB_TREE_NODE* node : selection )
+    {
+        if( !node )
+            continue;
+
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+
+        if( libraryNode )
+        {
+            // Add library node if not already in the list
+            if( std::find( uniqueLibraries.begin(), uniqueLibraries.end(), libraryNode )
+                == uniqueLibraries.end() )
+            {
+                uniqueLibraries.push_back( libraryNode );
+            }
+        }
+    }
+
+    return uniqueLibraries;
+}
+
+
 void LIBRARY_EDITOR_CONTROL::changeSelectedPinStatus( const bool aPin )
 {
-    LIB_TREE* libTree = m_frame->GetLibTree();
-    if( libTree )
+    std::vector<LIB_TREE_NODE*> libraryNodes = getUniqueLibrariesFromSelection();
+
+    const KIWAY::FACE_T kifaceType = KIWAY::KifaceType( m_frame->GetFrameType() );
+
+    if( kifaceType != KIWAY::FACE_SCH && kifaceType != KIWAY::FACE_PCB )
     {
-        std::vector<LIB_TREE_NODE*> selection;
-        libTree->GetSelectedTreeNodes( selection );
-
-        // Collect unique library nodes (or parent libraries of child items)
-        std::vector<LIB_TREE_NODE*> libraryNodes;
-
-        for( LIB_TREE_NODE* node : selection )
-        {
-            if( !node )
-                continue;
-
-            LIB_TREE_NODE* libraryNode = nullptr;
-
-            // If it's a library, use it directly
-            if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-            {
-                libraryNode = node;
-            }
-            // If it's a child item, find its parent library
-            else
-            {
-                LIB_TREE_NODE* parent = node->m_Parent;
-                while( parent )
-                {
-                    if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                    {
-                        libraryNode = parent;
-                        break;
-                    }
-                    parent = parent->m_Parent;
-                }
-            }
-
-            // Add library node if found and not already in the list
-            if( libraryNode && libraryNode->m_Pinned != aPin )
-            {
-                if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
-                {
-                    libraryNodes.push_back( libraryNode );
-                }
-            }
-        }
-
-        // Apply pin/unpin to all collected library nodes
-        for( LIB_TREE_NODE* lib : libraryNodes )
-        {
-            const KIWAY::FACE_T kifaceType = KIWAY::KifaceType( m_frame->GetFrameType() );
-
-            if( kifaceType == KIWAY::FACE_SCH || kifaceType == KIWAY::FACE_PCB )
-            {
-                if( aPin )
-                    m_frame->Prj().PinLibrary( lib->m_LibId.GetLibNickname(),
-                                               kifaceType == KIWAY::FACE_SCH
-                                                       ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
-                                                       : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB );
-                else
-                    m_frame->Prj().UnpinLibrary( lib->m_LibId.GetLibNickname(),
-                                                 kifaceType == KIWAY::FACE_SCH
-                                                         ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
-                                                         : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB );
-
-                lib->m_Pinned = aPin;
-            }
-            else
-            {
-                wxFAIL_MSG( wxT( "Unsupported frame type for library pinning." ) );
-            }
-        }
-
-        regenerateLibraryTree();
+        wxFAIL_MSG( wxT( "Unsupported frame type for library pinning." ) );
+        return;
     }
+
+    PROJECT::LIB_TYPE_T libType = ( kifaceType == KIWAY::FACE_SCH )
+                                          ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
+                                          : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB;
+
+    for( LIB_TREE_NODE* lib : libraryNodes )
+    {
+        if( aPin )
+            m_frame->Prj().PinLibrary( lib->m_LibId.GetLibNickname(), libType );
+        else
+            m_frame->Prj().UnpinLibrary( lib->m_LibId.GetLibNickname(), libType );
+
+        lib->m_Pinned = aPin;
+    }
+
+    regenerateLibraryTree();
 }
 
 int LIBRARY_EDITOR_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )

@@ -44,71 +44,52 @@ void DESIGN_BLOCK_CONTROL::Reset( RESET_REASON aReason )
 
 void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 {
-    auto checkPinnedStatus = [this]( bool aPin )
+     auto hasUnpinnedLibs = [this]( const SELECTION& aSel )
     {
-        bool      result = true;
         LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
-        if( libTree )
+        if( !libTree )
+            return false;
+
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
         {
-            std::vector<LIB_TREE_NODE*> selection;
-            libTree->GetSelectedTreeNodes( selection );
+            if( !node )
+                continue;
 
-            for( const LIB_TREE_NODE* node : selection )
-            {
-                if( !node )
-                    continue;
-
-                const LIB_TREE_NODE* libraryNode = nullptr;
-
-                // If it's a library, use it directly
-                if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                {
-                    libraryNode = node;
-                }
-                // If it's a child item, find its parent library
-                else
-                {
-                    const LIB_TREE_NODE* parent = node->m_Parent;
-                    while( parent )
-                    {
-                        if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                        {
-                            libraryNode = parent;
-                            break;
-                        }
-                        parent = parent->m_Parent;
-                    }
-                }
-
-                if( libraryNode && libraryNode->m_Pinned != aPin )
-                {
-                    result = false;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            result = false;
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && !libraryNode->m_Pinned )
+                return true;
         }
 
-        return result;
+        return false;
     };
 
-    auto pinnedLib =
-            [checkPinnedStatus]( const SELECTION& aSel )
-            {
-                return checkPinnedStatus( true );
-            };
+    auto hasPinnedLibs = [this]( const SELECTION& aSel )
+    {
+        LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
+        if( !libTree )
+            return false;
 
-    auto unpinnedLib =
-            [checkPinnedStatus](const SELECTION& aSel )
-            {
-                return checkPinnedStatus( false );
-            };
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
 
-    aMenu->AddItem( ACTIONS::pinLibrary, unpinnedLib, 1 );
-    aMenu->AddItem( ACTIONS::unpinLibrary, pinnedLib, 1 );
+        for( const LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && libraryNode->m_Pinned )
+                return true;
+        }
+
+        return false;
+    };
+
+    aMenu->AddItem( ACTIONS::pinLibrary, hasUnpinnedLibs, 1 );
+    aMenu->AddItem( ACTIONS::unpinLibrary, hasPinnedLibs, 1 );
     aMenu->AddItem( ACTIONS::newLibrary, SELECTION_CONDITIONS::ShowAlways, 1 );
     aMenu->AddSeparator( 2 );
 
@@ -135,27 +116,7 @@ int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
         if( !node )
             continue;
 
-        LIB_TREE_NODE* libraryNode = nullptr;
-
-        // If it's a library, use it directly
-        if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-        {
-            libraryNode = node;
-        }
-        // If it's a child item, find its parent library
-        else
-        {
-            LIB_TREE_NODE* parent = node->m_Parent;
-            while( parent )
-            {
-                if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                {
-                    libraryNode = parent;
-                    break;
-                }
-                parent = parent->m_Parent;
-            }
-        }
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
 
         // Add library node if found and not already in the list
         if( libraryNode && !libraryNode->m_Pinned )
@@ -205,27 +166,7 @@ int DESIGN_BLOCK_CONTROL::UnpinLibrary( const TOOL_EVENT& aEvent )
         if( !node )
             continue;
 
-        LIB_TREE_NODE* libraryNode = nullptr;
-
-        // If it's a library, use it directly
-        if( node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-        {
-            libraryNode = node;
-        }
-        // If it's a child item, find its parent library
-        else
-        {
-            LIB_TREE_NODE* parent = node->m_Parent;
-            while( parent )
-            {
-                if( parent->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
-                {
-                    libraryNode = parent;
-                    break;
-                }
-                parent = parent->m_Parent;
-            }
-        }
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
 
         // Add library node if found and not already in the list
         if( libraryNode && libraryNode->m_Pinned )
