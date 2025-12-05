@@ -74,6 +74,29 @@ bool EDMD_OBJECT::operator==( const EDMD_OBJECT& rhs )
     return m_id == rhs.m_id;
 }
 
+
+void EDMD_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    if( !m_id.empty() )
+        aNode.SetAttribute( "id", m_id );
+
+    aNode.SetAttribute( "xsi:type", m_xsiType );
+
+    if( m_isAttributeChanged != OPTIONAL_LOGIC::UNSPECIFIED )
+        aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged == OPTIONAL_LOGIC::LOGIC_TRUE );
+}
+
+void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName, const std::string aValue ) const
+{
+    if( !aValue.empty() )
+        aNode.AppendChild( aChildName )->SetText( aValue );
+}
+
+void EDMD_OBJECT::WriteChild( IDX_XML_NODE& aNode, const std::string aChildName, const EDMD_OBJECT& aChild ) const
+{
+    aChild.Write( *( aNode.AppendChild( aChildName ) ) );
+}
+
 // -----------------------------------------------------
 // EDMD_EXTENSIBLE_OBJECT
 // -----------------------------------------------------
@@ -131,6 +154,30 @@ bool EDMD_EXTENSIBLE_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
     return EDMD_OBJECT::Resolve( aRegistry );
 }
 
+void EDMD_EXTENSIBLE_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:Name", m_name );
+    WriteValueChild( aNode, "foundation:Description", m_description );
+
+    for( auto name : m_displayName )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:DisplayName", *name );
+    }
+    for( auto name : m_displayDescription )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:DisplayDescription", *name );
+    }
+    for( auto name : m_userProperty )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:UserProperty", *name );
+    }
+}
+
 // -----------------------------------------------------
 // EDMD_COLLABORATION_OBJECT
 // -----------------------------------------------------
@@ -157,6 +204,13 @@ bool EDMD_COLLABORATION_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
 {
     return EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
 }
+
+
+void EDMD_COLLABORATION_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+}
+
 
 // -----------------------------------------------------
 // EDMD_SYSTEM
@@ -386,6 +440,14 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
 
     return true;
+}
+
+void EDMD_DATASET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
+{
+    if( !aNode )
+        return;
+
+    aNode->SetName( "testststs" );
 }
 
 
@@ -621,6 +683,16 @@ bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    auto child = aNode.AppendChild( "foundation:SystemScope" );
+    child->SetText( m_systemScopeRef );
+}
+
+
 // -----------------------------------------------------
 // EDMD_IDENTIFIER
 // -----------------------------------------------------
@@ -628,6 +700,8 @@ bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
 EDMD_IDENTIFIER::EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_DESIGNATOR( aNode, false )
 {
+    m_xsiType = "foundation:EDMDIdentifier";
+
     if( aNode.GetAttribute( "Persistant", "false" ) == "true" )
         m_persistant = true;
     else
@@ -663,6 +737,19 @@ bool EDMD_IDENTIFIER::Parse( IDX_XML_NODE& aNode )
         return this->EDMD_DESIGNATOR::Parse( aNode );
     return true;
 }
+
+
+void EDMD_IDENTIFIER::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DESIGNATOR::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:Number", m_number );
+    WriteValueChild( aNode, "foundation:Version", m_version );
+    WriteValueChild( aNode, "foundation:Revision", m_revision );
+    WriteValueChild( aNode, "foundation:Sequence", m_sequence );
+}
+
+
 // -----------------------------------------------------
 // EDMD_NAME
 // -----------------------------------------------------
@@ -675,6 +762,8 @@ EDMD_NAME::EDMD_NAME() :
 EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_DESIGNATOR( aNode, false )
 {
+    m_xsiType = "foundation:EDMDName";
+
     if( aNode.GetAttribute( "Persistant", "false" ) == "true" )
         m_persistant = true;
     else
@@ -690,6 +779,15 @@ EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
+
+void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DESIGNATOR::Write( aNode );
+
+    auto child = aNode.AppendChild( "foundation:ObjectName" );
+    child->SetText( m_objectName );
+}
 
 
 bool EDMD_NAME::Parse( IDX_XML_NODE& aNode )
@@ -718,5 +816,6 @@ EDMD_PROCESS_INSTRUCTION::EDMD_PROCESS_INSTRUCTION( IDX_XML_NODE& aNode, bool aT
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
 
 } // namespace idx_foundation

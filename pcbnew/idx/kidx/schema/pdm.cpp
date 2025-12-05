@@ -277,6 +277,14 @@ bool EDMD_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
     return result;
 }
 
+void EDMD_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    for( auto se : m_shapeElement )
+        WriteValueChild( aNode, "pdm:ShapeElement", se->m_id );
+}
+
 
 // -----------------------------------------------------
 // EDMD_ITEM_SHAPE
@@ -398,6 +406,8 @@ EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode ) :
 EDMD_STRATUM::EDMD_STRATUM( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_ITEM_SHAPE( aNode, false )
 {
+    m_xsiType = "pdm:EDMDStratum";
+
     if( aTopLevel )
         ParseChildren( aNode );
 };
@@ -435,6 +445,33 @@ bool EDMD_STRATUM::Parse( IDX_XML_NODE& aNode )
         return this->EDMD_ITEM_SHAPE::Parse( aNode );
 
     return true;
+}
+
+
+void EDMD_STRATUM::Write( IDX_XML_NODE& aNode ) const
+{
+    aNode.SetName( "foundation:Stratum" );
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+
+    std::string value;
+
+    switch( m_type )
+    {
+    case TYPE::DOCUMENTATION: value = "DocumentationLayerStratum"; break;
+    case TYPE::DESIGN: value = "DesignLayerStratum"; break;
+    }
+
+    WriteValueChild( aNode, "pdm:StratumType", value );
+
+    switch( m_stratumSurfaceDesignation )
+    {
+    case STRATUM_SURFACE_DESIGNATION::PRIMARY_SURFACE: value = "PrimarySurface"; break;
+    case STRATUM_SURFACE_DESIGNATION::SECONDARY_SURFACE: value = "SecondarySurface"; break;
+    case STRATUM_SURFACE_DESIGNATION::AVERAGE_SURFACE: value = "AverageSurface"; break;
+    }
+
+    WriteValueChild( aNode, "pdm:StratumSurfaceDesignation", value );
 }
 
 bool EDMD_STRATUM::Resolve( IDX_REGISTRY& aRegistry )
@@ -535,6 +572,8 @@ EDMD_KEEPIN::EDMD_KEEPIN( IDX_XML_NODE& aNode, bool aTopLevel ) :
 EDMD_ITEM_INSTANCE::EDMD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_EXTENSIBLE_OBJECT( aNode, false )
 {
+    m_xsiType = "pdm:EDMDItemInstance";
+
     if( aTopLevel )
         ParseChildren( aNode );
 };
@@ -611,6 +650,32 @@ bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 
+void EDMD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    auto child = aNode.AppendChild( "pdm:InstanceName" );
+    m_instanceName.Write( *child );
+
+    if( m_item )
+    {
+        child = aNode.AppendChild( "pdm:Item" );
+        child->SetText( m_item->m_id );
+    }
+
+    /*
+    
+    else if( IDX_keyword_compare( name, "pdm:Transformation" ) )
+        m_transformation = idx_pdm::EDMD_TRANSFORMATION( aNode, true );
+    else if( IDX_keyword_compare( name, "pdm:InstanceUserAreaLayerName" ) )
+        m_instanceUserAreaLayerName.emplace_back( aNode, true );
+    else if( IDX_keyword_compare( name, "pdm:zOffset" ) )
+        m_zOffset = parseDouble( content );
+    else if( IDX_keyword_compare( name, "foundation:Name" ) )
+        m_name = content;
+    */
+}
+
 // -----------------------------------------------------
 // EDMD_ITEM
 // -----------------------------------------------------
@@ -618,6 +683,8 @@ bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 EDMD_ITEM::EDMD_ITEM( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_COLLABORATION_OBJECT( aNode, false )
 {
+    m_xsiType = "pdm:EDMDItem";
+
     if( aTopLevel )
         ParseChildren( aNode );
 };
@@ -687,6 +754,51 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
         result &= m_shape->Resolve( aRegistry );
 
     return result;
+}
+
+
+void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
+{
+    aNode.SetName( "foundation:Item" );
+
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    auto child = aNode.AppendChild( "pdm:ItemType" );
+
+    switch( m_itemType )
+    {
+    case ITEM_TYPE::SINGLE: child->SetText( "single" ); break;
+    case ITEM_TYPE::ASSEMBLY: child->SetText( "assembly" ); break;
+    }
+
+    for( auto id : m_identifier )
+        WriteChild( aNode, "pdm:Identifier", id );
+
+    for( auto pn : m_packageName )
+        WriteChild( aNode, "pdm:PackageName", pn );
+
+    for( auto ii : m_itemInstance )
+    {
+        if( ii )
+            WriteChild( aNode, "pdm:ItemInstance", *ii );
+    }
+
+    WriteValueChild( aNode, "pdm:ReferenceName", m_referenceName );
+
+    WriteChild( aNode, "pdm:Baseline", m_baseline );
+
+    if( m_shape )
+        WriteValueChild( aNode, "pdm:Shape", m_shape->m_id );
+
+    /*
+    std::shared_ptr<EDMD_ITEM_SHAPE>                 m_shape;
+    //ShapeTransformation
+    idx_property::EDMD_LOGIC_PROPERTY m_accept;
+    //ClearanceState
+    idx_property::EDMD_LOGIC_PROPERTY m_baseline;
+    std::string                       m_referenceName;
+    std::string                       m_assembleToName;
+    */
 }
 
 

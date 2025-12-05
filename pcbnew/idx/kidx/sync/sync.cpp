@@ -27,7 +27,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <filesystem>
-#include "../kidx.h"
 
 
 KIDX_REGISTRY::KIDX_REGISTRY( const std::string& aFile ) :
@@ -96,4 +95,65 @@ void KIDX_REGISTRY::writeXml( std::shared_ptr<IDX_XML_NODE> aRoot )
         child2->SetAttribute( "date", file->GetDate() );
         child2->SetAttribute( "software", file->GetSoft() );
     }
+
+    auto ds = aRoot->AppendChild( "repository" );
+
+    for( auto& item : m_itemRepository )
+    {
+        if( item.m_shape )
+        {
+            auto i = ds->AppendChild( "" );
+            item.m_shape->Write( *i );
+        }
+
+        auto i = ds->AppendChild( "" );
+        item.Write( *i );
+    }
+}
+
+bool KIDX_REGISTRY::isIdentifierKnown( const idx_foundation::EDMD_IDENTIFIER& aId ) const
+{
+    for( const auto& id : m_identifiers )
+    {
+        if( id == aId )
+            return true;
+    }
+    return false;
+}
+
+void KIDX_REGISTRY::addIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId )
+{
+    m_identifiers.push_back( aId );
+}
+
+
+bool KIDX_REGISTRY::SC_Process( idx_computational::EDMD_CHANGE& aChange )
+{
+    if( !SC_1CheckIdentifierOfNewItem( aChange ) )
+        return false;
+
+    if( !SC_2CheckIdentifierOfPredecessorItem( aChange ) )
+    {
+        return false;
+        // TODO Implement the request for information message...
+    }
+
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const
+{
+    if( !aChange.m_newItem )
+        return false;
+
+    return this->isIdentifierKnown( *( aChange.m_newItem ) );
+}
+
+bool KIDX_REGISTRY::SC_2CheckIdentifierOfPredecessorItem( const idx_computational::EDMD_CHANGE& aChange ) const
+{
+    if( !aChange.m_predecessorItem )
+        return false;
+
+    return this->isIdentifierKnown( *( aChange.m_predecessorItem ) );
 }

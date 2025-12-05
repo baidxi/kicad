@@ -42,10 +42,16 @@ class EDMD_OBJECT : public IDX_BASE
 public:
     EDMD_OBJECT();
     EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual void Write( IDX_XML_NODE& aNode ) const;
+
+    void WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName, const std::string aValue ) const;
+    void WriteChild( IDX_XML_NODE& aNode, const std::string aChildName, const EDMD_OBJECT& aChild ) const;
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     bool operator==( const EDMD_OBJECT& rhs );
+
+    std::string m_xsiType = "unset";
 
 protected:
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
@@ -64,6 +70,7 @@ public:
 
     std::shared_ptr<idx_property::EDMD_USER_PROPERTY> GetUserProperty( const std::string& aKey ) const;
     virtual bool                                      Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void                                      Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::string                                                    m_name;
@@ -85,6 +92,7 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 
@@ -160,6 +168,8 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+
+    void BuildXML( std::shared_ptr<IDX_XML_NODE> );
 
 
     IDX_REGISTRY m_registry;
@@ -255,6 +265,7 @@ class EDMD_DESIGNATOR : public EDMD_EXTENSIBLE_OBJECT
 public:
     EDMD_DESIGNATOR();
     EDMD_DESIGNATOR( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
@@ -272,6 +283,7 @@ public:
 
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string                             m_number;
     std::string                             m_version;
@@ -297,6 +309,7 @@ public:
     EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::string m_objectName;

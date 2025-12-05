@@ -56,6 +56,8 @@ bool EDMD_CONSTRAINED_PROPERTY::Parse( IDX_XML_NODE& aNode )
 EDMD_USER_PROPERTY::EDMD_USER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
+    m_xsiType = "property:EDMDUserSimpleProperty";
+
     if( aTopLevel )
         ParseChildren( aNode );
 };
@@ -70,11 +72,21 @@ bool EDMD_USER_PROPERTY::Parse( IDX_XML_NODE& aNode )
         m_keys.emplace_back( std::make_shared<idx_foundation::EDMD_NAME>( aNode, true ) );
     else if( IDX_keyword_compare( name, "property:Value" ) )
         m_value = content;
-    else if( IDX_keyword_compare( name, "property:Unit" ) )
-        m_value = content;
     else
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     return true;
+}
+
+void EDMD_USER_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    for( auto key : m_keys )
+    {
+        if( key )
+            WriteChild( aNode, "property:Key", *key );
+    }
+    WriteValueChild( aNode, "property:Value", m_value );
 }
 
 // ------------------- EDMD_UNIT -------------------

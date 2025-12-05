@@ -25,11 +25,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "../kidx.h"
 
-namespace idx_foundation
-{
-class EDMD_DATASET;
-}
 
 class KIDX_REGISTRY;
 class IDX_XML_NODE;
@@ -108,7 +105,22 @@ public:
     void         MarkProcessed( std::shared_ptr<IDX_FILE_REGISTRY> aDataset ) {};
     virtual void Save() {};
     void         writeXml( std::shared_ptr<IDX_XML_NODE> aRoot );
+    bool         isIdentifierKnown( const idx_foundation::EDMD_IDENTIFIER& aId ) const;
+    void         addIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId );
 
+    // Functions used to process messages
+
+    // SendInformation
+
+    // SendChange
+    bool SC_Process( idx_computational::EDMD_CHANGE& aChange );
+    bool SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const;
+    bool SC_2CheckIdentifierOfPredecessorItem( const idx_computational::EDMD_CHANGE& aChange ) const;
+    // SC3_RequestInformation
+    void SC_4AdjustmentOfItemType() {};
+
+    std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_repository;
+    std::vector<idx_pdm::EDMD_ITEM>                    m_itemRepository;
 
 protected:
     std::string                                     m_file;
@@ -116,4 +128,5 @@ protected:
     std::vector<std::shared_ptr<IDX_FILE_REGISTRY>> m_files;
     std::string                                     m_path;
     std::string                                     m_collaborationFolder;
+    std::vector<idx_foundation::EDMD_IDENTIFIER>    m_identifiers;
 };

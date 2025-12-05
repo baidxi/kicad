@@ -42,6 +42,8 @@ public:
     void AddAttribute( const std::string& name, const std::string& Value );
 
     std::string GetName() const override;
+    void        SetName( const std::string& ) override;
+
     std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const override;
     void        SetAttribute( const std::string& name, const std::string& value ) override;
     std::string GetText() const override;

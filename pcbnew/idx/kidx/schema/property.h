@@ -100,11 +100,13 @@ class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_USER_PROPERTY() {};
     EDMD_USER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_keys;
     std::string                                             m_value;
 };
+
 
 enum class UNIT_FUNDAMENTAL
 {

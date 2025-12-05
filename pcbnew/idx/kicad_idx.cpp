@@ -35,10 +35,12 @@
 #include <pad.h>
 #include <pcb_track.h>
 
-KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
+KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
+                      BOARD* aBoard, BOARD_COMMIT* aCommit ) :
         m_commit( aCommit ),
         m_board( aBoard ),
-        m_dataset( aDataset )
+        m_dataset( aDataset ),
+        m_reg( aReg )
 {
     BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
     BOARD_STACKUP          stackup = dsnSettings.GetStackupDescriptor();
@@ -350,26 +352,70 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
     std::cout << "processing baseline" << std::endl;
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
 
+    if( !m_reg )
+        return {};
 
+    // Applying the IDX algorithm defined in the Developper recommendations
     for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
     {
         if( !item )
             continue;
 
-        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
+        // If at least one item has no identifier, we reject the entire transaction
+        if( item->m_identifier.size() < 1 )
+            return {};
+
+        for( idx_foundation::EDMD_IDENTIFIER& id : item->m_identifier )
         {
-            if( !instance )
-                continue;
+            // If the identifier is not is repository, create a new item
 
-            std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+            if( !m_reg->isIdentifierKnown( id ) )
+            {
+                m_reg->addIdentifier( id );
 
-            kChange->m_name = instance->m_id;
-            kChange->m_type = kChange->GetType( *instance );
-            kChange->m_newItems = ConvertInstance( *instance );
+                for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
+                {
+                    if( !item )
+                        continue;
 
-            result.push_back( kChange );
+                    for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
+                    {
+                        if( !instance )
+                            continue;
+
+
+                        std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+
+                        kChange->m_name = instance->m_id;
+                        kChange->m_type = kChange->GetType( *instance );
+                        kChange->m_newItems = ConvertInstance( *instance );
+
+                        result.push_back( kChange );
+                    }
+
+                    m_reg->m_itemRepository.push_back( *item );
+                }
+            }
+            else
+            {
+                // Receiving a baseline message, but components are already on the board
+
+                // Adjustment of the identifier repository
+
+                // Adjustment of item type
+
+                // Adjustment of the package names
+
+                // Adjustments of the item instances
+
+                // Adjustments of the shape
+
+                // Adjustements of roles
+            }
         }
     }
+    // Adjustment of the package names
+
 
     return result;
 }
@@ -403,6 +449,19 @@ std::shared_ptr<KICAD_IDX_CHANGE> KICAD_IDX::ConvertChange( idx_computational::E
     // NewItem is only one that is mandatory
     if( !aChange.m_newItem )
         return {};
+
+    // If NewItem is already known, reject the transaction
+    // TODO, actually drop the entire IDX file
+
+    if( m_reg->isIdentifierKnown( *( aChange.m_newItem ) ) )
+        return {};
+
+    //
+
+    if( aChange.m_predecessorItem && !m_reg->isIdentifierKnown( *( aChange.m_predecessorItem ) ) )
+    {
+        // TODO: implement the RequestInformation
+    }
 
 
     bool found = false;
@@ -461,10 +520,14 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::GetChanges()
             continue;
         }
 
+        // Any item not referenced by a change should be processed like in a SenfInformation message
+        // TODO
+
         for( auto change : instr->m_transaction->m_changes )
         {
             if( !std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) )
                 continue;
+
 
             result.push_back( ConvertChange( *std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) ) );
         }

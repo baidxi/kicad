@@ -36,9 +36,6 @@
 #include <string>
 #include <unordered_map>
 
-// Here we define some helper functions, we don't want to use std::string.
-// Hopefully, this code will be shared with open sources MCAD softwares
-
 bool IDX_keyword_compare( std::string a, std::string b );
 
 class IDX_XML_NODE;
@@ -247,6 +244,7 @@ public:
         return value;
     }
 
+
 protected:
     void         Report( std::string aMsg, IDX_REPORT_LEVEL aLvl ) const;
     void         ParseChildren( IDX_XML_NODE& node );
@@ -311,9 +309,16 @@ public:
     virtual void AddAttribute( const std::string& name, const std::string& Value ) = 0;
 
     virtual std::string GetName() const = 0;
+    virtual void        SetName( const std::string& ) = 0;
     virtual std::string GetAttribute( const std::string& name, const std::string& defaultValue ) const = 0;
     virtual std::string GetNodeContent() const = 0;
     virtual void        SetAttribute( const std::string& name, const std::string& value ) = 0;
+
+    void SetAttribute( const std::string& name, bool value )
+    {
+        this->SetAttribute( name, std::string( value ? "true" : "false" ) );
+    }
+
 
     virtual std::string GetText() const = 0;
     virtual void        SetText( const std::string& text ) = 0;

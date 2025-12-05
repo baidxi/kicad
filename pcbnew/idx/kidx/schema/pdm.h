@@ -160,6 +160,8 @@ public:
     void         print( int aIndex = 0, int aMaxIndex = 5 );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
 
     std::vector<std::shared_ptr<EDMD_SHAPE_ELEMENT>> m_shapeElement;
     std::vector<std::string>                         m_shapeElementRef;
@@ -256,6 +258,7 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::vector<std::shared_ptr<EDMD_STRATUM_TECHNOLOGY>> m_stratumTechnology;
@@ -338,6 +341,8 @@ public:
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     TYPE         GetType() const;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
 
     idx_foundation::EDMD_NAME              m_instanceName;
     EDMD_TRANSFORMATION                    m_transformation;
@@ -378,6 +383,8 @@ public:
     std::string                       m_referenceName;
     std::string                       m_assembleToName;
     //PackagePin
+
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 private:
     std::string m_shapeRef;

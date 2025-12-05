@@ -391,9 +391,10 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
     m_loadedDataset->Resolve();
     m_loadedDataset->Prepare();
 
-    m_idx = std::make_shared<KICAD_IDX>( m_loadedDataset, m_board, m_commit );
 
     m_currentFile = m_reg->GetFiles()[row];
+    m_idx = std::make_shared<KICAD_IDX>( m_loadedDataset, m_reg, m_board, m_commit );
+
     loadIDX( m_idx );
 }
 

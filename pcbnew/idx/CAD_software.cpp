@@ -47,7 +47,16 @@ IDX_XML_NODE_KICAD::IDX_XML_NODE_KICAD( wxXmlNode* aNode ) :
 
 std::string IDX_XML_NODE_KICAD::GetName() const
 {
-    return m_node != nullptr ? m_node->GetName().ToStdString() : "nullptr";
+    return m_node != nullptr ? m_node->GetName().ToStdString() : "";
+}
+
+
+void IDX_XML_NODE_KICAD::SetName( const std::string& aName )
+{
+    if( !m_node )
+        return;
+
+    m_node->SetName( aName );
 }
 
 

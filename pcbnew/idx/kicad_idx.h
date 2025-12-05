@@ -68,6 +68,7 @@ public:
 
     // void Accept(){};
     // void Reject(){};
+
 private:
     IDX_BASE& m_idx;
 };
@@ -76,7 +77,8 @@ private:
 class KICAD_IDX
 {
 public:
-    KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, BOARD* aBoard, BOARD_COMMIT* aCommit );
+    KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
+               BOARD* aBoard, BOARD_COMMIT* aCommit );
 
     void                     AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
     std::vector<BOARD_ITEM*> AddElement( idx_pdm::EDMD_ITEM_INSTANCE&, PCB_LAYER_ID );
@@ -124,6 +126,7 @@ public:
     BOARD*                                    m_board;
     std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup;
     double                                    m_boardThickness;
+    std::shared_ptr<KIDX_REGISTRY_KICAD>      m_reg;
 };
 
 
