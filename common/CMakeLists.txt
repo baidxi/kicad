@@ -124,6 +124,44 @@ set( KICOMMON_SRCS
     git/kigit_orphan_registry.cpp
     git/libgit_backend.cpp
 
+    # PLM
+    plm/plm_activity_tracker.cpp
+    plm/plm_cache_manager.cpp
+    plm/plm_context_menu.cpp
+    plm/plm_credential_store.cpp
+    plm/plm_diff_analyzer.cpp
+    plm/plm_diff_pcb.cpp
+    plm/plm_diff_renderer.cpp
+    plm/plm_diff_schematic.cpp
+    plm/plm_dirty_tracker.cpp
+    plm/plm_event_bus.cpp
+    plm/plm_lock_tracker.cpp
+    plm/plm_menubar.cpp
+    plm/plm_merge_algorithm.cpp
+    plm/plm_merge_generator.cpp
+    plm/plm_notification_ui.cpp
+    plm/plm_part_cache.cpp
+    plm/plm_kicad_pro_metadata.cpp
+    plm/plm_plugin.cpp
+    plm/plm_plugin_config.cpp
+    plm/plm_plugin_manager.cpp
+    plm/plm_project_binding.cpp
+    plm/plm_preview_cache.cpp
+    plm/plm_icon_provider.cpp
+    plm/plm_lib_version_tracker.cpp
+    plm/plm_lib_reference.cpp
+    plm/plm_lib_provider.cpp
+    plm/plm_lib_sync.cpp
+    plm/plm_lib_update_checker.cpp
+    plm/plm_policy_handler.cpp
+    plm/plm_session_manager.cpp
+    plm/plm_state_mapper.cpp
+    plm/plm_state_persistence.cpp
+    plm/plm_statusbar.cpp
+    plm/plm_sync_state.cpp
+    plm/plm_token_manager.cpp
+    plm/plm_toolbar.cpp
+
     # Jobs
     jobs/job.cpp
     jobs/job_dispatcher.cpp
@@ -231,6 +269,7 @@ set( KICOMMON_SRCS
     widgets/report_severity.cpp
     widgets/std_bitmap_button.cpp
     widgets/ui_common.cpp
+    widgets/plm_status_panel.cpp
     widgets/up_down_tree.cpp
     widgets/wx_grid.cpp
     widgets/wx_data_view_hyperlink_renderer.cpp
@@ -516,6 +555,33 @@ set( COMMON_DLG_SRCS
     dialogs/dialog_page_settings_base.cpp
     dialogs/dialog_paste_special.cpp
     dialogs/dialog_paste_special_base.cpp
+    dialogs/dialog_plm_bom_base.cpp
+    dialogs/dialog_plm_bom.cpp
+    dialogs/dialog_plm_bom_validation_base.cpp
+    dialogs/dialog_plm_bom_validation.cpp
+    dialogs/dialog_plm_browser_base.cpp
+    dialogs/dialog_plm_browser.cpp
+    dialogs/dialog_plm_config_base.cpp
+    dialogs/dialog_plm_config.cpp
+    dialogs/dialog_plm_conflict_base.cpp
+    dialogs/dialog_plm_conflict.cpp
+    dialogs/dialog_plm_diff_base.cpp
+    dialogs/dialog_plm_diff.cpp
+    dialogs/dialog_plm_eco_base.cpp
+    dialogs/dialog_plm_eco.cpp
+    dialogs/dialog_plm_history_base.cpp
+    dialogs/dialog_plm_history.cpp
+    dialogs/dialog_plm_login_base.cpp
+    dialogs/dialog_plm_login.cpp
+    dialogs/dialog_plm_progress.cpp
+    dialogs/dialog_plm_release_base.cpp
+    dialogs/dialog_plm_release.cpp
+    dialogs/dialog_plm_review_base.cpp
+    dialogs/dialog_plm_review.cpp
+    dialogs/dialog_plm_variant_base.cpp
+    dialogs/dialog_plm_variant.cpp
+    dialogs/dialog_plm_audit_base.cpp
+    dialogs/dialog_plm_audit.cpp
     dialogs/dialog_plugin_options.cpp
     dialogs/dialog_plugin_options_base.cpp
     dialogs/dialog_text_entry_base.cpp

@@ -41,6 +41,7 @@ set( KICAD_SRCS
     menubar.cpp
     project_template.cpp
     project_tree_pane.cpp
+    project_tree_plm.cpp
     project_tree.cpp
     project_tree_item.cpp
     project_tree_traverser.cpp
