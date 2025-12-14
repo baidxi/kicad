@@ -381,8 +381,8 @@ private:
     ///< Recalculate the clipped baseline after the parameters of the meander have been changed.
     void updateBaseSegment();
 
-    ///< Return sanitized corner radius value.
-    int cornerRadius() const;
+    ///< Return sanitized corner radius value. Set \a aMid when meandering continues (U-turns).
+    int cornerRadius( bool aMid = true ) const;
 
     ///< Return sanitized spacing value.
     int spacing() const;
