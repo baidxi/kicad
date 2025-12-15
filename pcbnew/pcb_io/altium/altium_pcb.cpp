@@ -63,6 +63,22 @@
 #include <magic_enum.hpp>
 #include <thread_pool.h>
 
+#include <gp_Pnt.hxx>
+#include <gp_Pln.hxx>
+#include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeCylinder.hxx>
+#include <BRepPrimAPI_MakeSphere.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <STEPCAFControl_Writer.hxx>
+#include <Quantity_Color.hxx>
+#include <Message.hxx>
+
 
 constexpr double BOLD_FACTOR = 1.75;    // CSS font-weight-normal is 400; bold is 700
 
@@ -1579,56 +1595,300 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
     if( m_progressReporter )
         m_progressReporter->Report( _( "Loading component 3D models..." ) );
 
-    if( !aElem.modelIsEmbedded )
-        return;
-
-    auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
-
-    if( !model )
+    // disable opencascade debug output
+    Message_Gravity aGravity = Message_Alarm;
+    for (Message_SequenceOfPrinters::Iterator aPrinterIter (Message::DefaultMessenger()->Printers());
+         aPrinterIter.More(); aPrinterIter.Next())
     {
-        if( m_reporter )
-        {
-            m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ),
-                                                  aElem.modelId, aFootprint->GetReference() ),
-                                RPT_SEVERITY_ERROR );
-        }
-
-        return;
+        aPrinterIter.Value()->SetTraceLevel (aGravity);
     }
 
     EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
-    file->name = aElem.modelName;
 
-    if( file->name.IsEmpty() )
-        file->name = model->first.name;
+    TopoDS_Shape shape;
 
-    // Decompress the model data before assigning
-    std::vector<char>   decompressedData;
-    wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
-    wxZlibInputStream   zlibStream( compressedStream );
-
-    // Reserve some space, assuming decompressed data is larger -- STEP file
-    // compression is typically 5:1 using zlib like Altium does
-    decompressedData.resize( model->second.size() * 6 );
-    size_t offset = 0;
-
-    while( !zlibStream.Eof() )
+    switch(aElem.modelType)
     {
-        zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
-        size_t bytesRead = zlibStream.LastRead();
+        case ALTIUM_MODEL_TYPE::EXTRUDED:
+        {
+            if(aElem.modelOutline.size() < 3)
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "to few outline points for extruded model" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
 
-        if( !bytesRead )
+            // create polygon from outline points
+            auto polygon = BRepBuilderAPI_MakePolygon();
+
+            for(size_t i = 0; i < aElem.modelOutline.size(); i++)
+            {
+                polygon.Add(gp_Pnt(
+                    pcbIUScale.IUTomm(aElem.modelOutline[i].x),
+                    pcbIUScale.IUTomm(aElem.modelOutline[i].y),
+                    pcbIUScale.IUTomm(aElem.modelExtrudedMinZ)));
+
+                if(i > 0 && !polygon.Added())
+                {
+                    if( m_reporter )
+                    {
+                        m_reporter->Report( "outline points are overlapping" , RPT_SEVERITY_ERROR );
+                    }
+                    return;
+                }
+            }
+            polygon.Close();
+
+            if(!polygon.IsDone())
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "something went wrong creating the outline polygon" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            // create face from polygon / wire
+            auto face = BRepBuilderAPI_MakeFace(polygon.Wire());
+
+            if(!face.IsDone())
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "something went wrong creating the face" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            //printf("extruded min z: %d, extruded max z: %d\n", aElem.modelExtrudedMinZ, aElem.modelExtrudedMaxZ);
+
+            int extrudeHeight = aElem.modelExtrudedMaxZ - aElem.modelExtrudedMinZ;
+            if(extrudeHeight <= 0)
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "extruded height is invalid" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            // extrude to a solid
+            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, pcbIUScale.IUTomm(extrudeHeight)));
+
+            if(!prism.IsDone())
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "something went wrong extruding the face" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            shape = prism;
+
+            break;	// case EXTRUDED
+        }
+
+        case ALTIUM_MODEL_TYPE::CYLINDER:
+        {
+            if( aElem.modelCylinderRadius <= 0 || aElem.modelCylinderHeight <= 0)
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( wxString::Format( wxT( "invalid cylinder dimensions radius: %d, height: %d" ),
+                                                        aElem.modelCylinderRadius, aElem.modelCylinderHeight ),
+                                       RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            auto cylinder = BRepPrimAPI_MakeCylinder(
+                            pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
+                            pcbIUScale.IUTomm( aElem.modelCylinderHeight ));
+
+            shape = cylinder;
+
+            break; // case ZYLINDER
+        }
+
+        case ALTIUM_MODEL_TYPE::SPHERE:
+        {
+            if( aElem.modelSphereRadius <= 0)
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( wxString::Format( wxT( "invalid sphere radius: %d" ),
+                                                        aElem.modelSphereRadius ),
+                                       RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+            auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ));
+
+            shape = sphere;
+
+            break; // case SPHERE
+        }
+
+    } // switch
+
+
+    // generate or load STEP model
+    switch(aElem.modelType)
+    {
+        case ALTIUM_MODEL_TYPE::EXTRUDED:
+        case ALTIUM_MODEL_TYPE::CYLINDER:
+        case ALTIUM_MODEL_TYPE::SPHERE:
+        {
+            // export to STEP
+
+            // initialize the OCAF Application
+            Handle( XCAFApp_Application ) anApp = XCAFApp_Application::GetApplication();
+            Handle( TDocStd_Document ) doc;
+            anApp->NewDocument( "XCAFDoc", doc );
+
+            if ( doc.IsNull() )
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "failed to create OCAF document" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            // Get the Shape and Color tools from the document's main label
+            Handle( XCAFDoc_ShapeTool ) shapeTool = XCAFDoc_DocumentTool::ShapeTool( doc->Main() );
+            Handle( XCAFDoc_ColorTool ) colorTool = XCAFDoc_DocumentTool::ColorTool( doc->Main() );
+
+            if ( shapeTool.IsNull() || colorTool.IsNull() )
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "failed to initialize XCAF tools" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            // add shape to the document structure and set its color
+            TDF_Label solidLabel = shapeTool->AddShape( shape );
+            Quantity_Color color(
+                (   aElem.body_color_3d         & 0xFF ) / 255.0, // red
+                ( ( aElem.body_color_3d >> 8  ) & 0xFF ) / 255.0, // green
+                ( ( aElem.body_color_3d >> 16 ) & 0xFF ) / 255.0, // blue
+                Quantity_TOC_RGB );
+            colorTool->SetColor( solidLabel, color, XCAFDoc_ColorSurf );
+
+            // export the document to a STEP file
+            STEPCAFControl_Writer writer;
+
+            if ( !writer.Transfer( doc ) )
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "failed to transfer OCAF document to STEP model" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            /*
+             *  opencascade in the used version does not support writing STEP to a stream yet.
+             *  So we have to work around by writing to a temporary file and reading it back again
+             *  opencascade does however support stream writing from version 7.7.0
+             */
+            wxString stepFilename = aElem.modelId + wxString( ".step" );
+            IFSelect_ReturnStatus aStat = writer.Write( stepFilename );
+
+            if ( aStat != IFSelect_RetDone )
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( "writing STEP file failed" , RPT_SEVERITY_ERROR );
+                }
+                return;
+            }
+
+            // read back temp file
+            std::ifstream stepFile( stepFilename, std::ios::binary );
+
+            // Read the entire file content into the vector using iterators.
+            std::vector<char> stepData( ( std::istreambuf_iterator<char>( stepFile ) ), std::istreambuf_iterator<char>() );
+
+            // for extruded models the only available name is the ID
+            // the model does not load if the name does not end with ".step"
+            file->name = aElem.modelId + wxString( ".step" );
+
+            file->decompressedData = std::move( stepData );
+
+            // remove temp file
+            std::remove( stepFilename );
+
             break;
+        }
 
-        offset += bytesRead;
+        case ALTIUM_MODEL_TYPE::GENERIC:
+        {
+            auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
+            if( !model )
+            {
+                if( m_reporter )
+                {
+                    m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ),
+                                                          aElem.modelId, aFootprint->GetReference() ),
+                                        RPT_SEVERITY_ERROR );
+                }
 
-        if( offset >= decompressedData.size() )
-            decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
-    }
+                return;
+            }
 
-    decompressedData.resize( offset );
+            file->name = aElem.modelName;
 
-    file->decompressedData = std::move( decompressedData );
+            if( file->name.IsEmpty() )
+                file->name = model->first.name;
+
+            // Decompress the model data before assigning
+            std::vector<char>   decompressedData;
+            wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
+            wxZlibInputStream   zlibStream( compressedStream );
+
+            // Reserve some space, assuming decompressed data is larger -- STEP file
+            // compression is typically 5:1 using zlib like Altium does
+            decompressedData.resize( model->second.size() * 6 );
+            size_t offset = 0;
+
+            while( !zlibStream.Eof() )
+            {
+                zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
+                size_t bytesRead = zlibStream.LastRead();
+
+                if( !bytesRead )
+                    break;
+
+                offset += bytesRead;
+
+                if( offset >= decompressedData.size() )
+                    decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
+            }
+
+            decompressedData.resize( offset );
+
+            file->decompressedData = std::move( decompressedData );
+
+            break; // case GENERIC
+        }
+
+        default:
+        {
+            if( m_reporter )
+                m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType), RPT_SEVERITY_ERROR);
+        }
+
+    } // switch
+
+
+    // set embedded model and model settings
+
     file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL;
 
     EMBEDDED_FILES::CompressAndEncode( *file );

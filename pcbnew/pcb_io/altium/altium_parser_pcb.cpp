@@ -871,6 +871,9 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
         THROW_IO_ERROR( wxT( "ComponentsBodies6 stream has no properties" ) );
 
     modelName       = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODEL.NAME" ), wxT( "" ) );
+
+    modelType       = static_cast<ALTIUM_MODEL_TYPE> ( ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "MODEL.MODELTYPE" ), 0 ) );
+
     modelId         = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODELID" ), wxT( "" ) );
     modelIsEmbedded = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "MODEL.EMBED" ), false );
 
@@ -884,8 +887,37 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
 
     rotation = ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "MODEL.2D.ROTATION" ), 0. );
 
+    body_color_3d = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BODYCOLOR3D" ), 0 );
     body_opacity_3d = ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "BODYOPACITY3D" ), 1. );
     body_projection = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BODYPROJECTION" ), 0 );
+
+    overall_height = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "OVERALLHEIGHT" ), wxT( "0mil" ) );
+    standoff_height = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "STANDOFFHEIGHT" ), wxT( "0mil" ) );
+
+    modelExtrudedMinZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MINZ" ), wxT( "0mil" ) );
+    modelExtrudedMaxZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MAXZ" ), wxT( "0mil" ) );
+
+    modelCylinderRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.RADIUS" ), wxT( "0mil" ) );
+    modelCylinderHeight = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.HEIGHT" ), wxT( "0mil" ) );
+
+    modelSphereRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.SPHERE.RADIUS" ), wxT( "0mil" ) );
+
+    uint32_t lenOutline = aReader.Read<uint32_t>();
+
+    for(uint32_t i = 0; i < lenOutline; i++)
+    {
+        int32_t x = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( aReader.Read<double>() );
+        int32_t y = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( -aReader.Read<double>() );
+        modelOutline.emplace_back( VECTOR2I( x, y ) );
+    }
+
+    /*
+    std::cout << "pos: " << modelPosition.x << " / " << modelPosition.y << " / " << modelPosition.z << std::endl;
+    std::cout << "rot: " << modelRotation.x << " / " << modelRotation.y << " / " << modelRotation.z << std::endl;
+    std::cout << "rot2D: " << rotation << std::endl;
+    std::cout << "projection:" << body_projection << std::endl;
+    std::cout << std::endl;
+    */
 
     aReader.SkipSubrecord();
 

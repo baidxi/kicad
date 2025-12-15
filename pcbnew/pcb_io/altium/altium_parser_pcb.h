@@ -218,6 +218,14 @@ enum class ALTIUM_BARCODE_TYPE
     CODE128 = 1
 };
 
+enum class ALTIUM_MODEL_TYPE
+{
+    EXTRUDED = 0,
+    GENERIC  = 1,
+    CYLINDER = 2,
+    SPHERE   = 3
+};
+
 struct ALTIUM_VERTICE
 {
     const bool    isRound;
@@ -738,13 +746,23 @@ struct ACOMPONENTBODY6
     wxString             modelChecksum;
     bool                 modelIsEmbedded = false;
     wxString             modelName;
-    int                  modelType       = 0;
+    ALTIUM_MODEL_TYPE    modelType       = ALTIUM_MODEL_TYPE::GENERIC;
     int                  modelSource     = 0;
     int                  modelSnapCount  = 0;
+
+    int                  modelExtrudedMinZ = 0;
+    int                  modelExtrudedMaxZ = 0;
+
+    int                  modelCylinderRadius = 0;
+    int                  modelCylinderHeight = 0;
+
+    int                  modelSphereRadius = 0;
 
     VECTOR3D             modelPosition;
     VECTOR3D             modelRotation;
     double               rotation = 0.0;
+
+    std::vector<VECTOR2I>	modelOutline;
 
     explicit ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader );
 };
