@@ -62,6 +62,7 @@
 #include <progress_reporter.h>
 #include <magic_enum.hpp>
 #include <thread_pool.h>
+#include <mmh3_hash.h>
 
 #include <gp_Pnt.hxx>
 #include <gp_Pln.hxx>
@@ -1798,7 +1799,9 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
              *  So we have to work around by writing to a temporary file and reading it back again
              *  opencascade does however support stream writing from version 7.7.0
              */
-            wxString stepFilename = aElem.modelId + wxString( ".step" );
+            MMH3_HASH hash;
+            hash.addData((const uint8_t*) &aElem, sizeof(aElem));
+            wxString stepFilename = hash.digest().ToString() + wxString(".step");
             IFSelect_ReturnStatus aStat = writer.Write( stepFilename );
 
             if ( aStat != IFSelect_RetDone )
@@ -1818,7 +1821,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
             // for extruded models the only available name is the ID
             // the model does not load if the name does not end with ".step"
-            file->name = aElem.modelId + wxString( ".step" );
+            file->name = stepFilename;
 
             file->decompressedData = std::move( stepData );
 
