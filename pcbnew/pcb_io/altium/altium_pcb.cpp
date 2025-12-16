@@ -1628,7 +1628,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 polygon.Add(gp_Pnt(
                     pcbIUScale.IUTomm(aElem.modelOutline[i].x),
                     pcbIUScale.IUTomm(aElem.modelOutline[i].y),
-                    pcbIUScale.IUTomm(aElem.modelExtrudedMinZ)));
+                    pcbIUScale.IUTomm(aElem.body_projection == 1 ? -aElem.modelExtrudedMinZ : aElem.modelExtrudedMinZ)));
 
                 if(i > 0 && !polygon.Added())
                 {
@@ -1675,7 +1675,8 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
             }
 
             // extrude to a solid
-            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, pcbIUScale.IUTomm(extrudeHeight)));
+            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0,
+                            pcbIUScale.IUTomm(aElem.body_projection == 1 ? -extrudeHeight : extrudeHeight)));
 
             if(!prism.IsDone())
             {
@@ -1898,35 +1899,39 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
     modelSettings.m_Filename = aFootprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
 
-    modelSettings.m_Offset.x = pcbIUScale.IUTomm( (int) aElem.modelPosition.x );
-    modelSettings.m_Offset.y = -pcbIUScale.IUTomm( (int) aElem.modelPosition.y );
-    modelSettings.m_Offset.z = pcbIUScale.IUTomm( (int) aElem.modelPosition.z );
-
-    EDA_ANGLE orientation = aFootprint->GetOrientation();
-
-    if( aFootprint->IsFlipped() )
+    if( aElem.modelType != ALTIUM_MODEL_TYPE::EXTRUDED )    // for extruded models, offset and rotation are ignored
     {
-        modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
-        orientation              = -orientation;
+        modelSettings.m_Offset.x = pcbIUScale.IUTomm( (int) aElem.modelPosition.x );
+        modelSettings.m_Offset.y = -pcbIUScale.IUTomm( (int) aElem.modelPosition.y );
+        modelSettings.m_Offset.z = pcbIUScale.IUTomm( (int) aElem.modelPosition.z );
+
+        EDA_ANGLE orientation = aFootprint->GetOrientation();
+
+        if( aFootprint->IsFlipped() )
+        {
+            modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
+            orientation              = -orientation;
+        }
+
+        VECTOR3D modelRotation( aElem.modelRotation );
+
+        if( ( aElem.body_projection == 1 ) != aFootprint->IsFlipped() )
+        {
+            modelRotation.x += 180;
+            modelRotation.z = -modelRotation.z;
+
+            modelSettings.m_Offset.z = -DEFAULT_BOARD_THICKNESS_MM - modelSettings.m_Offset.z;
+        }
+
+        RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
+
+        modelSettings.m_Rotation.x = normalizeAngleDegrees( -modelRotation.x, -180, 180 );
+        modelSettings.m_Rotation.y = normalizeAngleDegrees( -modelRotation.y, -180, 180 );
+        modelSettings.m_Rotation.z = normalizeAngleDegrees( -modelRotation.z + aElem.rotation
+                                                                             + orientation.AsDegrees(),
+                                                                               -180, 180 );
     }
 
-    VECTOR3D modelRotation( aElem.modelRotation );
-
-    if( ( aElem.body_projection == 1 ) != aFootprint->IsFlipped() )
-    {
-        modelRotation.x += 180;
-        modelRotation.z = -modelRotation.z;
-
-        modelSettings.m_Offset.z = -DEFAULT_BOARD_THICKNESS_MM - modelSettings.m_Offset.z;
-    }
-
-    RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
-
-    modelSettings.m_Rotation.x = normalizeAngleDegrees( -modelRotation.x, -180, 180 );
-    modelSettings.m_Rotation.y = normalizeAngleDegrees( -modelRotation.y, -180, 180 );
-    modelSettings.m_Rotation.z = normalizeAngleDegrees( -modelRotation.z + aElem.rotation
-                                                                         + orientation.AsDegrees(),
-                                                                           -180, 180 );
     modelSettings.m_Opacity = aElem.body_opacity_3d;
 
     aFootprint->Models().push_back( modelSettings );
