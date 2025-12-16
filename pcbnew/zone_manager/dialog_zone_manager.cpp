@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <wx/dataview.h>
@@ -54,7 +55,8 @@ DIALOG_ZONE_MANAGER::DIALOG_ZONE_MANAGER( PCB_BASE_FRAME* aParent ) :
         m_zoneSettingsBag( aParent->GetBoard() ),
         m_priorityDragIndex( {} ),
         m_isFillingZones( false ),
-        m_zoneFillComplete( false )
+        m_zoneFillComplete( false ),
+        m_zonesToDelete()
 {
 #ifdef __APPLE__
     m_sizerZoneOP->InsertSpacer( m_sizerZoneOP->GetItemCount(), 5 );
@@ -64,6 +66,7 @@ DIALOG_ZONE_MANAGER::DIALOG_ZONE_MANAGER( PCB_BASE_FRAME* aParent ) :
     m_btnMoveUp->SetBitmap( KiBitmapBundle( BITMAPS::small_up ) );
     m_btnMoveDown->SetBitmap( KiBitmapBundle( BITMAPS::small_down ) );
     m_btnMoveBottom->SetBitmap( KiBitmapBundle( BITMAPS::small_bottom ) );
+    m_btnDelete->SetBitmap( KiBitmapBundle( BITMAPS::small_trash ) );
     m_btnAutoAssign->SetBitmap( KiBitmapBundle( BITMAPS::small_sort_desc ) );
 
     m_panelZoneProperties = new PANEL_ZONE_PROPERTIES( m_zonePanel, aParent, m_zoneSettingsBag );
@@ -290,6 +293,7 @@ void DIALOG_ZONE_MANAGER::OnOk( wxCommandEvent& aEvt )
 
     m_zoneSettingsBag.UpdateClonedZones();
 
+    // Apply zone settings changes
     for( const auto& [ zone, zoneClone ] : m_zoneSettingsBag.GetZonesCloneMap() )
     {
         std::map<PCB_LAYER_ID, std::shared_ptr<SHAPE_POLY_SET>> filled_zone_to_restore;
@@ -308,6 +312,17 @@ void DIALOG_ZONE_MANAGER::OnOk( wxCommandEvent& aEvt )
 
         for( const auto& [ layer, fill ] : filled_zone_to_restore )
             zone->SetFilledPolysList( layer, *fill );
+    }
+
+    // Delete zones that were marked for deletion
+    if( !m_zonesToDelete.empty() )
+    {
+        BOARD_COMMIT commit( m_pcbFrame );
+        for( ZONE* zone : m_zonesToDelete )
+        {
+            commit.Remove( zone );
+        }
+        commit.Push( _( "Delete Zones" ) );
     }
 
     aEvt.Skip();
@@ -390,6 +405,77 @@ void DIALOG_ZONE_MANAGER::OnMoveDownClick( wxCommandEvent& aEvent )
 void DIALOG_ZONE_MANAGER::OnMoveBottomClick( wxCommandEvent& aEvent )
 {
     MoveSelectedZonePriority( ZONE_INDEX_MOVEMENT::MOVE_TO_BOTTOM );
+}
+
+
+void DIALOG_ZONE_MANAGER::OnDeleteClick( wxCommandEvent& aEvent )
+{
+    if( !m_viewZonesOverview->HasSelection() )
+        return;
+
+    const wxDataViewItem selectedItem = m_viewZonesOverview->GetSelection();
+
+    if( !selectedItem.IsOk() )
+        return;
+
+    ZONE* selectedZone = m_modelZonesOverview->GetZone( selectedItem );
+
+    if( !selectedZone )
+        return;
+
+    // Find the original zone from the clone
+    ZONE* originalZone = nullptr;
+    for( const auto& [orig, clone] : m_zoneSettingsBag.GetZonesCloneMap() )
+    {
+        if( clone.get() == selectedZone )
+        {
+            originalZone = orig;
+            break;
+        }
+    }
+
+    if( !originalZone )
+        return;
+
+    // Check if already marked for deletion
+    if( std::find( m_zonesToDelete.begin(), m_zonesToDelete.end(), originalZone ) != m_zonesToDelete.end() )
+        return;
+
+    // Confirm deletion
+    wxString msg = wxString::Format( _( "Delete zone '%s'?" ), originalZone->GetZoneName() );
+    if( !IsOK( this, msg ) )
+        return;
+
+    // Mark zone for deletion (will be deleted on OK)
+    m_zonesToDelete.push_back( originalZone );
+
+    // Remove the zone from the zone settings bag (removes from all maps and lists)
+    m_zoneSettingsBag.RemoveZone( originalZone );
+
+    // Save current filter state
+    wxString currentFilter = m_filterCtrl->GetValue();
+
+    // Recreate the model with the updated zone list
+    m_modelZonesOverview = new MODEL_ZONES_OVERVIEW( this, m_pcbFrame, m_zoneSettingsBag );
+    m_viewZonesOverview->AssociateModel( m_modelZonesOverview.get() );
+
+    // Reapply filter if one was active
+    if( !currentFilter.IsEmpty() )
+    {
+        m_modelZonesOverview->ApplyFilter( currentFilter, wxDataViewItem() );
+    }
+
+    // Select the first zone if available, otherwise clear selection
+    if( m_modelZonesOverview->GetCount() > 0 )
+    {
+        wxDataViewItem firstItem = m_modelZonesOverview->GetItem( 0 );
+        PostProcessZoneViewSelChange( firstItem );
+    }
+    else
+    {
+        m_zonePreviewNotebook->OnZoneSelectionChanged( nullptr );
+        m_panelZoneProperties->SetZone( nullptr );
+    }
 }
 
 
