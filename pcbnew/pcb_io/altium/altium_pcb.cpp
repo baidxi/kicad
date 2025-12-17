@@ -81,6 +81,9 @@
 #include <Message.hxx>
 
 
+static std::mutex mutex_step_writer;
+
+
 constexpr double BOLD_FACTOR = 1.75;    // CSS font-weight-normal is 400; bold is 700
 
 
@@ -1782,7 +1785,12 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 Quantity_TOC_RGB );
             colorTool->SetColor( solidLabel, color, XCAFDoc_ColorSurf );
 
-            // export the document to a STEP file
+            /*
+             *  STEPCAFControl_Writer keeps crashing when running with multiple threads
+             *  so we have to put a mutex here
+             */
+            std::lock_guard<std::mutex> lock( mutex_step_writer );
+
             STEPCAFControl_Writer writer;
 
             if ( !writer.Transfer( doc ) )
