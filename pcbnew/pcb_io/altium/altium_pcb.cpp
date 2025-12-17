@@ -1631,7 +1631,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
             {
                 polygon.Add(gp_Pnt(
                     pcbIUScale.IUTomm(aElem.modelOutline[i].x),
-                    pcbIUScale.IUTomm(aElem.modelOutline[i].y),
+                    pcbIUScale.IUTomm(-aElem.modelOutline[i].y),	// y axis is flipped in Altium vs KiCad
                     pcbIUScale.IUTomm(aElem.body_projection == 1 ? -aElem.modelExtrudedMinZ : aElem.modelExtrudedMinZ)));
 
                 if(i > 0 && !polygon.Added())
