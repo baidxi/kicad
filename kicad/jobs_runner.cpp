@@ -26,6 +26,7 @@
 #include <jobs/job_special_archive.h>
 #include <jobs/job_special_copyfiles.h>
 #include <jobs/job_special_execute.h>
+#include <jobs/job_special_git_check.h>
 #include <kiway.h>
 #include <kiway_mail.h>
 #include <project/project_archiver.h>
@@ -38,6 +39,16 @@
 #include <wx/mstream.h>
 #include <wx/tokenzr.h>
 #include <gestfich.h>
+#include <git/project_git_utils.h>
+#include <git/kicad_git_common.h>
+#include <git/git_status_handler.h>
+#include <git/git_config_handler.h>
+#include <git/git_commit_handler.h>
+#include <git/git_push_handler.h>
+#include <dialogs/git/dialog_git_commit.h>
+#include <wx/app.h>
+#include <wildcards_and_files_ext.h>
+#include <project/project_local_settings.h>
 
 JOBS_RUNNER::JOBS_RUNNER( KIWAY* aKiway, JOBSET* aJobsFile, PROJECT* aProject,
                           REPORTER& aReporter, JOBS_PROGRESS_REPORTER* aProgressReporter ) :
@@ -188,6 +199,201 @@ int JOBS_RUNNER::runSpecialArchive( const JOBSET_JOB* aJob, REPORTER* aReporter,
 }
 
 
+int JOBS_RUNNER::runSpecialGitCheck( const JOBSET_JOB* aJob, REPORTER* aReporter, PROJECT* aProject )
+{
+    JOB_SPECIAL_GIT_CHECK* gitCheckJob = static_cast<JOB_SPECIAL_GIT_CHECK*>( aJob->m_job.get() );
+
+    // Get the project file path
+    wxString projectPath = aProject->GetProjectPath();
+    if( projectPath.IsEmpty() )
+    {
+        aReporter->Report( _( "Project path is empty. Cannot check Git status." ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    // Get Git repository for the project
+    git_repository* repo = KIGIT::PROJECT_GIT_UTILS::GetRepositoryForFile( projectPath.c_str() );
+
+    if( repo == nullptr )
+    {
+        aReporter->Report( _( "The project is not a Git repository." ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    KIGIT_COMMON gitCommon( repo );
+
+    // Load Git configuration from project settings
+    const PROJECT_LOCAL_SETTINGS& localSettings = aProject->GetLocalSettings();
+    if( !localSettings.m_GitRepoUsername.IsEmpty() )
+        gitCommon.SetUsername( localSettings.m_GitRepoUsername );
+    if( !localSettings.m_GitSSHKey.IsEmpty() )
+        gitCommon.SetSSHKey( localSettings.m_GitSSHKey );
+
+    // Update branch info to get remote URL and set connection type
+    // This will also trigger password retrieval from secrets when needed
+    gitCommon.UpdateCurrentBranchInfo();
+
+    GIT_STATUS_HANDLER statusHandler( &gitCommon );
+
+    // Check if we're in GUI mode (needed for dialogs)
+    bool isGUIMode = ( wxTheApp != nullptr && wxTheApp->IsGUI() && wxTheApp->GetTopWindow() != nullptr );
+
+    // Check for uncommitted changes if required
+    if( gitCheckJob->m_requireCommit )
+    {
+        if( statusHandler.HasChangedFiles() )
+        {
+            if( !isGUIMode )
+            {
+                aReporter->Report( _( "Project has uncommitted changes. Commit dialog cannot be shown in CLI mode." ),
+                                   RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            // Get git configuration
+            GIT_CONFIG_HANDLER configHandler( &gitCommon );
+            GitUserConfig userConfig = configHandler.GetUserConfig();
+
+            // Collect modified files in the repository
+            auto fileStatusMap = statusHandler.GetFileStatus();
+            std::map<wxString, int> modifiedFiles;
+            wxString repoWorkDir = statusHandler.GetWorkingDirectory();
+            wxString projectPathFull = aProject->GetProjectPath();
+
+            for( const auto& [absPath, fileStatus] : fileStatusMap )
+            {
+                // Skip current, conflicted, or ignored files
+                if( fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CURRENT
+                    || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CONFLICTED
+                    || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_IGNORED )
+                {
+                    continue;
+                }
+
+                wxFileName fn( absPath );
+
+                // Convert to relative path for the modifiedFiles map
+                wxString relativePath = absPath;
+                if( relativePath.StartsWith( repoWorkDir ) )
+                {
+                    relativePath = relativePath.Mid( repoWorkDir.length() );
+#ifdef _WIN32
+                    relativePath.Replace( wxS( "\\" ), wxS( "/" ) );
+#endif
+                }
+
+                // Do not commit files outside the project directory
+                if( !absPath.StartsWith( projectPathFull ) )
+                    continue;
+
+                // Skip lock files
+                if( fn.GetExt().CmpNoCase( FILEEXT::LockFileExtension ) == 0 )
+                    continue;
+
+                // Skip autosave, lock, and backup files
+                if( fn.GetName().StartsWith( FILEEXT::LockFilePrefix )
+                    || fn.GetName().EndsWith( FILEEXT::BackupFileSuffix ) )
+                {
+                    continue;
+                }
+
+                // Skip archived project backups
+                if( fn.GetPath().Contains( aProject->GetProjectName() + wxT( "-backups" ) ) )
+                    continue;
+
+                modifiedFiles.emplace( relativePath, fileStatus.gitStatus );
+            }
+
+            if( !modifiedFiles.empty() )
+            {
+                // Show commit dialog
+                wxWindow* parent = wxTheApp->GetTopWindow();
+                DIALOG_GIT_COMMIT dlg( parent, repo, userConfig.authorName, userConfig.authorEmail,
+                                       modifiedFiles );
+                auto ret = dlg.ShowModal();
+
+                if( ret != wxID_OK )
+                {
+                    aReporter->Report( _( "Commit dialog was cancelled. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                std::vector<wxString> files = dlg.GetSelectedFiles();
+
+                if( dlg.GetCommitMessage().IsEmpty() )
+                {
+                    aReporter->Report( _( "Commit message is empty. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                if( files.empty() )
+                {
+                    aReporter->Report( _( "No files selected for commit. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                // Perform commit
+                GIT_COMMIT_HANDLER commitHandler( repo );
+                auto result = commitHandler.PerformCommit( files, dlg.GetCommitMessage(),
+                                                          dlg.GetAuthorName(), dlg.GetAuthorEmail() );
+
+                if( result != CommitResult::Success )
+                {
+                    wxString errorMsg = wxString::Format( _( "Failed to create commit: %s" ),
+                                                         commitHandler.GetErrorString() );
+                    aReporter->Report( errorMsg, RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                aReporter->Report( _( "Changes committed successfully." ), RPT_SEVERITY_INFO );
+            }
+        }
+    }
+
+    // Check for unpushed commits if required
+    if( gitCheckJob->m_requirePush )
+    {
+        if( gitCommon.HasLocalCommits() )
+        {
+            if( !isGUIMode )
+            {
+                aReporter->Report( _( "Project has unpushed commits. Push cannot be performed in CLI mode." ),
+                                   RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            // Perform push
+            GIT_PUSH_HANDLER pushHandler( &gitCommon );
+            PushResult pushResult = pushHandler.PerformPush();
+
+            if( pushResult != PushResult::Success )
+            {
+                wxString errorMsg = _( "Failed to push commits" );
+                const auto& errorStrings = pushHandler.GetErrorStrings();
+                if( !errorStrings.empty() )
+                {
+                    errorMsg += wxT( ": " );
+                    for( const auto& err : errorStrings )
+                    {
+                        errorMsg += err + wxT( "; " );
+                    }
+                }
+                aReporter->Report( errorMsg, RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            aReporter->Report( _( "Commits pushed successfully." ), RPT_SEVERITY_INFO );
+        }
+    }
+
+    aReporter->Report( _( "Git check completed successfully." ), RPT_SEVERITY_INFO );
+    return CLI::EXIT_CODES::SUCCESS;
+}
+
+
 bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool aBail )
 {
     bool                    genOutputs = true;
@@ -323,6 +529,10 @@ bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool 
             else if( job.m_job->GetType() == "special_archive" )
             {
                 result = runSpecialArchive( &job, &isolatedReporter, m_project );
+            }
+            else if( job.m_job->GetType() == "special_git_check" )
+            {
+                result = runSpecialGitCheck( &job, &isolatedReporter, m_project );
             }
             else
             {
