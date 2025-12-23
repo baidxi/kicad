@@ -301,7 +301,6 @@ class NETLIST
 {
 public:
     NETLIST() :
-        m_findByTimeStamp( false ),
         m_replaceFootprints( false )
     {
     }
@@ -467,9 +466,6 @@ public:
     void SortByFPID();
     void SortByReference();
 
-    void SetFindByTimeStamp( bool aFindByTimeStamp ) { m_findByTimeStamp = aFindByTimeStamp; }
-    bool IsFindByTimeStamp() const { return m_findByTimeStamp; }
-
     void SetReplaceFootprints( bool aReplace ) { m_replaceFootprints = aReplace; }
     bool GetReplaceFootprints() const { return m_replaceFootprints; }
 
@@ -568,7 +564,6 @@ private:
     std::vector<wxString>            m_variantNames;         // Variant names in order.
     std::map<wxString, wxString>     m_variantDescriptions;  // Variant descriptions.
 
-    bool       m_findByTimeStamp;     // Associate components by KIID (or refdes if false)
     bool       m_replaceFootprints;   // Update footprints to match footprints defined in netlist
 };
 

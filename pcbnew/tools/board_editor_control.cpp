@@ -47,6 +47,7 @@
 #include <confirm.h>
 #include <dialogs/dialog_page_settings.h>
 #include <dialogs/dialog_update_pcb.h>
+#include <dialogs/dialog_relink_footprints.h>
 #include <dialogs/dialog_assign_netclass.h>
 #include <dialog_plot.h>
 #include <dialogs/rule_editor_dialog_base.h>
@@ -855,6 +856,28 @@ int BOARD_EDITOR_CONTROL::UpdatePCBFromSchematic( const TOOL_EVENT& aEvent )
 
     return 0;
 }
+
+
+int BOARD_EDITOR_CONTROL::RelinkFootprints( const TOOL_EVENT& aEvent )
+{
+    if( Kiface().IsSingle() )
+    {
+        DisplayErrorMessage( m_frame, _( "Cannot relink footprints because Pcbnew is opened in "
+                                         "stand-alone mode. In order to relink footprints to "
+                                         "schematic symbols, you must launch the KiCad project "
+                                         "manager and create a project." ) );
+        return 0;
+    }
+
+    PCB_SELECTION_TOOL* selTool = m_toolMgr->GetTool<PCB_SELECTION_TOOL>();
+    const PCB_SELECTION& selection = selTool->GetSelection();
+
+    DIALOG_RELINK_FOOTPRINTS dlg( m_frame, selection );
+    dlg.ShowModal();
+
+    return 0;
+}
+
 
 int BOARD_EDITOR_CONTROL::UpdateSchematicFromPCB( const TOOL_EVENT& aEvent )
 {
@@ -2327,6 +2350,7 @@ void BOARD_EDITOR_CONTROL::setTransitions()
 
     Go( &BOARD_EDITOR_CONTROL::UpdatePCBFromSchematic, ACTIONS::updatePcbFromSchematic.MakeEvent() );
     Go( &BOARD_EDITOR_CONTROL::UpdateSchematicFromPCB, ACTIONS::updateSchematicFromPcb.MakeEvent() );
+    Go( &BOARD_EDITOR_CONTROL::RelinkFootprints,       PCB_ACTIONS::relinkFootprints.MakeEvent() );
     Go( &BOARD_EDITOR_CONTROL::ShowEeschema,           PCB_ACTIONS::showEeschema.MakeEvent() );
     Go( &BOARD_EDITOR_CONTROL::ToggleLayersManager,    PCB_ACTIONS::showLayersManager.MakeEvent() );
     Go( &BOARD_EDITOR_CONTROL::ToggleProperties,       ACTIONS::showProperties.MakeEvent() );

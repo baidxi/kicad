@@ -27,7 +27,6 @@ class WX_HTML_REPORT_PANEL;
 #include <wx/icon.h>
 #include <wx/button.h>
 #include <wx/sizer.h>
-#include <wx/radiobox.h>
 #include <wx/checkbox.h>
 #include <wx/statbox.h>
 #include <wx/panel.h>
@@ -45,7 +44,6 @@ class DIALOG_IMPORT_NETLIST_BASE : public DIALOG_SHIM
 	protected:
 		wxTextCtrl* m_NetlistFilenameCtrl;
 		STD_BITMAP_BUTTON* m_browseButton;
-		wxRadioBox* m_matchByTimestamp;
 		wxCheckBox* m_cbDeleteExtraFootprints;
 		wxCheckBox* m_cbUpdateFootprints;
 		wxCheckBox* m_cbTransferGroups;
@@ -61,7 +59,6 @@ class DIALOG_IMPORT_NETLIST_BASE : public DIALOG_SHIM
 		// Virtual event handlers, override them in your derived class
 		virtual void OnFilenameKillFocus( wxFocusEvent& event ) { event.Skip(); }
 		virtual void onBrowseNetlistFiles( wxCommandEvent& event ) { event.Skip(); }
-		virtual void OnMatchChanged( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnOptionChanged( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onUpdatePCB( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onImportNetlist( wxCommandEvent& event ) { event.Skip(); }

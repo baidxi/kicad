@@ -864,6 +864,8 @@ bool EDIT_TOOL::Init()
     menu.AddItem( PCB_ACTIONS::changeFootprint,   singleFootprintCondition );
     menu.AddItem( PCB_ACTIONS::changeFootprints,  multipleFootprintsCondition );
     menu.AddMenu( fpAttributesMenu.get(),         singleFootprintCondition || multipleFootprintsCondition );
+    menu.AddItem( PCB_ACTIONS::relinkFootprints,  SELECTION_CONDITIONS::HasType( PCB_FOOTPRINT_T )
+                                                      && !inFootprintEditor );
 
     // Add the submenu for the special tools: modfiers and positioning tools
     menu.AddSeparator( 100 );

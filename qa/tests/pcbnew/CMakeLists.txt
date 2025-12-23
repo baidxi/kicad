@@ -104,6 +104,7 @@ set( QA_PCBNEW_SRCS
     test_d356_export.cpp
     test_step_model_color_transfer.cpp
     test_board_netlist_updater_nested_groups.cpp
+    test_board_netlist_updater_duplicate_reference.cpp
     test_step_export_modified_board.cpp
     test_pdf_output_path.cpp
     test_shape_corner_radius.cpp
@@ -120,6 +121,7 @@ set( QA_PCBNEW_SRCS
     test_pns_tuning_path_through_pad.cpp
     test_variant.cpp
     test_text_variable_resolution.cpp
+    test_netlist_updater.cpp
     test_zone.cpp
     test_zone_filler.cpp
     test_poly_simplify.cpp

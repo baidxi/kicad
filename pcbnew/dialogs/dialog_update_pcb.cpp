@@ -86,7 +86,6 @@ void DIALOG_UPDATE_PCB::PerformUpdate( bool aDryRun )
 
     m_runDragCommand = false;
 
-    m_netlist->SetFindByTimeStamp( !m_cbRelinkFootprints->GetValue() );
     m_netlist->SetReplaceFootprints( m_cbUpdateFootprints->GetValue() );
 
     if( !aDryRun )
@@ -98,7 +97,6 @@ void DIALOG_UPDATE_PCB::PerformUpdate( bool aDryRun )
     BOARD_NETLIST_UPDATER updater( m_frame, m_frame->GetBoard() );
     updater.SetReporter ( &reporter );
     updater.SetIsDryRun( aDryRun );
-    updater.SetLookupByTimestamp( !m_cbRelinkFootprints->GetValue() );
     updater.SetDeleteUnusedFootprints( m_cbDeleteExtraFootprints->GetValue());
     updater.SetReplaceFootprints( m_cbUpdateFootprints->GetValue() );
     updater.SetTransferGroups( m_cbTransferGroups->GetValue() );
