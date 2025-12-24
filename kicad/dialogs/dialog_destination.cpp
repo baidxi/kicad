@@ -23,6 +23,7 @@
 #include <wx/aui/auibook.h>
 #include <jobs/jobset.h>
 #include <jobs/job_registry.h>
+#include <jobs/jobs_output.h>
 #include <wx/checkbox.h>
 #include <wx/menu.h>
 #include <bitmaps.h>
@@ -32,12 +33,14 @@
 
 #include <wx/dirdlg.h>
 #include <wx/filedlg.h>
+#include <wx/msgdlg.h>
 #include <kiplatform/ui.h>
 #include <wildcards_and_files_ext.h>
 #include <widgets/std_bitmap_button.h>
 #include <widgets/wx_grid.h>
 #include <widgets/grid_text_button_helpers.h>
 #include <confirm.h>
+#include <settings/json_settings.h>
 
 
 extern KICOMMON_API
@@ -75,10 +78,24 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
     isFolder = JobsetDestinationTypeInfos[m_destination->m_type].outputPathIsFolder;
     fileWildcard = JobsetDestinationTypeInfos[m_destination->m_type].fileWildcard;
 
+    // Resolve relative paths to absolute for the dialog
+    wxString currentPath = m_textCtrlOutputPath->GetValue();
+    if( !currentPath.IsEmpty() )
+    {
+        wxFileName fn( currentPath );
+        if( !fn.IsAbsolute() )
+        {
+            currentPath = JOBS_OUTPUT_HANDLER::ResolveOutputPath( currentPath,
+                                                                 m_jobsFile->GetFullFilename() );
+        }
+    }
+
+    wxString selectedPath;
+
     if( isFolder )
     {
         wxFileName fn;
-        fn.AssignDir( m_textCtrlOutputPath->GetValue() );
+        fn.AssignDir( currentPath );
         fn.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS );
         wxString currPath = fn.GetFullPath();
 
@@ -88,13 +105,11 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
         if( dirDialog.ShowModal() != wxID_OK )
             return;
 
-        wxFileName dirName = wxFileName::DirName( dirDialog.GetPath() );
-
-        m_textCtrlOutputPath->SetValue( dirName.GetFullPath() );
+        selectedPath = dirDialog.GetPath();
     }
     else
     {
-        wxFileName fname( m_textCtrlOutputPath->GetValue() );
+        wxFileName fname( currentPath );
 
         wxFileDialog dlg( this, _( "Select output path" ), fname.GetPath(), fname.GetFullName(),
                           fileWildcard,
@@ -105,21 +120,54 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
         if( dlg.ShowModal() != wxID_OK )
             return;
 
-        wxString path = dlg.GetPath();
+        selectedPath = dlg.GetPath();
 
         if( m_destination->m_type == JOBSET_DESTINATION_T::ARCHIVE )
         {
-            wxFileName fn( path );
+            wxFileName fn( selectedPath );
 
             if( fn.GetExt().IsEmpty() )
                 fn.SetExt( FILEEXT::ArchiveFileExtension );
 
-            path = fn.GetFullPath();
+            selectedPath = fn.GetFullPath();
         }
-
-        m_textCtrlOutputPath->SetValue( path );
     }
 
+    // Ask user if they want to make the path relative
+    wxFileName selectedFn( selectedPath );
+    if( selectedFn.IsAbsolute() )
+    {
+        wxFileName jobsetFn( m_jobsFile->GetFullFilename() );
+        wxString jobsetDir = jobsetFn.GetPath();
+
+        if( !jobsetDir.IsEmpty() )
+        {
+            wxFileName relativeFn( selectedPath );
+            if( relativeFn.MakeRelativeTo( jobsetDir ) )
+            {
+                int result = wxMessageBox(
+                    _( "Do you want to make this path relative to the jobset file?\n\n"
+                       "This allows the jobset to work when moved or shared with others.\n\n"
+                       "Absolute path: " ) + selectedPath + wxT( "\n" ) +
+                    _( "Relative path: " ) + relativeFn.GetFullPath(),
+                    _( "Make Path Relative?" ),
+                    wxYES_NO | wxCANCEL | wxICON_QUESTION,
+                    this );
+
+                if( result == wxYES )
+                {
+                    selectedPath = relativeFn.GetFullPath();
+                }
+                else if( result == wxCANCEL )
+                {
+                    return; // User cancelled, don't update the path
+                }
+                // If NO, keep the absolute path
+            }
+        }
+    }
+
+    m_textCtrlOutputPath->SetValue( selectedPath );
 }
 
 bool DIALOG_DESTINATION::TransferDataFromWindow()

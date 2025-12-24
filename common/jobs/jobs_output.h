@@ -47,7 +47,8 @@ public:
                                 PROJECT*                       aProject,
                                 const std::vector<wxString>&   aPathsWithOverwriteDisallowed,
                                 const std::vector<JOB_OUTPUT>& aOutputsToHandle,
-                                std::optional<wxString>&       aResolvedOutputPath ) = 0;
+                                std::optional<wxString>&       aResolvedOutputPath,
+                                const wxString&                aJobsetFilePath = wxEmptyString ) = 0;
 
     virtual void FromJson( const nlohmann::json& j ) = 0;
     virtual void ToJson( nlohmann::json& j ) const = 0;
@@ -55,6 +56,8 @@ public:
 
     void SetOutputPath( const wxString& aPath ) { m_outputPath = aPath; }
     wxString GetOutputPath() const { return m_outputPath; }
+
+    static wxString ResolveOutputPath( const wxString& aPath, const wxString& aJobsetFilePath );
 
     virtual wxString GetDefaultDescription() const { return wxEmptyString; }
 

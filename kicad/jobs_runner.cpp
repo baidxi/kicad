@@ -317,7 +317,8 @@ bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool 
     if( genOutputs )
     {
         success &= aDestination->m_outputHandler->HandleOutputs( tempDirPath, m_project, pathsWithOverwriteDisallowed,
-                                                                 outputs, aDestination->m_lastResolvedOutputPath );
+                                                                 outputs, aDestination->m_lastResolvedOutputPath,
+                                                                 m_jobsFile->GetFullFilename() );
     }
 
     aDestination->m_lastRunSuccess = success;

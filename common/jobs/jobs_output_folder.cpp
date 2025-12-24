@@ -34,7 +34,8 @@ bool JOBS_OUTPUT_FOLDER::HandleOutputs( const wxString&                baseTempP
                                         PROJECT*                       aProject,
                                         const std::vector<wxString>&   aPathsWithOverwriteDisallowed,
                                         const std::vector<JOB_OUTPUT>& aOutputsToHandle,
-                                        std::optional<wxString>&       aResolvedOutputPath )
+                                        std::optional<wxString>&       aResolvedOutputPath,
+                                        const wxString&                aJobsetFilePath )
 {
     aResolvedOutputPath.reset();
 
@@ -45,6 +46,10 @@ bool JOBS_OUTPUT_FOLDER::HandleOutputs( const wxString&                baseTempP
 
     if( outputPath.StartsWith( "~" ) )
         outputPath.Replace( "~", wxGetHomeDir(), false );
+
+    // Resolve relative paths relative to jobset file directory
+    if( !aJobsetFilePath.IsEmpty() )
+        outputPath = ResolveOutputPath( outputPath, aJobsetFilePath );
 
     if( !wxFileName::DirExists( outputPath ) )
     {
