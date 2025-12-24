@@ -216,6 +216,7 @@ static std::shared_ptr<CONDITIONAL_MENU> makePositioningToolsMenu( TOOL_INTERACT
     menu->AddItem( PCB_ACTIONS::moveIndividually, SELECTION_CONDITIONS::MoreThan( 1 ) && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::positionRelative, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::interactiveOffsetTool, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
+    menu->AddItem( PCB_ACTIONS::alignToGrid, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     return menu;
 };
 
@@ -2696,8 +2697,8 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     updateModificationPoint( selection );
     VECTOR2I mirrorPoint = selection.GetReferencePoint();
 
-    FLIP_DIRECTION flipDirection = aEvent.IsAction( &PCB_ACTIONS::mirrorV ) ? FLIP_DIRECTION::TOP_BOTTOM
-                                                                            : FLIP_DIRECTION::LEFT_RIGHT;
+    FLIP_DIRECTION flipDirection =
+            aEvent.IsAction( &PCB_ACTIONS::mirrorV ) ? FLIP_DIRECTION::TOP_BOTTOM : FLIP_DIRECTION::LEFT_RIGHT;
 
     for( EDA_ITEM* item : selection )
     {
@@ -2709,48 +2710,30 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
         // modify each object as necessary
         switch( item->Type() )
         {
-        case PCB_SHAPE_T:
-            static_cast<PCB_SHAPE*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_SHAPE_T: static_cast<PCB_SHAPE*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
-        case PCB_ZONE_T:
-            static_cast<ZONE*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_ZONE_T: static_cast<ZONE*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
         case PCB_FIELD_T:
-        case PCB_TEXT_T:
-            static_cast<PCB_TEXT*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_TEXT_T: static_cast<PCB_TEXT*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
-        case PCB_TEXTBOX_T:
-            static_cast<PCB_TEXTBOX*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_TEXTBOX_T: static_cast<PCB_TEXTBOX*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
         case PCB_TABLE_T:
             // JEY TODO: tables
             break;
 
-        case PCB_PAD_T:
-            mirrorPad( *static_cast<PAD*>( item ), mirrorPoint, flipDirection );
-            break;
+        case PCB_PAD_T: mirrorPad( *static_cast<PAD*>( item ), mirrorPoint, flipDirection ); break;
 
         case PCB_TRACE_T:
         case PCB_ARC_T:
-        case PCB_VIA_T:
-            static_cast<PCB_TRACK*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_VIA_T: static_cast<PCB_TRACK*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
-        case PCB_GROUP_T:
-            static_cast<PCB_GROUP*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_GROUP_T: static_cast<PCB_GROUP*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
-        case PCB_GENERATOR_T:
-            static_cast<PCB_GENERATOR*>( item )->Mirror( mirrorPoint, flipDirection );
-            break;
+        case PCB_GENERATOR_T: static_cast<PCB_GENERATOR*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
-        case PCB_POINT_T:
-
-            static_cast<PCB_POINT*>( item )->Mirror( mirrorPoint, flipDirection ); break;
+        case PCB_POINT_T: static_cast<PCB_POINT*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
         default:
             // it's likely the commit object is wrong if you get here
@@ -3290,6 +3273,66 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
             m_toolMgr->PostAction( PCB_ACTIONS::refreshPreview );
         }
     }
+
+    return 0;
+}
+
+
+int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
+{
+    if( isRouterActive() )
+    {
+        wxBell();
+        return 0;
+    }
+
+    // TODO: Validate these are the selection parameters we want.
+    const PCB_SELECTION& selection = m_selectionTool->RequestSelection(
+            []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool )
+            {
+                sTool->FilterCollectorForMarkers( aCollector );
+                sTool->FilterCollectorForHierarchy( aCollector, true );
+                sTool->FilterCollectorForFreePads( aCollector, false );
+                sTool->FilterCollectorForTableCells( aCollector );
+                sTool->FilterCollectorForLockedItems( aCollector );
+
+                static const std::vector<KICAD_T> primitiveTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_SHAPE_T };
+
+                for( int i = aCollector.GetCount() - 1; i >= 0; --i )
+                {
+                    if( aCollector[i]->IsType( primitiveTypes ) )
+                    {
+                        aCollector.Remove( i );
+                    }
+                }
+            } );
+
+    if( selection.Empty() )
+        return 0;
+
+    BOARD_COMMIT commit( this );
+
+    for( EDA_ITEM* item : selection )
+    {
+        if( !item->IsBOARD_ITEM() )
+            continue;
+
+        BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
+
+        // Retrive grid settings..
+        PCB_GRID_HELPER grid( m_toolMgr, frame()->GetMagneticItemsSettings() );
+        VECTOR2I        pos = boardItem->GetPosition();
+        VECTOR2I        aligned_pos = grid.AlignGrid( pos );
+
+        // I have no clue what this does.
+        commit.Modify( boardItem, nullptr, RECURSE_MODE::RECURSE );
+
+        if( !boardItem->GetParent() || !boardItem->GetParent()->IsSelected() )
+            boardItem->SetPosition( aligned_pos );
+    }
+
+    commit.Push( _( "Align to Grid" ) );
+    m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
 
     return 0;
 }
@@ -3937,6 +3980,7 @@ void EDIT_TOOL::setTransitions()
     Go( &EDIT_TOOL::Remove,                PCB_ACTIONS::deleteFull.MakeEvent() );
     Go( &EDIT_TOOL::Properties,            PCB_ACTIONS::properties.MakeEvent() );
     Go( &EDIT_TOOL::MoveExact,             PCB_ACTIONS::moveExact.MakeEvent() );
+    Go( &EDIT_TOOL::AlignToGrid,            PCB_ACTIONS::alignToGrid.MakeEvent() ); 
     Go( &EDIT_TOOL::Move,                  PCB_ACTIONS::moveWithReference.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             ACTIONS::duplicate.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             PCB_ACTIONS::duplicateIncrement.MakeEvent() );

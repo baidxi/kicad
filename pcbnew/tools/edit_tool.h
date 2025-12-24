@@ -180,6 +180,11 @@ public:
     int MoveExact( const TOOL_EVENT& aEvent );
 
     /**
+     * Align footprint anchors to grid. 
+     */
+    int AlignToGrid( const TOOL_EVENT& aEvent );
+
+    /**
      * Increment some aspect of the selected items.q
      */
     int Increment( const TOOL_EVENT& aEvent );

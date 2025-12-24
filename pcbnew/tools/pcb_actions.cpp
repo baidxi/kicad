@@ -638,6 +638,14 @@ TOOL_ACTION PCB_ACTIONS::moveExact( TOOL_ACTION_ARGS()
         .Tooltip( _( "Moves the selected item(s) by an exact amount" ) )
         .Icon( BITMAPS::move_exactly ) );
 
+TOOL_ACTION PCB_ACTIONS::alignToGrid( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.alignToGrid" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey(MD_SHIFT + 'G')
+        .FriendlyName( _( "Align to Grid..." ) )
+        .Tooltip( _( "Align anchor(s) to grid" ) )
+        .Icon( BITMAPS::align_elements_to_grid ) );
+
 TOOL_ACTION PCB_ACTIONS::pointEditorMoveCorner( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.moveCorner" )
         .Scope( AS_GLOBAL )

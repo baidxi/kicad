@@ -176,6 +176,9 @@ public:
     /// Activation of the exact move tool
     static TOOL_ACTION moveExact;
 
+    // Activation of the align to grid tool 
+    static TOOL_ACTION alignToGrid; 
+
     /// Activation of the duplication tool with incrementing (e.g. pad number)
     static TOOL_ACTION duplicateIncrement;
 
