@@ -44,7 +44,7 @@
 // specialized, but we don't translate on initialization and instead do it in the getters.
 
 #undef _
-#define _(s) s
+#define _( s ) s
 
 // clang-format off
 

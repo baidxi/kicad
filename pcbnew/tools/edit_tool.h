@@ -42,7 +42,7 @@ class STATUS_TEXT_POPUP;
 
 namespace KIGFX::PREVIEW
 {
-    class RULER_ITEM;
+class RULER_ITEM;
 }
 
 
@@ -192,14 +192,12 @@ public:
     /**
      * A selection filter which prunes the selection to contain only items of type #PCB_MODULE_T.
      */
-    static void FootprintFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector,
-                                 PCB_SELECTION_TOOL* sTool );
+    static void FootprintFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool );
 
     /**
      * A selection filter which prunes the selection to contain only items of type #PCB_PAD_T.
      */
-    static void PadFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector,
-                           PCB_SELECTION_TOOL* sTool );
+    static void PadFilter( const VECTOR2I&, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool );
 
 private:
     ///< Set up handlers for various events.
@@ -231,8 +229,7 @@ private:
     bool invokeInlineRouter( int aDragMode );
     bool isRouterActive() const;
 
-    VECTOR2I getSafeMovement( const VECTOR2I& aMovement, const BOX2I& aSourceBBox,
-                              const VECTOR2D& aBBoxOffset );
+    VECTOR2I getSafeMovement( const VECTOR2I& aMovement, const BOX2I& aSourceBBox, const VECTOR2D& aBBoxOffset );
 
     bool pickReferencePoint( const wxString& aTooltip, const wxString& aSuccessMessage,
                              const wxString& aCanceledMessage, VECTOR2I& aReferencePoint );
@@ -243,10 +240,10 @@ private:
     void rebuildConnectivity();
 
 private:
-    PCB_SELECTION_TOOL*   m_selectionTool;
-    bool                  m_dragging;         // Indicates objects are currently being dragged
-    VECTOR2I              m_cursor;           // Last cursor position (so getModificationPoint()
-                                              // can avoid changes of edit reference point).
+    PCB_SELECTION_TOOL* m_selectionTool;
+    bool                m_dragging; // Indicates objects are currently being dragged
+    VECTOR2I            m_cursor;   // Last cursor position (so getModificationPoint()
+                                    // can avoid changes of edit reference point).
     std::unique_ptr<STATUS_TEXT_POPUP> m_statusPopup;
 
     static const unsigned int COORDS_PADDING; // Padding from coordinates limits for this tool
