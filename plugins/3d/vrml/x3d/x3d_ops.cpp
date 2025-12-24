@@ -57,15 +57,7 @@ bool X3D::ReadTransform( wxXmlNode* aNode, X3DNODE* aParent, X3D_DICT& aDict )
         }
     }
 
-    X3DNODE* node = new X3DTRANSFORM;
-
-    if( !node->Read( aNode, aParent, aDict ) )
-    {
-        delete node;
-        return false;
-    }
-
-    return true;
+    return !X3DTRANSFORM{}.Read( aNode, aParent, aDict );
 }
 
 
@@ -101,16 +93,8 @@ bool X3D::ReadShape( wxXmlNode* aNode, X3DNODE* aParent, X3D_DICT& aDict )
             return true;
         }
     }
-
-    X3DNODE* node = new X3DSHAPE;
-
-    if( !node->Read( aNode, aParent, aDict ) )
-    {
-        delete node;
-        return false;
-    }
-
-    return true;
+    
+    return !X3DSHAPE{}.Read( aNode, aParent, aDict );
 }
 
 
@@ -140,15 +124,7 @@ bool X3D::ReadAppearance( wxXmlNode* aNode, X3DNODE* aParent, X3D_DICT& aDict )
         }
     }
 
-    X3DNODE* node = new X3DAPP;
-
-    if( !node->Read( aNode, aParent, aDict ) )
-    {
-        delete node;
-        return false;
-    }
-
-    return true;
+    return !X3DAPP{}.Read( aNode, aParent, aDict );
 }
 
 
@@ -178,15 +154,7 @@ bool X3D::ReadIndexedFaceSet( wxXmlNode* aNode, X3DNODE* aParent, X3D_DICT& aDic
         }
     }
 
-    X3DNODE* node = new X3DIFACESET;
-
-    if( !node->Read( aNode, aParent, aDict ) )
-    {
-        delete node;
-        return false;
-    }
-
-    return true;
+    return !X3DIFACESET{}.Read( aNode, aParent, aDict );
 }
 
 
@@ -216,15 +184,7 @@ bool X3D::ReadCoordinates( wxXmlNode* aNode, X3DNODE* aParent, X3D_DICT& aDict )
         }
     }
 
-    X3DNODE* node = new X3DCOORDS;
-
-    if( !node->Read( aNode, aParent, aDict ) )
-    {
-        delete node;
-        return false;
-    }
-
-    return true;
+    return !X3DCOORDS{}.Read( aNode, aParent, aDict );
 }
 
 
