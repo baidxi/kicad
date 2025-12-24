@@ -3310,7 +3310,9 @@ int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
     if( selection.Empty() )
         return 0;
 
+    PCB_GRID_HELPER grid( m_toolMgr, frame()->GetMagneticItemsSettings() );
     BOARD_COMMIT commit( this );
+    bool modified = false; 
 
     for( EDA_ITEM* item : selection )
     {
@@ -3319,20 +3321,24 @@ int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
 
         BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
 
-        // Retrive grid settings..
-        PCB_GRID_HELPER grid( m_toolMgr, frame()->GetMagneticItemsSettings() );
+        if ( boardItem->GetParent() && boardItem->GetParent()->IsSelected())
+            continue; 
+        
         VECTOR2I        pos = boardItem->GetPosition();
         VECTOR2I        aligned_pos = grid.AlignGrid( pos );
-
-        // I have no clue what this does.
-        commit.Modify( boardItem, nullptr, RECURSE_MODE::RECURSE );
-
-        if( !boardItem->GetParent() || !boardItem->GetParent()->IsSelected() )
+        
+        if( pos != aligned_pos ) {
+            commit.Modify( boardItem, nullptr, RECURSE_MODE::RECURSE );
             boardItem->SetPosition( aligned_pos );
+            modified = true; 
+        }
     }
 
-    commit.Push( _( "Align to Grid" ) );
-    m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+    if (modified)
+    {
+        commit.Push( _( "Align to Grid" ) );
+        m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+    }
 
     return 0;
 }

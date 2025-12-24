@@ -642,7 +642,7 @@ TOOL_ACTION PCB_ACTIONS::alignToGrid( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.alignToGrid" )
         .Scope( AS_GLOBAL )
         .DefaultHotkey(MD_SHIFT + 'G')
-        .FriendlyName( _( "Align to Grid..." ) )
+        .FriendlyName( _( "Align to Grid" ) )
         .Tooltip( _( "Align anchor(s) to grid" ) )
         .Icon( BITMAPS::align_elements_to_grid ) );
 
