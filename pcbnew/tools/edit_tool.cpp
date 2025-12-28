@@ -2697,7 +2697,8 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     updateModificationPoint( selection );
     VECTOR2I mirrorPoint = selection.GetReferencePoint();
 
-    FLIP_DIRECTION flipDirection = aEvent.IsAction( &PCB_ACTIONS::mirrorV ) ? FLIP_DIRECTION::TOP_BOTTOM : FLIP_DIRECTION::LEFT_RIGHT;
+    FLIP_DIRECTION flipDirection = aEvent.IsAction( &PCB_ACTIONS::mirrorV ) ? FLIP_DIRECTION::TOP_BOTTOM
+                                                                            : FLIP_DIRECTION::LEFT_RIGHT;
 
     for( EDA_ITEM* item : selection )
     {
@@ -2713,16 +2714,16 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
             static_cast<PCB_SHAPE*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_ZONE_T: 
+        case PCB_ZONE_T:
             static_cast<ZONE*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
         case PCB_FIELD_T:
-        case PCB_TEXT_T: 
+        case PCB_TEXT_T:
             static_cast<PCB_TEXT*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_TEXTBOX_T: 
+        case PCB_TEXTBOX_T:
             static_cast<PCB_TEXTBOX*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
@@ -2730,25 +2731,25 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
             // JEY TODO: tables
             break;
 
-        case PCB_PAD_T: 
+        case PCB_PAD_T:
             mirrorPad( *static_cast<PAD*>( item ), mirrorPoint, flipDirection );
             break;
 
         case PCB_TRACE_T:
         case PCB_ARC_T:
-        case PCB_VIA_T: 
+        case PCB_VIA_T:
             static_cast<PCB_TRACK*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_GROUP_T: 
+        case PCB_GROUP_T:
             static_cast<PCB_GROUP*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_GENERATOR_T: 
+        case PCB_GENERATOR_T:
             static_cast<PCB_GENERATOR*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_POINT_T: 
+        case PCB_POINT_T:
             static_cast<PCB_POINT*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
@@ -3329,7 +3330,7 @@ int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
 
     PCB_GRID_HELPER grid( m_toolMgr, frame()->GetMagneticItemsSettings() );
     BOARD_COMMIT commit( this );
-    bool modified = false; 
+    bool modified = false;
 
     for( EDA_ITEM* item : selection )
     {
@@ -3339,15 +3340,15 @@ int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
         BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
 
         if ( boardItem->GetParent() && boardItem->GetParent()->IsSelected())
-            continue; 
-        
+            continue;
+
         VECTOR2I        pos = boardItem->GetPosition();
         VECTOR2I        aligned_pos = grid.AlignGrid( pos );
-        
+
         if( pos != aligned_pos ) {
             commit.Modify( boardItem, nullptr, RECURSE_MODE::RECURSE );
             boardItem->SetPosition( aligned_pos );
-            modified = true; 
+            modified = true;
         }
     }
 
@@ -4003,7 +4004,7 @@ void EDIT_TOOL::setTransitions()
     Go( &EDIT_TOOL::Remove,                PCB_ACTIONS::deleteFull.MakeEvent() );
     Go( &EDIT_TOOL::Properties,            PCB_ACTIONS::properties.MakeEvent() );
     Go( &EDIT_TOOL::MoveExact,             PCB_ACTIONS::moveExact.MakeEvent() );
-    Go( &EDIT_TOOL::AlignToGrid,            PCB_ACTIONS::alignToGrid.MakeEvent() ); 
+    Go( &EDIT_TOOL::AlignToGrid,            PCB_ACTIONS::alignToGrid.MakeEvent() );
     Go( &EDIT_TOOL::Move,                  PCB_ACTIONS::moveWithReference.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             ACTIONS::duplicate.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             PCB_ACTIONS::duplicateIncrement.MakeEvent() );
