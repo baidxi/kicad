@@ -1592,12 +1592,14 @@ double normalizeAngleDegrees( double Angle, double aMin, double aMax )
 }
 
 
-void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
-                                                       FOOTPRINT* aFootprint,
-                                                       const ACOMPONENTBODY6& aElem )
+bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file)
 {
-    if( m_progressReporter )
-        m_progressReporter->Report( _( "Loading component 3D models..." ) );
+    
+    MMH3_HASH hash;
+    hash.addData((const uint8_t*) &aElem, sizeof(aElem));
+    wxString stepFilename = hash.digest().ToString() + wxString(".step");
+    std::cout << "converting Altium 3D Body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
+    
 
     // disable opencascade debug output
     Message_Gravity aGravity = Message_Alarm;
@@ -1607,10 +1609,9 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
         aPrinterIter.Value()->SetTraceLevel (aGravity);
     }
 
-    EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
 
+    // for extruded, cylinder or sphere, make 3D shape
     TopoDS_Shape shape;
-
     switch(aElem.modelType)
     {
         case ALTIUM_MODEL_TYPE::EXTRUDED:
@@ -1621,7 +1622,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 {
                     m_reporter->Report( "to few outline points for extruded model" , RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             // create polygon from outline points
@@ -1640,7 +1641,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                     {
                         m_reporter->Report( "outline points are overlapping" , RPT_SEVERITY_ERROR );
                     }
-                    return;
+                    return false;
                 }
             }
             polygon.Close();
@@ -1651,7 +1652,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 {
                     m_reporter->Report( "something went wrong creating the outline polygon" , RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             // create face from polygon / wire
@@ -1663,7 +1664,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 {
                     m_reporter->Report( "something went wrong creating the face" , RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             //printf("extruded min z: %d, extruded max z: %d\n", aElem.modelExtrudedMinZ, aElem.modelExtrudedMaxZ);
@@ -1675,12 +1676,12 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 {
                     m_reporter->Report( "extruded height is invalid" , RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             // extrude to a solid
             auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0,
-                            pcbIUScale.IUTomm(aElem.body_projection == 1 ? -extrudeHeight : extrudeHeight)));
+                                                            pcbIUScale.IUTomm(aElem.body_projection == 1 ? -extrudeHeight : extrudeHeight)));
 
             if(!prism.IsDone())
             {
@@ -1688,7 +1689,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                 {
                     m_reporter->Report( "something went wrong extruding the face" , RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             shape = prism;
@@ -1706,12 +1707,12 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                                                         aElem.modelCylinderRadius, aElem.modelCylinderHeight ),
                                        RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
 
             auto cylinder = BRepPrimAPI_MakeCylinder(
-                            pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
-                            pcbIUScale.IUTomm( aElem.modelCylinderHeight ));
+                pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
+                pcbIUScale.IUTomm( aElem.modelCylinderHeight ));
 
             shape = cylinder;
 
@@ -1728,7 +1729,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
                                                         aElem.modelSphereRadius ),
                                        RPT_SEVERITY_ERROR );
                 }
-                return;
+                return false;
             }
             auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ));
 
@@ -1736,109 +1737,112 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
             break; // case SPHERE
         }
-
     } // switch
 
 
-    // generate or load STEP model
+    // generate STEP model
+
+    // initialize the OCAF Application
+    Handle( XCAFApp_Application ) anApp = XCAFApp_Application::GetApplication();
+    Handle( TDocStd_Document ) doc;
+    anApp->NewDocument( "XCAFDoc", doc );
+
+    if ( doc.IsNull() )
+    {
+        if( m_reporter )
+        {
+            m_reporter->Report( "failed to create OCAF document" , RPT_SEVERITY_ERROR );
+        }
+        return false;
+    }
+
+    // Get the Shape and Color tools from the document's main label
+    Handle( XCAFDoc_ShapeTool ) shapeTool = XCAFDoc_DocumentTool::ShapeTool( doc->Main() );
+    Handle( XCAFDoc_ColorTool ) colorTool = XCAFDoc_DocumentTool::ColorTool( doc->Main() );
+
+    if ( shapeTool.IsNull() || colorTool.IsNull() )
+    {
+        if( m_reporter )
+        {
+            m_reporter->Report( "failed to initialize XCAF tools" , RPT_SEVERITY_ERROR );
+        }
+        return false;
+    }
+
+    // add shape to the document structure and set its color
+    TDF_Label solidLabel = shapeTool->AddShape( shape );
+    Quantity_Color color(
+        (   aElem.body_color_3d         & 0xFF ) / 255.0, // red
+        ( ( aElem.body_color_3d >> 8  ) & 0xFF ) / 255.0, // green
+        ( ( aElem.body_color_3d >> 16 ) & 0xFF ) / 255.0, // blue
+        Quantity_TOC_RGB );
+    colorTool->SetColor( solidLabel, color, XCAFDoc_ColorSurf );
+
+    /*
+     *  STEPCAFControl_Writer keeps crashing when running with multiple threads
+     *  so we have to put a mutex here
+     */
+    std::lock_guard<std::mutex> lock( mutex_step_writer );
+
+    STEPCAFControl_Writer writer;
+
+    if ( !writer.Transfer( doc ) )
+    {
+        if( m_reporter )
+        {
+            m_reporter->Report( "failed to transfer OCAF document to STEP model" , RPT_SEVERITY_ERROR );
+        }
+        return false;
+    }
+
+    /*
+     *  opencascade in the used version does not support writing STEP to a stream yet.
+     *  So we have to work around by writing to a temporary file and reading it back again
+     *  opencascade does however support stream writing from version 7.7.0
+     */
+    IFSelect_ReturnStatus aStat = writer.Write( stepFilename );
+
+    if ( aStat != IFSelect_RetDone )
+    {
+        if( m_reporter )
+        {
+            m_reporter->Report( "writing STEP file failed" , RPT_SEVERITY_ERROR );
+        }
+        return false;
+    }
+
+    // read back temp file
+    std::ifstream stepFile( stepFilename, std::ios::binary );
+
+    // Read the entire file content into the vector using iterators.
+    std::vector<char> stepData( ( std::istreambuf_iterator<char>( stepFile ) ), std::istreambuf_iterator<char>() );
+
+    // for extruded models the only available name is the ID
+    // the model does not load if the name does not end with ".step"
+    file->name = stepFilename;
+
+    file->decompressedData = std::move( stepData );
+
+    // remove temp file
+    std::remove( stepFilename );
+
+    return true;
+}
+
+
+
+void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                                       FOOTPRINT* aFootprint,
+                                                       const ACOMPONENTBODY6& aElem )
+{
+    if( m_progressReporter )
+        m_progressReporter->Report( _( "Loading component 3D models..." ) );
+
+
+    EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
+
     switch(aElem.modelType)
     {
-        case ALTIUM_MODEL_TYPE::EXTRUDED:
-        case ALTIUM_MODEL_TYPE::CYLINDER:
-        case ALTIUM_MODEL_TYPE::SPHERE:
-        {
-            // export to STEP
-
-            // initialize the OCAF Application
-            Handle( XCAFApp_Application ) anApp = XCAFApp_Application::GetApplication();
-            Handle( TDocStd_Document ) doc;
-            anApp->NewDocument( "XCAFDoc", doc );
-
-            if ( doc.IsNull() )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "failed to create OCAF document" , RPT_SEVERITY_ERROR );
-                }
-                return;
-            }
-
-            // Get the Shape and Color tools from the document's main label
-            Handle( XCAFDoc_ShapeTool ) shapeTool = XCAFDoc_DocumentTool::ShapeTool( doc->Main() );
-            Handle( XCAFDoc_ColorTool ) colorTool = XCAFDoc_DocumentTool::ColorTool( doc->Main() );
-
-            if ( shapeTool.IsNull() || colorTool.IsNull() )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "failed to initialize XCAF tools" , RPT_SEVERITY_ERROR );
-                }
-                return;
-            }
-
-            // add shape to the document structure and set its color
-            TDF_Label solidLabel = shapeTool->AddShape( shape );
-            Quantity_Color color(
-                (   aElem.body_color_3d         & 0xFF ) / 255.0, // red
-                ( ( aElem.body_color_3d >> 8  ) & 0xFF ) / 255.0, // green
-                ( ( aElem.body_color_3d >> 16 ) & 0xFF ) / 255.0, // blue
-                Quantity_TOC_RGB );
-            colorTool->SetColor( solidLabel, color, XCAFDoc_ColorSurf );
-
-            /*
-             *  STEPCAFControl_Writer keeps crashing when running with multiple threads
-             *  so we have to put a mutex here
-             */
-            std::lock_guard<std::mutex> lock( mutex_step_writer );
-
-            STEPCAFControl_Writer writer;
-
-            if ( !writer.Transfer( doc ) )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "failed to transfer OCAF document to STEP model" , RPT_SEVERITY_ERROR );
-                }
-                return;
-            }
-
-            /*
-             *  opencascade in the used version does not support writing STEP to a stream yet.
-             *  So we have to work around by writing to a temporary file and reading it back again
-             *  opencascade does however support stream writing from version 7.7.0
-             */
-            MMH3_HASH hash;
-            hash.addData((const uint8_t*) &aElem, sizeof(aElem));
-            wxString stepFilename = hash.digest().ToString() + wxString(".step");
-            IFSelect_ReturnStatus aStat = writer.Write( stepFilename );
-
-            if ( aStat != IFSelect_RetDone )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "writing STEP file failed" , RPT_SEVERITY_ERROR );
-                }
-                return;
-            }
-
-            // read back temp file
-            std::ifstream stepFile( stepFilename, std::ios::binary );
-
-            // Read the entire file content into the vector using iterators.
-            std::vector<char> stepData( ( std::istreambuf_iterator<char>( stepFile ) ), std::istreambuf_iterator<char>() );
-
-            // for extruded models the only available name is the ID
-            // the model does not load if the name does not end with ".step"
-            file->name = stepFilename;
-
-            file->decompressedData = std::move( stepData );
-
-            // remove temp file
-            std::remove( stepFilename );
-
-            break;
-        }
-
         case ALTIUM_MODEL_TYPE::GENERIC:
         {
             auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
@@ -1888,6 +1892,17 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
             file->decompressedData = std::move( decompressedData );
 
             break; // case GENERIC
+        }
+
+        case ALTIUM_MODEL_TYPE::EXTRUDED:
+        case ALTIUM_MODEL_TYPE::CYLINDER:
+        case ALTIUM_MODEL_TYPE::SPHERE:
+        {
+            if( !CreateExtrudedBody( aElem, file ) )
+            {
+                return;
+            }
+            break;
         }
 
         default:
