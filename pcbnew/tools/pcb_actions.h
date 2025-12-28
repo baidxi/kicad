@@ -33,9 +33,9 @@
 
 enum class ZONE_MODE
 {
-    ADD,     ///< Add a new zone/keepout with fresh settings
-    CUTOUT,  ///< Make a cutout to an existing zone
-    SIMILAR, ///< Add a new zone with the same settings as an existing one
+    ADD,             ///< Add a new zone/keepout with fresh settings
+    CUTOUT,          ///< Make a cutout to an existing zone
+    SIMILAR,         ///< Add a new zone with the same settings as an existing one
     GRAPHIC_POLYGON
 };
 
@@ -176,8 +176,8 @@ public:
     /// Activation of the exact move tool
     static TOOL_ACTION moveExact;
 
-    // Activation of the align to grid tool
-    static TOOL_ACTION alignToGrid;
+    // Activation of the align to grid tool 
+    static TOOL_ACTION alignToGrid; 
 
     /// Activation of the duplication tool with incrementing (e.g. pad number)
     static TOOL_ACTION duplicateIncrement;
@@ -388,7 +388,7 @@ public:
     // Group to link all actions that directly select layers
     static TOOL_ACTION_GROUP layerDirectSwitchActions();
 
-    static TOOL_ACTION layerChanged; // notification
+    static TOOL_ACTION layerChanged;        // notification
 
     static TOOL_ACTION flipBoard;
 
@@ -402,7 +402,7 @@ public:
 
     static TOOL_ACTION autoTrackWidth;
 
-    static TOOL_ACTION trackViaSizeChanged; // notification
+    static TOOL_ACTION trackViaSizeChanged;   // notification
 
     static TOOL_ACTION assignNetClass;
 
@@ -587,12 +587,12 @@ public:
     static TOOL_ACTION collect3DModels;
 
     // Appearance controls
-    static TOOL_ACTION clearHighlight;         // Turns off highlight and resets previous highlight
-    static TOOL_ACTION highlightNet;           // Highlights a net by code (cross-probe highlight)
-    static TOOL_ACTION toggleLastNetHighlight; // Toggles between current and previous highlight
-    static TOOL_ACTION toggleNetHighlight;     // Toggles between highlight off and highlight on
-    static TOOL_ACTION highlightNetSelection;  // Turns on highlight and takes net from selection
-    static TOOL_ACTION highlightItem;          // Select component via cross-probe
+    static TOOL_ACTION clearHighlight;          // Turns off highlight and resets previous highlight
+    static TOOL_ACTION highlightNet;            // Highlights a net by code (cross-probe highlight)
+    static TOOL_ACTION toggleLastNetHighlight;  // Toggles between current and previous highlight
+    static TOOL_ACTION toggleNetHighlight;      // Toggles between highlight off and highlight on
+    static TOOL_ACTION highlightNetSelection;   // Turns on highlight and takes net from selection
+    static TOOL_ACTION highlightItem;           // Select component via cross-probe
 
     // Ratsnest
     static TOOL_ACTION hideNetInRatsnest;
