@@ -1598,7 +1598,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
     MMH3_HASH hash;
     hash.addData((const uint8_t*) &aElem, sizeof(aElem));
     wxString stepFilename = hash.digest().ToString() + wxString(".step");
-    std::cout << "converting Altium 3D Body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
+    std::cout << "creating extruded body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
     
 
     // disable opencascade debug output
@@ -1909,6 +1909,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
         {
             if( m_reporter )
                 m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType), RPT_SEVERITY_ERROR);
+            return;
         }
 
     } // switch
@@ -1996,37 +1997,67 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
                                               m_components.size() ) );
         }
 
-        if( !elem.modelIsEmbedded )
-            continue;
-
-        auto modelTuple = m_EmbeddedModels.find( elem.modelId );
-
-        if( modelTuple == m_EmbeddedModels.end() )
-        {
-            if( m_reporter )
-            {
-                wxString msg;
-                msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
-                                 "not exist" ), elem.modelId );
-                m_reporter->Report( msg, RPT_SEVERITY_ERROR );
-            }
-
-            continue;
-        }
-
-        const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
-        FOOTPRINT*                        footprint = m_components.at( elem.component );
+        //if( !elem.modelIsEmbedded )
+        //    continue;
 
         EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
-        file->name = modelData.m_modelname;
+        FOOTPRINT*                footprint = m_components.at( elem.component );
 
-        wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
-        wxZlibInputStream    zlibStream( compressedStream );
-        wxMemoryOutputStream decompressedStream;
+        switch(elem.modelType)
+        {
+            case ALTIUM_MODEL_TYPE::GENERIC:
+            {
 
-        zlibStream.Read( decompressedStream );
-        file->decompressedData.resize( decompressedStream.GetSize() );
-        decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
+                auto modelTuple = m_EmbeddedModels.find( elem.modelId );
+
+                if( modelTuple == m_EmbeddedModels.end() )
+                {
+                    if( m_reporter )
+                    {
+                        wxString msg;
+                        msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
+                                         "not exist" ), elem.modelId );
+                        m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                    }
+
+                    continue;
+                }
+
+                const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
+
+                file->name = modelData.m_modelname;
+
+                wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
+                wxZlibInputStream    zlibStream( compressedStream );
+                wxMemoryOutputStream decompressedStream;
+
+                zlibStream.Read( decompressedStream );
+                file->decompressedData.resize( decompressedStream.GetSize() );
+                decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
+
+                break; // case GENERIC
+            }
+
+            case ALTIUM_MODEL_TYPE::EXTRUDED:
+            case ALTIUM_MODEL_TYPE::CYLINDER:
+            case ALTIUM_MODEL_TYPE::SPHERE:
+            {
+                if( !CreateExtrudedBody( elem, file ) )
+                {
+                    return;
+                }
+                break;
+            }
+
+            default:
+            {
+                if( m_reporter )
+                    m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType), RPT_SEVERITY_ERROR);
+                return;
+            }
+        } // switch
+
+        file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL;
 
         footprint->GetEmbeddedFiles()->AddFile( file );
 
@@ -2041,37 +2072,40 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         modelSettings.m_Filename = footprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
         VECTOR2I fpPosition = footprint->GetPosition();
 
-        modelSettings.m_Offset.x =
-                pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
-        modelSettings.m_Offset.y =
-                -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
-        modelSettings.m_Offset.z = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.z ) );
-
-        EDA_ANGLE orientation = footprint->GetOrientation();
-
-        if( footprint->IsFlipped() )
+        if( elem.modelType != ALTIUM_MODEL_TYPE::EXTRUDED )    // for extruded models, offset and rotation are ignored
         {
-            modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
-            orientation              = -orientation;
+            modelSettings.m_Offset.x =
+                    pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
+            modelSettings.m_Offset.y =
+                    -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
+            modelSettings.m_Offset.z = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.z ) );
+
+            EDA_ANGLE orientation = footprint->GetOrientation();
+
+            if( footprint->IsFlipped() )
+            {
+                modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
+                orientation              = -orientation;
+            }
+
+            if( ( elem.body_projection == 1 ) != footprint->IsFlipped() )
+            {
+                elem.modelRotation.x += 180;
+                elem.modelRotation.z = -elem.modelRotation.z;
+
+                modelSettings.m_Offset.z =
+                        -pcbIUScale.IUTomm( m_board->GetDesignSettings().GetBoardThickness() )
+                        - modelSettings.m_Offset.z;
+            }
+
+            RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
+
+            modelSettings.m_Rotation.x = normalizeAngleDegrees( -elem.modelRotation.x, -180, 180 );
+            modelSettings.m_Rotation.y = normalizeAngleDegrees( -elem.modelRotation.y, -180, 180 );
+            modelSettings.m_Rotation.z = normalizeAngleDegrees( -elem.modelRotation.z + elem.rotation
+                                                                                      + orientation.AsDegrees(),
+                                                                                       -180, 180 );
         }
-
-        if( ( elem.body_projection == 1 ) != footprint->IsFlipped() )
-        {
-            elem.modelRotation.x += 180;
-            elem.modelRotation.z = -elem.modelRotation.z;
-
-            modelSettings.m_Offset.z =
-                    -pcbIUScale.IUTomm( m_board->GetDesignSettings().GetBoardThickness() )
-                    - modelSettings.m_Offset.z;
-        }
-
-        RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
-
-        modelSettings.m_Rotation.x = normalizeAngleDegrees( -elem.modelRotation.x, -180, 180 );
-        modelSettings.m_Rotation.y = normalizeAngleDegrees( -elem.modelRotation.y, -180, 180 );
-        modelSettings.m_Rotation.z = normalizeAngleDegrees( -elem.modelRotation.z + elem.rotation
-                                                                                  + orientation.AsDegrees(),
-                                                                                   -180, 180 );
 
         modelSettings.m_Opacity = elem.body_opacity_3d;
 
