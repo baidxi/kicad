@@ -913,8 +913,11 @@ void APPEARANCE_CONTROLS::OnNetGridDoubleClick( wxGridEvent& event )
     switch( col )
     {
     case NET_GRID_TABLE::COL_COLOR:
-        m_netsGrid->GetCellEditor( row, col )->BeginEdit( row, col, m_netsGrid );
+    {
+        wxGridCellEditorPtr editor{ m_netsGrid->GetCellEditor( row, col ) };
+        editor->BeginEdit( row, col, m_netsGrid );
         break;
+    }
 
     default:
         break;
@@ -1013,7 +1016,10 @@ void APPEARANCE_CONTROLS::OnNetGridMouseEvent( wxMouseEvent& aEvent )
         int col = cell.GetCol();
 
         if(col == NET_GRID_TABLE::COL_COLOR )
-            m_netsGrid->GetCellEditor( row, col )->BeginEdit( row, col, m_netsGrid );
+        {
+            wxGridCellEditorPtr editor{ m_netsGrid->GetCellEditor( row, col ) };
+            editor->BeginEdit( row, col, m_netsGrid );
+        }
 
         aEvent.Skip();
     }
@@ -3183,7 +3189,7 @@ void APPEARANCE_CONTROLS::onNetContextMenu( wxCommandEvent& aEvent )
     {
     case ID_SET_NET_COLOR:
     {
-        wxGridCellEditor* editor = m_netsGrid->GetCellEditor( row, NET_GRID_TABLE::COL_COLOR );
+        wxGridCellEditorPtr editor{ m_netsGrid->GetCellEditor( row, NET_GRID_TABLE::COL_COLOR ) };
         editor->BeginEdit( row, NET_GRID_TABLE::COL_COLOR, m_netsGrid );
         break;
     }
