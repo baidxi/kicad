@@ -535,10 +535,10 @@ APPEARANCE_CONTROLS::APPEARANCE_CONTROLS( PCB_BASE_FRAME* aParent, wxWindow* aFo
                 syncLayerPresetSelection();
             } );
 
-    m_toggleGridRenderer = new GRID_BITMAP_TOGGLE_RENDERER( m_visibleBitmapBundle,
+    auto toggleGridRenderer = new GRID_BITMAP_TOGGLE_RENDERER( m_visibleBitmapBundle,
                                                             m_notVisibileBitmapBundle );
 
-    m_netsGrid->RegisterDataType( wxT( "bool" ), m_toggleGridRenderer, new wxGridCellBoolEditor );
+    m_netsGrid->RegisterDataType( wxT( "bool" ), toggleGridRenderer, new wxGridCellBoolEditor );
 
     m_netsGrid->RegisterDataType( wxT( "COLOR4D" ),
                                   new GRID_CELL_COLOR_RENDERER( m_frame, SWATCH_SMALL ),
