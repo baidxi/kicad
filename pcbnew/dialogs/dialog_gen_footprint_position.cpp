@@ -46,6 +46,8 @@
 #include "gerber_placefile_writer.h"
 #include <jobs/job_export_pcb_pos.h>
 
+static const wxString DEFAULT_CSV_HEADER = wxT( "Ref,Val,Package,PosX,PosY,Rot,Side" );
+
 
 DIALOG_GEN_FOOTPRINT_POSITION::DIALOG_GEN_FOOTPRINT_POSITION( PCB_EDIT_FRAME* aEditFrame ) :
         DIALOG_GEN_FOOTPRINT_POSITION_BASE( aEditFrame ),
@@ -112,6 +114,8 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::TransferDataToWindow()
         m_excludeDNP->SetValue( m_job->m_excludeDNP );
         m_excludeBOM->SetValue( m_job->m_excludeBOM );
     }
+
+    m_csvColumnNames->SetValue( DEFAULT_CSV_HEADER );
 
     return true;
 }
@@ -180,6 +184,21 @@ void DIALOG_GEN_FOOTPRINT_POSITION::onUpdateUIExcludeTH( wxUpdateUIEvent& event 
 void DIALOG_GEN_FOOTPRINT_POSITION::onUpdateUIincludeBoardEdge( wxUpdateUIEvent& event )
 {
     m_cbIncludeBoardEdge->Enable( m_formatCtrl->GetSelection() == 2 );
+}
+
+
+void DIALOG_GEN_FOOTPRINT_POSITION::onUpdateUICsvColumnNames( wxUpdateUIEvent& event )
+{
+    const bool enableCsv = m_formatCtrl->GetSelection() == 1;
+    m_csvColumnNamesLabel->Enable( enableCsv );
+    m_csvColumnNames->Enable( enableCsv );
+    m_csvColumnNamesDefaultBtn->Enable( enableCsv );
+}
+
+
+void DIALOG_GEN_FOOTPRINT_POSITION::onDefaultCsvHeader( wxCommandEvent& event )
+{
+    m_csvColumnNames->ChangeValue( DEFAULT_CSV_HEADER );
 }
 
 
@@ -342,6 +361,7 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateAsciiFiles()
     wxString   msg;
     bool       singleFile = OneFileOnly();
     bool       useCSVfmt = m_formatCtrl->GetSelection() == 1;
+    wxString   csvColumnNames = CsvColumnNames();
     bool       useAuxOrigin = m_useDrillPlaceOrigin->GetValue();
     int        fullcount = 0;
     int        topSide = true;
@@ -350,9 +370,8 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateAsciiFiles()
 
     // Test for any footprint candidate in list.
     {
-        PLACE_FILE_EXPORTER exporter( brd, UnitsMM(), OnlySMD(), ExcludeAllTH(), ExcludeDNP(),
-                                      ExcludeBOM(), topSide, bottomSide, useCSVfmt, useAuxOrigin,
-                                      negateBottomX );
+        PLACE_FILE_EXPORTER exporter( brd, UnitsMM(), OnlySMD(), ExcludeAllTH(), ExcludeDNP(), ExcludeBOM(), topSide,
+                                      bottomSide, useCSVfmt, useAuxOrigin, negateBottomX, csvColumnNames );
         exporter.GenPositionData();
 
         if( exporter.GetFootprintCount() == 0 )
@@ -403,9 +422,9 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateAsciiFiles()
         fn.SetExt( wxT( "csv" ) );
     }
 
-    int fpcount = m_editFrame->DoGenFootprintsPositionFile( fn.GetFullPath(), UnitsMM(), OnlySMD(),
-                                                            ExcludeAllTH(), ExcludeDNP(), ExcludeBOM(), topSide,
-                                                            bottomSide, useCSVfmt, useAuxOrigin, negateBottomX );
+    int fpcount = m_editFrame->DoGenFootprintsPositionFile( fn.GetFullPath(), UnitsMM(), OnlySMD(), ExcludeAllTH(),
+                                                            ExcludeDNP(), ExcludeBOM(), topSide, bottomSide, useCSVfmt,
+                                                            useAuxOrigin, negateBottomX, csvColumnNames );
     if( fpcount < 0 )
     {
         msg.Printf( _( "Failed to create file '%s'." ), fn.GetFullPath() );
@@ -445,9 +464,9 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateAsciiFiles()
         fn.SetExt( wxT( "csv" ) );
     }
 
-    fpcount = m_editFrame->DoGenFootprintsPositionFile( fn.GetFullPath(), UnitsMM(), OnlySMD(),
-                                                        ExcludeAllTH(), ExcludeDNP(), ExcludeBOM(), topSide,
-                                                        bottomSide, useCSVfmt, useAuxOrigin, negateBottomX );
+    fpcount = m_editFrame->DoGenFootprintsPositionFile( fn.GetFullPath(), UnitsMM(), OnlySMD(), ExcludeAllTH(),
+                                                        ExcludeDNP(), ExcludeBOM(), topSide, bottomSide, useCSVfmt,
+                                                        useAuxOrigin, negateBottomX, csvColumnNames );
 
     if( fpcount < 0 )
     {
@@ -487,10 +506,10 @@ int BOARD_EDITOR_CONTROL::GeneratePosFile( const TOOL_EVENT& aEvent )
 }
 
 
-int PCB_EDIT_FRAME::DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM,
-                                                 bool aOnlySMD, bool aNoTHItems, bool aExcludeDNP,
-                                                 bool aExcludeBOM, bool aTopSide, bool aBottomSide,
-                                                 bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX )
+int PCB_EDIT_FRAME::DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM, bool aOnlySMD,
+                                                 bool aNoTHItems, bool aExcludeDNP, bool aExcludeBOM, bool aTopSide,
+                                                 bool aBottomSide, bool aFormatCSV, bool aUseAuxOrigin,
+                                                 bool aNegateBottomX, const wxString& aCsvColumnNames )
 {
     FILE * file = nullptr;
 
@@ -503,9 +522,8 @@ int PCB_EDIT_FRAME::DoGenFootprintsPositionFile( const wxString& aFullFileName, 
     }
 
     std::string data;
-    PLACE_FILE_EXPORTER exporter( GetBoard(), aUnitsMM, aOnlySMD, aNoTHItems, aExcludeDNP,
-                                  aExcludeBOM, aTopSide, aBottomSide, aFormatCSV, aUseAuxOrigin,
-                                  aNegateBottomX );
+    PLACE_FILE_EXPORTER exporter( GetBoard(), aUnitsMM, aOnlySMD, aNoTHItems, aExcludeDNP, aExcludeBOM, aTopSide,
+                                  aBottomSide, aFormatCSV, aUseAuxOrigin, aNegateBottomX, aCsvColumnNames );
     data = exporter.GenPositionData();
 
     // if aFullFileName is empty, the file is not created, only the

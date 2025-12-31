@@ -112,6 +112,23 @@ DIALOG_GEN_FOOTPRINT_POSITION_BASE::DIALOG_GEN_FOOTPRINT_POSITION_BASE( wxWindow
 	m_negateXcb = new wxCheckBox( this, wxID_ANY, _("Use negative X coordinates for footprints on bottom layer"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizerLower->Add( m_negateXcb, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
+	wxBoxSizer* bSizerCsvHeader;
+	bSizerCsvHeader = new wxBoxSizer( wxHORIZONTAL );
+
+	m_csvColumnNamesLabel = new wxStaticText( this, wxID_ANY, _("CSV column names"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_csvColumnNamesLabel->Wrap( -1 );
+	bSizerCsvHeader->Add( m_csvColumnNamesLabel, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+
+	m_csvColumnNames = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize( 350,-1 ), 0 );
+	m_csvColumnNames->SetToolTip( _("Comma-separated column headers used for CSV placement export." ) );
+	bSizerCsvHeader->Add( m_csvColumnNames, 1, wxEXPAND|wxRIGHT, 5 );
+
+	m_csvColumnNamesDefaultBtn = new wxButton( this, wxID_ANY, _("Default"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_csvColumnNamesDefaultBtn->SetToolTip( _("Restore the standard CSV header." ) );
+	bSizerCsvHeader->Add( m_csvColumnNamesDefaultBtn, 0, wxALIGN_CENTER_VERTICAL, 0 );
+
+	bSizerLower->Add( bSizerCsvHeader, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+
 	m_singleFile = new wxCheckBox( this, wxID_ANY, _("Generate single file with both front and back positions"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_singleFile->SetValue(true);
 	bSizerLower->Add( m_singleFile, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
@@ -153,6 +170,10 @@ DIALOG_GEN_FOOTPRINT_POSITION_BASE::DIALOG_GEN_FOOTPRINT_POSITION_BASE( wxWindow
 	m_excludeBOM->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUIExcludeTH ), NULL, this );
 	m_cbIncludeBoardEdge->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUIincludeBoardEdge ), NULL, this );
 	m_negateXcb->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUInegXcoord ), NULL, this );
+	m_csvColumnNamesLabel->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
+	m_csvColumnNames->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
+	m_csvColumnNamesDefaultBtn->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onDefaultCsvHeader ), NULL, this );
+	m_csvColumnNamesDefaultBtn->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
 	m_sdbSizerOK->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onGenerate ), NULL, this );
 }
 
@@ -168,6 +189,10 @@ DIALOG_GEN_FOOTPRINT_POSITION_BASE::~DIALOG_GEN_FOOTPRINT_POSITION_BASE()
 	m_excludeBOM->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUIExcludeTH ), NULL, this );
 	m_cbIncludeBoardEdge->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUIincludeBoardEdge ), NULL, this );
 	m_negateXcb->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUInegXcoord ), NULL, this );
+	m_csvColumnNamesLabel->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
+	m_csvColumnNames->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
+	m_csvColumnNamesDefaultBtn->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onDefaultCsvHeader ), NULL, this );
+	m_csvColumnNamesDefaultBtn->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onUpdateUICsvColumnNames ), NULL, this );
 	m_sdbSizerOK->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_GEN_FOOTPRINT_POSITION_BASE::onGenerate ), NULL, this );
 
 }

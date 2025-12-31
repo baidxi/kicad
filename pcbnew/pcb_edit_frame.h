@@ -332,12 +332,13 @@ public:
      * @param aFormatCSV true to use a comma separated file (CSV) format; default = false
      * @param aUseAuxOrigin true to use auxiliary axis as an origin for the position data
      * @param aNegateBottomX true to negate X coordinates for bottom side of the placement file
+     * @param aCsvColumnNames optional CSV header row; empty suppresses the header line
      * @return the number of footprints found on aSide side or -1 if the file could not be created.
      */
-    int DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM, bool aOnlySMD,
-                                     bool aNoTHItems, bool aExcludeDNP, bool aExcludeBOM, bool aTopSide,
-                                     bool aBottomSide, bool aFormatCSV, bool aUseAuxOrigin,
-                                     bool aNegateBottomX );
+    int DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM, bool aOnlySMD, bool aNoTHItems,
+                                     bool aExcludeDNP, bool aExcludeBOM, bool aTopSide, bool aBottomSide,
+                                     bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX,
+                                     const wxString& aCsvColumnNames = wxEmptyString );
 
     void OnFileHistory( wxCommandEvent& event );
     void OnClearFileHistory( wxCommandEvent& aEvent );

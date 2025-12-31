@@ -57,6 +57,9 @@ class DIALOG_GEN_FOOTPRINT_POSITION_BASE : public DIALOG_SHIM
 		wxCheckBox* m_cbIncludeBoardEdge;
 		wxCheckBox* m_useDrillPlaceOrigin;
 		wxCheckBox* m_negateXcb;
+		wxStaticText* m_csvColumnNamesLabel;
+		wxTextCtrl* m_csvColumnNames;
+		wxButton* m_csvColumnNamesDefaultBtn;
 		wxCheckBox* m_singleFile;
 		WX_HTML_REPORT_PANEL* m_messagesPanel;
 		wxStdDialogButtonSizer* m_sdbSizer;
@@ -71,6 +74,8 @@ class DIALOG_GEN_FOOTPRINT_POSITION_BASE : public DIALOG_SHIM
 		virtual void onUpdateUIExcludeTH( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void onUpdateUIincludeBoardEdge( wxUpdateUIEvent& event ) { event.Skip(); }
 		virtual void onUpdateUInegXcoord( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void onUpdateUICsvColumnNames( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void onDefaultCsvHeader( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onGenerate( wxCommandEvent& event ) { event.Skip(); }
 
 

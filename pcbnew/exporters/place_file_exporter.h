@@ -27,6 +27,7 @@
 
 #include <board.h>
 #include <footprint.h>
+#include <wx/string.h>
 
 /**
  * The ASCII format of the kicad place file is:
@@ -51,7 +52,6 @@
 class PLACE_FILE_EXPORTER
 {
 public:
-
     /** Create a PLACE_FILE_EXPORTER
      * @param aBoard is the board
      * @param aUnitsMM is the unit option: true foo mm, false for inches
@@ -63,12 +63,13 @@ public:
      * @param aTopSide true to generate top side info
      * @param aBottomSide true to generate bottom side info
      * @param aFormatCSV true to generate a csv format info, false to generate a ascii info
-     * @param aNegateBottomX true to negate X coordinates for bottom side of the placement file
      * @param aUseAuxOrigin true to use auxiliary axis as an origin for the position data
+     * @param aNegateBottomX true to negate X coordinates for bottom side of the placement file
+     * @param aCsvColumnNames optional CSV column header line; when empty no header row is written
      */
-    PLACE_FILE_EXPORTER( BOARD* aBoard, bool aUnitsMM, bool aOnlySMD, bool aExcludeAllTH,
-                         bool aExcludeDNP, bool aExcludeBOM, bool aTopSide, bool aBottomSide,
-                         bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX );
+    PLACE_FILE_EXPORTER( BOARD* aBoard, bool aUnitsMM, bool aOnlySMD, bool aExcludeAllTH, bool aExcludeDNP,
+                         bool aExcludeBOM, bool aTopSide, bool aBottomSide, bool aFormatCSV, bool aUseAuxOrigin,
+                         bool aNegateBottomX, const wxString& aCsvColumnNames = wxEmptyString );
 
     /**
      * build a string filled with the position data
@@ -105,6 +106,7 @@ private:
     int      m_side;            // PCB_BACK_SIDE, PCB_FRONT_SIDE, PCB_BOTH_SIDES
     bool     m_formatCSV;       // true for csv format, false for ascii (utf8) format
     bool     m_negateBottomX;   // true to negate X coordinate on bottom side
+    std::string m_csvHeader;       // header line for CSV format
     int      m_fpCount;         // Number of footprints in list, for info
     VECTOR2I m_place_Offset;    // Offset for coordinates in generated data.
 };
