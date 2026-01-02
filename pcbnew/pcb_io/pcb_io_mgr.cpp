@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <wx/dir.h>
 #include <wx/filename.h>
 #include <wx/uri.h>
 
@@ -257,6 +258,123 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
     }
     catch( ... )
     {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool PCB_IO_MGR::IsPackedLibrary( const wxString& aLibPath )
+{
+    wxFileName fn( aLibPath );
+    return fn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension;
+}
+
+
+bool PCB_IO_MGR::ConvertLibraryFormat( const wxString& aSrcLibPath,
+                                       const wxString& aDstLibPath,
+                                       REPORTER* aReporter )
+{
+    // Verify source library exists and is readable
+    IO_RELEASER<PCB_IO> plugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
+
+    if( !plugin )
+    {
+        if( aReporter )
+        {
+            aReporter->Report( _( "Unable to find KiCad plugin for footprint libraries." ),
+                               RPT_SEVERITY_ERROR );
+        }
+
+        return false;
+    }
+
+    if( !plugin->CanReadLibrary( aSrcLibPath ) )
+    {
+        if( aReporter )
+        {
+            aReporter->Report( wxString::Format( _( "Cannot read source library '%s'." ),
+                                                 aSrcLibPath ),
+                               RPT_SEVERITY_ERROR );
+        }
+
+        return false;
+    }
+
+    try
+    {
+        // Create the destination library (if it doesn't already exist)
+        wxFileName dstFn( aDstLibPath );
+        bool dstIsPackedFormat = dstFn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension;
+
+        if( dstIsPackedFormat )
+        {
+            // For packed format, create the file only if it doesn't exist
+            if( !dstFn.FileExists() )
+                plugin->CreateLibrary( aDstLibPath );
+        }
+        else
+        {
+            // For unpacked format (directory), create only if directory doesn't exist
+            if( !wxDir::Exists( aDstLibPath ) )
+                plugin->CreateLibrary( aDstLibPath );
+        }
+
+        // Enumerate footprints from source
+        wxArrayString fpNames;
+        plugin->FootprintEnumerate( fpNames, aSrcLibPath, false, nullptr );
+
+        if( aReporter )
+        {
+            aReporter->Report( wxString::Format( _( "Converting %zu footprints..." ),
+                                                 fpNames.size() ),
+                               RPT_SEVERITY_INFO );
+        }
+
+        // Copy each footprint - use FootprintLoad() to get a newly allocated copy
+        std::map<std::string, UTF8> props{ { "skip_cache_validation", "" } };
+        int successCount = 0;
+
+        for( const wxString& fpName : fpNames )
+        {
+            std::unique_ptr<FOOTPRINT> fp( plugin->FootprintLoad( aSrcLibPath, fpName, false,
+                                                                  nullptr ) );
+
+            if( fp )
+            {
+                try
+                {
+                    plugin->FootprintSave( aDstLibPath, fp.get(), &props );
+                    successCount++;
+                }
+                catch( const IO_ERROR& ioe )
+                {
+                    if( aReporter )
+                    {
+                        aReporter->Report( wxString::Format( _( "Error saving footprint '%s': %s" ),
+                                                             fpName, ioe.What() ),
+                                           RPT_SEVERITY_WARNING );
+                    }
+                }
+            }
+        }
+
+        if( aReporter )
+        {
+            aReporter->Report( wxString::Format( _( "Successfully converted %d of %zu footprints." ),
+                                                 successCount, fpNames.size() ),
+                               RPT_SEVERITY_INFO );
+        }
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        if( aReporter )
+        {
+            aReporter->Report( wxString::Format( _( "Error during conversion: %s" ), ioe.What() ),
+                               RPT_SEVERITY_ERROR );
+        }
+
         return false;
     }
 

@@ -500,6 +500,10 @@ public:
     static TOOL_ACTION importFootprint;
     static TOOL_ACTION exportFootprint;
 
+    /// Convert library between packed (.kicad_fpl) and unpacked (.pretty) formats
+    static TOOL_ACTION convertLibraryToPacked;
+    static TOOL_ACTION convertLibraryToUnpacked;
+
     static TOOL_ACTION footprintProperties;
     static TOOL_ACTION defaultPadProperties;
     static TOOL_ACTION padTable;

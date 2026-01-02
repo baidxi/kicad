@@ -199,6 +199,10 @@ class PCB_IO_KICAD_SEXPR;   // forward decl
 //#define SEXPR_BOARD_FILE_VERSION      20251028  // Stop writing netcodes; they're an internal implementation detail
 #define SEXPR_BOARD_FILE_VERSION      20251101  // Backdrill and tertiary drill support
 
+/// Current s-expression footprint library file format version.
+/// Uses same version as board files since footprints use the same format.
+#define SEXPR_FOOTPRINT_LIB_FILE_VERSION  SEXPR_BOARD_FILE_VERSION
+
 #define BOARD_FILE_HOST_VERSION       20200825  ///< Earlier files than this include the host tag
 #define LEGACY_ARC_FORMATTING         20210925  ///< These were the last to use old arc formatting
 #define LEGACY_NET_TIES               20220815  ///< These were the last to use the keywords field
@@ -238,6 +242,7 @@ public:
     const WX_FILENAME& GetFileName() const { return m_filename; }
     void SetFilePath( const wxString& aFilePath ) { m_filename.SetPath( aFilePath ); }
     std::unique_ptr<FOOTPRINT>& GetFootprint() { return m_footprint; }
+    const std::unique_ptr<FOOTPRINT>& GetFootprint() const { return m_footprint; }
 };
 
 class FP_CACHE
@@ -253,15 +258,19 @@ class FP_CACHE
                                    // m_cache_timestamp against all the files.
     long long m_cache_timestamp;   // A hash of the timestamps for all the footprint
                                    // files.
+    bool      m_is_packed;         // True if this is a packed library (.kicad_fpl file)
+                                   // vs unpacked (.pretty directory)
 
 public:
     FP_CACHE( PCB_IO_KICAD_SEXPR* aOwner, const wxString& aLibraryPath );
 
     wxString GetPath() const { return m_lib_raw_path; }
 
-    bool IsWritable() const { return m_lib_path.IsOk() && m_lib_path.IsDirWritable(); }
+    bool IsPacked() const { return m_is_packed; }
 
-    bool Exists() const { return m_lib_path.IsOk() && m_lib_path.DirExists(); }
+    bool IsWritable() const;
+
+    bool Exists() const;
 
     boost::ptr_map<wxString, FP_CACHE_ENTRY>& GetFootprints() { return m_footprints; }
 
@@ -343,6 +352,7 @@ public:
     }
 
     bool CanReadBoard( const wxString& aFileName ) const override;
+    bool CanReadLibrary( const wxString& aFileName ) const override;
 
     void SaveBoard( const wxString& aFileName, BOARD* aBoard,
                     const std::map<std::string, UTF8>* aProperties = nullptr ) override;
@@ -412,6 +422,16 @@ public:
     }
 
     void SetOutputFormatter( OUTPUTFORMATTER* aFormatter ) { m_out = aFormatter; }
+
+    /**
+     * Format a packed footprint library to the output formatter.
+     *
+     * This writes all footprints in the provided map to the output in packed library format.
+     *
+     * @param aFootprints Map of footprints to write to the library.
+     */
+    void FormatFootprintLib(
+            const boost::ptr_map<wxString, FP_CACHE_ENTRY>& aFootprints ) const;
 
     BOARD_ITEM* Parse( const wxString& aClipboardSourceInput );
 

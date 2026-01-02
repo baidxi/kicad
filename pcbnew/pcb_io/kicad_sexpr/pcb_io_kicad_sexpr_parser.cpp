@@ -936,6 +936,100 @@ BOARD_ITEM* PCB_IO_KICAD_SEXPR_PARSER::Parse()
 }
 
 
+void PCB_IO_KICAD_SEXPR_PARSER::ParseFootprintLib(
+        boost::ptr_map<wxString, FP_CACHE_ENTRY, std::less<wxString>,
+                       boost::heap_clone_allocator,
+                       std::allocator<std::pair<const wxString, void*>>>& aFootprints )
+{
+    T token;
+
+    NeedLEFT();
+    token = NextTok();
+
+    if( token != T_kicad_footprint_lib )
+    {
+        Expecting( "kicad_footprint_lib" );
+    }
+
+    // Parse version and generator info
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_version:
+        {
+            int versionNumber = parseInt( "version" );
+
+            m_requiredVersion = versionNumber;
+            m_tooRecent = ( versionNumber > SEXPR_FOOTPRINT_LIB_FILE_VERSION );
+            NeedRIGHT();
+            break;
+        }
+
+        case T_generator:
+            NeedSYMBOL();
+            NeedRIGHT();
+            break;
+
+        case T_generator_version:
+            NeedSYMBOL();
+            m_generatorVersion = FromUTF8();
+            NeedRIGHT();
+
+            // If the generator version is newer than the current, treat the file as too recent
+            if( m_requiredVersion > SEXPR_FOOTPRINT_LIB_FILE_VERSION )
+            {
+                throw FUTURE_FORMAT_ERROR( fmt::format( "{}", m_requiredVersion ),
+                                           m_generatorVersion );
+            }
+            break;
+
+        case T_footprint:
+        {
+            try
+            {
+                FOOTPRINT* footprint = parseFOOTPRINT( nullptr );
+
+                if( footprint )
+                {
+                    wxString fpName = footprint->GetFPID().GetLibItemName();
+                    footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
+
+                    WX_FILENAME fn( wxEmptyString, fpName );
+                    aFootprints.insert( fpName, new FP_CACHE_ENTRY( footprint, fn ) );
+                }
+            }
+            catch( const IO_ERROR& e )
+            {
+                // Log warning and continue parsing remaining footprints
+                m_parseWarnings.push_back( e.What() );
+
+                // Skip to end of this footprint block
+                int depth = 1;
+
+                while( depth > 0 && ( token = NextTok() ) != T_EOF )
+                {
+                    if( token == T_LEFT )
+                        depth++;
+                    else if( token == T_RIGHT )
+                        depth--;
+                }
+            }
+            break;
+        }
+
+        default:
+            Expecting( "version, generator, generator_version, or footprint" );
+        }
+    }
+}
+
+
 BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD()
 {
     try

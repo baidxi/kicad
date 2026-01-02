@@ -237,6 +237,34 @@ public:
     static bool ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProps,
                                 const wxString& aOldFilePath,
                                 const wxString& aNewFilePath, REPORTER* aReporter );
+
+    /**
+     * Determine if a library path points to a packed format library.
+     *
+     * A packed library is a single .kicad_fpl file containing multiple footprints,
+     * as opposed to an unpacked library which is a .pretty directory containing
+     * individual .kicad_mod files.
+     *
+     * @param aLibPath Library path to check.
+     * @return true if the path indicates a packed library (.kicad_fpl), false otherwise.
+     */
+    static bool IsPackedLibrary( const wxString& aLibPath );
+
+    /**
+     * Convert a footprint library between packed and unpacked formats.
+     *
+     * This function copies all footprints from the source library to the destination,
+     * automatically converting between packed (.kicad_fpl) and unpacked (.pretty) formats
+     * based on the destination path extension.
+     *
+     * @param aSrcLibPath Source library path (can be .pretty directory or .kicad_fpl file).
+     * @param aDstLibPath Destination library path (format determined by extension).
+     * @param aReporter Optional reporter for progress and error messages.
+     * @return true on success, false on failure.
+     */
+    static bool ConvertLibraryFormat( const wxString& aSrcLibPath,
+                                      const wxString& aDstLibPath,
+                                      REPORTER* aReporter = nullptr );
 };
 
 #endif // PCB_IO_MGR_H_

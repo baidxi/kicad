@@ -168,6 +168,7 @@ public:
     static const std::string FootprintPlaceFileExtension;
     static const std::string KiCadFootprintFileExtension;
     static const std::string KiCadFootprintLibPathExtension;
+    static const std::string KiCadPackedFootprintLibFileExtension;
     static const std::string AltiumFootprintLibPathExtension;
     static const std::string CadstarFootprintLibPathExtension;
     static const std::string GedaPcbFootprintLibFileExtension;
@@ -267,6 +268,7 @@ public:
     static wxString DocModulesFileName();
     static wxString KiCadFootprintLibFileWildcard();
     static wxString KiCadFootprintLibPathWildcard();
+    static wxString KiCadPackedFootprintLibFileWildcard();
     static wxString KiCadDesignBlockLibPathWildcard();
     static wxString KiCadDesignBlockPathWildcard();
     static wxString TextFileWildcard();

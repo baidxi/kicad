@@ -43,6 +43,7 @@ set( QA_PCBNEW_SRCS
     test_group_load_save.cpp
     test_footprint_load_save.cpp
     test_fp_lib_load_save.cpp
+    test_packed_footprint_lib.cpp
     test_io_mgr.cpp
     test_lset.cpp
     test_pns_basics.cpp
