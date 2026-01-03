@@ -410,8 +410,6 @@ void SYMBOL_EDIT_FRAME::CreateNewSymbol( const wxString& aInheritFrom )
     props.alternateBodyStyle = dlg.GetAlternateBodyStyle();
     props.keepFootprint = dlg.GetKeepFootprint();
     props.keepDatasheet = dlg.GetKeepDatasheet();
-    props.transferUserFields = dlg.GetTransferUserFields();
-    props.keepContentUserFields = dlg.GetKeepContentUserFields();
 
     m_libMgr->CreateNewSymbol( lib, props );
     SyncLibraries( false );

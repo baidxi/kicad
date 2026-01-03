@@ -193,8 +193,6 @@ BOOST_AUTO_TEST_CASE( NewSymbolCreation )
     props.parentSymbolName = parent->GetName();
     props.keepFootprint = false;
     props.keepDatasheet = false;
-    props.transferUserFields = true;
-    props.keepContentUserFields = false;
 
     std::unique_ptr<LIB_SYMBOL> child =
             LIB_SYMBOL_LIBRARY_MANAGER::CreateSymbol( props, parent.get() );

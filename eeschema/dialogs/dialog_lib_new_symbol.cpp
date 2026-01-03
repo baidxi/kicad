@@ -72,10 +72,6 @@ DIALOG_LIB_NEW_SYMBOL::DIALOG_LIB_NEW_SYMBOL( EDA_DRAW_FRAME*      aParent,
                           m_nameIsDefaulted = false;
                       } );
 
-    m_checkTransferUserFields->Connect( wxEVT_CHECKBOX,
-                                        wxCommandEventHandler( DIALOG_LIB_NEW_SYMBOL::onCheckTransferUserFields ),
-                                        nullptr, this );
-
     // initial focus should be on first editable field.
     m_textName->SetFocus();
 
@@ -91,11 +87,7 @@ DIALOG_LIB_NEW_SYMBOL::~DIALOG_LIB_NEW_SYMBOL()
     m_comboInheritanceSelect->Disconnect( FILTERED_ITEM_SELECTED,
                                           wxCommandEventHandler( DIALOG_LIB_NEW_SYMBOL::onParentSymbolSelect ),
                                           nullptr, this );
-    m_checkTransferUserFields->Disconnect( wxEVT_CHECKBOX,
-                                           wxCommandEventHandler( DIALOG_LIB_NEW_SYMBOL::onCheckTransferUserFields ),
-                                           nullptr, this );
 }
-
 
 bool DIALOG_LIB_NEW_SYMBOL::TransferDataToWindow()
 {
@@ -108,9 +100,6 @@ bool DIALOG_LIB_NEW_SYMBOL::TransferDataToWindow()
 
         // Trigger the event handler to show/hide the info bar message.
         onParentSymbolSelect( dummyEvent );
-
-        // Trigger the event handler to handle other check boxes
-        onCheckTransferUserFields( dummyEvent );
     }
 
     onPowerCheckBox( dummyEvent );
@@ -172,10 +161,6 @@ void DIALOG_LIB_NEW_SYMBOL::syncControls( bool aIsDerivedPart )
 
     m_checkKeepDatasheet->Enable( aIsDerivedPart );
     m_checkKeepFootprint->Enable( aIsDerivedPart );
-    m_checkTransferUserFields->Enable( aIsDerivedPart );
-
-    if( m_checkTransferUserFields->IsChecked() )
-        m_checkKeepContentUserFields->Enable( aIsDerivedPart );
 }
 
 
@@ -193,11 +178,4 @@ void DIALOG_LIB_NEW_SYMBOL::onPowerCheckBox( wxCommandEvent& aEvent )
         m_excludeFromBomCheckBox->Enable( true );
         m_excludeFromBoardCheckBox->Enable( true );
     }
-}
-
-
-void DIALOG_LIB_NEW_SYMBOL::onCheckTransferUserFields( wxCommandEvent& aEvent )
-{
-    bool checked = m_checkTransferUserFields->IsChecked();
-    m_checkKeepContentUserFields->Enable( checked );
 }
