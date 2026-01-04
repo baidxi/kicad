@@ -912,7 +912,7 @@ bool SCH_MOVE_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, SCH_COMMIT* aComm
             break;
         }
         // Don't call SetPassEvent() for events we've handled - let them be consumed
-        else if( evt->IsAction( &SCH_ACTIONS::rotateCCW )
+        else if(    evt->IsAction( &SCH_ACTIONS::rotateCCW )
                  || evt->IsAction( &SCH_ACTIONS::rotateCW )
                  || evt->IsAction( &ACTIONS::increment )
                  || evt->IsAction( &SCH_ACTIONS::toDLabel )

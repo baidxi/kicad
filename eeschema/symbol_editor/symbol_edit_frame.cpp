@@ -510,8 +510,8 @@ void SYMBOL_EDIT_FRAME::setupUIConditions()
     mgr->SetConditions( ACTIONS::unselectAll,         ENABLE( haveSymbolCond ) );
 
     // These actions in symbol editor when editing alias field rotations are allowed.
-    mgr->SetConditions( SCH_ACTIONS::rotateCW,        ENABLE( isEditableInAliasCond ) );
     mgr->SetConditions( SCH_ACTIONS::rotateCCW,       ENABLE( isEditableInAliasCond ) );
+    mgr->SetConditions( SCH_ACTIONS::rotateCW,        ENABLE( isEditableInAliasCond ) );
 
     mgr->SetConditions( SCH_ACTIONS::mirrorV,         ENABLE( isEditableCond ) );
     mgr->SetConditions( SCH_ACTIONS::mirrorH,         ENABLE( isEditableCond ) );

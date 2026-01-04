@@ -28,8 +28,8 @@
 
 bool TOOL_EVT_UTILS::IsRotateToolEvt( const TOOL_EVENT& aEvt )
 {
-    return aEvt.IsAction( &PCB_ACTIONS::rotateCW )
-            || aEvt.IsAction( &PCB_ACTIONS::rotateCCW );
+    return aEvt.IsAction( &PCB_ACTIONS::rotateCCW )
+            || aEvt.IsAction( &PCB_ACTIONS::rotateCW );
 }
 
 
