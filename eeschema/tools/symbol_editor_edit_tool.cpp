@@ -1814,8 +1814,8 @@ void SYMBOL_EDITOR_EDIT_TOOL::setTransitions()
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Paste,              ACTIONS::paste.MakeEvent() );
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Duplicate,          ACTIONS::duplicate.MakeEvent() );
 
-    Go( &SYMBOL_EDITOR_EDIT_TOOL::Rotate,             SCH_ACTIONS::rotateCW.MakeEvent() );
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Rotate,             SCH_ACTIONS::rotateCCW.MakeEvent() );
+    Go( &SYMBOL_EDITOR_EDIT_TOOL::Rotate,             SCH_ACTIONS::rotateCW.MakeEvent() );
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Mirror,             SCH_ACTIONS::mirrorV.MakeEvent() );
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Mirror,             SCH_ACTIONS::mirrorH.MakeEvent() );
     Go( &SYMBOL_EDITOR_EDIT_TOOL::Swap,               SCH_ACTIONS::swap.MakeEvent() );

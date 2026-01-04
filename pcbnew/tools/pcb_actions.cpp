@@ -645,8 +645,18 @@ TOOL_ACTION PCB_ACTIONS::pointEditorMoveMidpoint( TOOL_ACTION_ARGS()
         .Tooltip( _( "Move the active midpoint to an exact location" ) )
         .Icon( BITMAPS::move_exactly ) );
 
-TOOL_ACTION PCB_ACTIONS::rotateCw( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveEdit.rotateCw" )
+TOOL_ACTION PCB_ACTIONS::rotateCCW( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.rotateCCW" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( 'R' )
+        .LegacyHotkeyName( "Rotate Item" )
+        .FriendlyName( _( "Rotate Counterclockwise" ) )
+        .Icon( BITMAPS::rotate_ccw )
+        .Flags( AF_NONE )
+        .Parameter( 1 ) );
+
+TOOL_ACTION PCB_ACTIONS::rotateCW( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.rotateCW" )
         .Scope( AS_GLOBAL )
         .DefaultHotkey( MD_SHIFT + 'R' )
         // Don't be tempted to remove "Modern Toolset only".  It's in the legacy property name.
@@ -655,16 +665,6 @@ TOOL_ACTION PCB_ACTIONS::rotateCw( TOOL_ACTION_ARGS()
         .Icon( BITMAPS::rotate_cw )
         .Flags( AF_NONE )
         .Parameter( -1 ) );
-
-TOOL_ACTION PCB_ACTIONS::rotateCcw( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveEdit.rotateCcw" )
-        .Scope( AS_GLOBAL )
-        .DefaultHotkey( 'R' )
-        .LegacyHotkeyName( "Rotate Item" )
-        .FriendlyName( _( "Rotate Counterclockwise" ) )
-        .Icon( BITMAPS::rotate_ccw )
-        .Flags( AF_NONE )
-        .Parameter( 1 ) );
 
 TOOL_ACTION PCB_ACTIONS::flip( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.flip" )
@@ -675,19 +675,19 @@ TOOL_ACTION PCB_ACTIONS::flip( TOOL_ACTION_ARGS()
         .Tooltip( _( "Flips selected item(s) to opposite side of board" ) )
         .Icon( BITMAPS::swap_layer ) );
 
-TOOL_ACTION PCB_ACTIONS::mirrorH( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveEdit.mirrorHoriontally" )
-        .Scope( AS_GLOBAL )
-        .FriendlyName( _( "Mirror Horizontally" ) )
-        .Tooltip( _( "Mirrors selected item(s) across the Y axis" ) )
-        .Icon( BITMAPS::mirror_h ) );
-
 TOOL_ACTION PCB_ACTIONS::mirrorV( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.mirrorVertically" )
         .Scope( AS_GLOBAL )
         .FriendlyName( _( "Mirror Vertically" ) )
         .Tooltip( _( "Mirrors selected item(s) across the X axis" ) )
         .Icon( BITMAPS::mirror_v ) );
+
+TOOL_ACTION PCB_ACTIONS::mirrorH( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.mirrorHoriontally" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Mirror Horizontally" ) )
+        .Tooltip( _( "Mirrors selected item(s) across the Y axis" ) )
+        .Icon( BITMAPS::mirror_h ) );
 
 TOOL_ACTION PCB_ACTIONS::swap( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.swap" )

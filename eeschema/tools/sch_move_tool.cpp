@@ -912,8 +912,8 @@ bool SCH_MOVE_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, SCH_COMMIT* aComm
             break;
         }
         // Don't call SetPassEvent() for events we've handled - let them be consumed
-        else if( evt->IsAction( &SCH_ACTIONS::rotateCW )
-                 || evt->IsAction( &SCH_ACTIONS::rotateCCW )
+        else if( evt->IsAction( &SCH_ACTIONS::rotateCCW )
+                 || evt->IsAction( &SCH_ACTIONS::rotateCW )
                  || evt->IsAction( &ACTIONS::increment )
                  || evt->IsAction( &SCH_ACTIONS::toDLabel )
                  || evt->IsAction( &SCH_ACTIONS::toGLabel )
@@ -1514,16 +1514,6 @@ bool SCH_MOVE_TOOL::handleMoveToolActions( const TOOL_EVENT* aEvent, SCH_COMMIT*
     {
         wxBell();
     }
-    else if( aEvent->IsAction( &SCH_ACTIONS::rotateCW ) )
-    {
-        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW event received, selection size=%u",
-                    aSelection.GetSize() );
-        m_toolMgr->RunSynchronousAction( SCH_ACTIONS::rotateCW, aCommit );
-        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW RunSynchronousAction completed" );
-        updateStoredPositions( aSelection );
-        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW updateStoredPositions completed" );
-        // Note: SCH_EDIT_TOOL::Rotate already posts refreshPreview when moving
-    }
     else if( aEvent->IsAction( &SCH_ACTIONS::rotateCCW ) )
     {
         wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCCW event received, selection size=%u",
@@ -1532,6 +1522,16 @@ bool SCH_MOVE_TOOL::handleMoveToolActions( const TOOL_EVENT* aEvent, SCH_COMMIT*
         wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCCW RunSynchronousAction completed" );
         updateStoredPositions( aSelection );
         wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCCW updateStoredPositions completed" );
+        // Note: SCH_EDIT_TOOL::Rotate already posts refreshPreview when moving
+    }
+    else if( aEvent->IsAction( &SCH_ACTIONS::rotateCW ) )
+    {
+        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW event received, selection size=%u",
+                    aSelection.GetSize() );
+        m_toolMgr->RunSynchronousAction( SCH_ACTIONS::rotateCW, aCommit );
+        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW RunSynchronousAction completed" );
+        updateStoredPositions( aSelection );
+        wxLogTrace( traceSchMove, "handleMoveToolActions: rotateCW updateStoredPositions completed" );
         // Note: SCH_EDIT_TOOL::Rotate already posts refreshPreview when moving
     }
     else if( aEvent->IsAction( &ACTIONS::increment ) )

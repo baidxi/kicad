@@ -750,13 +750,6 @@ TOOL_ACTION SCH_ACTIONS::repeatDrawItem( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Repeat Last Item" ) )
         .Tooltip( _( "Duplicates the last drawn item" ) ) );
 
-TOOL_ACTION SCH_ACTIONS::rotateCW( TOOL_ACTION_ARGS()
-        .Name( "eeschema.InteractiveEdit.rotateCW" )
-        .Scope( AS_GLOBAL )
-        .DefaultHotkey( MD_SHIFT + 'R' )
-        .FriendlyName( _( "Rotate Clockwise" ) )
-        .Icon( BITMAPS::rotate_cw ) );
-
 TOOL_ACTION SCH_ACTIONS::rotateCCW( TOOL_ACTION_ARGS()
         .Name( "eeschema.InteractiveEdit.rotateCCW" )
         .Scope( AS_GLOBAL )
@@ -764,6 +757,13 @@ TOOL_ACTION SCH_ACTIONS::rotateCCW( TOOL_ACTION_ARGS()
         .LegacyHotkeyName( "Rotate Item" )
         .FriendlyName( _( "Rotate Counterclockwise" ) )
         .Icon( BITMAPS::rotate_ccw ) );
+
+TOOL_ACTION SCH_ACTIONS::rotateCW( TOOL_ACTION_ARGS()
+        .Name( "eeschema.InteractiveEdit.rotateCW" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( MD_SHIFT + 'R' )
+        .FriendlyName( _( "Rotate Clockwise" ) )
+        .Icon( BITMAPS::rotate_cw ) );
 
 TOOL_ACTION SCH_ACTIONS::mirrorV( TOOL_ACTION_ARGS()
         .Name( "eeschema.InteractiveEdit.mirrorV" )
