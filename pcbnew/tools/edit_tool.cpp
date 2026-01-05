@@ -653,8 +653,8 @@ bool EDIT_TOOL::Init()
     menu.AddItem( PCB_ACTIONS::rotateCCW,         SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::rotateCW,          SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::flip,              SELECTION_CONDITIONS::NotEmpty );
-    menu.AddItem( PCB_ACTIONS::mirrorV,           canMirror );
     menu.AddItem( PCB_ACTIONS::mirrorH,           canMirror );
+    menu.AddItem( PCB_ACTIONS::mirrorV,           canMirror );
     menu.AddItem( PCB_ACTIONS::swap,              SELECTION_CONDITIONS::MoreThan( 1 ) );
     menu.AddItem( PCB_ACTIONS::swapPadNets,       SELECTION_CONDITIONS::MoreThan( 1 )
                                                       && SELECTION_CONDITIONS::OnlyTypes( padTypes ) );
