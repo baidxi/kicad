@@ -810,10 +810,10 @@ void SCH_EDIT_FRAME::setupUIConditions()
     mgr->SetConditions( ACTIONS::selectAll,           ENABLE( hasElements ) );
     mgr->SetConditions( ACTIONS::unselectAll,         ENABLE( hasElements ) );
 
-    mgr->SetConditions( SCH_ACTIONS::rotateCW,        ENABLE( hasElements ) );
     mgr->SetConditions( SCH_ACTIONS::rotateCCW,       ENABLE( hasElements ) );
-    mgr->SetConditions( SCH_ACTIONS::mirrorH,         ENABLE( hasElements ) );
+    mgr->SetConditions( SCH_ACTIONS::rotateCW,        ENABLE( hasElements ) );
     mgr->SetConditions( SCH_ACTIONS::mirrorV,         ENABLE( hasElements ) );
+    mgr->SetConditions( SCH_ACTIONS::mirrorH,         ENABLE( hasElements ) );
     mgr->SetConditions( ACTIONS::group,               ENABLE( SELECTION_CONDITIONS::NotEmpty ) );
     mgr->SetConditions( ACTIONS::ungroup,             ENABLE( SELECTION_CONDITIONS::HasType( SCH_GROUP_T ) ) );
 

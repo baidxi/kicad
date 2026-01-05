@@ -590,8 +590,8 @@ int SCH_DRAWING_TOOLS::PlaceSymbol( const TOOL_EVENT& aEvent )
                             || evt->IsAction( &SCH_ACTIONS::setExcludeFromBoard )
                             || evt->IsAction( &SCH_ACTIONS::setExcludeFromSimulation )
                             || evt->IsAction( &SCH_ACTIONS::setDNP )
-                            || evt->IsAction( &SCH_ACTIONS::rotateCW )
                             || evt->IsAction( &SCH_ACTIONS::rotateCCW )
+                            || evt->IsAction( &SCH_ACTIONS::rotateCW )
                             || evt->IsAction( &SCH_ACTIONS::mirrorV )
                             || evt->IsAction( &SCH_ACTIONS::mirrorH ) ) )
         {
@@ -1638,20 +1638,20 @@ int SCH_DRAWING_TOOLS::SingleClickPlace( const TOOL_EVENT& aEvent )
         }
         else if( evt->Category() == TC_COMMAND )
         {
-            if( ( type == SCH_BUS_WIRE_ENTRY_T ) && (   evt->IsAction( &SCH_ACTIONS::rotateCW )
-                                                     || evt->IsAction( &SCH_ACTIONS::rotateCCW )
+            if( ( type == SCH_BUS_WIRE_ENTRY_T ) && (   evt->IsAction( &SCH_ACTIONS::rotateCCW )
+                                                     || evt->IsAction( &SCH_ACTIONS::rotateCW )
                                                      || evt->IsAction( &SCH_ACTIONS::mirrorV )
                                                      || evt->IsAction( &SCH_ACTIONS::mirrorH ) ) )
             {
                 SCH_BUS_ENTRY_BASE* busItem = static_cast<SCH_BUS_ENTRY_BASE*>( previewItem );
 
-                if( evt->IsAction( &SCH_ACTIONS::rotateCW ) )
-                {
-                    busItem->Rotate( busItem->GetPosition(), false );
-                }
-                else if( evt->IsAction( &SCH_ACTIONS::rotateCCW ) )
+                if( evt->IsAction( &SCH_ACTIONS::rotateCCW ) )
                 {
                     busItem->Rotate( busItem->GetPosition(), true );
+                }
+                else if( evt->IsAction( &SCH_ACTIONS::rotateCW ) )
+                {
+                    busItem->Rotate( busItem->GetPosition(), false );
                 }
                 else if( evt->IsAction( &SCH_ACTIONS::mirrorV ) )
                 {
@@ -2399,8 +2399,8 @@ int SCH_DRAWING_TOOLS::TwoClickPlace( const TOOL_EVENT& aEvent )
         }
         else if( item && (   evt->IsAction( &SCH_ACTIONS::properties )
                           || evt->IsAction( &SCH_ACTIONS::autoplaceFields )
-                          || evt->IsAction( &SCH_ACTIONS::rotateCW )
                           || evt->IsAction( &SCH_ACTIONS::rotateCCW )
+                          || evt->IsAction( &SCH_ACTIONS::rotateCW )
                           || evt->IsAction( &SCH_ACTIONS::mirrorV )
                           || evt->IsAction( &SCH_ACTIONS::mirrorH ) ) )
         {

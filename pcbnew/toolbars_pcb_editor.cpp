@@ -323,8 +323,8 @@ std::optional<TOOLBAR_CONFIGURATION> PCB_EDIT_TOOLBAR_SETTINGS::DefaultToolbarCo
               .AppendAction( ACTIONS::zoomTool );
 
         config.AppendSeparator()
-              .AppendAction( PCB_ACTIONS::rotateCcw )
-              .AppendAction( PCB_ACTIONS::rotateCw )
+              .AppendAction( PCB_ACTIONS::rotateCCW )
+              .AppendAction( PCB_ACTIONS::rotateCW )
               .AppendAction( PCB_ACTIONS::mirrorV )
               .AppendAction( PCB_ACTIONS::mirrorH )
               .AppendAction( ACTIONS::group )

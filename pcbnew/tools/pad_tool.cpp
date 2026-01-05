@@ -127,11 +127,11 @@ bool PAD_TOOL::Init()
     ctxMenu.AddItem( ACTIONS::cancelInteractive,           SELECTION_CONDITIONS::ShowAlways, 1 );
     ctxMenu.AddSeparator( 1 );
 
-    ctxMenu.AddItem( PCB_ACTIONS::rotateCcw,               SELECTION_CONDITIONS::ShowAlways );
-    ctxMenu.AddItem( PCB_ACTIONS::rotateCw,                SELECTION_CONDITIONS::ShowAlways );
+    ctxMenu.AddItem( PCB_ACTIONS::rotateCCW,               SELECTION_CONDITIONS::ShowAlways );
+    ctxMenu.AddItem( PCB_ACTIONS::rotateCW,                SELECTION_CONDITIONS::ShowAlways );
     ctxMenu.AddItem( PCB_ACTIONS::flip,                    SELECTION_CONDITIONS::ShowAlways );
-    ctxMenu.AddItem( PCB_ACTIONS::mirrorH,                 SELECTION_CONDITIONS::ShowAlways );
     ctxMenu.AddItem( PCB_ACTIONS::mirrorV,                 SELECTION_CONDITIONS::ShowAlways );
+    ctxMenu.AddItem( PCB_ACTIONS::mirrorH,                 SELECTION_CONDITIONS::ShowAlways );
     ctxMenu.AddItem( PCB_ACTIONS::properties,              SELECTION_CONDITIONS::ShowAlways );
 
     // Finally, add the standard zoom/grid items

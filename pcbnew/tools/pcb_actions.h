@@ -115,15 +115,15 @@ public:
     static TOOL_ACTION copyWithReference;
 
     /// Rotation of selected objects
-    static TOOL_ACTION rotateCw;
-    static TOOL_ACTION rotateCcw;
+    static TOOL_ACTION rotateCCW;
+    static TOOL_ACTION rotateCW;
 
     /// Flipping of selected objects
     static TOOL_ACTION flip;
 
     /// Mirroring of selected items
-    static TOOL_ACTION mirrorH;
     static TOOL_ACTION mirrorV;
+    static TOOL_ACTION mirrorH;
 
     /// Swapping of selected items
     static TOOL_ACTION swap;

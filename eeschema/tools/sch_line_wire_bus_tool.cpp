@@ -1114,7 +1114,7 @@ int SCH_LINE_WIRE_BUS_TOOL::doDrawSegments( const TOOL_EVENT& aTool, SCH_COMMIT&
         //------------------------------------------------------------------------
         // Handle TOOL_ACTION special cases
         //
-        else if( evt->IsAction( &SCH_ACTIONS::rotateCW ) || evt->IsAction( &SCH_ACTIONS::rotateCCW ) )
+        else if( evt->IsAction( &SCH_ACTIONS::rotateCCW ) || evt->IsAction( &SCH_ACTIONS::rotateCW ) )
         {
             if( m_busUnfold.in_progress )
             {

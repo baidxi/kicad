@@ -1344,11 +1344,11 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
         {
             wxBell();
         }
-        else if(   evt->IsAction( &PCB_ACTIONS::rotateCw )
-                || evt->IsAction( &PCB_ACTIONS::rotateCcw )
+        else if(   evt->IsAction( &PCB_ACTIONS::rotateCCW )
+                || evt->IsAction( &PCB_ACTIONS::rotateCW )
                 || evt->IsAction( &PCB_ACTIONS::flip )
-                || evt->IsAction( &PCB_ACTIONS::mirrorH )
-                || evt->IsAction( &PCB_ACTIONS::mirrorV ) )
+                || evt->IsAction( &PCB_ACTIONS::mirrorV )
+                || evt->IsAction( &PCB_ACTIONS::mirrorH ) )
         {
             updateBBox = true;
             eatFirstMouseUp = false;
