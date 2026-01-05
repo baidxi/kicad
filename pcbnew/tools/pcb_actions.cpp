@@ -646,7 +646,7 @@ TOOL_ACTION PCB_ACTIONS::pointEditorMoveMidpoint( TOOL_ACTION_ARGS()
         .Icon( BITMAPS::move_exactly ) );
 
 TOOL_ACTION PCB_ACTIONS::rotateCCW( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveEdit.rotateCCW" )
+        .Name( "pcbnew.InteractiveEdit.rotateCcw" )
         .Scope( AS_GLOBAL )
         .DefaultHotkey( 'R' )
         .LegacyHotkeyName( "Rotate Item" )
@@ -656,7 +656,7 @@ TOOL_ACTION PCB_ACTIONS::rotateCCW( TOOL_ACTION_ARGS()
         .Parameter( 1 ) );
 
 TOOL_ACTION PCB_ACTIONS::rotateCW( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveEdit.rotateCW" )
+        .Name( "pcbnew.InteractiveEdit.rotateCw" )
         .Scope( AS_GLOBAL )
         .DefaultHotkey( MD_SHIFT + 'R' )
         // Don't be tempted to remove "Modern Toolset only".  It's in the legacy property name.
