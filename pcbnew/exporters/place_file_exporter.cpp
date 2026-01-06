@@ -75,19 +75,20 @@ enum SELECT_SIDE
     PCB_BOTH_SIDES
 };
 
-PLACE_FILE_EXPORTER::PLACE_FILE_EXPORTER( BOARD* aBoard, bool aUnitsMM, bool aOnlySMD,
-                                          bool aExcludeAllTH, bool aExcludeDNP, bool aExcludeBOM,
-                                          bool aTopSide, bool aBottomSide, bool aFormatCSV,
-                                          bool aUseAuxOrigin, bool aNegateBottomX )
+PLACE_FILE_EXPORTER::PLACE_FILE_EXPORTER( BOARD* aBoard, bool aUnitsMM, bool aOnlySMD, bool aExcludeAllTH,
+                                          bool aExcludeDNP, bool aExcludeBOM, bool aTopSide, bool aBottomSide,
+                                          bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX,
+                                          const wxString& aCsvColumnNames )
 {
-    m_board         = aBoard;
-    m_unitsMM       = aUnitsMM;
-    m_onlySMD       = aOnlySMD;
-    m_excludeAllTH  = aExcludeAllTH;
-    m_excludeDNP    = aExcludeDNP;
-    m_excludeBOM    = aExcludeBOM;
-    m_fpCount       = 0;
+    m_board = aBoard;
+    m_unitsMM = aUnitsMM;
+    m_onlySMD = aOnlySMD;
+    m_excludeAllTH = aExcludeAllTH;
+    m_excludeDNP = aExcludeDNP;
+    m_excludeBOM = aExcludeBOM;
+    m_fpCount = 0;
     m_negateBottomX = aNegateBottomX;
+    m_csvHeader = TO_UTF8( aCsvColumnNames );
 
     if( aTopSide && aBottomSide )
         m_side = PCB_BOTH_SIDES;
@@ -179,11 +180,12 @@ std::string PLACE_FILE_EXPORTER::GenPositionData()
     {
         wxChar csv_sep = ',';
 
-        // Set first line:;
-        snprintf( line, sizeof(line), "Ref%cVal%cPackage%cPosX%cPosY%cRot%cSide\n",
-                  csv_sep, csv_sep, csv_sep, csv_sep, csv_sep, csv_sep );
-
-        buffer += line;
+        if( !m_csvHeader.empty() )
+        {
+            // Write the header row only when provided.
+            snprintf( line, sizeof( line ), "%s\n", m_csvHeader.c_str() );
+            buffer += line;
+        }
 
         for( int ii = 0; ii < m_fpCount; ii++ )
         {

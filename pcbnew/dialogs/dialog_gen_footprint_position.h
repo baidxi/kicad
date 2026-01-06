@@ -51,6 +51,8 @@ private:
     void onUpdateUInegXcoord( wxUpdateUIEvent& event ) override;
     void onUpdateUIExcludeTH( wxUpdateUIEvent& event ) override;
     void onUpdateUIincludeBoardEdge( wxUpdateUIEvent& event ) override;
+    void onUpdateUICsvColumnNames( wxUpdateUIEvent& event ) override;
+    void onDefaultCsvHeader( wxCommandEvent& event ) override;
 
     /**
      * Creates files in text or csv format
@@ -63,12 +65,13 @@ private:
     bool CreateGerberFiles();
 
     // accessors to options:
-    bool UnitsMM()      { return m_unitsCtrl->GetSelection() == 1; }
-    bool OneFileOnly()  { return m_singleFile->GetValue(); }
-    bool OnlySMD()      { return m_onlySMD->GetValue(); }
-    bool ExcludeAllTH() { return m_excludeTH->GetValue(); }
-    bool ExcludeDNP()   { return m_excludeDNP->GetValue(); }
-    bool ExcludeBOM()   { return m_excludeBOM->GetValue(); }
+    bool     UnitsMM() { return m_unitsCtrl->GetSelection() == 1; }
+    bool     OneFileOnly() { return m_singleFile->GetValue(); }
+    bool     OnlySMD() { return m_onlySMD->GetValue(); }
+    bool     ExcludeAllTH() { return m_excludeTH->GetValue(); }
+    bool     ExcludeDNP() { return m_excludeDNP->GetValue(); }
+    bool     ExcludeBOM() { return m_excludeBOM->GetValue(); }
+    wxString CsvColumnNames() { return m_csvColumnNames->GetValue(); }
 
 private:
     PCB_EDIT_FRAME*     m_editFrame;
