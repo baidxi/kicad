@@ -1598,7 +1598,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
     MMH3_HASH hash;
     hash.addData((const uint8_t*) &aElem, sizeof(aElem));
     wxString stepFilename = hash.digest().ToString() + wxString(".step");
-    std::cout << "creating extruded body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
+    //std::cout << "creating extruded body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
     
 
     // disable opencascade debug output
@@ -1630,19 +1630,10 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
             for(size_t i = 0; i < aElem.modelOutline.size(); i++)
             {
-                polygon.Add(gp_Pnt(
-                    pcbIUScale.IUTomm(aElem.modelOutline[i].x),
-                    pcbIUScale.IUTomm(-aElem.modelOutline[i].y),	// y axis is flipped in Altium vs KiCad
-                    pcbIUScale.IUTomm(aElem.body_projection == 1 ? -aElem.modelExtrudedMinZ : aElem.modelExtrudedMinZ)));
-
-                if(i > 0 && !polygon.Added())
-                {
-                    if( m_reporter )
-                    {
-                        m_reporter->Report( "outline points are overlapping" , RPT_SEVERITY_ERROR );
-                    }
-                    return false;
-                }
+                polygon.Add( gp_Pnt(
+                    pcbIUScale.IUTomm( aElem.modelOutline[i].x - aElem.modelPosition.x ),
+                    pcbIUScale.IUTomm( - (aElem.modelOutline[i].y - aElem.modelPosition.y )),	// y axis is flipped in Altium vs KiCad
+                    pcbIUScale.IUTomm( aElem.modelExtrudedMinZ )));
             }
             polygon.Close();
 
@@ -1680,8 +1671,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
             }
 
             // extrude to a solid
-            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0,
-                                                            pcbIUScale.IUTomm(aElem.body_projection == 1 ? -extrudeHeight : extrudeHeight)));
+            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, pcbIUScale.IUTomm( extrudeHeight )));
 
             if(!prism.IsDone())
             {
@@ -1926,38 +1916,35 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
     modelSettings.m_Filename = aFootprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
 
-    if( aElem.modelType != ALTIUM_MODEL_TYPE::EXTRUDED )    // for extruded models, offset and rotation are ignored
+    modelSettings.m_Offset.x = pcbIUScale.IUTomm( (int) aElem.modelPosition.x );
+    modelSettings.m_Offset.y = -pcbIUScale.IUTomm( (int) aElem.modelPosition.y );
+    modelSettings.m_Offset.z = pcbIUScale.IUTomm( (int) aElem.modelPosition.z );
+
+    EDA_ANGLE orientation = aFootprint->GetOrientation();
+
+    if( aFootprint->IsFlipped() )
     {
-        modelSettings.m_Offset.x = pcbIUScale.IUTomm( (int) aElem.modelPosition.x );
-        modelSettings.m_Offset.y = -pcbIUScale.IUTomm( (int) aElem.modelPosition.y );
-        modelSettings.m_Offset.z = pcbIUScale.IUTomm( (int) aElem.modelPosition.z );
-
-        EDA_ANGLE orientation = aFootprint->GetOrientation();
-
-        if( aFootprint->IsFlipped() )
-        {
-            modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
-            orientation              = -orientation;
-        }
-
-        VECTOR3D modelRotation( aElem.modelRotation );
-
-        if( ( aElem.body_projection == 1 ) != aFootprint->IsFlipped() )
-        {
-            modelRotation.x += 180;
-            modelRotation.z = -modelRotation.z;
-
-            modelSettings.m_Offset.z = -DEFAULT_BOARD_THICKNESS_MM - modelSettings.m_Offset.z;
-        }
-
-        RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
-
-        modelSettings.m_Rotation.x = normalizeAngleDegrees( -modelRotation.x, -180, 180 );
-        modelSettings.m_Rotation.y = normalizeAngleDegrees( -modelRotation.y, -180, 180 );
-        modelSettings.m_Rotation.z = normalizeAngleDegrees( -modelRotation.z + aElem.rotation
-                                                                             + orientation.AsDegrees(),
-                                                                               -180, 180 );
+        modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
+        orientation              = -orientation;
     }
+
+    VECTOR3D modelRotation( aElem.modelRotation );
+
+    if( ( aElem.body_projection == 1 ) != aFootprint->IsFlipped() )
+    {
+        modelRotation.x += 180;
+        modelRotation.z = -modelRotation.z;
+
+        modelSettings.m_Offset.z = -DEFAULT_BOARD_THICKNESS_MM - modelSettings.m_Offset.z;
+    }
+
+    RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
+
+    modelSettings.m_Rotation.x = normalizeAngleDegrees( -modelRotation.x, -180, 180 );
+    modelSettings.m_Rotation.y = normalizeAngleDegrees( -modelRotation.y, -180, 180 );
+    modelSettings.m_Rotation.z = normalizeAngleDegrees( -modelRotation.z + aElem.rotation
+                                                                         + orientation.AsDegrees(),
+                                                                           -180, 180 );
 
     modelSettings.m_Opacity = aElem.body_opacity_3d;
 
@@ -2072,40 +2059,37 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         modelSettings.m_Filename = footprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
         VECTOR2I fpPosition = footprint->GetPosition();
 
-        if( elem.modelType != ALTIUM_MODEL_TYPE::EXTRUDED )    // for extruded models, offset and rotation are ignored
+        modelSettings.m_Offset.x =
+                pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
+        modelSettings.m_Offset.y =
+                -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
+        modelSettings.m_Offset.z = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.z ) );
+
+        EDA_ANGLE orientation = footprint->GetOrientation();
+
+        if( footprint->IsFlipped() )
         {
-            modelSettings.m_Offset.x =
-                    pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
-            modelSettings.m_Offset.y =
-                    -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
-            modelSettings.m_Offset.z = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.z ) );
-
-            EDA_ANGLE orientation = footprint->GetOrientation();
-
-            if( footprint->IsFlipped() )
-            {
-                modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
-                orientation              = -orientation;
-            }
-
-            if( ( elem.body_projection == 1 ) != footprint->IsFlipped() )
-            {
-                elem.modelRotation.x += 180;
-                elem.modelRotation.z = -elem.modelRotation.z;
-
-                modelSettings.m_Offset.z =
-                        -pcbIUScale.IUTomm( m_board->GetDesignSettings().GetBoardThickness() )
-                        - modelSettings.m_Offset.z;
-            }
-
-            RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
-
-            modelSettings.m_Rotation.x = normalizeAngleDegrees( -elem.modelRotation.x, -180, 180 );
-            modelSettings.m_Rotation.y = normalizeAngleDegrees( -elem.modelRotation.y, -180, 180 );
-            modelSettings.m_Rotation.z = normalizeAngleDegrees( -elem.modelRotation.z + elem.rotation
-                                                                                      + orientation.AsDegrees(),
-                                                                                       -180, 180 );
+            modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
+            orientation              = -orientation;
         }
+
+        if( ( elem.body_projection == 1 ) != footprint->IsFlipped() )
+        {
+            elem.modelRotation.x += 180;
+            elem.modelRotation.z = -elem.modelRotation.z;
+
+            modelSettings.m_Offset.z =
+                    -pcbIUScale.IUTomm( m_board->GetDesignSettings().GetBoardThickness() )
+                    - modelSettings.m_Offset.z;
+        }
+
+        RotatePoint( &modelSettings.m_Offset.x, &modelSettings.m_Offset.y, orientation );
+
+        modelSettings.m_Rotation.x = normalizeAngleDegrees( -elem.modelRotation.x, -180, 180 );
+        modelSettings.m_Rotation.y = normalizeAngleDegrees( -elem.modelRotation.y, -180, 180 );
+        modelSettings.m_Rotation.z = normalizeAngleDegrees( -elem.modelRotation.z + elem.rotation
+                                                                                  + orientation.AsDegrees(),
+                                                                                   -180, 180 );
 
         modelSettings.m_Opacity = elem.body_opacity_3d;
 
