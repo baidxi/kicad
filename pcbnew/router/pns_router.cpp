@@ -358,18 +358,9 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
         int actualGap = ( dpPair.AnchorP() - dpPair.AnchorN() ).EuclideanNorm();
         int configuredGap = m_sizes.DiffPairGap() + m_sizes.DiffPairWidth();
 
-        // Allow some tolerance (10%) for minor differences, but warn about significant mismatches
-        int tolerance = configuredGap / 10;
-
-        if( std::abs( actualGap - configuredGap ) > tolerance )
-        {
-            SetFailureReason(
-                    _( "The differential pair gap at the start point does not match "
-                       "the configured gap. This can occur in neckdown areas where tracks "
-                       "have narrower width and spacing. Adjust the differential pair "
-                       "settings or start from a location with the correct gap." ) );
-            return false;
-        }
+        // Warning: we used to block here if the gap didn't match. But now we support automatic
+        // breakout/neckdown generation, so we should allow proceeding. The placement algorithm
+        // will fail if it can't find a valid starting topology.
 
         SHAPE_LINE_CHAIN dummyStartSegA;
         SHAPE_LINE_CHAIN dummyStartSegB;
