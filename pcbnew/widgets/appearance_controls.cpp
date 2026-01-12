@@ -924,10 +924,11 @@ void APPEARANCE_CONTROLS::OnNetGridDoubleClick( wxGridEvent& event )
 
 void APPEARANCE_CONTROLS::OnNetGridRightClick( wxGridEvent& event )
 {
-    m_netsGrid->SelectRow( event.GetRow() );
+    int row = event.GetRow();
+    NET_GRID_ENTRY &net = m_netsTable->GetEntry( row );
 
-    wxString netName = UnescapeString( m_netsGrid->GetCellValue( event.GetRow(),
-                                                                 NET_GRID_TABLE::COL_LABEL ) );
+    m_netsGrid->SelectRow( row );
+
     wxMenu menu;
 
     menu.Append( new wxMenuItem( &menu, ID_SET_NET_COLOR, _( "Set Net Color" ), wxEmptyString,
@@ -938,13 +939,13 @@ void APPEARANCE_CONTROLS::OnNetGridRightClick( wxGridEvent& event )
     menu.AppendSeparator();
 
     menu.Append( new wxMenuItem( &menu, ID_HIGHLIGHT_NET,
-                                 wxString::Format( _( "Highlight %s" ), netName ), wxEmptyString,
+                                 wxString::Format( _( "Highlight %s" ), net.name ), wxEmptyString,
                                  wxITEM_NORMAL ) );
     menu.Append( new wxMenuItem( &menu, ID_SELECT_NET,
-                                 wxString::Format( _( "Select Tracks and Vias in %s" ), netName ),
+                                 wxString::Format( _( "Select Tracks and Vias in %s" ), net.name ),
                                  wxEmptyString, wxITEM_NORMAL ) );
     menu.Append( new wxMenuItem( &menu, ID_DESELECT_NET,
-                                 wxString::Format( _( "Unselect Tracks and Vias in %s" ), netName ),
+                                 wxString::Format( _( "Unselect Tracks and Vias in %s" ), net.name ),
                                  wxEmptyString, wxITEM_NORMAL ) );
 
     menu.AppendSeparator();
@@ -1159,6 +1160,30 @@ void APPEARANCE_CONTROLS::OnBoardItemsChanged( BOARD& aBoard, std::vector<BOARD_
 {
     if( doesBoardItemNeedRebuild( aItems ) )
         handleBoardItemsChanged();
+}
+
+
+void APPEARANCE_CONTROLS::OnBoardHighlightNetChanged( BOARD& aBoard )
+{
+    if( !m_panelNets->IsShownOnScreen() )
+        return;
+
+    const std::set<int>& codes = aBoard.GetHighLightNetCodes();
+    int lowestRow = m_netsTable->GetRowsCount();
+
+    m_netsGrid->ClearSelection();
+
+    for( const int code : codes )
+    {
+        m_netsGrid->SelectRow( m_netsTable->GetRowByNetcode( code ), true );
+
+        const int row = m_netsTable->GetRowByNetcode( code );
+        if( row < lowestRow )
+            lowestRow = row;
+    }
+
+    if( !codes.empty() )
+        m_netsGrid->MakeCellVisible( lowestRow, 0 );
 }
 
 
@@ -3172,12 +3197,11 @@ void APPEARANCE_CONTROLS::onObjectOpacitySlider( int aLayer, float aOpacity )
 
 void APPEARANCE_CONTROLS::onNetContextMenu( wxCommandEvent& aEvent )
 {
-    wxASSERT( m_netsGrid->GetSelectedRows().size() == 1 );
+    if( m_netsGrid->GetSelectedRows().size() != 1 )
+        return;
 
-    int row = m_netsGrid->GetSelectedRows()[0];
+    int row = m_netsGrid->GetSelectedRows().front();
     NET_GRID_ENTRY& net = m_netsTable->GetEntry( row );
-
-    m_netsGrid->ClearSelection();
 
     switch( aEvent.GetId() )
     {

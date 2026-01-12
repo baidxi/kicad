@@ -219,6 +219,7 @@ public:
     void OnBoardItemsRemoved( BOARD& aBoard, std::vector<BOARD_ITEM*>& aItems ) override;
     void OnBoardItemChanged( BOARD& aBoard, BOARD_ITEM* aItem ) override;
     void OnBoardItemsChanged( BOARD& aBoard, std::vector<BOARD_ITEM*>& aItems ) override;
+    void OnBoardHighlightNetChanged( BOARD& aBoard ) override;
     void OnBoardCompositeUpdate( BOARD& aBoard, std::vector<BOARD_ITEM*>& aAddedItems,
                                  std::vector<BOARD_ITEM*>& aRemovedItems,
                                  std::vector<BOARD_ITEM*>& aChangedItems ) override;
