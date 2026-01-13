@@ -85,8 +85,6 @@ public:
     }
 
 protected:
-    // Made protected to allow derived classes to extend functionality
-    // Changed by Ayomide Adekoya for crossing minimization enhancement
     int genPlacementRoutingMatrix();
     virtual double computePlacementRatsnestCost( FOOTPRINT* aFootprint, const VECTOR2I& aOffset );
     const PAD* nearestPad( FOOTPRINT* aRefFP, PAD* aRefPad, const VECTOR2I& aOffset );
@@ -127,8 +125,6 @@ private:
     void buildFpAreas( FOOTPRINT* aFootprint, int aFpClearance );
 
 protected:
-    // Made protected to allow derived classes to access these members
-    // Changed by Ayomide Adekoya for crossing minimization enhancement
     AR_MATRIX m_matrix;
     BOARD* m_board;
     int      m_gridSize;
