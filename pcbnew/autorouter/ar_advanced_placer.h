@@ -47,12 +47,6 @@ private:
                                   FOOTPRINT* aMovingFootprint,
                                   int aNetCode );
     
-    /**
-     * Check if two line segments intersect (2D)
-     */
-    bool DoSegmentsIntersect( const VECTOR2I& p1, const VECTOR2I& q1,
-                             const VECTOR2I& p2, const VECTOR2I& q2 );
-    
     // The weight factor for crossing penalty (higher = avoid crossings more)
     double m_crossingWeight;
 };

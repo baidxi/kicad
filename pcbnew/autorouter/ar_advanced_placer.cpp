@@ -13,6 +13,7 @@
 #include "ar_advanced_placer.h"
 #include <board_commit.h>
 #include <pad.h>
+#include <geometry/seg.h>
 
 AR_ADVANCED_PLACER::AR_ADVANCED_PLACER( BOARD* aBoard ) 
     : AR_AUTOPLACER( aBoard ),
@@ -90,10 +91,10 @@ int AR_ADVANCED_PLACER::CountCrossingsWithPlaced( const VECTOR2I& aStart,
             if( !placedTarget )
                 continue;
                 
-            // Check if the segments intersect
-            if( DoSegmentsIntersect( aStart, aEnd, 
-                                    placedPad->GetPosition(), 
-                                    placedTarget->GetPosition() ) )
+            SEG proposedSeg( aStart, aEnd );
+            SEG placedSeg( placedPad->GetPosition(), placedTarget->GetPosition() );
+
+            if( proposedSeg.Intersects( placedSeg ) )
             {
                 crossings++;
             }
@@ -101,31 +102,4 @@ int AR_ADVANCED_PLACER::CountCrossingsWithPlaced( const VECTOR2I& aStart,
     }
     
     return crossings;
-}
-
-bool AR_ADVANCED_PLACER::DoSegmentsIntersect( const VECTOR2I& p1, const VECTOR2I& q1,
-                                              const VECTOR2I& p2, const VECTOR2I& q2 )
-{
-    // Calculate orientations using cross product
-    auto orientation = []( const VECTOR2I& p, const VECTOR2I& q, const VECTOR2I& r ) -> int
-    {
-        long long val = (long long)( q.y - p.y ) * ( r.x - q.x ) - 
-                       (long long)( q.x - p.x ) * ( r.y - q.y );
-        
-        if( val == 0 ) return 0;  // Collinear
-        return ( val > 0 ) ? 1 : 2; // CW or CCW
-    };
-    
-    int o1 = orientation( p1, q1, p2 );
-    int o2 = orientation( p1, q1, q2 );
-    int o3 = orientation( p2, q2, p1 );
-    int o4 = orientation( p2, q2, q1 );
-    
-    // General case: different orientations mean intersection
-    if( o1 != o2 && o3 != o4 )
-        return true;
-    
-    // For collinear cases, we'd need additional checks
-    // but for PCB placement, truly collinear traces are rare
-    return false;
 }
