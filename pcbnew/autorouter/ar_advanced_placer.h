@@ -1,8 +1,24 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
- * Enhanced Placement with Crossing Minimization
- * Author: Ayomide Adekoya
+ * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
 #ifndef __AR_ADVANCED_PLACER_H
@@ -10,44 +26,24 @@
 
 #include "ar_autoplacer.h"
 
-/**
- * Enhanced placement optimizer that adds crossing minimization to the standard autoplacer.
- * 
- * The key innovation: The original KiCad autoplacer only considers distance when
- * placing components. This enhanced version also counts how many trace crossings
- * would be created and penalizes placements that create crossings.
- * 
- * Result: Fewer vias needed, cleaner routing, better signal integrity.
- */
 class AR_ADVANCED_PLACER : public AR_AUTOPLACER
 {
 public:
     AR_ADVANCED_PLACER( BOARD* aBoard );
-    
-    /**
-     * Override to use our cost function
-     */
-    AR_RESULT AutoplaceFootprints( std::vector<FOOTPRINT*>& aFootprints, 
+
+    AR_RESULT AutoplaceFootprints( std::vector<FOOTPRINT*>& aFootprints,
                                    BOARD_COMMIT* aCommit,
                                    bool aPlaceOffboardModules = false ) override;
-    
-    /**
-     * Enhanced cost function that includes crossing penalty
-     * This is the CORE - we add penalty for crossings
-     */
-    double computePlacementRatsnestCost( FOOTPRINT* aFootprint, 
+
+    double computePlacementRatsnestCost( FOOTPRINT* aFootprint,
                                          const VECTOR2I& aOffset ) override;
 
 private:
-    /**
-     * Count how many existing traces a proposed connection would cross
-     */
-    int CountCrossingsWithPlaced( const VECTOR2I& aStart, 
+    int CountCrossingsWithPlaced( const VECTOR2I& aStart,
                                   const VECTOR2I& aEnd,
                                   FOOTPRINT* aMovingFootprint,
                                   int aNetCode );
-    
-    // The weight factor for crossing penalty (higher = avoid crossings more)
+
     double m_crossingWeight;
 };
 
