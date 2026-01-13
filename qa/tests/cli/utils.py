@@ -71,6 +71,7 @@ def _get_cached_kicad_major_version() -> int:
 
 
 def run_and_capture( command: list[str] ) -> Tuple[ str, str, int ]:
+    command = [str( c ) for c in command]
     logger.info("Executing command \"%s\"", " ".join( command ))
 
     env = {}
@@ -297,6 +298,16 @@ def convert_gerber_to_png( gerber_path : str, png_path : str, dpi : int,
                                                 "--foreground=#FFFFFF", "--background=#000000",
                                                 gerber_path
                                                 ])
+
+
+def is_gerbview_available() -> bool:
+    """Check if the gerbview kiface is built and loadable by kicad-cli."""
+    try:
+        stdout, stderr, exitcode = run_and_capture([kicad_cli(), "gerber", "info", "--help"])
+    except Exception:
+        return False
+
+    return exitcode == 0
 
 
 def is_gerbv_installed() -> bool:

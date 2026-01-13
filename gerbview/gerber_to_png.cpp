@@ -1,0 +1,281 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "gerber_to_png.h"
+#include "gerber_file_image.h"
+#include "gerber_draw_item.h"
+#include "excellon_image.h"
+#include "excellon_defaults.h"
+#include <jobs/job_gerber_export_png.h>
+#include <plotters/plotter_png.h>
+#include <geometry/shape_poly_set.h>
+#include <base_units.h>
+#include <cmath>
+#include <wx/filename.h>
+
+
+bool IsExcellonFile( const wxString& aPath )
+{
+    wxFileName fn( aPath );
+    wxString   ext = fn.GetExt().Lower();
+    return ext == wxS( "drl" ) || ext == wxS( "xln" ) || ext == wxS( "exc" ) || ext == wxS( "ncd" );
+}
+
+
+BOX2I CalculateGerberBoundingBox( GERBER_FILE_IMAGE* aImage )
+{
+    BOX2I bbox;
+    bool  first = true;
+
+    for( GERBER_DRAW_ITEM* item : aImage->GetItems() )
+    {
+        BOX2I itemBox = item->GetBoundingBox();
+
+        if( first )
+        {
+            bbox = itemBox;
+            first = false;
+        }
+        else
+        {
+            bbox.Merge( itemBox );
+        }
+    }
+
+    return bbox;
+}
+
+
+std::unique_ptr<GERBER_FILE_IMAGE> LoadGerberOrExcellon( const wxString& aPath, wxString* aErrorMsg,
+                                                         wxArrayString* aMessages )
+{
+    std::unique_ptr<GERBER_FILE_IMAGE> image;
+
+    if( IsExcellonFile( aPath ) )
+    {
+        auto              excellon = std::make_unique<EXCELLON_IMAGE>( 0 );
+        EXCELLON_DEFAULTS defaults;
+
+        if( !excellon->LoadFile( aPath, &defaults ) )
+        {
+            if( aErrorMsg )
+                *aErrorMsg = wxString::Format( wxS( "Failed to load Excellon file: %s" ), aPath );
+
+            return nullptr;
+        }
+
+        image = std::move( excellon );
+    }
+    else
+    {
+        image = std::make_unique<GERBER_FILE_IMAGE>( 0 );
+
+        if( !image->LoadGerberFile( aPath ) )
+        {
+            if( aErrorMsg )
+                *aErrorMsg = wxString::Format( wxS( "Failed to load Gerber file: %s" ), aPath );
+
+            return nullptr;
+        }
+    }
+
+    if( aMessages )
+        *aMessages = image->GetMessages();
+
+    return image;
+}
+
+
+namespace
+{
+
+/**
+ * Render a single draw item to the plotter.
+ */
+void RenderItem( GERBER_DRAW_ITEM* aItem, PNG_PLOTTER& aPlotter, const KIGFX::COLOR4D& aColor )
+{
+    SHAPE_POLY_SET itemPoly;
+
+    if( aItem->m_ShapeAsPolygon.OutlineCount() > 0 )
+    {
+        itemPoly = aItem->m_ShapeAsPolygon;
+    }
+    else if( aItem->m_ShapeType == GBR_SEGMENT || aItem->m_ShapeType == GBR_ARC )
+    {
+        aItem->ConvertSegmentToPolygon( &itemPoly );
+    }
+    else if( aItem->m_Flashed )
+    {
+        D_CODE* dcode = aItem->GetDcodeDescr();
+
+        if( dcode )
+        {
+            dcode->ConvertShapeToPolygon( aItem );
+            itemPoly = aItem->m_ShapeAsPolygon;
+        }
+    }
+
+    if( itemPoly.OutlineCount() == 0 )
+        return;
+
+    // Apply AB transforms and render each outline directly
+    aPlotter.SetColor( aColor );
+
+    for( int i = 0; i < itemPoly.OutlineCount(); i++ )
+    {
+        const SHAPE_LINE_CHAIN& outline = itemPoly.COutline( i );
+        std::vector<VECTOR2I>   pts;
+        pts.reserve( outline.PointCount() );
+
+        for( int j = 0; j < outline.PointCount(); j++ )
+            pts.push_back( aItem->GetABPosition( outline.CPoint( j ) ) );
+
+        if( pts.size() >= 3 )
+            aPlotter.PlotPoly( pts, FILL_T::FILLED_SHAPE, 0 );
+    }
+}
+
+} // anonymous namespace
+
+
+GERBER_PLOTTER_VIEWPORT CalculatePlotterViewport( const BOX2I& aBBox, int aDpi, int aWidth, int aHeight )
+{
+    GERBER_PLOTTER_VIEWPORT vp;
+    vp.width = aWidth;
+    vp.height = aHeight;
+
+    if( vp.width == 0 && vp.height == 0 )
+    {
+        double iuPerInch = gerbIUScale.IU_PER_MM * 25.4;
+        double widthInches = static_cast<double>( aBBox.GetWidth() ) / iuPerInch;
+        double heightInches = static_cast<double>( aBBox.GetHeight() ) / iuPerInch;
+
+        vp.width = static_cast<int>( std::ceil( widthInches * aDpi ) );
+        vp.height = static_cast<int>( std::ceil( heightInches * aDpi ) );
+
+        if( vp.width < MIN_PIXEL_SIZE )
+            vp.width = MIN_PIXEL_SIZE;
+
+        if( vp.height < MIN_PIXEL_SIZE )
+            vp.height = MIN_PIXEL_SIZE;
+    }
+    else if( vp.width == 0 )
+    {
+        double aspect = static_cast<double>( aBBox.GetWidth() ) / aBBox.GetHeight();
+        vp.width = static_cast<int>( vp.height * aspect );
+    }
+    else if( vp.height == 0 )
+    {
+        double aspect = static_cast<double>( aBBox.GetHeight() ) / aBBox.GetWidth();
+        vp.height = static_cast<int>( vp.width * aspect );
+    }
+
+    vp.iuPerDecimil = gerbIUScale.IU_PER_MILS / 10.0;
+
+    double scaleX = static_cast<double>( vp.width ) * vp.iuPerDecimil * 10000.0 / ( aBBox.GetWidth() * aDpi );
+    double scaleY = static_cast<double>( vp.height ) * vp.iuPerDecimil * 10000.0 / ( aBBox.GetHeight() * aDpi );
+    vp.plotScale = std::min( scaleX, scaleY );
+    vp.offset = aBBox.GetOrigin();
+
+    return vp;
+}
+
+
+bool RenderGerberToPng( const wxString& aInputPath, const wxString& aOutputPath, const GERBER_RENDER_OPTIONS& aOptions,
+                        wxString* aErrorMsg, wxArrayString* aMessages )
+{
+    auto image = LoadGerberOrExcellon( aInputPath, aErrorMsg, aMessages );
+
+    if( !image )
+        return false;
+
+    if( image->GetItemsCount() == 0 )
+    {
+        if( aErrorMsg )
+            *aErrorMsg = wxS( "Gerber file contains no draw items" );
+
+        return false;
+    }
+
+    BOX2I bbox = CalculateGerberBoundingBox( image.get() );
+
+    if( bbox.GetWidth() == 0 || bbox.GetHeight() == 0 )
+    {
+        if( aErrorMsg )
+            *aErrorMsg = wxS( "Gerber file has zero-size bounding box" );
+
+        return false;
+    }
+
+    GERBER_PLOTTER_VIEWPORT vp = CalculatePlotterViewport( bbox, aOptions.dpi, aOptions.width, aOptions.height );
+
+    PNG_PLOTTER plotter;
+    plotter.SetPixelSize( vp.width, vp.height );
+    plotter.SetResolution( aOptions.dpi );
+    plotter.SetAntialias( aOptions.antialias );
+    plotter.SetBackgroundColor( aOptions.backgroundColor );
+    plotter.SetViewport( vp.offset, vp.iuPerDecimil, vp.plotScale, true );
+
+    // Start plotting
+    if( !plotter.StartPlot( wxEmptyString ) )
+    {
+        if( aErrorMsg )
+            *aErrorMsg = wxS( "Failed to start PNG plotter" );
+
+        return false;
+    }
+
+    // Render all items
+    for( GERBER_DRAW_ITEM* item : image->GetItems() )
+    {
+        // Skip negative items for now (would need proper polarity handling)
+        if( item->GetLayerPolarity() )
+            continue;
+
+        RenderItem( item, plotter, aOptions.foregroundColor );
+    }
+
+    plotter.EndPlot();
+
+    // Save the file
+    if( !plotter.SaveFile( aOutputPath ) )
+    {
+        if( aErrorMsg )
+            *aErrorMsg = wxString::Format( wxS( "Failed to save PNG file: %s" ), aOutputPath );
+
+        return false;
+    }
+
+    return true;
+}
+
+
+bool RenderGerberToPng( const wxString& aInputPath, const wxString& aOutputPath, const JOB_GERBER_EXPORT_PNG& aJob,
+                        wxString* aErrorMsg, wxArrayString* aMessages )
+{
+    GERBER_RENDER_OPTIONS options;
+    options.dpi = aJob.m_dpi;
+    options.width = aJob.m_width;
+    options.height = aJob.m_height;
+    options.antialias = aJob.m_antialias;
+    options.backgroundColor =
+            aJob.m_transparentBackground ? KIGFX::COLOR4D( 1.0, 1.0, 1.0, 0.0 ) : KIGFX::COLOR4D::WHITE;
+
+    return RenderGerberToPng( aInputPath, aOutputPath, options, aErrorMsg, aMessages );
+}
