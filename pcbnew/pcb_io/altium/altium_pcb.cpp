@@ -1592,31 +1592,31 @@ double normalizeAngleDegrees( double Angle, double aMin, double aMax )
 }
 
 
-bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file)
+bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file )
 {
     
     MMH3_HASH hash;
-    hash.addData((const uint8_t*) &aElem, sizeof(aElem));
-    wxString stepFilename = hash.digest().ToString() + wxString(".step");
-    //std::cout << "creating extruded body: " << stepFilename << " type: " << (int)(aElem.modelType) << std::endl;
+    hash.addData( ( const uint8_t* ) &aElem, sizeof( aElem ) );
+    wxString stepFilename = hash.digest().ToString() + wxString( ".step" );
+    //std::cout << "creating extruded body: " << stepFilename << " type: " << ( int )( aElem.modelType ) << std::endl;
     
 
     // disable opencascade debug output
     Message_Gravity aGravity = Message_Alarm;
-    for (Message_SequenceOfPrinters::Iterator aPrinterIter (Message::DefaultMessenger()->Printers());
-         aPrinterIter.More(); aPrinterIter.Next())
+    for ( Message_SequenceOfPrinters::Iterator aPrinterIter ( Message::DefaultMessenger()->Printers() );
+         aPrinterIter.More(); aPrinterIter.Next() )
     {
-        aPrinterIter.Value()->SetTraceLevel (aGravity);
+        aPrinterIter.Value()->SetTraceLevel ( aGravity );
     }
 
 
     // for extruded, cylinder or sphere, make 3D shape
     TopoDS_Shape shape;
-    switch(aElem.modelType)
+    switch( aElem.modelType )
     {
         case ALTIUM_MODEL_TYPE::EXTRUDED:
         {
-            if(aElem.modelOutline.size() < 3)
+            if( aElem.modelOutline.size() < 3 )
             {
                 if( m_reporter )
                 {
@@ -1628,16 +1628,16 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
             // create polygon from outline points
             auto polygon = BRepBuilderAPI_MakePolygon();
 
-            for(size_t i = 0; i < aElem.modelOutline.size(); i++)
+            for( size_t i = 0; i < aElem.modelOutline.size(); i++ )
             {
                 polygon.Add( gp_Pnt(
                     pcbIUScale.IUTomm( aElem.modelOutline[i].x - aElem.modelPosition.x ),
-                    pcbIUScale.IUTomm( - (aElem.modelOutline[i].y - aElem.modelPosition.y )),	// y axis is flipped in Altium vs KiCad
-                    pcbIUScale.IUTomm( aElem.modelExtrudedMinZ )));
+                    pcbIUScale.IUTomm( - (aElem.modelOutline[i].y - aElem.modelPosition.y ) ),	// y axis is flipped in Altium vs KiCad
+                    pcbIUScale.IUTomm( aElem.modelExtrudedMinZ ) ) );
             }
             polygon.Close();
 
-            if(!polygon.IsDone())
+            if( !polygon.IsDone() )
             {
                 if( m_reporter )
                 {
@@ -1647,9 +1647,9 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
             }
 
             // create face from polygon / wire
-            auto face = BRepBuilderAPI_MakeFace(polygon.Wire());
+            auto face = BRepBuilderAPI_MakeFace( polygon.Wire() );
 
-            if(!face.IsDone())
+            if( !face.IsDone() )
             {
                 if( m_reporter )
                 {
@@ -1658,10 +1658,8 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 return false;
             }
 
-            //printf("extruded min z: %d, extruded max z: %d\n", aElem.modelExtrudedMinZ, aElem.modelExtrudedMaxZ);
-
             int extrudeHeight = aElem.modelExtrudedMaxZ - aElem.modelExtrudedMinZ;
-            if(extrudeHeight <= 0)
+            if( extrudeHeight <= 0 )
             {
                 if( m_reporter )
                 {
@@ -1671,9 +1669,9 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
             }
 
             // extrude to a solid
-            auto prism = BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, pcbIUScale.IUTomm( extrudeHeight )));
+            auto prism = BRepPrimAPI_MakePrism( face, gp_Vec( 0, 0, pcbIUScale.IUTomm( extrudeHeight ) ) );
 
-            if(!prism.IsDone())
+            if( !prism.IsDone() )
             {
                 if( m_reporter )
                 {
@@ -1689,7 +1687,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
         case ALTIUM_MODEL_TYPE::CYLINDER:
         {
-            if( aElem.modelCylinderRadius <= 0 || aElem.modelCylinderHeight <= 0)
+            if( aElem.modelCylinderRadius <= 0 || aElem.modelCylinderHeight <= 0 )
             {
                 if( m_reporter )
                 {
@@ -1702,7 +1700,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
             auto cylinder = BRepPrimAPI_MakeCylinder(
                 pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
-                pcbIUScale.IUTomm( aElem.modelCylinderHeight ));
+                pcbIUScale.IUTomm( aElem.modelCylinderHeight ) );
 
             shape = cylinder;
 
@@ -1711,7 +1709,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
         case ALTIUM_MODEL_TYPE::SPHERE:
         {
-            if( aElem.modelSphereRadius <= 0)
+            if( aElem.modelSphereRadius <= 0 )
             {
                 if( m_reporter )
                 {
@@ -1721,7 +1719,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 }
                 return false;
             }
-            auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ));
+            auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ) );
 
             shape = sphere;
 
@@ -1831,7 +1829,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
     EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
 
-    switch(aElem.modelType)
+    switch( aElem.modelType )
     {
         case ALTIUM_MODEL_TYPE::GENERIC:
         {
@@ -1898,7 +1896,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
         default:
         {
             if( m_reporter )
-                m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType), RPT_SEVERITY_ERROR);
+                m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType ), RPT_SEVERITY_ERROR );
             return;
         }
 
@@ -1984,9 +1982,6 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
                                               m_components.size() ) );
         }
 
-        //if( !elem.modelIsEmbedded )
-        //    continue;
-
         EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
         FOOTPRINT*                footprint = m_components.at( elem.component );
 
@@ -1994,7 +1989,6 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         {
             case ALTIUM_MODEL_TYPE::GENERIC:
             {
-
                 auto modelTuple = m_EmbeddedModels.find( elem.modelId );
 
                 if( modelTuple == m_EmbeddedModels.end() )
@@ -2039,7 +2033,7 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
             default:
             {
                 if( m_reporter )
-                    m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType), RPT_SEVERITY_ERROR);
+                    m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType ), RPT_SEVERITY_ERROR );
                 return;
             }
         } // switch

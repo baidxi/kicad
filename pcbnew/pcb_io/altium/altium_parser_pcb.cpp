@@ -915,7 +915,7 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
 
     uint32_t lenOutline = aReader.Read<uint32_t>();
 
-    for(uint32_t i = 0; i < lenOutline; i++)
+    for( uint32_t i = 0; i < lenOutline; i++ )
     {
         int32_t x = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( aReader.Read<double>() );
         int32_t y = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( -aReader.Read<double>() );
