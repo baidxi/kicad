@@ -25,6 +25,7 @@
 
 
 #include <set>
+#include <wx/dir.h>
 #include <wx/regex.h>
 #include <wx/dirdlg.h>
 #include <wx/filedlg.h>
@@ -142,6 +143,12 @@ private:
 
 class FP_GRID_TRICKS : public LIB_TABLE_GRID_TRICKS
 {
+    enum
+    {
+        FP_GRID_TRICKS_CONVERT_TO_PACKED = GRIDTRICKS_FIRST_CLIENT_ID + 100,
+        FP_GRID_TRICKS_CONVERT_TO_UNPACKED
+    };
+
 public:
     FP_GRID_TRICKS( PANEL_FP_LIB_TABLE* aPanel, WX_GRID* aGrid, std::function<void( wxCommandEvent& )> aAddHandler ) :
             LIB_TABLE_GRID_TRICKS( aGrid, aAddHandler ),
@@ -151,6 +158,60 @@ public:
     }
 
 protected:
+    void showPopupMenu( wxMenu& menu, wxGridEvent& aEvent ) override
+    {
+        LIB_TABLE_GRID_DATA_MODEL* tbl = static_cast<LIB_TABLE_GRID_DATA_MODEL*>( m_grid->GetTable() );
+
+        // Only show conversion option for single KiCad library selection
+        getSelectedArea();
+
+        if( m_sel_row_count == 1 && m_sel_row_start < tbl->GetNumberRows() )
+        {
+            LIBRARY_TABLE_ROW& row = tbl->At( m_sel_row_start );
+            PCB_IO_MGR::PCB_FILE_T type = PCB_IO_MGR::EnumFromStr( row.Type() );
+
+            // Only offer conversion for KiCad native libraries
+            if( type == PCB_IO_MGR::KICAD_SEXP )
+            {
+                wxString uri = LIBRARY_MANAGER::ExpandURI( row.URI(),
+                                                           Pgm().GetSettingsManager().Prj() );
+
+                if( PCB_IO_MGR::IsPackedLibrary( uri ) )
+                {
+                    menu.Append( FP_GRID_TRICKS_CONVERT_TO_UNPACKED,
+                                 _( "Convert to Unpacked (.pretty)" ),
+                                 _( "Convert this packed library to an unpacked .pretty folder" ) );
+                }
+                else if( wxDir::Exists( uri ) )
+                {
+                    menu.Append( FP_GRID_TRICKS_CONVERT_TO_PACKED,
+                                 _( "Convert to Packed (.kicad_fpl)" ),
+                                 _( "Convert this library to a single packed .kicad_fpl file" ) );
+                }
+
+                menu.AppendSeparator();
+            }
+        }
+
+        LIB_TABLE_GRID_TRICKS::showPopupMenu( menu, aEvent );
+    }
+
+    void doPopupSelection( wxCommandEvent& event ) override
+    {
+        int menu_id = event.GetId();
+
+        if( menu_id == FP_GRID_TRICKS_CONVERT_TO_PACKED
+            || menu_id == FP_GRID_TRICKS_CONVERT_TO_UNPACKED )
+        {
+            m_panel->ConvertLibraryFormat( m_sel_row_start,
+                                           menu_id == FP_GRID_TRICKS_CONVERT_TO_PACKED );
+        }
+        else
+        {
+            LIB_TABLE_GRID_TRICKS::doPopupSelection( event );
+        }
+    }
+
     void optionsEditor( int aRow ) override
     {
         LIB_TABLE_GRID_DATA_MODEL* tbl = static_cast<LIB_TABLE_GRID_DATA_MODEL*>( m_grid->GetTable() );
@@ -573,6 +634,80 @@ void PANEL_FP_LIB_TABLE::onMigrateLibraries( wxCommandEvent& event )
     {
         errorReporter.m_Reporter->Flush(); // Build HTML messages
         errorReporter.ShowModal();
+    }
+}
+
+
+void PANEL_FP_LIB_TABLE::ConvertLibraryFormat( int aRow, bool aToPacked )
+{
+    if( !cur_grid()->CommitPendingChanges() )
+        return;
+
+    LIB_TABLE_GRID_DATA_MODEL* tbl = cur_model();
+
+    if( aRow >= tbl->GetNumberRows() )
+        return;
+
+    LIBRARY_TABLE_ROW& row = tbl->At( aRow );
+    wxString srcUri = LIBRARY_MANAGER::ExpandURI( row.URI(), Pgm().GetSettingsManager().Prj() );
+
+    wxString dstPath;
+    wxString msg;
+
+    if( aToPacked )
+    {
+        // Converting to packed: ask for destination file
+        wxFileName srcFn( srcUri );
+        wxString defaultName = srcFn.GetName() + wxT( "." ) + FILEEXT::KiCadPackedFootprintLibFileExtension;
+
+        wxFileDialog dlg( m_parent, _( "Save Packed Footprint Library" ),
+                          srcFn.GetPath(), defaultName,
+                          _( "KiCad Packed Footprint Library" ) + wxT( " (*." )
+                                  + FILEEXT::KiCadPackedFootprintLibFileExtension + wxT( ")|*." )
+                                  + FILEEXT::KiCadPackedFootprintLibFileExtension,
+                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+        if( dlg.ShowModal() != wxID_OK )
+            return;
+
+        dstPath = dlg.GetPath();
+    }
+    else
+    {
+        // Converting to unpacked: ask for destination directory
+        wxFileName srcFn( srcUri );
+        wxString defaultDir = srcFn.GetName() + wxT( "." ) + FILEEXT::KiCadFootprintLibPathExtension;
+        wxString parentDir = srcFn.GetPath();
+
+        wxDirDialog dlg( m_parent, _( "Select Destination for Unpacked Library" ),
+                         parentDir, wxDD_DEFAULT_STYLE | wxDD_NEW_DIR_BUTTON );
+
+        if( dlg.ShowModal() != wxID_OK )
+            return;
+
+        dstPath = dlg.GetPath();
+
+        // Ensure it has .pretty extension
+        if( !dstPath.EndsWith( wxT( "." ) + FILEEXT::KiCadFootprintLibPathExtension ) )
+            dstPath += wxT( "." ) + FILEEXT::KiCadFootprintLibPathExtension;
+    }
+
+    // Perform the conversion
+    if( PCB_IO_MGR::ConvertLibraryFormat( srcUri, dstPath, nullptr ) )
+    {
+        msg.Printf( _( "Library converted successfully.\n\n"
+                       "Would you like to update this library table entry to point to the new library?" ) );
+
+        if( IsOK( m_parent, msg ) )
+        {
+            wxString relPath = NormalizePath( dstPath, &Pgm().GetLocalEnvVariables(), m_project );
+            cur_grid()->SetCellValue( aRow, COL_URI, relPath );
+            cur_grid()->Refresh();
+        }
+    }
+    else
+    {
+        DisplayErrorMessage( m_parent, _( "Failed to convert library." ) );
     }
 }
 

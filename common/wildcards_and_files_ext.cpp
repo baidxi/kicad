@@ -183,6 +183,7 @@ const std::string FILEEXT::EagleFootprintLibPathExtension( "lbr" );     // this 
 const std::string FILEEXT::GedaPcbFootprintLibFileExtension( "fp" );    // this is a file
 
 const std::string FILEEXT::KiCadFootprintFileExtension( "kicad_mod" );
+const std::string FILEEXT::KiCadPackedFootprintLibFileExtension( "kicad_fpl" );  // packed footprint lib file
 const std::string FILEEXT::SpecctraDsnFileExtension( "dsn" );
 const std::string FILEEXT::SpecctraSessionFileExtension( "ses" );
 const std::string FILEEXT::IpcD356FileExtension( "d356" );
@@ -358,6 +359,13 @@ wxString FILEEXT::KiCadFootprintLibPathWildcard()
 {
     return _( "KiCad footprint library paths" )
             + AddFileExtListToFilter( { KiCadFootprintLibPathExtension } );
+}
+
+
+wxString FILEEXT::KiCadPackedFootprintLibFileWildcard()
+{
+    return _( "KiCad packed footprint library files" )
+            + AddFileExtListToFilter( { KiCadPackedFootprintLibFileExtension } );
 }
 
 

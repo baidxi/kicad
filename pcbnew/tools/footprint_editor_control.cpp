@@ -39,7 +39,11 @@
 #include <confirm.h>
 #include <kidialog.h>
 #include <wx/filename.h>
+#include <wx/dir.h>
+#include <wx/filedlg.h>
+#include <wx/dirdlg.h>
 #include <wildcards_and_files_ext.h>
+#include <pcb_io/pcb_io_mgr.h>
 #include <launch_ext.h> // To default when file manager setting is empty
 #include <gestfich.h> // To open with a text editor
 #include <widgets/wx_infobar.h>
@@ -126,6 +130,42 @@ bool FOOTPRINT_EDITOR_CONTROL::Init()
                 return ret;
             };
 
+    auto isUnpackedLibraryCondition =
+            [this]( const SELECTION& aSel )
+            {
+                LIB_ID sel = m_frame->GetLibTree()->GetSelectedLibId();
+
+                if( sel.GetLibNickname().empty() || !sel.GetLibItemName().empty() )
+                    return false;
+
+                LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
+                std::optional<wxString> optUri =
+                        manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, sel.GetLibNickname(), true );
+
+                if( !optUri )
+                    return false;
+
+                return !PCB_IO_MGR::IsPackedLibrary( *optUri );
+            };
+
+    auto isPackedLibraryCondition =
+            [this]( const SELECTION& aSel )
+            {
+                LIB_ID sel = m_frame->GetLibTree()->GetSelectedLibId();
+
+                if( sel.GetLibNickname().empty() || !sel.GetLibItemName().empty() )
+                    return false;
+
+                LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
+                std::optional<wxString> optUri =
+                        manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, sel.GetLibNickname(), true );
+
+                if( !optUri )
+                    return false;
+
+                return PCB_IO_MGR::IsPackedLibrary( *optUri );
+            };
+
 // clang-format off
     ctxMenu.AddItem( PCB_ACTIONS::newFootprint,       libSelectedCondition, 10 );
     ctxMenu.AddItem( PCB_ACTIONS::createFootprint,    libSelectedCondition, 10 );
@@ -147,6 +187,10 @@ bool FOOTPRINT_EDITOR_CONTROL::Init()
     ctxMenu.AddSeparator( 100 );
     ctxMenu.AddItem( PCB_ACTIONS::importFootprint,    libInferredCondition, 100 );
     ctxMenu.AddItem( PCB_ACTIONS::exportFootprint,    fpExportCondition, 100 );
+
+    ctxMenu.AddSeparator( 150 );
+    ctxMenu.AddItem( PCB_ACTIONS::convertLibraryToPacked,   isUnpackedLibraryCondition, 150 );
+    ctxMenu.AddItem( PCB_ACTIONS::convertLibraryToUnpacked, isPackedLibraryCondition, 150 );
 
     if( ADVANCED_CFG::GetCfg().m_EnableLibWithText )
     {
@@ -603,6 +647,120 @@ int FOOTPRINT_EDITOR_CONTROL::ExportFootprint( const TOOL_EVENT& aEvent )
 }
 
 
+int FOOTPRINT_EDITOR_CONTROL::ConvertLibrary( const TOOL_EVENT& aEvent )
+{
+    bool toPacked = aEvent.IsAction( &PCB_ACTIONS::convertLibraryToPacked );
+    LIB_ID sel = m_frame->GetLibTree()->GetSelectedLibId();
+
+    if( sel.GetLibNickname().empty() )
+        return 0;
+
+    LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
+    std::optional<wxString> optUri =
+            manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, sel.GetLibNickname(), true );
+
+    if( !optUri )
+        return 0;
+
+    wxString srcLibPath = *optUri;
+    wxString dstLibPath;
+
+    if( toPacked )
+    {
+        // Converting to packed format - prompt for .kicad_fpl file
+        wxFileName fn( srcLibPath );
+        fn.SetExt( FILEEXT::KiCadPackedFootprintLibFileExtension );
+
+        wxString defaultPath = fn.GetPath();
+        wxString defaultName = fn.GetName();
+
+        wxFileDialog dlg( m_frame, _( "Save Packed Library As" ), defaultPath, defaultName,
+                          FILEEXT::KiCadPackedFootprintLibFileWildcard(),
+                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return 0;
+
+        dstLibPath = dlg.GetPath();
+
+        // Ensure correct extension
+        if( !dstLibPath.EndsWith( wxT( "." ) + FILEEXT::KiCadPackedFootprintLibFileExtension ) )
+            dstLibPath += wxT( "." ) + FILEEXT::KiCadPackedFootprintLibFileExtension;
+    }
+    else
+    {
+        // Converting to unpacked format - prompt for .pretty directory
+        wxFileName fn( srcLibPath );
+        fn.SetExt( FILEEXT::KiCadFootprintLibPathExtension );
+
+        wxString defaultPath = fn.GetPath();
+        wxString defaultName = fn.GetFullName();
+
+        wxDirDialog dlg( m_frame, _( "Select Directory for Unpacked Library" ), defaultPath,
+                         wxDD_DEFAULT_STYLE | wxDD_NEW_DIR_BUTTON );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return 0;
+
+        dstLibPath = dlg.GetPath();
+
+        // Ensure the path ends with .pretty
+        if( !dstLibPath.EndsWith( wxT( "." ) + FILEEXT::KiCadFootprintLibPathExtension ) )
+        {
+            // If user selected a directory without .pretty, append the library name
+            wxFileName dstFn( dstLibPath, wxEmptyString );
+            dstFn.AppendDir( fn.GetName() + wxT( "." ) + FILEEXT::KiCadFootprintLibPathExtension );
+            dstLibPath = dstFn.GetPath();
+        }
+    }
+
+    // Check if destination already exists
+    wxFileName dstFn( dstLibPath );
+    bool dstExists = toPacked ? dstFn.FileExists() : wxDir::Exists( dstLibPath );
+
+    if( dstExists )
+    {
+        wxString msg = wxString::Format( _( "Library '%s' already exists. Overwrite?" ), dstLibPath );
+
+        if( !IsOK( m_frame, msg ) )
+            return 0;
+
+        // Remove existing destination
+        if( toPacked )
+        {
+            wxRemoveFile( dstLibPath );
+        }
+        else
+        {
+            wxDir dir( dstLibPath );
+
+            if( dir.HasFiles() || dir.HasSubDirs() )
+            {
+                DisplayErrorMessage( m_frame, _( "Cannot overwrite non-empty directory." ) );
+                return 0;
+            }
+
+            wxRmdir( dstLibPath );
+        }
+    }
+
+    // Perform the conversion
+    if( PCB_IO_MGR::ConvertLibraryFormat( srcLibPath, dstLibPath ) )
+    {
+        wxString msg = wxString::Format( _( "Library successfully converted to '%s'." ), dstLibPath );
+        m_frame->ShowInfoBarMsg( msg );
+        m_frame->SyncLibraryTree( true );
+    }
+    else
+    {
+        wxString msg = wxString::Format( _( "Failed to convert library to '%s'." ), dstLibPath );
+        DisplayErrorMessage( m_frame, msg );
+    }
+
+    return 0;
+}
+
+
 int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 {
     // No check for multi selection since the context menu option must be hidden in that case
@@ -993,6 +1151,9 @@ void FOOTPRINT_EDITOR_CONTROL::setTransitions()
 
     Go( &FOOTPRINT_EDITOR_CONTROL::ImportFootprint,      PCB_ACTIONS::importFootprint.MakeEvent() );
     Go( &FOOTPRINT_EDITOR_CONTROL::ExportFootprint,      PCB_ACTIONS::exportFootprint.MakeEvent() );
+
+    Go( &FOOTPRINT_EDITOR_CONTROL::ConvertLibrary,       PCB_ACTIONS::convertLibraryToPacked.MakeEvent() );
+    Go( &FOOTPRINT_EDITOR_CONTROL::ConvertLibrary,       PCB_ACTIONS::convertLibraryToUnpacked.MakeEvent() );
 
     Go( &FOOTPRINT_EDITOR_CONTROL::OpenWithTextEditor,   ACTIONS::openWithTextEditor.MakeEvent() );
     Go( &FOOTPRINT_EDITOR_CONTROL::OpenDirectory,        ACTIONS::openDirectory.MakeEvent() );

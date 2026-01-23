@@ -45,6 +45,13 @@ public:
     void AddTable( LIBRARY_TABLE* table, const wxString& aTitle, bool aClosable );
     void OpenTable( const std::shared_ptr<LIBRARY_TABLE>& table, const wxString& aTitle );
 
+    /**
+     * Convert a library between packed (.kicad_fpl) and unpacked (.pretty) formats.
+     * @param aRow The row index in the current grid
+     * @param aToPacked True to convert to packed format, false to convert to unpacked
+     */
+    void ConvertLibraryFormat( int aRow, bool aToPacked );
+
 private:
     /**
      * Trim important fields, removes blank row entries, and checks for duplicates.

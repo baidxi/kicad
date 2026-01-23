@@ -86,6 +86,44 @@ FP_CACHE::FP_CACHE( PCB_IO_KICAD_SEXPR* aOwner, const wxString& aLibraryPath )
     m_lib_path.SetPath( aLibraryPath );
     m_cache_timestamp = 0;
     m_cache_dirty = true;
+
+    // Determine if this is a packed library (file) or unpacked (directory)
+    wxFileName fn( aLibraryPath );
+    m_is_packed = fn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension;
+}
+
+
+bool FP_CACHE::IsWritable() const
+{
+    if( m_is_packed )
+    {
+        wxFileName fn( m_lib_raw_path );
+
+        // For packed libraries, check if the file is writable or if it doesn't exist but
+        // the parent directory is writable
+        if( fn.FileExists() )
+            return fn.IsFileWritable();
+        else
+            return fn.DirExists() && wxFileName::IsDirWritable( fn.GetPath() );
+    }
+    else
+    {
+        return m_lib_path.IsOk() && m_lib_path.IsDirWritable();
+    }
+}
+
+
+bool FP_CACHE::Exists() const
+{
+    if( m_is_packed )
+    {
+        wxFileName fn( m_lib_raw_path );
+        return fn.FileExists();
+    }
+    else
+    {
+        return m_lib_path.IsOk() && m_lib_path.DirExists();
+    }
 }
 
 
@@ -93,57 +131,91 @@ void FP_CACHE::Save( FOOTPRINT* aFootprintFilter )
 {
     m_cache_timestamp = 0;
 
-    if( !m_lib_path.DirExists() && !m_lib_path.Mkdir() )
+    if( m_is_packed )
     {
-        THROW_IO_ERROR( wxString::Format( _( "Cannot create footprint library '%s'." ),
-                                          m_lib_raw_path ) );
-    }
+        // Packed library: save all footprints to a single file
+        // For packed libraries, aFootprintFilter is ignored - we always save the entire library
+        wxFileName fn( m_lib_raw_path );
 
-    if( !m_lib_path.IsDirWritable() )
-    {
-        THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' is read only." ),
-                                          m_lib_raw_path ) );
-    }
-
-    for( auto it = m_footprints.begin(); it != m_footprints.end(); ++it )
-    {
-        FP_CACHE_ENTRY*             fpCacheEntry = it->second;
-        std::unique_ptr<FOOTPRINT>& footprint = fpCacheEntry->GetFootprint();
-
-        if( aFootprintFilter && footprint.get() != aFootprintFilter )
-            continue;
-
-        // If we've requested to embed the fonts in the footprint, do so.  Otherwise, clear the
-        // embedded fonts from the footprint.  Embedded fonts will be used if available.
-        if( footprint->GetAreFontsEmbedded() )
-            footprint->EmbedFonts();
-        else
-            footprint->GetEmbeddedFiles()->ClearEmbeddedFonts();
-
-        WX_FILENAME fn = fpCacheEntry->GetFileName();
-        wxString    fileName = fn.GetFullPath();
-
-        // Allow file output stream to go out of scope to close the file stream before
-        // renaming the file.
+        if( !fn.DirExists() )
         {
-            wxLogTrace( traceKicadPcbPlugin, wxT( "Writing library file '%s'." ),
-                        fileName );
-
-            PRETTIFIED_FILE_OUTPUTFORMATTER formatter( fileName );
-
-            m_owner->SetOutputFormatter( &formatter );
-            m_owner->Format( footprint.get() );
+            THROW_IO_ERROR( wxString::Format( _( "Cannot create footprint library '%s': "
+                                                 "parent directory does not exist." ),
+                                              m_lib_raw_path ) );
         }
 
-        m_cache_timestamp += fn.GetTimestamp();
-    }
+        if( fn.FileExists() && !fn.IsFileWritable() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' is read only." ),
+                                              m_lib_raw_path ) );
+        }
 
-    if( m_lib_path.IsFileReadable() && m_lib_path.GetModificationTime().IsValid() )
-        m_cache_timestamp += m_lib_path.GetModificationTime().GetValue().GetValue();
+        wxLogTrace( traceKicadPcbPlugin, wxT( "Writing packed library file '%s'." ),
+                    m_lib_raw_path );
 
-    // If we've saved the full cache, we clear the dirty flag.
-    if( !aFootprintFilter )
+        PRETTIFIED_FILE_OUTPUTFORMATTER formatter( m_lib_raw_path );
+
+        m_owner->SetOutputFormatter( &formatter );
+        m_owner->FormatFootprintLib( m_footprints );
+
+        m_cache_timestamp = GetTimestamp( m_lib_raw_path );
         m_cache_dirty = false;
+    }
+    else
+    {
+        // Unpacked library: save each footprint to individual files in directory
+        if( !m_lib_path.DirExists() && !m_lib_path.Mkdir() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Cannot create footprint library '%s'." ),
+                                              m_lib_raw_path ) );
+        }
+
+        if( !m_lib_path.IsDirWritable() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' is read only." ),
+                                              m_lib_raw_path ) );
+        }
+
+        for( auto it = m_footprints.begin(); it != m_footprints.end(); ++it )
+        {
+            FP_CACHE_ENTRY*             fpCacheEntry = it->second;
+            std::unique_ptr<FOOTPRINT>& footprint = fpCacheEntry->GetFootprint();
+
+            if( aFootprintFilter && footprint.get() != aFootprintFilter )
+                continue;
+
+            // If we've requested to embed the fonts in the footprint, do so.  Otherwise, clear the
+            // embedded fonts from the footprint.  Embedded fonts will be used if available.
+            if( footprint->GetAreFontsEmbedded() )
+                footprint->EmbedFonts();
+            else
+                footprint->GetEmbeddedFiles()->ClearEmbeddedFonts();
+
+            WX_FILENAME fn = fpCacheEntry->GetFileName();
+            wxString    fileName = fn.GetFullPath();
+
+            // Allow file output stream to go out of scope to close the file stream before
+            // renaming the file.
+            {
+                wxLogTrace( traceKicadPcbPlugin, wxT( "Writing library file '%s'." ),
+                            fileName );
+
+                PRETTIFIED_FILE_OUTPUTFORMATTER formatter( fileName );
+
+                m_owner->SetOutputFormatter( &formatter );
+                m_owner->Format( footprint.get() );
+            }
+
+            m_cache_timestamp += fn.GetTimestamp();
+        }
+
+        if( m_lib_path.IsFileReadable() && m_lib_path.GetModificationTime().IsValid() )
+            m_cache_timestamp += m_lib_path.GetModificationTime().GetValue().GetValue();
+
+        // If we've saved the full cache, we clear the dirty flag.
+        if( !aFootprintFilter )
+            m_cache_dirty = false;
+    }
 }
 
 
@@ -152,71 +224,115 @@ void FP_CACHE::Load()
     m_cache_dirty = false;
     m_cache_timestamp = 0;
 
-    wxDir dir( m_lib_raw_path );
-
-    if( !dir.IsOpened() )
+    if( m_is_packed )
     {
-        wxString msg = wxString::Format( _( "Footprint library '%s' not found." ),
-                                         m_lib_raw_path );
-        THROW_IO_ERROR( msg );
-    }
+        // Packed library: load all footprints from a single file
+        wxFileName fn( m_lib_raw_path );
 
-    wxString fullName;
-    wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::KiCadFootprintFileExtension );
-
-    // wxFileName construction is egregiously slow.  Construct it once and just swap out
-    // the filename thereafter.
-    WX_FILENAME fn( m_lib_raw_path, wxT( "dummyName" ) );
-
-    if( dir.GetFirst( &fullName, fileSpec ) )
-    {
-        wxString cacheError;
-
-        do
+        if( !fn.FileExists() )
         {
-            fn.SetFullName( fullName );
+            wxString msg = wxString::Format( _( "Footprint library '%s' not found." ),
+                                             m_lib_raw_path );
+            THROW_IO_ERROR( msg );
+        }
 
-            // Queue I/O errors so only files that fail to parse don't get loaded.
-            try
-            {
-                FILE_LINE_READER reader( fn.GetFullPath() );
-                PCB_IO_KICAD_SEXPR_PARSER       parser( &reader, nullptr, nullptr );
+        wxLogTrace( traceKicadPcbPlugin, wxT( "Loading packed library file '%s'." ),
+                    m_lib_raw_path );
 
-                FOOTPRINT* footprint = dynamic_cast<FOOTPRINT*>( parser.Parse() );
-                wxString fpName = fn.GetName();
+        FILE_LINE_READER          reader( m_lib_raw_path );
+        PCB_IO_KICAD_SEXPR_PARSER parser( &reader, nullptr, nullptr );
 
-                if( !footprint )
-                    THROW_IO_ERROR( wxEmptyString );   // caught locally, just below...
+        parser.ParseFootprintLib( m_footprints );
 
-                footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
-                m_footprints.insert( fpName, new FP_CACHE_ENTRY( footprint, fn ) );
+        m_cache_timestamp = GetTimestamp( m_lib_raw_path );
 
-                // Collect any non-fatal parse warnings
-                for( const wxString& warning : parser.GetParseWarnings() )
-                {
-                    if( !cacheError.IsEmpty() )
-                        cacheError += wxT( "\n\n" );
+        // Check for parse warnings
+        const std::vector<wxString>& warnings = parser.GetParseWarnings();
 
-                    cacheError += wxString::Format( _( "Warning in file '%s'" ) + '\n',
-                                                    fn.GetFullPath() );
-                    cacheError += warning;
-                }
-            }
-            catch( const IO_ERROR& ioe )
+        if( !warnings.empty() )
+        {
+            wxString cacheError;
+
+            for( const wxString& warning : warnings )
             {
                 if( !cacheError.IsEmpty() )
                     cacheError += wxT( "\n\n" );
 
-                cacheError += wxString::Format( _( "Unable to read file '%s'" ) + '\n',
-                                                fn.GetFullPath() );
-                cacheError += ioe.What();
+                cacheError += warning;
             }
-        } while( dir.GetNext( &fullName ) );
 
-        m_cache_timestamp = GetTimestamp( m_lib_raw_path );
-
-        if( !cacheError.IsEmpty() )
             THROW_IO_ERROR( cacheError );
+        }
+    }
+    else
+    {
+        // Unpacked library: load each footprint from individual files in directory
+        wxDir dir( m_lib_raw_path );
+
+        if( !dir.IsOpened() )
+        {
+            wxString msg = wxString::Format( _( "Footprint library '%s' not found." ),
+                                             m_lib_raw_path );
+            THROW_IO_ERROR( msg );
+        }
+
+        wxString fullName;
+        wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::KiCadFootprintFileExtension );
+
+        // wxFileName construction is egregiously slow.  Construct it once and just swap out
+        // the filename thereafter.
+        WX_FILENAME fn( m_lib_raw_path, wxT( "dummyName" ) );
+
+        if( dir.GetFirst( &fullName, fileSpec ) )
+        {
+            wxString cacheError;
+
+            do
+            {
+                fn.SetFullName( fullName );
+
+                // Queue I/O errors so only files that fail to parse don't get loaded.
+                try
+                {
+                    FILE_LINE_READER          reader( fn.GetFullPath() );
+                    PCB_IO_KICAD_SEXPR_PARSER parser( &reader, nullptr, nullptr );
+
+                    FOOTPRINT* footprint = dynamic_cast<FOOTPRINT*>( parser.Parse() );
+                    wxString   fpName = fn.GetName();
+
+                    if( !footprint )
+                        THROW_IO_ERROR( wxEmptyString );   // caught locally, just below...
+
+                    footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
+                    m_footprints.insert( fpName, new FP_CACHE_ENTRY( footprint, fn ) );
+
+                    // Collect any non-fatal parse warnings
+                    for( const wxString& warning : parser.GetParseWarnings() )
+                    {
+                        if( !cacheError.IsEmpty() )
+                            cacheError += wxT( "\n\n" );
+
+                        cacheError += wxString::Format( _( "Warning in file '%s'" ) + '\n',
+                                                        fn.GetFullPath() );
+                        cacheError += warning;
+                    }
+                }
+                catch( const IO_ERROR& ioe )
+                {
+                    if( !cacheError.IsEmpty() )
+                        cacheError += wxT( "\n\n" );
+
+                    cacheError += wxString::Format( _( "Unable to read file '%s'" ) + '\n',
+                                                    fn.GetFullPath() );
+                    cacheError += ioe.What();
+                }
+            } while( dir.GetNext( &fullName ) );
+
+            m_cache_timestamp = GetTimestamp( m_lib_raw_path );
+
+            if( !cacheError.IsEmpty() )
+                THROW_IO_ERROR( cacheError );
+        }
     }
 }
 
@@ -233,10 +349,21 @@ void FP_CACHE::Remove( const wxString& aFootprintName )
         THROW_IO_ERROR( msg );
     }
 
-    // Remove the footprint from the cache and delete the footprint file from the library.
-    wxString fullPath = it->second->GetFileName().GetFullPath();
+    // Remove the footprint from the cache
     m_footprints.erase( aFootprintName );
-    wxRemoveFile( fullPath );
+
+    if( m_is_packed )
+    {
+        // For packed libraries, we need to resave the entire library
+        m_cache_dirty = true;
+        Save();
+    }
+    else
+    {
+        // For unpacked libraries, delete the individual footprint file
+        wxString fullPath = it->second->GetFileName().GetFullPath();
+        wxRemoveFile( fullPath );
+    }
 }
 
 
@@ -259,7 +386,7 @@ void FP_CACHE::SetPath( const wxString& aPath )
 
 bool FP_CACHE::IsModified()
 {
-    m_cache_dirty = m_cache_dirty || GetTimestamp( m_lib_path.GetFullPath() ) != m_cache_timestamp;
+    m_cache_dirty = m_cache_dirty || GetTimestamp( m_lib_raw_path ) != m_cache_timestamp;
 
     return m_cache_dirty;
 }
@@ -267,9 +394,22 @@ bool FP_CACHE::IsModified()
 
 long long FP_CACHE::GetTimestamp( const wxString& aLibPath )
 {
-    wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::KiCadFootprintFileExtension );
+    wxFileName fn( aLibPath );
 
-    return TimestampDir( aLibPath, fileSpec );
+    // For packed libraries (files), return the file timestamp
+    if( fn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension )
+    {
+        if( fn.FileExists() && fn.GetModificationTime().IsValid() )
+            return fn.GetModificationTime().GetValue().GetValue();
+
+        return 0;
+    }
+    else
+    {
+        // For unpacked libraries (directories), return combined timestamp of all files
+        wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::KiCadFootprintFileExtension );
+        return TimestampDir( aLibPath, fileSpec );
+    }
 }
 
 
@@ -287,6 +427,30 @@ bool PCB_IO_KICAD_SEXPR::CanReadBoard( const wxString& aFileName ) const
     }
     catch( const IO_ERROR& )
     {
+    }
+
+    return false;
+}
+
+
+bool PCB_IO_KICAD_SEXPR::CanReadLibrary( const wxString& aFileName ) const
+{
+    wxFileName fn( aFileName );
+
+    // Check for packed footprint library (.kicad_fpl file)
+    if( fn.FileExists() )
+    {
+        wxString ext = fn.GetExt().Lower();
+
+        if( ext == FILEEXT::KiCadPackedFootprintLibFileExtension )
+            return true;
+    }
+
+    // Check for unpacked footprint library (.pretty directory)
+    if( fn.DirExists() )
+    {
+        // Use base class directory-based detection
+        return PCB_IO::CanReadLibrary( aFileName );
     }
 
     return false;
@@ -440,6 +604,36 @@ void PCB_IO_KICAD_SEXPR::Format( const BOARD_ITEM* aItem ) const
     default:
         wxFAIL_MSG( wxT( "Cannot format item " ) + aItem->GetClass() );
     }
+}
+
+
+void PCB_IO_KICAD_SEXPR::FormatFootprintLib(
+        const boost::ptr_map<wxString, FP_CACHE_ENTRY>& aFootprints ) const
+{
+    m_out->Print( "(kicad_footprint_lib (version %d) (generator \"kicad_footprint_editor\")"
+                  " (generator_version \"%s\")\n",
+                  SEXPR_FOOTPRINT_LIB_FILE_VERSION,
+                  GetMajorMinorVersion().c_str().AsChar() );
+
+    for( const auto& entry : aFootprints )
+    {
+        const FOOTPRINT* footprint = entry.second->GetFootprint().get();
+
+        if( footprint )
+        {
+            // Ensure embedded fonts are handled
+            FOOTPRINT* fp = const_cast<FOOTPRINT*>( footprint );
+
+            if( fp->GetAreFontsEmbedded() )
+                fp->EmbedFonts();
+            else
+                fp->GetEmbeddedFiles()->ClearEmbeddedFonts();
+
+            Format( footprint );
+        }
+    }
+
+    m_out->Print( ")\n" );
 }
 
 
@@ -3413,79 +3607,129 @@ long long PCB_IO_KICAD_SEXPR::GetLibraryTimestamp( const wxString& aLibraryPath 
 void PCB_IO_KICAD_SEXPR::CreateLibrary( const wxString& aLibraryPath,
                                         const std::map<std::string, UTF8>* aProperties )
 {
-    if( wxDir::Exists( aLibraryPath ) )
+    wxFileName fn( aLibraryPath );
+    bool isPacked = fn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension;
+
+    if( isPacked )
     {
-        THROW_IO_ERROR( wxString::Format( _( "Cannot overwrite library path '%s'." ),
-                                          aLibraryPath.GetData() ) );
+        // Packed library: create an empty .kicad_fpl file
+        if( fn.FileExists() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Cannot overwrite library file '%s'." ),
+                                              aLibraryPath.GetData() ) );
+        }
+
+        // Create an empty packed library file
+        PRETTIFIED_FILE_OUTPUTFORMATTER formatter( aLibraryPath );
+        formatter.Print( "(kicad_footprint_lib (version %d) (generator \"kicad_footprint_editor\")"
+                         " (generator_version \"%s\"))\n",
+                         SEXPR_FOOTPRINT_LIB_FILE_VERSION,
+                         GetMajorMinorVersion().c_str().AsChar() );
     }
+    else
+    {
+        // Unpacked library: create a .pretty directory
+        if( wxDir::Exists( aLibraryPath ) )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Cannot overwrite library path '%s'." ),
+                                              aLibraryPath.GetData() ) );
+        }
 
-    init( aProperties );
+        init( aProperties );
 
-    delete m_cache;
-    m_cache = new FP_CACHE( this, aLibraryPath );
-    m_cache->Save();
+        delete m_cache;
+        m_cache = new FP_CACHE( this, aLibraryPath );
+        m_cache->Save();
+    }
 }
 
 
 bool PCB_IO_KICAD_SEXPR::DeleteLibrary( const wxString& aLibraryPath,
                                         const std::map<std::string, UTF8>* aProperties )
 {
-    wxFileName fn;
-    fn.SetPath( aLibraryPath );
+    wxFileName fn( aLibraryPath );
+    bool isPacked = fn.GetExt().Lower() == FILEEXT::KiCadPackedFootprintLibFileExtension;
 
-    // Return if there is no library path to delete.
-    if( !fn.DirExists() )
-        return false;
-
-    if( !fn.IsDirWritable() )
+    if( isPacked )
     {
-        THROW_IO_ERROR( wxString::Format( _( "Insufficient permissions to delete folder '%s'." ),
-                                          aLibraryPath.GetData() ) );
-    }
+        // Packed library: delete the .kicad_fpl file
+        if( !fn.FileExists() )
+            return false;
 
-    wxDir dir( aLibraryPath );
-
-    if( dir.HasSubDirs() )
-    {
-        THROW_IO_ERROR( wxString::Format( _( "Library folder '%s' has unexpected sub-folders." ),
-                                          aLibraryPath.GetData() ) );
-    }
-
-    // All the footprint files must be deleted before the directory can be deleted.
-    if( dir.HasFiles() )
-    {
-        unsigned      i;
-        wxFileName    tmp;
-        wxArrayString files;
-
-        wxDir::GetAllFiles( aLibraryPath, &files );
-
-        for( i = 0;  i < files.GetCount();  i++ )
+        if( !fn.IsFileWritable() )
         {
-            tmp = files[i];
-
-            if( tmp.GetExt() != FILEEXT::KiCadFootprintFileExtension )
-            {
-                THROW_IO_ERROR( wxString::Format( _( "Unexpected file '%s' found in library "
-                                                     "path '%s'." ),
-                                                  files[i].GetData(),
-                                                  aLibraryPath.GetData() ) );
-            }
+            THROW_IO_ERROR( wxString::Format( _( "Insufficient permissions to delete file '%s'." ),
+                                              aLibraryPath.GetData() ) );
         }
 
-        for( i = 0;  i < files.GetCount();  i++ )
-            wxRemoveFile( files[i] );
+        wxLogTrace( traceKicadPcbPlugin, wxT( "Removing packed footprint library '%s'." ),
+                    aLibraryPath.GetData() );
+
+        if( !wxRemoveFile( aLibraryPath ) )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' cannot be deleted." ),
+                                              aLibraryPath.GetData() ) );
+        }
     }
-
-    wxLogTrace( traceKicadPcbPlugin, wxT( "Removing footprint library '%s'." ),
-                aLibraryPath.GetData() );
-
-    // Some of the more elaborate wxRemoveFile() crap puts up its own wxLog dialog
-    // we don't want that.  we want bare metal portability with no UI here.
-    if( !wxRmdir( aLibraryPath ) )
+    else
     {
-        THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' cannot be deleted." ),
-                                          aLibraryPath.GetData() ) );
+        // Unpacked library: delete the .pretty directory
+        fn.SetPath( aLibraryPath );
+
+        // Return if there is no library path to delete.
+        if( !fn.DirExists() )
+            return false;
+
+        if( !fn.IsDirWritable() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Insufficient permissions to delete folder '%s'." ),
+                                              aLibraryPath.GetData() ) );
+        }
+
+        wxDir dir( aLibraryPath );
+
+        if( dir.HasSubDirs() )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Library folder '%s' has unexpected sub-folders." ),
+                                              aLibraryPath.GetData() ) );
+        }
+
+        // All the footprint files must be deleted before the directory can be deleted.
+        if( dir.HasFiles() )
+        {
+            unsigned      i;
+            wxFileName    tmp;
+            wxArrayString files;
+
+            wxDir::GetAllFiles( aLibraryPath, &files );
+
+            for( i = 0;  i < files.GetCount();  i++ )
+            {
+                tmp = files[i];
+
+                if( tmp.GetExt() != FILEEXT::KiCadFootprintFileExtension )
+                {
+                    THROW_IO_ERROR( wxString::Format( _( "Unexpected file '%s' found in library "
+                                                         "path '%s'." ),
+                                                      files[i].GetData(),
+                                                      aLibraryPath.GetData() ) );
+                }
+            }
+
+            for( i = 0;  i < files.GetCount();  i++ )
+                wxRemoveFile( files[i] );
+        }
+
+        wxLogTrace( traceKicadPcbPlugin, wxT( "Removing footprint library '%s'." ),
+                    aLibraryPath.GetData() );
+
+        // Some of the more elaborate wxRemoveFile() crap puts up its own wxLog dialog
+        // we don't want that.  we want bare metal portability with no UI here.
+        if( !wxRmdir( aLibraryPath ) )
+        {
+            THROW_IO_ERROR( wxString::Format( _( "Footprint library '%s' cannot be deleted." ),
+                                              aLibraryPath.GetData() ) );
+        }
     }
 
     // For some reason removing a directory in Windows is not immediately updated.  This delay

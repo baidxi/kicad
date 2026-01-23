@@ -926,6 +926,20 @@ TOOL_ACTION PCB_ACTIONS::exportFootprint( TOOL_ACTION_ARGS()
         .Tooltip( _( "Export edited footprint to file" ) )
         .Icon( BITMAPS::export_module ) );
 
+TOOL_ACTION PCB_ACTIONS::convertLibraryToPacked( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ModuleEditor.convertLibraryToPacked" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Convert to Packed Library..." ) )
+        .Tooltip( _( "Convert an unpacked .pretty library to a packed .kicad_fpl file" ) )
+        .Icon( BITMAPS::library_archive ) );
+
+TOOL_ACTION PCB_ACTIONS::convertLibraryToUnpacked( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ModuleEditor.convertLibraryToUnpacked" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Convert to Unpacked Library..." ) )
+        .Tooltip( _( "Convert a packed .kicad_fpl file to an unpacked .pretty library" ) )
+        .Icon( BITMAPS::library_archive ) );
+
 TOOL_ACTION PCB_ACTIONS::footprintProperties( TOOL_ACTION_ARGS()
         .Name( "pcbnew.ModuleEditor.footprintProperties" )
         .Scope( AS_GLOBAL )

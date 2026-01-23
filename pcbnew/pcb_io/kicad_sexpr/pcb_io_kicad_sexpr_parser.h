@@ -76,6 +76,10 @@ class SHAPE_LINE_CHAIN;
 struct LAYER;
 class PROGRESS_REPORTER;
 class TEARDROP_PARAMETERS;
+class FP_CACHE_ENTRY;
+
+namespace boost { template<class Key, class T, class Compare, class CloneAllocator, class Allocator>
+                  class ptr_map; }
 
 
 /**
@@ -115,6 +119,19 @@ public:
      *                         delete it even on exception.
      */
     FOOTPRINT* parseFOOTPRINT( wxArrayString* aInitialComments = nullptr );
+
+    /**
+     * Parse a packed footprint library file.
+     *
+     * This parses a .kicad_fpl file containing multiple footprints and populates the
+     * provided footprint map.
+     *
+     * @param aFootprints Map to store parsed footprints (footprint name -> cache entry).
+     */
+    void ParseFootprintLib( boost::ptr_map<wxString, FP_CACHE_ENTRY,
+                                           std::less<wxString>,
+                                           boost::heap_clone_allocator,
+                                           std::allocator<std::pair<const wxString,void*>>>& aFootprints );
 
     /**
      * Return whether a version number, if any was parsed, was too recent
