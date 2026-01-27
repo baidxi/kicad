@@ -702,7 +702,7 @@ public:
     int        m_SilkClearance;             // Min dist between two silk items
     int        m_MinResolvedSpokes;         // Min spoke count to not be a starved thermal
     int        m_MinSilkTextHeight;         // Min text height for silkscreen layers
-    int        m_MinSilkTextThickness;      // Min text thickness for silkscreen layers
+    int        m_MinSilkLineWidth;          // Min line width for silkscreen layers
 
     std::shared_ptr<DRC_ENGINE>  m_DRCEngine;
     std::map<int, SEVERITY>      m_DRCSeverities;           // Map from DRCErrorCode to SEVERITY

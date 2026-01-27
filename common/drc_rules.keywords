@@ -27,6 +27,7 @@ ignore
 inner
 layer
 length
+line_width
 max
 mechanical_clearance
 mechanical_hole_clearance

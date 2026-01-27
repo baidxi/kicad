@@ -35,7 +35,7 @@
 #include <project/project_file.h>
 #include <advanced_config.h>
 
-const int bdsSchemaVersion = 2;
+const int bdsSchemaVersion = 3;
 
 
 BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std::string& aPath ) :
@@ -160,7 +160,7 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std:
     m_SilkClearance       = pcbIUScale.mmToIU( DEFAULT_SILKCLEARANCE );
     m_MinResolvedSpokes   = DEFAULT_MINRESOLVEDSPOKES;
     m_MinSilkTextHeight   = pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_SIZE * 0.8 );
-    m_MinSilkTextThickness= pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_WIDTH * 0.8 );
+    m_MinSilkLineWidth    = pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_WIDTH * 0.8 );
     m_MinGrooveWidth      = pcbIUScale.mmToIU( DEFAULT_MINGROOVEWIDTH );
 
     for( int errorCode = DRCE_FIRST; errorCode <= DRCE_LAST; ++errorCode )
@@ -193,7 +193,7 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std:
     m_DRCSeverities[ DRCE_SILK_MASK_CLEARANCE ] = RPT_SEVERITY_WARNING;
     m_DRCSeverities[ DRCE_SILK_EDGE_CLEARANCE ] = RPT_SEVERITY_WARNING;
     m_DRCSeverities[ DRCE_TEXT_HEIGHT ] = RPT_SEVERITY_WARNING;
-    m_DRCSeverities[ DRCE_TEXT_THICKNESS ] = RPT_SEVERITY_WARNING;
+    m_DRCSeverities[ DRCE_LINE_WIDTH ] = RPT_SEVERITY_WARNING;
 
     m_DRCSeverities[ DRCE_FOOTPRINT_TYPE_MISMATCH ] = RPT_SEVERITY_IGNORE;
 
@@ -321,8 +321,8 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std:
             &m_MinSilkTextHeight, pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_SIZE * 0.8 ),
             pcbIUScale.mmToIU( 0.00 ), pcbIUScale.mmToIU( 100.0 ), pcbIUScale.MM_PER_IU ) );
 
-    m_params.emplace_back( new PARAM_SCALED<int>( "rules.min_text_thickness",
-            &m_MinSilkTextThickness, pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_WIDTH * 0.8 ),
+    m_params.emplace_back( new PARAM_SCALED<int>( "rules.min_silk_linewidth",
+            &m_MinSilkLineWidth, pcbIUScale.mmToIU( DEFAULT_SILK_TEXT_WIDTH * 0.8 ),
             pcbIUScale.mmToIU( 0.00 ), pcbIUScale.mmToIU( 25.0 ), pcbIUScale.MM_PER_IU ) );
 
     // Note: a clearance of -0.01 is a flag indicating we should use the legacy (pre-6.0) method
@@ -943,6 +943,36 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std:
 
                 return true;
             } );
+
+    registerMigration( 2, 3,
+            [&]() -> bool
+            {
+                wxString bds("board.design_settings");
+                // Schema 2 to 3: Renamed severity setting from
+                // discontinued test provider text_thickness into line_width
+                if( std::optional<wxString> optval =
+                             Get<wxString>( "rule_severities.text_thickness" ) )
+                {
+                       SEVERITY severity_text_thickness = SeverityFromString( *optval );
+                    // Set the severity to warning if the old text thickness check was ignored.
+                       // Prevent unnoticed turn off of the new features.
+                       // Has an impact on graphic and text elements in copper that have not been previously tested.
+                       // See issue: https://gitlab.com/kicad/code/kicad/-/issues/18633
+                       if( severity_text_thickness != RPT_SEVERITY_IGNORE )
+                           m_DRCSeverities[ DRCE_LINE_WIDTH ] = severity_text_thickness;
+                   }
+                if( std::optional<double> minTextThickness = Get<double>( "rules.min_text_thickness" ) )
+                        m_MinSilkLineWidth = static_cast<int>(*minTextThickness * pcbIUScale.IU_PER_MM);
+                try
+                   {
+                       At( "rule_severities" ).erase( "text_thickness" );
+                       At( "rules" ).erase( "min_text_thickness" );
+                   }
+                   catch( ... )
+                   {
+                   }
+                return true;
+            } );
 }
 
 
@@ -996,7 +1026,7 @@ void BOARD_DESIGN_SETTINGS::initFromOther( const BOARD_DESIGN_SETTINGS& aOther )
     m_SilkClearance               = aOther.m_SilkClearance;
     m_MinResolvedSpokes           = aOther.m_MinResolvedSpokes;
     m_MinSilkTextHeight           = aOther.m_MinSilkTextHeight;
-    m_MinSilkTextThickness        = aOther.m_MinSilkTextThickness;
+    m_MinSilkLineWidth            = aOther.m_MinSilkLineWidth;
     m_DRCSeverities               = aOther.m_DRCSeverities;
     m_DrcExclusions               = aOther.m_DrcExclusions;
     m_DrcExclusionComments        = aOther.m_DrcExclusionComments;
@@ -1097,7 +1127,7 @@ bool BOARD_DESIGN_SETTINGS::operator==( const BOARD_DESIGN_SETTINGS& aOther ) co
     if( m_SilkClearance          != aOther.m_SilkClearance ) return false;
     if( m_MinResolvedSpokes      != aOther.m_MinResolvedSpokes ) return false;
     if( m_MinSilkTextHeight      != aOther.m_MinSilkTextHeight ) return false;
-    if( m_MinSilkTextThickness   != aOther.m_MinSilkTextThickness ) return false;
+    if( m_MinSilkLineWidth       != aOther.m_MinSilkLineWidth ) return false;
     if( m_DRCSeverities          != aOther.m_DRCSeverities ) return false;
     if( m_DrcExclusions          != aOther.m_DrcExclusions ) return false;
     if( m_DrcExclusionComments   != aOther.m_DrcExclusionComments ) return false;
