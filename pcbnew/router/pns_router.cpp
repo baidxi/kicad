@@ -357,6 +357,8 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
         // This only applies when starting from track segments, where the gap between existing
         // tracks should match the configured diff pair gap. When starting from pads or vias,
         // the anchor-to-anchor distance is determined by pad/via placement, not routing rules.
+        wxString gapMismatchReason;
+
         if( aStartItem->OfKind( ITEM::SEGMENT_T | ITEM::ARC_T ) )
         {
             int actualGap = ( dpPair.AnchorP() - dpPair.AnchorN() ).EuclideanNorm();
@@ -367,12 +369,11 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
 
             if( std::abs( actualGap - configuredGap ) > tolerance )
             {
-                SetFailureReason(
-                        _( "The differential pair gap at the start point does not match "
-                           "the configured gap. This can occur in neckdown areas where tracks "
-                           "have narrower width and spacing. Adjust the differential pair "
-                           "settings or start from a location with the correct gap." ) );
-                return false;
+                gapMismatchReason = _( "The differential pair gap at the start point does not match "
+                                       "the configured gap. This can occur in neckdown areas where "
+                                       "tracks have narrower width and spacing. Adjust the "
+                                       "differential pair settings or start from a location with "
+                                       "the correct gap." );
             }
         }
 
@@ -418,7 +419,11 @@ bool ROUTER::isStartingPointRoutable( const VECTOR2I& aWhere, ITEM* aStartItem, 
                 for( ITEM* item : highlightedItems )
                     m_iface->HideItem( item );
 
-                SetFailureReason( _( "The routing start point violates DRC." ) );
+                if( gapMismatchReason.Length() > 0 )
+                    SetFailureReason( gapMismatchReason );
+                else
+                    SetFailureReason( _( "The routing start point violates DRC." ) );
+
                 return false;
             }
         }
