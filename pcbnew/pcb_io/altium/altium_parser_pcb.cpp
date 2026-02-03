@@ -902,17 +902,6 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
 
     modelSphereRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.SPHERE.RADIUS" ), wxT( "0mil" ) );
 
-    /*
-    std::cout << "MODEL ID: " << modelId << std::endl;
-    std::cout << "type: " << (int)modelType << std::endl;
-    std::cout << "pos: " << pcbIUScale.IUTomm(modelPosition.x) << " / " << pcbIUScale.IUTomm(modelPosition.y) << " / " << pcbIUScale.IUTomm(modelPosition.z) << std::endl;
-    std::cout << "rot: " << modelRotation.x << " / " << modelRotation.y << " / " << modelRotation.z << std::endl;
-    std::cout << "rot2D: " << rotation << std::endl;
-    std::cout << "projection: " << body_projection << std::endl;
-    std::cout << "extruded min: " << modelExtrudedMinZ << " max: " << modelExtrudedMaxZ << std::endl;
-    std::cout << "outline: ";
-    */
-
     uint32_t lenOutline = aReader.Read<uint32_t>();
 
     for( uint32_t i = 0; i < lenOutline; i++ )
@@ -920,10 +909,7 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
         int32_t x = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( aReader.Read<double>() );
         int32_t y = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( -aReader.Read<double>() );
         modelOutline.emplace_back( VECTOR2I( x, y ) );
-        //std::cout << "(" << pcbIUScale.IUTomm(x) << "/" << pcbIUScale.IUTomm(y) << "), ";
     }
-    //std::cout << std::endl;
-    //std::cout << std::endl;
 
     aReader.SkipSubrecord();
 

@@ -1598,8 +1598,6 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
     MMH3_HASH hash;
     hash.addData( ( const uint8_t* ) &aElem, sizeof( aElem ) );
     wxString stepFilename = hash.digest().ToString() + wxString( ".step" );
-    //std::cout << "creating extruded body: " << stepFilename << " type: " << ( int )( aElem.modelType ) << std::endl;
-    
 
     // disable opencascade debug output
     Message_Gravity aGravity = Message_Alarm;
