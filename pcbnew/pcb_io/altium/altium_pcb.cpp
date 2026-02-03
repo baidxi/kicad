@@ -1601,6 +1601,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
     // disable opencascade debug output
     Message_Gravity aGravity = Message_Alarm;
+
     for ( Message_SequenceOfPrinters::Iterator aPrinterIter ( Message::DefaultMessenger()->Printers() );
          aPrinterIter.More(); aPrinterIter.Next() )
     {
@@ -1610,6 +1611,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
     // for extruded, cylinder or sphere, make 3D shape
     TopoDS_Shape shape;
+
     switch( aElem.modelType )
     {
         case ALTIUM_MODEL_TYPE::EXTRUDED:
@@ -1620,6 +1622,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 {
                     m_reporter->Report( "to few outline points for extruded model" , RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
@@ -1633,6 +1636,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                     pcbIUScale.IUTomm( - (aElem.modelOutline[i].y - aElem.modelPosition.y ) ),	// y axis is flipped in Altium vs KiCad
                     pcbIUScale.IUTomm( aElem.modelExtrudedMinZ ) ) );
             }
+
             polygon.Close();
 
             if( !polygon.IsDone() )
@@ -1641,6 +1645,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 {
                     m_reporter->Report( "something went wrong creating the outline polygon" , RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
@@ -1653,16 +1658,19 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 {
                     m_reporter->Report( "something went wrong creating the face" , RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
             int extrudeHeight = aElem.modelExtrudedMaxZ - aElem.modelExtrudedMinZ;
+
             if( extrudeHeight <= 0 )
             {
                 if( m_reporter )
                 {
                     m_reporter->Report( "extruded height is invalid" , RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
@@ -1675,6 +1683,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                 {
                     m_reporter->Report( "something went wrong extruding the face" , RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
@@ -1693,6 +1702,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                                                         aElem.modelCylinderRadius, aElem.modelCylinderHeight ),
                                        RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
 
@@ -1715,8 +1725,10 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
                                                         aElem.modelSphereRadius ),
                                        RPT_SEVERITY_ERROR );
                 }
+
                 return false;
             }
+
             auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ) );
 
             shape = sphere;
@@ -1739,6 +1751,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
         {
             m_reporter->Report( "failed to create OCAF document" , RPT_SEVERITY_ERROR );
         }
+
         return false;
     }
 
@@ -1752,6 +1765,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
         {
             m_reporter->Report( "failed to initialize XCAF tools" , RPT_SEVERITY_ERROR );
         }
+
         return false;
     }
 
@@ -1778,6 +1792,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
         {
             m_reporter->Report( "failed to transfer OCAF document to STEP model" , RPT_SEVERITY_ERROR );
         }
+
         return false;
     }
 
@@ -1794,6 +1809,7 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
         {
             m_reporter->Report( "writing STEP file failed" , RPT_SEVERITY_ERROR );
         }
+
         return false;
     }
 
@@ -1832,6 +1848,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
         case ALTIUM_MODEL_TYPE::GENERIC:
         {
             auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
+
             if( !model )
             {
                 if( m_reporter )
@@ -1888,6 +1905,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
             {
                 return;
             }
+
             break;
         }
 
@@ -1895,6 +1913,7 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
         {
             if( m_reporter )
                 m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType ), RPT_SEVERITY_ERROR );
+
             return;
         }
 
@@ -2025,6 +2044,7 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
                 {
                     return;
                 }
+
                 break;
             }
 
@@ -2032,6 +2052,7 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
             {
                 if( m_reporter )
                     m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType ), RPT_SEVERITY_ERROR );
+
                 return;
             }
         } // switch
