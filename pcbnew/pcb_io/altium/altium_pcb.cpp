@@ -1594,18 +1594,17 @@ double normalizeAngleDegrees( double Angle, double aMin, double aMax )
 
 bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file )
 {
-    
     MMH3_HASH hash;
-    hash.addData( ( const uint8_t* ) &aElem, sizeof( aElem ) );
+    hash.addData( (const uint8_t*) &aElem, sizeof( aElem ) );
     wxString stepFilename = hash.digest().ToString() + wxString( ".step" );
 
     // disable opencascade debug output
     Message_Gravity aGravity = Message_Alarm;
 
-    for ( Message_SequenceOfPrinters::Iterator aPrinterIter ( Message::DefaultMessenger()->Printers() );
+    for( Message_SequenceOfPrinters::Iterator aPrinterIter( Message::DefaultMessenger()->Printers() );
          aPrinterIter.More(); aPrinterIter.Next() )
     {
-        aPrinterIter.Value()->SetTraceLevel ( aGravity );
+        aPrinterIter.Value()->SetTraceLevel( aGravity );
     }
 
 
@@ -1614,127 +1613,126 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
     switch( aElem.modelType )
     {
-        case ALTIUM_MODEL_TYPE::EXTRUDED:
+    case ALTIUM_MODEL_TYPE::EXTRUDED:
+    {
+        if( aElem.modelOutline.size() < 3 )
         {
-            if( aElem.modelOutline.size() < 3 )
+            if( m_reporter )
             {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "to few outline points for extruded model" , RPT_SEVERITY_ERROR );
-                }
-
-                return false;
+                m_reporter->Report( "to few outline points for extruded model", RPT_SEVERITY_ERROR );
             }
 
-            // create polygon from outline points
-            auto polygon = BRepBuilderAPI_MakePolygon();
-
-            for( size_t i = 0; i < aElem.modelOutline.size(); i++ )
-            {
-                polygon.Add( gp_Pnt(
-                    pcbIUScale.IUTomm( aElem.modelOutline[i].x - aElem.modelPosition.x ),
-                    pcbIUScale.IUTomm( - (aElem.modelOutline[i].y - aElem.modelPosition.y ) ),	// y axis is flipped in Altium vs KiCad
-                    pcbIUScale.IUTomm( aElem.modelExtrudedMinZ ) ) );
-            }
-
-            polygon.Close();
-
-            if( !polygon.IsDone() )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "something went wrong creating the outline polygon" , RPT_SEVERITY_ERROR );
-                }
-
-                return false;
-            }
-
-            // create face from polygon / wire
-            auto face = BRepBuilderAPI_MakeFace( polygon.Wire() );
-
-            if( !face.IsDone() )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "something went wrong creating the face" , RPT_SEVERITY_ERROR );
-                }
-
-                return false;
-            }
-
-            int extrudeHeight = aElem.modelExtrudedMaxZ - aElem.modelExtrudedMinZ;
-
-            if( extrudeHeight <= 0 )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "extruded height is invalid" , RPT_SEVERITY_ERROR );
-                }
-
-                return false;
-            }
-
-            // extrude to a solid
-            auto prism = BRepPrimAPI_MakePrism( face, gp_Vec( 0, 0, pcbIUScale.IUTomm( extrudeHeight ) ) );
-
-            if( !prism.IsDone() )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( "something went wrong extruding the face" , RPT_SEVERITY_ERROR );
-                }
-
-                return false;
-            }
-
-            shape = prism;
-
-            break;	// case EXTRUDED
+            return false;
         }
 
-        case ALTIUM_MODEL_TYPE::CYLINDER:
+        // create polygon from outline points
+        auto polygon = BRepBuilderAPI_MakePolygon();
+
+        for( size_t i = 0; i < aElem.modelOutline.size(); i++ )
         {
-            if( aElem.modelCylinderRadius <= 0 || aElem.modelCylinderHeight <= 0 )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( wxString::Format( wxT( "invalid cylinder dimensions radius: %d, height: %d" ),
-                                                        aElem.modelCylinderRadius, aElem.modelCylinderHeight ),
-                                       RPT_SEVERITY_ERROR );
-                }
-
-                return false;
-            }
-
-            auto cylinder = BRepPrimAPI_MakeCylinder(
-                pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
-                pcbIUScale.IUTomm( aElem.modelCylinderHeight ) );
-
-            shape = cylinder;
-
-            break; // case ZYLINDER
+            polygon.Add(
+                    gp_Pnt( pcbIUScale.IUTomm( aElem.modelOutline[i].x - aElem.modelPosition.x ),
+                            pcbIUScale.IUTomm( -( aElem.modelOutline[i].y
+                                                  - aElem.modelPosition.y ) ), // y axis is flipped in Altium vs KiCad
+                            pcbIUScale.IUTomm( aElem.modelExtrudedMinZ ) ) );
         }
 
-        case ALTIUM_MODEL_TYPE::SPHERE:
-        {
-            if( aElem.modelSphereRadius <= 0 )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( wxString::Format( wxT( "invalid sphere radius: %d" ),
-                                                        aElem.modelSphereRadius ),
-                                       RPT_SEVERITY_ERROR );
-                }
+        polygon.Close();
 
-                return false;
+        if( !polygon.IsDone() )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( "something went wrong creating the outline polygon", RPT_SEVERITY_ERROR );
             }
 
-            auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ) );
-
-            shape = sphere;
-
-            break; // case SPHERE
+            return false;
         }
+
+        // create face from polygon / wire
+        auto face = BRepBuilderAPI_MakeFace( polygon.Wire() );
+
+        if( !face.IsDone() )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( "something went wrong creating the face", RPT_SEVERITY_ERROR );
+            }
+
+            return false;
+        }
+
+        int extrudeHeight = aElem.modelExtrudedMaxZ - aElem.modelExtrudedMinZ;
+
+        if( extrudeHeight <= 0 )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( "extruded height is invalid", RPT_SEVERITY_ERROR );
+            }
+
+            return false;
+        }
+
+        // extrude to a solid
+        auto prism = BRepPrimAPI_MakePrism( face, gp_Vec( 0, 0, pcbIUScale.IUTomm( extrudeHeight ) ) );
+
+        if( !prism.IsDone() )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( "something went wrong extruding the face", RPT_SEVERITY_ERROR );
+            }
+
+            return false;
+        }
+
+        shape = prism;
+
+        break; // case EXTRUDED
+    }
+
+    case ALTIUM_MODEL_TYPE::CYLINDER:
+    {
+        if( aElem.modelCylinderRadius <= 0 || aElem.modelCylinderHeight <= 0 )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( wxT( "invalid cylinder dimensions radius: %d, height: %d" ),
+                                                      aElem.modelCylinderRadius, aElem.modelCylinderHeight ),
+                                    RPT_SEVERITY_ERROR );
+            }
+
+            return false;
+        }
+
+        auto cylinder = BRepPrimAPI_MakeCylinder( pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
+                                                  pcbIUScale.IUTomm( aElem.modelCylinderHeight ) );
+
+        shape = cylinder;
+
+        break; // case ZYLINDER
+    }
+
+    case ALTIUM_MODEL_TYPE::SPHERE:
+    {
+        if( aElem.modelSphereRadius <= 0 )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( wxT( "invalid sphere radius: %d" ), aElem.modelSphereRadius ),
+                                    RPT_SEVERITY_ERROR );
+            }
+
+            return false;
+        }
+
+        auto sphere = BRepPrimAPI_MakeSphere( pcbIUScale.IUTomm( aElem.modelSphereRadius ) );
+
+        shape = sphere;
+
+        break; // case SPHERE
+    }
     } // switch
 
 
@@ -1745,11 +1743,11 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
     Handle( TDocStd_Document ) doc;
     anApp->NewDocument( "XCAFDoc", doc );
 
-    if ( doc.IsNull() )
+    if( doc.IsNull() )
     {
         if( m_reporter )
         {
-            m_reporter->Report( "failed to create OCAF document" , RPT_SEVERITY_ERROR );
+            m_reporter->Report( "failed to create OCAF document", RPT_SEVERITY_ERROR );
         }
 
         return false;
@@ -1759,23 +1757,22 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
     Handle( XCAFDoc_ShapeTool ) shapeTool = XCAFDoc_DocumentTool::ShapeTool( doc->Main() );
     Handle( XCAFDoc_ColorTool ) colorTool = XCAFDoc_DocumentTool::ColorTool( doc->Main() );
 
-    if ( shapeTool.IsNull() || colorTool.IsNull() )
+    if( shapeTool.IsNull() || colorTool.IsNull() )
     {
         if( m_reporter )
         {
-            m_reporter->Report( "failed to initialize XCAF tools" , RPT_SEVERITY_ERROR );
+            m_reporter->Report( "failed to initialize XCAF tools", RPT_SEVERITY_ERROR );
         }
 
         return false;
     }
 
     // add shape to the document structure and set its color
-    TDF_Label solidLabel = shapeTool->AddShape( shape );
-    Quantity_Color color(
-        (   aElem.body_color_3d         & 0xFF ) / 255.0, // red
-        ( ( aElem.body_color_3d >> 8  ) & 0xFF ) / 255.0, // green
-        ( ( aElem.body_color_3d >> 16 ) & 0xFF ) / 255.0, // blue
-        Quantity_TOC_RGB );
+    TDF_Label      solidLabel = shapeTool->AddShape( shape );
+    Quantity_Color color( ( aElem.body_color_3d & 0xFF ) / 255.0,           // red
+                          ( ( aElem.body_color_3d >> 8 ) & 0xFF ) / 255.0,  // green
+                          ( ( aElem.body_color_3d >> 16 ) & 0xFF ) / 255.0, // blue
+                          Quantity_TOC_RGB );
     colorTool->SetColor( solidLabel, color, XCAFDoc_ColorSurf );
 
     /*
@@ -1786,11 +1783,11 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 
     STEPCAFControl_Writer writer;
 
-    if ( !writer.Transfer( doc ) )
+    if( !writer.Transfer( doc ) )
     {
         if( m_reporter )
         {
-            m_reporter->Report( "failed to transfer OCAF document to STEP model" , RPT_SEVERITY_ERROR );
+            m_reporter->Report( "failed to transfer OCAF document to STEP model", RPT_SEVERITY_ERROR );
         }
 
         return false;
@@ -1803,11 +1800,11 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
      */
     IFSelect_ReturnStatus aStat = writer.Write( stepFilename );
 
-    if ( aStat != IFSelect_RetDone )
+    if( aStat != IFSelect_RetDone )
     {
         if( m_reporter )
         {
-            m_reporter->Report( "writing STEP file failed" , RPT_SEVERITY_ERROR );
+            m_reporter->Report( "writing STEP file failed", RPT_SEVERITY_ERROR );
         }
 
         return false;
@@ -1832,7 +1829,6 @@ bool ALTIUM_PCB::CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILE
 }
 
 
-
 void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                                        FOOTPRINT* aFootprint,
                                                        const ACOMPONENTBODY6& aElem )
@@ -1845,77 +1841,78 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
 
     switch( aElem.modelType )
     {
-        case ALTIUM_MODEL_TYPE::GENERIC:
-        {
-            auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
+    case ALTIUM_MODEL_TYPE::GENERIC:
+    {
+        auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
 
-            if( !model )
-            {
-                if( m_reporter )
-                {
-                    m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ),
-                                                          aElem.modelId, aFootprint->GetReference() ),
-                                        RPT_SEVERITY_ERROR );
-                }
-
-                return;
-            }
-
-            file->name = aElem.modelName;
-
-            if( file->name.IsEmpty() )
-                file->name = model->first.name;
-
-            // Decompress the model data before assigning
-            std::vector<char>   decompressedData;
-            wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
-            wxZlibInputStream   zlibStream( compressedStream );
-
-            // Reserve some space, assuming decompressed data is larger -- STEP file
-            // compression is typically 5:1 using zlib like Altium does
-            decompressedData.resize( model->second.size() * 6 );
-            size_t offset = 0;
-
-            while( !zlibStream.Eof() )
-            {
-                zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
-                size_t bytesRead = zlibStream.LastRead();
-
-                if( !bytesRead )
-                    break;
-
-                offset += bytesRead;
-
-                if( offset >= decompressedData.size() )
-                    decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
-            }
-
-            decompressedData.resize( offset );
-
-            file->decompressedData = std::move( decompressedData );
-
-            break; // case GENERIC
-        }
-
-        case ALTIUM_MODEL_TYPE::EXTRUDED:
-        case ALTIUM_MODEL_TYPE::CYLINDER:
-        case ALTIUM_MODEL_TYPE::SPHERE:
-        {
-            if( !CreateExtrudedBody( aElem, file ) )
-            {
-                return;
-            }
-
-            break;
-        }
-
-        default:
+        if( !model )
         {
             if( m_reporter )
-                m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType ), RPT_SEVERITY_ERROR );
+            {
+                m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ), aElem.modelId,
+                                                      aFootprint->GetReference() ),
+                                    RPT_SEVERITY_ERROR );
+            }
 
             return;
         }
+
+        file->name = aElem.modelName;
+
+        if( file->name.IsEmpty() )
+            file->name = model->first.name;
+
+        // Decompress the model data before assigning
+        std::vector<char>   decompressedData;
+        wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
+        wxZlibInputStream   zlibStream( compressedStream );
+
+        // Reserve some space, assuming decompressed data is larger -- STEP file
+        // compression is typically 5:1 using zlib like Altium does
+        decompressedData.resize( model->second.size() * 6 );
+        size_t offset = 0;
+
+        while( !zlibStream.Eof() )
+        {
+            zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
+            size_t bytesRead = zlibStream.LastRead();
+
+            if( !bytesRead )
+                break;
+
+            offset += bytesRead;
+
+            if( offset >= decompressedData.size() )
+                decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
+        }
+
+        decompressedData.resize( offset );
+
+        file->decompressedData = std::move( decompressedData );
+
+        break; // case GENERIC
+    }
+
+    case ALTIUM_MODEL_TYPE::EXTRUDED:
+    case ALTIUM_MODEL_TYPE::CYLINDER:
+    case ALTIUM_MODEL_TYPE::SPHERE:
+    {
+        if( !CreateExtrudedBody( aElem, file ) )
+        {
+            return;
+        }
+
+        break;
+    }
+
+    default:
+    {
+        if( m_reporter )
+            m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), aElem.modelType ),
+                                RPT_SEVERITY_ERROR );
+
+        return;
+    }
 
     } // switch
 
@@ -2000,61 +1997,63 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         }
 
         EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
-        FOOTPRINT*                footprint = m_components.at( elem.component );
+        FOOTPRINT*                     footprint = m_components.at( elem.component );
 
-        switch(elem.modelType)
+        switch( elem.modelType )
         {
-            case ALTIUM_MODEL_TYPE::GENERIC:
-            {
-                auto modelTuple = m_EmbeddedModels.find( elem.modelId );
+        case ALTIUM_MODEL_TYPE::GENERIC:
+        {
+            auto modelTuple = m_EmbeddedModels.find( elem.modelId );
 
-                if( modelTuple == m_EmbeddedModels.end() )
-                {
-                    if( m_reporter )
-                    {
-                        wxString msg;
-                        msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
-                                         "not exist" ), elem.modelId );
-                        m_reporter->Report( msg, RPT_SEVERITY_ERROR );
-                    }
-
-                    continue;
-                }
-
-                const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
-
-                file->name = modelData.m_modelname;
-
-                wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
-                wxZlibInputStream    zlibStream( compressedStream );
-                wxMemoryOutputStream decompressedStream;
-
-                zlibStream.Read( decompressedStream );
-                file->decompressedData.resize( decompressedStream.GetSize() );
-                decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
-
-                break; // case GENERIC
-            }
-
-            case ALTIUM_MODEL_TYPE::EXTRUDED:
-            case ALTIUM_MODEL_TYPE::CYLINDER:
-            case ALTIUM_MODEL_TYPE::SPHERE:
-            {
-                if( !CreateExtrudedBody( elem, file ) )
-                {
-                    return;
-                }
-
-                break;
-            }
-
-            default:
+            if( modelTuple == m_EmbeddedModels.end() )
             {
                 if( m_reporter )
-                    m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType ), RPT_SEVERITY_ERROR );
+                {
+                    wxString msg;
+                    msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
+                                     "not exist" ),
+                                elem.modelId );
+                    m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                }
 
+                continue;
+            }
+
+            const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
+
+            file->name = modelData.m_modelname;
+
+            wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
+            wxZlibInputStream    zlibStream( compressedStream );
+            wxMemoryOutputStream decompressedStream;
+
+            zlibStream.Read( decompressedStream );
+            file->decompressedData.resize( decompressedStream.GetSize() );
+            decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
+
+            break; // case GENERIC
+        }
+
+        case ALTIUM_MODEL_TYPE::EXTRUDED:
+        case ALTIUM_MODEL_TYPE::CYLINDER:
+        case ALTIUM_MODEL_TYPE::SPHERE:
+        {
+            if( !CreateExtrudedBody( elem, file ) )
+            {
                 return;
             }
+
+            break;
+        }
+
+        default:
+        {
+            if( m_reporter )
+                m_reporter->Report( wxString::Format( wxT( "Invalid MODEL_TYPE %d" ), elem.modelType ),
+                                    RPT_SEVERITY_ERROR );
+
+            return;
+        }
         } // switch
 
         file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL;
@@ -2072,10 +2071,8 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         modelSettings.m_Filename = footprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
         VECTOR2I fpPosition = footprint->GetPosition();
 
-        modelSettings.m_Offset.x =
-                pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
-        modelSettings.m_Offset.y =
-                -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
+        modelSettings.m_Offset.x = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.x - fpPosition.x ) );
+        modelSettings.m_Offset.y = -pcbIUScale.IUTomm( KiROUND( elem.modelPosition.y - fpPosition.y ) );
         modelSettings.m_Offset.z = pcbIUScale.IUTomm( KiROUND( elem.modelPosition.z ) );
 
         EDA_ANGLE orientation = footprint->GetOrientation();
@@ -2083,7 +2080,7 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
         if( footprint->IsFlipped() )
         {
             modelSettings.m_Offset.y = -modelSettings.m_Offset.y;
-            orientation              = -orientation;
+            orientation = -orientation;
         }
 
         if( ( elem.body_projection == 1 ) != footprint->IsFlipped() )

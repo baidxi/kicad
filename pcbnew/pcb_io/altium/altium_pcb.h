@@ -175,7 +175,7 @@ private:
     void ConvertArcs6ToBoardItemOnLayer( const AARC6& aElem, PCB_LAYER_ID aLayer );
     void ConvertArcs6ToFootprintItemOnLayer( FOOTPRINT* aFootprint, const AARC6& aElem,
                                              PCB_LAYER_ID aLayer );
-    bool CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file);
+    bool CreateExtrudedBody( const ACOMPONENTBODY6& aElem, EMBEDDED_FILES::EMBEDDED_FILE* file );
     void ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                                      const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,

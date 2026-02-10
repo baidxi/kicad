@@ -872,7 +872,8 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
 
     modelName       = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODEL.NAME" ), wxT( "" ) );
 
-    modelType       = static_cast<ALTIUM_MODEL_TYPE> ( ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "MODEL.MODELTYPE" ), 0 ) );
+    modelType =
+            static_cast<ALTIUM_MODEL_TYPE>( ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "MODEL.MODELTYPE" ), 0 ) );
 
     modelId         = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODELID" ), wxT( "" ) );
     modelIsEmbedded = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "MODEL.EMBED" ), false );
@@ -897,8 +898,10 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
     modelExtrudedMinZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MINZ" ), wxT( "0mil" ) );
     modelExtrudedMaxZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MAXZ" ), wxT( "0mil" ) );
 
-    modelCylinderRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.RADIUS" ), wxT( "0mil" ) );
-    modelCylinderHeight = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.HEIGHT" ), wxT( "0mil" ) );
+    modelCylinderRadius =
+            ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.RADIUS" ), wxT( "0mil" ) );
+    modelCylinderHeight =
+            ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.HEIGHT" ), wxT( "0mil" ) );
 
     modelSphereRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.SPHERE.RADIUS" ), wxT( "0mil" ) );
 
