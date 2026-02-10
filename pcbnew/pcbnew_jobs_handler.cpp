@@ -46,6 +46,7 @@
 #include <jobs/job_export_pcb_3d.h>
 #include <jobs/job_pcb_render.h>
 #include <jobs/job_pcb_drc.h>
+#include <jobs/job_pcb_import.h>
 #include <jobs/job_pcb_upgrade.h>
 #include <eda_units.h>
 #include <lset.h>
@@ -88,6 +89,9 @@
 #include <export_vrml.h>
 #include <wx/wfstream.h>
 #include <wx/zipstrm.h>
+#include <pcb_io/altium/pcb_io_altium_circuit_maker.h>
+#include <pcb_io/altium/pcb_io_altium_circuit_studio.h>
+#include <pcb_io/altium/pcb_io_altium_designer.h>
 #include <wx/filename.h>
 #include <kiplatform/io.h>
 #include <settings/settings_manager.h>
@@ -150,6 +154,14 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
               {
                   return true;
               } );
+
+    Register( "import", std::bind( &PCBNEW_JOBS_HANDLER::JobPcbImport, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
+
+
     Register( "svg", std::bind( &PCBNEW_JOBS_HANDLER::JobExportSvg, this, std::placeholders::_1 ),
               [aKiway]( JOB* job, wxWindow* aParent ) -> bool
               {
@@ -368,8 +380,13 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   DIALOG_EXPORT_ODBPP dlg( odbJob, editFrame, aParent );
                   return dlg.ShowModal() == wxID_OK;
               } );
+    Register( "import",
+              std::bind( &PCBNEW_JOBS_HANDLER::JobPcbImport, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
 }
-
 
 PCBNEW_JOBS_HANDLER::~PCBNEW_JOBS_HANDLER()
 {
@@ -400,7 +417,6 @@ TOOL_MANAGER* PCBNEW_JOBS_HANDLER::getToolManager( BOARD* aBrd )
     }
     return toolManager;
 }
-
 
 BOARD* PCBNEW_JOBS_HANDLER::getBoard( const wxString& aPath )
 {
@@ -2655,6 +2671,52 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
     DIALOG_EXPORT_ODBPP::GenerateODBPPFiles( *job, brd, nullptr, m_progressReporter, m_reporter );
 
     return CLI::EXIT_CODES::SUCCESS;
+}
+
+int PCBNEW_JOBS_HANDLER::JobPcbImport( JOB* aJob )
+{
+    JOB_PCB_IMPORT* aConvertJob = dynamic_cast<JOB_PCB_IMPORT*>( aJob );
+
+    if( aConvertJob == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    m_reporter->Report( _( "Loading board\n" ), RPT_SEVERITY_INFO );
+
+    static const auto converFromPCBType = std::map<JOB_PCB_IMPORT::From, PCB_IO_MGR::PCB_FILE_T>{
+        { JOB_PCB_IMPORT::From::ALTIUM_CIRCUIT_MAKER,
+          PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_MAKER },
+        { JOB_PCB_IMPORT::From::ALTIUM_CIRCUIT_STUDIO,
+          PCB_IO_MGR::PCB_FILE_T::ALTIUM_CIRCUIT_STUDIO },
+        { JOB_PCB_IMPORT::From::ALTIUM_DESIGNER, PCB_IO_MGR::PCB_FILE_T::ALTIUM_DESIGNER },
+    };
+
+
+    if( auto from_type = converFromPCBType.find( aConvertJob->m_from );
+        from_type == converFromPCBType.end() )
+    {
+        return CLI::EXIT_CODES::ERR_ARGS;
+    }
+    else
+    {
+        BOARD* brd = LoadBoard( aConvertJob->m_filename, from_type->second, true );
+        try
+        {
+            IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
+            pi->SetProgressReporter( m_progressReporter );
+            pi->SaveBoard( aConvertJob->m_outputFile, brd );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            m_reporter->Report( wxString::Format( _( "Error importing pcb file '%s'.\n%s" ),
+                                                  aConvertJob->m_filename, ioe.What() ),
+                                RPT_SEVERITY_ERROR );
+
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        m_reporter->Report( _( "Successfully imported board" ) + wxS( "\n" ), RPT_SEVERITY_INFO );
+        return CLI::EXIT_CODES::OK;
+    }
 }
 
 int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )

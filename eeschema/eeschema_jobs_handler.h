@@ -45,6 +45,7 @@ public:
     int JobSchErc( JOB* aJob );
     int JobSymUpgrade( JOB* aJob );
     int JobSymExportSvg( JOB* aJob );
+    int JobSchImport( JOB* aJob );
     int JobUpgrade( JOB* aJob );
 
     /**

@@ -26,6 +26,7 @@
 #include <drawing_sheet/ds_proxy_view_item.h>
 #include <font/kicad_font_name.h>
 #include <jobs/job_export_sch_bom.h>
+#include <jobs/job_sch_import.h>
 #include <jobs/job_export_sch_pythonbom.h>
 #include <jobs/job_export_sch_netlist.h>
 #include <jobs/job_export_sch_plot.h>
@@ -59,6 +60,7 @@
 #include <sch_file_versions.h>
 #include <sch_io/sch_io.h>
 #include <sch_io/kicad_sexpr/sch_io_kicad_sexpr_lib_cache.h>
+#include <sch_io/sch_io.h>
 
 #include <netlist.h>
 #include <netlist_exporter_base.h>
@@ -164,6 +166,12 @@ EESCHEMA_JOBS_HANDLER::EESCHEMA_JOBS_HANDLER( KIWAY* aKiway ) :
                   DIALOG_ERC_JOB_CONFIG dlg( aParent, ercJob );
                   return dlg.ShowModal() == wxID_OK;
               } );
+   Register( "import",
+            std::bind( &EESCHEMA_JOBS_HANDLER::JobSchImport, this, std::placeholders::_1 ),
+            []( JOB* job, wxWindow* aParent ) -> bool
+            {
+                return true;
+            } );
     Register( "upgrade", std::bind( &EESCHEMA_JOBS_HANDLER::JobUpgrade, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
@@ -1379,4 +1387,55 @@ DS_PROXY_VIEW_ITEM* EESCHEMA_JOBS_HANDLER::getDrawingSheetProxyView( SCHEMATIC* 
     drawingSheet->SetSheetPath( "" );
 
     return drawingSheet;
+}
+
+int EESCHEMA_JOBS_HANDLER::JobSchImport( JOB* aJob )
+{
+    JOB_SCH_IMPORT* aConvertJob = dynamic_cast<JOB_SCH_IMPORT*>( aJob );
+
+    if( !aConvertJob )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    m_reporter->Report( _( "Loading schematic\n" ), RPT_SEVERITY_INFO );
+
+    static const auto convertFromSCH = std::map<JOB_SCH_IMPORT::From, SCH_IO_MGR::SCH_FILE_T>{
+        { JOB_SCH_IMPORT::From::SCH_ALTIUM, SCH_IO_MGR::SCH_FILE_T::SCH_ALTIUM }
+    };
+
+
+    if( auto from_type = convertFromSCH.find( aConvertJob->m_from );
+        from_type == convertFromSCH.end() )
+    {
+        return CLI::EXIT_CODES::ERR_ARGS;
+    }
+    else
+    {
+        try
+        {
+            SCHEMATIC* sch = EESCHEMA_HELPERS::LoadSchematic( aConvertJob->m_filename,
+                                                              from_type->second, true );
+
+            if( !sch || !sch->IsValid() )
+            {
+                m_reporter->Report( _( "Failed to load schematic file." ) );
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+            }
+
+            IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_FILE_T::SCH_KICAD ) );
+            pi->SetProgressReporter( m_progressReporter );
+            pi->SaveSchematicFile( aConvertJob->m_outputFile, &sch->Root(), sch );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            m_reporter->Report( wxString::Format( _( "Error importing schematic file '%s'.\n%s" ),
+                                                  aConvertJob->m_filename, ioe.What() ),
+                                RPT_SEVERITY_ERROR );
+
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        m_reporter->Report( _( "Successfully imported schematic file" ) + wxS( "\n" ),
+                            RPT_SEVERITY_INFO );
+        return CLI::EXIT_CODES::OK;
+    }
 }

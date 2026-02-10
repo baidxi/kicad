@@ -1,0 +1,72 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2025 Ethan Chien <liangtie.qian@gmail.com>
+ * Copyright (C) 2025 KiCad Developers, see AUTHORS.txt for contributors.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+#include "command_sch_import.h"
+
+#include "command_utils.h"
+
+#include "jobs/job_sch_import.h"
+
+
+#include <cli/exit_codes.h>
+#include "command_utils.h"
+#include <kiface_base.h>
+#include <layer_ids.h>
+#include <string_utils.h>
+#include <wx/crt.h>
+#include <magic_enum.hpp>
+
+#include <macros.h>
+#include <wx/tokenzr.h>
+
+#define ARG_FROM "--from"
+
+CLI::SCH_IMPORT_COMMAND::SCH_IMPORT_COMMAND() : COMMAND( "import" )
+{
+    addCommonArgs( true, true, false, false );
+    addDefineArg();
+
+    m_argParser.add_description( UTF8STDSTR(
+            _( "Import SCH designs from other formats into the latest version of KiCad" ) ) );
+
+
+    m_argParser.add_argument( ARG_FROM )
+            .default_value( std::string( "sch_altium" ) )
+            .add_choices( enumChoices<JOB_SCH_IMPORT::From>() )
+            .metavar( "FROM" )
+            .help( UTF8STDSTR( wxString::Format( _( "Accepted SCH formats. Options: %s" ),
+                                                 enumString<JOB_SCH_IMPORT::From>() ) ) );
+}
+
+
+int CLI::SCH_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
+{
+    std::unique_ptr<JOB_SCH_IMPORT> convertJob( new JOB_SCH_IMPORT() );
+    convertJob->m_outputFile = m_argOutput;
+    convertJob->m_filename = m_argInput;
+    convertJob->SetVarOverrides( m_argDefineVars );
+    getToEnum( m_argParser.get<std::string>( ARG_FROM ), convertJob->m_from );
+    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, convertJob.get() );
+    return exitCode;
+}
