@@ -176,7 +176,7 @@ void PANEL_TRACK_WIDTH::OnTWCalculateFromExtWidth( wxCommandEvent& event )
     extTrackWidth *= m_TW_ExtTrackWidth_choiceUnit->GetUnitScale();
 
     // Calculate the maximum current.
-    current = TWCalculateCurrent( extTrackWidth, extThickness, deltaT_C, false );
+    current = IPC2221::CalculateTraceCurrent( extTrackWidth, extThickness, deltaT_C, false );
 
     // And now calculate the corresponding internal width.
     intTrackWidth = TWCalculateWidth( current, intThickness, deltaT_C, true );
@@ -221,7 +221,7 @@ void PANEL_TRACK_WIDTH::OnTWCalculateFromIntWidth( wxCommandEvent& event )
     intTrackWidth *= m_TW_IntTrackWidth_choiceUnit->GetUnitScale();
 
     // Calculate the maximum current.
-    current = TWCalculateCurrent( intTrackWidth, intThickness, deltaT_C, true );
+    current = IPC2221::CalculateTraceCurrent( intTrackWidth, intThickness, deltaT_C, true );
 
     // And now calculate the corresponding external width.
     extTrackWidth = TWCalculateWidth( current, extThickness, deltaT_C, false );
@@ -424,23 +424,6 @@ double PANEL_TRACK_WIDTH::TWCalculateWidth( double aCurrent, double aThickness, 
 
     trackWidth *= UNIT_MIL;     // We are using normalize units (sizes in meters) and we have mil
     return trackWidth;          // in meters
-}
-
-
-double PANEL_TRACK_WIDTH::TWCalculateCurrent( double aWidth, double aThickness, double aDeltaT_C,
-                                              bool aUseInternalLayer )
-{
-    // Appropriate scale for requested layer.
-    double scale = aUseInternalLayer ? 0.024 : 0.048;
-
-    // Convert thickness and width to mils.
-    aThickness /= UNIT_MIL;
-    aWidth     /= UNIT_MIL;
-
-    double area    = aThickness * aWidth;
-    double current = scale * pow( aDeltaT_C, 0.44 ) * pow( area, 0.725 );
-
-    return current;
 }
 
 
