@@ -25,6 +25,12 @@
 #define TRACK_WIDTH_H
 
 #include <cmath>
+#include <layer_ids.h>
+
+// Forward declarations to avoid circular dependencies
+class BOARD;
+class BOARD_STACKUP;
+class BOARD_STACKUP_ITEM;
 
 /**
  * Utility functions for track width and current capacity calculations
@@ -59,6 +65,17 @@ inline double CalculateTraceCurrent( double aWidth, double aThickness, double aD
 
     return scale * std::pow( aDeltaT_C, 0.44 ) * std::pow( area_mil2, 0.725 );
 }
+
+/**
+ * Get copper thickness from board stackup settings.
+ * 
+ * @param aBoard Pointer to the board
+ * @param aLayer Optional layer ID - if specified, gets thickness for that layer,
+ *               otherwise returns thickness of first copper layer found
+ * @return Copper thickness in meters (defaults to 35e-6 if not found)
+ */
+double GetCopperThickness( const BOARD* aBoard, PCB_LAYER_ID aLayer = UNDEFINED_LAYER );
+
 } // namespace IPC2221
 
 #endif // TRACK_WIDTH_H

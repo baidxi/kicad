@@ -2395,10 +2395,10 @@ void PCB_TRACK::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_I
 
     {
         const double DELTA_T = 10.0;
-        const double DEFAULT_COPPER_THICKNESS = 35e-6;  // 35 microns (1 oz) in meters
+        double copperThickness = IPC2221::GetCopperThickness( board, GetLayer() );
         bool isInternalLayer = !( GetLayer() == F_Cu || GetLayer() == B_Cu );
         double width_m = m_width * 1e-9;
-        double current = IPC2221::CalculateTraceCurrent( width_m, DEFAULT_COPPER_THICKNESS,
+        double current = IPC2221::CalculateTraceCurrent( width_m, copperThickness,
                                                          DELTA_T, isInternalLayer );
         msg = wxString::Format( "%.2f A", current );
         aList.emplace_back( _( "Current @ 10°C Rise" ), msg );

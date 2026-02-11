@@ -667,6 +667,7 @@ set ( COMMON_TRANSLINE_CALCULATION_SRCS
     transline_calculations/coupled_microstrip.cpp
     transline_calculations/stripline.cpp
     transline_calculations/coupled_stripline.cpp
+    transline_calculations/track_width.cpp
     )
 
 set( COMMON_IMPORT_GFX_SRCS

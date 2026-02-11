@@ -2612,11 +2612,9 @@ int PCB_CONTROL::UpdateMessagePanel( const TOOL_EVENT& aEvent )
             if( hasTrack )
             {
                 const double DELTA_T = 10.0;
-                const double DEFAULT_COPPER_THICKNESS = 35e-6; // 35 microns (1 oz)
-
+                double       copperThickness = IPC2221::GetCopperThickness( m_frame->GetBoard() );
                 double width_m = minWidth * 1e-9;
-                double current =
-                        IPC2221::CalculateTraceCurrent( width_m, DEFAULT_COPPER_THICKNESS, DELTA_T, hasInternalLayer );
+                double current = IPC2221::CalculateTraceCurrent( width_m, copperThickness, DELTA_T, hasInternalLayer );
 
                 msgItems.emplace_back( _( "Max Current @ 10°C Rise" ), wxString::Format( "%.2f A", current ) );
             }
