@@ -109,11 +109,8 @@ public:
 
     int Increment( const TOOL_EVENT& aEvent )
     {
-        static const std::vector<KICAD_T> incrementable = { SCH_LABEL_T,
-                                                            SCH_GLOBAL_LABEL_T,
-                                                            SCH_HIER_LABEL_T,
-                                                            SCH_PIN_T,
-                                                            SCH_TEXT_T };
+        static const std::vector<KICAD_T> incrementable = { SCH_LABEL_T, SCH_GLOBAL_LABEL_T, SCH_HIER_LABEL_T,
+                                                            SCH_PIN_T,   SCH_TEXT_T,         SCH_FIELD_T };
 
         const ACTIONS::INCREMENT param = { 1, 0 };
 
@@ -210,6 +207,23 @@ public:
                 }
                 break;
             }
+
+            case SCH_FIELD_T:
+            {
+                // Allow incrementing fields that are part of Directive Labels.
+                // Other fields (Values, References, part numbers, etc.) incrementing will confuse people
+                // and lead to errors.
+                if( ( item->GetParent() != nullptr ) && ( item->GetParent()->Type() == SCH_DIRECTIVE_LABEL_T ) )
+                {
+                    // This is an empty case.  The code falls through to the next case.  SCH_FIELD is a text field.
+                    [[fallthrough]];
+                }
+                else
+                {
+                    break;
+                }
+            }
+
 
             case SCH_LABEL_T:
             case SCH_GLOBAL_LABEL_T:
