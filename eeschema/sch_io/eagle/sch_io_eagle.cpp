@@ -375,11 +375,10 @@ SCH_SHEET* SCH_IO_EAGLE::LoadSchematicFile( const wxString& aFileName, SCHEMATIC
     if( m_progressReporter )
         m_progressReporter->SetNumPhases( static_cast<int>( GetNodeCount( currentNode ) ) );
 
-    // Delete on exception, if I own m_rootSheet, according to aAppendToMe
-    unique_ptr<SCH_SHEET> deleter( aAppendToMe ? nullptr : m_rootSheet );
-
     wxFileName newFilename( m_filename );
     newFilename.SetExt( FILEEXT::KiCadSchematicFileExtension );
+
+    std::unique_ptr<SCH_SHEET> deleter;
 
     if( aAppendToMe )
     {
@@ -408,6 +407,7 @@ SCH_SHEET* SCH_IO_EAGLE::LoadSchematicFile( const wxString& aFileName, SCHEMATIC
         const_cast<KIID&>( m_rootSheet->m_Uuid ) = niluuid;
         m_rootSheet->SetFileName( newFilename.GetFullPath() );
         aSchematic->SetTopLevelSheets( { m_rootSheet } );
+        deleter.reset( m_rootSheet );
     }
 
     if( !m_rootSheet->GetScreen() )
@@ -461,16 +461,22 @@ SCH_SHEET* SCH_IO_EAGLE::LoadSchematicFile( const wxString& aFileName, SCHEMATIC
     {
         std::vector<SCH_SHEET*> topLevelSheets;
 
+        // Filter out both the virtual root sheet (niluuid placeholder used during import)
+        // and any synthetic empty sheets created by ensureDefaultTopLevelSheet().
         for( SCH_SHEET* sheet : aSchematic->GetTopLevelSheets() )
         {
-            if( sheet && !sheet->IsVirtualRootSheet() )
+            if( sheet && !sheet->IsVirtualRootSheet()
+                    && sheet->GetScreen() && !sheet->GetScreen()->IsEmpty() )
+            {
                 topLevelSheets.push_back( sheet );
+            }
         }
 
         if( !topLevelSheets.empty() )
             aSchematic->SetTopLevelSheets( topLevelSheets );
 
         m_rootSheet = &aSchematic->Root();
+        m_sheetPath.clear();
     }
 
     m_pi->SaveLibrary( getLibFileName().GetFullPath() );
