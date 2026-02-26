@@ -329,7 +329,17 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
 
     // Selection disambiguation
     if( aItem->IsBrightened() )
+    {
+        if( aItem->Type() == PCB_MARKER_T )
+        {
+            auto it = m_layerColors.find( LAYER_DRC_HIGHLIGHTED );
+
+            if( it != m_layerColors.end() )
+                return it->second;
+        }
+
         return color.Brightened( m_selectFactor ).WithAlpha( 0.8 );
+    }
 
     // Normal selection
     if( aItem->IsSelected() )
@@ -3195,6 +3205,7 @@ void PCB_PAINTER::draw( const PCB_MARKER* aMarker, int aLayer )
     case LAYER_MARKER_SHADOWS:
     case LAYER_DRC_ERROR:
     case LAYER_DRC_WARNING:
+    case LAYER_DRC_EXCLUSION:
     {
         bool isShadow = aLayer == LAYER_MARKER_SHADOWS;
 
@@ -3231,7 +3242,7 @@ void PCB_PAINTER::draw( const PCB_MARKER* aMarker, int aLayer )
             {
                 m_gal->SetIsFill( false );
                 m_gal->SetIsStroke( true );
-                m_gal->SetStrokeColor( WHITE );
+                m_gal->SetStrokeColor( color );
                 m_gal->SetLineWidth( KiROUND( aMarker->MarkerScale() / 2.0 ) );
 
                 if( shape.GetShape() == SHAPE_T::SEGMENT )
