@@ -40,7 +40,6 @@ class DIALOG_LIB_NEW_SYMBOL_BASE : public DIALOG_SHIM
 
 		// Private event handlers
 		void _wxFB_onPowerCheckBox( wxCommandEvent& event ){ onPowerCheckBox( event ); }
-		void _wxFB_onCheckTransferUserFields( wxCommandEvent& event ){ onCheckTransferUserFields( event ); }
 
 
 	protected:
@@ -60,8 +59,6 @@ class DIALOG_LIB_NEW_SYMBOL_BASE : public DIALOG_SHIM
 		wxCheckBox* m_excludeFromBoardCheckBox;
 		wxCheckBox* m_checkKeepDatasheet;
 		wxCheckBox* m_checkKeepFootprint;
-		wxCheckBox* m_checkTransferUserFields;
-		wxCheckBox* m_checkKeepContentUserFields;
 		wxStaticText* m_staticPinTextPositionLabel;
 		wxTextCtrl* m_textPinTextPosition;
 		wxStaticText* m_staticPinTextPositionUnits;
@@ -74,7 +71,6 @@ class DIALOG_LIB_NEW_SYMBOL_BASE : public DIALOG_SHIM
 
 		// Virtual event handlers, override them in your derived class
 		virtual void onPowerCheckBox( wxCommandEvent& event ) { event.Skip(); }
-		virtual void onCheckTransferUserFields( wxCommandEvent& event ) { event.Skip(); }
 
 
 	public:

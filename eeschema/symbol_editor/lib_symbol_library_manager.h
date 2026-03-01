@@ -40,8 +40,6 @@ struct NEW_SYMBOL_PROPERTIES
     bool     alternateBodyStyle;
     bool     keepFootprint;
     bool     keepDatasheet;
-    bool     transferUserFields;
-    bool     keepContentUserFields;
 };
 
 /**

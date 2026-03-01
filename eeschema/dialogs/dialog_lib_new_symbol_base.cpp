@@ -13,7 +13,6 @@
 
 BEGIN_EVENT_TABLE( DIALOG_LIB_NEW_SYMBOL_BASE, DIALOG_SHIM )
 	EVT_CHECKBOX( wxID_ANY, DIALOG_LIB_NEW_SYMBOL_BASE::_wxFB_onPowerCheckBox )
-	EVT_CHECKBOX( wxID_ANY, DIALOG_LIB_NEW_SYMBOL_BASE::_wxFB_onCheckTransferUserFields )
 END_EVENT_TABLE()
 
 DIALOG_LIB_NEW_SYMBOL_BASE::DIALOG_LIB_NEW_SYMBOL_BASE( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : DIALOG_SHIM( parent, id, title, pos, size, style )
@@ -97,12 +96,6 @@ DIALOG_LIB_NEW_SYMBOL_BASE::DIALOG_LIB_NEW_SYMBOL_BASE( wxWindow* parent, wxWind
 
 	m_checkKeepFootprint = new wxCheckBox( this, wxID_ANY, _("Keep linked footprint"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer17->Add( m_checkKeepFootprint, 0, wxLEFT|wxRIGHT|wxTOP, 5 );
-
-	m_checkTransferUserFields = new wxCheckBox( this, wxID_ANY, _("Transfer user-defined fields"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer17->Add( m_checkTransferUserFields, 0, wxLEFT|wxRIGHT|wxTOP, 5 );
-
-	m_checkKeepContentUserFields = new wxCheckBox( this, wxID_ANY, _("Keep content of user-defined fields"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer17->Add( m_checkKeepContentUserFields, 0, wxLEFT|wxRIGHT|wxTOP, 5 );
 
 
 	bSizerTop->Add( bSizer17, 0, wxBOTTOM|wxEXPAND, 5 );

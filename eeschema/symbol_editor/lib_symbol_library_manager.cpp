@@ -124,26 +124,6 @@ std::unique_ptr<LIB_SYMBOL> LIB_SYMBOL_LIBRARY_MANAGER::CreateSymbol( const NEW_
 
             field->SetParent( new_symbol.get() );
         }
-
-        if( aProps.transferUserFields )
-        {
-            std::vector<SCH_FIELD*> listFields;
-            aParent->GetFields( listFields );
-
-            for( SCH_FIELD* field : listFields )
-            {
-                if( field->GetId() == FIELD_T::USER )
-                {
-                    SCH_FIELD* new_field = new SCH_FIELD( *field );
-
-                    if( !aProps.keepContentUserFields )
-                        new_field->SetText( wxEmptyString );
-
-                    new_field->SetParent( new_symbol.get() );
-                    new_symbol->AddField( new_field );
-                }
-            }
-        }
     }
 
     return new_symbol;
