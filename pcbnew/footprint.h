@@ -1287,10 +1287,6 @@ public:
         bool operator()( const PAD* aFirst, const PAD* aSecond ) const;
     };
 #endif
-    struct cmp_zones
-    {
-        bool operator()( const ZONE* aFirst, const ZONE* aSecond ) const;
-    };
 
 protected:
     virtual void swapData( BOARD_ITEM* aImage ) override;

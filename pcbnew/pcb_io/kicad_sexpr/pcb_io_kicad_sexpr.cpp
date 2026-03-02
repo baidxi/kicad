@@ -802,8 +802,8 @@ void PCB_IO_KICAD_SEXPR::format( const BOARD* aBoard ) const
                                                                aBoard->Tracks().end() );
     std::set<PCB_POINT*, PCB_POINT::cmp_points> sorted_points( aBoard->Points().begin(),
                                                                aBoard->Points().end() );
-    std::set<BOARD_ITEM*, BOARD_ITEM::ptr_cmp> sorted_zones( aBoard->Zones().begin(),
-                                                             aBoard->Zones().end() );
+    std::set<ZONE*, ZONE::cmp_zones> sorted_zones( aBoard->Zones().begin(),
+                                                   aBoard->Zones().end() );
     std::set<BOARD_ITEM*, BOARD_ITEM::ptr_cmp> sorted_groups( aBoard->Groups().begin(),
                                                               aBoard->Groups().end() );
     std::set<BOARD_ITEM*, BOARD_ITEM::ptr_cmp>  sorted_generators( aBoard->Generators().begin(),
@@ -1414,37 +1414,40 @@ void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint ) const
     Format( &aFootprint->Reference() );
     Format( &aFootprint->Value() );
 
-    std::set<PAD*, FOOTPRINT::cmp_pads> sorted_pads( aFootprint->Pads().begin(),
-                                                     aFootprint->Pads().end() );
+    std::set<PAD*, FOOTPRINT::cmp_pads> sorted_pads(
+            aFootprint->Pads().begin(),
+            aFootprint->Pads().end() );
     std::set<BOARD_ITEM*, FOOTPRINT::cmp_drawings> sorted_drawings(
             aFootprint->GraphicalItems().begin(),
             aFootprint->GraphicalItems().end() );
     std::set<PCB_POINT*, PCB_POINT::cmp_points> sorted_points(
             aFootprint->Points().begin(),
             aFootprint->Points().end() );
-    std::set<ZONE*, FOOTPRINT::cmp_zones> sorted_zones( aFootprint->Zones().begin(),
-                                                        aFootprint->Zones().end() );
-    std::set<BOARD_ITEM*, PCB_GROUP::ptr_cmp> sorted_groups( aFootprint->Groups().begin(),
-                                                             aFootprint->Groups().end() );
+    std::set<ZONE*, ZONE::cmp_zones> sorted_zones(
+            aFootprint->Zones().begin(),
+            aFootprint->Zones().end() );
+    std::set<BOARD_ITEM*, PCB_GROUP::ptr_cmp> sorted_groups(
+            aFootprint->Groups().begin(),
+            aFootprint->Groups().end() );
 
     // Save drawing elements.
 
-    for( BOARD_ITEM* gr : sorted_drawings )
+    for( const BOARD_ITEM* gr : sorted_drawings )
         Format( gr );
 
-    for( PCB_POINT* point : sorted_points )
+    for( const PCB_POINT* point : sorted_points )
         Format( point );
 
     // Save pads.
-    for( PAD* pad : sorted_pads )
+    for( const PAD* pad : sorted_pads )
         Format( pad );
 
     // Save zones.
-    for( BOARD_ITEM* zone : sorted_zones )
+    for( const ZONE* zone : sorted_zones )
         Format( zone );
 
     // Save groups.
-    for( BOARD_ITEM* group : sorted_groups )
+    for( const BOARD_ITEM* group : sorted_groups )
         Format( group );
 
     // Save variants.

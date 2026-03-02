@@ -4457,33 +4457,6 @@ bool FOOTPRINT::cmp_padstack::operator()( const PAD* aFirst, const PAD* aSecond 
 #endif
 
 
-bool FOOTPRINT::cmp_zones::operator()( const ZONE* aFirst, const ZONE* aSecond ) const
-{
-    if( aFirst->GetAssignedPriority() != aSecond->GetAssignedPriority() )
-        return aFirst->GetAssignedPriority() < aSecond->GetAssignedPriority();
-
-    if( aFirst->GetLayerSet() != aSecond->GetLayerSet() )
-        return aFirst->GetLayerSet().Seq() < aSecond->GetLayerSet().Seq();
-
-    if( aFirst->Outline()->TotalVertices() != aSecond->Outline()->TotalVertices() )
-        return aFirst->Outline()->TotalVertices() < aSecond->Outline()->TotalVertices();
-
-    for( int ii = 0; ii < aFirst->Outline()->TotalVertices(); ++ii )
-    {
-        if( std::optional<bool> cmp =
-                    cmp_points_opt( aFirst->Outline()->CVertex( ii ), aSecond->Outline()->CVertex( ii ) ) )
-        {
-            return *cmp;
-        }
-    }
-
-    if( aFirst->m_Uuid != aSecond->m_Uuid )
-        return aFirst->m_Uuid < aSecond->m_Uuid;
-
-    return aFirst < aSecond;
-}
-
-
 void FOOTPRINT::TransformPadsToPolySet( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
                                         int aMaxError, ERROR_LOC aErrorLoc ) const
 {
