@@ -794,8 +794,8 @@ void PCB_IO_KICAD_SEXPR::formatTeardropParameters( const TEARDROP_PARAMETERS& td
 
 void PCB_IO_KICAD_SEXPR::format( const BOARD* aBoard ) const
 {
-    std::set<BOARD_ITEM*, BOARD_ITEM::ptr_cmp> sorted_footprints( aBoard->Footprints().begin(),
-                                                                  aBoard->Footprints().end() );
+    std::set<FOOTPRINT*, FOOTPRINT::cmp_footprints> sorted_footprints( aBoard->Footprints().begin(),
+                                                                       aBoard->Footprints().end() );
     std::set<BOARD_ITEM*, BOARD::cmp_drawings> sorted_drawings( aBoard->Drawings().begin(),
                                                                 aBoard->Drawings().end() );
     std::set<PCB_TRACK*, PCB_TRACK::cmp_tracks> sorted_tracks( aBoard->Tracks().begin(),

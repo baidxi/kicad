@@ -232,6 +232,11 @@ public:
 
     void CopyFrom( const BOARD_ITEM* aOther ) override;
 
+    struct cmp_footprints
+    {
+        bool operator()( const FOOTPRINT* a, const FOOTPRINT* b ) const;
+    };
+
     void Serialize( google::protobuf::Any &aContainer ) const override;
     bool Deserialize( const google::protobuf::Any &aContainer ) override;
 
