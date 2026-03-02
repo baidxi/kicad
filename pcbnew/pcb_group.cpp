@@ -55,6 +55,28 @@ PCB_GROUP::PCB_GROUP( BOARD_ITEM* aParent, KICAD_T idtype, PCB_LAYER_ID aLayer )
 {
 }
 
+
+bool PCB_GROUP::cmp_groups::operator()( const PCB_GROUP* a, const PCB_GROUP* b ) const
+{
+    if( a->GetName() != b->GetName() )
+        return StrNumCmp( a->GetName(), b->GetName() ) < 0;
+
+    if( a->GetPosition().x != b->GetPosition().x )
+        return a->GetPosition().x < b->GetPosition().x;
+
+    if( a->GetPosition().y != b->GetPosition().y )
+        return a->GetPosition().y < b->GetPosition().y;
+
+    if( a->GetBoardItems().size() != b->GetBoardItems().size() )
+        return a->GetBoardItems().size() < b->GetBoardItems().size();
+
+    if( a->m_Uuid == b->m_Uuid )
+        return a->m_Uuid < b->m_Uuid;
+
+    return a < b;
+}
+
+
 void PCB_GROUP::Serialize( google::protobuf::Any &aContainer ) const
 {
     using namespace kiapi::board::types;
