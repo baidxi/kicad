@@ -34,6 +34,7 @@
 #include <wx/sstream.h>
 #include <wx/wfstream.h>
 #include <gestfich.h>
+#include <wx/encconv.h>
 
 JOBS_RUNNER::JOBS_RUNNER( KIWAY* aKiway, JOBSET* aJobsFile, PROJECT* aProject,
                           REPORTER& aReporter, JOBS_PROGRESS_REPORTER* aProgressReporter ) :
@@ -89,13 +90,19 @@ int JOBS_RUNNER::runSpecialExecute( const JOBSET_JOB* aJob, REPORTER* aReporter,
     wxInputStream* inputStream = process.GetInputStream();
     wxInputStream* errorStream = process.GetErrorStream();
 
+    std::vector<wxString> procOutLines;
+
     if( inputStream && errorStream )
     {
         wxTextInputStream inputTextStream( *inputStream );
         wxTextInputStream errorTextStream( *errorStream );
 
         while( !inputStream->Eof() )
-            aReporter->Report( inputTextStream.ReadLine(), RPT_SEVERITY_INFO );
+        {
+            wxString line = inputTextStream.ReadLine();
+            aReporter->Report( line, RPT_SEVERITY_INFO );
+            procOutLines.push_back( line );
+        }
 
         while( !errorStream->Eof() )
             aReporter->Report( errorTextStream.ReadLine(), RPT_SEVERITY_ERROR );
@@ -109,13 +116,14 @@ int JOBS_RUNNER::runSpecialExecute( const JOBSET_JOB* aJob, REPORTER* aReporter,
                 specialJob->SetConfiguredOutputPath( fn.GetFullPath() );
             }
 
-            wxFFileOutputStream procOutput( specialJob->GetFullOutputPath( aProject ) );
+            wxFFileOutputStream procOutFileStream( specialJob->GetFullOutputPath( aProject ) );
+            wxTextOutputStream  procOutTextStream( procOutFileStream, wxEOL_UNIX, wxConvUTF8 );
 
-            if( !procOutput.IsOk() )
+            if( !procOutFileStream.IsOk() )
                 return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
 
-            inputStream->Reset();
-            *inputStream >> procOutput;
+            for( const wxString& line : procOutLines )
+                procOutTextStream << line << "\n";
         }
     }
 
