@@ -167,8 +167,8 @@ KIPLATFORM::IO::DBUS_RET_CODE KIPLATFORM::IO::OpenInDirectory( wxFileName aFileN
 
         wxString tmp( fileURI.BuildURI() );
 
-        std::string utf8Path = std::string( tmp.mb_str() ); // Convert wxString to UTF-8
-        const char* cpath = utf8Path.c_str();                 // Get the C string pointer
+        std::string path = std::string( tmp.mb_str() );
+        const char* cpath = path.c_str();
 
         if( !dbus_message_iter_append_basic( &argsIter, DBUS_TYPE_STRING, reinterpret_cast<const void*>( &cpath ) ) )
             return KIPLATFORM::IO::DBUS_RET_CODE::DBUS_PATH_APPEND_ERROR;

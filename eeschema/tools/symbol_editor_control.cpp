@@ -32,7 +32,6 @@
 #include <gestfich.h> // To open with a text editor
 #include <kidialog.h>
 #include <kiway.h>
-#include <launch_ext.h> // To default when file manager setting is empty
 #include <lib_symbol_library_manager.h>
 #include <libraries/library_manager.h>
 #include <pgm_base.h>
@@ -48,8 +47,6 @@
 
 #include <wx/filedlg.h>
 #include <kiplatform/ui.h>
-
-
 #include <kiplatform/io.h>
 
 

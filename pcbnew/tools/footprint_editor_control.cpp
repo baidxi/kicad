@@ -45,7 +45,6 @@
 #include <footprint.h>
 #include <pad.h>
 #include <pcb_group.h>
-#include <wx/uri.h>
 #include <zone.h>
 #include <footprint_library_adapter.h>
 #include <dialogs/dialog_cleanup_graphics.h>
@@ -612,7 +611,6 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     wxString    libName = libId.GetLibNickname();
     wxString    libItemName = libId.GetLibItemName();
-    wxURI       fileURI;
 
     LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
     std::optional<wxString> optUri = manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, libName, true );

@@ -75,6 +75,7 @@ namespace IO
      * subsequent reads. This value was determined empirically to eliminate sync issues.
      */
     static constexpr size_t CLOUD_SYNC_BUFFER_SIZE = 512 * 1024;
+
     /**
      * @brief @ref OpenInDirectory( wxFileName aFileName ) return code
      *
