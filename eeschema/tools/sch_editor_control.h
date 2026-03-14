@@ -56,6 +56,9 @@ public:
     /// Saves the currently-open schematic sheet to an other name
     int SaveCurrSheetCopyAs( const TOOL_EVENT& aEvent );
 
+    /// Exports the root schematic in KiCad 9 compatible format
+    int ExportSchematicAsKicad9( const TOOL_EVENT& aEvent );
+
     int Revert( const TOOL_EVENT& aEvent );
 
     int ShowSchematicSetup( const TOOL_EVENT& aEvent );

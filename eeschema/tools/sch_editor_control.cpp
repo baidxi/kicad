@@ -437,6 +437,32 @@ int SCH_EDITOR_CONTROL::SaveCurrSheetCopyAs( const TOOL_EVENT& aEvent )
 }
 
 
+int SCH_EDITOR_CONTROL::ExportSchematicAsKicad9( const TOOL_EVENT& aEvent )
+{
+    SCH_SHEET* rootSheet = &m_frame->Schematic().Root();
+    wxFileName rootFn = rootSheet->GetFileName();
+    if( !rootFn.IsAbsolute() )
+        rootFn.MakeAbsolute( m_frame->Prj().GetProjectPath() );
+
+    wxFileDialog dlg( m_frame, _( "Export as KiCad 9" ), rootFn.GetPath(), rootFn.GetFullName(),
+                      FILEEXT::KiCadSchematicFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+    KIPLATFORM::UI::AllowNetworkFileSystems( &dlg );
+
+    if( dlg.ShowModal() == wxID_CANCEL )
+        return 0;
+
+    wxString path = EnsureFileExtension( dlg.GetPath(), FILEEXT::KiCadSchematicFileExtension );
+
+    static const std::map<std::string, UTF8> kicad9ExportProps = {
+        { "kicad_9_export", UTF8( "1" ) }
+    };
+
+    m_frame->saveSchematicFile( rootSheet, path, &kicad9ExportProps );
+    return 0;
+}
+
+
 int SCH_EDITOR_CONTROL::Revert( const TOOL_EVENT& aEvent )
 {
     SCHEMATIC& schematic = m_frame->Schematic();
@@ -3481,6 +3507,7 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::Save,                    ACTIONS::save.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::SaveAs,                  ACTIONS::saveAs.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::SaveCurrSheetCopyAs,     SCH_ACTIONS::saveCurrSheetCopyAs.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::ExportSchematicAsKicad9, SCH_ACTIONS::exportSchematicAsKicad9.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::Revert,                  ACTIONS::revert.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ShowSchematicSetup,      SCH_ACTIONS::schematicSetup.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::PageSetup,               ACTIONS::pageSettings.MakeEvent() );

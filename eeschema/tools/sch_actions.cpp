@@ -1611,6 +1611,13 @@ TOOL_ACTION SCH_ACTIONS::saveCurrSheetCopyAs( TOOL_ACTION_ARGS()
         .Tooltip( _( "Save a copy of the current sheet to another location or name" ) )
         .Icon( BITMAPS::save_as ) );
 
+TOOL_ACTION SCH_ACTIONS::exportSchematicAsKicad9( TOOL_ACTION_ARGS()
+        .Name( "eeschema.EditorControl.exportSchematicAsKicad9" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Export as KiCad 9..." ) )
+        .Tooltip( _( "Export the current schematic in KiCad 9 compatible format" ) )
+        .Icon( BITMAPS::export_file ) );
+
 // Drag and drop
 TOOL_ACTION SCH_ACTIONS::ddAppendFile( TOOL_ACTION_ARGS()
         .Name( "eeschema.EditorControl.ddAppendFile" )

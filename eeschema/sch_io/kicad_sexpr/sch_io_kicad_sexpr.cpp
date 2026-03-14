@@ -91,12 +91,13 @@ void SCH_IO_KICAD_SEXPR::init( SCHEMATIC* aSchematic,
     if( m_schematic != aSchematic )
         m_loadedRootSheets.clear();
 
-    m_version   = 0;
-    m_appending = false;
-    m_rootSheet = nullptr;
-    m_schematic = aSchematic;
-    m_cache     = nullptr;
-    m_out       = nullptr;
+    m_version      = 0;
+    m_appending    = false;
+    m_rootSheet    = nullptr;
+    m_schematic    = aSchematic;
+    m_cache        = nullptr;
+    m_out          = nullptr;
+    m_exportKicad9 = ( aProperties && aProperties->contains( PropKicad9Export ) );
 }
 
 
@@ -404,9 +405,11 @@ void SCH_IO_KICAD_SEXPR::Format( SCH_SHEET* aSheet )
     else
         m_schematic->GetEmbeddedFiles()->ClearEmbeddedFonts();
 
+    const int version = m_exportKicad9 ? 20260306 : SEXPR_SCHEMATIC_FILE_VERSION;
+    const wxString generatorVersion = m_exportKicad9 ? wxS( "9.0" ) : GetMajorMinorVersion();
     m_out->Print( "(kicad_sch (version %d) (generator \"eeschema\") (generator_version %s)",
-                  SEXPR_SCHEMATIC_FILE_VERSION,
-                  m_out->Quotew( GetMajorMinorVersion() ).c_str() );
+                  version,
+                  m_out->Quotew( generatorVersion ).c_str() );
 
     KICAD_FORMAT::FormatUuid( m_out, screen->m_uuid );
 
@@ -417,7 +420,7 @@ void SCH_IO_KICAD_SEXPR::Format( SCH_SHEET* aSheet )
     m_out->Print( "(lib_symbols" );
 
     for( const auto& [ libItemName, libSymbol ] : screen->GetLibSymbols() )
-        SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( libSymbol, *m_out, libItemName );
+        SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( libSymbol, *m_out, libItemName, true, m_exportKicad9 );
 
     m_out->Print( ")" );
 
@@ -748,12 +751,14 @@ void SCH_IO_KICAD_SEXPR::saveSymbol( SCH_SYMBOL* aSymbol, const SCHEMATIC& aSche
     }
 
     m_out->Print( "(unit %d)", unit );
-    m_out->Print( "(body_style %d)", aSymbol->GetBodyStyle() );
+    if( !m_exportKicad9 )
+        m_out->Print( "(body_style %d)", aSymbol->GetBodyStyle() );
 
     KICAD_FORMAT::FormatBool( m_out, "exclude_from_sim", aSymbol->GetExcludedFromSim() );
     KICAD_FORMAT::FormatBool( m_out, "in_bom", !aSymbol->GetExcludedFromBOM() );
     KICAD_FORMAT::FormatBool( m_out, "on_board", !aSymbol->GetExcludedFromBoard() );
-    KICAD_FORMAT::FormatBool( m_out, "in_pos_files", !aSymbol->GetExcludedFromPosFiles() );
+    if( !m_exportKicad9 )
+        KICAD_FORMAT::FormatBool( m_out, "in_pos_files", !aSymbol->GetExcludedFromPosFiles() );
     KICAD_FORMAT::FormatBool( m_out, "dnp", aSymbol->GetDNP() );
 
     AUTOPLACE_ALGO fieldsAutoplaced = aSymbol->GetFieldsAutoplaced();
@@ -947,7 +952,8 @@ void SCH_IO_KICAD_SEXPR::saveSymbol( SCH_SYMBOL* aSymbol, const SCHEMATIC& aSche
                         if( variant.m_ExcludedFromBoard != aSymbol->GetExcludedFromBoard() )
                             KICAD_FORMAT::FormatBool( m_out, "on_board", !variant.m_ExcludedFromBoard );
 
-                        if( variant.m_ExcludedFromPosFiles != aSymbol->GetExcludedFromPosFiles() )
+                        if( !m_exportKicad9
+                            && variant.m_ExcludedFromPosFiles != aSymbol->GetExcludedFromPosFiles() )
                             KICAD_FORMAT::FormatBool( m_out, "in_pos_files", !variant.m_ExcludedFromPosFiles );
 
                         for( const auto&[fname, fvalue] : variant.m_Fields )
@@ -997,9 +1003,11 @@ void SCH_IO_KICAD_SEXPR::saveField( SCH_FIELD* aField )
     if( !aField->IsVisible() )
         KICAD_FORMAT::FormatBool( m_out, "hide", true );
 
-    KICAD_FORMAT::FormatBool( m_out, "show_name", aField->IsNameShown() );
-
-    KICAD_FORMAT::FormatBool( m_out, "do_not_autoplace", !aField->CanAutoplace() );
+    if( !m_exportKicad9 )
+    {
+        KICAD_FORMAT::FormatBool( m_out, "show_name", aField->IsNameShown() );
+        KICAD_FORMAT::FormatBool( m_out, "do_not_autoplace", !aField->CanAutoplace() );
+    }
 
     if( !aField->IsDefaultFormatting()
             || ( aField->GetTextHeight() != schIUScale.MilsToIU( DEFAULT_SIZE_TEXT ) ) )
@@ -1974,3 +1982,4 @@ void SCH_IO_KICAD_SEXPR::FormatLibSymbol( LIB_SYMBOL* symbol, OUTPUTFORMATTER & 
 
 
 const char* SCH_IO_KICAD_SEXPR::PropBuffering = "buffering";
+const char* SCH_IO_KICAD_SEXPR::PropKicad9Export = "kicad_9_export";

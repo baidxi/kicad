@@ -960,7 +960,8 @@ void SCH_EDIT_FRAME::OnImportProject( wxCommandEvent& aEvent )
 }
 
 
-bool SCH_EDIT_FRAME::saveSchematicFile( SCH_SHEET* aSheet, const wxString& aSavePath )
+bool SCH_EDIT_FRAME::saveSchematicFile( SCH_SHEET* aSheet, const wxString& aSavePath,
+                                        const std::map<std::string, UTF8>* aProperties )
 {
     wxString msg;
     wxFileName schematicFileName;
@@ -1030,7 +1031,7 @@ bool SCH_EDIT_FRAME::saveSchematicFile( SCH_SHEET* aSheet, const wxString& aSave
 
     try
     {
-        pi->SaveSchematicFile( schematicFileName.GetFullPath(), aSheet, &Schematic() );
+        pi->SaveSchematicFile( schematicFileName.GetFullPath(), aSheet, &Schematic(), aProperties );
         success = true;
     }
     catch( const IO_ERROR& ioe )

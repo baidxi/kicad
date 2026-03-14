@@ -52,7 +52,8 @@ public:
     void DeleteSymbol( const wxString& aName ) override;
 
     static void SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter,
-                            const wxString& aLibName = wxEmptyString, bool aIncludeData = true );
+                            const wxString& aLibName = wxEmptyString, bool aIncludeData = true,
+                            bool aKicad9Export = false );
 
     void SetFileFormatVersionAtLoad( int aVersion ) { m_fileFormatVersionAtLoad = aVersion; }
     int GetFileFormatVersionAtLoad()  const { return m_fileFormatVersionAtLoad; }
@@ -77,7 +78,7 @@ private:
     int m_fileFormatVersionAtLoad;
 
     static void saveSymbolDrawItem( SCH_ITEM* aItem, OUTPUTFORMATTER& aFormatter );
-    static void saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter );
+    static void saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter, bool aKicad9Export = false );
     static void savePin( SCH_PIN* aPin, OUTPUTFORMATTER& aFormatter );
     static void saveText( SCH_TEXT* aText, OUTPUTFORMATTER& aFormatter );
     static void saveTextBox( SCH_TEXTBOX* aTextBox, OUTPUTFORMATTER& aFormatter );

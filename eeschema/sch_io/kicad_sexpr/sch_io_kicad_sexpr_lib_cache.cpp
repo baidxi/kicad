@@ -334,7 +334,8 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::Save( const std::optional<bool>& aOpt )
 
 
 void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter,
-                                               const wxString& aLibName, bool aIncludeData )
+                                               const wxString& aLibName, bool aIncludeData,
+                                               bool aKicad9Export )
 {
     wxCHECK_RET( aSymbol, "Invalid LIB_SYMBOL pointer." );
 
@@ -365,10 +366,15 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
     {
         aFormatter.Print( "(symbol %s", name.c_str() );
 
-        if( aSymbol->IsGlobalPower() )
-            aFormatter.Print( "(power global)" );
-        else if( aSymbol->IsLocalPower() )
-            aFormatter.Print( "(power local)" );
+        if( aSymbol->IsPower() )
+        {
+            if( aKicad9Export )
+                aFormatter.Print( "(power)" );
+            else if( aSymbol->IsGlobalPower() )
+                aFormatter.Print( "(power global)" );
+            else
+                aFormatter.Print( "(power local)" );
+        }
 
         // TODO: add uuid token here.
 
@@ -415,10 +421,12 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
         KICAD_FORMAT::FormatBool( &aFormatter, "exclude_from_sim",  aSymbol->GetExcludedFromSim() );
         KICAD_FORMAT::FormatBool( &aFormatter, "in_bom", !aSymbol->GetExcludedFromBOM() );
         KICAD_FORMAT::FormatBool( &aFormatter, "on_board", !aSymbol->GetExcludedFromBoard() );
-        KICAD_FORMAT::FormatBool( &aFormatter, "in_pos_files", !aSymbol->GetExcludedFromPosFiles() );
+        if( !aKicad9Export )
+            KICAD_FORMAT::FormatBool( &aFormatter, "in_pos_files", !aSymbol->GetExcludedFromPosFiles() );
 
-        KICAD_FORMAT::FormatBool( &aFormatter, "duplicate_pin_numbers_are_jumpers",
-                                  aSymbol->GetDuplicatePinNumbersAreJumpers() );
+        if( !aKicad9Export )
+            KICAD_FORMAT::FormatBool( &aFormatter, "duplicate_pin_numbers_are_jumpers",
+                                      aSymbol->GetDuplicatePinNumbersAreJumpers() );
 
         const std::vector<std::set<wxString>>& jumperGroups = aSymbol->JumperPinGroups();
 
@@ -446,7 +454,7 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
         aSymbol->GetFields( orderedFields );
 
         for( SCH_FIELD* field : orderedFields )
-            saveField( field, aFormatter );
+            saveField( field, aFormatter, aKicad9Export );
 
         // @todo At some point in the future the lock status (all units interchangeable) should
         // be set deterministically.  For now a custom lock property is used to preserve the
@@ -454,7 +462,7 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
         if( aSymbol->UnitsLocked() )
         {
             SCH_FIELD locked( nullptr, FIELD_T::USER, "ki_locked" );
-            saveField( &locked, aFormatter );
+            saveField( &locked, aFormatter, aKicad9Export );
         }
 
         saveDcmInfoAsFields( aSymbol, aFormatter );
@@ -524,7 +532,7 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
         aSymbol->GetFields( orderedFields );
 
         for( SCH_FIELD* field : orderedFields )
-            saveField( field, aFormatter );
+            saveField( field, aFormatter, aKicad9Export );
 
         saveDcmInfoAsFields( aSymbol, aFormatter );
 
@@ -637,7 +645,8 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveSymbolDrawItem( SCH_ITEM* aItem, OUTPUTFO
 }
 
 
-void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter )
+void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter,
+                                              bool aKicad9Export )
 {
     wxCHECK_RET( aField && aField->Type() == SCH_FIELD_T, "Invalid SCH_FIELD object." );
 
@@ -656,9 +665,11 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER
                                                            -aField->GetPosition().y ).c_str(),
                       fmt::format( "{:g}", aField->GetTextAngle().AsDegrees() ).c_str() );
 
-    KICAD_FORMAT::FormatBool( &aFormatter, "show_name", aField->IsNameShown() );
-
-    KICAD_FORMAT::FormatBool( &aFormatter, "do_not_autoplace", !aField->CanAutoplace() );
+    if( !aKicad9Export )
+    {
+        KICAD_FORMAT::FormatBool( &aFormatter, "show_name", aField->IsNameShown() );
+        KICAD_FORMAT::FormatBool( &aFormatter, "do_not_autoplace", !aField->CanAutoplace() );
+    }
 
     if( !aField->IsVisible() )
         KICAD_FORMAT::FormatBool( &aFormatter, "hide", true );

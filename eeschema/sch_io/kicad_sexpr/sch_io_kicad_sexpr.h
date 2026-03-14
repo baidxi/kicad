@@ -90,6 +90,13 @@ public:
      */
     static const char* PropBuffering;
 
+    /**
+     * The property used to export schematic in KiCad 9 compatible format (version 20260306,
+     * generator_version "9.0", omits in_pos_files, duplicate_pin_numbers_are_jumpers,
+     * show_name, do_not_autoplace, body_style; writes (power) instead of (power global)).
+     */
+    static const char* PropKicad9Export;
+
     int GetModifyHash() const override;
 
     SCH_SHEET* LoadSchematicFile( const wxString& aFileName, SCHEMATIC* aSchematic,
@@ -181,6 +188,7 @@ protected:
     SCHEMATIC*              m_schematic;
     OUTPUTFORMATTER*        m_out;              ///< The formatter for saving SCH_SCREEN objects.
     SCH_IO_KICAD_SEXPR_LIB_CACHE* m_cache;
+    bool                    m_exportKicad9;      ///< When true, write KiCad 9 compatible format.
 
     /// initialize PLUGIN like a constructor would.
     void init( SCHEMATIC* aSchematic, const std::map<std::string, UTF8>* aProperties = nullptr );
