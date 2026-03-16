@@ -28,6 +28,7 @@
 #include <base_units.h>
 #include <build_version.h>
 #include <common.h>
+#include <ctl_flags.h>
 #include <sch_shape.h>
 #include <lib_symbol.h>
 #include <sch_textbox.h>
@@ -665,16 +666,23 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER
                                                            -aField->GetPosition().y ).c_str(),
                       fmt::format( "{:g}", aField->GetTextAngle().AsDegrees() ).c_str() );
 
-    if( !aKicad9Export )
+    int formatCtl = 0;
+    if( aKicad9Export )
+    {
+        // KiCad 9: (show_name no), (do_not_autoplace no), (hide yes) at property level
+        // translate to (hide yes) inside the (effects) child.
+        if( !aField->IsVisible() )
+            formatCtl |= CTL_HIDE_IN_EFFECTS;
+    }
+    else
     {
         KICAD_FORMAT::FormatBool( &aFormatter, "show_name", aField->IsNameShown() );
         KICAD_FORMAT::FormatBool( &aFormatter, "do_not_autoplace", !aField->CanAutoplace() );
+        if( !aField->IsVisible() )
+            KICAD_FORMAT::FormatBool( &aFormatter, "hide", true );
     }
 
-    if( !aField->IsVisible() )
-        KICAD_FORMAT::FormatBool( &aFormatter, "hide", true );
-
-    aField->Format( &aFormatter, 0 );
+    aField->Format( &aFormatter, formatCtl );
     aFormatter.Print( ")" );
 }
 

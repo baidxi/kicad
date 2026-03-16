@@ -30,6 +30,7 @@
 
 #include <base_units.h>
 #include <bitmap_base.h>
+#include <ctl_flags.h>
 #include <wildcards_and_files_ext.h>
 #include <build_version.h>
 #include <sch_selection.h>
@@ -1000,19 +1001,27 @@ void SCH_IO_KICAD_SEXPR::saveField( SCH_FIELD* aField )
                                                        aField->GetPosition().y ).c_str(),
                   EDA_UNIT_UTILS::FormatAngle( aField->GetTextAngle() ).c_str() );
 
-    if( !aField->IsVisible() )
-        KICAD_FORMAT::FormatBool( m_out, "hide", true );
-
-    if( !m_exportKicad9 )
+    int formatCtl = 0;
+    if( m_exportKicad9 )
     {
+        // KiCad 9: (show_name no), (do_not_autoplace no), (hide yes) at property level
+        // translate to (hide yes) inside the (effects) child.
+        if( !aField->IsVisible() )
+            formatCtl |= CTL_HIDE_IN_EFFECTS;
+    }
+    else
+    {
+        if( !aField->IsVisible() )
+            KICAD_FORMAT::FormatBool( m_out, "hide", true );
         KICAD_FORMAT::FormatBool( m_out, "show_name", aField->IsNameShown() );
         KICAD_FORMAT::FormatBool( m_out, "do_not_autoplace", !aField->CanAutoplace() );
     }
 
     if( !aField->IsDefaultFormatting()
-            || ( aField->GetTextHeight() != schIUScale.MilsToIU( DEFAULT_SIZE_TEXT ) ) )
+            || ( aField->GetTextHeight() != schIUScale.MilsToIU( DEFAULT_SIZE_TEXT ) )
+            || formatCtl != 0 )
     {
-        aField->Format( m_out, 0 );
+        aField->Format( m_out, formatCtl );
     }
 
     m_out->Print( ")" );            // Closes `property` token
