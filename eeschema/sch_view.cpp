@@ -33,13 +33,77 @@
 #include <drawing_sheet/ds_proxy_view_item.h>
 #include <tool/tool_manager.h>
 #include <layer_ids.h>
+#include <gal/painter.h>
+#include <gal/graphics_abstraction_layer.h>
+#include <page_info.h>
 #include <sch_screen.h>
 #include <schematic.h>
 #include <sch_base_frame.h>
 #include <sch_edit_frame.h>
 #include <string_utils.h>
+#include <eda_item.h>
 
 #include "sch_view.h"
+
+namespace
+{
+class DNP_SHEET_OVERLAY_VIEW_ITEM : public EDA_ITEM
+{
+public:
+    DNP_SHEET_OVERLAY_VIEW_ITEM( const PAGE_INFO* aPageInfo ) :
+            EDA_ITEM( NOT_USED ),
+            m_pageInfo( aPageInfo )
+    {
+    }
+
+    const BOX2I ViewBBox() const override
+    {
+        BOX2I bbox;
+
+        if( m_pageInfo )
+        {
+            bbox.SetOrigin( VECTOR2I( 0, 0 ) );
+            bbox.SetEnd( VECTOR2I( schIUScale.MilsToIU( m_pageInfo->GetWidthMils() ),
+                                   schIUScale.MilsToIU( m_pageInfo->GetHeightMils() ) ) );
+        }
+        else
+        {
+            bbox.SetMaximum();
+        }
+
+        return bbox;
+    }
+
+    void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override
+    {
+        if( aLayer != LAYER_DNP_MARKER || !m_pageInfo )
+            return;
+
+        SCH_PAGE_DNP_CROSS_PARAMS dnp = GetPageDnpCrossParams( *m_pageInfo );
+
+        if( !dnp.valid )
+            return;
+
+        KIGFX::GAL*      gal = aView->GetGAL();
+        RENDER_SETTINGS* settings = aView->GetPainter()->GetSettings();
+
+        KIGFX::GAL_SCOPED_ATTRS scoped( *gal, KIGFX::GAL_SCOPED_ATTRS::ALL_ATTRS );
+        gal->SetIsStroke( true );
+        gal->SetIsFill( true );
+        gal->SetStrokeColor( settings->GetLayerColor( LAYER_DNP_MARKER ) );
+        gal->SetFillColor( settings->GetLayerColor( LAYER_DNP_MARKER ) );
+        gal->DrawSegment( dnp.topLeft, dnp.bottomRight, dnp.strokeWidth );
+        gal->DrawSegment( dnp.topRight, dnp.bottomLeft, dnp.strokeWidth );
+    }
+
+    std::vector<int> ViewGetLayers() const override { return { LAYER_DNP_MARKER }; }
+
+    wxString GetClass() const override { return wxT( "DNP_SHEET_OVERLAY_VIEW_ITEM" ); }
+
+private:
+    const PAGE_INFO* m_pageInfo;
+};
+} // namespace
 
 
 namespace KIGFX {
@@ -95,6 +159,7 @@ void SCH_VIEW::Cleanup()
 {
     Clear();
     m_drawingSheet.reset();
+    m_dnpSheetOverlay.reset();
     m_preview.reset();
 }
 
@@ -146,6 +211,30 @@ void SCH_VIEW::DisplaySheet( const SCH_SCREEN *aScreen )
     }
 
     Add( m_drawingSheet.get() );
+
+    // If the current sheet instance is marked DNP in the active variant,
+    // overlay a page-sized DNP cross so the state is visible while editing
+    // the subsheet (and in prints that use the view rendering pipeline).
+    m_dnpSheetOverlay.reset();
+
+    if( aScreen && aScreen->Schematic() )
+    {
+        SCHEMATIC*            schematic = aScreen->Schematic();
+        const wxString        variant = schematic->GetCurrentVariant();
+        const SCH_SHEET_PATH& current = schematic->CurrentSheet();
+
+        if( !current.empty() && !current.Last()->IsTopLevelSheet() )
+        {
+            SCH_SHEET_PATH parent = current;
+            parent.pop_back();
+
+            if( current.Last()->GetDNP( &parent, variant ) )
+            {
+                m_dnpSheetOverlay = std::make_unique<DNP_SHEET_OVERLAY_VIEW_ITEM>( &aScreen->GetPageSettings() );
+                Add( m_dnpSheetOverlay.get() );
+            }
+        }
+    }
 
     InitPreview();
 
