@@ -3894,11 +3894,6 @@ SCH_SHEET* SCH_IO_KICAD_SEXPR_PARSER::parseSheet()
                                     NeedRIGHT();
                                     break;
 
-                                case T_on_board:
-                                    variant.m_ExcludedFromBoard = !parseBool();
-                                    NeedRIGHT();
-                                    break;
-
                                 case T_in_pos_files:
                                     variant.m_ExcludedFromPosFiles = !parseBool();
                                     NeedRIGHT();
@@ -3940,7 +3935,7 @@ SCH_SHEET* SCH_IO_KICAD_SEXPR_PARSER::parseSheet()
                                 }
 
                                 default:
-                                    Expecting( "dnp, exclude_from_sim, field, in_bom, in_pos_files, name, or on_board" );
+                                    Expecting( "dnp, exclude_from_sim, field, in_bom, in_pos_files, or name" );
                                 }
 
                                 instance.m_Variants[variant.m_Name] = variant;

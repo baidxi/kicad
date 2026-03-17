@@ -313,15 +313,14 @@ bool SCH_ITEM::ResolveExcludedFromBOM( const SCH_SHEET_PATH* aInstance,
 }
 
 
-bool SCH_ITEM::ResolveExcludedFromBoard( const SCH_SHEET_PATH* aInstance,
-                                         const wxString& aVariantName ) const
+bool SCH_ITEM::ResolveExcludedFromBoard() const
 {
-    if( GetExcludedFromBoard( aInstance, aVariantName ) )
+    if( GetExcludedFromBoard() )
         return true;
 
     for( SCH_RULE_AREA* area : m_rule_areas_cache )
     {
-        if( area->GetExcludedFromBoard( aInstance, aVariantName ) )
+        if( area->GetExcludedFromBoard() )
             return true;
     }
 

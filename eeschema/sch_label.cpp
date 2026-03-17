@@ -880,7 +880,7 @@ bool SCH_LABEL_BASE::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* toke
 
         for( SCH_RULE_AREA* ruleArea : directive->GetConnectedRuleAreas() )
         {
-            if( ruleArea->GetExcludedFromBoard( aPath, variant ) )
+            if( ruleArea->GetExcludedFromBoard() )
                 *token = _( "Excluded from board" );
         }
 

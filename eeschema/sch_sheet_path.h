@@ -51,7 +51,6 @@ public:
         m_Name( aName ),
         m_ExcludedFromSim( false ),
         m_ExcludedFromBOM( false ),
-        m_ExcludedFromBoard( false ),
         m_ExcludedFromPosFiles( false ),
         m_DNP( false )
     {
@@ -63,7 +62,6 @@ public:
     wxString                     m_Description;
     bool                         m_ExcludedFromSim;
     bool                         m_ExcludedFromBOM;
-    bool                         m_ExcludedFromBoard;
     bool                         m_ExcludedFromPosFiles;
     bool                         m_DNP;
     std::map<wxString, wxString> m_Fields;
@@ -366,7 +364,6 @@ public:
     bool GetExcludedFromBOM() const;
     bool GetExcludedFromBOM( const wxString& aVariantName ) const;
     bool GetExcludedFromBoard() const;
-    bool GetExcludedFromBoard( const wxString& aVariantName ) const;
     bool GetDNP() const;
     bool GetDNP( const wxString& aVariantName ) const;
 

@@ -744,17 +744,9 @@ public:
         SetExcludedFromSim( aEnable, &Schematic()->CurrentSheet(), Schematic()->GetCurrentVariant() );
     }
 
-    void SetExcludedFromBoard( bool aEnable, const SCH_SHEET_PATH* aInstance = nullptr,
-                               const wxString& aVariantName = wxEmptyString ) override
-    {
-        m_excludedFromBoard = aEnable;
-    }
+    void SetExcludedFromBoard( bool aEnable ) override { m_excludedFromBoard = aEnable; }
 
-    bool GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
-                               const wxString& aVariantName = wxEmptyString ) const override
-    {
-        return m_excludedFromBoard;
-    }
+    bool GetExcludedFromBoard() const override { return m_excludedFromBoard; }
 
     bool GetExcludedFromBoardProp() const { return GetExcludedFromBoard(); }
     void SetExcludedFromBoardProp( bool aEnable ) { SetExcludedFromBoard( aEnable ); }

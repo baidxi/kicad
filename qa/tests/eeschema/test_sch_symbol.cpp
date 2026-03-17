@@ -132,11 +132,6 @@ BOOST_AUTO_TEST_CASE( SchSymbolVariantTest )
     symbol->SetExcludedFromSim( true, &m_schematic->Hierarchy()[0], variantName );
     BOOST_CHECK( symbol->GetExcludedFromSim( &m_schematic->Hierarchy()[0], variantName ) );
 
-    // Test exclude from board property variant.
-    BOOST_CHECK( !symbol->GetExcludedFromBoard() );
-    symbol->SetExcludedFromBoard( true, &m_schematic->Hierarchy()[0], variantName );
-    BOOST_CHECK( symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], variantName ) );
-
     // Test exclude from position files property variant.
     BOOST_CHECK( !symbol->GetExcludedFromPosFiles() );
     symbol->SetExcludedFromPosFiles( true, &m_schematic->Hierarchy()[0], variantName );
@@ -392,7 +387,6 @@ BOOST_AUTO_TEST_CASE( CopyVariantCreatesIndependentCopy )
     // Set symbol variant properties for source
     symbol->SetDNP( true, &m_schematic->Hierarchy()[0], sourceVariant );
     symbol->SetExcludedFromBOM( true, &m_schematic->Hierarchy()[0], sourceVariant );
-    symbol->SetExcludedFromBoard( true, &m_schematic->Hierarchy()[0], sourceVariant );
     symbol->SetExcludedFromPosFiles( true, &m_schematic->Hierarchy()[0], sourceVariant );
     symbol->GetField( FIELD_T::VALUE )->SetText( wxS( "47K" ), &m_schematic->Hierarchy()[0], sourceVariant );
 
@@ -409,7 +403,6 @@ BOOST_AUTO_TEST_CASE( CopyVariantCreatesIndependentCopy )
     // Verify symbol properties were copied
     BOOST_CHECK( symbol->GetDNP( &m_schematic->Hierarchy()[0], copyVariant ) );
     BOOST_CHECK( symbol->GetExcludedFromBOM( &m_schematic->Hierarchy()[0], copyVariant ) );
-    BOOST_CHECK( symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], copyVariant ) );
     BOOST_CHECK( symbol->GetExcludedFromPosFiles( &m_schematic->Hierarchy()[0], copyVariant ) );
     BOOST_CHECK_EQUAL( symbol->GetField( FIELD_T::VALUE )->GetShownText( &m_schematic->Hierarchy()[0],
                                                                           false, 0, copyVariant ), wxS( "47K" ) );
@@ -517,12 +510,6 @@ BOOST_AUTO_TEST_CASE( VariantDNPFiltering )
     symbol->SetExcludedFromBOM( true, &m_schematic->Hierarchy()[0], variantName );
     BOOST_CHECK( symbol->GetExcludedFromBOM( &m_schematic->Hierarchy()[0], variantName ) );
     BOOST_CHECK( !symbol->GetExcludedFromBOM( &m_schematic->Hierarchy()[0], wxEmptyString ) );
-
-    // Test exclude from board as well
-    BOOST_CHECK( !symbol->GetExcludedFromBoard() );
-    symbol->SetExcludedFromBoard( true, &m_schematic->Hierarchy()[0], variantName );
-    BOOST_CHECK( symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], variantName ) );
-    BOOST_CHECK( !symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], wxEmptyString ) );
 
     // Test exclude from position files as well
     BOOST_CHECK( !symbol->GetExcludedFromPosFiles() );
@@ -1082,7 +1069,6 @@ BOOST_AUTO_TEST_CASE( VariantAttributeInitFromSymbol )
     BOOST_CHECK( !defaultVariant.m_DNP );
     BOOST_CHECK( !defaultVariant.m_ExcludedFromBOM );
     BOOST_CHECK( !defaultVariant.m_ExcludedFromSim );
-    BOOST_CHECK( !defaultVariant.m_ExcludedFromBoard );
     BOOST_CHECK( !defaultVariant.m_ExcludedFromPosFiles );
 
     // InitializeAttributes should copy the symbol's attributes
@@ -1095,10 +1081,11 @@ BOOST_AUTO_TEST_CASE( VariantAttributeInitFromSymbol )
                          "InitializeAttributes should copy ExcludedFromBOM from symbol" );
     BOOST_CHECK_MESSAGE( initializedVariant.m_ExcludedFromSim,
                          "InitializeAttributes should copy ExcludedFromSim from symbol" );
-    BOOST_CHECK_MESSAGE( initializedVariant.m_ExcludedFromBoard,
-                         "InitializeAttributes should copy ExcludedFromBoard from symbol" );
     BOOST_CHECK_MESSAGE( initializedVariant.m_ExcludedFromPosFiles,
                          "InitializeAttributes should copy ExcludedFromPosFiles from symbol" );
+
+    // Exclude-from-board is not variant-aware and is not stored in SCH_SYMBOL_VARIANT.
+    BOOST_CHECK( symbol->GetExcludedFromBoard() );
 }
 
 

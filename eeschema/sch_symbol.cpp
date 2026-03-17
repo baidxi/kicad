@@ -1943,7 +1943,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetExcludedFromBoard( variant ) || this->ResolveExcludedFromBoard( aPath, variant ) )
+        if( aPath->GetExcludedFromBoard() || this->ResolveExcludedFromBoard() )
             *token = _( "Excluded from board" );
 
         return true;
