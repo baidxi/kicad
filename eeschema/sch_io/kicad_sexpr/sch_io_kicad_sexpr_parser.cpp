@@ -3452,7 +3452,9 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
                                     break;
 
                                 case T_on_board:
-                                    variant.m_ExcludedFromBoard = !parseBool();
+                                    // Silently ignore, as exclude-from-board is not supposed to be variant-aware,
+                                    // but it was in 10.0.0, so schematic files may exist that have this.
+                                    parseBool();
                                     NeedRIGHT();
                                     break;
 
@@ -3497,7 +3499,7 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
                                 }
 
                                 default:
-                                    Expecting( "dnp, exclude_from_sim, field, in_bom, in_pos_files, name, or on_board" );
+                                    Expecting( "dnp, exclude_from_sim, field, in_bom, in_pos_files, or name" );
                                 }
 
                                 instance.m_Variants[variant.m_Name] = variant;

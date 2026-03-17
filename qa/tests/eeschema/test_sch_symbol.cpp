@@ -538,9 +538,9 @@ BOOST_AUTO_TEST_CASE( VariantFieldDifferenceDetection )
 
 
 /**
- * Test variant DNP filtering for BOM.
+ * Test variant-awareness for symbol attributes
  */
-BOOST_AUTO_TEST_CASE( VariantDNPFiltering )
+BOOST_AUTO_TEST_CASE( VariantAwareAttributes )
 {
     wxFileName fn;
     fn.SetPath( KI_TEST::GetEeschemaTestDataDir() );
@@ -577,17 +577,20 @@ BOOST_AUTO_TEST_CASE( VariantDNPFiltering )
     BOOST_CHECK( symbol->GetExcludedFromBOM( &m_schematic->Hierarchy()[0], variantName ) );
     BOOST_CHECK( !symbol->GetExcludedFromBOM( &m_schematic->Hierarchy()[0], wxEmptyString ) );
 
-    // Test exclude from board as well
-    BOOST_CHECK( !symbol->GetExcludedFromBoard() );
-    symbol->SetExcludedFromBoard( true, &m_schematic->Hierarchy()[0], variantName );
-    BOOST_CHECK( symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], variantName ) );
-    BOOST_CHECK( !symbol->GetExcludedFromBoard( &m_schematic->Hierarchy()[0], wxEmptyString ) );
+    // Test exclude from simulation as well
+    BOOST_CHECK( !symbol->GetExcludedFromSim() );
+    symbol->SetExcludedFromSim( true, &m_schematic->Hierarchy()[0], variantName );
+    BOOST_CHECK( symbol->GetExcludedFromSim( &m_schematic->Hierarchy()[0], variantName ) );
+    BOOST_CHECK( !symbol->GetExcludedFromSim( &m_schematic->Hierarchy()[0], wxEmptyString ) );
 
     // Test exclude from position files as well
     BOOST_CHECK( !symbol->GetExcludedFromPosFiles() );
     symbol->SetExcludedFromPosFiles( true, &m_schematic->Hierarchy()[0], variantName );
     BOOST_CHECK( symbol->GetExcludedFromPosFiles( &m_schematic->Hierarchy()[0], variantName ) );
     BOOST_CHECK( !symbol->GetExcludedFromPosFiles( &m_schematic->Hierarchy()[0], wxEmptyString ) );
+
+    // NOTE: "exclude from board" is NOT variant-aware, as that would require
+    // support for different boards per schematic.
 }
 
 
