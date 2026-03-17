@@ -76,7 +76,8 @@ public:
  * Schematic symbol variants are a set of field and/or properties differentials against the default symbol
  * values.  Each symbol instance may contain 0 or more variants.
  *
- * @note The #REFERENCE field is immutable across variants. Changing it would effectively be a new board.
+ * @note The #REFERENCE field and the exclude-from-board property are immutable across variants.
+ *       Changing either would effectively be a new board.
  */
 class SCH_SYMBOL_VARIANT : public VARIANT
 {
