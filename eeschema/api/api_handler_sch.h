@@ -21,15 +21,24 @@
 #ifndef KICAD_API_HANDLER_SCH_H
 #define KICAD_API_HANDLER_SCH_H
 
+#include <google/protobuf/empty.pb.h>
+
 #include <api/api_handler_editor.h>
 #include <api/common/commands/editor_commands.pb.h>
+#include <api/schematic/schematic_commands.pb.h>
+#include <api/schematic/schematic_types.pb.h>
 #include <kiid.h>
+#include "api_sch_design_resource_mgr.h"
 
 using namespace kiapi;
 using namespace kiapi::common;
+using namespace kiapi::schematic::commands;
+
+using google::protobuf::Empty;
 
 class SCH_EDIT_FRAME;
 class SCH_ITEM;
+class API_SCH_DESIGN_RESOURCE_MGR;
 
 
 class API_HANDLER_SCH : public API_HANDLER_EDITOR
@@ -67,7 +76,21 @@ private:
     HANDLER_RESULT<commands::GetOpenDocumentsResponse> handleGetOpenDocuments(
             const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
 
+
+    HANDLER_RESULT<Empty> interactivePlaceSymbol(const HANDLER_CONTEXT<InteractivePlaceSymbol>& aCtx);
+
+
     SCH_EDIT_FRAME* m_frame;
+
+    std::unique_ptr<API_SCH_DESIGN_RESOURCE_MGR> m_resourceMgr;
+
+
+public:
+    void InteractivelyPlaceSymbolURL(const std::string& aName, const std::string& aUrl, bool place_all_units);
+
+    void InteractivelyPlaceSymbolContent(const std::string& aName, const std::string& aContent, bool place_all_units);
+
+
 };
 
 

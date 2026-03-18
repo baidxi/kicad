@@ -193,8 +193,8 @@ public:
      * @return The symbol found in the library or NULL if the symbol was not found.
      */
     LIB_SYMBOL* GetLibSymbol( const LIB_ID& aLibId, bool aUseCacheLib = false,
-                              bool aShowErrorMsg = false );
-
+                              bool aShowErrorMsg = false ); 
+                
     /**
      * Display a list of loaded libraries and allows the user to select a library.
      *

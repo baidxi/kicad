@@ -19,6 +19,31 @@
 
 syntax = "proto3";
 
-package kiapi.schematic.types;
+package kiapi.schematic.commands;
+
+import "common/types/base_types.proto";
+import "common/types/design_resources.proto";
+
+
+
+
+message InteractivePlaceSymbol
+{
+
+  kiapi.common.types.DocumentSpecifier board = 1;
+
+  // The symbol to place
+  // kiapi.common.types.SymbolResource symbol_resource = 2;
+  oneof symbol {
+    kiapi.common.types.SymbolResource symbol_resource = 2;
+    kiapi.common.types.SymbolConent symbol_content = 3;
+  }
+
+  // Keep the symbol selected for subsequent clicks
+  optional bool place_repeated_copies = 4;
+
+  // Sequentially place all units of the symbol.
+  optional bool place_all_units = 5;
+}
 
 

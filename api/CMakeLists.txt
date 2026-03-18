@@ -22,6 +22,7 @@ set( KIAPI_PROTO_SRCS
     common/envelope.proto
 
     common/types/base_types.proto
+    common/types/design_resources.proto
     common/types/enums.proto
     common/types/project_settings.proto
 
@@ -59,7 +60,7 @@ add_custom_command( COMMAND ${CMAKE_COMMAND} -E make_directory ${KIAPI_CPP_BASEP
     DEPENDS ${KIAPI_PROTO_SRC_FULLPATHS}
     OUTPUT ${KIAPI_CPP_SRCS} ${KIAPI_CPP_HEADERS}
     )
-
+    
 # kiapi must be a shared DLL because the protobuf messages can only be initialized once
 add_library( kiapi SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/import_export.h

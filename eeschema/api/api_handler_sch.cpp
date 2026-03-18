@@ -36,10 +36,14 @@ using kiapi::common::types::ItemRequestStatus;
 
 API_HANDLER_SCH::API_HANDLER_SCH( SCH_EDIT_FRAME* aFrame ) :
         API_HANDLER_EDITOR(),
-        m_frame( aFrame )
+        m_frame( aFrame ),
+        m_resourceMgr(std::make_unique<API_SCH_DESIGN_RESOURCE_MGR>(m_frame->Prj()))
 {
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
             &API_HANDLER_SCH::handleGetOpenDocuments );
+            
+    registerHandler<InteractivePlaceSymbol, Empty>(
+            &API_HANDLER_SCH::interactivePlaceSymbol );       
 }
 
 

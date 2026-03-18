@@ -330,6 +330,8 @@ public:
         SCH_SYMBOL* m_Symbol = nullptr;
         ///< If a symbol is provide, reannotate it?
         bool m_Reannotate = true;
+
+        bool forcePlaceAllUnits = false;
     };
 
     struct PLACE_SYMBOL_UNIT_PARAMS
