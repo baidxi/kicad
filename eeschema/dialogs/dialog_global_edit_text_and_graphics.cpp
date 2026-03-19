@@ -187,33 +187,23 @@ void DIALOG_GLOBAL_EDIT_TEXT_AND_GRAPHICS::processItem( SCH_COMMIT* aCommit,
         if( m_hAlign->GetStringSelection() != INDETERMINATE_ACTION )
         {
             GR_TEXT_H_ALIGN_T hAlign = EDA_TEXT::MapHorizJustify( m_hAlign->GetSelection() - 1 );
-            SCH_SYMBOL*       parentSymbol = dynamic_cast<SCH_SYMBOL*>( aItem->GetParent() );
+            SCH_FIELD*        field = dynamic_cast<SCH_FIELD*>( aItem );
 
-            if( parentSymbol && parentSymbol->GetTransform().x1 < 0 )
-            {
-                if( hAlign == GR_TEXT_H_ALIGN_LEFT )
-                    hAlign = GR_TEXT_H_ALIGN_RIGHT;
-                else if( hAlign == GR_TEXT_H_ALIGN_RIGHT )
-                    hAlign = GR_TEXT_H_ALIGN_LEFT;
-            }
-
-            eda_text->SetHorizJustify( hAlign );
+            if( field )
+                field->SetEffectiveHorizJustify( hAlign );
+            else
+                eda_text->SetHorizJustify( hAlign );
         }
 
         if( m_vAlign->GetStringSelection() != INDETERMINATE_ACTION )
         {
             GR_TEXT_V_ALIGN_T vAlign = EDA_TEXT::MapVertJustify( m_vAlign->GetSelection() - 1 );
-            SCH_SYMBOL*       parentSymbol = dynamic_cast<SCH_SYMBOL*>( aItem->GetParent() );
+            SCH_FIELD*        field = dynamic_cast<SCH_FIELD*>( aItem );
 
-            if( parentSymbol && parentSymbol->GetTransform().y1 < 0 )
-            {
-                if( vAlign == GR_TEXT_V_ALIGN_TOP )
-                    vAlign = GR_TEXT_V_ALIGN_BOTTOM;
-                else if( vAlign == GR_TEXT_V_ALIGN_BOTTOM )
-                    vAlign = GR_TEXT_V_ALIGN_TOP;
-            }
-
-            eda_text->SetVertJustify( vAlign );
+            if( field )
+                field->SetEffectiveVertJustify( vAlign );
+            else
+                eda_text->SetVertJustify( vAlign );
         }
 
         if( m_italic->Get3StateValue() != wxCHK_UNDETERMINED )
