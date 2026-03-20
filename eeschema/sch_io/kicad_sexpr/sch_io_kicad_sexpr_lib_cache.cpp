@@ -335,8 +335,7 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::Save( const std::optional<bool>& aOpt )
 
 
 void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter,
-                                               const wxString& aLibName, bool aIncludeData,
-                                               bool aKicad9Export )
+                                               const wxString& aLibName, bool aIncludeData, bool aKicad9Export )
 {
     wxCHECK_RET( aSymbol, "Invalid LIB_SYMBOL pointer." );
 
@@ -646,8 +645,7 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveSymbolDrawItem( SCH_ITEM* aItem, OUTPUTFO
 }
 
 
-void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter,
-                                              bool aKicad9Export )
+void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveField( SCH_FIELD* aField, OUTPUTFORMATTER& aFormatter, bool aKicad9Export )
 {
     wxCHECK_RET( aField && aField->Type() == SCH_FIELD_T, "Invalid SCH_FIELD object." );
 

@@ -45,6 +45,7 @@
 #define CTL_OMIT_COLOR              (1 << 11)   ///< Omit the color attribute in .kicad_xxx files.
 #define CTL_OMIT_HYPERLINK          (1 << 12)   ///< Omit the hyperlink attribute in .kicad_xxx
                                                 ///< files.
-#define CTL_HIDE_IN_EFFECTS         (1 << 13)   ///< Output hide inside (effects) for KiCad 9
-                                                ///< format (property-level hide/show_name/
-                                                ///< do_not_autoplace moved into effects).
+#define CTL_HIDE_IN_EFFECTS                                                                                            \
+    ( 1 << 13 ) ///< Output hide inside (effects) for KiCad 9                                                          \
+                ///< format (property-level hide/show_name/                                                            \
+                ///< do_not_autoplace moved into effects).

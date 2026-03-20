@@ -454,9 +454,7 @@ int SCH_EDITOR_CONTROL::ExportSchematicAsKicad9( const TOOL_EVENT& aEvent )
 
     wxString path = EnsureFileExtension( dlg.GetPath(), FILEEXT::KiCadSchematicFileExtension );
 
-    static const std::map<std::string, UTF8> kicad9ExportProps = {
-        { "kicad_9_export", UTF8( "1" ) }
-    };
+    static const std::map<std::string, UTF8> kicad9ExportProps = { { "kicad_9_export", UTF8( "1" ) } };
 
     m_frame->saveSchematicFile( rootSheet, path, &kicad9ExportProps );
     return 0;

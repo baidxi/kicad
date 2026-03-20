@@ -51,9 +51,8 @@ public:
 
     void DeleteSymbol( const wxString& aName ) override;
 
-    static void SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter,
-                            const wxString& aLibName = wxEmptyString, bool aIncludeData = true,
-                            bool aKicad9Export = false );
+    static void SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter, const wxString& aLibName = wxEmptyString,
+                            bool aIncludeData = true, bool aKicad9Export = false );
 
     void SetFileFormatVersionAtLoad( int aVersion ) { m_fileFormatVersionAtLoad = aVersion; }
     int GetFileFormatVersionAtLoad()  const { return m_fileFormatVersionAtLoad; }

@@ -1019,7 +1019,7 @@ private:
      * @return True if the file has been saved.
      */
     bool saveSchematicFile( SCH_SHEET* aSheet, const wxString& aSavePath,
-                           const std::map<std::string, UTF8>* aProperties = nullptr );
+                            const std::map<std::string, UTF8>* aProperties = nullptr );
 
     /**
      * Fill a map of uuid -> reference from the currently loaded schematic.

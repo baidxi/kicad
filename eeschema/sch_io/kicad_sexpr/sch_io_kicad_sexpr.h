@@ -188,7 +188,7 @@ protected:
     SCHEMATIC*              m_schematic;
     OUTPUTFORMATTER*        m_out;              ///< The formatter for saving SCH_SCREEN objects.
     SCH_IO_KICAD_SEXPR_LIB_CACHE* m_cache;
-    bool                    m_exportKicad9;      ///< When true, write KiCad 9 compatible format.
+    bool                          m_exportKicad9; ///< When true, write KiCad 9 compatible format.
 
     /// initialize PLUGIN like a constructor would.
     void init( SCHEMATIC* aSchematic, const std::map<std::string, UTF8>* aProperties = nullptr );
