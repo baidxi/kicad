@@ -297,7 +297,7 @@ BOOST_AUTO_TEST_CASE( StringFunctions )
 
         { "@{replace(\"Hello World\", \"l\", \"L\")}", "HeLLo WorLd", false },
         { "@{replace(\"Hello World\", \"llo\", \"y there\")}", "Hey there World", false },
-        { "@{replace(${text}, \" \")}", "HeLLo WorLd", false },
+        { "@{replace(${text}, \"l\", \"L\")}", "HeLLo WorLd", false },
     };
 
     for( const auto& testCase : cases )
