@@ -708,7 +708,7 @@ void ADVANCED_CFG::loadSettings( wxConfigBase& aCfg )
 
     dumpCfg( m_entries );
 
-    printf("rtr log dir %s\n", m_RouterTestCaseDirectory.c_str().AsChar() );
+    wxLogTrace( AdvancedConfigMask, wxT( "RouterTestCaseDirectory=%s" ), m_RouterTestCaseDirectory );
 
     wxLogTrace( kicadTraceCoroutineStack, wxT( "Using coroutine stack size %d" ), m_CoroutineStackSize );
 }
