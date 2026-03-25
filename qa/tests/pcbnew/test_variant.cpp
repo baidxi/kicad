@@ -31,13 +31,33 @@
 #include <boost/test/unit_test.hpp>
 
 #include <board.h>
+#include <board_commit.h>
 #include <footprint.h>
 #include <exporters/place_file_exporter.h>
+#include <pcbnew/netlist_reader/board_netlist_updater.h>
 #include <pcbnew/netlist_reader/kicad_netlist_parser.h>
 #include <pcbnew/netlist_reader/pcb_netlist.h>
 #include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 #include <pcbnew_utils/board_file_utils.h>
+#include <pcbnew_utils/board_test_utils.h>
+#include <project.h>
 #include <richio.h>
+#include <settings/settings_manager.h>
+#include <tool/tool_manager.h>
+#include <wx/filename.h>
+
+#include <memory>
+#include <vector>
+
+
+struct BOARD_NETLIST_UPDATER_TEST_ACCESS
+{
+    static void ApplyComponentVariants( BOARD_NETLIST_UPDATER& aUpdater, COMPONENT* aComponent,
+                                        const std::vector<FOOTPRINT*>& aFootprints, const LIB_ID& aBaseFpid )
+    {
+        aUpdater.applyComponentVariants( aComponent, aFootprints, aBaseFpid );
+    }
+};
 
 
 BOOST_AUTO_TEST_SUITE( Variant )
@@ -1177,6 +1197,227 @@ BOOST_AUTO_TEST_CASE( PosExportVariantValue )
     std::string altPopReport = runReport( wxS( "AltPop" ) );
     BOOST_CHECK( altPopReport.find( "22K" ) != std::string::npos );
     BOOST_CHECK( altPopReport.find( "10K" ) == std::string::npos );
+}
+
+
+/*
+ * footprints containing variant-specific attributes (DNP, exclude from...)
+ * must clear those attributes in the variant if the netlist for the respective
+ * component does not list them. omission means "inherit from base/default" and
+ * the netlist updater needs to apply that information.
+ */
+BOOST_AUTO_TEST_CASE( NetlistUpdaterClearVariantAttributesIfOmittedInNetlist )
+{
+    SETTINGS_MANAGER settingsManager;
+    wxFileName       projectFile( wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() )
+                                  + wxT( "reference_images_load_save.kicad_pro" ) );
+
+    BOOST_REQUIRE( projectFile.FileExists() );
+
+    settingsManager.LoadProject( projectFile.GetFullPath() );
+    PROJECT* project = settingsManager.GetProject( projectFile.GetFullPath() );
+    BOOST_REQUIRE( project );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    board->SetProject( project );
+
+    const LIB_ID baseFpid( wxT( "Resistor_SMD" ), wxT( "R_0805_2012Metric" ) );
+
+    FOOTPRINT* fpDNP = new FOOTPRINT( board.get() );
+    fpDNP->SetReference( wxT( "R1" ) );
+    fpDNP->SetFPID( baseFpid );
+    fpDNP->SetDNP( false );
+
+    FOOTPRINT_VARIANT* fpVariantDNP = fpDNP->AddVariant( wxT( "Prod" ) );
+    BOOST_REQUIRE( fpVariantDNP );
+    fpVariantDNP->SetDNP( true );
+    BOOST_CHECK( fpDNP->GetDNPForVariant( wxT( "Prod" ) ) );
+
+    board->Add( fpDNP );
+
+
+    FOOTPRINT* fpExBOM = new FOOTPRINT( board.get() );
+    fpExBOM->SetReference( wxT( "R2" ) );
+    fpExBOM->SetFPID( baseFpid );
+    fpExBOM->SetDNP( false );
+
+    FOOTPRINT_VARIANT* fpVariantExBOM = fpExBOM->AddVariant( wxT( "Prod" ) );
+    BOOST_REQUIRE( fpVariantExBOM );
+    fpVariantExBOM->SetExcludedFromBOM( true );
+    BOOST_CHECK( fpExBOM->GetExcludedFromBOMForVariant( wxT( "Prod" ) ) );
+
+    board->Add( fpExBOM );
+
+
+    FOOTPRINT* fpExPosFiles = new FOOTPRINT( board.get() );
+    fpExPosFiles->SetReference( wxT( "R3" ) );
+    fpExPosFiles->SetFPID( baseFpid );
+    fpExPosFiles->SetDNP( false );
+
+    FOOTPRINT_VARIANT* fpVariantExPosFiles = fpExPosFiles->AddVariant( wxT( "Prod" ) );
+    BOOST_REQUIRE( fpVariantExPosFiles );
+    fpVariantExPosFiles->SetExcludedFromPosFiles( true );
+    BOOST_CHECK( fpExPosFiles->GetExcludedFromPosFilesForVariant( wxT( "Prod" ) ) );
+
+    board->Add( fpExPosFiles );
+
+
+    TOOL_MANAGER toolMgr;
+    toolMgr.SetEnvironment( board.get(), nullptr, nullptr, nullptr, nullptr );
+
+    KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+    toolMgr.RegisterTool( dummyTool );
+
+    BOARD_COMMIT          commit( dummyTool );
+    BOARD_NETLIST_UPDATER updater( nullptr, board.get(), commit );
+
+    KIID_PATH         path;
+    std::vector<KIID> kiids;
+    COMPONENT         componentDNP( baseFpid, wxT( "R1" ), wxT( "10K" ), path, kiids );
+    COMPONENT         componentExBOM( baseFpid, wxT( "R2" ), wxT( "10K" ), path, kiids );
+    COMPONENT         componentExPosFiles( baseFpid, wxT( "R3" ), wxT( "10K" ), path, kiids );
+
+    COMPONENT_VARIANT netlistVariantDNP( wxT( "Prod" ) );
+    BOOST_CHECK( !netlistVariantDNP.m_hasDnp );
+    componentDNP.AddVariant( netlistVariantDNP );
+
+    COMPONENT_VARIANT netlistVariantExBOM( wxT( "Prod" ) );
+    BOOST_CHECK( !netlistVariantExBOM.m_hasExcludedFromBOM );
+    componentExBOM.AddVariant( netlistVariantExBOM );
+
+    COMPONENT_VARIANT netlistVariantExPosFiles( wxT( "Prod" ) );
+    BOOST_CHECK( !netlistVariantExPosFiles.m_hasExcludedFromPosFiles );
+    componentExPosFiles.AddVariant( netlistVariantExPosFiles );
+
+    FOOTPRINT* boardFpDNP = board->FindFootprintByReference( wxT( "R1" ) );
+    FOOTPRINT* boardFpExBOM = board->FindFootprintByReference( wxT( "R2" ) );
+    FOOTPRINT* boardFpExPosFiles = board->FindFootprintByReference( wxT( "R3" ) );
+    BOOST_REQUIRE( boardFpDNP );
+    BOOST_REQUIRE( boardFpExBOM );
+    BOOST_REQUIRE( boardFpExPosFiles );
+
+    const std::vector<FOOTPRINT*> footprints = { boardFpDNP, boardFpExBOM, boardFpExPosFiles };
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentDNP, footprints, baseFpid );
+    BOOST_CHECK_MESSAGE( !boardFpDNP->GetDNPForVariant( wxT( "Prod" ) ),
+                         "Per-variant DNP must clear when netlist omits DNP property" );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentExBOM, footprints, baseFpid );
+    BOOST_CHECK_MESSAGE( !boardFpExBOM->GetExcludedFromBOMForVariant( wxT( "Prod" ) ),
+                         "Per-variant exclude from BOM must clear when netlist omits exclude from BOM property" );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentExPosFiles, footprints, baseFpid );
+    BOOST_CHECK_MESSAGE( !boardFpExPosFiles->GetExcludedFromPosFilesForVariant( wxT( "Prod" ) ),
+                         "Per-variant exclude from position files must clear when netlist omits exclude from position "
+                         "files property" );
+}
+
+
+/*
+ * test component variant updater behavior for variant attributes lifecycle:
+ * 1) create variant A (DNP set) on a footprint that starts with no variants.
+ * 2) process footprint again with variants A + B where B sets exclude from BOM.
+ * 3) process footprint again with only variant A and verify B is removed.
+ * 4) process footprint again with no variants and verify all footprint
+ *    variants are removed (see
+ *    https://gitlab.com/kicad/code/kicad/-/work_items/23564).
+ */
+BOOST_AUTO_TEST_CASE( NetlistUpdaterVariantLifecycleAcrossMultiplePasses )
+{
+    SETTINGS_MANAGER settingsManager;
+    wxFileName       projectFile( wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() )
+                                  + wxT( "reference_images_load_save.kicad_pro" ) );
+
+    BOOST_REQUIRE( projectFile.FileExists() );
+
+    settingsManager.LoadProject( projectFile.GetFullPath() );
+    PROJECT* project = settingsManager.GetProject( projectFile.GetFullPath() );
+    BOOST_REQUIRE( project );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    board->SetProject( project );
+
+    const LIB_ID baseFpid( wxT( "Resistor_SMD" ), wxT( "R_0805_2012Metric" ) );
+
+    FOOTPRINT* fp = new FOOTPRINT( board.get() );
+    fp->SetReference( wxT( "R10" ) );
+    fp->SetFPID( baseFpid );
+    fp->SetDNP( false );
+    fp->SetExcludedFromBOM( false );
+    fp->SetExcludedFromPosFiles( false );
+    board->Add( fp );
+
+    TOOL_MANAGER toolMgr;
+    toolMgr.SetEnvironment( board.get(), nullptr, nullptr, nullptr, nullptr );
+
+    KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+    toolMgr.RegisterTool( dummyTool );
+
+    BOARD_COMMIT          commit( dummyTool );
+    BOARD_NETLIST_UPDATER updater( nullptr, board.get(), commit );
+
+    FOOTPRINT* boardFp = board->FindFootprintByReference( wxT( "R10" ) );
+    BOOST_REQUIRE( boardFp );
+    BOOST_CHECK( boardFp->GetVariants().empty() );
+
+    const std::vector<FOOTPRINT*> footprints = { boardFp };
+    KIID_PATH                     path;
+    std::vector<KIID>             kiids;
+
+
+    COMPONENT         componentPass1( baseFpid, wxT( "R10" ), wxT( "10K" ), path, kiids );
+    COMPONENT_VARIANT variantApass1( wxT( "VariantA" ) );
+    variantApass1.m_hasDnp = true;
+    variantApass1.m_dnp = true;
+    componentPass1.AddVariant( variantApass1 );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass1, footprints, baseFpid );
+
+    BOOST_REQUIRE( boardFp->GetVariant( wxT( "VariantA" ) ) );
+    BOOST_CHECK( boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
+    BOOST_CHECK( !boardFp->GetExcludedFromBOMForVariant( wxT( "VariantA" ) ) );
+
+
+    COMPONENT         componentPass2( baseFpid, wxT( "R10" ), wxT( "10K" ), path, kiids );
+    COMPONENT_VARIANT variantApass2( wxT( "VariantA" ) );
+    variantApass2.m_hasDnp = true;
+    variantApass2.m_dnp = true;
+    componentPass2.AddVariant( variantApass2 );
+
+    COMPONENT_VARIANT variantBpass2( wxT( "VariantB" ) );
+    variantBpass2.m_hasExcludedFromBOM = true;
+    variantBpass2.m_excludedFromBOM = true;
+    componentPass2.AddVariant( variantBpass2 );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass2, footprints, baseFpid );
+
+    BOOST_REQUIRE( boardFp->GetVariant( wxT( "VariantA" ) ) );
+    BOOST_REQUIRE( boardFp->GetVariant( wxT( "VariantB" ) ) );
+    BOOST_CHECK( boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
+    BOOST_CHECK( !boardFp->GetExcludedFromBOMForVariant( wxT( "VariantA" ) ) );
+    BOOST_CHECK( !boardFp->GetDNPForVariant( wxT( "VariantB" ) ) );
+    BOOST_CHECK( boardFp->GetExcludedFromBOMForVariant( wxT( "VariantB" ) ) );
+
+
+    COMPONENT         componentPass3( baseFpid, wxT( "R10" ), wxT( "10K" ), path, kiids );
+    COMPONENT_VARIANT variantApass3( wxT( "VariantA" ) );
+    variantApass3.m_hasDnp = true;
+    variantApass3.m_dnp = true;
+    componentPass3.AddVariant( variantApass3 );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass3, footprints, baseFpid );
+
+    BOOST_REQUIRE( boardFp->GetVariant( wxT( "VariantA" ) ) );
+    BOOST_CHECK( boardFp->GetVariant( wxT( "VariantB" ) ) == nullptr );
+    BOOST_CHECK( !boardFp->GetExcludedFromBOMForVariant( wxT( "VariantB" ) ) );
+
+
+    COMPONENT componentPass4( baseFpid, wxT( "R10" ), wxT( "10K" ), path, kiids );
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass4, footprints, baseFpid );
+
+    BOOST_CHECK_MESSAGE( boardFp->GetVariants().empty(),
+                         "No FOOTPRINT_VARIANT should remain when component has no variants" );
+    BOOST_CHECK( !boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
 }
 
 

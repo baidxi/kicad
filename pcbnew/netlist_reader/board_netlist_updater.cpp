@@ -31,6 +31,7 @@
 
 #include <base_units.h>
 #include <board.h>
+#include <board_commit.h>
 #include <board_design_settings.h>
 #include <component_classes/component_class.h>
 #include <component_classes/component_class_manager.h>
@@ -51,10 +52,10 @@
 #include "board_netlist_updater.h"
 
 
-BOARD_NETLIST_UPDATER::BOARD_NETLIST_UPDATER( PCB_EDIT_FRAME* aFrame, BOARD* aBoard ) :
-    m_frame( aFrame ),
-    m_commit( aFrame ),
-    m_board( aBoard )
+BOARD_NETLIST_UPDATER::BOARD_NETLIST_UPDATER( PCB_EDIT_FRAME* aFrame, BOARD* aBoard, BOARD_COMMIT& aCommit ) :
+        m_frame( aFrame ),
+        m_commit( aCommit ),
+        m_board( aBoard )
 {
     m_reporter = &NULL_REPORTER::GetInstance();
 
@@ -1322,6 +1323,18 @@ void BOARD_NETLIST_UPDATER::applyComponentVariants( COMPONENT* aComponent,
 {
     wxString    msg;
     const auto& variants = aComponent->GetVariants();
+
+    // most components have neither variant-specific attributes nor fields. in
+    // that case we want to skip this whole function, especially to avoid
+    // copying footprints only to throw them out later. we can only skip if the
+    // footprints are already without variant-specific data, i.e., are in sync
+    // with the netlist.
+    bool hasVariantData = false;
+    for( FOOTPRINT* footprint : aFootprints )
+        hasVariantData |= footprint && !footprint->GetVariants().empty();
+
+    if( variants.empty() && !hasVariantData )
+        return;
 
     if( aBaseFpid.empty() )
         return;
