@@ -1574,6 +1574,49 @@ void BOARD_NETLIST_UPDATER::applyComponentVariants( COMPONENT* aComponent,
                     changed = true;
                 }
             }
+
+            // ensure existing variant fields are cleared if the netlist
+            // doesn't carry that field (because it equals the default).
+            if( currentVariant )
+            {
+                auto checkFieldRemoval = [&]( const wxString& aFieldName ) -> void
+                {
+                    if( aFieldName.CmpNoCase( footprintFieldName ) == 0 )
+                        return; // footprint reset to default is handled elsewhere
+
+                    // keep variant fields if present in netlist
+                    for( const auto& mapPair : variant.m_fields )
+                        if( mapPair.first.CmpNoCase( aFieldName ) == 0 )
+                            return;
+
+                    if( m_isDryRun )
+                    {
+                        msg.Printf( _( "Restore %s field '%s' on variant %s to default variant value." ),
+                                    footprint->GetReference(), aFieldName, info.name );
+                    }
+                    else
+                    {
+                        msg.Printf( _( "Restored %s field '%s' on variant %s to default variant value." ),
+                                    footprint->GetReference(), aFieldName, info.name );
+
+                        // this *will* yield "currentVariant", but that is const
+                        FOOTPRINT_VARIANT* fpVariant = footprint->AddVariant( info.name );
+                        fpVariant->ClearFieldValue( aFieldName );
+                    }
+
+                    m_reporter->Report( msg, RPT_SEVERITY_ACTION );
+                    changed = true;
+                };
+
+                // copy keys (field names) to avoid iterator invalidation
+                // when erasing from the map of fields while iterating it.
+                std::set<wxString> existingFieldNames;
+                for( const auto& mapPair : currentVariant->GetFields() )
+                    existingFieldNames.insert( mapPair.first );
+
+                for( const wxString& existingFieldName : existingFieldNames )
+                    checkFieldRemoval( existingFieldName );
+            }
         }
 
         for( const wxString& excess : excessVariants )

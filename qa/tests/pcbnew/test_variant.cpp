@@ -1421,6 +1421,96 @@ BOOST_AUTO_TEST_CASE( NetlistUpdaterVariantLifecycleAcrossMultiplePasses )
 }
 
 
+/*
+ * test component variant updater behavior for variant fields lifecycle:
+ * 1) process netlist with variant A including a field override.
+ * 2) process netlist with variant A still present but field omitted from
+ *    netlist variant fields. expect field override is cleared (inherits
+ *    default/base).
+ * 3) process netlist with no variants and verify variant A is removed entirely.
+ */
+BOOST_AUTO_TEST_CASE( NetlistUpdaterVariantFieldLifecycleAcrossMultiplePasses )
+{
+    SETTINGS_MANAGER settingsManager;
+    wxFileName       projectFile( wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir() )
+                                  + wxT( "reference_images_load_save.kicad_pro" ) );
+
+    BOOST_REQUIRE( projectFile.FileExists() );
+
+    settingsManager.LoadProject( projectFile.GetFullPath() );
+    PROJECT* project = settingsManager.GetProject( projectFile.GetFullPath() );
+    BOOST_REQUIRE( project );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    board->SetProject( project );
+
+    const LIB_ID baseFpid( wxT( "Resistor_SMD" ), wxT( "R_0805_2012Metric" ) );
+
+    FOOTPRINT* fp = new FOOTPRINT( board.get() );
+    fp->SetReference( wxT( "R11" ) );
+    fp->SetFPID( baseFpid );
+    fp->SetDNP( false );
+    fp->SetExcludedFromBOM( false );
+    fp->SetExcludedFromPosFiles( false );
+    board->Add( fp );
+
+    TOOL_MANAGER toolMgr;
+    toolMgr.SetEnvironment( board.get(), nullptr, nullptr, nullptr, nullptr );
+
+    KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+    toolMgr.RegisterTool( dummyTool );
+
+    BOARD_COMMIT          commit( dummyTool );
+    BOARD_NETLIST_UPDATER updater( nullptr, board.get(), commit );
+
+    FOOTPRINT* boardFp = board->FindFootprintByReference( wxT( "R11" ) );
+    BOOST_REQUIRE( boardFp );
+    BOOST_CHECK( boardFp->GetVariants().empty() );
+
+    const std::vector<FOOTPRINT*> footprints = { boardFp };
+    KIID_PATH                     path;
+    std::vector<KIID>             kiids;
+
+
+    COMPONENT         componentPass1( baseFpid, wxT( "R11" ), wxT( "10K" ), path, kiids );
+    COMPONENT_VARIANT variantApass1( wxT( "VariantA" ) );
+    variantApass1.m_hasDnp = true;
+    variantApass1.m_dnp = true;
+    variantApass1.m_fields[wxT( "Datasheet" )] = wxT( "https://example.com/ds1.pdf" );
+    componentPass1.AddVariant( variantApass1 );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass1, footprints, baseFpid );
+
+    const FOOTPRINT_VARIANT* afterPass1 = boardFp->GetVariant( wxT( "VariantA" ) );
+    BOOST_REQUIRE( afterPass1 );
+    BOOST_CHECK( afterPass1->HasFieldValue( wxT( "Datasheet" ) ) );
+    BOOST_CHECK_EQUAL( afterPass1->GetFieldValue( wxT( "Datasheet" ) ), wxT( "https://example.com/ds1.pdf" ) );
+    BOOST_CHECK( boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
+
+
+    COMPONENT         componentPass2( baseFpid, wxT( "R11" ), wxT( "10K" ), path, kiids );
+    COMPONENT_VARIANT variantApass2( wxT( "VariantA" ) );
+    variantApass2.m_hasDnp = true;
+    variantApass2.m_dnp = true;
+    componentPass2.AddVariant( variantApass2 );
+
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass2, footprints, baseFpid );
+
+    const FOOTPRINT_VARIANT* afterPass2 = boardFp->GetVariant( wxT( "VariantA" ) );
+    BOOST_REQUIRE( afterPass2 );
+    BOOST_CHECK_MESSAGE( !afterPass2->HasFieldValue( wxT( "Datasheet" ) ),
+                         "Variant field override must clear when netlist omits that field" );
+    BOOST_CHECK( boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
+
+
+    COMPONENT componentPass3( baseFpid, wxT( "R11" ), wxT( "10K" ), path, kiids );
+    BOARD_NETLIST_UPDATER_TEST_ACCESS::ApplyComponentVariants( updater, &componentPass3, footprints, baseFpid );
+
+    BOOST_CHECK( boardFp->GetVariant( wxT( "VariantA" ) ) == nullptr );
+    BOOST_CHECK( !boardFp->GetDNPForVariant( wxT( "VariantA" ) ) );
+}
+
+
 /**
  * Regression test for issue #23564: stale footprint variant data must be cleaned up
  * when the netlist contains no variant overrides for a component.
