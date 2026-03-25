@@ -25,30 +25,16 @@
 
 #include <wx/string.h>
 
-class BOARD;
-class KIWAY;
+#include <api/board_context.h>
+
 class PCB_EDIT_FRAME;
-class PROJECT;
-class TOOL_MANAGER;
 
 
-/// An interface for the frame surface that the API handlers need; to enable headless mode
-class PCB_CONTEXT
+/// PCB-editor-specific context; extends BOARD_CONTEXT with save/filename operations
+class PCB_CONTEXT : public BOARD_CONTEXT
 {
 public:
-    virtual ~PCB_CONTEXT() = default;
-
-    virtual BOARD* GetBoard() const = 0;
-
-    virtual PROJECT& Prj() const = 0;
-
-    virtual TOOL_MANAGER* GetToolManager() const = 0;
-
-    virtual KIWAY* GetKiway() const = 0;
-
     virtual wxString GetCurrentFileName() const = 0;
-
-    virtual bool CanAcceptApiCommands() const = 0;
 
     virtual bool SaveBoard() = 0;
 
