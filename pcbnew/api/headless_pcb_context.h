@@ -18,14 +18,14 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KICAD_HEADLESS_BOARD_CONTEXT_H
-#define KICAD_HEADLESS_BOARD_CONTEXT_H
+#ifndef KICAD_HEADLESS_PCB_CONTEXT_H
+#define KICAD_HEADLESS_PCB_CONTEXT_H
 
 #include <memory>
 
 #include <wx/string.h>
 
-#include <api/board_context.h>
+#include <api/pcb_context.h>
 
 class APP_SETTINGS_BASE;
 class BOARD;
@@ -34,13 +34,13 @@ class PROJECT;
 class TOOL_MANAGER;
 
 
-class HEADLESS_BOARD_CONTEXT : public BOARD_CONTEXT
+class HEADLESS_PCB_CONTEXT : public PCB_CONTEXT
 {
 public:
-    HEADLESS_BOARD_CONTEXT( std::unique_ptr<BOARD> aBoard, PROJECT* aProject,
+    HEADLESS_PCB_CONTEXT( std::unique_ptr<BOARD> aBoard, PROJECT* aProject,
                             APP_SETTINGS_BASE* aSettings, KIWAY* aKiway = nullptr );
 
-    ~HEADLESS_BOARD_CONTEXT() override;
+    ~HEADLESS_PCB_CONTEXT() override;
 
     BOARD* GetBoard() const override;
 

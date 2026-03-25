@@ -26,7 +26,7 @@
 #include <google/protobuf/empty.pb.h>
 
 #include <api/api_handler_editor.h>
-#include <api/board_context.h>
+#include <api/pcb_context.h>
 #include <api/board/board_commands.pb.h>
 #include <api/board/board_jobs.pb.h>
 #include <api/board/board_types.pb.h>
@@ -56,7 +56,7 @@ class API_HANDLER_PCB : public API_HANDLER_EDITOR
 {
 public:
     API_HANDLER_PCB( PCB_EDIT_FRAME* aFrame );
-    API_HANDLER_PCB( std::shared_ptr<BOARD_CONTEXT> aContext, PCB_EDIT_FRAME* aFrame = nullptr );
+    API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext, PCB_EDIT_FRAME* aFrame = nullptr );
 
 private:
     typedef std::map<std::string, PROPERTY_BASE*> PROTO_PROPERTY_MAP;
@@ -251,7 +251,7 @@ protected:
     void onModified() override;
 
 private:
-    BOARD_CONTEXT* context() const { return m_context.get(); }
+    PCB_CONTEXT* context() const { return m_context.get(); }
 
     BOARD* board() const { return context()->GetBoard(); }
 
@@ -276,7 +276,7 @@ private:
             std::function<void(commands::ItemStatus, google::protobuf::Any)> aItemHandler )
             override;
 
-    std::shared_ptr<BOARD_CONTEXT> m_context;
+    std::shared_ptr<PCB_CONTEXT> m_context;
 };
 
 #endif //KICAD_API_HANDLER_PCB_H

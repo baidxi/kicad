@@ -443,7 +443,7 @@ set( PCBNEW_CLASS_SRCS
     zone_settings_bag.cpp
     edit_zone_helpers.cpp
 
-    api/headless_board_context.cpp
+    api/headless_pcb_context.cpp
 
     ratsnest/ratsnest.cpp
 
@@ -527,7 +527,7 @@ set( PCBNEW_COMMON_SRCS
 if( KICAD_IPC_API )
     set( PCBNEW_SRCS ${PCBNEW_SRCS}
         api/api_handler_pcb.cpp
-        api/board_context.cpp
+        api/pcb_context.cpp
         )
 endif()
 

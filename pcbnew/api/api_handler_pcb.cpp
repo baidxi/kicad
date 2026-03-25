@@ -25,7 +25,7 @@
 #include <api/api_handler_pcb.h>
 #include <api/api_pcb_utils.h>
 #include <api/api_enums.h>
-#include <api/board_context.h>
+#include <api/pcb_context.h>
 #include <api/api_utils.h>
 #include <base_screen.h>
 #include <board_commit.h>
@@ -90,7 +90,7 @@ API_HANDLER_PCB::API_HANDLER_PCB( PCB_EDIT_FRAME* aFrame ) :
 }
 
 
-API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<BOARD_CONTEXT> aContext,
+API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext,
                                   PCB_EDIT_FRAME* aFrame ) :
         API_HANDLER_EDITOR( aFrame ),
         m_context( std::move( aContext ) )
@@ -2811,7 +2811,7 @@ std::optional<ApiResponseStatus> ApplyBoardPlotSettings( const BoardPlotSettings
 }
 
 
-HANDLER_RESULT<types::RunJobResponse> ExecuteBoardJob( BOARD_CONTEXT* aContext, JOB& aJob )
+HANDLER_RESULT<types::RunJobResponse> ExecuteBoardJob( PCB_CONTEXT* aContext, JOB& aJob )
 {
     types::RunJobResponse response;
     WX_STRING_REPORTER reporter;

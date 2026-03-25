@@ -88,7 +88,7 @@
 #include <api/api_handler_pcb.h>
 #include <api/api_server.h>
 #include <api/api_utils.h>
-#include <api/headless_board_context.h>
+#include <api/headless_pcb_context.h>
 #include <board.h>
 #include <board_loader.h>
 #endif
@@ -588,7 +588,7 @@ private:
     void closeCurrentDocument( KICAD_API_SERVER* aServer );
 
     KIWAY* m_kiway = nullptr;
-    std::shared_ptr<HEADLESS_BOARD_CONTEXT> m_openContext;
+    std::shared_ptr<HEADLESS_PCB_CONTEXT> m_openContext;
     std::unique_ptr<API_HANDLER_PCB>        m_openHandler;
 #endif
 
@@ -872,7 +872,7 @@ bool IFACE::HandleApiOpenDocument( const wxString& aPath, KICAD_API_SERVER* aSer
         return false;
     }
 
-    std::shared_ptr<HEADLESS_BOARD_CONTEXT> newContext;
+    std::shared_ptr<HEADLESS_PCB_CONTEXT> newContext;
 
     try
     {
@@ -886,7 +886,7 @@ bool IFACE::HandleApiOpenDocument( const wxString& aPath, KICAD_API_SERVER* aSer
             return false;
         }
 
-        newContext = std::make_shared<HEADLESS_BOARD_CONTEXT>( std::move( loadedBoard ), project,
+        newContext = std::make_shared<HEADLESS_PCB_CONTEXT>( std::move( loadedBoard ), project,
                                        GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" ),
                                        m_kiway );
     }

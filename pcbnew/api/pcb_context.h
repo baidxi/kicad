@@ -18,8 +18,8 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KICAD_BOARD_CONTEXT_H
-#define KICAD_BOARD_CONTEXT_H
+#ifndef KICAD_PCB_CONTEXT_H
+#define KICAD_PCB_CONTEXT_H
 
 #include <memory>
 
@@ -33,10 +33,10 @@ class TOOL_MANAGER;
 
 
 /// An interface for the frame surface that the API handlers need; to enable headless mode
-class BOARD_CONTEXT
+class PCB_CONTEXT
 {
 public:
-    virtual ~BOARD_CONTEXT() = default;
+    virtual ~PCB_CONTEXT() = default;
 
     virtual BOARD* GetBoard() const = 0;
 
@@ -56,6 +56,6 @@ public:
 };
 
 
-std::shared_ptr<BOARD_CONTEXT> CreatePcbFrameContext( PCB_EDIT_FRAME* aFrame );
+std::shared_ptr<PCB_CONTEXT> CreatePcbFrameContext( PCB_EDIT_FRAME* aFrame );
 
 #endif
