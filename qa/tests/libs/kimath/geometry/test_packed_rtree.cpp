@@ -23,7 +23,7 @@
 
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
-#include <geometry/packed_rtree.h>
+#include <geometry/rtree/packed_rtree.h>
 
 #include <algorithm>
 #include <cstdlib>

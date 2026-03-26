@@ -34,7 +34,7 @@
 #include <geometry/seg.h>
 #include <geometry/shape_poly_set.h>
 #include <geometry/shape_segment.h>
-#include <geometry/packed_rtree.h>
+#include <geometry/rtree/packed_rtree.h>
 
 #include <drc/drc_engine.h>
 #include <drc/drc_rtree.h>

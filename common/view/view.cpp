@@ -40,6 +40,7 @@
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/painter.h>
 #include <algorithm>
+#include <unordered_map>
 
 #include <core/profile.h>
 
@@ -337,6 +338,67 @@ void VIEW::Add( VIEW_ITEM* aItem, int aDrawPriority )
 
     SetVisible( aItem, true );
     Update( aItem, KIGFX::INITIAL_ADD );
+}
+
+
+void VIEW::AddBatch( const std::vector<VIEW_ITEM*>& aItems )
+{
+    // Phase 1: Register all items and collect per-layer data
+    std::unordered_map<int, std::vector<std::pair<VIEW_ITEM*, BOX2I>>> layerBulk;
+
+    for( VIEW_ITEM* item : aItems )
+    {
+        if( !item )
+            continue;
+
+        int drawPriority = m_nextDrawPriority++;
+
+        if( !item->m_viewPrivData )
+            item->m_viewPrivData = new VIEW_ITEM_DATA;
+
+        item->m_viewPrivData->m_view = this;
+        item->m_viewPrivData->m_drawPriority = drawPriority;
+        const BOX2I bbox = item->ViewBBox();
+        item->m_viewPrivData->m_bbox = bbox;
+        item->m_viewPrivData->m_cachedIndex = m_allItems->size();
+
+        std::vector<int> layers = item->ViewGetLayers();
+
+        std::erase_if( layers, []( int layer )
+        {
+            return layer < 0 || layer >= VIEW_MAX_LAYERS;
+        } );
+
+        if( layers.empty() )
+            continue;
+
+        item->viewPrivData()->saveLayers( layers );
+        m_allItems->push_back( item );
+
+        for( int layer : layers )
+            layerBulk[layer].emplace_back( item, bbox );
+    }
+
+    // Phase 2: Bulk load each layer's R-tree
+    for( auto& [layerId, items] : layerBulk )
+    {
+        VIEW_LAYER& l = m_layers[layerId];
+        l.items->BulkLoad( items );
+        MarkTargetDirty( l.target );
+    }
+
+    // Phase 3: Set visibility and queue initial invalidation.
+    // INITIAL_ADD is required even though VIEW_ITEM_DATA defaults VISIBLE=true (making
+    // SetVisible a no-op). Without it, items reused after VIEW::Clear() retain stale GAL
+    // cache group IDs that point to freed memory.
+    for( VIEW_ITEM* item : aItems )
+    {
+        if( !item || !item->m_viewPrivData || item->m_viewPrivData->m_view != this )
+            continue;
+
+        SetVisible( item, true );
+        Update( item, KIGFX::INITIAL_ADD );
+    }
 }
 
 
@@ -1137,7 +1199,7 @@ struct VIEW::RECACHE_ITEM_VISITOR
             gal->DeleteGroup( group );
 
         viewData->setGroup( layer, -1 );
-        view->Update( aItem );
+        view->Update( aItem, KIGFX::REPAINT );
 
         return true;
     }
@@ -1369,7 +1431,11 @@ void VIEW::updateBbox( VIEW_ITEM* aItem )
     wxASSERT( aItem->m_viewPrivData ); //must have a viewPrivData
 
     const BOX2I  new_bbox = aItem->ViewBBox();
-    const BOX2I* old_bbox = &aItem->m_viewPrivData->m_bbox;
+    const BOX2I& old_bbox = aItem->m_viewPrivData->m_bbox;
+
+    if( new_bbox == old_bbox )
+        return;
+
     aItem->m_viewPrivData->m_bbox = new_bbox;
 
     for( int layer : layers )
@@ -1380,7 +1446,7 @@ void VIEW::updateBbox( VIEW_ITEM* aItem )
             continue;
 
         VIEW_LAYER& l = it->second;
-        l.items->Remove( aItem, old_bbox );
+        l.items->Remove( aItem, &old_bbox );
         l.items->Insert( aItem, new_bbox );
         MarkTargetDirty( l.target );
     }
@@ -1394,8 +1460,15 @@ void VIEW::updateLayers( VIEW_ITEM* aItem )
     if( !viewData )
         return;
 
+    const BOX2I  new_bbox = aItem->ViewBBox();
+    std::vector<int> newLayers = aItem->ViewGetLayers();
+
+    // If neither the layers nor the bbox have changed, skip the expensive R-tree operations
+    if( newLayers == viewData->m_layers && new_bbox == viewData->m_bbox )
+        return;
+
     // Remove the item from previous layer set
-    const BOX2I* old_bbox = &aItem->m_viewPrivData->m_bbox;
+    const BOX2I& old_bbox = aItem->m_viewPrivData->m_bbox;
 
     for( int layer : aItem->m_viewPrivData->m_layers )
     {
@@ -1405,7 +1478,7 @@ void VIEW::updateLayers( VIEW_ITEM* aItem )
             continue;
 
         VIEW_LAYER& l = it->second;
-        l.items->Remove( aItem, old_bbox );
+        l.items->Remove( aItem, &old_bbox );
         MarkTargetDirty( l.target );
 
         if( IsCached( l.id ) )
@@ -1421,14 +1494,10 @@ void VIEW::updateLayers( VIEW_ITEM* aItem )
         }
     }
 
-    const BOX2I new_bbox = aItem->ViewBBox();
     aItem->m_viewPrivData->m_bbox = new_bbox;
+    viewData->saveLayers( newLayers );
 
-    // Add the item to new layer set
-    std::vector<int> layers = aItem->ViewGetLayers();
-    viewData->saveLayers( layers );
-
-    for( int layer : layers )
+    for( int layer : newLayers )
     {
         auto it = m_layers.find( layer );
 
@@ -1509,9 +1578,7 @@ void VIEW::UpdateItems()
             anyUpdated = true;
 
             if( vpd->m_requiredUpdate & ( GEOMETRY | LAYERS ) )
-            {
                 cntGeomUpdate++;
-            }
         }
     }
 
@@ -1519,21 +1586,20 @@ void VIEW::UpdateItems()
 
     double ratio = (double) cntGeomUpdate / (double) cntTotal;
 
-    // Optimization to improve view update time. If a lot of items (say, 30%) have their
-    // bboxes/geometry changed it's way faster (around 10 times) to rebuild the R-Trees
-    // from scratch rather than update the bbox of each changed item. Pcbnew does multiple
-    // full geometry updates during file load, this can save a solid 30 seconds on load time
-    // for larger designs...
-
-    if( ratio > 0.3 )
+    // R*-tree individual inserts use forced reinsertion on node overflow, making them
+    // significantly more expensive than simple R-tree inserts. At ~5% changed items
+    // the cost of individual Remove+Insert operations exceeds a full bulk rebuild.
+    if( ratio > 0.05 )
     {
         auto allItems = *m_allItems;
 
-        // kill all Rtrees
+        // Clear all R-trees
         for( auto& [_, layer] : m_layers )
             layer.items->RemoveAll();
 
-        // and re-insert items from scratch
+        // Collect items per layer for bulk loading
+        std::unordered_map<int, std::vector<std::pair<VIEW_ITEM*, BOX2I>>> layerBulk;
+
         for( VIEW_ITEM* item : allItems )
         {
             if( !item )
@@ -1550,13 +1616,29 @@ void VIEW::UpdateItems()
                 auto it = m_layers.find( layer );
 
                 wxCHECK2_MSG( it != m_layers.end(), continue, wxS( "Invalid layer" ) );
-
-                VIEW_LAYER& l = it->second;
-                l.items->Insert( item, bbox );
-                MarkTargetDirty( l.target );
+                layerBulk[layer].emplace_back( item, bbox );
             }
 
-            item->viewPrivData()->m_requiredUpdate &= ~( LAYERS | GEOMETRY );
+            // The bulk rebuild handled R-tree reinsertion, so clear LAYERS|GEOMETRY
+            // to avoid redundant R-tree work in invalidateItem(). Replace with REPAINT
+            // so items still reach updateItemGeometry() for GAL cache rebuilds.
+            if( item->viewPrivData()->m_requiredUpdate & ( LAYERS | GEOMETRY ) )
+            {
+                item->viewPrivData()->m_requiredUpdate &= ~( LAYERS | GEOMETRY );
+                item->viewPrivData()->m_requiredUpdate |= REPAINT;
+            }
+        }
+
+        // Bulk load each layer's R-tree
+        for( auto& [layerId, items] : layerBulk )
+        {
+            auto it = m_layers.find( layerId );
+
+            if( it != m_layers.end() )
+            {
+                it->second.items->BulkLoad( items );
+                MarkTargetDirty( it->second.target );
+            }
         }
     }
 

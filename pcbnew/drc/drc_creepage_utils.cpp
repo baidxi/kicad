@@ -2202,8 +2202,8 @@ void CREEPAGE_GRAPH::GeneratePaths( double aMaxWeight, PCB_LAYER_ID aLayer )
     std::mutex                               nodes_lock;
     thread_pool&                             tp = GetKiCadThreadPool();
 
-    TRACK_RTREE trackIndex;
-    std::vector<CREEPAGE_TRACK_ENTRY*> trackEntries; // For cleanup
+    std::vector<CREEPAGE_TRACK_ENTRY*> trackEntries;
+    TRACK_RTREE::Builder              trackBuilder;
 
     if( aLayer != Edge_Cuts )
     {
@@ -2222,12 +2222,14 @@ void CREEPAGE_GRAPH::GeneratePaths( double aMaxWeight, PCB_LAYER_ID aLayer )
                     BOX2I bbox = track->GetBoundingBox();
                     int   minCoords[2] = { bbox.GetX(), bbox.GetY() };
                     int   maxCoords[2] = { bbox.GetRight(), bbox.GetBottom() };
-                    trackIndex.Insert( minCoords, maxCoords, entry );
+                    trackBuilder.Add( minCoords, maxCoords, entry );
                     trackEntries.push_back( entry );
                 }
             }
         }
     }
+
+    TRACK_RTREE trackIndex = trackBuilder.Build();
 
     std::copy_if( m_nodes.begin(), m_nodes.end(), std::back_inserter( nodes ),
             [&]( const std::shared_ptr<GRAPH_NODE>& gn )
@@ -2276,10 +2278,8 @@ void CREEPAGE_GRAPH::GeneratePaths( double aMaxWeight, PCB_LAYER_ID aLayer )
         BOX2I             bbox;
     };
 
-    RTree<ParentEntry*, int, 2, double> parentIndex;
-    std::vector<ParentEntry>            parentEntries;
+    std::vector<ParentEntry> parentEntries;
 
-    // Build list of non-null parents first
     for( const auto* parent : parent_keys )
     {
         if( parent )
@@ -2291,13 +2291,16 @@ void CREEPAGE_GRAPH::GeneratePaths( double aMaxWeight, PCB_LAYER_ID aLayer )
         }
     }
 
-    // Insert into RTree
+    KIRTREE::PACKED_RTREE<ParentEntry*, int, 2>::Builder parentBuilder;
+
     for( ParentEntry& entry : parentEntries )
     {
         int minCoords[2] = { entry.bbox.GetLeft(), entry.bbox.GetTop() };
         int maxCoords[2] = { entry.bbox.GetRight(), entry.bbox.GetBottom() };
-        parentIndex.Insert( minCoords, maxCoords, &entry );
+        parentBuilder.Add( minCoords, maxCoords, &entry );
     }
+
+    auto parentIndex = parentBuilder.Build();
 
     // Parallelize parent pair search using thread pool
     std::mutex work_items_lock;
@@ -2314,77 +2317,81 @@ void CREEPAGE_GRAPH::GeneratePaths( double aMaxWeight, PCB_LAYER_ID aLayer )
         int searchMin[2] = { bbox1.GetLeft() - (int) maxDist, bbox1.GetTop() - (int) maxDist };
         int searchMax[2] = { bbox1.GetRight() + (int) maxDist, bbox1.GetBottom() + (int) maxDist };
 
-        parentIndex.Search( searchMin, searchMax,
-                [&]( ParentEntry* entry2 ) -> bool
+        auto parentVisitor = [&]( ParentEntry* entry2 ) -> bool
+        {
+            const BOARD_ITEM* parent2 = entry2->parent;
+
+            // Only process if parent1 < parent2 to avoid duplicates
+            if( parent1 >= parent2 )
+                return true;
+
+            // Precise bbox distance check
+            BOX2I bbox2 = entry2->bbox;
+
+            int64_t bboxDistX = 0;
+
+            if( bbox2.GetLeft() > bbox1.GetRight() )
+                bboxDistX = bbox2.GetLeft() - bbox1.GetRight();
+            else if( bbox1.GetLeft() > bbox2.GetRight() )
+                bboxDistX = bbox1.GetLeft() - bbox2.GetRight();
+
+            int64_t bboxDistY = 0;
+
+            if( bbox2.GetTop() > bbox1.GetBottom() )
+                bboxDistY = bbox2.GetTop() - bbox1.GetBottom();
+            else if( bbox1.GetTop() > bbox2.GetBottom() )
+                bboxDistY = bbox1.GetTop() - bbox2.GetBottom();
+
+            int64_t bboxDistSq = bboxDistX * bboxDistX + bboxDistY * bboxDistY;
+
+            if( bboxDistSq > maxDist * maxDist )
+                return true;
+
+            // Get nodes for both parents (thread-safe reads from const map)
+            auto it1 = parent_net_groups.find( parent1 );
+            auto it2 = parent_net_groups.find( parent2 );
+
+            if( it1 == parent_net_groups.end() || it2 == parent_net_groups.end() )
+                return true;
+
+            for( const auto& [net1, nodes1] : it1->second )
+            {
+                for( const auto& [net2, nodes2] : it2->second )
                 {
-                    const BOARD_ITEM* parent2 = entry2->parent;
-
-                    // Only process if parent1 < parent2 to avoid duplicates
-                    if( parent1 >= parent2 )
-                        return true;
-
-                    // Precise bbox distance check
-                    BOX2I bbox2 = entry2->bbox;
-
-                    int64_t bboxDistX = 0;
-                    if( bbox2.GetLeft() > bbox1.GetRight() )
-                        bboxDistX = bbox2.GetLeft() - bbox1.GetRight();
-                    else if( bbox1.GetLeft() > bbox2.GetRight() )
-                        bboxDistX = bbox1.GetLeft() - bbox2.GetRight();
-
-                    int64_t bboxDistY = 0;
-                    if( bbox2.GetTop() > bbox1.GetBottom() )
-                        bboxDistY = bbox2.GetTop() - bbox1.GetBottom();
-                    else if( bbox1.GetTop() > bbox2.GetBottom() )
-                        bboxDistY = bbox1.GetTop() - bbox2.GetBottom();
-
-                    int64_t bboxDistSq = bboxDistX * bboxDistX + bboxDistY * bboxDistY;
-                    if( bboxDistSq > maxDist * maxDist )
-                        return true;
-
-                    // Get nodes for both parents (thread-safe reads from const map)
-                    auto it1 = parent_net_groups.find( parent1 );
-                    auto it2 = parent_net_groups.find( parent2 );
-
-                    if( it1 == parent_net_groups.end() || it2 == parent_net_groups.end() )
-                        return true;
-
-                    for( const auto& [net1, nodes1] : it1->second )
+                    // Skip same net if both are conductive
+                    if( net1 == net2 && !nodes1.empty() && !nodes2.empty() )
                     {
-                        for( const auto& [net2, nodes2] : it2->second )
-                        {
-                            // Skip same net if both are conductive
-                            if( net1 == net2 && !nodes1.empty() && !nodes2.empty() )
-                            {
-                                if( nodes1[0]->m_parent->IsConductive()
-                                    && nodes2[0]->m_parent->IsConductive() )
-                                    continue;
-                            }
-
-                            for( const auto& gn1 : nodes1 )
-                            {
-                                for( const auto& gn2 : nodes2 )
-                                {
-                                    VECTOR2I pos1 = gn1->m_parent->GetPos();
-                                    VECTOR2I pos2 = gn2->m_parent->GetPos();
-                                    int      r1 = gn1->m_parent->GetRadius();
-                                    int      r2 = gn2->m_parent->GetRadius();
-
-                                    int64_t centerDistSq = ( pos1 - pos2 ).SquaredEuclideanNorm();
-                                    double  threshold = aMaxWeight + r1 + r2;
-                                    double  thresholdSq = threshold * threshold;
-
-                                    if( (double) centerDistSq > thresholdSq )
-                                        continue;
-
-                                    localWorkItems.push_back( { gn1, gn2 } );
-                                }
-                            }
-                        }
+                        if( nodes1[0]->m_parent->IsConductive()
+                            && nodes2[0]->m_parent->IsConductive() )
+                            continue;
                     }
 
-                    return true;
-                } );
+                    for( const auto& gn1 : nodes1 )
+                    {
+                        for( const auto& gn2 : nodes2 )
+                        {
+                            VECTOR2I pos1 = gn1->m_parent->GetPos();
+                            VECTOR2I pos2 = gn2->m_parent->GetPos();
+                            int      r1 = gn1->m_parent->GetRadius();
+                            int      r2 = gn2->m_parent->GetRadius();
+
+                            int64_t centerDistSq = ( pos1 - pos2 ).SquaredEuclideanNorm();
+                            double  threshold = aMaxWeight + r1 + r2;
+                            double  thresholdSq = threshold * threshold;
+
+                            if( (double) centerDistSq > thresholdSq )
+                                continue;
+
+                            localWorkItems.push_back( { gn1, gn2 } );
+                        }
+                    }
+                }
+            }
+
+            return true;
+        };
+
+        parentIndex.Search( searchMin, searchMax, parentVisitor );
 
         // Merge local results into global
         if( !localWorkItems.empty() )

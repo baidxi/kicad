@@ -25,6 +25,7 @@
 #define PACKED_RTREE_H
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
 #include <climits>
 #include <cstdint>
@@ -34,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-#include <geometry/rtree_node.h>
+#include <geometry/rtree/rtree_node.h>
 
 namespace KIRTREE
 {
@@ -409,15 +410,27 @@ private:
     bool searchNode( int aLevel, size_t aNodeIdx, const ELEMTYPE aMin[NUMDIMS],
                      const ELEMTYPE aMax[NUMDIMS], VISITOR& aVisitor, int& aFound ) const
     {
-        int nodeCount = m_counts[aNodeIdx];
-
-        if( aLevel == 0 )
+        if constexpr( NUMDIMS == 2 )
         {
-            for( int i = 0; i < nodeCount; ++i )
+            // Test all FANOUT children at once via SIMD overlap mask.
+            // Each bounds array is contiguous for FANOUT slots at [nodeIdx * FANOUT].
+            size_t base = aNodeIdx * FANOUT;
+            uint32_t mask = OverlapMask2D<ELEMTYPE, FANOUT>(
+                    &m_bounds[0][base], &m_bounds[1][base],
+                    &m_bounds[2][base], &m_bounds[3][base],
+                    m_counts[aNodeIdx], aMin, aMax );
+
+            if( aLevel == 0 )
             {
-                if( childOverlaps( aNodeIdx, i, aMin, aMax ) )
+                size_t dataBase = ( aNodeIdx - m_levelOffsets[0] ) * FANOUT;
+
+                // Iterate set bits to visit only overlapping leaf children
+                while( mask )
                 {
-                    size_t dataIdx = ( aNodeIdx - m_levelOffsets[0] ) * FANOUT + i;
+                    int i = std::countr_zero( mask );
+                    mask &= mask - 1;
+
+                    size_t dataIdx = dataBase + i;
 
                     if( dataIdx < m_size )
                     {
@@ -428,22 +441,67 @@ private:
                     }
                 }
             }
-        }
-        else
-        {
-            size_t childLevelOffset = m_levelOffsets[aLevel - 1];
-
-            for( int i = 0; i < nodeCount; ++i )
+            else
             {
-                if( childOverlaps( aNodeIdx, i, aMin, aMax ) )
+                size_t childLevelOffset = m_levelOffsets[aLevel - 1];
+                size_t nodeOffset = aNodeIdx - m_levelOffsets[aLevel];
+
+                // Iterate set bits to recurse only into overlapping internal children
+                while( mask )
                 {
-                    size_t childBaseIdx = ( aNodeIdx - m_levelOffsets[aLevel] ) * FANOUT + i;
-                    size_t childGlobalIdx = childLevelOffset + childBaseIdx;
+                    int i = std::countr_zero( mask );
+                    mask &= mask - 1;
+
+                    size_t childGlobalIdx = childLevelOffset + nodeOffset * FANOUT + i;
 
                     if( !searchNode( aLevel - 1, childGlobalIdx, aMin, aMax, aVisitor,
                                      aFound ) )
                     {
                         return false;
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Generic N-dimensional fallback: per-child scalar overlap test
+            int nodeCount = m_counts[aNodeIdx];
+
+            if( aLevel == 0 )
+            {
+                for( int i = 0; i < nodeCount; ++i )
+                {
+                    if( childOverlaps( aNodeIdx, i, aMin, aMax ) )
+                    {
+                        size_t dataIdx = ( aNodeIdx - m_levelOffsets[0] ) * FANOUT + i;
+
+                        if( dataIdx < m_size )
+                        {
+                            aFound++;
+
+                            if( !aVisitor( m_data[dataIdx] ) )
+                                return false;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                size_t childLevelOffset = m_levelOffsets[aLevel - 1];
+
+                for( int i = 0; i < nodeCount; ++i )
+                {
+                    if( childOverlaps( aNodeIdx, i, aMin, aMax ) )
+                    {
+                        size_t childBaseIdx =
+                                ( aNodeIdx - m_levelOffsets[aLevel] ) * FANOUT + i;
+                        size_t childGlobalIdx = childLevelOffset + childBaseIdx;
+
+                        if( !searchNode( aLevel - 1, childGlobalIdx, aMin, aMax, aVisitor,
+                                         aFound ) )
+                        {
+                            return false;
+                        }
                     }
                 }
             }

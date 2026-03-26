@@ -35,7 +35,6 @@
 #include <connectivity/connectivity_data.h>
 #include <drc/drc_rtree.h>
 #include <geometry/shape_line_chain.h>
-#include <geometry/rtree.h>
 #include <convert_basic_shapes_to_polygon.h>
 #include <bezier_curves.h>
 

@@ -32,7 +32,7 @@
 #include <set>
 #include <vector>
 
-#include <geometry/packed_rtree.h>
+#include <geometry/rtree/packed_rtree.h>
 #include <geometry/shape.h>
 #include <geometry/shape_segment.h>
 #include <math/vector2d.h>

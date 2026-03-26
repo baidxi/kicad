@@ -51,7 +51,7 @@
 #include <geometry/shape.h>
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_poly_set.h>
-#include <geometry/rtree.h>
+#include <geometry/rtree/dynamic_rtree.h>
 #include <math/box2.h>                       // for BOX2I
 #include <math/util.h>                       // for KiROUND, rescale
 #include <math/vector2d.h>                   // for VECTOR2I, VECTOR2D, VECTOR2
@@ -1922,7 +1922,7 @@ void SHAPE_POLY_SET::splitCollinearOutlines()
             SHAPE_LINE_CHAIN& outline = m_polys[polyIdx][0];
             intptr_t count = outline.PointCount();
 
-            RTree<intptr_t, intptr_t, 2, intptr_t> rtree;
+            KIRTREE::DYNAMIC_RTREE<intptr_t, intptr_t, 2> rtree;
 
             for( intptr_t i = 0; i < count; ++i )
             {
@@ -1946,7 +1946,7 @@ void SHAPE_POLY_SET::splitCollinearOutlines()
                 intptr_t max[2] = { std::max( a.x, b.x ), std::max( a.y, b.y ) };
 
                 auto visitor =
-                        [&]( const int& j ) -> bool
+                        [&]( const intptr_t& j ) -> bool
                         {
                             if( j == i || j == ( ( i + 1 ) % count ) || j == ( ( i + count - 1 ) % count ) )
                                 return true;
@@ -2074,7 +2074,7 @@ void SHAPE_POLY_SET::splitSelfTouchingOutlines()
             }
             else
             {
-                RTree<intptr_t, int, 2, double> rtree;
+                KIRTREE::DYNAMIC_RTREE<intptr_t, int, 2> rtree;
 
                 for( int i = 0; i < count; ++i )
                 {
@@ -2092,28 +2092,30 @@ void SHAPE_POLY_SET::splitSelfTouchingOutlines()
                     int bmin[2] = { pt.x, pt.y };
                     int bmax[2] = { pt.x, pt.y };
 
-                    rtree.Search( bmin, bmax,
-                        [&]( const intptr_t& segIdx ) -> bool
-                        {
-                            if( segIdx == prevSeg || segIdx == vertIdx )
-                                return true;
-
-                            const VECTOR2I& a = outline.CPoint( segIdx );
-                            const VECTOR2I& b = outline.CPoint( ( segIdx + 1 ) % count );
-
-                            // SquaredDistance returns 0 only when pt lies exactly on the
-                            // segment.  Clipper2 rounds corridor-cut vertices to integer
-                            // coordinates; they can land within 1nm of an endpoint but
-                            // are not true pinch points.
-                            if( pt != a && pt != b && SEG( a, b ).SquaredDistance( pt ) == 0 )
+                    auto pinchVisitor =
+                            [&]( const intptr_t& segIdx ) -> bool
                             {
-                                insertSegIdx = segIdx;
-                                insertVertIdx = vertIdx;
-                                return false;
-                            }
+                                if( segIdx == prevSeg || segIdx == vertIdx )
+                                    return true;
 
-                            return true;
-                        } );
+                                const VECTOR2I& a = outline.CPoint( segIdx );
+                                const VECTOR2I& b = outline.CPoint( ( segIdx + 1 ) % count );
+
+                                // SquaredDistance returns 0 only when pt lies exactly on the
+                                // segment.  Clipper2 rounds corridor-cut vertices to integer
+                                // coordinates; they can land within 1nm of an endpoint but
+                                // are not true pinch points.
+                                if( pt != a && pt != b && SEG( a, b ).SquaredDistance( pt ) == 0 )
+                                {
+                                    insertSegIdx = segIdx;
+                                    insertVertIdx = vertIdx;
+                                    return false;
+                                }
+
+                                return true;
+                            };
+
+                    rtree.Search( bmin, bmax, pinchVisitor );
                 }
             }
 

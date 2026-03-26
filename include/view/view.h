@@ -98,6 +98,14 @@ public:
     virtual void Add( VIEW_ITEM* aItem, int aDrawPriority = -1 );
 
     /**
+     * Add a batch of items to the view, using bulk-loaded R-trees for initial population.
+     *
+     * Much faster than calling Add() in a loop when adding many items at once (e.g. during
+     * board load) because it avoids R*-tree forced-reinsertion cascades.
+     */
+    void AddBatch( const std::vector<VIEW_ITEM*>& aItems );
+
+    /**
      * Remove a #VIEW_ITEM from the view.
      *
      * @param aItem: item to be removed. Caller must dispose the removed item if necessary

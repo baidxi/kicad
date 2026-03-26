@@ -33,6 +33,12 @@
 #include <memory>
 #include <vector>
 
+#if defined( __SSE2__ )
+#include <emmintrin.h>
+#elif defined( __ARM_NEON ) || defined( __ARM_NEON__ )
+#include <arm_neon.h>
+#endif
+
 namespace KIRTREE
 {
 
@@ -115,6 +121,159 @@ inline uint64_t HilbertND2D( int aOrder, const uint32_t aCoords[NUMDIMS] )
         }
 
         return d;
+    }
+}
+
+
+/**
+ * Compute a bitmask of which child slots overlap a 2D query rectangle.
+ *
+ * Bit i of the result is set when the bounding box in slot i overlaps the query.
+ * Each bounds pointer must address FANOUT contiguous elements in SoA layout.
+ *
+ * Uses SSE2 on x86-64, NEON on ARM, or an auto-vectorization-friendly scalar
+ * fallback on other architectures.
+ *
+ * @tparam ELEMTYPE  Coordinate type (SIMD paths require 32-bit integer)
+ * @tparam FANOUT    Number of child slots per node (must be a multiple of 4, max 31)
+ * @param aBoundsMin0  Dim-0 lower bounds array [FANOUT]
+ * @param aBoundsMax0  Dim-0 upper bounds array [FANOUT]
+ * @param aBoundsMin1  Dim-1 lower bounds array [FANOUT]
+ * @param aBoundsMax1  Dim-1 upper bounds array [FANOUT]
+ * @param aCount       Number of valid children (0..FANOUT)
+ * @param aMin         Query rectangle minimum corner [2]
+ * @param aMax         Query rectangle maximum corner [2]
+ */
+template <class ELEMTYPE, int FANOUT>
+inline uint32_t OverlapMask2D( const ELEMTYPE* aBoundsMin0, const ELEMTYPE* aBoundsMax0,
+                               const ELEMTYPE* aBoundsMin1, const ELEMTYPE* aBoundsMax1,
+                               int aCount,
+                               const ELEMTYPE aMin[2], const ELEMTYPE aMax[2] )
+{
+    static_assert( FANOUT <= 31, "OverlapMask2D requires FANOUT <= 31" );
+    static_assert( FANOUT % 4 == 0, "OverlapMask2D requires FANOUT divisible by 4 for SIMD" );
+
+#if defined( __SSE2__ )
+    if constexpr( sizeof( ELEMTYPE ) == 4 )
+    {
+        // Broadcast query bounds to all 4 SIMD lanes
+        __m128i qmin0 = _mm_set1_epi32( static_cast<int>( aMin[0] ) );
+        __m128i qmax0 = _mm_set1_epi32( static_cast<int>( aMax[0] ) );
+        __m128i qmin1 = _mm_set1_epi32( static_cast<int>( aMin[1] ) );
+        __m128i qmax1 = _mm_set1_epi32( static_cast<int>( aMax[1] ) );
+
+        uint32_t mask = 0;
+
+        // Test 4 children per iteration using 128-bit packed integer comparisons.
+        // Each iteration loads one 16-byte chunk from each of the 4 bounds arrays,
+        // tests all 4 separation axes, and extracts the result to 4 mask bits via
+        // movemask (single instruction to extract the top bit of each 32-bit lane).
+        for( int j = 0; j < FANOUT; j += 4 )
+        {
+            __m128i bmin0 = _mm_loadu_si128(
+                    reinterpret_cast<const __m128i*>( &aBoundsMin0[j] ) );
+            __m128i bmax0 = _mm_loadu_si128(
+                    reinterpret_cast<const __m128i*>( &aBoundsMax0[j] ) );
+            __m128i bmin1 = _mm_loadu_si128(
+                    reinterpret_cast<const __m128i*>( &aBoundsMin1[j] ) );
+            __m128i bmax1 = _mm_loadu_si128(
+                    reinterpret_cast<const __m128i*>( &aBoundsMax1[j] ) );
+
+            // Any separation axis proves non-overlap
+            __m128i fail = _mm_or_si128(
+                    _mm_or_si128( _mm_cmpgt_epi32( bmin0, qmax0 ),
+                                  _mm_cmpgt_epi32( qmin0, bmax0 ) ),
+                    _mm_or_si128( _mm_cmpgt_epi32( bmin1, qmax1 ),
+                                  _mm_cmpgt_epi32( qmin1, bmax1 ) ) );
+
+            // Extract top bit of each 32-bit lane into a 4-bit integer
+            int failBits = _mm_movemask_ps( _mm_castsi128_ps( fail ) );
+            mask |= static_cast<uint32_t>( ~failBits & 0xF ) << j;
+        }
+
+        return mask & ( ( 1U << aCount ) - 1 );
+    }
+    else
+#elif defined( __ARM_NEON ) || defined( __ARM_NEON__ )
+    if constexpr( sizeof( ELEMTYPE ) == 4 )
+    {
+        // Broadcast query bounds to all 4 NEON lanes
+        int32x4_t qmin0 = vdupq_n_s32( static_cast<int32_t>( aMin[0] ) );
+        int32x4_t qmax0 = vdupq_n_s32( static_cast<int32_t>( aMax[0] ) );
+        int32x4_t qmin1 = vdupq_n_s32( static_cast<int32_t>( aMin[1] ) );
+        int32x4_t qmax1 = vdupq_n_s32( static_cast<int32_t>( aMax[1] ) );
+
+        // Bit-position shifts for converting per-lane fail bits into a bitmask.
+        // Lane 0 stays at bit 0, lane 1 shifts left by 1, etc.
+        static const int32_t kBitShifts[4] = { 0, 1, 2, 3 };
+        int32x4_t shifts = vld1q_s32( kBitShifts );
+
+        uint32_t mask = 0;
+
+        // Test 4 children per iteration using 128-bit NEON comparisons.
+        // NEON lacks movemask, so we extract each lane's 1-bit result via
+        // right-shift-31, position it with a variable left shift, and
+        // OR-reduce the 4 lanes to a 4-bit chunk.
+        for( int j = 0; j < FANOUT; j += 4 )
+        {
+            int32x4_t bmin0 = vld1q_s32(
+                    reinterpret_cast<const int32_t*>( &aBoundsMin0[j] ) );
+            int32x4_t bmax0 = vld1q_s32(
+                    reinterpret_cast<const int32_t*>( &aBoundsMax0[j] ) );
+            int32x4_t bmin1 = vld1q_s32(
+                    reinterpret_cast<const int32_t*>( &aBoundsMin1[j] ) );
+            int32x4_t bmax1 = vld1q_s32(
+                    reinterpret_cast<const int32_t*>( &aBoundsMax1[j] ) );
+
+            // Any separation axis proves non-overlap (vcgtq_s32 yields all-1s on true)
+            uint32x4_t fail = vorrq_u32(
+                    vorrq_u32( vcgtq_s32( bmin0, qmax0 ),
+                               vcgtq_s32( qmin0, bmax0 ) ),
+                    vorrq_u32( vcgtq_s32( bmin1, qmax1 ),
+                               vcgtq_s32( qmin1, bmax1 ) ) );
+
+            // Extract sign bit (0 or 1) from each lane, shift to bit position
+            uint32x4_t bits = vshrq_n_u32( fail, 31 );
+            uint32x4_t positioned = vshlq_u32( bits, shifts );
+
+            // OR-reduce 4 lanes into a 4-bit fail mask
+            uint32x2_t half = vorr_u32( vget_low_u32( positioned ),
+                                        vget_high_u32( positioned ) );
+            uint32_t failMask = vget_lane_u32( half, 0 ) | vget_lane_u32( half, 1 );
+
+            mask |= static_cast<uint32_t>( ~failMask & 0xF ) << j;
+        }
+
+        return mask & ( ( 1U << aCount ) - 1 );
+    }
+    else
+#endif
+    {
+        // Scalar fallback with a two-pass structure for auto-vectorization.
+        //
+        // The first loop performs branchless comparisons across all FANOUT slots,
+        // writing boolean results to a flat array. This fixed-trip-count pattern
+        // without data-dependent exits allows GCC and Clang to auto-vectorize the
+        // comparisons even at baseline SSE2/NEON instruction levels.
+        //
+        // The second loop packs the booleans into a bitmask. The variable-shift
+        // bit-packing is inherently scalar but operates on only FANOUT iterations.
+        int result[FANOUT];
+
+        for( int i = 0; i < FANOUT; ++i )
+        {
+            result[i] = ( aBoundsMin0[i] <= aMax[0] )
+                       & ( aBoundsMax0[i] >= aMin[0] )
+                       & ( aBoundsMin1[i] <= aMax[1] )
+                       & ( aBoundsMax1[i] >= aMin[1] );
+        }
+
+        uint32_t mask = 0;
+
+        for( int i = 0; i < FANOUT; ++i )
+            mask |= ( static_cast<uint32_t>( result[i] ) << i );
+
+        return mask & ( ( 1U << aCount ) - 1 );
     }
 }
 
@@ -220,6 +379,32 @@ struct RTREE_NODE
         }
 
         return true;
+    }
+
+    /**
+     * Bitmask of children whose bounding boxes overlap the query rectangle.
+     * Bit i is set if child i overlaps. Uses SIMD on x86-64 and ARM for 2D.
+     */
+    uint32_t ChildOverlapMask( const ELEMTYPE aMin[NUMDIMS],
+                               const ELEMTYPE aMax[NUMDIMS] ) const
+    {
+        if constexpr( NUMDIMS == 2 )
+        {
+            return OverlapMask2D<ELEMTYPE, MAXNODES>(
+                    bounds[0], bounds[1], bounds[2], bounds[3], count, aMin, aMax );
+        }
+        else
+        {
+            uint32_t mask = 0;
+
+            for( int i = 0; i < count; ++i )
+            {
+                if( ChildOverlaps( i, aMin, aMax ) )
+                    mask |= ( 1U << i );
+            }
+
+            return mask;
+        }
     }
 
     /**
