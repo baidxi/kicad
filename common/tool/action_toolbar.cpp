@@ -1229,4 +1229,4 @@ ACTION_TOOLBAR_CONTROL ACTION_TOOLBAR_CONTROLS::bodyStyleSelector( "control.Body
 ACTION_TOOLBAR_CONTROL ACTION_TOOLBAR_CONTROLS::overrideLocks( "control.OverrideLocks",
                                                                _( "Override locks" ),
                                                                _( "Allow moving of locked items with the mouse" ),
-                                                               { FRAME_PCB_EDITOR } );
+                                                               { FRAME_PCB_EDITOR, FRAME_SCH } );

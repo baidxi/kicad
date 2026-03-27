@@ -735,6 +735,24 @@ bool SCH_FIELD::IsReplaceable() const
 }
 
 
+bool SCH_FIELD::IsLocked() const
+{
+    if( const SYMBOL* parentSymbol = GetParentSymbol() )
+    {
+        if( parentSymbol->IsLocked() )
+            return true;
+    }
+
+    if( const SCH_SHEET* parentSheet = dynamic_cast<const SCH_SHEET*>( m_parent ) )
+    {
+        if( parentSheet->IsLocked() )
+            return true;
+    }
+
+    return SCH_ITEM::IsLocked();
+}
+
+
 bool SCH_FIELD::Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData )
 {
     bool replaceReferences = false;
@@ -1655,6 +1673,9 @@ static struct SCH_FIELD_DESC
         propMgr.AddTypeCast( new TYPE_CAST<SCH_FIELD, EDA_TEXT> );
         propMgr.InheritsAfter( TYPE_HASH( SCH_FIELD ), TYPE_HASH( SCH_ITEM ) );
         propMgr.InheritsAfter( TYPE_HASH( SCH_FIELD ), TYPE_HASH( EDA_TEXT ) );
+
+        // Lock state is inherited from parent symbol (no independent locking of child items)
+        propMgr.Mask( TYPE_HASH( SCH_FIELD ), TYPE_HASH( SCH_ITEM ), _HKI( "Locked" ) );
 
         const wxString textProps = _HKI( "Text Properties" );
 

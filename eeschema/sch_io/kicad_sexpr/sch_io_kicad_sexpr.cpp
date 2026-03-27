@@ -767,6 +767,9 @@ void SCH_IO_KICAD_SEXPR::saveSymbol( SCH_SYMBOL* aSymbol, const SCHEMATIC& aSche
     KICAD_FORMAT::FormatBool( m_out, "in_pos_files", !aSymbol->GetExcludedFromPosFiles() );
     KICAD_FORMAT::FormatBool( m_out, "dnp", aSymbol->GetDNP() );
 
+    if( aSymbol->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     AUTOPLACE_ALGO fieldsAutoplaced = aSymbol->GetFieldsAutoplaced();
 
     if( fieldsAutoplaced == AUTOPLACE_AUTO || fieldsAutoplaced == AUTOPLACE_MANUAL )
@@ -1051,6 +1054,9 @@ void SCH_IO_KICAD_SEXPR::saveBitmap( const SCH_BITMAP& aBitmap )
 
     KICAD_FORMAT::FormatUuid( m_out, aBitmap.m_Uuid );
 
+    if( aBitmap.IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     wxMemoryOutputStream stream;
     bitmapBase.SaveImageData( stream );
 
@@ -1078,6 +1084,9 @@ void SCH_IO_KICAD_SEXPR::saveSheet( SCH_SHEET* aSheet, const SCH_SHEET_LIST& aSh
     KICAD_FORMAT::FormatBool( m_out, "in_bom", !aSheet->GetExcludedFromBOM() );
     KICAD_FORMAT::FormatBool( m_out, "on_board", !aSheet->GetExcludedFromBoard() );
     KICAD_FORMAT::FormatBool( m_out, "dnp", aSheet->GetDNP() );
+
+    if( aSheet->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
 
     AUTOPLACE_ALGO fieldsAutoplaced = aSheet->GetFieldsAutoplaced();
 
@@ -1252,6 +1261,10 @@ void SCH_IO_KICAD_SEXPR::saveJunction( SCH_JUNCTION* aJunction )
                   FormatDouble2Str( aJunction->GetColor().a ).c_str() );
 
     KICAD_FORMAT::FormatUuid( m_out, aJunction->m_Uuid );
+
+    if( aJunction->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     m_out->Print( ")" );
 }
 
@@ -1267,6 +1280,10 @@ void SCH_IO_KICAD_SEXPR::saveNoConnect( SCH_NO_CONNECT* aNoConnect )
                                                        aNoConnect->GetPosition().y ).c_str() );
 
     KICAD_FORMAT::FormatUuid( m_out, aNoConnect->m_Uuid );
+
+    if( aNoConnect->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     m_out->Print( ")" );
 }
 
@@ -1297,6 +1314,10 @@ void SCH_IO_KICAD_SEXPR::saveBusEntry( SCH_BUS_ENTRY_BASE* aBusEntry )
 
     aBusEntry->GetStroke().Format( m_out, schIUScale );
     KICAD_FORMAT::FormatUuid( m_out, aBusEntry->m_Uuid );
+
+    if( aBusEntry->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     m_out->Print( ")" );
 }
 
@@ -1305,31 +1326,35 @@ void SCH_IO_KICAD_SEXPR::saveShape( SCH_SHAPE* aShape )
 {
     wxCHECK_RET( aShape != nullptr && m_out != nullptr, "" );
 
+    // Rule areas handle locked at their own level via saveRuleArea(), so don't duplicate it
+    // inside the shape sub-expression.
+    bool writeLocked = aShape->Type() != SCH_RULE_AREA_T && aShape->IsLocked();
+
     switch( aShape->GetShape() )
     {
     case SHAPE_T::ARC:
         formatArc( m_out, aShape, false, aShape->GetStroke(), aShape->GetFillMode(),
-                   aShape->GetFillColor(), false, aShape->m_Uuid );
+                   aShape->GetFillColor(), false, aShape->m_Uuid, writeLocked );
         break;
 
     case SHAPE_T::CIRCLE:
         formatCircle( m_out, aShape, false, aShape->GetStroke(), aShape->GetFillMode(),
-                      aShape->GetFillColor(), false, aShape->m_Uuid );
+                      aShape->GetFillColor(), false, aShape->m_Uuid, writeLocked );
         break;
 
     case SHAPE_T::RECTANGLE:
         formatRect( m_out, aShape, false, aShape->GetStroke(), aShape->GetFillMode(),
-                    aShape->GetFillColor(), false, aShape->m_Uuid );
+                    aShape->GetFillColor(), false, aShape->m_Uuid, writeLocked );
         break;
 
     case SHAPE_T::BEZIER:
         formatBezier( m_out, aShape, false, aShape->GetStroke(), aShape->GetFillMode(),
-                      aShape->GetFillColor(), false, aShape->m_Uuid );
+                      aShape->GetFillColor(), false, aShape->m_Uuid, writeLocked );
         break;
 
     case SHAPE_T::POLY:
         formatPoly( m_out, aShape, false, aShape->GetStroke(), aShape->GetFillMode(),
-                    aShape->GetFillColor(), false, aShape->m_Uuid );
+                    aShape->GetFillColor(), false, aShape->m_Uuid, writeLocked );
         break;
 
     default:
@@ -1343,6 +1368,9 @@ void SCH_IO_KICAD_SEXPR::saveRuleArea( SCH_RULE_AREA* aRuleArea )
     wxCHECK_RET( aRuleArea != nullptr && m_out != nullptr, "" );
 
     m_out->Print( "(rule_area " );
+
+    if( aRuleArea->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
 
     KICAD_FORMAT::FormatBool( m_out, "exclude_from_sim", aRuleArea->GetExcludedFromSim() );
     KICAD_FORMAT::FormatBool( m_out, "in_bom", !aRuleArea->GetExcludedFromBOM() );
@@ -1385,6 +1413,10 @@ void SCH_IO_KICAD_SEXPR::saveLine( SCH_LINE* aLine )
 
     line_stroke.Format( m_out, schIUScale );
     KICAD_FORMAT::FormatUuid( m_out, aLine->m_Uuid );
+
+    if( aLine->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     m_out->Print( ")" );
 }
 
@@ -1453,6 +1485,9 @@ void SCH_IO_KICAD_SEXPR::saveText( SCH_TEXT* aText )
     aText->EDA_TEXT::Format( m_out, 0 );
     KICAD_FORMAT::FormatUuid( m_out, aText->m_Uuid );
 
+    if( aText->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     if( label )
     {
         for( SCH_FIELD& field : label->GetFields() )
@@ -1496,6 +1531,10 @@ void SCH_IO_KICAD_SEXPR::saveTextBox( SCH_TEXTBOX* aTextBox )
     formatFill( m_out, aTextBox->GetFillMode(), aTextBox->GetFillColor() );
     aTextBox->EDA_TEXT::Format( m_out, 0 );
     KICAD_FORMAT::FormatUuid( m_out, aTextBox->m_Uuid );
+
+    if( aTextBox->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
+
     m_out->Print( ")" );
 }
 
@@ -1590,6 +1629,9 @@ void SCH_IO_KICAD_SEXPR::saveTable( SCH_TABLE* aTable )
     m_out->Print( ")" );
 
     KICAD_FORMAT::FormatUuid( m_out, aTable->m_Uuid );
+
+    if( aTable->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
 
     m_out->Print( "(cells" );
 

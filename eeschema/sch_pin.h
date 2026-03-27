@@ -312,6 +312,8 @@ public:
 
     bool IsConnectable() const override { return true; }
 
+    bool IsLocked() const override;
+
     bool HasConnectivityChanges( const SCH_ITEM* aItem,
                                  const SCH_SHEET_PATH* aInstance = nullptr ) const override;
 

@@ -153,6 +153,8 @@ public:
      */
     SCH_SHEET* GetParent() const { return (SCH_SHEET*) m_parent; }
 
+    bool IsLocked() const override;
+
 #if defined(DEBUG)
     void Show( int nestLevel, std::ostream& os ) const override;
 #endif

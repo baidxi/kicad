@@ -403,6 +403,18 @@ bool SCH_SHEET_PIN::HasConnectivityChanges( const SCH_ITEM* aItem,
 }
 
 
+bool SCH_SHEET_PIN::IsLocked() const
+{
+    if( SCH_SHEET* parentSheet = GetParent() )
+    {
+        if( parentSheet->IsLocked() )
+            return true;
+    }
+
+    return SCH_ITEM::IsLocked();
+}
+
+
 #if defined(DEBUG)
 
 void SCH_SHEET_PIN::Show( int nestLevel, std::ostream& os ) const
@@ -428,5 +440,8 @@ static struct SCH_SHEET_PIN_DESC
         propMgr.AddTypeCast( new TYPE_CAST<SCH_SHEET_PIN, EDA_TEXT> );
 
         propMgr.InheritsAfter( TYPE_HASH( SCH_SHEET_PIN ), TYPE_HASH( SCH_HIERLABEL ) );
+
+        // Lock state is inherited from parent sheet
+        propMgr.Mask( TYPE_HASH( SCH_SHEET_PIN ), TYPE_HASH( SCH_ITEM ), _HKI( "Locked" ) );
     }
 } _SCH_SHEET_PIN_DESC;
