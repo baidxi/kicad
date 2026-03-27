@@ -653,7 +653,7 @@ std::vector<LIBRARY_TABLE_ROW*> LIBRARY_MANAGER::Rows( LIBRARY_TABLE_TYPE aType,
     }
 
     std::function<void(const std::unique_ptr<LIBRARY_TABLE>&, bool parentHidden)> processTable =
-            [&]( const std::unique_ptr<LIBRARY_TABLE>& aTable, const bool parentHidden)
+            [&]( const std::unique_ptr<LIBRARY_TABLE>& aTable, const bool parentHidden )
             {
                 if( aTable->Type() != aType )
                     return;
@@ -665,10 +665,9 @@ std::vector<LIBRARY_TABLE_ROW*> LIBRARY_MANAGER::Rows( LIBRARY_TABLE_TYPE aType,
                         if( row.IsOk() || aIncludeInvalid )
                         {
                             // Hide child row if parent is hidden
-                            if (parentHidden)
-                            {
+                            if( parentHidden )
                                 row.SetHidden( true );
-                            }
+
                             if( row.Type() == LIBRARY_TABLE_ROW::TABLE_TYPE_NAME )
                             {
                                 if( !m_childTables.contains( row.URI() ) )
@@ -678,7 +677,7 @@ std::vector<LIBRARY_TABLE_ROW*> LIBRARY_MANAGER::Rows( LIBRARY_TABLE_TYPE aType,
                                 if( row.Disabled() )
                                     continue;
 
-                                processTable( m_childTables.at( row.URI() ), row.Hidden());
+                                processTable( m_childTables.at( row.URI() ), row.Hidden() );
                             }
                             else
                             {
