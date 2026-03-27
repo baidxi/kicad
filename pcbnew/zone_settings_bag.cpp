@@ -102,6 +102,7 @@ void ZONE_SETTINGS_BAG::SetZonePriority( ZONE* aClone, unsigned aPriority )
 void ZONE_SETTINGS_BAG::RemoveZone( ZONE* aOriginalZone )
 {
     auto it = m_zonesCloneMap.find( aOriginalZone );
+
     if( it != m_zonesCloneMap.end() )
     {
         ZONE* clone = it->second.get();

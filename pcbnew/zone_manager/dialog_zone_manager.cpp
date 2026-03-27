@@ -318,10 +318,12 @@ void DIALOG_ZONE_MANAGER::OnOk( wxCommandEvent& aEvt )
     if( !m_zonesToDelete.empty() )
     {
         BOARD_COMMIT commit( m_pcbFrame );
+
         for( ZONE* zone : m_zonesToDelete )
         {
             commit.Remove( zone );
         }
+
         commit.Push( _( "Delete Zones" ) );
     }
 
@@ -425,6 +427,7 @@ void DIALOG_ZONE_MANAGER::OnDeleteClick( wxCommandEvent& aEvent )
 
     // Find the original zone from the clone
     ZONE* originalZone = nullptr;
+
     for( const auto& [orig, clone] : m_zoneSettingsBag.GetZonesCloneMap() )
     {
         if( clone.get() == selectedZone )
@@ -443,6 +446,7 @@ void DIALOG_ZONE_MANAGER::OnDeleteClick( wxCommandEvent& aEvent )
 
     // Confirm deletion
     wxString msg = wxString::Format( _( "Delete zone '%s'?" ), originalZone->GetZoneName() );
+
     if( !IsOK( this, msg ) )
         return;
 
