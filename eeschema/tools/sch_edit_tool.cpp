@@ -332,7 +332,7 @@ bool SCH_EDIT_TOOL::Init()
                         break;
 
                     case SCH_RULE_AREA_T:
-                        if( static_cast<const SCH_RULE_AREA*>( item )->GetDNP() )
+                        if( static_cast<const SCH_RULE_AREA*>( item )->GetDNP( sheet, variant ) )
                             checked++;
                         else
                             unchecked++;
@@ -376,7 +376,7 @@ bool SCH_EDIT_TOOL::Init()
                         break;
 
                     case SCH_RULE_AREA_T:
-                        if( static_cast<const SCH_RULE_AREA*>( item )->GetExcludedFromSim() )
+                        if( static_cast<const SCH_RULE_AREA*>( item )->GetExcludedFromSim( sheet, variant ) )
                             checked++;
                         else
                             unchecked++;
@@ -420,7 +420,7 @@ bool SCH_EDIT_TOOL::Init()
                         break;
 
                     case SCH_RULE_AREA_T:
-                        if( static_cast<const SCH_RULE_AREA*>( item )->GetExcludedFromBOM() )
+                        if( static_cast<const SCH_RULE_AREA*>( item )->GetExcludedFromBOM( sheet, variant ) )
                             checked++;
                         else
                             unchecked++;
