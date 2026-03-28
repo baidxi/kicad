@@ -415,7 +415,6 @@ XNODE* NETLIST_EXPORTER_XML::makeSymbols( unsigned aCtl )
             {
                 const bool baseDnp = symbol->GetDNP( &sheet );
                 const bool baseExcludedFromBOM = symbol->GetExcludedFromBOM( &sheet );
-                const bool baseExcludedFromSim = symbol->GetExcludedFromSim( &sheet );
                 const bool baseExcludedFromPosFiles = symbol->GetExcludedFromPosFiles( &sheet );
                 XNODE*     xvariants = nullptr;
 
@@ -440,15 +439,6 @@ XNODE* NETLIST_EXPORTER_XML::makeSymbols( unsigned aCtl )
                         XNODE* xvarprop = node( wxT( "property" ) );
                         xvarprop->AddAttribute( wxT( "name" ), wxT( "exclude_from_bom" ) );
                         xvarprop->AddAttribute( wxT( "value" ), variant.m_ExcludedFromBOM ? wxT( "1" ) : wxT( "0" ) );
-                        xvariant->AddChild( xvarprop );
-                        hasVariantData = true;
-                    }
-
-                    if( variant.m_ExcludedFromSim != baseExcludedFromSim )
-                    {
-                        XNODE* xvarprop = node( wxT( "property" ) );
-                        xvarprop->AddAttribute( wxT( "name" ), wxT( "exclude_from_sim" ) );
-                        xvarprop->AddAttribute( wxT( "value" ), variant.m_ExcludedFromSim ? wxT( "1" ) : wxT( "0" ) );
                         xvariant->AddChild( xvarprop );
                         hasVariantData = true;
                     }

@@ -747,11 +747,6 @@ void KICAD_NETLIST_PARSER::parseComponent()
                             variant.m_excludedFromBOM = propBool;
                             variant.m_hasExcludedFromBOM = true;
                         }
-                        else if( propName.CmpNoCase( wxT( "exclude_from_sim" ) ) == 0 )
-                        {
-                            variant.m_excludedFromSim = propBool;
-                            variant.m_hasExcludedFromSim = true;
-                        }
                         else if( propName.CmpNoCase( wxT( "exclude_from_pos_files" ) ) == 0 )
                         {
                             variant.m_excludedFromPosFiles = propBool;
