@@ -423,6 +423,13 @@ const BOX2I SCH_FIELD::GetBoundingBox() const
 
 bool SCH_FIELD::IsHorizJustifyFlipped() const
 {
+    if( GetShownText( true ).IsEmpty() )
+    {
+        SCH_FIELD copy( *this );
+        copy.EDA_TEXT::SetText( wxT( "M" ) );
+        return copy.IsHorizJustifyFlipped();
+    }
+
     VECTOR2I render_center = GetBoundingBox().Centre();
     VECTOR2I pos = GetPosition();
 
@@ -468,6 +475,13 @@ GR_TEXT_H_ALIGN_T SCH_FIELD::GetEffectiveHorizJustify() const
 
 bool SCH_FIELD::IsVertJustifyFlipped() const
 {
+    if( GetShownText( true ).IsEmpty() )
+    {
+        SCH_FIELD copy( *this );
+        copy.EDA_TEXT::SetText( wxT( "M" ) );
+        return copy.IsVertJustifyFlipped();
+    }
+
     VECTOR2I render_center = GetBoundingBox().Centre();
     VECTOR2I pos = GetPosition();
 
