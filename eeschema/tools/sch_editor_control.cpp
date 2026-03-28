@@ -2292,6 +2292,9 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
         if( schItem->IsConnectable() )
             schItem->SetConnectivityDirty();
 
+        // Clear lock state on paste to match PCB editor behavior
+        schItem->SetLocked( false );
+
         if( item->Type() == SCH_SYMBOL_T )
         {
             SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );

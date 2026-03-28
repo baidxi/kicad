@@ -1044,6 +1044,8 @@ SCH_SELECTION& SCH_MOVE_TOOL::prepareSelection( bool& aUnselect )
     SCH_SELECTION& selection = m_selectionTool->RequestSelection( SCH_COLLECTOR::MovableItems, true );
     aUnselect = selection.IsHover();
 
+    m_selectionTool->FilterSelectionForLockedItems();
+
     return selection;
 }
 
@@ -2552,6 +2554,9 @@ int SCH_MOVE_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
 {
     EE_GRID_HELPER    grid( m_toolMgr);
     SCH_SELECTION&    selection = m_selectionTool->RequestSelection( SCH_COLLECTOR::MovableItems );
+
+    m_selectionTool->FilterSelectionForLockedItems();
+
     GRID_HELPER_GRIDS selectionGrid = grid.GetSelectionGrid( selection );
     SCH_COMMIT        commit( m_toolMgr );
 

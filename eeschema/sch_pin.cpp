@@ -1635,6 +1635,18 @@ bool SCH_PIN::ConnectionPropagatesTo( const EDA_ITEM* aItem ) const
 }
 
 
+bool SCH_PIN::IsLocked() const
+{
+    if( const SYMBOL* parentSymbol = GetParentSymbol() )
+    {
+        if( parentSymbol->IsLocked() )
+            return true;
+    }
+
+    return SCH_ITEM::IsLocked();
+}
+
+
 BITMAPS SCH_PIN::GetMenuImage() const
 {
     if( m_libPin )
@@ -1974,6 +1986,9 @@ static struct SCH_PIN_DESC
         REGISTER_TYPE( SCH_PIN );
         propMgr.AddTypeCast( new TYPE_CAST<SCH_PIN, SCH_ITEM> );
         propMgr.InheritsAfter( TYPE_HASH( SCH_PIN ), TYPE_HASH( SCH_ITEM ) );
+
+        // Lock state is inherited from parent symbol (no independent locking of child items)
+        propMgr.Mask( TYPE_HASH( SCH_PIN ), TYPE_HASH( SCH_ITEM ), _HKI( "Locked" ) );
 
         propMgr.AddProperty( new PROPERTY<SCH_PIN, wxString>( _HKI( "Pin Name" ),
                     &SCH_PIN::SetName, &SCH_PIN::GetName ) )

@@ -266,6 +266,8 @@ public:
 
     bool IsReplaceable() const override;
 
+    bool IsLocked() const override;
+
     VECTOR2I GetLibPosition() const { return EDA_TEXT::GetTextPos(); }
 
     VECTOR2I GetPosition() const override;
