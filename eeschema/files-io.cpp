@@ -1503,7 +1503,11 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
 
             if( loadedSheet )
             {
-                Schematic().SetTopLevelSheets( { loadedSheet } );
+                // Importers that build their own hierarchy (e.g. Eagle) return the
+                // virtual root after setting up top-level sheets internally.
+                // Calling SetTopLevelSheets() again would discard that hierarchy.
+                if( !loadedSheet->IsVirtualRootSheet() )
+                    Schematic().SetTopLevelSheets( { loadedSheet } );
 
                 if( errorReporter.m_Reporter->HasMessage() )
                 {
