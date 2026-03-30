@@ -444,6 +444,7 @@ set( PCBNEW_CLASS_SRCS
     edit_zone_helpers.cpp
 
     api/headless_pcb_context.cpp
+    api/headless_footprint_context.cpp
 
     ratsnest/ratsnest.cpp
 
