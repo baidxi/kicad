@@ -1283,7 +1283,7 @@ static struct SCH_LINE_DESC
                     &SCH_LINE::SetLineStyle, &SCH_LINE::GetLineStyle ) )
                 .SetAvailableFunc( isGraphicLine );
 
-        propMgr.AddProperty( new PROPERTY_ENUM<SCH_LINE, WIRE_STYLE>( _HKI( "Line Style" ),
+        propMgr.AddProperty( new PROPERTY_ENUM<SCH_LINE, WIRE_STYLE>( _HKI( "Wire Style" ),
                     &SCH_LINE::SetWireStyle, &SCH_LINE::GetWireStyle ) )
                 .SetAvailableFunc( isWireOrBus );
 
