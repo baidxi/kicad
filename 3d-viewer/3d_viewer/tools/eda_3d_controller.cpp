@@ -404,6 +404,9 @@ int EDA_3D_CONTROLLER::ExportImage( const TOOL_EVENT& aEvent )
     EDA_3D_VIEWER_EXPORT_FORMAT fmt = aEvent.Parameter<EDA_3D_VIEWER_EXPORT_FORMAT>();
 
     wxSize currentSize = viewer->GetCanvas()->GetClientSize();
+    double scaleFactor = viewer->GetCanvas()->GetContentScaleFactor();
+    currentSize.x = static_cast<int>( currentSize.x * scaleFactor );
+    currentSize.y = static_cast<int>( currentSize.y * scaleFactor );
 
     if( fmt == EDA_3D_VIEWER_EXPORT_FORMAT::CLIPBOARD )
     {
@@ -411,12 +414,10 @@ int EDA_3D_CONTROLLER::ExportImage( const TOOL_EVENT& aEvent )
         return 0;
     }
 
-    static wxSize lastSize( viewer->GetCanvas()->GetClientSize() );
-    static EDA_3D_VIEWER_EXPORT_FORMAT lastFormat = EDA_3D_VIEWER_EXPORT_FORMAT::PNG;
     DIALOG_EXPORT_3D_IMAGE dlg( viewer, currentSize );
 
     if( dlg.ShowModal() == wxID_OK )
-        viewer->ExportImage( lastFormat, dlg.GetSize() );
+        viewer->ExportImage( dlg.GetFormat(), dlg.GetSize(), dlg.IsTransparent() );
 
     return 0;
 }
