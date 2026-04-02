@@ -24,6 +24,10 @@
 #include <wx/event.h>
 #include <wx/stdpaths.h>
 
+#ifdef __WINDOWS__
+#include <windows.h>
+#endif
+
 #include <advanced_config.h>
 #include <api/api_handler.h>
 #include <api/api_utils.h> // traceApi
@@ -48,6 +52,24 @@ wxString KICAD_API_SERVER::s_logFileName = "api.log";
 
 
 wxDEFINE_EVENT( API_REQUEST_EVENT, wxCommandEvent );
+
+
+/**
+ * Check if a socket or named pipe already exists and is in use.
+ * On Windows, nng maps ipc:// to named pipes (\\.\pipe\<path>), so we probe
+ * with WaitNamedPipeW which returns immediately if the pipe exists.
+ * On Unix/Linux/macOS, checks for socket files in the filesystem.
+ */
+static bool socketExists( const wxString& aSocketPath )
+{
+#ifdef __WINDOWS__
+    wxString pipeName = wxS( "\\\\.\\pipe\\" ) + aSocketPath;
+    return ::WaitNamedPipeW( pipeName.wc_str(), 0 ) != 0;
+#else
+    wxFileName fn( aSocketPath );
+    return fn.Exists();
+#endif
+}
 
 
 KICAD_API_SERVER::KICAD_API_SERVER( bool aAutoStart ) :
@@ -126,11 +148,11 @@ void KICAD_API_SERVER::Start()
     }
 #endif
 
-    if( socket.Exists() )
+    if( socketExists( socket.GetFullPath() ) )
     {
         socket.SetFullName( wxString::Format( wxS( "api-%lu.sock" ), ::wxGetProcessId() ) );
 
-        if( socket.Exists() )
+        if( socketExists( socket.GetFullPath() ) )
         {
             wxLogTrace( traceApi, wxString::Format( "Server: PID socket path %s already exists!",
                                                     socket.GetFullPath() ) );
