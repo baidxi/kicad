@@ -148,6 +148,15 @@ namespace KIPLATFORM
         bool AllowIconsInMenus();
 
         /**
+         * Configure checkbox appearance to use tick marks instead of filled boxes.
+         * On GTK, this injects CSS to override the default checkbox indicator.
+         * On other platforms, this is a no-op as tick marks are already the default.
+         *
+         * @param aUseTicks if true, use tick marks; if false, use the native default
+         */
+        void SetCheckboxTicks( bool aUseTicks );
+
+        /**
          * Returns the mouse position in screen coordinates.
          * If we've just warped the cursor, returns the new coordinates.
          */

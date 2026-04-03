@@ -24,6 +24,7 @@
 #include <wx/dialog.h>
 #include <wx/nonownedwnd.h>
 #include <wx/settings.h>
+#include <wx/toplevel.h>
 #include <wx/window.h>
 #include <wx/log.h>
 
@@ -299,6 +300,50 @@ bool KIPLATFORM::UI::AllowIconsInMenus()
     g_object_get( gtk_settings_get_default(), "gtk-menu-images", &allowed, NULL );
 
     return !!allowed;
+}
+
+
+void KIPLATFORM::UI::SetCheckboxTicks( bool aUseTicks )
+{
+    static GtkCssProvider* s_provider = nullptr;
+
+    GdkScreen* screen = gdk_screen_get_default();
+
+    if( !screen )
+        return;
+
+    if( s_provider )
+    {
+        gtk_style_context_remove_provider_for_screen( screen, GTK_STYLE_PROVIDER( s_provider ) );
+        g_object_unref( s_provider );
+        s_provider = nullptr;
+    }
+
+    if( !aUseTicks )
+    {
+        s_provider = gtk_css_provider_new();
+
+        static const char css[] = "check:checked {\n"
+                                  "    -gtk-icon-source: none;\n"
+                                  "    background-color: @theme_selected_bg_color;\n"
+                                  "    color: @theme_selected_bg_color;\n"
+                                  "    border-color: @theme_selected_bg_color;\n"
+                                  "}\n";
+
+        gtk_css_provider_load_from_data( s_provider, css, -1, nullptr );
+        gtk_style_context_add_provider_for_screen( screen, GTK_STYLE_PROVIDER( s_provider ),
+                                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION );
+    }
+
+    // Force all top-level windows to redraw so checkbox style changes take effect
+    for( wxWindow* win : wxTopLevelWindows )
+    {
+        if( win )
+        {
+            win->Refresh();
+            win->Update();
+        }
+    }
 }
 
 

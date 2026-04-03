@@ -199,6 +199,11 @@ PANEL_COMMON_SETTINGS_BASE::PANEL_COMMON_SETTINGS_BASE( wxWindow* parent, wxWind
 
 	bUserInterfaceSizer->Add( m_disableCustomCursors, 0, wxBOTTOM|wxLEFT|wxRIGHT, 5 );
 
+	m_useTickCheckboxes = new wxCheckBox( this, wxID_ANY, _("Use tick mark for check boxes"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_useTickCheckboxes->SetToolTip( _("When enabled, check boxes will show a tick mark instead of a filled box when checked") );
+
+	bUserInterfaceSizer->Add( m_useTickCheckboxes, 0, wxBOTTOM|wxLEFT|wxRIGHT, 5 );
+
 	wxBoxSizer* bSizerIconsTheme;
 	bSizerIconsTheme = new wxBoxSizer( wxHORIZONTAL );
 
