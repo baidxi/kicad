@@ -46,6 +46,7 @@
 #include <locale_io.h>
 #include <string_utils.h>
 #include <kiway.h>
+#include <kiface_ids.h>
 #include <kiplatform/ui.h>
 #include <netlist_exporters/netlist_exporter_spice.h>
 #include <paths.h>
@@ -91,6 +92,8 @@
 #include <wx/msgdlg.h>
 #include <io/kicad/kicad_io_utils.h>
 #include <libraries/symbol_library_adapter.h>
+#include <libraries/library_table.h>
+#include <libraries/library_manager.h>
 #include <printing/dialog_print.h>
 #include <plotters/plotters_pslike.h>
 #include <view/view.h>
@@ -2956,6 +2959,174 @@ int SCH_EDITOR_CONTROL::ShowCvpcb( const TOOL_EVENT& aEvent )
 }
 
 
+int SCH_EDITOR_CONTROL::ClearLibraryAssignments( const TOOL_EVENT& aEvent )
+{
+    SCH_REFERENCE_LIST refs;
+    SCH_COMMIT         commit( m_frame );
+    bool               isChanged = false;
+
+    m_frame->Schematic().Hierarchy().GetSymbols( refs, false );
+
+    for( unsigned ii = 0; ii < refs.GetCount(); ++ii )
+    {
+        SCH_SYMBOL* symbol = refs[ii].GetSymbol();
+        SCH_FIELD*  footprintField = symbol->GetField( FIELD_T::FOOTPRINT );
+        wxString    fpText = footprintField->GetText();
+
+        if( fpText.IsEmpty() )
+            continue;
+
+        LIB_ID fpId;
+        fpId.Parse( fpText );
+
+        wxString libNickname = fpId.GetLibNickname();
+
+        if( !libNickname.IsEmpty() && libNickname != wxS( "*" ) )
+        {
+            fpId.SetLibNickname( wxT( "*" ) );
+            SCH_SCREEN* screen = refs[ii].GetSheetPath().LastScreen();
+
+            commit.Modify( symbol, screen, RECURSE_MODE::NO_RECURSE );
+            footprintField->SetText( fpId.Format() );
+            isChanged = true;
+        }
+    }
+
+    if( isChanged )
+    {
+        m_frame->SyncView();
+        commit.Push( wxS( "Clear Footprint Library Assignments" ) );
+    }
+
+    return 0;
+}
+
+
+int SCH_EDITOR_CONTROL::AutoAssignLibraries( const TOOL_EVENT& aEvent )
+{
+    // Get the CvPcb kiface to access footprint library testing
+    KIFACE* cvpcb = nullptr;
+
+    try
+    {
+        cvpcb = m_frame->Kiway().KiFACE( KIWAY::FACE_CVPCB );
+    }
+    catch( ... )
+    {
+    }
+
+    if( !cvpcb )
+    {
+        DisplayError( m_frame, _( "Unable to access footprint libraries." ) );
+        return 0;
+    }
+
+    typedef int ( *TESTER_FN_PTR )( const wxString&, PROJECT* );
+    TESTER_FN_PTR linkTester = (TESTER_FN_PTR) cvpcb->IfaceOrAddress( KIFACE_TEST_FOOTPRINT_LINK );
+
+    if( !linkTester )
+    {
+        DisplayError( m_frame, _( "Unable to access footprint library tester." ) );
+        return 0;
+    }
+
+    LIBRARY_MANAGER& mgr = Pgm().GetLibraryManager();
+
+    SCH_REFERENCE_LIST refs;
+    SCH_COMMIT         commit( m_frame );
+    bool               isChanged = false;
+    wxString           msg;
+
+    m_frame->Schematic().Hierarchy().GetSymbols( refs, false );
+
+    // Get project and global libraries in order
+    std::vector<wxString> projectLibs;
+    std::vector<wxString> globalLibs;
+
+    for( LIBRARY_TABLE_ROW* row : mgr.Rows( LIBRARY_TABLE_TYPE::FOOTPRINT, LIBRARY_TABLE_SCOPE::PROJECT ) )
+    {
+        projectLibs.push_back( row->Nickname() );
+    }
+
+    for( LIBRARY_TABLE_ROW* row : mgr.Rows( LIBRARY_TABLE_TYPE::FOOTPRINT, LIBRARY_TABLE_SCOPE::GLOBAL ) )
+    {
+        globalLibs.push_back( row->Nickname() );
+    }
+
+    PROJECT* prj = &m_frame->Prj();
+
+    for( unsigned ii = 0; ii < refs.GetCount(); ++ii )
+    {
+        SCH_SYMBOL* symbol = refs[ii].GetSymbol();
+        SCH_FIELD*  footprintField = symbol->GetField( FIELD_T::FOOTPRINT );
+        wxString    fpText = footprintField->GetText();
+
+        if( fpText.IsEmpty() )
+            continue;
+
+        LIB_ID fpId;
+        fpId.Parse( fpText );
+
+        if( fpId.GetLibNickname().wx_str() != wxS( "*" ) )
+            continue;
+
+        wxString fpName = fpId.GetLibItemName();
+        wxString matchedLib;
+
+        // Search project libraries first, then global
+        for( const wxString& lib : projectLibs )
+        {
+            wxString testFp = lib + wxS( ":" ) + fpName;
+
+            if( linkTester( testFp, prj ) == 0 )
+            {
+                matchedLib = lib;
+                break;
+            }
+        }
+
+        if( matchedLib.IsEmpty() )
+        {
+            for( const wxString& lib : globalLibs )
+            {
+                wxString testFp = lib + wxS( ":" ) + fpName;
+
+                if( linkTester( testFp, prj ) == 0 )
+                {
+                    matchedLib = lib;
+                    break;
+                }
+            }
+        }
+
+        if( !matchedLib.IsEmpty() )
+        {
+            fpId.SetLibNickname( matchedLib );
+            SCH_SCREEN* screen = refs[ii].GetSheetPath().LastScreen();
+
+            commit.Modify( symbol, screen, RECURSE_MODE::NO_RECURSE );
+            footprintField->SetText( fpId.Format() );
+            isChanged = true;
+        }
+        else
+        {
+            msg += wxString::Format( _( "%s: footprint '%s' not found in any library.\n" ), refs[ii].GetRef(), fpName );
+        }
+    }
+
+    if( !msg.IsEmpty() )
+        DisplayInfoMessage( m_frame, msg );
+
+    if( isChanged )
+    {
+        m_frame->SyncView();
+        commit.Push( wxS( "Auto-Assign Footprint Libraries" ) );
+    }
+
+    return 0;
+}
+
+
 int SCH_EDITOR_CONTROL::EditSymbolFields( const TOOL_EVENT& aEvent )
 {
     DIALOG_SYMBOL_FIELDS_TABLE* dlg = m_frame->GetSymbolFieldsTableDialog();
@@ -3526,6 +3697,8 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::EditWithSymbolEditor,    SCH_ACTIONS::editWithLibEdit.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::EditWithSymbolEditor,    SCH_ACTIONS::editLibSymbolWithLibEdit.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ShowCvpcb,               SCH_ACTIONS::assignFootprints.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::ClearLibraryAssignments, SCH_ACTIONS::clearLibraryAssignments.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::AutoAssignLibraries, SCH_ACTIONS::autoAssignLibraries.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::ImportFPAssignments,     SCH_ACTIONS::importFPAssignments.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::Annotate,                SCH_ACTIONS::annotate.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::IncrementAnnotations,    SCH_ACTIONS::incrementAnnotations.MakeEvent() );

@@ -115,6 +115,8 @@ public:
 
     int EditWithSymbolEditor( const TOOL_EVENT& aEvent );
     int ShowCvpcb( const TOOL_EVENT& aEvent );
+    int ClearLibraryAssignments( const TOOL_EVENT& aEvent );
+    int AutoAssignLibraries( const TOOL_EVENT& aEvent );
     int Annotate( const TOOL_EVENT& aEvent );
     int IncrementAnnotations( const TOOL_EVENT& aEvent );
     int EditSymbolFields( const TOOL_EVENT& aEvent );

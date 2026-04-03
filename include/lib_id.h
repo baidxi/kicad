@@ -183,6 +183,12 @@ public:
     }
 
     /**
+     * @return true if the library nickname is a wildcard ("*"), meaning the footprint
+     *         should be resolved by searching available libraries.
+     */
+    bool IsWildcard() const { return m_libraryName == "*" && !m_itemName.empty(); }
+
+    /**
      * Clear the contents of the library nickname, library entry name
      */
     void clear();

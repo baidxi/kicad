@@ -337,15 +337,19 @@ FOOTPRINT* FOOTPRINT_LIBRARY_ADAPTER::LoadFootprintWithOptionalNickname( const L
     wxString nickname = aFootprintId.GetLibNickname();
     wxString footprintName = aFootprintId.GetLibItemName();
 
-    if( nickname.size() )
+    if( nickname.size() && nickname != wxS( "*" ) )
         return LoadFootprint( nickname, footprintName, aKeepUUID );
 
-    // nickname is empty, sequentially search (alphabetically) all libs/nicks for first match:
-    for( const wxString& library : GetLibraryNames() )
+    // nickname is empty or wildcard: search project libraries first, then global:
+    for( LIBRARY_TABLE_ROW* row : Rows( LIBRARY_TABLE_SCOPE::PROJECT ) )
     {
-        // FootprintLoad() returns NULL on not found, does not throw exception
-        // unless there's an IO_ERROR.
-        if( FOOTPRINT* ret = LoadFootprint( library, footprintName, aKeepUUID ) )
+        if( FOOTPRINT* ret = LoadFootprint( row->Nickname(), footprintName, aKeepUUID ) )
+            return ret;
+    }
+
+    for( LIBRARY_TABLE_ROW* row : Rows( LIBRARY_TABLE_SCOPE::GLOBAL ) )
+    {
+        if( FOOTPRINT* ret = LoadFootprint( row->Nickname(), footprintName, aKeepUUID ) )
             return ret;
     }
 

@@ -215,7 +215,7 @@ void PCB_EDIT_FRAME::LoadFootprints( NETLIST& aNetlist, REPORTER& aReporter )
 
         if( fpOnBoard )
         {
-            if( component->GetFPID().IsLegacy() )
+            if( component->GetFPID().IsLegacy() || component->GetFPID().IsWildcard() )
             {
                 footprintMisMatch =
                         fpOnBoard->GetFPID().GetLibItemName() != component->GetFPID().GetLibItemName();
