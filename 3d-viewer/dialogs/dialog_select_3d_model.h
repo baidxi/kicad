@@ -43,6 +43,7 @@ public:
     void OnFileActivated( wxCommandEvent& event )override;
     void SetRootDir( wxCommandEvent& event ) override;
     void Cfg3DPaths( wxCommandEvent& event ) override;
+    void OnShowHidden( wxCommandEvent& event ) override;
 
     bool IsEmbedded3DModel() const
     {
@@ -51,6 +52,7 @@ public:
 
 private:
     void updateDirChoiceList( void );
+    void updateRootDir( const wxString& path );
 
     FP_3DMODEL*          m_model;       // data for the selected model
     S3D_CACHE*           m_cache;       // cache manager

@@ -134,6 +134,15 @@ DIALOG_SELECT_3DMODEL::DIALOG_SELECT_3DMODEL( wxWindow* aParent, S3D_CACHE* aCac
     m_modelViewer->Refresh();
     m_modelViewer->SetFocus();
 
+    // DIALOG_SHIM::LoadControlState may change the state of m_dirChoices without
+    // triggering an event. So the m_FileTree may be stale.
+    CallAfter(
+            [this]()
+            {
+                if( m_dirChoices && m_dirChoices->GetSelection() > 0 )
+                    updateRootDir( m_dirChoices->GetString( m_dirChoices->GetSelection() ) );
+            } );
+
     finishDialogSettings();
 }
 
@@ -189,10 +198,16 @@ void DIALOG_SELECT_3DMODEL::OnFileActivated( wxCommandEvent& event )
 
 void DIALOG_SELECT_3DMODEL::SetRootDir( wxCommandEvent& event )
 {
-    if( m_FileTree && m_dirChoices->GetSelection() > 0 )
+    if( m_dirChoices && m_dirChoices->GetSelection() > 0 )
+        updateRootDir( m_dirChoices->GetString( m_dirChoices->GetSelection() ) );
+}
+
+
+void DIALOG_SELECT_3DMODEL::OnShowHidden( wxCommandEvent& event )
+{
+    if( m_FileTree && m_ShowHiddenCb )
     {
-        m_FileTree->SetPath( m_dirChoices->GetString( m_dirChoices->GetSelection() ) );
-        m_FileTree->UnselectAll();  // Ensure no unwanted selection
+        m_FileTree->ShowHidden( m_ShowHiddenCb->GetValue() );
     }
 }
 
@@ -203,6 +218,16 @@ void DIALOG_SELECT_3DMODEL::Cfg3DPaths( wxCommandEvent& event )
 
     if( dlg.ShowQuasiModal() == wxID_OK )
         updateDirChoiceList();
+}
+
+
+void DIALOG_SELECT_3DMODEL::updateRootDir( const wxString& path )
+{
+    if( m_FileTree )
+    {
+        m_FileTree->SetPath( path );
+        m_FileTree->UnselectAll(); // Ensure no unwanted selection
+    }
 }
 
 
