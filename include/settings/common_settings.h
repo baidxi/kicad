@@ -58,6 +58,9 @@ public:
         bool       grid_striping;
         bool       use_custom_cursors;
         double     zoom_correction_factor;
+        bool       units_inches_enabled;
+        bool       units_mils_enabled;
+        bool       units_mm_enabled;
     };
 
     struct AUTO_BACKUP

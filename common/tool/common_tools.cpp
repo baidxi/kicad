@@ -36,6 +36,8 @@
 #include <math/vector2wx.h>
 #include <core/kicad_algo.h>
 #include <kiface_base.h>
+#include <pgm_base.h>
+#include <settings/common_settings.h>
 #include <settings/app_settings.h>
 #include <tool/actions.h>
 #include <tool/common_tools.h>
@@ -663,9 +665,43 @@ int COMMON_TOOLS::SwitchUnits( const TOOL_EVENT& aEvent )
 
 int COMMON_TOOLS::ToggleUnits( const TOOL_EVENT& aEvent )
 {
-    m_frame->ChangeUserUnits( EDA_UNIT_UTILS::IsImperialUnit( m_frame->GetUserUnits() ) ?
-                                      m_metricUnit :
-                                      m_imperialUnit );
+    COMMON_SETTINGS* settings = Pgm().GetCommonSettings();
+    EDA_UNITS        current = m_frame->GetUserUnits();
+
+    // Build a list of enabled units in a fixed order: mm, inches, mils
+    std::vector<EDA_UNITS> enabled;
+
+    if( settings->m_Appearance.units_mm_enabled )
+        enabled.push_back( EDA_UNITS::MM );
+
+    if( settings->m_Appearance.units_inches_enabled )
+        enabled.push_back( EDA_UNITS::INCH );
+
+    if( settings->m_Appearance.units_mils_enabled )
+        enabled.push_back( EDA_UNITS::MILS );
+
+    // Fallback: if nothing enabled, use mils
+    if( enabled.empty() )
+        enabled.push_back( EDA_UNITS::MILS );
+
+    // Find the current unit in the enabled list and advance to the next
+    EDA_UNITS next = enabled[0];
+
+    for( size_t i = 0; i < enabled.size(); ++i )
+    {
+        if( enabled[i] == current )
+        {
+            next = enabled[( i + 1 ) % enabled.size()];
+            break;
+        }
+    }
+
+    if( EDA_UNIT_UTILS::IsMetricUnit( next ) )
+        m_metricUnit = next;
+    else if( EDA_UNIT_UTILS::IsImperialUnit( next ) )
+        m_imperialUnit = next;
+
+    m_frame->ChangeUserUnits( next );
     return 0;
 }
 

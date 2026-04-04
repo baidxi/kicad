@@ -69,6 +69,9 @@ class PANEL_COMMON_SETTINGS_BASE : public RESETTABLE_PANEL
 		wxCheckBox* m_focusFollowSchPcb;
 		wxCheckBox* m_hotkeyFeedback;
 		wxCheckBox* m_gridStriping;
+		wxCheckBox* m_cbUnitsInches;
+		wxCheckBox* m_cbUnitsMils;
+		wxCheckBox* m_cbUnitsMM;
 		wxCheckBox* m_disableCustomCursors;
 		wxStaticText* m_stIconTheme;
 		wxRadioButton* m_rbIconThemeLight;

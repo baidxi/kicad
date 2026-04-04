@@ -191,6 +191,21 @@ PANEL_COMMON_SETTINGS_BASE::PANEL_COMMON_SETTINGS_BASE( wxWindow* parent, wxWind
 
 	bSizer14->Add( m_gridStriping, 0, wxBOTTOM|wxLEFT|wxRIGHT, 5 );
 
+	wxStaticText* m_stEnabledUnits = new wxStaticText( this, wxID_ANY, _("Enabled units:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_stEnabledUnits->Wrap( -1 );
+	bSizer14->Add( m_stEnabledUnits, 0, wxTOP|wxLEFT|wxRIGHT, 5 );
+
+	m_cbUnitsInches = new wxCheckBox( this, wxID_ANY, _("Inches"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer14->Add( m_cbUnitsInches, 0, wxLEFT, 20 );
+
+	m_cbUnitsMils = new wxCheckBox( this, wxID_ANY, _("Mils"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbUnitsMils->SetValue( true );
+	bSizer14->Add( m_cbUnitsMils, 0, wxLEFT, 20 );
+
+	m_cbUnitsMM = new wxCheckBox( this, wxID_ANY, _("Millimeters"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbUnitsMM->SetValue( true );
+	bSizer14->Add( m_cbUnitsMM, 0, wxBOTTOM|wxLEFT, 20 );
+
 
 	bUserInterfaceSizer->Add( bSizer14, 0, wxEXPAND, 5 );
 

@@ -125,6 +125,13 @@ COMMON_SETTINGS::COMMON_SETTINGS() :
     m_params.emplace_back( new PARAM<double>( "appearance.zoom_correction_factor",
             &m_Appearance.zoom_correction_factor, 1.0, 0.1, 10.0 ) );
 
+    m_params.emplace_back(
+            new PARAM<bool>( "appearance.units_inches_enabled", &m_Appearance.units_inches_enabled, false ) );
+
+    m_params.emplace_back( new PARAM<bool>( "appearance.units_mils_enabled", &m_Appearance.units_mils_enabled, true ) );
+
+    m_params.emplace_back( new PARAM<bool>( "appearance.units_mm_enabled", &m_Appearance.units_mm_enabled, true ) );
+
     m_params.emplace_back( new PARAM<bool>( "auto_backup.enabled", &m_Backup.enabled, true ) );
 
     m_params.emplace_back( new PARAM<unsigned long long>( "auto_backup.limit_total_size",
