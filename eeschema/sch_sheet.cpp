@@ -1384,6 +1384,16 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& 
     SCH_RENDER_SETTINGS* renderSettings = getRenderSettings( aPlotter );
     COLOR4D              borderColor = GetBorderColor();
     COLOR4D              backgroundColor = GetBackgroundColor();
+    SCH_SHEET_PATH       instance;
+    wxString             variantName;
+
+    if( Schematic() )
+    {
+        instance = Schematic()->CurrentSheet();
+        variantName = Schematic()->GetCurrentVariant();
+    }
+
+    bool dnp = GetDNP( &instance, variantName );
 
     if( renderSettings->m_OverrideItemColors || borderColor == COLOR4D::UNSPECIFIED )
         borderColor = aPlotter->RenderSettings()->GetLayerColor( LAYER_SHEET );
@@ -1396,6 +1406,12 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& 
 
     if( backgroundColor.m_text && Schematic() )
         backgroundColor = COLOR4D( ResolveText( *backgroundColor.m_text, &Schematic()->CurrentSheet() ) );
+
+    if( aDimmed || dnp )
+    {
+        borderColor.Desaturate();
+        borderColor = borderColor.Mix( backgroundColor, 0.5f );
+    }
 
     if( aBackground && backgroundColor.a > 0.0 )
     {
@@ -1433,22 +1449,13 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& 
 
     // Plot sheet pins
     for( SCH_SHEET_PIN* sheetPin : m_pins )
-        sheetPin->Plot( aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed );
+        sheetPin->Plot( aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed || dnp );
 
     // Plot the fields
     for( SCH_FIELD& field : m_fields )
-        field.Plot( aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed );
+        field.Plot( aPlotter, aBackground, aPlotOpts, aUnit, aBodyStyle, aOffset, aDimmed || dnp );
 
-    SCH_SHEET_PATH instance;
-    wxString variantName;
-
-    if( Schematic() )
-    {
-        instance = Schematic()->CurrentSheet();
-        variantName = Schematic()->GetCurrentVariant();
-    }
-
-    if( GetDNP( &instance, variantName) )
+    if( dnp )
     {
         BOX2I    bbox = GetBodyBoundingBox();
         BOX2I    pins = GetBoundingBox();
