@@ -54,6 +54,7 @@
 #include <id.h>
 #include <kicad_curl/kicad_curl.h>
 #include <kiplatform/policy.h>
+#include <kiplatform/ui.h>
 #include <libraries/library_manager.h>
 #include <macros.h>
 #include <notifications_manager.h>
@@ -469,6 +470,9 @@ bool PGM_BASE::InitPgm( bool aHeadless, bool aIsUnitTest )
     WarnUserIfOperatingSystemUnsupported();
 
     loadCommonSettings();
+
+    // Apply checkbox tick style based on user preference
+    KIPLATFORM::UI::SetCheckboxTicks( commonSettings->m_Appearance.use_tick_checkboxes );
 
     ReadPdfBrowserInfos();      // needs GetCommonSettings()
 

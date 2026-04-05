@@ -121,6 +121,9 @@ COMMON_SETTINGS::COMMON_SETTINGS() :
     m_params.emplace_back( new PARAM<bool>( "appearance.use_custom_cursors",
             &m_Appearance.use_custom_cursors, true ) );
 
+    m_params.emplace_back(
+            new PARAM<bool>( "appearance.use_tick_checkboxes", &m_Appearance.use_tick_checkboxes, false ) );
+
     m_Appearance.zoom_correction_factor = 1.0;
     m_params.emplace_back( new PARAM<double>( "appearance.zoom_correction_factor",
             &m_Appearance.zoom_correction_factor, 1.0, 0.1, 10.0 ) );

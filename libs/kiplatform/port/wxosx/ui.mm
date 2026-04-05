@@ -198,6 +198,12 @@ bool KIPLATFORM::UI::AllowIconsInMenus()
 }
 
 
+void KIPLATFORM::UI::SetCheckboxTicks( bool aUseTicks )
+{
+    // macOS checkboxes already use tick marks by default
+}
+
+
 wxPoint KIPLATFORM::UI::GetMousePosition()
 {
     return wxGetMousePosition();

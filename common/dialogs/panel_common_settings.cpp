@@ -219,6 +219,10 @@ bool PANEL_COMMON_SETTINGS::TransferDataFromWindow()
 
     commonSettings->m_Appearance.use_custom_cursors = !m_disableCustomCursors->GetValue();
 
+    commonSettings->m_Appearance.use_tick_checkboxes = m_useTickCheckboxes->GetValue();
+
+    KIPLATFORM::UI::SetCheckboxTicks( commonSettings->m_Appearance.use_tick_checkboxes );
+
     commonSettings->m_Appearance.zoom_correction_factor = m_zoomCorrectionCtrl->GetValue();
 
     double dimmingPercent = 80;
@@ -309,6 +313,8 @@ void PANEL_COMMON_SETTINGS::applySettingsToPanel( COMMON_SETTINGS& aSettings )
     m_gridStriping->SetValue( aSettings.m_Appearance.grid_striping );
 
     m_disableCustomCursors->SetValue( !aSettings.m_Appearance.use_custom_cursors );
+
+    m_useTickCheckboxes->SetValue( aSettings.m_Appearance.use_tick_checkboxes );
 
     m_zoomCorrectionCtrl->SetDisplayedValue( aSettings.m_Appearance.zoom_correction_factor );
 

@@ -57,6 +57,7 @@ public:
         int        toolbar_icon_size;
         bool       grid_striping;
         bool       use_custom_cursors;
+        bool       use_tick_checkboxes;
         double     zoom_correction_factor;
     };
 
