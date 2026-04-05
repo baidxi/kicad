@@ -2091,14 +2091,13 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
         // "DGG56" instead of "Package_SO:DGG56"), matching should compare only the
         // footprint item name. Otherwise the board footprint (which always has a library
         // nickname) will never match, causing perpetual "change footprint" notifications.
-        auto fpidMatches =
-                [&]( const LIB_ID& aBoardFpid, const LIB_ID& aExpectedFpid ) -> bool
-                {
-                    if( aExpectedFpid.IsLegacy() )
-                        return aBoardFpid.GetLibItemName() == aExpectedFpid.GetLibItemName();
+        auto fpidMatches = [&]( const LIB_ID& aBoardFpid, const LIB_ID& aExpectedFpid ) -> bool
+        {
+            if( aExpectedFpid.IsLegacy() || aExpectedFpid.IsWildcard() )
+                return aBoardFpid.GetLibItemName() == aExpectedFpid.GetLibItemName();
 
-                    return aBoardFpid == aExpectedFpid;
-                };
+            return aBoardFpid == aExpectedFpid;
+        };
 
         auto isExpectedFpid =
                 [&]( const LIB_ID& aFpid ) -> bool

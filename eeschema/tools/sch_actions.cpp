@@ -1147,6 +1147,18 @@ TOOL_ACTION SCH_ACTIONS::assignFootprints( TOOL_ACTION_ARGS()
         .Tooltip( _( "Run footprint assignment tool" ) )
         .Icon( BITMAPS::icon_cvpcb_24 ) );
 
+TOOL_ACTION SCH_ACTIONS::clearLibraryAssignments( TOOL_ACTION_ARGS()
+        .Name( "eeschema.EditorControl.clearLibraryAssignments" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Clear Footprint Library Assignments" ) )
+        .Tooltip( _( "Change all footprint references from 'library:footprint' to '*:footprint'" ) ) );
+
+TOOL_ACTION SCH_ACTIONS::autoAssignLibraries( TOOL_ACTION_ARGS()
+        .Name( "eeschema.EditorControl.autoAssignLibraries" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Auto-Assign Footprint Libraries" ) )
+        .Tooltip( _( "Resolve '*:footprint' references by searching project then global libraries" ) ) );
+
 TOOL_ACTION SCH_ACTIONS::importFPAssignments( TOOL_ACTION_ARGS()
         .Name( "eeschema.EditorControl.importFPAssignments" )
         .Scope( AS_GLOBAL )

@@ -319,6 +319,8 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
 
     toolsMenu->AppendSeparator();
     toolsMenu->Add( SCH_ACTIONS::assignFootprints );
+    toolsMenu->Add( SCH_ACTIONS::clearLibraryAssignments );
+    toolsMenu->Add( SCH_ACTIONS::autoAssignLibraries );
     toolsMenu->Add( SCH_ACTIONS::generateBOM );
     toolsMenu->Add( SCH_ACTIONS::generateBOMLegacy );
 
