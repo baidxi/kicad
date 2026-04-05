@@ -57,6 +57,25 @@
 #include <api/api_plugin_manager.h>
 
 
+/**
+ * Check if a toolbar action is enabled.  For unit actions, consult the enabled-units
+ * preferences.  All other actions are always considered enabled.
+ */
+static bool isUnitActionEnabled( const TOOL_ACTION* aAction )
+{
+    if( aAction->GetId() == ACTIONS::inchesUnits.GetId() )
+        return Pgm().GetCommonSettings()->m_Appearance.units_inches_enabled;
+
+    if( aAction->GetId() == ACTIONS::milsUnits.GetId() )
+        return Pgm().GetCommonSettings()->m_Appearance.units_mils_enabled;
+
+    if( aAction->GetId() == ACTIONS::millimetersUnits.GetId() )
+        return Pgm().GetCommonSettings()->m_Appearance.units_mm_enabled;
+
+    return true;
+}
+
+
 ACTION_GROUP::ACTION_GROUP( const std::string_view& aName )
 {
     m_name = aName;
@@ -769,16 +788,30 @@ void ACTION_TOOLBAR::onToolEvent( wxAuiToolBarEvent& aEvent )
             const std::vector<const TOOL_ACTION*>& actions = group->GetActions();
             const TOOL_ACTION*                     current = actionIt->second;
 
-            const TOOL_ACTION* next = actions[0];
+            const TOOL_ACTION* next = nullptr;
 
             for( size_t i = 0; i < actions.size(); ++i )
             {
                 if( actions[i]->GetId() == current->GetId() )
                 {
-                    next = actions[( i + 1 ) % actions.size()];
+                    // Find the next enabled action in the group, wrapping around
+                    for( size_t j = 1; j <= actions.size(); ++j )
+                    {
+                        const TOOL_ACTION* candidate = actions[( i + j ) % actions.size()];
+
+                        if( isUnitActionEnabled( candidate ) )
+                        {
+                            next = candidate;
+                            break;
+                        }
+                    }
+
                     break;
                 }
             }
+
+            if( !next )
+                next = current; // No other enabled action found, stay on current
 
             evt = next->MakeEvent();
             evt->SetHasPosition( false );

@@ -221,6 +221,18 @@ bool PANEL_COMMON_SETTINGS::TransferDataFromWindow()
 
     commonSettings->m_Appearance.zoom_correction_factor = m_zoomCorrectionCtrl->GetValue();
 
+    commonSettings->m_Appearance.units_inches_enabled = m_cbUnitsInches->GetValue();
+    commonSettings->m_Appearance.units_mils_enabled = m_cbUnitsMils->GetValue();
+    commonSettings->m_Appearance.units_mm_enabled = m_cbUnitsMM->GetValue();
+
+    // If no units are enabled, default to mils
+    if( !commonSettings->m_Appearance.units_inches_enabled && !commonSettings->m_Appearance.units_mils_enabled
+        && !commonSettings->m_Appearance.units_mm_enabled )
+    {
+        commonSettings->m_Appearance.units_mils_enabled = true;
+        m_cbUnitsMils->SetValue( true );
+    }
+
     double dimmingPercent = 80;
     m_highContrastCtrl->GetValue().ToDouble( &dimmingPercent );
     commonSettings->m_Appearance.hicontrast_dimming_factor = dimmingPercent / 100.0f;
@@ -326,6 +338,10 @@ void PANEL_COMMON_SETTINGS::applySettingsToPanel( COMMON_SETTINGS& aSettings )
     m_backupLimitTotalSize->SetValue( aSettings.m_Backup.limit_total_size / ( 1024 * 1024 ) );
 
     m_showScrollbars->SetValue( aSettings.m_Appearance.show_scrollbars );
+
+    m_cbUnitsInches->SetValue( aSettings.m_Appearance.units_inches_enabled );
+    m_cbUnitsMils->SetValue( aSettings.m_Appearance.units_mils_enabled );
+    m_cbUnitsMM->SetValue( aSettings.m_Appearance.units_mm_enabled );
 }
 
 
