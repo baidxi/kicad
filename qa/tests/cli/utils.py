@@ -160,10 +160,10 @@ def images_are_equal( image1_path: str, image2_path: str, diff_handler: Optional
 
     diff = ImageChops.difference( image1, image2 )
     sum = np.sum( np.asarray( diff ) )
-    retval = True
+    retval = sum == 0
 
-    if sum != 0.0:
-        # Images are not identical - lets allow 1 pixel error difference (for curved edges)
+    if not retval:
+        # Images are not identical - lets create a diff image
         diff_multi_bands = diff.split()
         binary_multi_bands = []
 
@@ -176,31 +176,27 @@ def images_are_equal( image1_path: str, image2_path: str, diff_handler: Optional
         for i in range( 1, len( binary_multi_bands ) ):
             binary_result = ImageChops.logical_or( binary_result, binary_multi_bands[i] )
 
-        eroded_result = binary_result.copy().filter( ImageFilter.MinFilter( 3 ) ) # erode once (trim 1 pixel)
 
-        eroded_result_sum = np.sum( np.asarray( eroded_result ) )
-        retval = eroded_result_sum == 0
-        diff.close()
-        binary_result.close()
 
         # Save diff
-        if not retval:
-            diff_name = image1.filename + ".DIFF_eroded_" + str( eroded_result_sum )+ ".png"
-            red = Image.new( "RGB", image1.size, (255,0,0))
-            imageEnhanced = ImageEnhance.Contrast(image1).enhance(0.3)
-            imageEnhanced.paste( red,mask=eroded_result)
-            imageEnhanced.save(diff_name)
-            logger.error( "Images not equal. Diff stored at '%s'", diff_name )
-            if diff_handler is not None:
-                diff_handler( diff_name )
-                diff_handler( image1.filename )
-                diff_handler( image2.filename )
-            imageEnhanced.close()
+        diff_name = image1.filename + ".DIFF_" + str( sum )+ "px.png"
+        red = Image.new( "RGB", image1.size, (255,0,0))
+        imageEnhanced = ImageEnhance.Contrast(image1).enhance(0.3)
+        imageEnhanced.paste( red,mask=binary_result)
+        imageEnhanced.save(diff_name)
+        logger.error( "Images not equal. Diff stored at '%s'", diff_name )
+
+        if diff_handler is not None:
+            diff_handler( diff_name )
+            diff_handler( image1.filename )
+            diff_handler( image2.filename )
 
         # Cleanup
-        eroded_result.close()
+        imageEnhanced.close()
+        binary_result.close()
 
     # Cleanup
+    diff.close()
     image1.close()
     image2.close()
 

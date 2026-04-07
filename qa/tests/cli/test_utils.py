@@ -26,16 +26,17 @@ import os
 
 @pytest.mark.parametrize("image1,image2,expected",
                           [
+                            ("3px_base.png", "3px_base_identical.png",  True),
                             ("3px_base.png", "3px_mid_blk.png",         False),
-                            ("3px_base.png", "3px_mid_1px_lines.png",   True), # Allow 1 px margin of error
+                            ("3px_base.png", "3px_mid_1px_lines.png",   False), # 1 px margin of error
                             ("3px_base.png", "3px_mid_transparent.png", False),
                             ("3px_base.png", "3px_offBy1_blk.png",      False),
                             ("3px_base.png", "3px_offBy1_wht.png",      False),
                             ("square_base.png", "square_blk.png",              False),
                             ("square_base.png", "square_transparent.png",      False),
-                            ("square_base.png", "square_1px_bigger.png",       True), # Allow 1 px margin of error
-                            ("irregular_base.png", "irregular_1px_eroded.png", True), # Allow 1 px margin of error
-                            ("irregular_base.png", "irregular_2px_eroded.png", False), # 2 px error is too much
+                            ("square_base.png", "square_1px_bigger.png",       False), # 1 px margin of error
+                            ("irregular_base.png", "irregular_1px_eroded.png", False), # 1 px margin of error
+                            ("irregular_base.png", "irregular_2px_eroded.png", False), # 2 px error
                           ]
                         )
 def test_images_are_equal(image1: str, image2: str, expected: bool):
