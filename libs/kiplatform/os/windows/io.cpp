@@ -391,3 +391,10 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
     if( m_fileHandle )
         CloseHandle( m_fileHandle );
 }
+
+
+bool KIPLATFORM::IO::IsIPCEndpointAlive( const wxString& aPath )
+{
+    wxString pipeName = wxS( "\\\\.\\pipe\\" ) + aPath;
+    return ::WaitNamedPipeW( pipeName.wc_str(), 0 ) != 0;
+}
