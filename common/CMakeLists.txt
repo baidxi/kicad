@@ -154,6 +154,9 @@ set( KICOMMON_SRCS
     jobs/jobset.cpp
     jobs/job_fp_export_svg.cpp
     jobs/job_fp_upgrade.cpp
+    jobs/job_gerber_diff.cpp
+    jobs/job_gerber_export_png.cpp
+    jobs/job_gerber_info.cpp
     jobs/job_pcb_import.cpp
     jobs/job_pcb_render.cpp
     jobs/job_pcb_drc.cpp
@@ -666,6 +669,7 @@ set( PLOTTERS_CONTROL_SRCS
     plotters/PDF_plotter.cpp
     plotters/pdf_stroke_font.cpp
     plotters/pdf_outline_font.cpp
+    plotters/PNG_plotter.cpp
     plotters/PS_plotter.cpp
     plotters/SVG_plotter.cpp
     plotters/common_plot_functions.cpp

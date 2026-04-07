@@ -83,6 +83,9 @@ set( KICAD_CLI_SRCS
     cli/command_sch_erc.cpp
     cli/command_sym_export_svg.cpp
     cli/command_sym_upgrade.cpp
+    cli/command_gerber_info.cpp
+    cli/command_gerber_convert_png.cpp
+    cli/command_gerber_diff.cpp
     cli/command_version.cpp
 
     jobs_runner.cpp
@@ -152,6 +155,7 @@ if( UNIX )
         COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_BINARY_DIR}/eeschema/_eeschema.kiface" "${CMAKE_BINARY_DIR}/kicad/_eeschema.kiface"
         COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_BINARY_DIR}/pcbnew/_pcbnew.kiface" "${CMAKE_BINARY_DIR}/kicad/_pcbnew.kiface"
         COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_BINARY_DIR}/cvpcb/_cvpcb.kiface" "${CMAKE_BINARY_DIR}/kicad/_cvpcb.kiface"
+        COMMAND ${CMAKE_COMMAND} -E create_symlink "${CMAKE_BINARY_DIR}/gerbview/_gerbview.kiface" "${CMAKE_BINARY_DIR}/kicad/_gerbview.kiface"
         COMMENT "Making <build-dir>/kicad/<kiface.symlinks>"
         )
 endif()

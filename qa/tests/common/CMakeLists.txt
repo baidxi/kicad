@@ -55,6 +55,7 @@ set( QA_COMMON_SRCS
     test_kicad_string.cpp
     test_kicad_stroke_font.cpp
     test_pdf_unicode_plot.cpp
+    test_png_plotter.cpp
     test_kiid.cpp
     test_layer_ids.cpp
     test_lib_id.cpp
