@@ -23,18 +23,24 @@
 
 #include <api/api_handler_common.h>
 #include <build_version.h>
+#include <eda_base_frame.h>
 #include <eda_shape.h>
 #include <eda_text.h>
+#include <frame_type.h>
 #include <gestfich.h>
 #include <geometry/shape_compound.h>
 #include <google/protobuf/empty.pb.h>
+#include <kiway.h>
+#include <kiway_player.h>
 #include <paths.h>
 #include <pgm_base.h>
+#include <wildcards_and_files_ext.h>
 #include <api/api_plugin.h>
 #include <api/api_utils.h>
 #include <project/net_settings.h>
 #include <project/project_file.h>
 #include <settings/settings_manager.h>
+#include <wx/app.h>
 #include <wx/string.h>
 
 using namespace kiapi::common::commands;
@@ -66,6 +72,10 @@ API_HANDLER_COMMON::API_HANDLER_COMMON() :
             &API_HANDLER_COMMON::handleOpenDocument );
     registerHandler<CloseDocument, Empty>(
             &API_HANDLER_COMMON::handleCloseDocument );
+    registerHandler<OpenEditor, OpenEditorResponse>(
+            &API_HANDLER_COMMON::handleOpenEditor );
+    registerHandler<CloseEditor, Empty>(
+            &API_HANDLER_COMMON::handleCloseEditor );
 
 }
 
@@ -431,4 +441,149 @@ HANDLER_RESULT<Empty> API_HANDLER_COMMON::handleCloseDocument(
     }
 
     return m_closeDocumentHandler( aCtx.Request );
+}
+
+
+// FrameType proto enum → FRAME_T
+static std::optional<FRAME_T> frameTypeFromProto( kiapi::common::types::FrameType aFrame )
+{
+    switch( aFrame )
+    {
+    case kiapi::common::types::FT_PROJECT_MANAGER:      return KICAD_MAIN_FRAME_T;
+    case kiapi::common::types::FT_SCHEMATIC_EDITOR:     return FRAME_SCH;
+    case kiapi::common::types::FT_PCB_EDITOR:           return FRAME_PCB_EDITOR;
+    case kiapi::common::types::FT_SPICE_SIMULATOR:      return FRAME_SIMULATOR;
+    case kiapi::common::types::FT_SYMBOL_EDITOR:        return FRAME_SCH_SYMBOL_EDITOR;
+    case kiapi::common::types::FT_FOOTPRINT_EDITOR:     return FRAME_FOOTPRINT_EDITOR;
+    case kiapi::common::types::FT_DRAWING_SHEET_EDITOR: return FRAME_PL_EDITOR;
+    default:                                             return std::nullopt;
+    }
+}
+
+
+HANDLER_RESULT<OpenEditorResponse> API_HANDLER_COMMON::handleOpenEditor(
+        const HANDLER_CONTEXT<OpenEditor>& aCtx )
+{
+    std::optional<FRAME_T> frameType = frameTypeFromProto( aCtx.Request.frame() );
+
+    if( !frameType )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "Unknown or unsupported frame type for OpenEditor" );
+        return tl::unexpected( e );
+    }
+
+    EDA_BASE_FRAME* topFrame = dynamic_cast<EDA_BASE_FRAME*>( wxTheApp->GetTopWindow() );
+
+    if( !topFrame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "OpenEditor is not available in this KiCad mode" );
+        return tl::unexpected( e );
+    }
+
+    KIWAY_PLAYER* player = nullptr;
+
+    try
+    {
+        player = topFrame->Kiway().Player( *frameType, true );
+    }
+    catch( const std::exception& ex )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( std::string( "Failed to create editor: " ) + ex.what() );
+        return tl::unexpected( e );
+    }
+
+    if( !player )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "Failed to open editor" );
+        return tl::unexpected( e );
+    }
+
+    const std::string& path = aCtx.Request.path();
+
+    if( !player->IsVisible() )
+    {
+        if( !path.empty() )
+        {
+            if( !player->OpenProjectFiles( { wxString::FromUTF8( path ) } ) )
+            {
+                player->Destroy();
+                ApiResponseStatus e;
+                e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+                e.set_error_message( "Failed to open file: " + path );
+                return tl::unexpected( e );
+            }
+        }
+
+        player->Show( true );
+    }
+
+    if( player->IsIconized() )
+        player->Iconize( false );
+
+    player->Raise();
+    player->SetFocus();
+
+    OpenEditorResponse response;
+    types::DocumentSpecifier* doc = response.mutable_document();
+
+    wxString currentFile = player->GetCurrentFileName();
+
+    if( *frameType == FRAME_PCB_EDITOR )
+    {
+        doc->set_type( types::DOCTYPE_PCB );
+        if( !currentFile.IsEmpty() )
+            doc->set_board_filename( currentFile.ToStdString() );
+    }
+    else if( *frameType == FRAME_SCH )
+    {
+        doc->set_type( types::DOCTYPE_SCHEMATIC );
+        if( !currentFile.IsEmpty() )
+            doc->set_schematic_filename( currentFile.ToStdString() );
+    }
+
+    if( !currentFile.IsEmpty() )
+    {
+        PROJECT& project = Pgm().GetSettingsManager().Prj();
+        doc->mutable_project()->set_name( project.GetProjectName().ToStdString() );
+        doc->mutable_project()->set_path( project.GetProjectDirectory().ToStdString() );
+    }
+
+    return response;
+}
+
+
+HANDLER_RESULT<Empty> API_HANDLER_COMMON::handleCloseEditor(
+        const HANDLER_CONTEXT<CloseEditor>& aCtx )
+{
+    std::optional<FRAME_T> frameType = frameTypeFromProto( aCtx.Request.frame() );
+
+    if( !frameType )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "Unknown or unsupported frame type for CloseEditor" );
+        return tl::unexpected( e );
+    }
+
+    EDA_BASE_FRAME* topFrame = dynamic_cast<EDA_BASE_FRAME*>( wxTheApp->GetTopWindow() );
+
+    if( !topFrame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "CloseEditor is not available in this KiCad mode" );
+        return tl::unexpected( e );
+    }
+
+    topFrame->Kiway().PlayerClose( *frameType, aCtx.Request.force() );
+
+    return Empty();
 }

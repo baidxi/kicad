@@ -106,3 +106,24 @@ message SaveDocument
 {
   kiapi.common.types.DocumentSpecifier document = 1;
 }
+
+
+// Opens a KiCad editor window.
+// If path is provided, the editor will load that file.
+message OpenEditor
+{
+  kiapi.common.types.FrameType frame = 1;
+  string path = 2;
+}
+
+message OpenEditorResponse
+{
+  kiapi.common.types.DocumentSpecifier document = 1;
+}
+
+// Closes a KiCad editor window.
+message CloseEditor
+{
+  kiapi.common.types.FrameType frame = 1;
+  bool force = 2;
+}

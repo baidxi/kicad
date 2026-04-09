@@ -94,6 +94,12 @@ private:
     HANDLER_RESULT<Empty> handleCloseDocument(
         const HANDLER_CONTEXT<commands::CloseDocument>& aCtx );
 
+    HANDLER_RESULT<commands::OpenEditorResponse> handleOpenEditor(
+        const HANDLER_CONTEXT<commands::OpenEditor>& aCtx );
+
+    HANDLER_RESULT<Empty> handleCloseEditor(
+        const HANDLER_CONTEXT<commands::CloseEditor>& aCtx );
+
 private:
     OPEN_DOCUMENT_HANDLER m_openDocumentHandler;
     CLOSE_DOCUMENT_HANDLER m_closeDocumentHandler;
