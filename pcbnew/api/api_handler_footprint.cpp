@@ -225,7 +225,6 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
     std::set<KICAD_T> typesRequested, typesInserted;
     bool handledAnything = false;
 
-
     for( int typeRaw : aCtx.Request.types() )
     {
         auto typeMessage = static_cast<common::types::KiCadObjectType>( typeRaw );
@@ -241,13 +240,12 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
 
         switch( type )
         {
-
         case PCB_PAD_T:
         {
             handledAnything = true;
 
             std::copy( footprint->Pads().begin(), footprint->Pads().end(),
-                        std::back_inserter( items ) );
+                       std::back_inserter( items ) );
 
             typesInserted.insert( PCB_PAD_T );
             break;
@@ -285,23 +283,28 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
             {
                 switch( item->Type() )
                 {
-                    case PCB_DIM_ALIGNED_T:
-                    case PCB_DIM_CENTER_T:
-                    case PCB_DIM_RADIAL_T:
-                    case PCB_DIM_ORTHOGONAL_T:
-                    case PCB_DIM_LEADER_T:
-                        items.emplace_back( item );
-                        inserted = true;
-                        break;
-                    default:
-                        break;
+                case PCB_DIM_ALIGNED_T:
+                case PCB_DIM_CENTER_T:
+                case PCB_DIM_RADIAL_T:
+                case PCB_DIM_ORTHOGONAL_T:
+                case PCB_DIM_LEADER_T:
+                    items.emplace_back( item );
+                    inserted = true;
+                    break;
+                default:
+                    break;
                 }
             }
+
             // we have to add the dimension subtypes to the requested to get them out
-            typesRequested.insert( {PCB_DIM_ALIGNED_T, PCB_DIM_CENTER_T, PCB_DIM_RADIAL_T, PCB_DIM_ORTHOGONAL_T, PCB_DIM_LEADER_T } );
+            typesRequested.insert( { PCB_DIM_ALIGNED_T, PCB_DIM_CENTER_T, PCB_DIM_RADIAL_T,
+                                     PCB_DIM_ORTHOGONAL_T, PCB_DIM_LEADER_T } );
 
             if( inserted )
-                typesInserted.insert( {PCB_DIM_ALIGNED_T, PCB_DIM_CENTER_T, PCB_DIM_RADIAL_T, PCB_DIM_ORTHOGONAL_T, PCB_DIM_LEADER_T } );
+            {
+                typesInserted.insert( { PCB_DIM_ALIGNED_T, PCB_DIM_CENTER_T, PCB_DIM_RADIAL_T,
+                                        PCB_DIM_ORTHOGONAL_T, PCB_DIM_LEADER_T } );
+            }
 
             break;
         }
@@ -327,11 +330,11 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
             typesInserted.insert( PCB_GROUP_T );
             break;
         }
+
         default:
             break;
         }
     }
-
 
     if( !handledAnything )
     {
