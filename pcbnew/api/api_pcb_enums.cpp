@@ -308,6 +308,7 @@ CustomRuleConstraintType ToProtoEnum( DRC_CONSTRAINT_T aValue )
     case VIA_DANGLING_CONSTRAINT:         return CustomRuleConstraintType::CRCT_VIA_DANGLING;
     case BRIDGED_MASK_CONSTRAINT:         return CustomRuleConstraintType::CRCT_BRIDGED_MASK;
     case SOLDER_MASK_SLIVER_CONSTRAINT:   return CustomRuleConstraintType::CRCT_SOLDER_MASK_SLIVER;
+    case Z_CLEARANCE_CONSTRAINT:          return CustomRuleConstraintType::CRCT_Z_CLEARANCE;
 
     default:
         wxCHECK_MSG( false, CustomRuleConstraintType::CRCT_UNKNOWN,
@@ -358,6 +359,7 @@ DRC_CONSTRAINT_T FromProtoEnum( CustomRuleConstraintType aValue )
     case CustomRuleConstraintType::CRCT_VIA_DANGLING:          return VIA_DANGLING_CONSTRAINT;
     case CustomRuleConstraintType::CRCT_BRIDGED_MASK:          return BRIDGED_MASK_CONSTRAINT;
     case CustomRuleConstraintType::CRCT_SOLDER_MASK_SLIVER:    return SOLDER_MASK_SLIVER_CONSTRAINT;
+    case CustomRuleConstraintType::CRCT_Z_CLEARANCE:           return Z_CLEARANCE_CONSTRAINT;
 
     default:
         wxCHECK_MSG( false, NULL_CONSTRAINT,

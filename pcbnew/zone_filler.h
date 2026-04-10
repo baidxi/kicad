@@ -86,6 +86,12 @@ private:
     void buildDifferentNetZoneClearances( const ZONE* aZone, PCB_LAYER_ID aLayer,
                                           SHAPE_POLY_SET& aHoles );
 
+    /**
+     * Build knockout regions for copper items on other layers that would violate
+     * z_clearance (3D dielectric distance) constraints with the given zone fill.
+     */
+    void buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles );
+
     void subtractHigherPriorityZones( const ZONE* aZone, PCB_LAYER_ID aLayer,
                                       SHAPE_POLY_SET& aRawFill );
 
@@ -186,6 +192,17 @@ private:
     int                   m_worstClearance;
 
     bool                  m_debugZoneFiller;
+
+    // Z-clearance cross-layer knockout state (populated once in Fill(), read-only during parallel fills)
+    struct Z_CLEARANCE_LAYER_PAIR
+    {
+        PCB_LAYER_ID otherLayer;
+        int          dielectricDist;
+    };
+
+    bool                                                        m_hasZClearanceRules;
+    int                                                         m_worstZClearance;
+    std::map<PCB_LAYER_ID, std::vector<Z_CLEARANCE_LAYER_PAIR>> m_zClearanceLayerPairs;
 
     // Cache of pre-knockout fills for iterative refill optimization (issue 21746)
     // Key: (zone pointer, layer), Value: fill polygon before higher-priority zone knockout

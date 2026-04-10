@@ -46,6 +46,13 @@ bool DRC_CACHE_GENERATOR::Run()
 
     largestClearance = std::max( largestClearance, m_board->GetMaxClearanceValue() );
 
+    // The z_clearance constraint's worst-case XY search radius equals the full constraint value
+    // (when dielectric distance is zero).  Inflate the R-tree radius to cover this.
+    if( m_drcEngine->QueryWorstConstraint( Z_CLEARANCE_CONSTRAINT, worstConstraint, true ) )
+        largestClearance = std::max( largestClearance, worstConstraint.GetValue().Min() );
+    else if( m_drcEngine->QueryWorstConstraint( Z_CLEARANCE_CONSTRAINT, worstConstraint ) )
+        largestClearance = std::max( largestClearance, worstConstraint.GetValue().Min() );
+
     // Only consider unconditional constraints for the global maximum.  Conditional constraints
     // (like the barcode physical clearance default) apply only to specific item types and
     // should not inflate the R-tree query radius for all items on the board.

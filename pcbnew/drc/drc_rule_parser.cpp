@@ -497,12 +497,12 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
     {
         msg.Printf( _( "Missing constraint type.|  Expected %s." ),
                     wxT( "assertion, clearance, hole_clearance, edge_clearance, physical_clearance, "
-                         "physical_hole_clearance, courtyard_clearance, silk_clearance, hole_size, "
-                         "hole_to_hole, track_width, track_angle, track_segment_length, annular_width, "
-                         "disallow, zone_connection, thermal_relief_gap, thermal_spoke_width, "
-                         "min_resolved_spokes, solder_mask_expansion, solder_paste_abs_margin, "
-                         "solder_paste_rel_margin, length, skew, via_count, via_dangling, via_diameter, "
-                         "diff_pair_gap or diff_pair_uncoupled" ) );
+                         "physical_hole_clearance, z_clearance, courtyard_clearance, silk_clearance, "
+                         "hole_size, hole_to_hole, track_width, track_angle, track_segment_length, "
+                         "annular_width, disallow, zone_connection, thermal_relief_gap, "
+                         "thermal_spoke_width, min_resolved_spokes, solder_mask_expansion, "
+                         "solder_paste_abs_margin, solder_paste_rel_margin, length, skew, via_count, "
+                         "via_dangling, via_diameter, diff_pair_gap or diff_pair_uncoupled" ) );
 
         reportError( msg );
         return;
@@ -544,15 +544,17 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
     case T_diff_pair_uncoupled:       c.m_Type = MAX_UNCOUPLED_CONSTRAINT;             break;
     case T_physical_clearance:        c.m_Type = PHYSICAL_CLEARANCE_CONSTRAINT;        break;
     case T_physical_hole_clearance:   c.m_Type = PHYSICAL_HOLE_CLEARANCE_CONSTRAINT;   break;
+    case T_z_clearance:               c.m_Type = Z_CLEARANCE_CONSTRAINT;               break;
     case T_bridged_mask:              c.m_Type = BRIDGED_MASK_CONSTRAINT;              break;
     default:
         expected( wxT( "assertion, clearance, hole_clearance, edge_clearance, physical_clearance, "
-                       "physical_hole_clearance, courtyard_clearance, silk_clearance, hole_size, "
-                       "hole_to_hole, track_width, track_angle, track_segment_length, annular_width, "
-                       "disallow, zone_connection, thermal_relief_gap, thermal_spoke_width, "
-                       "min_resolved_spokes, solder_mask_expansion, solder_mask_sliver, "
-                       "solder_paste_abs_margin, solder_paste_rel_margin, length, skew, via_count, "
-                       "via_dangling, via_diameter, diff_pair_gap, diff_pair_uncoupled or bridged_mask" ) );
+                       "physical_hole_clearance, z_clearance, courtyard_clearance, silk_clearance, "
+                       "hole_size, hole_to_hole, track_width, track_angle, track_segment_length, "
+                       "annular_width, disallow, zone_connection, thermal_relief_gap, "
+                       "thermal_spoke_width, min_resolved_spokes, solder_mask_expansion, "
+                       "solder_mask_sliver, solder_paste_abs_margin, solder_paste_rel_margin, length, "
+                       "skew, via_count, via_dangling, via_diameter, diff_pair_gap, "
+                       "diff_pair_uncoupled or bridged_mask" ) );
         return;
     }
 

@@ -68,5 +68,6 @@ via_dangling
 via_diameter
 warning
 within_diff_pairs
+z_clearance
 zone
 zone_connection

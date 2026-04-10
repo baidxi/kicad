@@ -24,6 +24,7 @@
  */
 
 #include <atomic>
+#include <cmath>
 #include <future>
 #include <hash.h>
 #include <set>
@@ -33,6 +34,7 @@
 #include <advanced_config.h>
 #include <board.h>
 #include <board_design_settings.h>
+#include <board_stackup_manager/board_stackup.h>
 #include <drc/drc_engine.h>
 #include <zone.h>
 #include <footprint.h>
@@ -396,6 +398,57 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
     connectivity->Build( m_board, m_progressReporter );
 
     m_worstClearance = m_board->GetMaxClearanceValue();
+
+    // Pre-compute z_clearance layer pair data for cross-layer knockouts.
+    m_hasZClearanceRules = false;
+    m_worstZClearance = 0;
+    m_zClearanceLayerPairs.clear();
+
+    {
+        BOARD_DESIGN_SETTINGS& bds = m_board->GetDesignSettings();
+
+        if( bds.m_DRCEngine && bds.m_DRCEngine->HasRulesForConstraintType( Z_CLEARANCE_CONSTRAINT ) )
+        {
+            DRC_CONSTRAINT worstZConstraint;
+
+            if( bds.m_DRCEngine->QueryWorstConstraint( Z_CLEARANCE_CONSTRAINT, worstZConstraint, true )
+                || bds.m_DRCEngine->QueryWorstConstraint( Z_CLEARANCE_CONSTRAINT, worstZConstraint ) )
+            {
+                m_worstZClearance = worstZConstraint.GetValue().Min();
+            }
+
+            if( m_worstZClearance > 0 )
+            {
+                m_hasZClearanceRules = true;
+                m_worstClearance = std::max( m_worstClearance, m_worstZClearance );
+
+                BOARD_STACKUP&            stackup = bds.GetStackupDescriptor();
+                std::vector<PCB_LAYER_ID> copperLayers;
+
+                for( BOARD_STACKUP_ITEM* item : stackup.GetList() )
+                {
+                    if( item->GetType() == BS_ITEM_TYPE_COPPER )
+                        copperLayers.push_back( item->GetBrdLayerId() );
+                }
+
+                for( size_t i = 0; i < copperLayers.size(); i++ )
+                {
+                    for( size_t j = 0; j < copperLayers.size(); j++ )
+                    {
+                        if( i == j )
+                            continue;
+
+                        int dielDist = stackup.GetDielectricDistance( copperLayers[i], copperLayers[j] );
+
+                        if( dielDist < m_worstZClearance )
+                        {
+                            m_zClearanceLayerPairs[copperLayers[i]].push_back( { copperLayers[j], dielDist } );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     if( m_progressReporter )
     {
@@ -2442,6 +2495,152 @@ void ZONE_FILLER::buildDifferentNetZoneClearances( const ZONE* aZone, PCB_LAYER_
 }
 
 
+void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles )
+{
+    if( !m_hasZClearanceRules )
+        return;
+
+    auto it = m_zClearanceLayerPairs.find( aLayer );
+
+    if( it == m_zClearanceLayerPairs.end() )
+        return;
+
+    BOARD_DESIGN_SETTINGS& bds = m_board->GetDesignSettings();
+    int                    extraMargin = pcbIUScale.mmToIU( ADVANCED_CFG::GetCfg().m_ExtraClearance );
+
+    BOX2I zoneBoundingBox = aZone->GetBoundingBox();
+    zoneBoundingBox.Inflate( m_worstClearance + extraMargin );
+
+    // Evaluate z_clearance from both layer perspectives and take the more restrictive
+    // result so layer-conditional rules are honored regardless of which side they match.
+    auto evalZClearance = [&bds]( const BOARD_ITEM* a, const BOARD_ITEM* b, PCB_LAYER_ID aLayerOfA,
+                                  PCB_LAYER_ID aLayerOfB ) -> int
+    {
+        DRC_CONSTRAINT c1 = bds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, a, b, aLayerOfA );
+        DRC_CONSTRAINT c2 = bds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, b, a, aLayerOfB );
+
+        int m1 = ( c1.IsNull() || c1.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c1.GetValue().Min();
+        int m2 = ( c2.IsNull() || c2.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c2.GetValue().Min();
+
+        return std::max( m1, m2 );
+    };
+
+    for( const Z_CLEARANCE_LAYER_PAIR& pair : it->second )
+    {
+        PCB_LAYER_ID otherLayer = pair.otherLayer;
+        int          dielectricDist = pair.dielectricDist;
+
+        // Process tracks and vias on otherLayer.
+        for( PCB_TRACK* track : m_board->Tracks() )
+        {
+            if( !track->IsOnLayer( otherLayer ) )
+                continue;
+
+            if( !track->GetBoundingBox().Intersects( zoneBoundingBox ) )
+                continue;
+
+            if( track->GetNetCode() > 0 && track->GetNetCode() == aZone->GetNetCode() )
+                continue;
+
+            int minZ = evalZClearance( aZone, track, aLayer, otherLayer );
+
+            if( minZ <= 0 || dielectricDist >= minZ )
+                continue;
+
+            double xyGapD = std::sqrt( (double) minZ * minZ - (double) dielectricDist * dielectricDist );
+            int    xyGap = (int) std::ceil( xyGapD );
+
+            if( track->Type() == PCB_VIA_T )
+            {
+                PCB_VIA* via = static_cast<PCB_VIA*>( track );
+
+                if( via->FlashLayer( otherLayer ) )
+                {
+                    via->TransformShapeToPolygon( aHoles, otherLayer, xyGap + extraMargin, m_maxError, ERROR_OUTSIDE );
+                }
+
+                // The drill barrel exists on all layers the via spans.
+                int radius = via->GetDrillValue() / 2;
+
+                TransformCircleToPolygon( aHoles, via->GetPosition(), radius + xyGap + extraMargin, m_maxError,
+                                          ERROR_OUTSIDE );
+            }
+            else
+            {
+                track->TransformShapeToPolygon( aHoles, otherLayer, xyGap + extraMargin, m_maxError, ERROR_OUTSIDE );
+            }
+        }
+
+        // Process pads on otherLayer.
+        for( FOOTPRINT* footprint : m_board->Footprints() )
+        {
+            for( PAD* pad : footprint->Pads() )
+            {
+                if( !pad->IsOnLayer( otherLayer ) )
+                    continue;
+
+                if( !pad->GetBoundingBox().Intersects( zoneBoundingBox ) )
+                    continue;
+
+                if( pad->GetNetCode() > 0 && pad->GetNetCode() == aZone->GetNetCode() )
+                    continue;
+
+                int minZ = evalZClearance( aZone, pad, aLayer, otherLayer );
+
+                if( minZ <= 0 || dielectricDist >= minZ )
+                    continue;
+
+                double xyGapD = std::sqrt( (double) minZ * minZ - (double) dielectricDist * dielectricDist );
+                int    xyGap = (int) std::ceil( xyGapD );
+
+                if( pad->FlashLayer( otherLayer ) )
+                    addKnockout( pad, otherLayer, xyGap + extraMargin, aHoles );
+
+                if( pad->GetDrillSize().x > 0 )
+                    addHoleKnockout( pad, xyGap + extraMargin, aHoles );
+            }
+        }
+
+        // Process zones on otherLayer.  The current zone yields (gets knocked out) to a
+        // zone on another layer when the other zone has higher priority, mirroring the
+        // same-layer yield semantics in buildDifferentNetZoneClearances().
+        auto knockoutZClearanceZone = [&]( ZONE* otherZone )
+        {
+            if( otherZone == aZone || otherZone->GetIsRuleArea() )
+                return;
+
+            if( !otherZone->GetLayerSet().test( otherLayer ) )
+                return;
+
+            if( otherZone->SameNet( aZone ) )
+                return;
+
+            if( !otherZone->HigherPriority( aZone ) )
+                return;
+
+            if( !otherZone->GetBoundingBox().Intersects( zoneBoundingBox ) )
+                return;
+
+            int minZ = evalZClearance( aZone, otherZone, aLayer, otherLayer );
+
+            if( minZ <= 0 || dielectricDist >= minZ )
+                return;
+
+            double xyGapD = std::sqrt( (double) minZ * minZ - (double) dielectricDist * dielectricDist );
+            int    xyGap = (int) std::ceil( xyGapD );
+
+            SHAPE_POLY_SET poly;
+            otherZone->TransformShapeToPolygon( poly, otherLayer, xyGap + extraMargin, m_maxError, ERROR_OUTSIDE );
+            aHoles.Append( poly );
+        };
+
+        forEachBoardAndFootprintZone( m_board, knockoutZClearanceZone );
+    }
+
+    aHoles.Simplify();
+}
+
+
 /**
  * Removes the outlines of higher-proirity zones with the same net.  These zones should be
  * in charge of the fill parameters within their own outlines.
@@ -2664,6 +2863,8 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
 
     buildCopperItemClearances( aZone, aLayer, noConnectionPads, clearanceHoles,
                                !iterativeRefill /* include zone clearances only if not iterative */ );
+
+    buildZClearanceKnockouts( aZone, aLayer, clearanceHoles );
 
     if( iterativeRefill )
     {

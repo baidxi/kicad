@@ -303,6 +303,18 @@ public:
     int GetLayerDistance( PCB_LAYER_ID aFirstLayer, PCB_LAYER_ID aSecondLayer ) const;
 
     /**
+     * Compute the dielectric-only distance between two copper layers.
+     *
+     * Unlike GetLayerDistance() which includes copper layer thicknesses, this returns
+     * only the sum of dielectric material between the two copper layers.
+     *
+     * @param aFirstLayer is a copper layer
+     * @param aSecondLayer is a different copper layer
+     * @return the dielectric thickness (in IU) between the two layers
+     */
+    int GetDielectricDistance( PCB_LAYER_ID aFirstLayer, PCB_LAYER_ID aSecondLayer ) const;
+
+    /**
      * The name of external copper finish
      */
     wxString m_FinishType;

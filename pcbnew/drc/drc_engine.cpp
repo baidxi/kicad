@@ -1053,6 +1053,7 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                 case EDGE_CLEARANCE_CONSTRAINT:
                 case PHYSICAL_CLEARANCE_CONSTRAINT:
                 case PHYSICAL_HOLE_CLEARANCE_CONSTRAINT:
+                case Z_CLEARANCE_CONSTRAINT:
                     if( constraint.m_Value.Min() > MAXIMUM_CLEARANCE )
                         constraint.m_Value.SetMin( MAXIMUM_CLEARANCE );
 
