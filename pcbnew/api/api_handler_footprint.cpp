@@ -72,8 +72,8 @@ bool API_HANDLER_FOOTPRINT::validateDocumentInternal( const DocumentSpecifier& a
 
     LIB_ID target_fp = footprintContext()->GetLoadedFPID();
 
-    return 0 == aDocument.lib_id().library_nickname().compare(target_fp.GetUniStringLibNickname()) &&
-        0 == aDocument.lib_id().entry_name().compare(target_fp.GetUniStringLibItemName());
+    return 0 == aDocument.lib_id().library_nickname().compare( target_fp.GetUniStringLibNickname() ) &&
+        0 == aDocument.lib_id().entry_name().compare( target_fp.GetUniStringLibItemName() );
 }
 
 HANDLER_RESULT<FOOTPRINT*> API_HANDLER_FOOTPRINT::validateAndGetFootprint(
@@ -283,7 +283,8 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
 
             for( BOARD_ITEM* item : footprint->GraphicalItems() )
             {
-                switch (item->Type()) {
+                switch( item->Type() )
+                {
                     case PCB_DIM_ALIGNED_T:
                     case PCB_DIM_CENTER_T:
                     case PCB_DIM_RADIAL_T:
