@@ -246,12 +246,6 @@ void COMPONENT::Format( OUTPUTFORMATTER* aOut, int aNestLevel, int aCtl )
                                  aOut->Quotew( variant.m_excludedFromBOM ? wxT( "1" ) : wxT( "0" ) ).c_str() );
                 }
 
-                if( variant.m_hasExcludedFromSim )
-                {
-                    aOut->Print( 0, " (property (name \"exclude_from_sim\") (value %s))",
-                                 aOut->Quotew( variant.m_excludedFromSim ? wxT( "1" ) : wxT( "0" ) ).c_str() );
-                }
-
                 if( variant.m_hasExcludedFromPosFiles )
                 {
                     aOut->Print( 0, " (property (name \"exclude_from_pos_files\") (value %s))",

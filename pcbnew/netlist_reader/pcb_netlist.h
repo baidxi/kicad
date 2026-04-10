@@ -104,12 +104,10 @@ struct COMPONENT_VARIANT
     wxString m_name;
     bool     m_dnp = false;
     bool     m_excludedFromBOM = false;
-    bool     m_excludedFromSim = false;
     bool     m_excludedFromPosFiles = false;
 
     bool     m_hasDnp = false;
     bool     m_hasExcludedFromBOM = false;
-    bool     m_hasExcludedFromSim = false;
     bool     m_hasExcludedFromPosFiles = false;
 
     nlohmann::ordered_map<wxString, wxString> m_fields;

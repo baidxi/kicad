@@ -385,7 +385,11 @@ XNODE* NETLIST_EXPORTER_XML::makeSymbols( unsigned aCtl )
                     xproperty->AddAttribute( wxT( "value" ), sheetField.GetText() );
             }
 
-            if( symbol->ResolveExcludedFromBOM( &sheet ) || sheet.GetExcludedFromBOM() )
+            const bool baseDnp = symbol->ResolveDNP( &sheet ) || sheet.GetDNP();
+            const bool baseExcludedFromBOM = symbol->ResolveExcludedFromBOM( &sheet ) || sheet.GetExcludedFromBOM();
+            const bool baseExcludedFromPosFiles = symbol->ResolveExcludedFromPosFiles( &sheet );
+
+            if( baseExcludedFromBOM )
             {
                 xcomp->AddChild( xproperty = node( wxT( "property" ) ) );
                 xproperty->AddAttribute( wxT( "name" ), wxT( "exclude_from_bom" ) );
@@ -397,76 +401,75 @@ XNODE* NETLIST_EXPORTER_XML::makeSymbols( unsigned aCtl )
                 xproperty->AddAttribute( wxT( "name" ), wxT( "exclude_from_board" ) );
             }
 
-            if( symbol->ResolveExcludedFromPosFiles( &sheet ) )
+            if( baseExcludedFromPosFiles )
             {
                 xcomp->AddChild( xproperty = node( wxT( "property" ) ) );
                 xproperty->AddAttribute( wxT( "name" ), wxT( "exclude_from_pos_files" ) );
             }
 
-            if( symbol->ResolveDNP( &sheet ) || sheet.GetDNP() )
+            if( baseDnp )
             {
                 xcomp->AddChild( xproperty = node( wxT( "property" ) ) );
                 xproperty->AddAttribute( wxT( "name" ), wxT( "dnp" ) );
             }
 
-            SCH_SYMBOL_INSTANCE instance;
-
-            if( symbol->GetInstance( instance, sheet.Path() ) && !instance.m_Variants.empty() )
+            // we need to iterate all variants in the schematic rather than
+            // only variants in the symbol instance. that's because a symbol
+            // itself might have no variants at all, but the sheet it is
+            // contained in can still have variant-specific attributes. those
+            // need to apply to the symbol in the respective variant.
+            std::set<wxString> variantNames = m_schematic->GetVariantNames();
+            if( !variantNames.empty() )
             {
-                const bool baseDnp = symbol->GetDNP( &sheet );
-                const bool baseExcludedFromBOM = symbol->GetExcludedFromBOM( &sheet );
-                const bool baseExcludedFromSim = symbol->GetExcludedFromSim( &sheet );
-                const bool baseExcludedFromPosFiles = symbol->GetExcludedFromPosFiles( &sheet );
-                XNODE*     xvariants = nullptr;
+                XNODE* xvariants = nullptr;
 
-                for( const auto& [variantName, variant] : instance.m_Variants )
+                for( auto const& variantName : variantNames )
                 {
                     XNODE* xvariant = node( wxT( "variant" ) );
                     bool   hasVariantData = false;
 
                     xvariant->AddAttribute( wxT( "name" ), variantName );
 
-                    if( variant.m_DNP != baseDnp )
+                    bool effectiveDnp = symbol->GetDNP( &sheet, variantName ) || sheet.GetDNP( variantName );
+                    if( effectiveDnp != baseDnp )
                     {
                         XNODE* xvarprop = node( wxT( "property" ) );
                         xvarprop->AddAttribute( wxT( "name" ), wxT( "dnp" ) );
-                        xvarprop->AddAttribute( wxT( "value" ), variant.m_DNP ? wxT( "1" ) : wxT( "0" ) );
+                        xvarprop->AddAttribute( wxT( "value" ), effectiveDnp ? wxT( "1" ) : wxT( "0" ) );
                         xvariant->AddChild( xvarprop );
                         hasVariantData = true;
                     }
 
-                    if( variant.m_ExcludedFromBOM != baseExcludedFromBOM )
+                    bool effectiveExcludedFromBOM = symbol->GetExcludedFromBOM( &sheet, variantName ) || sheet.GetExcludedFromBOM( variantName );
+                    if( effectiveExcludedFromBOM != baseExcludedFromBOM )
                     {
                         XNODE* xvarprop = node( wxT( "property" ) );
                         xvarprop->AddAttribute( wxT( "name" ), wxT( "exclude_from_bom" ) );
-                        xvarprop->AddAttribute( wxT( "value" ), variant.m_ExcludedFromBOM ? wxT( "1" ) : wxT( "0" ) );
+                        xvarprop->AddAttribute( wxT( "value" ), effectiveExcludedFromBOM ? wxT( "1" ) : wxT( "0" ) );
                         xvariant->AddChild( xvarprop );
                         hasVariantData = true;
                     }
 
-                    if( variant.m_ExcludedFromSim != baseExcludedFromSim )
-                    {
-                        XNODE* xvarprop = node( wxT( "property" ) );
-                        xvarprop->AddAttribute( wxT( "name" ), wxT( "exclude_from_sim" ) );
-                        xvarprop->AddAttribute( wxT( "value" ), variant.m_ExcludedFromSim ? wxT( "1" ) : wxT( "0" ) );
-                        xvariant->AddChild( xvarprop );
-                        hasVariantData = true;
-                    }
-
-                    if( variant.m_ExcludedFromPosFiles != baseExcludedFromPosFiles )
+                    bool effectiveExcludedFromPosFiles = symbol->GetExcludedFromPosFiles( &sheet, variantName );
+                    if( effectiveExcludedFromPosFiles != baseExcludedFromPosFiles )
                     {
                         XNODE* xvarprop = node( wxT( "property" ) );
                         xvarprop->AddAttribute( wxT( "name" ), wxT( "exclude_from_pos_files" ) );
-                        xvarprop->AddAttribute( wxT( "value" ), variant.m_ExcludedFromPosFiles ? wxT( "1" ) : wxT( "0" ) );
+                        xvarprop->AddAttribute( wxT( "value" ), effectiveExcludedFromPosFiles ? wxT( "1" ) : wxT( "0" ) );
                         xvariant->AddChild( xvarprop );
                         hasVariantData = true;
                     }
 
-                    if( !variant.m_Fields.empty() )
+                    SCH_SYMBOL_INSTANCE instance;
+                    const SCH_SYMBOL_VARIANT* variant = nullptr;
+                    if( symbol->GetInstance( instance, sheet.Path() ) && instance.m_Variants.contains( variantName ) )
+                        variant = &instance.m_Variants.at( variantName );
+
+                    if( variant && !variant->m_Fields.empty() )
                     {
                         XNODE* xfields = nullptr;
 
-                        for( const auto& [fieldName, fieldValue] : variant.m_Fields )
+                        for( const auto& [fieldName, fieldValue] : variant->m_Fields )
                         {
                             const wxString baseValue =
                                     symbol->GetFieldText( fieldName, &sheet, wxEmptyString );
