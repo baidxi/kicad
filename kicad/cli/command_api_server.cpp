@@ -24,6 +24,7 @@
 #include <api/api_handler_common.h>
 #include <api/api_server.h>
 #include <cli/exit_codes.h>
+#include <lib_id.h>
 #include <settings/settings_manager.h>
 #include <wildcards_and_files_ext.h>
 #include <wx/app.h>
@@ -84,6 +85,7 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
         {
         case types::DOCTYPE_SCHEMATIC:  return KIWAY::FACE_SCH;
         case types::DOCTYPE_PCB:        return KIWAY::FACE_PCB;
+        case types::DOCTYPE_FOOTPRINT:  return KIWAY::FACE_PCB;
         default:                        return KIWAY::KIWAY_FACE_COUNT;
         }
     };
@@ -126,11 +128,12 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
 
         if( requestType != types::DOCTYPE_PCB
             && requestType != types::DOCTYPE_SCHEMATIC
-            && requestType != types::DOCTYPE_PROJECT )
+            && requestType != types::DOCTYPE_PROJECT
+            && requestType != types::DOCTYPE_FOOTPRINT )
         {
             ApiResponseStatus e;
             e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
-            e.set_error_message( "Only PCB, schematic, and project document types are supported" );
+            e.set_error_message( "Only PCB, schematic, footprint, and project document types are supported" );
             return tl::unexpected( e );
         }
 
@@ -143,15 +146,6 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
             e.set_error_message( "OpenDocument requires a non-empty path" );
             return tl::unexpected( e );
         }
-
-        wxFileName projectPath( inputPath );
-
-        // TODO(JE) if the API client just gives a project path rather than sch/board,
-        // we won't dispatch correctly.  We could instead try both handlers until one
-        // succeeds, like we do with other API calls.
-
-        projectPath.SetExt( FILEEXT::ProjectFileExtension );
-        projectPath.MakeAbsolute();
 
         closeCurrentDocument();
 
@@ -166,7 +160,44 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
             return tl::unexpected( e );
         }
 
-        if( !aKiway.ProcessApiOpenDocument( face, projectPath.GetFullPath(), server.get(), &error ) )
+        // For footprints, the path is a URI like "project.kicad_pro/lib:footprint"
+        // and is passed through as-is. For other types, normalize to a project path.
+        wxFileName projectPath;
+        wxString   openPath;
+
+        if( requestType == types::DOCTYPE_FOOTPRINT )
+        {
+            openPath = inputPath;
+
+            // Extract the project path portion (everything up to and including .kicad_pro)
+            wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension;
+            int idx = inputPath.Find( proExt + wxS( "/" ) );
+
+            if( idx == wxNOT_FOUND )
+            {
+                ApiResponseStatus e;
+                e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+                e.set_error_message( "Footprint path must be in the format: "
+                                     "/path/to/project.kicad_pro/LibNick:FootprintName" );
+                return tl::unexpected( e );
+            }
+
+            projectPath = wxFileName( inputPath.Left( idx + proExt.length() ) );
+        }
+        else
+        {
+            projectPath = wxFileName( inputPath );
+
+            // TODO(JE) if the API client just gives a project path rather than sch/board,
+            // we won't dispatch correctly.  We could instead try both handlers until one
+            // succeeds, like we do with other API calls.
+
+            projectPath.SetExt( FILEEXT::ProjectFileExtension );
+            projectPath.MakeAbsolute();
+            openPath = projectPath.GetFullPath();
+        }
+
+        if( !aKiway.ProcessApiOpenDocument( face, openPath, server.get(), &error ) )
         {
             ApiResponseStatus e;
             e.set_status( ApiStatusCode::AS_BAD_REQUEST );
@@ -193,6 +224,21 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
         else if( openDocumentType == types::DOCTYPE_SCHEMATIC )
         {
             // TODO(JE) stateful sheet path handling?
+        }
+        else if( openDocumentType == types::DOCTYPE_FOOTPRINT )
+        {
+            // Extract the LIB_ID from the URI path (everything after .kicad_pro/)
+            wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension + wxS( "/" );
+            int idx = inputPath.Find( proExt );
+
+            if( idx != wxNOT_FOUND )
+            {
+                wxString libIdStr = inputPath.Mid( idx + proExt.length() );
+                LIB_ID fpid;
+                fpid.Parse( libIdStr );
+                doc->mutable_lib_id()->set_library_nickname( fpid.GetUniStringLibNickname() );
+                doc->mutable_lib_id()->set_entry_name( fpid.GetUniStringLibItemName() );
+            }
         }
 
         doc->mutable_project()->set_name( project.GetProjectName().ToUTF8() );
