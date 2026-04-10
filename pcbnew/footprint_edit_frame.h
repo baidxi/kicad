@@ -361,8 +361,8 @@ private:
     std::map<KIID, KIID>        m_boardFootprintUuids;
 
 #ifdef KICAD_IPC_API
-    std::unique_ptr<API_HANDLER_FOOTPRINT>    m_apiHandler;
-    std::unique_ptr<API_HANDLER_COMMON> m_apiHandlerCommon;
+    std::unique_ptr<API_HANDLER_FOOTPRINT> m_apiHandler;
+    std::unique_ptr<API_HANDLER_COMMON>    m_apiHandlerCommon;
 #endif
 };
 

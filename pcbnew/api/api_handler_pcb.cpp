@@ -89,8 +89,7 @@ API_HANDLER_PCB::API_HANDLER_PCB( PCB_EDIT_FRAME* aFrame ) :
 }
 
 
-API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext,
-                                  PCB_EDIT_FRAME* aFrame ) :
+API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext, PCB_EDIT_FRAME* aFrame ) :
         API_HANDLER_BOARD( std::move( aContext ), aFrame )
 {
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
@@ -101,8 +100,7 @@ API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext,
 
     registerHandler<GetItems, GetItemsResponse>( &API_HANDLER_PCB::handleGetItems );
 
-    registerHandler<SetBoardEnabledLayers, BoardEnabledLayersResponse>(
-        &API_HANDLER_PCB::handleSetBoardEnabledLayers );
+    registerHandler<SetBoardEnabledLayers, BoardEnabledLayersResponse>( &API_HANDLER_PCB::handleSetBoardEnabledLayers );
     registerHandler<GetBoardDesignRules, BoardDesignRulesResponse>( &API_HANDLER_PCB::handleGetBoardDesignRules );
     registerHandler<SetBoardDesignRules, BoardDesignRulesResponse>( &API_HANDLER_PCB::handleSetBoardDesignRules );
     registerHandler<GetCustomDesignRules, CustomRulesResponse>( &API_HANDLER_PCB::handleGetCustomDesignRules );

@@ -579,8 +579,8 @@ static struct IFACE : public KIFACE_BASE, public UNITS_PROVIDER
 
     bool handleOpenPcb( const wxString& aPath, KICAD_API_SERVER* aServer, wxString* aError );
 
-    bool handleOpenFootprint( const wxString& aProjectPath, const wxString& aLibIdStr,
-                              KICAD_API_SERVER* aServer, wxString* aError );
+    bool handleOpenFootprint( const wxString& aProjectPath, const wxString& aLibIdStr, KICAD_API_SERVER* aServer,
+                              wxString* aError );
 #endif
 
     void PreloadLibraries( KIWAY* aKiway ) override;
@@ -598,10 +598,10 @@ private:
     void closeCurrentDocument( KICAD_API_SERVER* aServer );
 
     KIWAY* m_kiway = nullptr;
-    std::shared_ptr<HEADLESS_PCB_CONTEXT>      m_openContext;
-    std::unique_ptr<API_HANDLER_PCB>           m_openHandler;
+    std::shared_ptr<HEADLESS_PCB_CONTEXT>       m_openContext;
+    std::unique_ptr<API_HANDLER_PCB>            m_openHandler;
     std::shared_ptr<HEADLESS_FOOTPRINT_CONTEXT> m_openFpContext;
-    std::unique_ptr<API_HANDLER_FOOTPRINT>     m_openFpHandler;
+    std::unique_ptr<API_HANDLER_FOOTPRINT>      m_openFpHandler;
 #endif
 
 } kiface( "pcbnew", KIWAY::FACE_PCB );
@@ -851,16 +851,15 @@ bool IFACE::HandleApiOpenDocument( const wxString& aPath, KICAD_API_SERVER* aSer
         wxString libIdStr = aPath.Mid( sepIdx + proSep.length() );
 
         if( !libIdStr.IsEmpty() )
-            return handleOpenFootprint( aPath.Left( sepIdx + proExt.length() ), libIdStr,
-                                        aServer, aError );
+            return handleOpenFootprint( aPath.Left( sepIdx + proExt.length() ), libIdStr, aServer, aError );
     }
 
     return handleOpenPcb( aPath, aServer, aError );
 }
 
 
-bool IFACE::handleOpenFootprint( const wxString& aProjectPath, const wxString& aLibIdStr,
-                                 KICAD_API_SERVER* aServer, wxString* aError )
+bool IFACE::handleOpenFootprint( const wxString& aProjectPath, const wxString& aLibIdStr, KICAD_API_SERVER* aServer,
+                                 wxString* aError )
 {
     LIB_ID fpid;
 
@@ -899,8 +898,7 @@ bool IFACE::handleOpenFootprint( const wxString& aProjectPath, const wxString& a
         FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( project );
         adapter->AsyncLoad();
         adapter->BlockUntilLoaded();
-        std::unique_ptr<FOOTPRINT> footprint(
-                adapter->LoadFootprintWithOptionalNickname( fpid, true ) );
+        std::unique_ptr<FOOTPRINT> footprint( adapter->LoadFootprintWithOptionalNickname( fpid, true ) );
 
         if( !footprint )
         {
@@ -911,8 +909,7 @@ bool IFACE::handleOpenFootprint( const wxString& aProjectPath, const wxString& a
         }
 
         newContext = std::make_shared<HEADLESS_FOOTPRINT_CONTEXT>(
-                std::move( footprint ), fpid, project,
-                GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" ), m_kiway );
+                std::move( footprint ), fpid, project, GetAppSettings<FOOTPRINT_EDITOR_SETTINGS>( "fpedit" ), m_kiway );
     }
     catch( ... )
     {
@@ -1002,8 +999,7 @@ bool IFACE::handleOpenPcb( const wxString& aPath, KICAD_API_SERVER* aServer, wxS
         }
 
         newContext = std::make_shared<HEADLESS_PCB_CONTEXT>( std::move( loadedBoard ), project,
-                                       GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" ),
-                                       m_kiway );
+                                                             GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" ), m_kiway );
     }
     catch( ... )
     {

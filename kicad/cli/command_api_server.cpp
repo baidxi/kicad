@@ -85,7 +85,7 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
         {
         case types::DOCTYPE_SCHEMATIC:  return KIWAY::FACE_SCH;
         case types::DOCTYPE_PCB:        return KIWAY::FACE_PCB;
-        case types::DOCTYPE_FOOTPRINT:  return KIWAY::FACE_PCB;
+        case types::DOCTYPE_FOOTPRINT: return KIWAY::FACE_PCB;
         default:                        return KIWAY::KIWAY_FACE_COUNT;
         }
     };
@@ -126,10 +126,8 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
     {
         types::DocumentType requestType = aRequest.type();
 
-        if( requestType != types::DOCTYPE_PCB
-            && requestType != types::DOCTYPE_SCHEMATIC
-            && requestType != types::DOCTYPE_PROJECT
-            && requestType != types::DOCTYPE_FOOTPRINT )
+        if( requestType != types::DOCTYPE_PCB && requestType != types::DOCTYPE_SCHEMATIC
+            && requestType != types::DOCTYPE_PROJECT && requestType != types::DOCTYPE_FOOTPRINT )
         {
             ApiResponseStatus e;
             e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
@@ -171,7 +169,7 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
 
             // Extract the project path portion (everything up to and including .kicad_pro)
             wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension;
-            int idx = inputPath.Find( proExt + wxS( "/" ) );
+            int      idx = inputPath.Find( proExt + wxS( "/" ) );
 
             if( idx == wxNOT_FOUND )
             {
@@ -229,12 +227,12 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
         {
             // Extract the LIB_ID from the URI path (everything after .kicad_pro/)
             wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension + wxS( "/" );
-            int idx = inputPath.Find( proExt );
+            int      idx = inputPath.Find( proExt );
 
             if( idx != wxNOT_FOUND )
             {
                 wxString libIdStr = inputPath.Mid( idx + proExt.length() );
-                LIB_ID fpid;
+                LIB_ID   fpid;
                 fpid.Parse( libIdStr );
                 doc->mutable_lib_id()->set_library_nickname( fpid.GetUniStringLibNickname() );
                 doc->mutable_lib_id()->set_entry_name( fpid.GetUniStringLibItemName() );
