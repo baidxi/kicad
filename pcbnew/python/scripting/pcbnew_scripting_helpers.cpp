@@ -260,6 +260,7 @@ BOARD* LoadBoard( const wxString& aFileName, PCB_IO_MGR::PCB_FILE_T aFormat, boo
 
         brd->BuildConnectivity();
         brd->BuildListOfNets();
+        brd->SynchronizeTuningProfileProperties();
         brd->SynchronizeNetsAndNetClasses( true );
 
         // Apply component class assignment rules from the project. Without this, conditions like
