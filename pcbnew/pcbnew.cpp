@@ -897,6 +897,8 @@ bool IFACE::handleOpenFootprint( const wxString& aProjectPath, const wxString& a
     try
     {
         FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( project );
+        adapter->AsyncLoad();
+        adapter->BlockUntilLoaded();
         std::unique_ptr<FOOTPRINT> footprint(
                 adapter->LoadFootprintWithOptionalNickname( fpid, true ) );
 
