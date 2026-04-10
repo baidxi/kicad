@@ -220,7 +220,7 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
 
     GetItemsResponse response;
 
-    auto footprint = board()->GetFirstFootprint();
+    FOOTPRINT* footprint = board()->GetFirstFootprint();
     std::vector<BOARD_ITEM*> items;
     std::set<KICAD_T> typesRequested, typesInserted;
     bool handledAnything = false;
