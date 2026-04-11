@@ -297,6 +297,7 @@ void GLOBAL_EDIT_TOOL::setTransitions()
 
     Go( &GLOBAL_EDIT_TOOL::EditTracksAndVias,    PCB_ACTIONS::editTracksAndVias.MakeEvent() );
     Go( &GLOBAL_EDIT_TOOL::EditTextAndGraphics,  PCB_ACTIONS::editTextAndGraphics.MakeEvent() );
+    Go( &GLOBAL_EDIT_TOOL::SilkscreenAutoPlace,  PCB_ACTIONS::silkscreenAutoPlace.MakeEvent() );
     Go( &GLOBAL_EDIT_TOOL::EditTeardrops,        PCB_ACTIONS::editTeardrops.MakeEvent() );
     Go( &GLOBAL_EDIT_TOOL::GlobalDeletions,      PCB_ACTIONS::globalDeletions.MakeEvent() );
     Go( &GLOBAL_EDIT_TOOL::CleanupTracksAndVias, PCB_ACTIONS::cleanupTracksAndVias.MakeEvent() );

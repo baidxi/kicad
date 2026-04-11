@@ -101,6 +101,8 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_global_edit_teardrops_base.cpp
     dialogs/dialog_global_edit_text_and_graphics.cpp
     dialogs/dialog_global_edit_text_and_graphics_base.cpp
+    dialogs/dialog_silkscreen_auto_placer.cpp
+    dialogs/dialog_silkscreen_auto_placer_base.cpp
     dialogs/dialog_push_pad_properties.cpp
     dialogs/dialog_push_pad_properties_base.cpp
     dialogs/dialog_shape_properties.cpp
@@ -377,6 +379,7 @@ set( PCBNEW_CLASS_SRCS
     autorouter/ar_autoplacer.cpp
     autorouter/ar_matrix.cpp
     autorouter/autoplace_tool.cpp
+    autorouter/silkscreen_auto_placer.cpp
 
     array_pad_number_provider.cpp
     board_loader.cpp

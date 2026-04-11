@@ -195,6 +195,7 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     editMenu->AppendSeparator();
     editMenu->Add( PCB_ACTIONS::editTracksAndVias );
     editMenu->Add( PCB_ACTIONS::editTextAndGraphics );
+    editMenu->Add( PCB_ACTIONS::silkscreenAutoPlace );
     editMenu->Add( PCB_ACTIONS::editTeardrops );
     editMenu->Add( PCB_ACTIONS::changeFootprints );
     editMenu->Add( PCB_ACTIONS::swapLayers );

@@ -1039,6 +1039,13 @@ TOOL_ACTION PCB_ACTIONS::editTextAndGraphics( TOOL_ACTION_ARGS()
         .Tooltip( _( "Edit Text and graphics properties globally across board" ) )
         .Icon( BITMAPS::text ) );
 
+TOOL_ACTION PCB_ACTIONS::silkscreenAutoPlace( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.GlobalEdit.silkscreenAutoPlace" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Auto-Place Silkscreen..." ) )
+        .Tooltip( _( "Automatically position reference labels on silkscreen" ) )
+        .Icon( BITMAPS::autoplace_fields ) );
+
 TOOL_ACTION PCB_ACTIONS::editTeardrops( TOOL_ACTION_ARGS()
         .Name( "pcbnew.GlobalEdit.editTeardrops" )
         .Scope( AS_GLOBAL )

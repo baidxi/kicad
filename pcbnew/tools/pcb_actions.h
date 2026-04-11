@@ -454,6 +454,7 @@ public:
     // Global edit tool
     static TOOL_ACTION editTracksAndVias;
     static TOOL_ACTION editTextAndGraphics;
+    static TOOL_ACTION silkscreenAutoPlace;
     static TOOL_ACTION editTeardrops;
     static TOOL_ACTION globalDeletions;
     static TOOL_ACTION cleanupTracksAndVias;

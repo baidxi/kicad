@@ -63,6 +63,7 @@ public:
     int CleanupTracksAndVias( const TOOL_EVENT& aEvent );
     int CleanupGraphics( const TOOL_EVENT& aEvent );
     int RemoveUnusedPads( const TOOL_EVENT& aEvent );
+    int SilkscreenAutoPlace( const TOOL_EVENT& aEvent );
     int ZonesManager( const TOOL_EVENT& aEvent );
 
 private:

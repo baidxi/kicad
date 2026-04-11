@@ -1,0 +1,746 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<wxFormBuilder_Project>
+  <FileVersion major="1" minor="18"/>
+  <object class="Project" expanded="true">
+    <property name="code_generation">C++</property>
+    <property name="cpp_class_decoration"></property>
+    <property name="cpp_disconnect_events">1</property>
+    <property name="cpp_event_generation">connect</property>
+    <property name="cpp_help_provider">none</property>
+    <property name="cpp_namespace"></property>
+    <property name="cpp_precompiled_header"></property>
+    <property name="cpp_use_array_enum">0</property>
+    <property name="cpp_use_enum">0</property>
+    <property name="embedded_files_path">res</property>
+    <property name="encoding">UTF-8</property>
+    <property name="file">dialog_silkscreen_auto_placer_base</property>
+    <property name="first_id">1000</property>
+    <property name="internationalize">1</property>
+    <property name="lua_skip_events">1</property>
+    <property name="lua_ui_table">UI</property>
+    <property name="name">dialog_silkscreen_auto_placer</property>
+    <property name="path">.</property>
+    <property name="php_disconnect_events">0</property>
+    <property name="php_disconnect_mode">source_name</property>
+    <property name="php_skip_events">1</property>
+    <property name="python_disconnect_events">0</property>
+    <property name="python_disconnect_mode">source_name</property>
+    <property name="python_image_path_wrapper_function_name"></property>
+    <property name="python_indent_with_spaces"></property>
+    <property name="python_skip_events">1</property>
+    <property name="relative_path">1</property>
+    <property name="use_microsoft_bom">0</property>
+    <property name="use_native_eol">0</property>
+    <object class="Dialog" expanded="true">
+      <property name="aui_managed">0</property>
+      <property name="aui_manager_style">wxAUI_MGR_DEFAULT</property>
+      <property name="bg"></property>
+      <property name="center">wxBOTH</property>
+      <property name="context_help"></property>
+      <property name="context_menu">1</property>
+      <property name="drag_accept_files">0</property>
+      <property name="enabled">1</property>
+      <property name="event_handler">impl_virtual</property>
+      <property name="extra_style"></property>
+      <property name="fg"></property>
+      <property name="font"></property>
+      <property name="hidden">0</property>
+      <property name="id">wxID_ANY</property>
+      <property name="maximum_size"></property>
+      <property name="minimum_size"></property>
+      <property name="name">DIALOG_SILKSCREEN_AUTO_PLACER_BASE</property>
+      <property name="pos"></property>
+      <property name="size">-1,-1</property>
+      <property name="style">wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</property>
+      <property name="subclass">DIALOG_SHIM; dialog_shim.h</property>
+      <property name="title">Auto-Place Silkscreen</property>
+      <property name="tooltip"></property>
+      <property name="two_step_creation">0</property>
+      <property name="window_extra_style"></property>
+      <property name="window_name"></property>
+      <property name="window_style"></property>
+      <!-- bMainSizer (vertical) -->
+      <object class="wxBoxSizer" expanded="true">
+        <property name="minimum_size"></property>
+        <property name="name">bMainSizer</property>
+        <property name="orient">wxVERTICAL</property>
+        <property name="permission">none</property>
+        <!-- bTopSizer (horizontal): left column + right column -->
+        <object class="sizeritem" expanded="true">
+          <property name="border">5</property>
+          <property name="flag">wxEXPAND</property>
+          <property name="proportion">0</property>
+          <object class="wxBoxSizer" expanded="true">
+            <property name="minimum_size"></property>
+            <property name="name">bTopSizer</property>
+            <property name="orient">wxHORIZONTAL</property>
+            <property name="permission">none</property>
+            <!-- bLeftColumn -->
+            <object class="sizeritem" expanded="true">
+              <property name="border">5</property>
+              <property name="flag">wxEXPAND</property>
+              <property name="proportion">0</property>
+              <object class="wxBoxSizer" expanded="true">
+                <property name="minimum_size"></property>
+                <property name="name">bLeftColumn</property>
+                <property name="orient">wxVERTICAL</property>
+                <property name="permission">none</property>
+                <!-- sbFilterOptions -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND|wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxStaticBoxSizer" expanded="true">
+                    <property name="id">wxID_ANY</property>
+                    <property name="label">Filter Options</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">sbFilterOptions</property>
+                    <property name="orient">wxVERTICAL</property>
+                    <property name="parent">1</property>
+                    <property name="permission">none</property>
+                    <!-- m_rbPlaceAll -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxRadioButton" expanded="true">
+                        <property name="value">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Place entire board</property>
+                        <property name="name">m_rbPlaceAll</property>
+                        <property name="permission">protected</property>
+                        <property name="style">wxRB_GROUP</property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_rbPlaceSel -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxRadioButton" expanded="true">
+                        <property name="value">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Place selected</property>
+                        <property name="name">m_rbPlaceSel</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+                <!-- sbFailedOptions -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND|wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxStaticBoxSizer" expanded="true">
+                    <property name="id">wxID_ANY</property>
+                    <property name="label">Failed Placement</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">sbFailedOptions</property>
+                    <property name="orient">wxVERTICAL</property>
+                    <property name="parent">1</property>
+                    <property name="permission">none</property>
+                    <!-- m_rbFailCenter -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxRadioButton" expanded="true">
+                        <property name="value">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Center over component</property>
+                        <property name="name">m_rbFailCenter</property>
+                        <property name="permission">protected</property>
+                        <property name="style">wxRB_GROUP</property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_rbFailOffBoard -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxRadioButton" expanded="true">
+                        <property name="value">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Place off board (bottom left)</property>
+                        <property name="name">m_rbFailOffBoard</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_rbFailRestore -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxRadioButton" expanded="true">
+                        <property name="value">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Restore original</property>
+                        <property name="name">m_rbFailRestore</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+              </object>
+            </object>
+            <!-- sbAllowSilk (right column) -->
+            <object class="sizeritem" expanded="true">
+              <property name="border">5</property>
+              <property name="flag">wxEXPAND|wxALL</property>
+              <property name="proportion">1</property>
+              <object class="wxStaticBoxSizer" expanded="true">
+                <property name="id">wxID_ANY</property>
+                <property name="label">Allow Silk Under Components</property>
+                <property name="minimum_size"></property>
+                <property name="name">sbAllowSilk</property>
+                <property name="orient">wxVERTICAL</property>
+                <property name="parent">1</property>
+                <property name="permission">none</property>
+                <!-- m_allowSilkUnder -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxALL|wxEXPAND</property>
+                  <property name="proportion">1</property>
+                  <object class="wxTextCtrl" expanded="true">
+                    <property name="enabled">1</property>
+                    <property name="hidden">0</property>
+                    <property name="id">wxID_ANY</property>
+                    <property name="minimum_size">200,100</property>
+                    <property name="name">m_allowSilkUnder</property>
+                    <property name="permission">protected</property>
+                    <property name="style">wxTE_MULTILINE</property>
+                    <property name="tooltip">Enter reference designators (one per line) where silk overlap is acceptable</property>
+                    <property name="value"></property>
+                  </object>
+                </object>
+              </object>
+            </object>
+          </object>
+        </object>
+        <!-- bMiddleSizer (horizontal): options column + position column -->
+        <object class="sizeritem" expanded="true">
+          <property name="border">5</property>
+          <property name="flag">wxEXPAND</property>
+          <property name="proportion">0</property>
+          <object class="wxBoxSizer" expanded="true">
+            <property name="minimum_size"></property>
+            <property name="name">bMiddleSizer</property>
+            <property name="orient">wxHORIZONTAL</property>
+            <property name="permission">none</property>
+            <!-- bOptionsColumn -->
+            <object class="sizeritem" expanded="true">
+              <property name="border">5</property>
+              <property name="flag">wxEXPAND|wxALL</property>
+              <property name="proportion">0</property>
+              <object class="wxBoxSizer" expanded="true">
+                <property name="minimum_size"></property>
+                <property name="name">bOptionsColumn</property>
+                <property name="orient">wxVERTICAL</property>
+                <property name="permission">none</property>
+                <!-- m_cbAvoidVias -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxCheckBox" expanded="true">
+                    <property name="checked">1</property>
+                    <property name="enabled">1</property>
+                    <property name="hidden">0</property>
+                    <property name="id">wxID_ANY</property>
+                    <property name="label">Avoid VIAs</property>
+                    <property name="name">m_cbAvoidVias</property>
+                    <property name="permission">protected</property>
+                    <property name="style"></property>
+                    <property name="tooltip"></property>
+                  </object>
+                </object>
+                <!-- fgRotation (2-col flex grid) -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND</property>
+                  <property name="proportion">0</property>
+                  <object class="wxFlexGridSizer" expanded="true">
+                    <property name="cols">2</property>
+                    <property name="flexible_direction">wxBOTH</property>
+                    <property name="growablecols"></property>
+                    <property name="growablerows"></property>
+                    <property name="hgap">0</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">fgRotation</property>
+                    <property name="non_flexible_grow_mode">wxFLEX_GROWMODE_SPECIFIED</property>
+                    <property name="permission">none</property>
+                    <property name="rows">0</property>
+                    <property name="vgap">0</property>
+                    <!-- m_stRotation -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Rotation strategy:</property>
+                        <property name="name">m_stRotation</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                    <!-- m_choiceRotation -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxChoice" expanded="true">
+                        <property name="choices">&quot;KLC Style&quot; &quot;Match Component&quot;</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="name">m_choiceRotation</property>
+                        <property name="permission">protected</property>
+                        <property name="selection">0</property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+                <!-- m_cbTryAltRotation -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxCheckBox" expanded="true">
+                    <property name="checked">1</property>
+                    <property name="enabled">1</property>
+                    <property name="hidden">0</property>
+                    <property name="id">wxID_ANY</property>
+                    <property name="label">Try altered rotation</property>
+                    <property name="name">m_cbTryAltRotation</property>
+                    <property name="permission">protected</property>
+                    <property name="style"></property>
+                    <property name="tooltip">Also try candidates at perpendicular angle</property>
+                  </object>
+                </object>
+                <!-- fgSizeWidth (4-col flex grid) -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND</property>
+                  <property name="proportion">0</property>
+                  <object class="wxFlexGridSizer" expanded="true">
+                    <property name="cols">4</property>
+                    <property name="flexible_direction">wxBOTH</property>
+                    <property name="growablecols">2</property>
+                    <property name="growablerows"></property>
+                    <property name="hgap">0</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">fgSizeWidth</property>
+                    <property name="non_flexible_grow_mode">wxFLEX_GROWMODE_SPECIFIED</property>
+                    <property name="permission">none</property>
+                    <property name="rows">0</property>
+                    <property name="vgap">0</property>
+                    <!-- Row 1: fixed size -->
+                    <!-- m_cbFixedSize -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label"></property>
+                        <property name="name">m_cbFixedSize</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                        <event name="OnCheckBox">onFixedSizeCheck</event>
+                      </object>
+                    </object>
+                    <!-- m_stFixedSize -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxRIGHT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Fixed size:</property>
+                        <property name="name">m_stFixedSize</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                    <!-- m_tcFixedSize -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxTextCtrl" expanded="true">
+                        <property name="enabled">0</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="name">m_tcFixedSize</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                        <property name="value"></property>
+                      </object>
+                    </object>
+                    <!-- m_stFixedSizeUnits -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxRIGHT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">mm</property>
+                        <property name="name">m_stFixedSizeUnits</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                    <!-- Row 2: fixed width -->
+                    <!-- m_cbFixedWidth -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label"></property>
+                        <property name="name">m_cbFixedWidth</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                        <event name="OnCheckBox">onFixedWidthCheck</event>
+                      </object>
+                    </object>
+                    <!-- m_stFixedWidth -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxRIGHT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Fixed width:</property>
+                        <property name="name">m_stFixedWidth</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                    <!-- m_tcFixedWidth -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxTextCtrl" expanded="true">
+                        <property name="enabled">0</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="name">m_tcFixedWidth</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                        <property name="value"></property>
+                      </object>
+                    </object>
+                    <!-- m_stFixedWidthUnits -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxRIGHT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">mm</property>
+                        <property name="name">m_stFixedWidthUnits</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+              </object>
+            </object>
+            <!-- bPositionColumn -->
+            <object class="sizeritem" expanded="true">
+              <property name="border">5</property>
+              <property name="flag">wxEXPAND</property>
+              <property name="proportion">0</property>
+              <object class="wxBoxSizer" expanded="true">
+                <property name="minimum_size"></property>
+                <property name="name">bPositionColumn</property>
+                <property name="orient">wxVERTICAL</property>
+                <property name="permission">none</property>
+                <!-- sbPositions -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND|wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxStaticBoxSizer" expanded="true">
+                    <property name="id">wxID_ANY</property>
+                    <property name="label">Positions</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">sbPositions</property>
+                    <property name="orient">wxVERTICAL</property>
+                    <property name="parent">1</property>
+                    <property name="permission">none</property>
+                    <!-- m_cbTopCenter -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Top center</property>
+                        <property name="name">m_cbTopCenter</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbCenterRight -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Center right</property>
+                        <property name="name">m_cbCenterRight</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbBotCenter -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Bottom center</property>
+                        <property name="name">m_cbBotCenter</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbCenterLeft -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">1</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Center left</property>
+                        <property name="name">m_cbCenterLeft</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbTopLeft -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Top left</property>
+                        <property name="name">m_cbTopLeft</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbTopRight -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Top right</property>
+                        <property name="name">m_cbTopRight</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbBotLeft -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Bottom left</property>
+                        <property name="name">m_cbBotLeft</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                    <!-- m_cbBotRight -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxBOTTOM|wxRIGHT|wxLEFT</property>
+                      <property name="proportion">0</property>
+                      <object class="wxCheckBox" expanded="true">
+                        <property name="checked">0</property>
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Bottom right</property>
+                        <property name="name">m_cbBotRight</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+                <!-- fgDelta (3-col flex grid) -->
+                <object class="sizeritem" expanded="true">
+                  <property name="border">5</property>
+                  <property name="flag">wxEXPAND|wxALL</property>
+                  <property name="proportion">0</property>
+                  <object class="wxFlexGridSizer" expanded="true">
+                    <property name="cols">3</property>
+                    <property name="flexible_direction">wxBOTH</property>
+                    <property name="growablecols">1</property>
+                    <property name="growablerows"></property>
+                    <property name="hgap">0</property>
+                    <property name="minimum_size"></property>
+                    <property name="name">fgDelta</property>
+                    <property name="non_flexible_grow_mode">wxFLEX_GROWMODE_SPECIFIED</property>
+                    <property name="permission">none</property>
+                    <property name="rows">0</property>
+                    <property name="vgap">0</property>
+                    <!-- m_stPosDelta -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">Position delta:</property>
+                        <property name="name">m_stPosDelta</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                    <!-- m_tcPosDelta -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxTextCtrl" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="name">m_tcPosDelta</property>
+                        <property name="permission">protected</property>
+                        <property name="style"></property>
+                        <property name="tooltip"></property>
+                        <property name="value"></property>
+                      </object>
+                    </object>
+                    <!-- m_stPosDeltaUnits -->
+                    <object class="sizeritem" expanded="true">
+                      <property name="border">5</property>
+                      <property name="flag">wxALIGN_CENTER_VERTICAL|wxALL</property>
+                      <property name="proportion">0</property>
+                      <object class="wxStaticText" expanded="true">
+                        <property name="enabled">1</property>
+                        <property name="hidden">0</property>
+                        <property name="id">wxID_ANY</property>
+                        <property name="label">mm</property>
+                        <property name="name">m_stPosDeltaUnits</property>
+                        <property name="permission">protected</property>
+                        <property name="wrap">-1</property>
+                      </object>
+                    </object>
+                  </object>
+                </object>
+              </object>
+            </object>
+          </object>
+        </object>
+        <!-- m_sdbSizer (standard dialog buttons) -->
+        <object class="sizeritem" expanded="true">
+          <property name="border">5</property>
+          <property name="flag">wxALL|wxEXPAND</property>
+          <property name="proportion">0</property>
+          <object class="wxStdDialogButtonSizer" expanded="true">
+            <property name="Apply">0</property>
+            <property name="Cancel">1</property>
+            <property name="ContextHelp">0</property>
+            <property name="Help">0</property>
+            <property name="No">0</property>
+            <property name="OK">1</property>
+            <property name="Save">0</property>
+            <property name="Yes">0</property>
+            <property name="minimum_size"></property>
+            <property name="name">m_sdbSizer</property>
+            <property name="permission">protected</property>
+          </object>
+        </object>
+      </object>
+    </object>
+  </object>
+</wxFormBuilder_Project>
