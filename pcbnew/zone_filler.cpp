@@ -1050,6 +1050,21 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
         // and has lower priority than that zone.
         std::vector<std::pair<ZONE*, PCB_LAYER_ID>> zonesToRefill;
 
+        // Cross-layer refill candidates: zones on OTHER layers that have a z_clearance
+        // coupling to a zone with removed islands.  These are processed in a second wave
+        // after the same-layer refill wave settles, so that buildZClearanceZoneKnockouts
+        // can read up-to-date filled polygons.
+        std::vector<std::pair<ZONE*, PCB_LAYER_ID>> zClearanceZonesToRefill;
+
+        auto addRefillCandidate =
+                [&]( std::vector<std::pair<ZONE*, PCB_LAYER_ID>>& aDst, ZONE* aZone, PCB_LAYER_ID aLayer )
+        {
+            auto fillItem = std::make_pair( aZone, aLayer );
+
+            if( std::find( aDst.begin(), aDst.end(), fillItem ) == aDst.end() )
+                aDst.push_back( fillItem );
+        };
+
         for( ZONE* zoneWithIsland : zonesWithRemovedIslands )
         {
             BOX2I islandZoneBBox = zoneWithIsland->GetBoundingBox();
@@ -1081,18 +1096,65 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
 
                 // Add zone/layer pairs for refilling
                 for( PCB_LAYER_ID layer : commonLayers )
-                {
-                    auto fillItem = std::make_pair( zone, layer );
+                    addRefillCandidate( zonesToRefill, zone, layer );
+            }
+        }
 
-                    if( std::find( zonesToRefill.begin(), zonesToRefill.end(), fillItem ) == zonesToRefill.end() )
+        // Cross-layer z_clearance refill search: any zone on an other-layer z-couple to a
+        // zone with removed islands needs its z_clearance zone knockouts recomputed against
+        // the up-to-date filled polys.  No priority gate here -- z_clearance is symmetric.
+        if( m_hasZClearanceRules )
+        {
+            for( ZONE* zoneWithIsland : zonesWithRemovedIslands )
+            {
+                for( PCB_LAYER_ID islandLayer : zoneWithIsland->GetLayerSet() )
+                {
+                    auto pairIt = m_zClearanceLayerPairs.find( islandLayer );
+
+                    if( pairIt == m_zClearanceLayerPairs.end() )
+                        continue;
+
+                    for( const Z_CLEARANCE_LAYER_PAIR& pair : pairIt->second )
                     {
-                        zonesToRefill.push_back( fillItem );
+                        PCB_LAYER_ID otherLayer = pair.otherLayer;
+                        int          dielDist = pair.dielectricDist;
+
+                        if( dielDist >= m_worstZClearance )
+                            continue;
+
+                        double maxXYd = std::sqrt( (double) m_worstZClearance * m_worstZClearance
+                                                   - (double) dielDist * dielDist );
+                        int    maxXY = (int) std::ceil( maxXYd );
+                        int    extraMargin = pcbIUScale.mmToIU( ADVANCED_CFG::GetCfg().m_ExtraClearance );
+
+                        BOX2I islandZoneBBox = zoneWithIsland->GetBoundingBox();
+                        islandZoneBBox.Inflate( maxXY + extraMargin );
+
+                        for( ZONE* zone : aZones )
+                        {
+                            if( zone == zoneWithIsland )
+                                continue;
+
+                            if( zone->GetIsRuleArea() )
+                                continue;
+
+                            if( !zone->GetLayerSet().test( otherLayer ) )
+                                continue;
+
+                            if( zone->SameNet( zoneWithIsland ) )
+                                continue;
+
+                            if( !zone->GetBoundingBox().Intersects( islandZoneBBox ) )
+                                continue;
+
+                            addRefillCandidate( zClearanceZonesToRefill, zone, otherLayer );
+                        }
                     }
                 }
             }
         }
 
-        if( !zonesToRefill.empty() )
+        if( !zonesToRefill.empty() || !zClearanceZonesToRefill.empty() )
         {
             if( m_progressReporter )
             {
@@ -1143,6 +1205,38 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
             run_fill_waves( zonesToRefill, cached_refill_fill_lambda,
                             cached_refill_tessellate_lambda, refill_item_dependency );
 
+            // Second wave: cross-layer z_clearance refill.  Runs after the same-layer wave is
+            // fully joined, so buildZClearanceZoneKnockouts in refillZoneFromCache reads
+            // settled filled polys.  Cascades are bounded to one level; this wave does not
+            // trigger a third.
+            //
+            // Drop any entry already handled by wave 1: those zones were written by wave 1
+            // and re-reading them concurrently from other wave-2 tasks would be a data race.
+            // Wave 1's refillZoneFromCache already applies z-clearance knockouts via
+            // buildZClearanceZoneKnockouts, so no correctness is lost.
+            {
+                std::set<std::pair<ZONE*, PCB_LAYER_ID>> wave1Set( zonesToRefill.begin(), zonesToRefill.end() );
+                zClearanceZonesToRefill.erase( std::remove_if( zClearanceZonesToRefill.begin(),
+                                                               zClearanceZonesToRefill.end(),
+                                                               [&]( const std::pair<ZONE*, PCB_LAYER_ID>& item )
+                                                               {
+                                                                   return wave1Set.count( item ) > 0;
+                                                               } ),
+                                               zClearanceZonesToRefill.end() );
+            }
+
+            if( !zClearanceZonesToRefill.empty() )
+            {
+                auto no_dependency = []( const std::pair<ZONE*, PCB_LAYER_ID>&,
+                                         const std::pair<ZONE*, PCB_LAYER_ID>& ) -> bool
+                {
+                    return false;
+                };
+
+                run_fill_waves( zClearanceZonesToRefill, cached_refill_fill_lambda, cached_refill_tessellate_lambda,
+                                no_dependency );
+            }
+
             // Re-run island detection for refilled zones
             std::map<ZONE*, std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>> refillIslandsMap;
             std::set<ZONE*> refillZones;
@@ -1150,19 +1244,29 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
             for( const auto& [zone, layer] : zonesToRefill )
                 refillZones.insert( zone );
 
-            for( ZONE* zone : refillZones )
-            {
-                refillIslandsMap[zone] = std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>();
+            for( const auto& [zone, layer] : zClearanceZonesToRefill )
+                refillZones.insert( zone );
 
+            for( ZONE* zone : zonesWithRemovedIslands )
+                refillIslandsMap.emplace( zone, std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>{} );
+            for( ZONE* zone : refillZones )
+                refillIslandsMap.emplace( zone, std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>{} );
+
+            for( auto& [zone, layerMap] : refillIslandsMap )
+            {
                 for( PCB_LAYER_ID layer : zone->GetLayerSet() )
-                    refillIslandsMap[zone][layer] = ISOLATED_ISLANDS();
+                    layerMap[layer] = ISOLATED_ISLANDS();
             }
 
             connectivity->FillIsolatedIslandsMap( refillIslandsMap );
 
-            // Remove islands from refilled zones
+            // Remove islands only from the refilled zones (not from zonesWithRemovedIslands
+            // which were already processed in the initial pass)
             for( const auto& [ zone, zoneIslands ] : refillIslandsMap )
             {
+                if( refillZones.find( zone ) == refillZones.end() )
+                    continue; // connectivity-only entry; skip island removal
+
                 bool allIslands = true;
 
                 for( const auto& [ layer, layerIslands ] : zoneIslands )
@@ -2495,7 +2599,22 @@ void ZONE_FILLER::buildDifferentNetZoneClearances( const ZONE* aZone, PCB_LAYER_
 }
 
 
-void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles )
+// Evaluate z_clearance from both layer perspectives and take the more restrictive result so
+// layer-conditional rules are honored regardless of which side they match.
+static int evalZClearanceConstraint( BOARD_DESIGN_SETTINGS& aBds, const BOARD_ITEM* a, const BOARD_ITEM* b,
+                                     PCB_LAYER_ID aLayerOfA, PCB_LAYER_ID aLayerOfB )
+{
+    DRC_CONSTRAINT c1 = aBds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, a, b, aLayerOfA );
+    DRC_CONSTRAINT c2 = aBds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, b, a, aLayerOfB );
+
+    int m1 = ( c1.IsNull() || c1.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c1.GetValue().Min();
+    int m2 = ( c2.IsNull() || c2.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c2.GetValue().Min();
+
+    return std::max( m1, m2 );
+}
+
+
+void ZONE_FILLER::buildZClearanceItemKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles )
 {
     if( !m_hasZClearanceRules )
         return;
@@ -2510,20 +2629,6 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
 
     BOX2I zoneBoundingBox = aZone->GetBoundingBox();
     zoneBoundingBox.Inflate( m_worstClearance + extraMargin );
-
-    // Evaluate z_clearance from both layer perspectives and take the more restrictive
-    // result so layer-conditional rules are honored regardless of which side they match.
-    auto evalZClearance = [&bds]( const BOARD_ITEM* a, const BOARD_ITEM* b, PCB_LAYER_ID aLayerOfA,
-                                  PCB_LAYER_ID aLayerOfB ) -> int
-    {
-        DRC_CONSTRAINT c1 = bds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, a, b, aLayerOfA );
-        DRC_CONSTRAINT c2 = bds.m_DRCEngine->EvalRules( Z_CLEARANCE_CONSTRAINT, b, a, aLayerOfB );
-
-        int m1 = ( c1.IsNull() || c1.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c1.GetValue().Min();
-        int m2 = ( c2.IsNull() || c2.GetSeverity() == RPT_SEVERITY_IGNORE ) ? -1 : c2.GetValue().Min();
-
-        return std::max( m1, m2 );
-    };
 
     for( const Z_CLEARANCE_LAYER_PAIR& pair : it->second )
     {
@@ -2542,7 +2647,7 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
             if( track->GetNetCode() > 0 && track->GetNetCode() == aZone->GetNetCode() )
                 continue;
 
-            int minZ = evalZClearance( aZone, track, aLayer, otherLayer );
+            int minZ = evalZClearanceConstraint( bds, aZone, track, aLayer, otherLayer );
 
             if( minZ <= 0 || dielectricDist >= minZ )
                 continue;
@@ -2585,7 +2690,7 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
                 if( pad->GetNetCode() > 0 && pad->GetNetCode() == aZone->GetNetCode() )
                     continue;
 
-                int minZ = evalZClearance( aZone, pad, aLayer, otherLayer );
+                int minZ = evalZClearanceConstraint( bds, aZone, pad, aLayer, otherLayer );
 
                 if( minZ <= 0 || dielectricDist >= minZ )
                     continue;
@@ -2600,10 +2705,37 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
                     addHoleKnockout( pad, xyGap + extraMargin, aHoles );
             }
         }
+    }
 
-        // Process zones on otherLayer.  The current zone yields (gets knocked out) to a
-        // zone on another layer when the other zone has higher priority, mirroring the
-        // same-layer yield semantics in buildDifferentNetZoneClearances().
+    aHoles.Simplify();
+}
+
+
+void ZONE_FILLER::buildZClearanceZoneKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles )
+{
+    if( !m_hasZClearanceRules )
+        return;
+
+    auto it = m_zClearanceLayerPairs.find( aLayer );
+
+    if( it == m_zClearanceLayerPairs.end() )
+        return;
+
+    BOARD_DESIGN_SETTINGS& bds = m_board->GetDesignSettings();
+    int                    extraMargin = pcbIUScale.mmToIU( ADVANCED_CFG::GetCfg().m_ExtraClearance );
+
+    BOX2I zoneBoundingBox = aZone->GetBoundingBox();
+    zoneBoundingBox.Inflate( m_worstClearance + extraMargin );
+
+    for( const Z_CLEARANCE_LAYER_PAIR& pair : it->second )
+    {
+        PCB_LAYER_ID otherLayer = pair.otherLayer;
+        int          dielectricDist = pair.dielectricDist;
+
+        // The current zone yields (gets knocked out) to a higher-priority zone on another
+        // layer, mirroring the same-layer yield semantics in buildDifferentNetZoneClearances().
+        // Prefer the other zone's filled polygons to its outline so that areas removed by
+        // island deletion don't continue to cast z-clearance shadows.
         auto knockoutZClearanceZone = [&]( ZONE* otherZone )
         {
             if( otherZone == aZone || otherZone->GetIsRuleArea() )
@@ -2621,7 +2753,7 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
             if( !otherZone->GetBoundingBox().Intersects( zoneBoundingBox ) )
                 return;
 
-            int minZ = evalZClearance( aZone, otherZone, aLayer, otherLayer );
+            int minZ = evalZClearanceConstraint( bds, aZone, otherZone, aLayer, otherLayer );
 
             if( minZ <= 0 || dielectricDist >= minZ )
                 return;
@@ -2629,9 +2761,27 @@ void ZONE_FILLER::buildZClearanceKnockouts( const ZONE* aZone, PCB_LAYER_ID aLay
             double xyGapD = std::sqrt( (double) minZ * minZ - (double) dielectricDist * dielectricDist );
             int    xyGap = (int) std::ceil( xyGapD );
 
-            SHAPE_POLY_SET poly;
-            otherZone->TransformShapeToPolygon( poly, otherLayer, xyGap + extraMargin, m_maxError, ERROR_OUTSIDE );
-            aHoles.Append( poly );
+            if( otherZone->HasFilledPolysForLayer( otherLayer ) )
+            {
+                std::shared_ptr<SHAPE_POLY_SET> otherFill = otherZone->GetFilledPolysList( otherLayer );
+
+                if( otherFill && otherFill->OutlineCount() > 0 )
+                {
+                    SHAPE_POLY_SET inflated = *otherFill;
+                    inflated.Inflate( xyGap + extraMargin + m_maxError, CORNER_STRATEGY::ROUND_ALL_CORNERS,
+                                      m_maxError );
+                    aHoles.Append( inflated );
+                }
+            }
+            else
+            {
+                // Fallback for the initial wave: the other zone isn't filled yet, so use its
+                // outline.  This is a safe over-estimate; the post-island-removal refill pass
+                // will re-run this function with the real filled polys.
+                SHAPE_POLY_SET poly;
+                otherZone->TransformShapeToPolygon( poly, otherLayer, xyGap + extraMargin, m_maxError, ERROR_OUTSIDE );
+                aHoles.Append( poly );
+            }
         };
 
         forEachBoardAndFootprintZone( m_board, knockoutZClearanceZone );
@@ -2864,7 +3014,15 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     buildCopperItemClearances( aZone, aLayer, noConnectionPads, clearanceHoles,
                                !iterativeRefill /* include zone clearances only if not iterative */ );
 
-    buildZClearanceKnockouts( aZone, aLayer, clearanceHoles );
+    buildZClearanceItemKnockouts( aZone, aLayer, clearanceHoles );
+
+    // When iterative refill is disabled, z-clearance zone knockouts go straight into
+    // clearanceHoles alongside the item knockouts.  When enabled, they are computed below
+    // alongside the same-layer zone clearances so the cache captures the fill before they
+    // are applied, allowing the post-island-removal refill pass to re-apply them against
+    // up-to-date filled polygons.
+    if( !iterativeRefill )
+        buildZClearanceZoneKnockouts( aZone, aLayer, clearanceHoles );
 
     if( iterativeRefill )
     {
@@ -2915,13 +3073,18 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     // need to account for them when testing spoke endpoints, otherwise spokes will be kept
     // that point into areas that will be knocked out by higher-priority zones.
     SHAPE_POLY_SET zoneClearances;
+    SHAPE_POLY_SET zClearanceZoneKnockouts;
 
     if( iterativeRefill )
     {
         buildDifferentNetZoneClearances( aZone, aLayer, zoneClearances );
+        buildZClearanceZoneKnockouts( aZone, aLayer, zClearanceZoneKnockouts );
 
         if( zoneClearances.OutlineCount() > 0 )
             testAreas.BooleanSubtract( zoneClearances );
+
+        if( zClearanceZoneKnockouts.OutlineCount() > 0 )
+            testAreas.BooleanSubtract( zClearanceZoneKnockouts );
     }
 
     DUMP_POLYS_TO_COPPER_LAYER( testAreas, In4_Cu, wxT( "minus-clearance-holes" ) );
@@ -3111,6 +3274,12 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
         if( zoneClearances.OutlineCount() > 0 )
         {
             aFillPolys.BooleanSubtract( zoneClearances );
+            knockoutsApplied = true;
+        }
+
+        if( zClearanceZoneKnockouts.OutlineCount() > 0 )
+        {
+            aFillPolys.BooleanSubtract( zClearanceZoneKnockouts );
             knockoutsApplied = true;
         }
     }
@@ -4100,6 +4269,18 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
             };
 
     forEachBoardAndFootprintZone( m_board, collectZoneKnockout );
+
+    // Re-apply z-clearance zone knockouts using the up-to-date filled polys of other-layer
+    // zones.  The item-half (tracks/vias/pads) is already baked into the cached pre-knockout
+    // fill, so only the zone-half needs recomputation.
+    SHAPE_POLY_SET zClearanceZoneKnockouts;
+    buildZClearanceZoneKnockouts( aZone, aLayer, zClearanceZoneKnockouts );
+
+    if( zClearanceZoneKnockouts.OutlineCount() > 0 )
+    {
+        diffNetKnockouts.Append( zClearanceZoneKnockouts );
+        knockoutsApplied = true;
+    }
 
     // Keepout zones are not collected here because they are already baked into the cached
     // pre-knockout fill.  They were subtracted before the initial deflate/inflate min-width
