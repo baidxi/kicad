@@ -198,7 +198,7 @@ void PAD::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any padStackMsg;
     m_padStack.Serialize( padStackMsg );
-    padStackMsg.UnpackTo( pad.mutable_pad_stack() );
+    (void) padStackMsg.UnpackTo( pad.mutable_pad_stack() );
 
     if( GetLocalClearance().has_value() )
         pad.mutable_copper_clearance_override()->set_value_nm( *GetLocalClearance() );
@@ -211,7 +211,7 @@ void PAD::Serialize( google::protobuf::Any &aContainer ) const
         pad.mutable_symbol_pin()->set_no_connect( pt->second );
     }
 
-    aContainer.PackFrom( pad );
+    (void) aContainer.PackFrom( pad );
 }
 
 
@@ -232,7 +232,7 @@ bool PAD::Deserialize( const google::protobuf::Any &aContainer )
     SetPadToDieDelay( pad.pad_to_die_delay().value_as() );
 
     google::protobuf::Any padStackWrapper;
-    padStackWrapper.PackFrom( pad.pad_stack() );
+    (void) padStackWrapper.PackFrom( pad.pad_stack() );
     m_padStack.Deserialize( padStackWrapper );
 
     SetLayer( m_padStack.StartLayer() );

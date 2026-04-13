@@ -321,13 +321,13 @@ void FOOTPRINT::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any buf;
     GetField( FIELD_T::REFERENCE )->Serialize( buf );
-    buf.UnpackTo( footprint.mutable_reference_field() );
+    (void) buf.UnpackTo( footprint.mutable_reference_field() );
     GetField( FIELD_T::VALUE )->Serialize( buf );
-    buf.UnpackTo( footprint.mutable_value_field() );
+    (void) buf.UnpackTo( footprint.mutable_value_field() );
     GetField( FIELD_T::DATASHEET )->Serialize( buf );
-    buf.UnpackTo( footprint.mutable_datasheet_field() );
+    (void) buf.UnpackTo( footprint.mutable_datasheet_field() );
     GetField( FIELD_T::DESCRIPTION )->Serialize( buf );
-    buf.UnpackTo( footprint.mutable_description_field() );
+    (void) buf.UnpackTo( footprint.mutable_description_field() );
 
     types::FootprintAttributes* attrs = footprint.mutable_attributes();
 
@@ -431,7 +431,7 @@ void FOOTPRINT::Serialize( google::protobuf::Any &aContainer ) const
         kiapi::common::PackVector3D( *modelMsg.mutable_offset(), model.m_Offset );
         modelMsg.set_visible( model.m_Show );
         modelMsg.set_opacity( model.m_Opacity );
-        itemMsg->PackFrom( modelMsg );
+        (void) itemMsg->PackFrom( modelMsg );
     }
 
     kiapi::common::PackSheetPath( *footprint.mutable_symbol_path(), m_path );
@@ -440,7 +440,7 @@ void FOOTPRINT::Serialize( google::protobuf::Any &aContainer ) const
     footprint.set_symbol_sheet_filename( m_sheetfile.ToUTF8() );
     footprint.set_symbol_footprint_filters( m_filters.ToUTF8() );
 
-    aContainer.PackFrom( footprint );
+    (void) aContainer.PackFrom( footprint );
 }
 
 
@@ -465,7 +465,7 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
     {
         mandatoryField = footprint.reference_field();
         mandatoryField.mutable_id()->set_id( (int) FIELD_T::REFERENCE );
-        buf.PackFrom( mandatoryField );
+        (void) buf.PackFrom( mandatoryField );
         GetField( FIELD_T::REFERENCE )->Deserialize( buf );
     }
 
@@ -473,7 +473,7 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
     {
         mandatoryField = footprint.value_field();
         mandatoryField.mutable_id()->set_id( (int) FIELD_T::VALUE );
-        buf.PackFrom( mandatoryField );
+        (void) buf.PackFrom( mandatoryField );
         GetField( FIELD_T::VALUE )->Deserialize( buf );
     }
 
@@ -481,7 +481,7 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
     {
         mandatoryField = footprint.datasheet_field();
         mandatoryField.mutable_id()->set_id( (int) FIELD_T::DATASHEET );
-        buf.PackFrom( mandatoryField );
+        (void) buf.PackFrom( mandatoryField );
         GetField( FIELD_T::DATASHEET )->Deserialize( buf );
     }
 
@@ -489,7 +489,7 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
     {
         mandatoryField = footprint.description_field();
         mandatoryField.mutable_id()->set_id( (int) FIELD_T::DESCRIPTION );
-        buf.PackFrom( mandatoryField );
+        (void) buf.PackFrom( mandatoryField );
         GetField( FIELD_T::DESCRIPTION )->Deserialize( buf );
     }
 

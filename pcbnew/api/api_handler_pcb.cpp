@@ -525,7 +525,8 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_PCB::handleCreateUpdateItemsIntern
         if( type == PCB_DIMENSION_T )
         {
             board::types::Dimension dimension;
-            anyItem.UnpackTo( &dimension );
+
+            (void) anyItem.UnpackTo( &dimension );
 
             switch( dimension.dimension_style_case() )
             {
@@ -1051,7 +1052,7 @@ HANDLER_RESULT<BoardStackupResponse> API_HANDLER_PCB::handleGetStackup(
 
     board()->GetStackupOrDefault().Serialize( any );
 
-    any.UnpackTo( response.mutable_stackup() );
+    (void) any.UnpackTo( response.mutable_stackup() );
 
     // User-settable layer names are not stored in BOARD_STACKUP at the moment
     for( board::BoardStackupLayer& layer : *response.mutable_stackup()->mutable_layers() )
@@ -2362,7 +2363,8 @@ HANDLER_RESULT<NetClassForNetsResponse> API_HANDLER_PCB::handleGetNetClassForNet
 
         netInfo->GetNetClass()->Serialize( any );
         auto [pair, rc] = response.mutable_classes()->insert( { net.name(), {} } );
-        any.UnpackTo( &pair->second );
+
+        (void) any.UnpackTo( &pair->second );
     }
 
     return response;

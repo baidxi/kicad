@@ -211,7 +211,7 @@ void EDA_TEXT::Serialize( google::protobuf::Any& aContainer, const EDA_IU_SCALE&
     if( GetTextColor() != COLOR4D::UNSPECIFIED )
         PackColor( *attrs->mutable_color(), GetTextColor() );
 
-    aContainer.PackFrom( text );
+    (void) aContainer.PackFrom( text );
 }
 
 

@@ -201,7 +201,7 @@ void NETCLASS::Serialize( google::protobuf::Any &aContainer ) const
         //         static_cast<LINE_STYLE>( *m_lineStyle ) ) );
     }
 
-    aContainer.PackFrom( nc );
+    (void) aContainer.PackFrom( nc );
 }
 
 

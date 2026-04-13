@@ -92,11 +92,11 @@ void PCB_SHAPE::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any any;
     EDA_SHAPE::Serialize( any );
-    any.UnpackTo( msg.mutable_shape() );
+    (void) any.UnpackTo( msg.mutable_shape() );
 
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( msg );
+    (void) aContainer.PackFrom( msg );
 }
 
 
@@ -128,7 +128,7 @@ bool PCB_SHAPE::Deserialize( const google::protobuf::Any &aContainer )
     UnpackNet( msg.net() );
 
     google::protobuf::Any any;
-    any.PackFrom( msg.shape() );
+    (void) any.PackFrom( msg.shape() );
     EDA_SHAPE::Deserialize( any );
 
     // TODO m_hasSolderMask and m_solderMaskMargin

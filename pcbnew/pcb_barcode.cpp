@@ -195,7 +195,7 @@ void PCB_BARCODE::Serialize( google::protobuf::Any& aContainer ) const
     barcode.set_locked( IsLocked() ? kiapi::common::types::LockedState::LS_LOCKED
                                    : kiapi::common::types::LockedState::LS_UNLOCKED );
 
-    aContainer.PackFrom( barcode );
+    (void) aContainer.PackFrom( barcode );
 }
 
 

@@ -416,7 +416,7 @@ void PCB_TRACK::Serialize( google::protobuf::Any &aContainer ) const
     PackNet( track.mutable_net() );
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( track );
+    (void) aContainer.PackFrom( track );
 }
 
 
@@ -458,7 +458,7 @@ void PCB_ARC::Serialize( google::protobuf::Any &aContainer ) const
     PackNet( arc.mutable_net() );
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( arc );
+    (void) aContainer.PackFrom( arc );
 }
 
 
@@ -495,7 +495,7 @@ void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any padStackWrapper;
     padstack.Serialize( padStackWrapper );
-    padStackWrapper.UnpackTo( via.mutable_pad_stack() );
+    (void) padStackWrapper.UnpackTo( via.mutable_pad_stack() );
 
     // PADSTACK::m_layerSet is not used by vias
     via.mutable_pad_stack()->clear_layers();
@@ -506,7 +506,7 @@ void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
                                : kiapi::common::types::LockedState::LS_UNLOCKED );
     PackNet( via.mutable_net() );
 
-    aContainer.PackFrom( via );
+    (void) aContainer.PackFrom( via );
 }
 
 
@@ -522,7 +522,7 @@ bool PCB_VIA::Deserialize( const google::protobuf::Any &aContainer )
     SetEnd( GetStart() );
 
     google::protobuf::Any padStackWrapper;
-    padStackWrapper.PackFrom( via.pad_stack() );
+    (void) padStackWrapper.PackFrom( via.pad_stack() );
 
     if( !m_padStack.Deserialize( padStackWrapper ) )
         return false;

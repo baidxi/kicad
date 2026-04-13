@@ -222,7 +222,7 @@ bool PADSTACK::unpackCopperLayer( const kiapi::board::types::PadStackLayer& aPro
 
     for( const BoardGraphicShape& shapeProto : aProto.custom_shapes() )
     {
-        a.PackFrom( shapeProto );
+        (void) a.PackFrom( shapeProto );
         std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( m_parent );
 
         if( shape->Deserialize( a ) )
@@ -739,7 +739,7 @@ void PADSTACK::Serialize( google::protobuf::Any& aContainer ) const
                 {
                     google::protobuf::Any a;
                     shape->Serialize( a );
-                    a.UnpackTo( layer->add_custom_shapes() );
+                    (void) a.UnpackTo( layer->add_custom_shapes() );
                 }
             } );
 
@@ -854,7 +854,7 @@ void PADSTACK::Serialize( google::protobuf::Any& aContainer ) const
                 BackOuterLayers().solder_paste_margin_ratio.value() );
     }
 
-    aContainer.PackFrom( padstack );
+    (void) aContainer.PackFrom( padstack );
 }
 
 
