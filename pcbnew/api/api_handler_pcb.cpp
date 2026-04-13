@@ -513,7 +513,12 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_PCB::handleCreateUpdateItemsIntern
         if( type == PCB_DIMENSION_T )
         {
             board::types::Dimension dimension;
-            anyItem.UnpackTo( &dimension );
+
+            if( !anyItem.UnpackTo( &dimension ) )
+            {
+                wxLogError( wxT( "Failed unpacking dimension in handleCreateUpdateItemsInternal" ) );
+                continue;
+            }
 
             switch( dimension.dimension_style_case() )
             {
@@ -1039,7 +1044,8 @@ HANDLER_RESULT<BoardStackupResponse> API_HANDLER_PCB::handleGetStackup(
 
     board()->GetStackupOrDefault().Serialize( any );
 
-    any.UnpackTo( response.mutable_stackup() );
+    if( !any.UnpackTo( response.mutable_stackup() ) )
+        wxLogError( wxT( "Failed unpacking stackup in handleGetStackup" ) );
 
     // User-settable layer names are not stored in BOARD_STACKUP at the moment
     for( board::BoardStackupLayer& layer : *response.mutable_stackup()->mutable_layers() )
@@ -2424,7 +2430,9 @@ HANDLER_RESULT<NetClassForNetsResponse> API_HANDLER_PCB::handleGetNetClassForNet
 
         netInfo->GetNetClass()->Serialize( any );
         auto [pair, rc] = response.mutable_classes()->insert( { net.name(), {} } );
-        any.UnpackTo( &pair->second );
+
+        if( !any.UnpackTo( &pair->second ) )
+            wxLogError( "Failed to unpack net class for net %s", net.name().c_str() );
     }
 
     return response;

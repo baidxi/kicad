@@ -112,12 +112,14 @@ HANDLER_RESULT<NetClassesResponse> API_HANDLER_COMMON::handleGetNetClasses(
     google::protobuf::Any any;
 
     netSettings->GetDefaultNetclass()->Serialize( any );
-    any.UnpackTo( reply.add_net_classes() );
+    if ( !any.UnpackTo( reply.add_net_classes() ) )
+        wxLogError( wxT( "Failed unpacking default netclass in handleGetNetClasses" ) );
 
     for( const auto& netClass : netSettings->GetNetclasses() | std::views::values )
     {
         netClass->Serialize( any );
-        any.UnpackTo( reply.add_net_classes() );
+        if ( !any.UnpackTo( reply.add_net_classes() ) )
+            wxLogError( wxT( "Failed unpacking netclass in handleGetNetClasses" ) );
     }
 
     return reply;
@@ -138,7 +140,8 @@ HANDLER_RESULT<Empty> API_HANDLER_COMMON::handleSetNetClasses(
 
     for( const auto& ncProto : aCtx.Request.net_classes() )
     {
-        any.PackFrom( ncProto );
+        if( !any.PackFrom( ncProto ) )
+            wxLogError( wxT( "Failed packing netclass in handleSetNetClasses" ) );
         wxString name = wxString::FromUTF8( ncProto.name() );
 
         if( name == wxT( "Default" ) )
@@ -171,13 +174,12 @@ HANDLER_RESULT<types::Box2> API_HANDLER_COMMON::handleGetTextExtents(
 {
     EDA_TEXT text( pcbIUScale );
     google::protobuf::Any any;
-    any.PackFrom( aCtx.Request.text() );
 
-    if( !text.Deserialize( any ) )
+    if( !any.PackFrom( aCtx.Request.text() ) || !text.Deserialize( any ) )
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( "Could not decode text in GetTextExtents message" );
+        e.set_error_message( "Could not serialize GetTextExtents message" );
         return tl::unexpected( e );
     }
 
@@ -217,7 +219,8 @@ HANDLER_RESULT<GetTextAsShapesResponse> API_HANDLER_COMMON::handleGetTextAsShape
 
         EDA_TEXT text( pcbIUScale );
         google::protobuf::Any any;
-        any.PackFrom( *textPtr );
+        if( !any.PackFrom( *textPtr ) )
+           wxLogError( wxT( "Failed packing text in handleGetTextAsShapes" ) );
 
         if( !text.Deserialize( any ) )
         {
@@ -237,7 +240,8 @@ HANDLER_RESULT<GetTextAsShapesResponse> API_HANDLER_COMMON::handleGetTextAsShape
             EDA_SHAPE proxy( *subshape );
             proxy.Serialize( any );
             GraphicShape* shapeMsg = entry->mutable_shapes()->add_shapes();
-            any.UnpackTo( shapeMsg );
+            if( !any.UnpackTo( shapeMsg ) )
+                wxLogError( wxT( "Failed unpacking shape in handleGetTextAsShapes" ) );
         }
 
         if( textMsg.has_textbox() )
