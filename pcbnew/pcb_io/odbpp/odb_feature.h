@@ -278,7 +278,7 @@ public:
     ODB_PAD( uint32_t aIndex, const std::pair<wxString, wxString>& aCenter, uint32_t aSym,
              EDA_ANGLE aAngle = ANGLE_0, bool aMirror = false, double aResize = 1.0 ) :
             ODB_FEATURE( aIndex ), m_center( aCenter ), m_symIndex( aSym ), m_angle( aAngle ),
-            m_mirror( aMirror ), m_resize( aResize )
+            m_mirror( aMirror )
     {
     }
 
@@ -292,7 +292,6 @@ private:
     uint32_t                      m_symIndex;
     EDA_ANGLE                     m_angle;
     bool                          m_mirror;
-    double                        m_resize;
 };
 
 class ODB_SURFACE_DATA;
