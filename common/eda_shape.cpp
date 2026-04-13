@@ -295,7 +295,8 @@ void EDA_SHAPE::Serialize( google::protobuf::Any &aContainer ) const
 
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( shape );
+    if( !aContainer.PackFrom( shape ) )
+        wxLogError( wxT( "Failed serializing shape in EDA_SHAPE::Serialize" ) );
 }
 
 

@@ -416,7 +416,8 @@ void PCB_TRACK::Serialize( google::protobuf::Any &aContainer ) const
     PackNet( track.mutable_net() );
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( track );
+    if( !aContainer.PackFrom( track ) )
+        wxLogError( wxT( "Failed serializing track in PCB_TRACK::Serialize" ) );
 }
 
 
@@ -458,7 +459,8 @@ void PCB_ARC::Serialize( google::protobuf::Any &aContainer ) const
     PackNet( arc.mutable_net() );
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( arc );
+    if( !aContainer.PackFrom( arc ) )
+        wxLogError( wxT( "Failed serializing arc in PCB_ARC::Serialize" ) );
 }
 
 
@@ -495,7 +497,8 @@ void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any padStackWrapper;
     padstack.Serialize( padStackWrapper );
-    padStackWrapper.UnpackTo( via.mutable_pad_stack() );
+    if( !padStackWrapper.UnpackTo( via.mutable_pad_stack() ) )
+        wxLogError( wxT( "Failed to unpack padstack in PCB_VIA::Serialize" ) );
 
     // PADSTACK::m_layerSet is not used by vias
     via.mutable_pad_stack()->clear_layers();
@@ -506,7 +509,8 @@ void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
                                : kiapi::common::types::LockedState::LS_UNLOCKED );
     PackNet( via.mutable_net() );
 
-    aContainer.PackFrom( via );
+    if( !aContainer.PackFrom( via ) )
+        wxLogError( wxT( "Failed serializing via in PCB_VIA::Serialize" ) );
 }
 
 
@@ -522,7 +526,8 @@ bool PCB_VIA::Deserialize( const google::protobuf::Any &aContainer )
     SetEnd( GetStart() );
 
     google::protobuf::Any padStackWrapper;
-    padStackWrapper.PackFrom( via.pad_stack() );
+    if( !padStackWrapper.PackFrom( via.pad_stack() ) )
+        return false;
 
     if( !m_padStack.Deserialize( padStackWrapper ) )
         return false;

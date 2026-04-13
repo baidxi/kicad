@@ -201,7 +201,8 @@ void EDA_TEXT::Serialize( google::protobuf::Any& aContainer ) const
     attrs->set_keep_upright( IsKeepUpright() );
     PackVector2( *attrs->mutable_size(), GetTextSize() );
 
-    aContainer.PackFrom( text );
+    if( !aContainer.PackFrom( text ) )
+        wxLogError( wxT( "Failed serializing text in EDA_TEXT::Serialize" ) );
 }
 
 

@@ -285,7 +285,8 @@ void PCB_DIMENSION_BASE::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any any;
     EDA_TEXT::Serialize( any );
-    any.UnpackTo( dimension.mutable_text() );
+    if( !any.UnpackTo( dimension.mutable_text() ) )
+        wxLogError( wxT( "Failed to unpack text in PCB_DIMENSION_BASE::Serialize" ) );
 
     types::Text* text = dimension.mutable_text();
     text->set_text( GetValueText() );
@@ -310,7 +311,8 @@ void PCB_DIMENSION_BASE::Serialize( google::protobuf::Any &aContainer ) const
             ToProtoEnum<DIM_TEXT_POSITION, DimensionTextPosition>( m_textPosition ) );
     dimension.set_keep_text_aligned( m_keepTextAligned );
 
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIMENSION_BASE::Serialize" ) );
 }
 
 
@@ -327,7 +329,8 @@ bool PCB_DIMENSION_BASE::Deserialize( const google::protobuf::Any &aContainer )
     SetLocked( dimension.locked() == types::LockedState::LS_LOCKED );
 
     google::protobuf::Any any;
-    any.PackFrom( dimension.text() );
+    if( !any.PackFrom( dimension.text() ) )
+        return false;
     EDA_TEXT::Deserialize( any );
 
     SetOverrideTextEnabled( dimension.override_text_enabled() );
@@ -872,14 +875,16 @@ void PCB_DIM_ALIGNED::Serialize( google::protobuf::Any &aContainer ) const
     kiapi::board::types::Dimension dimension;
 
     PCB_DIMENSION_BASE::Serialize( aContainer );
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        wxLogError( wxT( "Failed to unpack dimension in PCB_DIM_ALIGNED::Serialize" ) );
 
     PackVector2( *dimension.mutable_aligned()->mutable_start(), m_start );
     PackVector2( *dimension.mutable_aligned()->mutable_end(), m_end );
     dimension.mutable_aligned()->mutable_height()->set_value_nm( m_height );
     dimension.mutable_aligned()->mutable_extension_height()->set_value_nm( m_extensionHeight );
 
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIM_ALIGNED::Serialize" ) );
 }
 
 
@@ -891,7 +896,8 @@ bool PCB_DIM_ALIGNED::Deserialize( const google::protobuf::Any &aContainer )
         return false;
 
     kiapi::board::types::Dimension dimension;
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        return false;
 
     if( !dimension.has_aligned() )
         return false;
@@ -1105,7 +1111,8 @@ void PCB_DIM_ORTHOGONAL::Serialize( google::protobuf::Any &aContainer ) const
     kiapi::board::types::Dimension dimension;
 
     PCB_DIMENSION_BASE::Serialize( aContainer );
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        wxLogError( wxT( "Failed to unpack dimension in PCB_DIM_ORTHOGONAL::Serialize" ) );
 
     PackVector2( *dimension.mutable_orthogonal()->mutable_start(), m_start );
     PackVector2( *dimension.mutable_orthogonal()->mutable_end(), m_end );
@@ -1115,7 +1122,8 @@ void PCB_DIM_ORTHOGONAL::Serialize( google::protobuf::Any &aContainer ) const
     dimension.mutable_orthogonal()->set_alignment( m_orientation == DIR::VERTICAL
                                                            ? types::AxisAlignment::AA_Y_AXIS
                                                            : types::AxisAlignment::AA_X_AXIS );
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIM_ORTHOGONAL::Serialize" ) );
 }
 
 
@@ -1127,7 +1135,8 @@ bool PCB_DIM_ORTHOGONAL::Deserialize( const google::protobuf::Any &aContainer )
         return false;
 
     kiapi::board::types::Dimension dimension;
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        return false;
 
     if( !dimension.has_orthogonal() )
         return false;
@@ -1376,7 +1385,8 @@ void PCB_DIM_LEADER::Serialize( google::protobuf::Any &aContainer ) const
     kiapi::board::types::Dimension dimension;
 
     PCB_DIMENSION_BASE::Serialize( aContainer );
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        wxLogError( wxT( "Failed to unpack dimension in PCB_DIM_LEADER::Serialize" ) );
 
     PackVector2( *dimension.mutable_leader()->mutable_start(), m_start );
     PackVector2( *dimension.mutable_leader()->mutable_end(), m_end );
@@ -1384,7 +1394,8 @@ void PCB_DIM_LEADER::Serialize( google::protobuf::Any &aContainer ) const
             ToProtoEnum<DIM_TEXT_BORDER, kiapi::board::types::DimensionTextBorderStyle>(
                     m_textBorder ) );
 
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIM_LEADER::Serialize" ) );
 }
 
 
@@ -1396,7 +1407,8 @@ bool PCB_DIM_LEADER::Deserialize( const google::protobuf::Any &aContainer )
         return false;
 
     kiapi::board::types::Dimension dimension;
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        return false;
 
     if( !dimension.has_leader() )
         return false;
@@ -1570,13 +1582,15 @@ void PCB_DIM_RADIAL::Serialize( google::protobuf::Any &aContainer ) const
     kiapi::board::types::Dimension dimension;
 
     PCB_DIMENSION_BASE::Serialize( aContainer );
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        wxLogError( wxT( "Failed to unpack dimension in PCB_DIM_RADIAL::Serialize" ) );
 
     PackVector2( *dimension.mutable_radial()->mutable_center(), m_start );
     PackVector2( *dimension.mutable_radial()->mutable_radius_point(), m_end );
     dimension.mutable_radial()->mutable_leader_length()->set_value_nm( m_leaderLength );
 
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIM_RADIAL::Serialize" ) );
 }
 
 
@@ -1588,7 +1602,8 @@ bool PCB_DIM_RADIAL::Deserialize( const google::protobuf::Any &aContainer )
         return false;
 
     kiapi::board::types::Dimension dimension;
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        return false;
 
     if( !dimension.has_radial() )
         return false;
@@ -1728,12 +1743,14 @@ void PCB_DIM_CENTER::Serialize( google::protobuf::Any &aContainer ) const
     kiapi::board::types::Dimension dimension;
 
     PCB_DIMENSION_BASE::Serialize( aContainer );
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        wxLogError( wxT( "Failed to unpack dimension in PCB_DIM_CENTER::Serialize" ) );
 
     PackVector2( *dimension.mutable_center()->mutable_center(), m_start );
     PackVector2( *dimension.mutable_center()->mutable_end(), m_end );
 
-    aContainer.PackFrom( dimension );
+    if( !aContainer.PackFrom( dimension ) )
+        wxLogError( wxT( "Failed serializing dimension in PCB_DIM_CENTER::Serialize" ) );
 }
 
 
@@ -1745,7 +1762,8 @@ bool PCB_DIM_CENTER::Deserialize( const google::protobuf::Any &aContainer )
         return false;
 
     kiapi::board::types::Dimension dimension;
-    aContainer.UnpackTo( &dimension );
+    if( !aContainer.UnpackTo( &dimension ) )
+        return false;
 
     if( !dimension.has_center() )
         return false;

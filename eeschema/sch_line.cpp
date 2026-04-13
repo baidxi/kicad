@@ -113,7 +113,8 @@ void SCH_LINE::Serialize( google::protobuf::Any &aContainer ) const
     line.set_layer(
             ToProtoEnum<SCH_LAYER_ID, kiapi::schematic::types::SchematicLayer>( GetLayer() ) );
 
-    aContainer.PackFrom( line );
+    if( !aContainer.PackFrom( line ) )
+        wxLogError( wxT( "Failed serializing line in SCH_LINE::Serialize" ) );
 }
 
 

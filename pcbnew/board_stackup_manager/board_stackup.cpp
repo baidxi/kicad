@@ -463,7 +463,8 @@ void BOARD_STACKUP::Serialize( google::protobuf::Any& aContainer ) const
         }
     }
 
-    aContainer.PackFrom( stackup );
+    if( !aContainer.PackFrom( stackup ) )
+        wxLogError( wxT( "Failed serializing stackup in BOARD_STACKUP::Serialize" ) );
 }
 
 

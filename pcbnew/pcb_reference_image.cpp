@@ -208,7 +208,8 @@ void PCB_REFERENCE_IMAGE::Serialize( google::protobuf::Any& aContainer ) const
         }
     }
 
-    aContainer.PackFrom( refImage );
+    if( !aContainer.PackFrom( refImage ) )
+        wxLogError( wxT( "Failed serializing reference image in PCB_REFERENCE_IMAGE::Serialize" ) );
 }
 
 

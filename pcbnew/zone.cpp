@@ -327,7 +327,8 @@ void ZONE::Serialize( google::protobuf::Any& aContainer ) const
             ToProtoEnum<ZONE_BORDER_DISPLAY_STYLE, types::ZoneBorderStyle>( m_borderStyle ) );
     zone.mutable_border()->mutable_pitch()->set_value_nm( m_borderHatchPitch );
 
-    aContainer.PackFrom( zone );
+    if( !aContainer.PackFrom( zone ) )
+        wxLogError( wxT( "Failed serializing zone in ZONE::Serialize" ) );
 }
 
 
