@@ -3103,14 +3103,32 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     /* -------------------------------------------------------------------------------------
      * Re-prune minimum-width violations introduced by different-net zone knockouts.
      *
-     * This must run BEFORE subtracting same-net higher-priority zones.  At this point the
-     * fill still extends into overlapping same-net zone areas, which provides a natural
-     * buffer that prevents the deflate/inflate cycle from creating divots at same-net
-     * zone boundaries (the same role aSmoothedOutline plays in the initial min-width pass).
+     * This must run BEFORE subtracting same-net higher-priority zones.  For overlapping
+     * same-net zones the fill still extends into the overlap area, which provides a natural
+     * buffer (the same role aSmoothedOutline plays in the initial min-width pass).  For
+     * touching zones no overlap buffer exists, so restore the same-net apron from
+     * aSmoothedOutline explicitly: without it, a different-net zone nearby can create a
+     * narrow region at Zone A's boundary with Zone B that gets pruned away here, leaving a
+     * void that Zone B cannot fill (it is blocked by Zone A's outline in
+     * subtractHigherPriorityZones).
      */
 
     if( knockoutsApplied )
-        postKnockoutMinWidthPrune( aZone, aFillPolys );
+    {
+        SHAPE_POLY_SET sameNetApron = aSmoothedOutline;
+        sameNetApron.BooleanSubtract( aMaxExtents );
+
+        if( sameNetApron.OutlineCount() > 0 )
+        {
+            aFillPolys.BooleanAdd( sameNetApron );
+            postKnockoutMinWidthPrune( aZone, aFillPolys );
+            aFillPolys.BooleanIntersection( aMaxExtents );
+        }
+        else
+        {
+            postKnockoutMinWidthPrune( aZone, aFillPolys );
+        }
+    }
 
     DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In18_Cu, wxT( "after-post-knockout-min-width" ) );
 
