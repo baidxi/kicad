@@ -1076,16 +1076,12 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                         return 1;
                     };
 
-            auto refill_item_dependency =
-                    [&]( const std::pair<ZONE*, PCB_LAYER_ID>& aWaiter,
-                         const std::pair<ZONE*, PCB_LAYER_ID>& aDependency ) -> bool
-                    {
-                        if( aWaiter.first == aDependency.first || aWaiter.second != aDependency.second )
-                            return false;
-
-                        return zone_fill_dependency( aWaiter.first, aWaiter.second,
-                                                     aDependency.first, false );
-                    };
+            // Run all iterative refills in a single unordered wave (no dependency function).
+            auto refill_item_dependency = [&]( const std::pair<ZONE*, PCB_LAYER_ID>&,
+                                               const std::pair<ZONE*, PCB_LAYER_ID>& ) -> bool
+            {
+                return false;
+            };
 
             run_fill_waves( zonesToRefill, cached_refill_fill_lambda,
                             cached_refill_tessellate_lambda, refill_item_dependency );
