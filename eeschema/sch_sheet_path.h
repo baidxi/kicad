@@ -51,7 +51,6 @@ public:
         m_Name( aName ),
         m_ExcludedFromSim( false ),
         m_ExcludedFromBOM( false ),
-        m_ExcludedFromBoard( false ),
         m_ExcludedFromPosFiles( false ),
         m_DNP( false )
     {
@@ -63,7 +62,6 @@ public:
     wxString                     m_Description;
     bool                         m_ExcludedFromSim;
     bool                         m_ExcludedFromBOM;
-    bool                         m_ExcludedFromBoard;
     bool                         m_ExcludedFromPosFiles;
     bool                         m_DNP;
     std::map<wxString, wxString> m_Fields;
@@ -76,7 +74,8 @@ public:
  * Schematic symbol variants are a set of field and/or properties differentials against the default symbol
  * values.  Each symbol instance may contain 0 or more variants.
  *
- * @note The #REFERENCE field is immutable across variants. Changing it would effectively be a new board.
+ * @note The #REFERENCE field and the exclude-from-board property are immutable across variants.
+ *       Changing either would effectively be a new board.
  */
 class SCH_SYMBOL_VARIANT : public VARIANT
 {
@@ -365,7 +364,6 @@ public:
     bool GetExcludedFromBOM() const;
     bool GetExcludedFromBOM( const wxString& aVariantName ) const;
     bool GetExcludedFromBoard() const;
-    bool GetExcludedFromBoard( const wxString& aVariantName ) const;
     bool GetDNP() const;
     bool GetDNP( const wxString& aVariantName ) const;
 

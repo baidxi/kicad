@@ -748,20 +748,12 @@ public:
         SetExcludedFromSim( aEnable, &Schematic()->CurrentSheet(), Schematic()->GetCurrentVariant() );
     }
 
-    void SetExcludedFromBoard( bool aEnable, const SCH_SHEET_PATH* aInstance = nullptr,
-                               const wxString& aVariantName = wxEmptyString ) override;
-    bool GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
-                               const wxString& aVariantName = wxEmptyString ) const override;
+    void SetExcludedFromBoard( bool aEnable ) override { m_excludedFromBoard = aEnable; }
 
-    bool GetExcludedFromBoardProp() const
-    {
-        return GetExcludedFromBoard( &Schematic()->CurrentSheet(), Schematic()->GetCurrentVariant() );
-    }
+    bool GetExcludedFromBoard() const override { return m_excludedFromBoard; }
 
-    void SetExcludedFromBoardProp( bool aEnable )
-    {
-        SetExcludedFromBoard( aEnable, &Schematic()->CurrentSheet(), Schematic()->GetCurrentVariant() );
-    }
+    bool GetExcludedFromBoardProp() const { return GetExcludedFromBoard(); }
+    void SetExcludedFromBoardProp( bool aEnable ) { SetExcludedFromBoard( aEnable ); }
 
     void SetExcludedFromPosFiles( bool aEnable, const SCH_SHEET_PATH* aInstance = nullptr,
                                   const wxString& aVariantName = wxEmptyString ) override;

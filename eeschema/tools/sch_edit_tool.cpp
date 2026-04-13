@@ -460,8 +460,6 @@ bool SCH_EDIT_TOOL::Init()
     auto attribExcludeFromBoardCond =
             [this]( const SELECTION& aSel )
             {
-                SCH_SHEET_PATH* sheet = &m_frame->GetCurrentSheet();
-                wxString        variant = m_frame->Schematic().GetCurrentVariant();
                 int             checked = 0;
                 int             unchecked = 0;
 
@@ -470,7 +468,7 @@ bool SCH_EDIT_TOOL::Init()
                     switch( item->Type() )
                     {
                     case SCH_SYMBOL_T:
-                        if( static_cast<const SCH_SYMBOL*>( item )->GetExcludedFromBoard( sheet, variant ) )
+                        if( static_cast<const SCH_SYMBOL*>( item )->GetExcludedFromBoard() )
                             checked++;
                         else
                             unchecked++;
@@ -478,7 +476,7 @@ bool SCH_EDIT_TOOL::Init()
                         break;
 
                     case SCH_SHEET_T:
-                        if( static_cast<const SCH_SHEET*>( item )->GetExcludedFromBoard( sheet, variant ) )
+                        if( static_cast<const SCH_SHEET*>( item )->GetExcludedFromBoard() )
                             checked++;
                         else
                             unchecked++;
@@ -3593,7 +3591,7 @@ int SCH_EDIT_TOOL::SetAttribute( const TOOL_EVENT& aEvent )
         if( ( aEvent.IsAction( &SCH_ACTIONS::setDNP )              && !item->GetDNP( sheet, variant ) )
          || ( aEvent.IsAction( &SCH_ACTIONS::setExcludeFromSim )   && !item->GetExcludedFromSim( sheet, variant ) )
          || ( aEvent.IsAction( &SCH_ACTIONS::setExcludeFromBOM )   && !item->GetExcludedFromBOM( sheet, variant ) )
-         || ( aEvent.IsAction( &SCH_ACTIONS::setExcludeFromBoard ) && !item->GetExcludedFromBoard( sheet, variant ) ) )
+         || ( aEvent.IsAction( &SCH_ACTIONS::setExcludeFromBoard ) && !item->GetExcludedFromBoard() ) )
         {
             new_state = true;
             break;
@@ -3614,7 +3612,7 @@ int SCH_EDIT_TOOL::SetAttribute( const TOOL_EVENT& aEvent )
             item->SetExcludedFromBOM( new_state, sheet, variant );
 
         if( aEvent.IsAction( &SCH_ACTIONS::setExcludeFromBoard ) )
-            item->SetExcludedFromBoard( new_state, sheet, variant );
+            item->SetExcludedFromBoard( new_state );
     }
 
     if( !commit.Empty() )

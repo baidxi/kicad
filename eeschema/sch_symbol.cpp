@@ -1081,65 +1081,6 @@ bool SCH_SYMBOL::GetExcludedFromSim( const SCH_SHEET_PATH* aInstance, const wxSt
 }
 
 
-void SCH_SYMBOL::SetExcludedFromBoard( bool aEnable, const SCH_SHEET_PATH* aInstance,
-                                       const wxString& aVariantName )
-{
-    if( !aInstance || aVariantName.IsEmpty() )
-    {
-        m_excludedFromBoard = aEnable;
-        return;
-    }
-
-    SCH_SYMBOL_INSTANCE* instance = getInstance( *aInstance );
-
-    wxCHECK_MSG( instance, /* void */,
-                 wxString::Format( wxS( "Cannot set exclude from board for invalid sheet path '%s'." ),
-                                   aInstance->PathHumanReadable() ) );
-
-    if( aVariantName.IsEmpty() )
-    {
-        m_excludedFromBoard = aEnable;
-    }
-    else
-    {
-        if( instance->m_Variants.contains( aVariantName )
-          && ( aEnable != instance->m_Variants[aVariantName].m_ExcludedFromBoard ) )
-        {
-            instance->m_Variants[aVariantName].m_ExcludedFromBoard = aEnable;
-        }
-        else
-        {
-            SCH_SYMBOL_VARIANT variant( aVariantName );
-
-            variant.InitializeAttributes( *this );
-            variant.m_ExcludedFromBoard = aEnable;
-            AddVariant( *aInstance, variant );
-        }
-    }
-}
-
-
-bool SCH_SYMBOL::GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance,
-                                       const wxString& aVariantName ) const
-{
-    if( !aInstance || aVariantName.IsEmpty() )
-        return m_excludedFromBoard;
-
-    SCH_SYMBOL_INSTANCE instance;
-
-    if( !GetInstance( instance, aInstance->Path() ) )
-        return m_excludedFromBoard;
-
-    if( aVariantName.IsEmpty() )
-        return m_excludedFromBoard;
-    else if( instance.m_Variants.contains( aVariantName ) )
-        return instance.m_Variants[aVariantName].m_ExcludedFromBoard;
-
-    // If variant is not defined yet, return default exclude from board setting.
-    return m_excludedFromBoard;
-}
-
-
 void SCH_SYMBOL::SetExcludedFromPosFiles( bool aEnable, const SCH_SHEET_PATH* aInstance,
                                           const wxString& aVariantName )
 {
@@ -2000,7 +1941,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetExcludedFromBoard( variant ) || this->ResolveExcludedFromBoard( aPath, variant ) )
+        if( aPath->GetExcludedFromBoard() || this->ResolveExcludedFromBoard() )
             *token = _( "Excluded from board" );
 
         return true;

@@ -270,12 +270,9 @@ public:
     bool ResolveExcludedFromBOM( const SCH_SHEET_PATH* aInstance = nullptr,
                                  const wxString& aVariantName = wxEmptyString ) const;
 
-    virtual void SetExcludedFromBoard( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
-                                        const wxString& aVariantName = wxEmptyString ) { }
-    virtual bool GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
-                                       const wxString& aVariantName = wxEmptyString ) const { return false; }
-    bool ResolveExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
-                                   const wxString& aVariantName = wxEmptyString ) const;
+    virtual void SetExcludedFromBoard( bool aExclude ) {}
+    virtual bool GetExcludedFromBoard() const { return false; }
+    bool         ResolveExcludedFromBoard() const;
 
     virtual void SetExcludedFromPosFiles( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
                                           const wxString& aVariantName = wxEmptyString ) { }
