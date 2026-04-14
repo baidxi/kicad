@@ -242,7 +242,7 @@ void PCB_BASE_FRAME::FocusOnItem( BOARD_ITEM* aItem, PCB_LAYER_ID aLayer, bool a
     if( aItem )
         items.push_back( aItem );
 
-    FocusOnItems( items, aLayer, aAllowScroll );
+    FocusOnItems( std::move( items ), aLayer, aAllowScroll );
 }
 
 
