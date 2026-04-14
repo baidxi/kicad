@@ -207,8 +207,8 @@ void DRC_TEST_PROVIDER_Z_CLEARANCE::testLayerPair( PCB_LAYER_ID aLayerA, PCB_LAY
                             if( netA > 0 && netA == netB )
                                 return false;
 
-                            // Use UUID ordering to avoid testing each pair twice.
-                            if( itemA->m_Uuid > other->m_Uuid )
+                            // Use UUID ordering to avoid testing each pair twice where the item spans both layers.
+                            if( itemA->IsOnLayer( aLayerB ) && itemA->m_Uuid > other->m_Uuid )
                                 return false;
 
                             // Skip rule areas
