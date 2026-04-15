@@ -120,8 +120,11 @@ HANDLER_RESULT<GetOpenDocumentsResponse> API_HANDLER_FOOTPRINT::handleGetOpenDoc
     doc.mutable_lib_id()->set_library_nickname( fpid.GetUniStringLibNickname() );
     doc.mutable_lib_id()->set_entry_name( fpid.GetUniStringLibItemName() );
 
-    doc.mutable_project()->set_name( project().GetProjectName().ToStdString() );
-    doc.mutable_project()->set_path( project().GetProjectDirectory().ToStdString() );
+    if( !project().IsNullProject() )
+    {
+        doc.mutable_project()->set_name( project().GetProjectName().ToStdString() );
+        doc.mutable_project()->set_path( project().GetProjectDirectory().ToStdString() );
+    }
 
     response.mutable_documents()->Add( std::move( doc ) );
     return response;
@@ -156,20 +159,30 @@ HANDLER_RESULT<Empty> API_HANDLER_FOOTPRINT::handleSaveCopyOfDocument(
     if( !footprint )
         return tl::unexpected( footprint.error() );
 
-    wxString newName = wxString::FromUTF8( aCtx.Request.path() );
+    wxString pathStr = wxString::FromUTF8( aCtx.Request.path() );
 
-    if( newName.IsEmpty() )
+    if( pathStr.IsEmpty() )
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( "path must contain the new footprint name" );
+        e.set_error_message( "path must contain the new footprint name, "
+                             "optionally prefixed with a library nickname (e.g. \"lib:name\")" );
         return tl::unexpected( e );
     }
 
+    // path can be "NewName" (same library) or "LibNick:NewName" (different library)
+    LIB_ID targetId;
+    targetId.Parse( pathStr );
+
+    wxString libraryName = targetId.GetLibNickname();
+
+    if( libraryName.IsEmpty() )
+        libraryName = footprintContext()->GetLoadedFPID().GetLibNickname();
+
+    wxString newName = targetId.GetLibItemName();
+
     // Clone the footprint so we don't modify the one being edited
     std::unique_ptr<FOOTPRINT> copy( static_cast<FOOTPRINT*>( ( *footprint )->Clone() ) );
-
-    wxString libraryName = footprintContext()->GetLoadedFPID().GetLibNickname();
     copy->SetFPID( LIB_ID( libraryName, newName ) );
 
     if( !footprintContext()->SaveFootprintInLibrary( copy.get(), libraryName ) )
@@ -340,7 +353,7 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_FOOTPRINT::handleGetItems(
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( "none of the requested types are valid for a Board object" );
+        e.set_error_message( "none of the requested types are valid for a Footprint object" );
         return tl::unexpected( e );
     }
 
