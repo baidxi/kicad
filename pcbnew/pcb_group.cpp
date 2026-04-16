@@ -69,7 +69,8 @@ void PCB_GROUP::Serialize( google::protobuf::Any &aContainer ) const
         itemId->set_value( item->m_Uuid.AsStdString() );
     }
 
-    aContainer.PackFrom( group );
+    if( !aContainer.PackFrom( group ) )
+        wxLogError( wxT( "Failed serializing group in PCB_GROUP::Serialize" ) );
 }
 
 

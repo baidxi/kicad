@@ -222,7 +222,8 @@ bool PADSTACK::unpackCopperLayer( const kiapi::board::types::PadStackLayer& aPro
 
     for( const BoardGraphicShape& shapeProto : aProto.custom_shapes() )
     {
-        a.PackFrom( shapeProto );
+        if( !a.PackFrom( shapeProto ) )
+            return false;
         std::unique_ptr<PCB_SHAPE> shape = std::make_unique<PCB_SHAPE>( m_parent );
 
         if( shape->Deserialize( a ) )
@@ -739,7 +740,8 @@ void PADSTACK::Serialize( google::protobuf::Any& aContainer ) const
                 {
                     google::protobuf::Any a;
                     shape->Serialize( a );
-                    a.UnpackTo( layer->add_custom_shapes() );
+                    if( !a.UnpackTo( layer->add_custom_shapes() ) )
+                        wxLogError( wxT( "Failed to unpack shape in PADSTACK::Serialize" ) );
                 }
             } );
 
@@ -854,7 +856,8 @@ void PADSTACK::Serialize( google::protobuf::Any& aContainer ) const
                 BackOuterLayers().solder_paste_margin_ratio.value() );
     }
 
-    aContainer.PackFrom( padstack );
+    if( !aContainer.PackFrom( padstack ) )
+        wxLogError( wxT( "Failed serializing padstack in PADSTACK::Serialize" ) );
 }
 
 

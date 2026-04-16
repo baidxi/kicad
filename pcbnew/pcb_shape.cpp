@@ -92,11 +92,13 @@ void PCB_SHAPE::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any any;
     EDA_SHAPE::Serialize( any );
-    any.UnpackTo( msg.mutable_shape() );
+    if( !any.UnpackTo( msg.mutable_shape() ) )
+        wxLogError( wxT( "Failed to unpack shape in PCB_SHAPE::Serialize" ) );
 
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( msg );
+    if( !aContainer.PackFrom( msg ) )
+        wxLogError( wxT( "Failed serializing shape in PCB_SHAPE::Serialize" ) );
 }
 
 
@@ -128,7 +130,8 @@ bool PCB_SHAPE::Deserialize( const google::protobuf::Any &aContainer )
     UnpackNet( msg.net() );
 
     google::protobuf::Any any;
-    any.PackFrom( msg.shape() );
+    if( !any.PackFrom( msg.shape() ) )
+        return false;
     EDA_SHAPE::Deserialize( any );
 
     // TODO m_hasSolderMask and m_solderMaskMargin

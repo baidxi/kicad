@@ -1616,7 +1616,8 @@ void SCH_LABEL::Serialize( google::protobuf::Any& aContainer ) const
     label.mutable_id()->set_value( m_Uuid.AsStdString() );
     kiapi::common::PackVector2( *label.mutable_position(), GetPosition() );
 
-    aContainer.PackFrom( label );
+    if( !aContainer.PackFrom( label ) )
+        wxLogError( wxT( "Failed serializing label in SCH_LABEL::Serialize" ) );
 }
 
 

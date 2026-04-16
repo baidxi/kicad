@@ -114,8 +114,15 @@ protected:
 
                     if( response.has_value() )
                     {
-                        envelope.mutable_status()->set_status( ApiStatusCode::AS_OK );
-                        envelope.mutable_message()->PackFrom( *response );
+                        if( !envelope.mutable_message()->PackFrom( *response ) )
+                        {
+                            envelope.mutable_status()->set_status( ApiStatusCode::AS_BAD_REQUEST );
+                            envelope.mutable_status()->set_error_message( "Could not pack response from API handler" );
+                        }
+                        else
+                        {
+                            envelope.mutable_status()->set_status( ApiStatusCode::AS_OK );
+                        }
                         return envelope;
                     }
                     else

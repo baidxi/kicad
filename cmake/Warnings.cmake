@@ -34,6 +34,9 @@ if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
     set( WARN_FLAGS_C   "-Wall" )
     set( WARN_FLAGS_CXX "-Wall" )
 
+    # Treat all warnings as errors
+    set( WARN_FLAGS_C   "${WARN_FLAGS_C}   -Werror" )
+    set( WARN_FLAGS_CXX "${WARN_FLAGS_CXX} -Werror" )
 
     # Warn about missing override specifiers
     CHECK_CXX_COMPILER_FLAG( "-Wsuggest-override" COMPILER_SUPPORTS_WSUGGEST_OVERRIDE )

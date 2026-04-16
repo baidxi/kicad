@@ -68,13 +68,15 @@ void PCB_FIELD::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any anyText;
     PCB_TEXT::Serialize( anyText );
-    anyText.UnpackTo( field.mutable_text() );
+    if( !anyText.UnpackTo( field.mutable_text() ) )
+        wxLogError( wxT( "Failed to unpack text in PCB_FIELD::Serialize" ) );
 
     field.set_name( GetCanonicalName().ToStdString() );
     field.mutable_id()->set_id( (int) GetId() );
     field.set_visible( IsVisible() );
 
-    aContainer.PackFrom( field );
+    if( !aContainer.PackFrom( field ) )
+        wxLogError( wxT( "Failed serializing field in PCB_FIELD::Serialize" ) );
 }
 
 
@@ -95,7 +97,8 @@ bool PCB_FIELD::Deserialize( const google::protobuf::Any &aContainer )
     if( field.has_text() )
     {
         google::protobuf::Any anyText;
-        anyText.PackFrom( field.text() );
+        if( !anyText.PackFrom( field.text() ) )
+            return false;
         PCB_TEXT::Deserialize( anyText );
     }
 

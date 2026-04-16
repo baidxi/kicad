@@ -201,7 +201,8 @@ void NETCLASS::Serialize( google::protobuf::Any &aContainer ) const
         //         static_cast<LINE_STYLE>( *m_lineStyle ) ) );
     }
 
-    aContainer.PackFrom( nc );
+    if( !aContainer.PackFrom( nc ) )
+        wxLogError( wxT( "Failed serializing netclass in NETCLASS::Serialize" ) );
 }
 
 
