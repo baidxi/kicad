@@ -400,32 +400,36 @@ int SCH_DRAWING_TOOLS::PlaceSymbol( const TOOL_EVENT& aEvent )
 
                 EESCHEMA_SETTINGS*    cfg = m_frame->eeconfig();
 
-                if( !libSymbol->IsLocalPower() && cfg->m_Drawing.new_power_symbols == POWER_SYMBOLS::LOCAL )
+                if ( libSymbol->IsPower() )
                 {
-                    libSymbol->SetLocalPower();
-                    wxString keywords = libSymbol->GetKeyWords();
-
-                    // Adjust the KiCad library default fields to match the new power symbol type
-                    if( keywords.Contains( wxT( "global power" ) ) )
+                    // In case we have a power symbol and Local or Global Power Sysmbol preference is set, modify it accordingly
+                    if( !libSymbol->IsLocalPower() && cfg->m_Drawing.new_power_symbols == POWER_SYMBOLS::LOCAL )
                     {
-                        keywords.Replace( wxT( "global power" ), wxT( "local power" ) );
-                        libSymbol->SetKeyWords( keywords );
+                        libSymbol->SetLocalPower();
+                        wxString keywords = libSymbol->GetKeyWords();
+
+                        // Adjust the KiCad library default fields to match the new power symbol type
+                        if( keywords.Contains( wxT( "global power" ) ) )
+                        {
+                            keywords.Replace( wxT( "global power" ), wxT( "local power" ) );
+                            libSymbol->SetKeyWords( keywords );
+                        }
+
+                        wxString desc = libSymbol->GetDescription();
+
+                        if( desc.Contains( wxT( "global label" ) ) )
+                        {
+                            desc.Replace( wxT( "global label" ), wxT( "local label" ) );
+                            libSymbol->SetDescription( desc );
+                        }
                     }
-
-                    wxString desc = libSymbol->GetDescription();
-
-                    if( desc.Contains( wxT( "global label" ) ) )
+                    else if( !libSymbol->IsGlobalPower()
+                             && cfg->m_Drawing.new_power_symbols == POWER_SYMBOLS::GLOBAL )
                     {
-                        desc.Replace( wxT( "global label" ), wxT( "local label" ) );
-                        libSymbol->SetDescription( desc );
+                        // We do not currently have local power symbols in the KiCad library, so
+                        // don't update any fields
+                        libSymbol->SetGlobalPower();
                     }
-                }
-                else if( !libSymbol->IsGlobalPower()
-                         && cfg->m_Drawing.new_power_symbols == POWER_SYMBOLS::GLOBAL )
-                {
-                    // We do not currently have local power symbols in the KiCad library, so
-                    // don't update any fields
-                    libSymbol->SetGlobalPower();
                 }
 
                 symbol = new SCH_SYMBOL( *libSymbol, &m_frame->GetCurrentSheet(), sel, cursorPos,
