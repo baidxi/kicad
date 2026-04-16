@@ -721,8 +721,13 @@ wxImage EDA_3D_VIEWER_FRAME::captureCurrentViewScreenshot()
 }
 
 
-void EDA_3D_VIEWER_FRAME::ExportImage( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, const wxSize& aSize )
+void EDA_3D_VIEWER_FRAME::ExportImage( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, const wxSize& aSize,
+                                       bool aTransparent )
 {
+    // JPEG doesn't support transparency; silently disable for programmatic callers
+    if( aFormat == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG )
+        aTransparent = false;
+
     wxString fullFileName;
 
     if( aFormat != EDA_3D_VIEWER_EXPORT_FORMAT::CLIPBOARD )
@@ -731,26 +736,46 @@ void EDA_3D_VIEWER_FRAME::ExportImage( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, cons
             return;
     }
 
+    // Set transparent background overrides
+    if( aTransparent )
+    {
+        m_boardAdapter.m_ColorOverrides[LAYER_3D_BACKGROUND_TOP] =
+                COLOR4D( 1.0, 1.0, 1.0, 0.0 );
+        m_boardAdapter.m_ColorOverrides[LAYER_3D_BACKGROUND_BOTTOM] =
+                COLOR4D( 1.0, 1.0, 1.0, 0.0 );
+    }
+
     wxImage screenshotImage = captureScreenshot( aSize );
+
+    // Remove the overrides after rendering
+    if( aTransparent )
+    {
+        m_boardAdapter.m_ColorOverrides.erase( LAYER_3D_BACKGROUND_TOP );
+        m_boardAdapter.m_ColorOverrides.erase( LAYER_3D_BACKGROUND_BOTTOM );
+    }
 
     if( screenshotImage.IsOk() )
     {
+        if( !aTransparent && screenshotImage.HasAlpha() )
+            screenshotImage.ClearAlpha();
+
         saveOrCopyImage( screenshotImage, aFormat, fullFileName );
     }
 }
 
 
-bool EDA_3D_VIEWER_FRAME::getExportFileName( EDA_3D_VIEWER_EXPORT_FORMAT& aFormat, wxString& fullFileName )
+bool EDA_3D_VIEWER_FRAME::getExportFileName( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, wxString& fullFileName )
 {
-    // Create combined wildcard for both formats
-    const wxString wildcard = FILEEXT::JpegFileWildcard() + "|" + FILEEXT::PngFileWildcard();
+    bool fmt_is_jpeg = ( aFormat == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG );
+
+    const wxString wildcard = fmt_is_jpeg ? FILEEXT::JpegFileWildcard()
+                                          : FILEEXT::PngFileWildcard();
+    const wxString defaultExt = fmt_is_jpeg ? FILEEXT::JpegFileExtension
+                                            : FILEEXT::PngFileExtension;
 
     if( !m_defaultSaveScreenshotFileName.IsOk() )
         m_defaultSaveScreenshotFileName = Parent()->Prj().GetProjectFullName();
 
-    // Set default extension based on current format
-    const wxString defaultExt = ( aFormat == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG ) ?
-                                FILEEXT::JpegFileExtension : FILEEXT::PngFileExtension;
     m_defaultSaveScreenshotFileName.SetExt( defaultExt );
 
     wxFileDialog dlg( this, _( "3D Image File Name" ),
@@ -760,45 +785,14 @@ bool EDA_3D_VIEWER_FRAME::getExportFileName( EDA_3D_VIEWER_EXPORT_FORMAT& aForma
 
     KIPLATFORM::UI::AllowNetworkFileSystems( &dlg );
 
-    // Set initial filter index based on current format
-    dlg.SetFilterIndex( ( aFormat == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG ) ? 0 : 1 );
-
     if( dlg.ShowModal() == wxID_CANCEL )
         return false;
 
     m_defaultSaveScreenshotFileName = dlg.GetPath();
 
-    // Determine format based on file extension first
-    wxString fileExt = m_defaultSaveScreenshotFileName.GetExt().Lower();
-    EDA_3D_VIEWER_EXPORT_FORMAT detectedFormat;
-    bool formatDetected = false;
-
-    if( fileExt == wxT("jpg") || fileExt == wxT("jpeg") )
-    {
-        detectedFormat = EDA_3D_VIEWER_EXPORT_FORMAT::JPEG;
-        formatDetected = true;
-    }
-    else if( fileExt == wxT("png") )
-    {
-        detectedFormat = EDA_3D_VIEWER_EXPORT_FORMAT::PNG;
-        formatDetected = true;
-    }
-
-    // If format can't be determined from extension, use dropdown selection
-    if( !formatDetected )
-    {
-        int filterIndex = dlg.GetFilterIndex();
-        detectedFormat = ( filterIndex == 0 ) ? EDA_3D_VIEWER_EXPORT_FORMAT::JPEG :
-                                               EDA_3D_VIEWER_EXPORT_FORMAT::PNG;
-
-        // Append appropriate extension
-        const wxString ext = ( detectedFormat == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG ) ?
-                            FILEEXT::JpegFileExtension : FILEEXT::PngFileExtension;
-        m_defaultSaveScreenshotFileName.SetExt( ext );
-    }
-
-    // Update the format parameter
-    aFormat = detectedFormat;
+    // Ensure the file has the correct extension for the chosen format
+    if( m_defaultSaveScreenshotFileName.GetExt().IsEmpty() )
+        m_defaultSaveScreenshotFileName.SetExt( defaultExt );
 
     // Check directory permissions using the updated filename
     wxFileName fn = m_defaultSaveScreenshotFileName;
@@ -854,6 +848,7 @@ wxImage EDA_3D_VIEWER_FRAME::captureRaytracingScreenshot( BOARD_ADAPTER& aAdapte
     BOARD_ADAPTER tempadapter;
     tempadapter.SetBoard( GetBoard() );
     tempadapter.m_Cfg = aAdapter.m_Cfg;
+    tempadapter.m_ColorOverrides = aAdapter.m_ColorOverrides;
     tempadapter.InitSettings( nullptr, nullptr );
     tempadapter.Set3dCacheManager( aAdapter.Get3dCacheManager() );
 
@@ -917,6 +912,7 @@ wxImage EDA_3D_VIEWER_FRAME::captureOpenGLScreenshot( BOARD_ADAPTER& aAdapter, T
     BOARD_ADAPTER tempadapter;
     tempadapter.SetBoard( GetBoard() );
     tempadapter.m_Cfg = aAdapter.m_Cfg;
+    tempadapter.m_ColorOverrides = aAdapter.m_ColorOverrides;
     tempadapter.InitSettings( nullptr, nullptr );
     tempadapter.Set3dCacheManager( aAdapter.Get3dCacheManager() );
 

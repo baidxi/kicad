@@ -146,7 +146,8 @@ public:
      * @param aFormat - Export format (JPEG, PNG, or CLIPBOARD)
      * @param aSize - Size of the exported image
      */
-    void ExportImage( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, const wxSize& aSize );
+    void ExportImage( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, const wxSize& aSize,
+                      bool aTransparent = false );
 
 protected:
     void setupUIConditions() override;
@@ -186,14 +187,14 @@ private:
 
     void applySettings( EDA_3D_VIEWER_SETTINGS* aSettings );
 
-        /**
-     * Get export filename through file dialog
-     * @param aFormat - [in/out] Export format to determine default file extension and wildcard.
-     *                  Will be updated to the selected format.
-     * @param fullFileName - [out] Full path of selected file
-     * @return true if filename was successfully obtained, false if cancelled
+    /**
+     * Get export filename through file dialog.
+     *
+     * @param aFormat Export format to determine default file extension and wildcard.
+     * @param fullFileName [out] Full path of selected file.
+     * @return true if filename was successfully obtained, false if cancelled.
      */
-    bool getExportFileName( EDA_3D_VIEWER_EXPORT_FORMAT& aFormat, wxString& fullFileName );
+    bool getExportFileName( EDA_3D_VIEWER_EXPORT_FORMAT aFormat, wxString& fullFileName );
 
     /**
      * Capture screenshot using appropriate rendering method

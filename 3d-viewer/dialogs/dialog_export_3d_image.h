@@ -29,6 +29,7 @@
 #include <wx/choice.h>
 #include <wx/stattext.h>
 #include <wx/bmpbuttn.h>
+#include <wx/checkbox.h>
 
 enum class SIZE_UNITS
 {
@@ -53,8 +54,11 @@ public:
     wxSize GetSize() const { return wxSize( m_width, m_height ); }
     double GetXResolution() const { return m_xResolution; }
     double GetYResolution() const { return m_yResolution; }
+    bool IsTransparent() const { return m_transparent; }
+    EDA_3D_VIEWER_EXPORT_FORMAT GetFormat() const { return m_format; }
 
 private:
+    bool TransferDataToWindow() override;
     bool TransferDataFromWindow() override;
 
     void OnLockToggle( wxCommandEvent& aEvent );
@@ -64,6 +68,7 @@ private:
     void OnYResolutionChange( wxSpinDoubleEvent& aEvent );
     void OnSizeUnitChange( wxCommandEvent& aEvent );
     void OnResolutionUnitChange( wxCommandEvent& aEvent );
+    void OnFormatChange( wxCommandEvent& aEvent );
 
     wxSize GetPixelSize( double aWidth, double aHeight, double aXResolution, double aYResolution, SIZE_UNITS aSizeUnits ) const;
     void UpdatePixelSize();
@@ -71,7 +76,6 @@ private:
     void ConvertSizeUnits( SIZE_UNITS aFromUnit, SIZE_UNITS aToUnit );
     void ConvertResolutionUnits( RESOLUTION_UNITS aFromUnit, RESOLUTION_UNITS aToUnit );
 
-private:
     EDA_3D_VIEWER_EXPORT_FORMAT m_format;
     wxSize m_originalSize;
     int m_width;
@@ -80,6 +84,7 @@ private:
     double m_yResolution;
     double m_aspectRatio;
     bool m_lockAspectRatio;
+    bool m_transparent;
 
     SIZE_UNITS m_sizeUnits;
     RESOLUTION_UNITS m_resolutionUnits;
@@ -92,4 +97,9 @@ private:
     wxChoice* m_choiceResolutionUnits;
     wxBitmapButton* m_lockButton;
     wxStaticText* m_pixelSizeLabel;
+    wxChoice* m_choiceFormat;
+    wxCheckBox* m_checkTransparency;
+
+    static EDA_3D_VIEWER_EXPORT_FORMAT s_lastFormat;
+    static bool s_lastTransparent;
 };

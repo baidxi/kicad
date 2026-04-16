@@ -30,17 +30,23 @@
 #include <wx/choice.h>
 #include <wx/bmpbuttn.h>
 #include <wx/statline.h>
+#include <wx/checkbox.h>
+
+EDA_3D_VIEWER_EXPORT_FORMAT DIALOG_EXPORT_3D_IMAGE::s_lastFormat = EDA_3D_VIEWER_EXPORT_FORMAT::PNG;
+bool DIALOG_EXPORT_3D_IMAGE::s_lastTransparent = false;
+
 
 DIALOG_EXPORT_3D_IMAGE::DIALOG_EXPORT_3D_IMAGE( wxWindow* aParent, const wxSize& aSize ) :
         DIALOG_SHIM( aParent, wxID_ANY, _( "Export 3D View" ), wxDefaultPosition, wxDefaultSize,
                      wxDEFAULT_DIALOG_STYLE ),
-        m_format( EDA_3D_VIEWER_EXPORT_FORMAT::PNG ),
+        m_format( s_lastFormat ),
         m_originalSize( aSize ),
         m_width( aSize.GetWidth() ),
         m_height( aSize.GetHeight() ),
         m_xResolution( 300.0 ),
         m_yResolution( 300.0 ),
         m_lockAspectRatio( true ),
+        m_transparent( s_lastTransparent ),
         m_sizeUnits( SIZE_UNITS::PIXELS ),
         m_resolutionUnits( RESOLUTION_UNITS::PIXELS_PER_INCH )
 {
@@ -129,6 +135,31 @@ DIALOG_EXPORT_3D_IMAGE::DIALOG_EXPORT_3D_IMAGE( wxWindow* aParent, const wxSize&
 
     mainSizer->Add( resGrid, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 10 );
 
+    // Separator
+    wxStaticLine* line2 = new wxStaticLine( this );
+    mainSizer->Add( line2, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 10 );
+
+    // Options section
+    wxStaticText* optionsHeader = new wxStaticText( this, wxID_ANY, _( "Options" ) );
+    optionsHeader->SetFont( optionsHeader->GetFont().Bold() );
+    mainSizer->Add( optionsHeader, 0, wxLEFT | wxTOP, 10 );
+
+    wxBoxSizer* formatSizer = new wxBoxSizer( wxHORIZONTAL );
+    formatSizer->Add( new wxStaticText( this, wxID_ANY, _( "Format:" ) ), 0,
+                      wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
+    m_choiceFormat = new wxChoice( this, wxID_ANY );
+    m_choiceFormat->Append( _( "PNG" ) );
+    m_choiceFormat->Append( _( "JPEG" ) );
+    m_choiceFormat->SetSelection( m_format == EDA_3D_VIEWER_EXPORT_FORMAT::JPEG ? 1 : 0 );
+    m_choiceFormat->SetMinSize( wxSize( m_choiceFormat->GetTextExtent( wxT( "JPEG" ) ).x * 3,
+                                        -1 ) );
+    formatSizer->Add( m_choiceFormat, 0 );
+    mainSizer->Add( formatSizer, 0, wxLEFT | wxTOP, 10 );
+
+    m_checkTransparency = new wxCheckBox( this, wxID_ANY, _( "Transparent background" ) );
+    m_checkTransparency->SetValue( m_transparent );
+    mainSizer->Add( m_checkTransparency, 0, wxLEFT | wxTOP, 10 );
+
     // Dialog buttons
     wxStdDialogButtonSizer* btnSizer = CreateStdDialogButtonSizer( wxOK | wxCANCEL );
     mainSizer->Add( btnSizer, 0, wxEXPAND | wxALL, 10 );
@@ -151,6 +182,17 @@ DIALOG_EXPORT_3D_IMAGE::DIALOG_EXPORT_3D_IMAGE( wxWindow* aParent, const wxSize&
     m_spinYResolution->Bind( wxEVT_SPINCTRLDOUBLE, &DIALOG_EXPORT_3D_IMAGE::OnYResolutionChange, this );
     m_choiceSizeUnits->Bind( wxEVT_CHOICE, &DIALOG_EXPORT_3D_IMAGE::OnSizeUnitChange, this );
     m_choiceResolutionUnits->Bind( wxEVT_CHOICE, &DIALOG_EXPORT_3D_IMAGE::OnResolutionUnitChange, this );
+    m_choiceFormat->Bind( wxEVT_CHOICE, &DIALOG_EXPORT_3D_IMAGE::OnFormatChange, this );
+}
+
+
+bool DIALOG_EXPORT_3D_IMAGE::TransferDataToWindow()
+{
+    // Apply initial format-dependent state (disables transparency for JPEG)
+    wxCommandEvent dummy;
+    OnFormatChange( dummy );
+
+    return true;
 }
 
 
@@ -185,6 +227,13 @@ bool DIALOG_EXPORT_3D_IMAGE::TransferDataFromWindow()
 
     m_xResolution = m_spinXResolution->GetValue();
     m_yResolution = m_spinYResolution->GetValue();
+    m_format = ( m_choiceFormat->GetSelection() == 0 ) ? EDA_3D_VIEWER_EXPORT_FORMAT::PNG
+                                                       : EDA_3D_VIEWER_EXPORT_FORMAT::JPEG;
+    m_transparent = m_checkTransparency->IsEnabled() && m_checkTransparency->GetValue();
+
+    // Persist selections for next dialog invocation
+    s_lastFormat = m_format;
+    s_lastTransparent = m_transparent;
 
     return true;
 }
@@ -261,6 +310,25 @@ void DIALOG_EXPORT_3D_IMAGE::OnXResolutionChange( wxSpinDoubleEvent& aEvent )
 void DIALOG_EXPORT_3D_IMAGE::OnYResolutionChange( wxSpinDoubleEvent& aEvent )
 {
     UpdatePixelSize();
+}
+
+
+void DIALOG_EXPORT_3D_IMAGE::OnFormatChange( wxCommandEvent& aEvent )
+{
+    bool isPNG = ( m_choiceFormat->GetSelection() == 0 );
+
+    m_checkTransparency->Enable( isPNG );
+
+    if( !isPNG )
+    {
+        m_checkTransparency->SetValue( false );
+        m_checkTransparency->SetToolTip( _( "Transparency is only supported for PNG format" ) );
+    }
+    else
+    {
+        m_checkTransparency->SetToolTip( _( "Export with a transparent background instead of "
+                                            "the current background color" ) );
+    }
 }
 
 
