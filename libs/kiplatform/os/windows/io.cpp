@@ -22,6 +22,7 @@
 #include <wx/string.h>
 #include <wx/wxcrt.h>
 #include <wx/filename.h>
+#include <wx/uri.h>
 
 #include <stdexcept>
 #include <string>
@@ -108,6 +109,7 @@ FILE* KIPLATFORM::IO::SeqFOpen( const wxString& aPath, const wxString& aMode )
     return wxFopen( aPath, aMode );
 #endif
 }
+
 
 bool KIPLATFORM::IO::DuplicatePermissions( const wxString &aSrc, const wxString &aDest )
 {
@@ -390,4 +392,16 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
 
     if( m_fileHandle )
         CloseHandle( m_fileHandle );
+}
+
+
+extern void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
+
+KIPLATFORM::IO::DBUS_RET_CODE KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
+{
+    wxURI fileURI( aFileName.GetFullPath() );
+
+    CommonOpenInDirectory( fileURI, aFileName );
+
+    return KIPLATFORM::IO::DBUS_RET_CODE::FALLBACK_WX_OPENDIR;
 }

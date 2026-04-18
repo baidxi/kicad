@@ -39,6 +39,7 @@
 #include <wx/fileconf.h>
 #include <wx/string.h>
 #include <wx/process.h>
+#include <wx/uri.h>
 
 class PROJECT;
 class SEARCH_STACK;
@@ -148,5 +149,18 @@ KICOMMON_API const wxString ResolveUriByEnvVars( const wxString& aUri, const PRO
  */
 KICOMMON_API bool WarnUserIfOperatingSystemUnsupported();
 
+/**
+ * Checks for the file explorer string value in settings.
+ *
+ * @return the command as entered in the settings, or a wxEmptyString
+ */
+KICOMMON_API wxString GetFileExplorerCommand();
 
-#endif // INCLUDE__COMMON_H_
+/**
+ * A common mechanism used as a fallback only on Linux.
+ *
+ */
+KICOMMON_API void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
+
+
+#endif  // INCLUDE__COMMON_H_

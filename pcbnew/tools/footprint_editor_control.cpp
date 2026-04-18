@@ -40,7 +40,6 @@
 #include <kidialog.h>
 #include <wx/filename.h>
 #include <wildcards_and_files_ext.h>
-#include <launch_ext.h> // To default when file manager setting is empty
 #include <gestfich.h> // To open with a text editor
 #include <widgets/wx_infobar.h>
 #include <footprint.h>
@@ -55,6 +54,7 @@
 #include <kiway.h>
 #include <project_pcb.h>
 #include <view/view_controls.h>
+#include <kiplatform/io.h>
 
 #include <memory>
 
@@ -611,7 +611,6 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     wxString    libName = libId.GetLibNickname();
     wxString    libItemName = libId.GetLibItemName();
-    wxString    path = wxEmptyString;
 
     LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
     std::optional<wxString> optUri = manager.GetFullURI( LIBRARY_TABLE_TYPE::FOOTPRINT, libName, true );
@@ -619,7 +618,8 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     if( !optUri )
         return 0;
 
-    path = *optUri;
+    if( optUri->IsEmpty() || !optUri.has_value() )
+        return 0;
 
     wxString fileExt = wxEmptyString;
 
@@ -627,38 +627,10 @@ int FOOTPRINT_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
     if( !libItemName.IsEmpty() )
         fileExt = FILEEXT::KiCadFootprintFileExtension;
 
-    wxFileName fileName( path, libItemName, fileExt );
+    wxFileName fileName( optUri.value(), libItemName, fileExt );
     wxString   explorerCommand;
 
-    if( COMMON_SETTINGS* cfg = Pgm().GetCommonSettings() )
-        explorerCommand = cfg->m_System.file_explorer;
-
-    if( explorerCommand.IsEmpty() )
-    {
-        path = fileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
-
-        if( !path.IsEmpty() && wxDirExists( path ) )
-            LaunchExternal( path );
-
-        return 0;
-    }
-
-    if( !explorerCommand.EndsWith( "%F" ) )
-    {
-        wxMessageBox( _( "Missing/malformed file explorer argument '%F' in common settings." ) );
-        return 0;
-    }
-
-    wxString escapedFilePath = fileName.GetFullPath();
-    escapedFilePath.Replace( wxS( "\"" ), wxS( "_" ) );
-
-    wxString fileArg = wxEmptyString;
-    fileArg << '"' << escapedFilePath << '"';
-
-    explorerCommand.Replace( wxT( "%F" ), fileArg );
-
-    if( !explorerCommand.IsEmpty() )
-        wxExecute( explorerCommand );
+    KIPLATFORM::IO::OpenInDirectory( fileName );
 
     return 0;
 }

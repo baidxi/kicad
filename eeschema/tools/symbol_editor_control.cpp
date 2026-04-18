@@ -22,6 +22,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+
 #include "tools/symbol_editor_control.h"
 
 #include <advanced_config.h>
@@ -31,7 +32,6 @@
 #include <gestfich.h> // To open with a text editor
 #include <kidialog.h>
 #include <kiway.h>
-#include <launch_ext.h> // To default when file manager setting is empty
 #include <lib_symbol_library_manager.h>
 #include <libraries/library_manager.h>
 #include <pgm_base.h>
@@ -47,6 +47,7 @@
 
 #include <wx/filedlg.h>
 #include <kiplatform/ui.h>
+#include <kiplatform/io.h>
 
 
 bool SYMBOL_EDITOR_CONTROL::Init()
@@ -400,37 +401,7 @@ int SYMBOL_EDITOR_CONTROL::OpenDirectory( const TOOL_EVENT& aEvent )
 
     wxFileName fileName( *libItemName );
 
-    wxString filePath = wxEmptyString;
-    wxString explorerCommand;
-
-    if( COMMON_SETTINGS* cfg = Pgm().GetCommonSettings() )
-        explorerCommand = cfg->m_System.file_explorer;
-
-    if( explorerCommand.IsEmpty() )
-    {
-        filePath = fileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
-
-        if( !filePath.IsEmpty() && wxDirExists( filePath ) )
-            LaunchExternal( filePath );
-
-        return 0;
-    }
-
-    if( !explorerCommand.EndsWith( "%F" ) )
-    {
-        wxMessageBox( _( "Missing/malformed file explorer argument '%F' in common settings." ) );
-        return 0;
-    }
-
-    filePath = fileName.GetFullPath();
-    filePath.Replace( wxS( "\"" ), wxS( "_" ) );
-
-    wxString fileArg = '"' + filePath + '"';
-
-    explorerCommand.Replace( wxT( "%F" ), fileArg );
-
-    if( !explorerCommand.IsEmpty() )
-        wxExecute( explorerCommand );
+    KIPLATFORM::IO::OpenInDirectory( fileName );
 
     return 0;
 }

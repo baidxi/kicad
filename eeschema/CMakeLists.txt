@@ -590,6 +590,7 @@ set_source_files_properties( ${CMAKE_SOURCE_DIR}/common/single_top.cpp PROPERTIE
 target_link_libraries( eeschema
     kicommon
     pcm
+    kiplatform
     ${wxWidgets_LIBRARIES}
     )
 
@@ -626,7 +627,8 @@ target_link_libraries( eeschema_kiface_objects
     PUBLIC
         common
         pads_common
-        pcm )
+        pcm
+        kiplatform )
 
 # Since we're not using target_link_libraries, we need to explicitly
 # declare the dependency
@@ -646,6 +648,7 @@ add_library( eeschema_kiface MODULE
 target_link_libraries( eeschema_kiface
     PRIVATE
         common
+        kiplatform
         eeschema_kiface_objects
         pads_common
         pcm

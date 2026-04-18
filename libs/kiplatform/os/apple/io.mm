@@ -24,6 +24,7 @@
 #include <wx/crt.h>
 #include <wx/string.h>
 #include <wx/filename.h>
+#include <wx/uri.h>
 
 #include <climits>
 #include <dirent.h>
@@ -78,29 +79,29 @@ bool KIPLATFORM::IO::MakeWriteable( const wxString& aFilePath )
 {
     NSString *path = [NSString stringWithUTF8String:aFilePath.utf8_str()];
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    
+
     NSError *error;
     NSDictionary *attributes = [fileManager attributesOfItemAtPath:path error:&error];
-    
+
     if( !attributes )
     {
         NSLog(@"Error retrieving file attributes: %@", error);
         return false;
     }
-    
+
     NSNumber *permissions = attributes[NSFilePosixPermissions];
-    
+
     if( permissions == nil )
     {
         return false;
     }
-    
+
     // Add user write permission (S_IWUSR = 0200)
     unsigned short currentPerms = [permissions unsignedShortValue];
     unsigned short newPerms = currentPerms | 0200;
-    
-    if( [fileManager setAttributes:@{NSFilePosixPermissions: @(newPerms)} 
-                        ofItemAtPath:path 
+
+    if( [fileManager setAttributes:@{NSFilePosixPermissions: @(newPerms)}
+                        ofItemAtPath:path
                                error:&error] )
     {
         return true;
@@ -231,4 +232,16 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
 {
     if( m_isMapped && m_data )
         munmap( const_cast<uint8_t*>( m_data ), m_size );
+}
+
+
+extern void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName );
+
+KIPLATFORM::IO::DBUS_RET_CODE KIPLATFORM::IO::OpenInDirectory( wxFileName aFileName )
+{
+    wxURI fileURI( aFileName.GetFullPath() );
+
+    CommonOpenInDirectory( fileURI, aFileName );
+
+    return KIPLATFORM::IO::DBUS_RET_CODE::FALLBACK_WX_OPENDIR;
 }

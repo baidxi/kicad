@@ -23,11 +23,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include "settings/common_settings.h"
 #include <eda_base_frame.h>
 #include <kiplatform/app.h>
 #include <project.h>
 #include <common.h>
 #include <confirm.h>
+#include <pgm_base.h>
 #include <env_vars.h>
 #include <advanced_config.h>
 #include <reporter.h>
@@ -42,6 +44,8 @@
 #include <wx/url.h>
 #include <wx/utils.h>
 #include <wx/regex.h>
+
+#include <launch_ext.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -824,4 +828,42 @@ bool WarnUserIfOperatingSystemUnsupported()
     dialog.ShowModal();
 
     return true;
+}
+
+
+wxString GetFileExplorerCommand()
+{
+    COMMON_SETTINGS* cfg = Pgm().GetCommonSettings();
+
+    wxString explCommand = cfg ? cfg->m_System.file_explorer : wxString( wxEmptyString );
+
+    if( !explCommand.IsEmpty() && !explCommand.EndsWith( "%F" ) )
+    {
+        wxMessageBox( _( "Missing/malformed file explorer argument '%F' in common settings." ) );
+
+        return wxString( wxEmptyString );
+    }
+
+    return explCommand;
+}
+
+
+void CommonOpenInDirectory( const wxURI& aPath, const wxFileName& aFileName )
+{
+    wxString explCommand = GetFileExplorerCommand();
+
+    if( explCommand.IsEmpty() )
+    {
+        wxString path = aFileName.GetFullPath().BeforeLast( wxFileName::GetPathSeparator() );
+
+        if( !path.IsEmpty() && wxDirExists( path ) )
+            LaunchExternal( path );
+
+        return;
+    }
+    
+    explCommand.Replace( wxT( "%F" ), aPath.BuildUnescapedURI() );
+
+    if( !explCommand.IsEmpty() )
+        wxExecute( explCommand );
 }

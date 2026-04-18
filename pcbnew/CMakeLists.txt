@@ -653,6 +653,7 @@ set_source_files_properties( ${CMAKE_SOURCE_DIR}/common/single_top.cpp PROPERTIE
 
 target_link_libraries( pcbnew
     kicommon
+    kiplatform
     ${wxWidgets_LIBRARIES}
     )
 
@@ -693,6 +694,7 @@ make_lexer(
 target_link_libraries( pcbnew_kiface_objects
     PRIVATE
         common
+        kiplatform
         core
         nlohmann_json
         rectpack2d
@@ -749,6 +751,7 @@ set( PCBNEW_KIFACE_LIBRARIES
 target_link_libraries( pcbnew_kiface
     PRIVATE
         ${PCBNEW_KIFACE_LIBRARIES}
+        kiplatform
     )
 
 #The KIFACE is in pcbnew.cpp, export it:

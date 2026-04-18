@@ -75,6 +75,22 @@ namespace IO
      * subsequent reads. This value was determined empirically to eliminate sync issues.
      */
     static constexpr size_t CLOUD_SYNC_BUFFER_SIZE = 512 * 1024;
+
+    /**
+     * @brief @ref OpenInDirectory( wxFileName aFileName ) return code
+     *
+     */
+    enum class DBUS_RET_CODE : int
+    {
+        SUCCESS = 0,
+        DBUS_CONNECTION_ERROR,
+        DBUS_MESSAGE_ERROR,
+        DBUS_PATH_APPEND_ERROR,
+        DBUS_ID_APPEND_ERROR,
+        DBUS_SEND_FAILED,
+        FALLBACK_WX_OPENDIR,
+    };
+
     /**
      * Opens the file like fopen but sets flags (if available) for sequential read hinting.
      * Only use this variant of fopen if the file is truely going to be read sequentially only
@@ -121,6 +137,20 @@ namespace IO
      * @return Hash value that changes when any matching file is modified
      */
     long long TimestampDir( const wxString& aDirPath, const wxString& aFilespec );
+
+    /**
+    * Opens a file preselected in file manager.
+    *
+    * On Linux:                  If a container/appimage/snap: Not supported.
+    *
+    * On Linux:                  If Not a container/appimage/snap: first checks Dbus.
+    *
+    * If DBus fails OR !Linux:   If the @ref "KICOMMON_API wxString GetFileExplorerCommand" returns empty,
+    *                            we only open the directory of the selection with @ref "LaunchExternal",
+    *                            else we continue to show a preselected file in the file manager window
+    *                            with the common loader function.
+    */
+    DBUS_RET_CODE OpenInDirectory( wxFileName aFileName );
 } // namespace IO
 } // namespace KIPLATFORM
 
