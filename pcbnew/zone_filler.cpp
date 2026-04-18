@@ -922,6 +922,14 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
     // Track zones that had islands removed for potential iterative refill
     std::set<ZONE*> zonesWithRemovedIslands;
 
+    // Track zones where ALL fill outlines were isolated in the initial pass.
+    // These are legitimately unconnected pours (no pad connectivity) that must
+    // be preserved as-is.  Used in the iterative refill to distinguish them from
+    // zones that were connected initially but became fully isolated due to fill
+    // changes — the latter are NOT floating pours and must have their islands
+    // removed so the propagation chain can continue.
+    std::set<ZONE*> initiallyFullyIsolatedZones;
+
     for( const auto& [ zone, zoneIslands ] : isolatedIslandsMap )
     {
         // If *all* the polygons are islands, do not remove any of them
@@ -938,7 +946,10 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
         }
 
         if( allIslands )
+        {
+            initiallyFullyIsolatedZones.insert( zone );
             continue;
+        }
 
         for( const auto& [ layer, layerIslands ] : zoneIslands )
         {
@@ -986,70 +997,105 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
         }
     }
 
-    // Iterative refill: If islands were removed from higher-priority zones, lower-priority zones
-    // may need to be refilled to occupy the now-available space (issue 21746).
+    // Iterative refill: when islands are removed, overlapping zones may be able to reclaim
+    // the freed space.  Repeat until fills stabilise (convergence), up to a safety limit.
+    //
+    // Each wave captures a snapshot of all zone fills before running.  Every task in the wave
+    // reads knockouts from the snapshot rather than from the live zone objects.  This guarantees
+    // that all tasks see the same pre-wave fill state regardless of the order in which parallel
+    // tasks complete — preventing a fast-finishing task's expanded fill from blocking a
+    // slower task from claiming the same freed area.
     const bool iterativeRefill = ADVANCED_CFG::GetCfg().m_ZoneFillIterativeRefill;
 
     if( iterativeRefill && !zonesWithRemovedIslands.empty() )
     {
-        // Find lower-priority zones that may need refilling.
-        // A zone needs refilling if it overlaps with a zone that had islands removed
-        // and has lower priority than that zone.
-        std::vector<std::pair<ZONE*, PCB_LAYER_ID>> zonesToRefill;
+        const int maxIterations = 8;
+        bool      progressReported = false;
+        bool      hitIterationLimit = false;
 
-        for( ZONE* zoneWithIsland : zonesWithRemovedIslands )
+        // Seed: zones whose fills changed due to initial island removal.
+        std::set<ZONE*> changedZones( zonesWithRemovedIslands );
+
+        auto cached_refill_tessellate_lambda = [&]( const std::pair<ZONE*, PCB_LAYER_ID>& aFillItem ) -> int
         {
-            BOX2I islandZoneBBox = zoneWithIsland->GetBoundingBox();
-            islandZoneBBox.Inflate( m_worstClearance );
+            ZONE*        zone = aFillItem.first;
+            PCB_LAYER_ID layer = aFillItem.second;
+            zone->CacheTriangulation( layer );
+            zone->SetFillFlag( layer, true );
+            return 1;
+        };
 
-            for( ZONE* zone : aZones )
+        auto no_dependency = []( const std::pair<ZONE*, PCB_LAYER_ID>&, const std::pair<ZONE*, PCB_LAYER_ID>& ) -> bool
+        {
+            return false;
+        };
+
+        for( int iteration = 0; iteration < maxIterations; ++iteration )
+        {
+            std::vector<std::pair<ZONE*, PCB_LAYER_ID>> zonesToRefill;
+
+            for( ZONE* changedZone : changedZones )
             {
-                // Skip the zone that had islands removed
-                if( zone == zoneWithIsland )
-                    continue;
+                BOX2I bbox = changedZone->GetBoundingBox();
+                bbox.Inflate( m_worstClearance );
 
-                // Skip keepout zones
-                if( zone->GetIsRuleArea() )
-                    continue;
-
-                // Only refill zones with lower priority than the zone that had islands removed
-                if( !zoneWithIsland->HigherPriority( zone ) )
-                    continue;
-
-                // Check for layer overlap
-                LSET commonLayers = zone->GetLayerSet() & zoneWithIsland->GetLayerSet();
-
-                if( commonLayers.none() )
-                    continue;
-
-                // Check for bounding box overlap
-                if( !zone->GetBoundingBox().Intersects( islandZoneBBox ) )
-                    continue;
-
-                // Add zone/layer pairs for refilling
-                for( PCB_LAYER_ID layer : commonLayers )
+                for( ZONE* zone : aZones )
                 {
-                    auto fillItem = std::make_pair( zone, layer );
+                    if( zone->GetIsRuleArea() )
+                        continue;
 
-                    if( std::find( zonesToRefill.begin(), zonesToRefill.end(), fillItem ) == zonesToRefill.end() )
+                    LSET commonLayers = zone->GetLayerSet() & changedZone->GetLayerSet();
+
+                    if( commonLayers.none() )
+                        continue;
+
+                    if( !zone->GetBoundingBox().Intersects( bbox ) )
+                        continue;
+
+                    for( PCB_LAYER_ID layer : commonLayers )
                     {
-                        zonesToRefill.push_back( fillItem );
+                        auto fillItem = std::make_pair( zone, layer );
+
+                        if( std::find( zonesToRefill.begin(), zonesToRefill.end(), fillItem ) == zonesToRefill.end() )
+                        {
+                            zonesToRefill.push_back( fillItem );
+                        }
                     }
                 }
             }
-        }
 
-        if( !zonesToRefill.empty() )
-        {
-            if( m_progressReporter )
+            if( zonesToRefill.empty() )
+                break;
+
+            if( !progressReported )
             {
-                m_progressReporter->AdvancePhase();
-                m_progressReporter->Report( _( "Refilling zones after island removal..." ) );
-                m_progressReporter->KeepRefreshing();
+                if( m_progressReporter )
+                {
+                    m_progressReporter->AdvancePhase();
+                    m_progressReporter->Report( _( "Refilling zones after island removal..." ) );
+                    m_progressReporter->KeepRefreshing();
+                }
+
+                progressReported = true;
             }
 
-            // Refill using cached pre-knockout fills - much faster than full refill
-            // since we only need to re-apply the higher-priority zone knockout
+            // Snapshot all fills before the wave.  Every refill task reads knockouts
+            // from this snapshot so all tasks see the same pre-wave state regardless of
+            // completion order — preventing a fast-finishing task's expanded fill from
+            // blocking a slower task from claiming the same freed area.
+            FillSnapshot snapshot;
+
+            for( ZONE* zone : aZones )
+            {
+                for( PCB_LAYER_ID layer : zone->GetLayerSet() )
+                {
+                    auto sp = zone->GetFilledPolysList( layer );
+
+                    if( sp && sp->OutlineCount() > 0 )
+                        snapshot[{ zone, layer }] = *sp;
+                }
+            }
+
             auto cached_refill_fill_lambda =
                     [&]( const std::pair<ZONE*, PCB_LAYER_ID>& aFillItem ) -> int
                     {
@@ -1057,7 +1103,7 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                         PCB_LAYER_ID   layer = aFillItem.second;
                         SHAPE_POLY_SET fillPolys;
 
-                        if( !refillZoneFromCache( zone, layer, fillPolys ) )
+                        if( !refillZoneFromCache( zone, layer, fillPolys, &snapshot ) )
                             return 0;
 
                         zone->SetFilledPolysList( layer, fillPolys );
@@ -1065,63 +1111,54 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                         return 1;
                     };
 
-            auto cached_refill_tessellate_lambda =
-                    [&]( const std::pair<ZONE*, PCB_LAYER_ID>& aFillItem ) -> int
-                    {
-                        ZONE*        zone = aFillItem.first;
-                        PCB_LAYER_ID layer = aFillItem.second;
+            run_fill_waves( zonesToRefill, cached_refill_fill_lambda, cached_refill_tessellate_lambda, no_dependency );
 
-                        zone->CacheTriangulation( layer );
-                        zone->SetFillFlag( layer, true );
-                        return 1;
-                    };
-
-            // Run all iterative refills in a single unordered wave (no dependency function).
-            auto refill_item_dependency = [&]( const std::pair<ZONE*, PCB_LAYER_ID>&,
-                                               const std::pair<ZONE*, PCB_LAYER_ID>& ) -> bool
-            {
-                return false;
-            };
-
-            run_fill_waves( zonesToRefill, cached_refill_fill_lambda,
-                            cached_refill_tessellate_lambda, refill_item_dependency );
-
-            // Re-run island detection for refilled zones
+            // Island detection on all zones after the wave.
             std::map<ZONE*, std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>> refillIslandsMap;
-            std::set<ZONE*> refillZones;
 
-            for( const auto& [zone, layer] : zonesToRefill )
-                refillZones.insert( zone );
-
-            for( ZONE* zone : refillZones )
+            for( ZONE* zone : aZones )
             {
+                if( zone->GetIsRuleArea() )
+                    continue;
+
                 refillIslandsMap[zone] = std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>();
 
-                for( PCB_LAYER_ID layer : zone->GetLayerSet() )
+                LSET zoneCopperLayers = zone->GetLayerSet() & LSET::AllCuMask( m_board->GetCopperLayerCount() );
+
+                for( PCB_LAYER_ID layer : zoneCopperLayers )
+                {
+                    if( m_debugZoneFiller && LSET::InternalCuMask().Contains( layer ) )
+                        continue;
+
                     refillIslandsMap[zone][layer] = ISOLATED_ISLANDS();
+                }
             }
 
             connectivity->FillIsolatedIslandsMap( refillIslandsMap );
 
-            // Remove islands from refilled zones
-            for( const auto& [ zone, zoneIslands ] : refillIslandsMap )
+            for( const auto& [zone, zoneIslands] : refillIslandsMap )
             {
-                bool allIslands = true;
-
-                for( const auto& [ layer, layerIslands ] : zoneIslands )
+                // Preserve legitimately unconnected pours: if all fill outlines were
+                // already isolated in the initial pass (no pad connectivity), keep them.
+                if( initiallyFullyIsolatedZones.count( zone ) > 0 )
                 {
-                    if( layerIslands.m_IsolatedOutlines.size()
-                            != static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) )
+                    bool allIslands = true;
+
+                    for( const auto& [layer, layerIslands] : zoneIslands )
                     {
-                        allIslands = false;
-                        break;
+                        if( layerIslands.m_IsolatedOutlines.size()
+                            != static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) )
+                        {
+                            allIslands = false;
+                            break;
+                        }
                     }
+
+                    if( allIslands )
+                        continue;
                 }
 
-                if( allIslands )
-                    continue;
-
-                for( const auto& [ layer, layerIslands ] : zoneIslands )
+                for( const auto& [layer, layerIslands] : zoneIslands )
                 {
                     if( m_debugZoneFiller && LSET::InternalCuMask().Contains( layer ) )
                         continue;
@@ -1153,6 +1190,61 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                 }
             }
 
+            // Convergence check: collect zones whose fill area changed (refill or island
+            // removal) compared to the pre-wave snapshot.  These seed the next iteration.
+            changedZones.clear();
+
+            for( ZONE* zone : aZones )
+            {
+                if( zone->GetIsRuleArea() )
+                    continue;
+
+                LSET zoneCopperLayers = zone->GetLayerSet() & LSET::AllCuMask( m_board->GetCopperLayerCount() );
+
+                for( PCB_LAYER_ID layer : zoneCopperLayers )
+                {
+                    auto   snapshotIt = snapshot.find( { static_cast<const ZONE*>( zone ), layer } );
+                    double oldArea = ( snapshotIt != snapshot.end() ) ? snapshotIt->second.Area() : 0.0;
+
+                    std::shared_ptr<SHAPE_POLY_SET> newFill = zone->GetFilledPolysList( layer );
+                    double                          newArea = newFill ? newFill->Area() : 0.0;
+
+                    if( std::abs( newArea - oldArea ) > 1.0 )
+                    {
+                        changedZones.insert( zone );
+                        break;
+                    }
+                }
+            }
+
+            if( changedZones.empty() )
+                break; // Stable — converged.
+
+            if( iteration + 1 >= maxIterations )
+            {
+                hitIterationLimit = true;
+                break;
+            }
+        }
+
+        if( hitIterationLimit )
+        {
+            wxString msg = wxString::Format( _( "Zone fills may be incorrect: iterative refill did not converge "
+                                                "after %d passes.\n\n"
+                                                "This can happen with complex overlapping zones.  "
+                                                "Consider simplifying your zones." ),
+                                             maxIterations );
+
+            if( aParent )
+            {
+                KIDIALOG dlg( aParent, msg, _( "Warning" ), wxOK | wxICON_WARNING );
+                dlg.DoNotShowCheckbox( __FILE__, __LINE__ );
+                dlg.ShowModal();
+            }
+            else
+            {
+                wxLogWarning( msg );
+            }
         }
     }
 
@@ -3807,7 +3899,8 @@ bool ZONE_FILLER::addHatchFillTypeOnZone( const ZONE* aZone, PCB_LAYER_ID aLayer
 }
 
 
-bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aFillPolys )
+bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aFillPolys,
+                                       const FillSnapshot* aSnapshot )
 {
     auto cacheKey = std::make_pair( static_cast<const ZONE*>( aZone ), aLayer );
 
@@ -3866,17 +3959,40 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
                 if( !otherZone->GetBoundingBox().Intersects( zoneBBox ) )
                     return;
 
-                if( !otherZone->HasFilledPolysForLayer( aLayer ) )
-                    return;
+                // Resolve the fill to use: from the snapshot when provided, otherwise the live fill.
+                // The snapshot ensures all parallel tasks in a wave read a consistent pre-wave state
+                // so no task can block another by writing a larger fill first.
+                const SHAPE_POLY_SET*           fillPtr = nullptr;
+                std::shared_ptr<SHAPE_POLY_SET> fillShared; // keeps live fill shared_ptr alive
 
-                std::shared_ptr<SHAPE_POLY_SET> otherFill = otherZone->GetFilledPolysList( aLayer );
+                if( aSnapshot )
+                {
+                    auto it = aSnapshot->find( { static_cast<const ZONE*>( otherZone ), aLayer } );
 
-                if( !otherFill || otherFill->OutlineCount() == 0 )
+                    if( it == aSnapshot->end() )
+                        return; // not filled at snapshot time; skip
+
+                    fillPtr = &it->second;
+                }
+                else
+                {
+                    if( !otherZone->HasFilledPolysForLayer( aLayer ) )
+                        return;
+
+                    fillShared = otherZone->GetFilledPolysList( aLayer );
+
+                    if( !fillShared )
+                        return;
+
+                    fillPtr = fillShared.get();
+                }
+
+                if( fillPtr->OutlineCount() == 0 )
                     return;
 
                 if( otherZone->SameNet( aZone ) )
                 {
-                    sameNetKnockouts.Append( *otherFill );
+                    sameNetKnockouts.Append( *fillPtr );
                 }
                 else
                 {
@@ -3889,7 +4005,7 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
                     if( gap < 0 )
                         return;
 
-                    SHAPE_POLY_SET inflatedFill = *otherFill;
+                    SHAPE_POLY_SET inflatedFill = *fillPtr;
                     inflatedFill.Inflate( gap + extra_margin + m_maxError,
                                           CORNER_STRATEGY::ROUND_ALL_CORNERS, m_maxError );
                     diffNetKnockouts.Append( inflatedFill );
