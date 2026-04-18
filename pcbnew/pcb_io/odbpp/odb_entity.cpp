@@ -1126,17 +1126,17 @@ void ODB_LAYER_ENTITY::GenAttrList( ODB_TREE_WRITER& writer )
     {
         int thickness = stackupItem->GetThickness();
 
-        if( thickness > 0 )
-        {
-            double thicknessOut = PCB_IO_ODBPP::m_scale * thickness;
-            ost << ".layer_dielectric=" << ODB::Double2String( thicknessOut ) << std::endl;
-        }
-
         if( stackupItem->GetType() == BS_ITEM_TYPE_COPPER )
         {
+            ost << "UNITS=INCH" << std::endl;
             double copperThicknessMM = static_cast<double>( thickness ) / pcbIUScale.mmToIU( 1.0 );
             double thicknessOz = copperThicknessMM / 0.035;
             ost << ".copper_weight=" << ODB::Double2String( thicknessOz ) << std::endl;
+        }else if( thickness > 0 )
+        {
+            ost << "UNITS=MM" << std::endl;
+            double thicknessOut = PCB_IO_ODBPP::m_scale * thickness;
+            ost << ".layer_dielectric=" << ODB::Double2String( thicknessOut ) << std::endl;
         }
 
         if( stackupItem->HasEpsilonRValue() )
