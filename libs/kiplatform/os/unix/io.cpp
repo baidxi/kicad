@@ -207,3 +207,10 @@ KIPLATFORM::IO::MAPPED_FILE::~MAPPED_FILE()
     if( m_isMapped && m_data )
         munmap( const_cast<uint8_t*>( m_data ), m_size );
 }
+
+
+bool KIPLATFORM::IO::IsIPCEndpointAlive( const wxString& aPath )
+{
+    wxFileName fn( aPath );
+    return fn.Exists();
+}

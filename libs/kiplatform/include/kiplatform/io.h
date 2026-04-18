@@ -121,6 +121,18 @@ namespace IO
      * @return Hash value that changes when any matching file is modified
      */
     long long TimestampDir( const wxString& aDirPath, const wxString& aFilespec );
+
+    /**
+     * Check if an IPC endpoint (socket or named pipe) already exists and is in use.
+     *
+     * On Windows, nng maps ipc:// to named pipes (\\\\. \\pipe\\<path>), so we probe
+     * with WaitNamedPipeW which returns immediately if the pipe exists.
+     * On Unix/Linux/macOS, checks for socket files in the filesystem.
+     *
+     * @param aPath the socket or named pipe path to check
+     * @return true if the endpoint is already alive
+     */
+    bool IsIPCEndpointAlive( const wxString& aPath );
 } // namespace IO
 } // namespace KIPLATFORM
 

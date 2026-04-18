@@ -33,6 +33,7 @@
 #include <paths.h>
 #include <pgm_base.h>
 #include <settings/common_settings.h>
+#include <kiplatform/io.h>
 #include <string_utils.h>
 
 #include <api/common/envelope.pb.h>
@@ -126,11 +127,11 @@ void KICAD_API_SERVER::Start()
     }
 #endif
 
-    if( socket.Exists() )
+    if( KIPLATFORM::IO::IsIPCEndpointAlive( socket.GetFullPath() ) )
     {
         socket.SetFullName( wxString::Format( wxS( "api-%lu.sock" ), ::wxGetProcessId() ) );
 
-        if( socket.Exists() )
+        if( KIPLATFORM::IO::IsIPCEndpointAlive( socket.GetFullPath() ) )
         {
             wxLogTrace( traceApi, wxString::Format( "Server: PID socket path %s already exists!",
                                                     socket.GetFullPath() ) );
