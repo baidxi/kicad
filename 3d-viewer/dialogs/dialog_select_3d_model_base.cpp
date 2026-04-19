@@ -79,7 +79,7 @@ DIALOG_SELECT_3D_MODEL_BASE::DIALOG_SELECT_3D_MODEL_BASE( wxWindow* parent, wxWi
 	wxBoxSizer* bSizer6;
 	bSizer6 = new wxBoxSizer( wxHORIZONTAL );
 
-	m_ShowHiddenCb = new wxCheckBox( this, wxID_ANY, _("Show hidden folders"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_ShowHiddenCb = new wxCheckBox( this, wxID_ANY, _("Show hidden files and folders"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_ShowHiddenCb->SetValue(true);
 	bSizer6->Add( m_ShowHiddenCb, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 

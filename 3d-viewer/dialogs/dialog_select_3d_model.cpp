@@ -134,11 +134,14 @@ DIALOG_SELECT_3DMODEL::DIALOG_SELECT_3DMODEL( wxWindow* aParent, S3D_CACHE* aCac
     m_modelViewer->Refresh();
     m_modelViewer->SetFocus();
 
-    // DIALOG_SHIM::LoadControlState may change the state of m_dirChoices without
-    // triggering an event. So the m_FileTree may be stale.
+    // DIALOG_SHIM::LoadControlState may change the state of m_dirChoices and
+    // m_ShowHiddenCb without triggering an event. So the m_FileTree may be stale.
     CallAfter(
             [this]()
             {
+                if( m_FileTree && m_ShowHiddenCb )
+                    m_FileTree->ShowHidden( m_ShowHiddenCb->GetValue() );
+
                 if( m_dirChoices && m_dirChoices->GetSelection() > 0 )
                     updateRootDir( m_dirChoices->GetString( m_dirChoices->GetSelection() ) );
             } );
