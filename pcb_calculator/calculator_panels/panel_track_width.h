@@ -21,6 +21,7 @@
 #define PANEL_TRACK_WIDTH_H
 
 #include "panel_track_width_base.h"
+#include <transline_calculations/track_width.h>
 
 class PCB_CALCULATOR_SETTINGS;
 

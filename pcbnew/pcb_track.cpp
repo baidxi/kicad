@@ -58,6 +58,7 @@
 #include <api/api_utils.h>
 #include <api/api_pcb_utils.h>
 #include <api/board/board_types.pb.h>
+#include <transline_calculations/track_width.h>
 
 using KIGFX::PCB_PAINTER;
 using KIGFX::PCB_RENDER_SETTINGS;
@@ -2405,6 +2406,17 @@ void PCB_TRACK::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_I
     TransformShapeToPolySet( copper, GetLayer(), 0, ARC_LOW_DEF, ERROR_INSIDE );
     aList.emplace_back( _( "Copper Area" ),
                         aFrame->MessageTextFromValue( copper.Area(), true, EDA_DATA_TYPE::AREA ) );
+
+    {
+        const double DELTA_T = 10.0;
+        double copperThickness = IPC2221::GetCopperThickness( board, GetLayer() );
+        bool isInternalLayer = !( GetLayer() == F_Cu || GetLayer() == B_Cu );
+        double width_m = m_width * 1e-9;
+        double current = IPC2221::CalculateTraceCurrent( width_m, copperThickness,
+                                                         DELTA_T, isInternalLayer );
+        msg = wxString::Format( "%.2f A", current );
+        aList.emplace_back( _( "Current @ 10°C Rise" ), msg );
+    }
 
     wxString source;
     int clearance = GetOwnClearance( GetLayer(), &source );

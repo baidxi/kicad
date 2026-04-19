@@ -63,6 +63,7 @@
 #include <pcb_track.h>
 #include <pcb_generator.h>
 #include <tools/pcb_edit_table_tool.h>
+#include <transline_calculations/track_width.h>
 #include <project_pcb.h>
 #include <wildcards_and_files_ext.h>
 #include <filename_resolver.h>
@@ -2608,6 +2609,34 @@ int PCB_CONTROL::UpdateMessagePanel( const TOOL_EVENT& aEvent )
             {
                 msgItems.emplace_back( _( "Selected 2D Length" ),
                                        m_frame->MessageTextFromValue( selectedLength ) );
+            }
+
+            bool hasTrack = false;
+            int  minWidth = std::numeric_limits<int>::max();
+            bool hasInternalLayer = false;
+
+            for( EDA_ITEM* item : selection )
+            {
+                if( item->Type() == PCB_TRACE_T || item->Type() == PCB_ARC_T )
+                {
+                    PCB_TRACK* track = static_cast<PCB_TRACK*>( item );
+                    hasTrack = true;
+                    minWidth = std::min( minWidth, track->GetWidth() );
+
+                    PCB_LAYER_ID layer = track->GetLayer();
+                    if( layer != F_Cu && layer != B_Cu )
+                        hasInternalLayer = true;
+                }
+            }
+
+            if( hasTrack )
+            {
+                const double DELTA_T = 10.0;
+                double       copperThickness = IPC2221::GetCopperThickness( m_frame->GetBoard() );
+                double width_m = minWidth * 1e-9;
+                double current = IPC2221::CalculateTraceCurrent( width_m, copperThickness, DELTA_T, hasInternalLayer );
+
+                msgItems.emplace_back( _( "Max Current @ 10°C Rise" ), wxString::Format( "%.2f A", current ) );
             }
         }
 
