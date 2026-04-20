@@ -922,34 +922,32 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
     // Track zones that had islands removed for potential iterative refill
     std::set<ZONE*> zonesWithRemovedIslands;
 
-    // Track zones where ALL fill outlines were isolated in the initial pass.
-    // These are legitimately unconnected pours (no pad connectivity) that must
-    // be preserved as-is.  Used in the iterative refill to distinguish them from
-    // zones that were connected initially but became fully isolated due to fill
-    // changes — the latter are NOT floating pours and must have their islands
-    // removed so the propagation chain can continue.
-    std::set<ZONE*> initiallyFullyIsolatedZones;
+    // Per-layer tracking: a zone-layer pair is "initially fully isolated" when every fill
+    // outline on that layer was an island in the initial pass (i.e. the zone has no pad
+    // connectivity on that layer).  Used in the iterative loop to distinguish legitimately
+    // unconnected pours — which must be preserved — from zones that became fully isolated
+    // only because other fills changed.
+    std::set<std::pair<ZONE*, PCB_LAYER_ID>> initiallyFullyIsolatedLayers;
 
     for( const auto& [ zone, zoneIslands ] : isolatedIslandsMap )
     {
-        // If *all* the polygons are islands, do not remove any of them
-        bool allIslands = true;
+        // Track per-layer isolation, and skip island removal on layers where every
+        // outline is an island (unconnected pour — must be preserved as-is).
+        bool allLayersFullyIsolated = true;
 
         for( const auto& [ layer, layerIslands ] : zoneIslands )
         {
-            if( layerIslands.m_IsolatedOutlines.size()
-                    != static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) )
-            {
-                allIslands = false;
-                break;
-            }
+            bool layerFullyIsolated = ( layerIslands.m_IsolatedOutlines.size()
+                                        == static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) );
+
+            if( layerFullyIsolated )
+                initiallyFullyIsolatedLayers.insert( { zone, layer } );
+            else
+                allLayersFullyIsolated = false;
         }
 
-        if( allIslands )
-        {
-            initiallyFullyIsolatedZones.insert( zone );
+        if( allLayersFullyIsolated )
             continue;
-        }
 
         for( const auto& [ layer, layerIslands ] : zoneIslands )
         {
@@ -1079,22 +1077,49 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                 progressReported = true;
             }
 
+            // Snapshot hashes before the wave for convergence detection.
+            std::map<std::pair<ZONE*, PCB_LAYER_ID>, HASH_128> iterHashes;
+
+            for( ZONE* zone : aZones )
+            {
+                if( zone->GetIsRuleArea() )
+                    continue;
+
+                LSET copperLayers = zone->GetLayerSet() & LSET::AllCuMask( m_board->GetCopperLayerCount() );
+
+                for( PCB_LAYER_ID layer : copperLayers )
+                {
+                    zone->BuildHashValue( layer );
+                    iterHashes[{ zone, layer }] = zone->GetHashValue( layer );
+                }
+            }
+
             // Snapshot all fills before the wave.  Every refill task reads knockouts
             // from this snapshot so all tasks see the same pre-wave state regardless of
             // completion order — preventing a fast-finishing task's expanded fill from
             // blocking a slower task from claiming the same freed area.
             FillSnapshot snapshot;
 
-            for( ZONE* zone : aZones )
-            {
-                for( PCB_LAYER_ID layer : zone->GetLayerSet() )
-                {
-                    auto sp = zone->GetFilledPolysList( layer );
+            forEachBoardAndFootprintZone( m_board,
+                                          [&]( ZONE* zone )
+                                          {
+                                              if( zone->GetIsRuleArea() )
+                                                  return;
 
-                    if( sp && sp->OutlineCount() > 0 )
-                        snapshot[{ zone, layer }] = *sp;
-                }
-            }
+                                              LSET copperLayers = zone->GetLayerSet()
+                                                                  & LSET::AllCuMask( m_board->GetCopperLayerCount() );
+
+                                              for( PCB_LAYER_ID layer : copperLayers )
+                                              {
+                                                  if( !zone->HasFilledPolysForLayer( layer ) )
+                                                      continue;
+
+                                                  auto sp = zone->GetFilledPolysList( layer );
+
+                                                  if( sp && sp->OutlineCount() > 0 )
+                                                      snapshot[{ zone, layer }] = sp->CloneDropTriangulation();
+                                              }
+                                          } );
 
             auto cached_refill_fill_lambda =
                     [&]( const std::pair<ZONE*, PCB_LAYER_ID>& aFillItem ) -> int
@@ -1113,51 +1138,23 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
 
             run_fill_waves( zonesToRefill, cached_refill_fill_lambda, cached_refill_tessellate_lambda, no_dependency );
 
-            // Island detection on all zones after the wave.
+            // Island detection on the refilled zones only.  Zones that grew into freed space
+            // can still develop islands if they are simultaneously blocked on one side by a
+            // higher-priority zone that grew in a prior wave.
             std::map<ZONE*, std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>> refillIslandsMap;
 
-            for( ZONE* zone : aZones )
+            for( const auto& [zone, layer] : zonesToRefill )
             {
-                if( zone->GetIsRuleArea() )
+                if( m_debugZoneFiller && LSET::InternalCuMask().Contains( layer ) )
                     continue;
 
-                refillIslandsMap[zone] = std::map<PCB_LAYER_ID, ISOLATED_ISLANDS>();
-
-                LSET zoneCopperLayers = zone->GetLayerSet() & LSET::AllCuMask( m_board->GetCopperLayerCount() );
-
-                for( PCB_LAYER_ID layer : zoneCopperLayers )
-                {
-                    if( m_debugZoneFiller && LSET::InternalCuMask().Contains( layer ) )
-                        continue;
-
-                    refillIslandsMap[zone][layer] = ISOLATED_ISLANDS();
-                }
+                refillIslandsMap[zone][layer] = ISOLATED_ISLANDS();
             }
 
             connectivity->FillIsolatedIslandsMap( refillIslandsMap );
 
             for( const auto& [zone, zoneIslands] : refillIslandsMap )
             {
-                // Preserve legitimately unconnected pours: if all fill outlines were
-                // already isolated in the initial pass (no pad connectivity), keep them.
-                if( initiallyFullyIsolatedZones.count( zone ) > 0 )
-                {
-                    bool allIslands = true;
-
-                    for( const auto& [layer, layerIslands] : zoneIslands )
-                    {
-                        if( layerIslands.m_IsolatedOutlines.size()
-                            != static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) )
-                        {
-                            allIslands = false;
-                            break;
-                        }
-                    }
-
-                    if( allIslands )
-                        continue;
-                }
-
                 for( const auto& [layer, layerIslands] : zoneIslands )
                 {
                     if( m_debugZoneFiller && LSET::InternalCuMask().Contains( layer ) )
@@ -1165,6 +1162,17 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
 
                     if( layerIslands.m_IsolatedOutlines.empty() )
                         continue;
+
+                    // Preserve layers that were initially fully isolated (unconnected pours):
+                    // if every outline on this layer is still an island, keep them as-is.
+                    if( initiallyFullyIsolatedLayers.count( { zone, layer } ) > 0 )
+                    {
+                        if( layerIslands.m_IsolatedOutlines.size()
+                            == static_cast<size_t>( zone->GetFilledPolysList( layer )->OutlineCount() ) )
+                        {
+                            continue;
+                        }
+                    }
 
                     std::vector<int> islands = layerIslands.m_IsolatedOutlines;
                     std::sort( islands.begin(), islands.end(), std::greater<int>() );
@@ -1190,8 +1198,8 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
                 }
             }
 
-            // Convergence check: collect zones whose fill area changed (refill or island
-            // removal) compared to the pre-wave snapshot.  These seed the next iteration.
+            // Convergence check: collect zones whose fill changed (refill or island
+            // removal) compared to the pre-wave hash snapshot.  These seed the next iteration.
             changedZones.clear();
 
             for( ZONE* zone : aZones )
@@ -1203,13 +1211,12 @@ bool ZONE_FILLER::Fill( const std::vector<ZONE*>& aZones, bool aCheck, wxWindow*
 
                 for( PCB_LAYER_ID layer : zoneCopperLayers )
                 {
-                    auto   snapshotIt = snapshot.find( { static_cast<const ZONE*>( zone ), layer } );
-                    double oldArea = ( snapshotIt != snapshot.end() ) ? snapshotIt->second.Area() : 0.0;
+                    zone->BuildHashValue( layer );
 
-                    std::shared_ptr<SHAPE_POLY_SET> newFill = zone->GetFilledPolysList( layer );
-                    double                          newArea = newFill ? newFill->Area() : 0.0;
+                    auto     hashIt = iterHashes.find( { zone, layer } );
+                    HASH_128 oldHash = ( hashIt != iterHashes.end() ) ? hashIt->second : HASH_128{};
 
-                    if( std::abs( newArea - oldArea ) > 1.0 )
+                    if( zone->GetHashValue( layer ) != oldHash )
                     {
                         changedZones.insert( zone );
                         break;
