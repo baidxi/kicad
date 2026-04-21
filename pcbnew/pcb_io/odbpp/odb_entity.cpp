@@ -1139,7 +1139,7 @@ void ODB_LAYER_ENTITY::GenAttrList( ODB_TREE_WRITER& writer )
             }
             ost << ".copper_weight=" << ODB::Double2String( thicknessOut ) << std::endl;
         }
-        else if( thickness > 0 )
+        else
         {
             double thicknessOut = PCB_IO_ODBPP::m_scale * thickness;
             ost << ".layer_dielectric=" << ODB::Double2String( thicknessOut ) << std::endl;
