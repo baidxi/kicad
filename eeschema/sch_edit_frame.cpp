@@ -1218,9 +1218,7 @@ bool SCH_EDIT_FRAME::canCloseWindow( wxCloseEvent& aEvent )
 
 void SCH_EDIT_FRAME::doCloseWindow()
 {
-    // Unregister the autosave saver before any cleanup that might invalidate m_schematic
-    if( m_schematic )
-        Kiway().LocalHistory().UnregisterSaver( m_schematic );
+    Kiway().LocalHistory().UnregisterSaver( this );
 
     SCH_BASE_FRAME::doCloseWindow();
 
@@ -1484,7 +1482,8 @@ void SCH_EDIT_FRAME::ProjectChanged()
     SCH_BASE_FRAME::ProjectChanged();
 
     // Register schematic saver for autosave history
-    Kiway().LocalHistory().RegisterSaver( m_schematic,
+    Kiway().LocalHistory().RegisterSaver(
+            this,
             [this]( const wxString& aProjectPath, std::vector<HISTORY_FILE_DATA>& aFileData )
             {
                 m_schematic->SaveToHistory( aProjectPath, aFileData );
