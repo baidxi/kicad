@@ -1348,7 +1348,7 @@ bool IEC60664::Compute()
 
     // IEC 60664 §4.6.3
     //     The dimensions for creepage distance cannot be specified where permanently conductive
-    // pollution is present (pollution degree 4). 
+    // pollution is present (pollution degree 4).
 
     // Why?
     // if( m_creepage < m_clearance || m_clearance <= 0 )
