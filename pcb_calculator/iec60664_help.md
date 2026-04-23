@@ -24,6 +24,6 @@ The PD category can be determined as follows:
 The Material Group examples (As quick reference, ask your supplier for final calculation):
 
 - I: Glass, Ceramic, PTFE, PE, PMMA, PA, PP, PVC, ABS (CTI >= 600)
-- II: PBT, PS, PEN, Non-Brominated Epoxy (400 >= CTI > 600)
-- IIIa: Standard FR4, CEM-1, PC, Brominated Epoxy (175 >= CTI > 400)
-- IIIb: PEEK, PI, PF (100 >= CTI > 175)
+- II: PBT, PS, PEN, Non-Brominated Epoxy (400 <= CTI < 600)
+- IIIa: Standard FR4, CEM-1, PC, PPS, Brominated Epoxy (175 <= CTI < 400)
+- IIIb: PEEK, PI, PF (100 <= CTI < 175)
