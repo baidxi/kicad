@@ -33,6 +33,7 @@
 #include <id.h>
 #include <string_utils.h>
 #include <kiway.h>
+#include <page_info.h>
 #include <plotters/plotter.h>
 #include <sch_plotter.h>
 #include <project.h>
@@ -1080,6 +1081,27 @@ void SCH_SCREEN::Plot( PLOTTER* aPlotter, const SCH_PLOT_OPTS& aPlotOpts, const 
     {
         aPlotter->SetCurrentLineWidth( item->GetEffectivePenWidth( renderSettings ) );
         item->Plot( aPlotter, !background, aPlotOpts, 0, 0, { 0, 0 }, false );
+    }
+
+    // If this sheet instance is DNP in the current variant, overlay a
+    // page-sized cross so plots carry the same "whole sheet is DNP"
+    // information that is otherwise only visible in the parent sheet.
+    if( sheet && !sheet->empty() && !sheet->Last()->IsTopLevelSheet() )
+    {
+        SCH_SHEET_PATH parent = *sheet;
+        parent.pop_back();
+
+        if( sheet->Last()->GetDNP( &parent, variant ) )
+        {
+            SCH_PAGE_DNP_CROSS_PARAMS dnp = GetPageDnpCrossParams( GetPageSettings() );
+
+            if( dnp.valid )
+            {
+                aPlotter->SetColor( renderSettings->GetLayerColor( LAYER_DNP_MARKER ) );
+                aPlotter->ThickSegment( dnp.topLeft, dnp.bottomRight, dnp.strokeWidth, nullptr );
+                aPlotter->ThickSegment( dnp.topRight, dnp.bottomLeft, dnp.strokeWidth, nullptr );
+            }
+        }
     }
 }
 

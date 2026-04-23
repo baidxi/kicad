@@ -37,6 +37,7 @@ class LIB_SYMBOL;
 class SCH_PIN;
 class SCH_BASE_FRAME;
 class DS_PROXY_VIEW_ITEM;
+class EDA_ITEM;
 
 
 // Eeschema 100nm as the internal units
@@ -47,6 +48,7 @@ static const int SCH_LAYER_ORDER[] = { LAYER_GP_OVERLAY,
                                        LAYER_ERC_ERR,
                                        LAYER_ERC_WARN,
                                        LAYER_ERC_EXCLUSION,
+                                       LAYER_DNP_MARKER,
                                        LAYER_DANGLING,
                                        LAYER_OP_VOLTAGES,
                                        LAYER_OP_CURRENTS,
@@ -124,6 +126,9 @@ private:
                                 // to know the sheet path name when drawing the drawing sheet
 
     std::unique_ptr<DS_PROXY_VIEW_ITEM> m_drawingSheet;
+
+    // Page-sized DNP cross overlay for the currently edited sheet instance.
+    std::unique_ptr<EDA_ITEM> m_dnpSheetOverlay;
 };
 
 }; // namespace

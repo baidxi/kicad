@@ -35,7 +35,9 @@
 #include <wx/string.h>
 
 #include <base_screen.h>
+#include <base_units.h>
 #include <core/typeinfo.h>
+#include <default_values.h>
 #include <kiid.h>
 #include <kiway_holder.h>
 #include <layer_ids.h>
@@ -50,6 +52,46 @@
 #include <sch_sheet.h>
 #include <sch_label.h>
 #include <sch_sheet_path.h>     // SCH_SYMBOL_INSTANCE
+
+/**
+ * Geometry for a page-sized DNP cross overlay.
+ */
+struct SCH_PAGE_DNP_CROSS_PARAMS
+{
+    VECTOR2I topLeft;
+    VECTOR2I bottomRight;
+    VECTOR2I topRight;
+    VECTOR2I bottomLeft;
+    int      strokeWidth;
+    bool     valid;
+};
+
+
+inline SCH_PAGE_DNP_CROSS_PARAMS GetPageDnpCrossParams( const PAGE_INFO& aPage )
+{
+    SCH_PAGE_DNP_CROSS_PARAMS dnpParams;
+
+    const int pageW = schIUScale.MilsToIU( aPage.GetWidthMils() );
+    const int pageH = schIUScale.MilsToIU( aPage.GetHeightMils() );
+
+    dnpParams.strokeWidth = 3 * schIUScale.MilsToIU( DEFAULT_LINE_WIDTH_MILS );
+
+    const int minMargin = schIUScale.MilsToIU( 200 );    // ~5 mm
+    const int relMargin = std::min( pageW, pageH ) / 50; // 2 % of min dimension
+    const int margin = std::max( { minMargin, relMargin, 4 * dnpParams.strokeWidth } );
+
+    dnpParams.topLeft = VECTOR2I( margin, margin );
+    dnpParams.bottomRight = VECTOR2I( pageW - margin, pageH - margin );
+    dnpParams.topRight = VECTOR2I( pageW - margin, margin );
+    dnpParams.bottomLeft = VECTOR2I( margin, pageH - margin );
+
+    // Avoid degenerate drawing if margins exceed page size.
+    dnpParams.valid =
+            ( dnpParams.bottomRight.x > dnpParams.topLeft.x && dnpParams.bottomRight.y > dnpParams.topLeft.y );
+
+    return dnpParams;
+}
+
 
 class BUS_ALIAS;
 class EDA_ITEM;
