@@ -63,7 +63,6 @@ DECLARE_ENUM_TO_WXANY( BARCODE_ECC_T );
 
 struct PCB_BARCODE_CACHE
 {
-
     // Key — inputs that were in effect when this cache was built
     wxString      shownText;
     int           width = 0;
