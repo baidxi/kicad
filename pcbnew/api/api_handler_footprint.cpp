@@ -65,15 +65,38 @@ FOOTPRINT_EDIT_FRAME* API_HANDLER_FOOTPRINT::frame() const
 }
 
 
-bool API_HANDLER_FOOTPRINT::validateDocumentInternal( const DocumentSpecifier& aDocument ) const
+tl::expected<bool, ApiResponseStatus> API_HANDLER_FOOTPRINT::validateDocumentInternal( const DocumentSpecifier& aDocument ) const
 {
     if( aDocument.type() != DocumentType::DOCTYPE_FOOTPRINT )
-        return false;
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "the requested document is not a footprint" );
+        return tl::unexpected( e );
+    }
 
     LIB_ID target_fp = footprintContext()->GetLoadedFPID();
+    std::string actual_lib  = target_fp.GetUniStringLibNickname().ToStdString();                                                                            
+    std::string actual_name = target_fp.GetUniStringLibItemName().ToStdString();
+    if( 0 != aDocument.lib_id().library_nickname().compare( actual_lib ) )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "the requested library is {} but the actual library is {}",
+            aDocument.lib_id().library_nickname(), actual_lib ) );
+        return tl::unexpected( e );
+    }
 
-    return 0 == aDocument.lib_id().library_nickname().compare( target_fp.GetUniStringLibNickname() ) &&
-        0 == aDocument.lib_id().entry_name().compare( target_fp.GetUniStringLibItemName() );
+    if( 0 != aDocument.lib_id().entry_name().compare( actual_name ) )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "the requested footprint name is {} but the actual name is {}",
+            aDocument.lib_id().entry_name(), actual_name ) );
+        return tl::unexpected( e );
+    }
+
+    return true;
 }
 
 HANDLER_RESULT<FOOTPRINT*> API_HANDLER_FOOTPRINT::validateAndGetFootprint(

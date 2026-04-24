@@ -58,7 +58,7 @@ protected:
         return kiapi::common::types::DOCTYPE_FOOTPRINT;
     }
 
-    bool validateDocumentInternal( const DocumentSpecifier& aDocument ) const override;
+    tl::expected<bool, ApiResponseStatus> validateDocumentInternal( const DocumentSpecifier& aDocument ) const override;
 
     BOARD_ITEM_CONTAINER* getDefaultContainer() override;
 
