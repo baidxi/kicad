@@ -34,6 +34,7 @@
 #include <board_item.h>
 #include <geometry/shape_poly_set.h>
 #include <pcb_text.h>
+#include <memory>
 
 class LINE_READER;
 class MSG_PANEL_ITEM;
@@ -58,6 +59,33 @@ enum class BARCODE_ECC_T : int
 
 DECLARE_ENUM_TO_WXANY( BARCODE_T );
 DECLARE_ENUM_TO_WXANY( BARCODE_ECC_T );
+
+
+struct PCB_BARCODE_CACHE
+{
+
+    // Key — inputs that were in effect when this cache was built
+    wxString      shownText;
+    int           width = 0;
+    int           height = 0;
+    VECTOR2I      pos;
+    VECTOR2I      margin;
+    BARCODE_T     kind = BARCODE_T::QR_CODE;
+    EDA_ANGLE     angle;
+    BARCODE_ECC_T errorCorrection = BARCODE_ECC_T::L;
+    bool          textVisible = false;
+    int           textSize = 0;
+    bool          isKnockout = false;
+    PCB_LAYER_ID  layer = UNDEFINED_LAYER;
+
+    // Geometry
+    SHAPE_POLY_SET poly;
+    SHAPE_POLY_SET symbolPoly;
+    SHAPE_POLY_SET textPoly;
+    BOX2I          bbox;
+    wxString       lastError;
+};
+
 
 class PCB_BARCODE : public BOARD_ITEM
 {
@@ -144,17 +172,29 @@ public:
      *
      * @return reference to internal SHAPE_POLY_SET holding outlines for the barcode.
      */
-    const SHAPE_POLY_SET& GetPolyShape() const { return m_poly; }
+    const SHAPE_POLY_SET& GetPolyShape() const
+    {
+        AssembleBarcode();
+        return m_cache->poly;
+    }
 
     /**
      * Access the cached polygon for the barcode symbol only (no text, no margins/knockout).
      */
-    const SHAPE_POLY_SET& GetSymbolPoly() const { return m_symbolPoly; }
+    const SHAPE_POLY_SET& GetSymbolPoly() const
+    {
+        AssembleBarcode();
+        return m_cache->symbolPoly;
+    }
 
     /**
      * Access the cached polygon for the human-readable text only (already scaled/placed).
      */
-    const SHAPE_POLY_SET& GetTextPoly() const { return m_textPoly; }
+    const SHAPE_POLY_SET& GetTextPoly() const
+    {
+        AssembleBarcode();
+        return m_cache->textPoly;
+    }
 
     /**
      * Convert the barcode (text + symbol shapes) to polygonal geometry suitable for filling/collision tests.
@@ -184,27 +224,27 @@ public:
     void GetBoundingHull( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
                           int aMaxError, ERROR_LOC aErrorLoc = ERROR_INSIDE ) const;
 
-   /**
+    /**
      * Generate the internal polygon representation for the current barcode text, kind and error correction.
      *
-     * This uses the Zint backend to encode the text and populate @c m_poly. After calling this the
+     * This uses the Zint backend to encode the text and populate the cache's m_poly. After calling this the
      * barcode bounding box and polygon are available and scaled to the current width/height.
      */
-    void ComputeBarcode();
+    void ComputeBarcode() const;
 
     /**
      * Generate the internal polygon representation for the human-readable text.
      *
      * This uses the internal PCB_TEXT object to generate the text polygon and position it
-     * below the barcode symbol. The resulting polygon is stored in @c m_textPoly.
+     * below the barcode symbol. The resulting polygon is stored in the cache's textPoly.
      */
-    void ComputeTextPoly();
+    void ComputeTextPoly() const;
 
     /**
      * Assemble the barcode polygon and text polygons into a single polygonal representation.
      * Optionally apply a knockout and margins.
      */
-    void AssembleBarcode();
+    void AssembleBarcode() const;
 
     /**
      * Set the barcode content text to encode.
@@ -265,7 +305,7 @@ public:
      * @param aTopLeft top-left coordinate in internal units.
      * @param aBotRight bottom-right coordinate in internal units.
      */
-    void SetRect( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight );
+    void SetRect( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight ) const;
 
     /**
      * Populate message panel information entries (e.g. for selection/property panel).
@@ -421,7 +461,11 @@ public:
         AssembleBarcode();
     }
 
-    const wxString& GetLastError() const { return m_lastError; }
+    const wxString& GetLastError() const
+    {
+        AssembleBarcode();
+        return m_cache->lastError;
+    }
 
 private:
     int            m_width;      ///< Barcode width
@@ -433,11 +477,7 @@ private:
     EDA_ANGLE      m_angle;
     BARCODE_ECC_T  m_errorCorrection; ///< Error correction level for QR codes
 
-    SHAPE_POLY_SET m_poly;            ///< Full geometry (barcode + optional text or knockout)
-    SHAPE_POLY_SET m_symbolPoly;      ///< Barcode symbol only (cached, centered at origin)
-    SHAPE_POLY_SET m_textPoly;        ///< Human-readable text only (cached, centered/positioned)
-    BOX2I          m_bbox;            ///< BBox of m_poly (ie: barcode + text)
-    wxString       m_lastError;
+    mutable std::unique_ptr<PCB_BARCODE_CACHE> m_cache;
 };
 
 #endif // DIMENSION_H_
