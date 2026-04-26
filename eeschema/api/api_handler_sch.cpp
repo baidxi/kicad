@@ -39,6 +39,9 @@
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 #include <sch_sheet_pin.h>
+#include <lib_symbol.h>
+#include <libraries/symbol_library_adapter.h>
+#include <project_sch.h>
 #include <sch_symbol.h>
 #include <schematic.h>
 #include <wx/filename.h>
@@ -132,6 +135,7 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<GetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleGetPageSettings );
     registerHandler<SetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleSetPageSettings );
     registerHandler<GetSchematicNetlist, SchematicNetlistResponse>( &API_HANDLER_SCH::handleGetSchematicNetlist );
+    registerHandler<GetLibrarySymbol, GetLibrarySymbolResponse>( &API_HANDLER_SCH::handleGetLibrarySymbol );
 }
 
 
@@ -773,6 +777,85 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
 
     return ItemRequestStatus::IRS_OK;
+}
+
+
+HANDLER_RESULT<kiapi::schematic::types::GetLibrarySymbolResponse>
+API_HANDLER_SCH::handleGetLibrarySymbol( const HANDLER_CONTEXT<kiapi::schematic::types::GetLibrarySymbol>& aCtx )
+{
+    using namespace kiapi::schematic::types;
+
+    if( !m_frame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "no editor frame available for library queries" );
+        return tl::unexpected( e );
+    }
+
+    LIB_ID libId = UnpackLibId( aCtx.Request.symbol() );
+
+    // The adapter's LoadSymbol only fetches already-loaded libraries.
+    // Ensure the requested library is loaded before asking for the symbol.
+    if( SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame->Prj() ) )
+        adapter->LoadOne( wxString::FromUTF8( std::string( libId.GetLibNickname() ) ) );
+
+    LIB_SYMBOL* libSymbol = m_frame->GetLibSymbol( libId );
+
+    if( !libSymbol )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "symbol {}:{} not found in library", std::string( libId.GetLibNickname() ),
+                                          std::string( libId.GetLibItemName() ) ) );
+        return tl::unexpected( e );
+    }
+
+    GetLibrarySymbolResponse response;
+    SchematicSymbol*         def = response.mutable_symbol();
+
+    PackLibId( def->mutable_id(), libId );
+
+    google::protobuf::Any any;
+
+    libSymbol->GetField( FIELD_T::REFERENCE )->Serialize( any );
+    any.UnpackTo( def->mutable_reference_field() );
+
+    libSymbol->GetField( FIELD_T::VALUE )->Serialize( any );
+    any.UnpackTo( def->mutable_value_field() );
+
+    libSymbol->GetField( FIELD_T::FOOTPRINT )->Serialize( any );
+    any.UnpackTo( def->mutable_footprint_field() );
+
+    libSymbol->GetField( FIELD_T::DATASHEET )->Serialize( any );
+    any.UnpackTo( def->mutable_datasheet_field() );
+
+    libSymbol->GetField( FIELD_T::DESCRIPTION )->Serialize( any );
+    any.UnpackTo( def->mutable_description_field() );
+
+    // Serialize all draw items: body graphics first, then pins.
+    // Pins are included here (unlike SCH_SYMBOL::Serialize which defers them to PackSymbol)
+    // so that Deserialize can build a functional LIB_SYMBOL when placing via CreateItems.
+    for( const SCH_ITEM& drawItem : libSymbol->GetDrawItems() )
+    {
+        if( drawItem.Type() == SCH_FIELD_T && static_cast<const SCH_FIELD&>( drawItem ).IsMandatory() )
+            continue;
+
+        SchematicSymbolChild* item = def->add_items();
+        item->mutable_unit()->set_unit( drawItem.GetUnit() );
+        item->mutable_body_style()->set_style( drawItem.GetBodyStyle() );
+        item->set_is_private( drawItem.IsPrivate() );
+        drawItem.Serialize( *item->mutable_item() );
+    }
+
+    def->set_unit_count( libSymbol->GetUnitCount() );
+    def->set_body_style_count( libSymbol->GetBodyStyleCount() );
+    def->set_keywords( libSymbol->GetKeyWords().ToUTF8() );
+
+    for( const wxString& filter : libSymbol->GetFPFilters() )
+        def->add_footprint_filters( filter.ToUTF8() );
+
+    return response;
 }
 
 

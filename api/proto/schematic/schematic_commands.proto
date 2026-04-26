@@ -57,3 +57,15 @@ message SchematicNetlistResponse
 
   repeated SchematicNet nets = 2;
 }
+
+// Returns the full definition of a symbol from the symbol library, including pins and body items.
+// This can be used to populate definition.items when placing a new symbol via CreateItems.
+message GetLibrarySymbol
+{
+  kiapi.common.types.LibraryIdentifier symbol = 1;
+}
+
+message GetLibrarySymbolResponse
+{
+  SchematicSymbol symbol = 1;
+}
