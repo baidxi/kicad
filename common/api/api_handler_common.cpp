@@ -410,8 +410,8 @@ HANDLER_RESULT<OpenDocumentResponse> API_HANDLER_COMMON::handleOpenDocument(
     if( !m_openDocumentHandler )
     {
         ApiResponseStatus e;
-        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
-        e.set_error_message( "OpenDocument is not available in this KiCad mode" );
+        // AS_UNHANDLED lets a more specific handler (e.g. eeschema) take over.
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
 

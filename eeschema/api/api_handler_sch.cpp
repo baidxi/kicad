@@ -44,6 +44,7 @@
 #include <wx/filename.h>
 
 #include <api/common/types/base_types.pb.h>
+#include <api/common/commands/project_commands.pb.h>
 
 using namespace kiapi::common::commands;
 using kiapi::common::types::CommandStatus;
@@ -113,6 +114,7 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
 
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
             &API_HANDLER_SCH::handleGetOpenDocuments );
+    registerHandler<OpenDocument, OpenDocumentResponse>( &API_HANDLER_SCH::handleOpenDocument );
     registerHandler<GetItems, GetItemsResponse>( &API_HANDLER_SCH::handleGetItems );
     registerHandler<GetItemsById, GetItemsResponse>( &API_HANDLER_SCH::handleGetItemsById );
 
@@ -237,6 +239,68 @@ HANDLER_RESULT<GetOpenDocumentsResponse> API_HANDLER_SCH::handleGetOpenDocuments
     PackProject( *doc.mutable_project(), m_context->Prj() );
 
     response.mutable_documents()->Add( std::move( doc ) );
+    return response;
+}
+
+
+HANDLER_RESULT<OpenDocumentResponse> API_HANDLER_SCH::handleOpenDocument( const HANDLER_CONTEXT<OpenDocument>& aCtx )
+{
+    if( aCtx.Request.type() != DocumentType::DOCTYPE_SCHEMATIC )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
+        return tl::unexpected( e );
+    }
+
+    if( !m_frame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "OpenDocument requires an interactive schematic editor" );
+        return tl::unexpected( e );
+    }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    wxString   requestedPath = wxString::FromUTF8( aCtx.Request.path() );
+    wxFileName requestedFn( requestedPath );
+    requestedFn.MakeAbsolute( m_context->Prj().GetProjectPath() );
+
+    // Walk the full hierarchy to find the sheet whose file matches the requested path.
+    SCH_SHEET_LIST                hierarchy = schematic()->Hierarchy();
+    std::optional<SCH_SHEET_PATH> found;
+
+    for( SCH_SHEET_PATH& path : hierarchy )
+    {
+        wxFileName sheetFn( path.Last()->GetFileName() );
+        sheetFn.MakeAbsolute( m_context->Prj().GetProjectPath() );
+
+        if( sheetFn.GetFullPath() == requestedFn.GetFullPath() )
+        {
+            found = path;
+            break;
+        }
+    }
+
+    if( !found )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "Sheet '{}' not found in schematic hierarchy", aCtx.Request.path() ) );
+        return tl::unexpected( e );
+    }
+
+    m_frame->Schematic().SetCurrentSheet( *found );
+    m_frame->DisplayCurrentSheet();
+
+    OpenDocumentResponse             response;
+    common::types::DocumentSpecifier doc;
+    doc.set_type( DocumentType::DOCTYPE_SCHEMATIC );
+    PackSheetPath( *doc.mutable_sheet_path(), found->Path() );
+    PackProject( *doc.mutable_project(), m_context->Prj() );
+    *response.mutable_document() = std::move( doc );
+
     return response;
 }
 
@@ -581,6 +645,47 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
             kiapi::schematic::types::SchematicSymbolInstance symbol;
             unpacked = anyItem.UnpackTo( &symbol )
                        && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+
+            // Ensure the placed symbol has a valid instance path. When no path is provided
+            // in the proto, UnpackSymbol adds an empty-path instance which crashes saveSymbol.
+            if( unpacked && aCreate )
+            {
+                SCH_SYMBOL* sym = static_cast<SCH_SYMBOL*>( item.get() );
+                KIID_PATH   sheetPath = targetPath.Path();
+                bool        hasValidInstance = false;
+
+                for( const SCH_SYMBOL_INSTANCE& inst : sym->GetInstances() )
+                {
+                    if( !inst.m_Path.empty() )
+                    {
+                        hasValidInstance = true;
+                        break;
+                    }
+                }
+
+                if( !hasValidInstance )
+                {
+                    // Remove the empty-path instance(s) that UnpackSymbol may have added,
+                    // then add a proper one for the target sheet path.
+                    sym->RemoveInstance( KIID_PATH() );
+                    SCH_SYMBOL_INSTANCE inst;
+                    inst.m_Path = sheetPath;
+                    inst.m_Reference = sym->GetField( FIELD_T::REFERENCE )->GetText();
+                    inst.m_Unit = sym->GetUnit();
+                    sym->AddHierarchicalReference( inst );
+                }
+
+                // Resolve the lib symbol from the actual library so the placed symbol
+                // renders with the correct body graphics (mirroring what UpdateSymbolLinks
+                // does on file load).  Fall back to the proto-reconstructed lib symbol
+                // if the library lookup fails.
+                if( LIB_SYMBOL* libSym = m_frame->GetLibSymbol( sym->GetLibId() ) )
+                {
+                    std::unique_ptr<LIB_SYMBOL> flat = libSym->Flatten();
+                    flat->SetParent();
+                    sym->SetLibSymbol( flat.release() );
+                }
+            }
         }
         else if( *type == SCH_SHEET_T )
         {
