@@ -2999,12 +2999,20 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
         return false;
 
     /* -------------------------------------------------------------------------------------
-     * Process the hatch pattern (note that we do this while deflated)
+     * Process the hatch pattern (note that we do this while deflated).
+     *
+     * In iterative-refill mode, different-net zone knockouts are not yet applied to aFillPolys
+     * (they're cached and subtracted below), so the deflations inside addHatch wouldn't see
+     * the knockout boundary.  Defer the call to after the knockout subtraction so the hatch
+     * grid pulls back from the knockout edge the same way it pulls back from the zone outline.
      */
 
-    if( aZone->GetFillMode() == ZONE_FILL_MODE::HATCH_PATTERN
-        && ( !m_board->GetProject()
-             || !m_board->GetProject()->GetLocalSettings().m_PrototypeZoneFill ) )
+    const bool hatchPattern =
+            aZone->GetFillMode() == ZONE_FILL_MODE::HATCH_PATTERN
+            && ( !m_board->GetProject() || !m_board->GetProject()->GetLocalSettings().m_PrototypeZoneFill );
+    const bool deferHatch = hatchPattern && iterativeRefill;
+
+    if( hatchPattern && !deferHatch )
     {
         // Combine thermal rings with clearance holes (non-connected pad clearances) so that
         // the hatch hole-dropping logic considers both types of rings
@@ -3035,7 +3043,7 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
         if( !addCopperThievingPattern( aZone, aLayer, aFillPolys ) )
             return false;
     }
-    else
+    else if( !hatchPattern )
     {
         /* ---------------------------------------------------------------------------------
          * Connect nearby polygons with zero-width lines in order to ensure correct
@@ -3075,27 +3083,43 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
             addHoleKnockout( static_cast<PAD*>( item ), 0, clearanceHoles );
     }
 
+    // The post-knockout min-width prune below needs the smoothed-outline strip outside
+    // aMaxExtents as a buffer to avoid divots at same-net boundaries.  Capture it before
+    // trimming aFillPolys.  clearanceHoles is subtracted explicitly because thermal-pad
+    // through-holes were just appended to it and not yet applied to aFillPolys.  Only
+    // captured in iterative-refill mode -- the prune below is gated on the same flag.
+    SHAPE_POLY_SET sameNetApron;
+
+    if( iterativeRefill )
+    {
+        sameNetApron = aFillPolys;
+        sameNetApron.BooleanSubtract( aMaxExtents );
+        sameNetApron.BooleanSubtract( clearanceHoles );
+    }
+
     aFillPolys.BooleanIntersection( aMaxExtents );
     DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In16_Cu, wxT( "after-trim-to-outline" ) );
     aFillPolys.BooleanSubtract( clearanceHoles );
     DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In17_Cu, wxT( "after-trim-to-clearance-holes" ) );
 
-    // Cache the pre-knockout fill for iterative refill optimization (issue 21746).
-    // The cache stores the fill BEFORE zone-to-zone knockouts so the iterative refill can
-    // reclaim space when higher-priority zones have islands removed.
+    // Cache fill + apron + extents for iterative refill (issue 21746).  Stored BEFORE
+    // zone-to-zone knockouts so iterative refill can reclaim space when higher-priority
+    // zones have islands removed.
     bool knockoutsApplied = false;
 
     if( iterativeRefill )
     {
         {
             std::lock_guard<std::mutex> lock( m_cacheMutex );
-            m_preKnockoutFillCache[{ aZone, aLayer }] = aFillPolys;
+            m_preKnockoutFillCache[{ aZone, aLayer }] = { aFillPolys, sameNetApron, aMaxExtents, clearanceHoles,
+                                                          thermalRings };
         }
 
         // Reuse the zone clearances already computed for spoke endpoint testing
         if( zoneClearances.OutlineCount() > 0 )
         {
             aFillPolys.BooleanSubtract( zoneClearances );
+            sameNetApron.BooleanSubtract( zoneClearances );
             knockoutsApplied = true;
         }
     }
@@ -3103,21 +3127,14 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     /* -------------------------------------------------------------------------------------
      * Re-prune minimum-width violations introduced by different-net zone knockouts.
      *
-     * This must run BEFORE subtracting same-net higher-priority zones.  For overlapping
-     * same-net zones the fill still extends into the overlap area, which provides a natural
-     * buffer (the same role aSmoothedOutline plays in the initial min-width pass).  For
-     * touching zones no overlap buffer exists, so restore the same-net apron from
-     * aSmoothedOutline explicitly: without it, a different-net zone nearby can create a
-     * narrow region at Zone A's boundary with Zone B that gets pruned away here, leaving a
-     * void that Zone B cannot fill (it is blocked by Zone A's outline in
-     * subtractHigherPriorityZones).
+     * aFillPolys is trimmed to aZone's outline here, so without an apron the deflate/inflate
+     * cycle creates divots at same-net boundaries -- voids the neighbour cannot fill (it is
+     * blocked by aZone's outline in subtractHigherPriorityZones).  Add the apron, prune,
+     * then re-trim.
      */
 
-    if( knockoutsApplied )
+    if( knockoutsApplied && !deferHatch )
     {
-        SHAPE_POLY_SET sameNetApron = aSmoothedOutline;
-        sameNetApron.BooleanSubtract( aMaxExtents );
-
         if( sameNetApron.OutlineCount() > 0 )
         {
             aFillPolys.BooleanAdd( sameNetApron );
@@ -3131,6 +3148,82 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     }
 
     DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In18_Cu, wxT( "after-post-knockout-min-width" ) );
+
+    /* -------------------------------------------------------------------------------------
+     * Deferred hatch processing.  Combines the post-knockout min-width prune with the hatch
+     * grid generation in a single deflate/inflate cycle: the prune's connect_nearby_polys
+     * step is unsafe for hatch grids, but the island-drop step (and the same-net apron
+     * buffering) carry over.  Passing the outline-minus-knockouts boundary lets addHatch's
+     * GetMinThickness() deflation retract holes from the knockout edges as well as from
+     * the zone outline, giving the same border width on both.
+     */
+    if( deferHatch )
+    {
+        SHAPE_POLY_SET ringsToProtect = thermalRings;
+        ringsToProtect.BooleanAdd( clearanceHoles );
+
+        SHAPE_POLY_SET        hatchBoundaryStorage;
+        const SHAPE_POLY_SET* hatchBoundary = nullptr;
+
+        if( zoneClearances.OutlineCount() > 0 )
+        {
+            hatchBoundaryStorage = aZone->Outline()->CloneDropTriangulation();
+            hatchBoundaryStorage.ClearArcs();
+            hatchBoundaryStorage.BooleanSubtract( zoneClearances );
+            hatchBoundary = &hatchBoundaryStorage;
+        }
+
+        if( sameNetApron.OutlineCount() > 0 )
+            aFillPolys.BooleanAdd( sameNetApron );
+
+        const bool     deflated = half_min_width - epsilon > epsilon;
+        SHAPE_POLY_SET preDeflate;
+
+        if( deflated )
+        {
+            preDeflate = aFillPolys.CloneDropTriangulation();
+            aFillPolys.Deflate( half_min_width - epsilon, fastCornerStrategy, m_maxError );
+
+            // Drop islands smaller than min thickness on at least one axis -- same logic as
+            // postKnockoutMinWidthPrune, minus connect_nearby_polys (which would join hatch
+            // grid bars and ruin the pattern).
+            for( int ii = aFillPolys.OutlineCount() - 1; ii >= 0; ii-- )
+            {
+                std::vector<SHAPE_LINE_CHAIN>& island = aFillPolys.Polygon( ii );
+                BOX2I                          islandExtents;
+
+                for( const VECTOR2I& pt : island.front().CPoints() )
+                {
+                    islandExtents.Merge( pt );
+
+                    if( islandExtents.GetSizeMax() > aZone->GetMinThickness() )
+                        break;
+                }
+
+                if( islandExtents.GetSizeMax() < aZone->GetMinThickness() )
+                    aFillPolys.DeletePolygon( ii );
+            }
+        }
+
+        if( !addHatchFillTypeOnZone( aZone, aLayer, aDebugLayer, aFillPolys, ringsToProtect, hatchBoundary ) )
+            return false;
+
+        if( deflated )
+        {
+            aFillPolys.Inflate( half_min_width - epsilon, cornerStrategy, m_maxError, true );
+            aFillPolys.BooleanIntersection( preDeflate );
+        }
+
+        aFillPolys.BooleanAdd( thermalRings );
+
+        // Re-clip: the apron and the inflate can push the polygon edge back past the
+        // knockout/outline boundaries.
+        aFillPolys.BooleanIntersection( aMaxExtents );
+        aFillPolys.BooleanSubtract( clearanceHoles );
+
+        if( zoneClearances.OutlineCount() > 0 )
+            aFillPolys.BooleanSubtract( zoneClearances );
+    }
 
     /* -------------------------------------------------------------------------------------
      * Lastly give any same-net but higher-priority zones control over their own area.
@@ -3992,9 +4085,9 @@ bool ZONE_FILLER::addCopperThievingPattern( const ZONE* aZone, PCB_LAYER_ID aLay
 }
 
 
-bool ZONE_FILLER::addHatchFillTypeOnZone( const ZONE* aZone, PCB_LAYER_ID aLayer,
-                                          PCB_LAYER_ID aDebugLayer, SHAPE_POLY_SET& aFillPolys,
-                                          const SHAPE_POLY_SET& aThermalRings )
+bool ZONE_FILLER::addHatchFillTypeOnZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LAYER_ID aDebugLayer,
+                                          SHAPE_POLY_SET& aFillPolys, const SHAPE_POLY_SET& aThermalRings,
+                                          const SHAPE_POLY_SET* aBoundary )
 {
     // Build grid:
 
@@ -4147,7 +4240,8 @@ bool ZONE_FILLER::addHatchFillTypeOnZone( const ZONE* aZone, PCB_LAYER_ID aLayer
     holes.BooleanIntersection( deflatedFilledPolys );
     DUMP_POLYS_TO_COPPER_LAYER( holes, In11_Cu, wxT( "fill-clipped-hatch-holes" ) );
 
-    SHAPE_POLY_SET deflatedOutline = aZone->GetBoardOutline();
+    SHAPE_POLY_SET deflatedOutline =
+            aBoundary ? aBoundary->CloneDropTriangulation() : aZone->GetBoardOutline();
     deflatedOutline.ClearArcs();
     deflatedOutline.Deflate( aZone->GetMinThickness(), CORNER_STRATEGY::CHAMFER_ALL_CORNERS, maxError );
     holes.BooleanIntersection( deflatedOutline );
@@ -4230,6 +4324,11 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
 {
     auto cacheKey = std::make_pair( static_cast<const ZONE*>( aZone ), aLayer );
 
+    SHAPE_POLY_SET maxExtents;
+    SHAPE_POLY_SET sameNetApron;
+    SHAPE_POLY_SET clearanceHoles;
+    SHAPE_POLY_SET thermalRings;
+
     {
         std::lock_guard<std::mutex> lock( m_cacheMutex );
         auto it = m_preKnockoutFillCache.find( cacheKey );
@@ -4237,8 +4336,12 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
         if( it == m_preKnockoutFillCache.end() )
             return false;
 
-        // Restore the cached pre-knockout fill
-        aFillPolys = it->second;
+        // Restore the cached pre-knockout fill and its companion apron / extents
+        aFillPolys = it->second.fill;
+        sameNetApron = it->second.sameNetApron;
+        maxExtents = it->second.maxExtents;
+        clearanceHoles = it->second.clearanceHoles;
+        thermalRings = it->second.thermalRings;
     }
 
     // Subtract the FILLED area of higher-priority zones (with clearance for different nets).
@@ -4345,16 +4448,107 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
     // pre-knockout fill.  They were subtracted before the initial deflate/inflate min-width
     // cycle so the cached fill already reflects keepout boundaries (issue 23515).
 
-    // Subtract different-net knockouts first, then re-prune min-width
-    // violations BEFORE subtracting same-net knockouts.  The fill still extends into
-    // overlapping same-net zone areas at this point, which provides a natural buffer
-    // that prevents the deflate/inflate cycle from creating divots at same-net
-    // zone boundaries.
+    // Subtract diff-net knockouts from fill and apron, then prune with the apron in place
+    // BEFORE subtracting same-net knockouts.  See fillCopperZone for the apron rationale.
     if( diffNetKnockouts.OutlineCount() > 0 )
+    {
         aFillPolys.BooleanSubtract( diffNetKnockouts );
+        sameNetApron.BooleanSubtract( diffNetKnockouts );
+    }
 
-    if( knockoutsApplied )
-        postKnockoutMinWidthPrune( aZone, aFillPolys );
+    const bool hatchPattern =
+            aZone->GetFillMode() == ZONE_FILL_MODE::HATCH_PATTERN
+            && ( !m_board->GetProject() || !m_board->GetProject()->GetLocalSettings().m_PrototypeZoneFill );
+
+    if( knockoutsApplied && !hatchPattern )
+    {
+        if( sameNetApron.OutlineCount() > 0 )
+        {
+            aFillPolys.BooleanAdd( sameNetApron );
+            postKnockoutMinWidthPrune( aZone, aFillPolys );
+            aFillPolys.BooleanIntersection( maxExtents );
+        }
+        else
+        {
+            postKnockoutMinWidthPrune( aZone, aFillPolys );
+        }
+    }
+
+    /* -------------------------------------------------------------------------------------
+     * Deferred hatch processing.  Mirrors fillCopperZone: combine the post-knockout min-width
+     * prune (island drop only -- connect_nearby_polys would mangle the hatch grid) with the
+     * hatch generation in a single deflate/inflate cycle, apron-buffered to keep the divot
+     * fix in commit 06a07cabb1 working for hatch zones.
+     */
+    if( hatchPattern )
+    {
+        SHAPE_POLY_SET ringsToProtect = thermalRings;
+        ringsToProtect.BooleanAdd( clearanceHoles );
+
+        SHAPE_POLY_SET        hatchBoundaryStorage;
+        const SHAPE_POLY_SET* hatchBoundary = nullptr;
+
+        if( diffNetKnockouts.OutlineCount() > 0 )
+        {
+            hatchBoundaryStorage = aZone->Outline()->CloneDropTriangulation();
+            hatchBoundaryStorage.ClearArcs();
+            hatchBoundaryStorage.BooleanSubtract( diffNetKnockouts );
+            hatchBoundary = &hatchBoundaryStorage;
+        }
+
+        if( sameNetApron.OutlineCount() > 0 )
+            aFillPolys.BooleanAdd( sameNetApron );
+
+        const int      half_min_width = aZone->GetMinThickness() / 2;
+        const int      epsilon = pcbIUScale.mmToIU( 0.001 );
+        const bool     deflated = half_min_width - epsilon > epsilon;
+        SHAPE_POLY_SET preDeflate;
+
+        // Match fillCopperZone's fastCornerStrategy / cornerStrategy locals so the two
+        // paths stay in lockstep if anyone later switches them based on advanced config.
+        const CORNER_STRATEGY fastCornerStrategy = CORNER_STRATEGY::CHAMFER_ALL_CORNERS;
+        const CORNER_STRATEGY cornerStrategy = CORNER_STRATEGY::ROUND_ALL_CORNERS;
+
+        if( deflated )
+        {
+            preDeflate = aFillPolys.CloneDropTriangulation();
+            aFillPolys.Deflate( half_min_width - epsilon, fastCornerStrategy, m_maxError );
+
+            for( int ii = aFillPolys.OutlineCount() - 1; ii >= 0; ii-- )
+            {
+                std::vector<SHAPE_LINE_CHAIN>& island = aFillPolys.Polygon( ii );
+                BOX2I                          islandExtents;
+
+                for( const VECTOR2I& pt : island.front().CPoints() )
+                {
+                    islandExtents.Merge( pt );
+
+                    if( islandExtents.GetSizeMax() > aZone->GetMinThickness() )
+                        break;
+                }
+
+                if( islandExtents.GetSizeMax() < aZone->GetMinThickness() )
+                    aFillPolys.DeletePolygon( ii );
+            }
+        }
+
+        if( !addHatchFillTypeOnZone( aZone, aLayer, aLayer, aFillPolys, ringsToProtect, hatchBoundary ) )
+            return false;
+
+        if( deflated )
+        {
+            aFillPolys.Inflate( half_min_width - epsilon, cornerStrategy, m_maxError, true );
+            aFillPolys.BooleanIntersection( preDeflate );
+        }
+
+        aFillPolys.BooleanAdd( thermalRings );
+
+        aFillPolys.BooleanIntersection( maxExtents );
+        aFillPolys.BooleanSubtract( clearanceHoles );
+
+        if( diffNetKnockouts.OutlineCount() > 0 )
+            aFillPolys.BooleanSubtract( diffNetKnockouts );
+    }
 
     if( sameNetKnockouts.OutlineCount() > 0 )
         aFillPolys.BooleanSubtract( sameNetKnockouts );
