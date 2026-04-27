@@ -1543,8 +1543,7 @@ bool PCB_EDIT_FRAME::canCloseWindow( wxCloseEvent& aEvent )
 void PCB_EDIT_FRAME::doCloseWindow()
 {
     // Unregister the autosave saver before any cleanup that might invalidate the board
-    if( GetBoard() )
-        Kiway().LocalHistory().UnregisterSaver( GetBoard() );
+    Kiway().LocalHistory().UnregisterSaver( this );
 
     // On Windows 7 / 32 bits, on OpenGL mode only, Pcbnew crashes
     // when closing this frame if a footprint was selected, and the footprint editor called
@@ -3243,7 +3242,10 @@ void PCB_EDIT_FRAME::ProjectChanged()
     // file I/O happen on a background thread to avoid blocking the UI.
     if( GetBoard() )
     {
-        Kiway().LocalHistory().RegisterSaver( GetBoard(),
+        // Key by frame (this) rather than board pointer so that reloading a board replaces
+        // the previous entry rather than accumulating stale entries that capture a freed frame.
+        Kiway().LocalHistory().RegisterSaver(
+                this,
                 [this]( const wxString& aProjectPath, std::vector<HISTORY_FILE_DATA>& aFileData )
                 {
                     GetBoard()->SaveToHistory( aProjectPath, aFileData );

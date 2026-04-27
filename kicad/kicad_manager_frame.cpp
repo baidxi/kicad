@@ -812,9 +812,7 @@ bool KICAD_MANAGER_FRAME::CloseProject( bool aSave )
             }
         }
 
-        // Unregister the project saver before unloading the project to prevent
-        // dangling references
-        Kiway().LocalHistory().UnregisterSaver( &Prj() );
+        Kiway().LocalHistory().UnregisterSaver( this );
 
         mgr.UnloadProject( &Prj() );
     }
@@ -1277,7 +1275,8 @@ void KICAD_MANAGER_FRAME::ProjectChanged()
 
     // Register project file saver. Ensures project file participates in
     // autosave history commits without affecting dirty state.
-    Kiway().LocalHistory().RegisterSaver( &Prj(),
+    Kiway().LocalHistory().RegisterSaver(
+            this,
             [this]( const wxString& aProjectPath, std::vector<HISTORY_FILE_DATA>& aFileData )
             {
                 Prj().SaveToHistory( aProjectPath, aFileData );
