@@ -24,6 +24,7 @@
 #include <api/api_handler_editor.h>
 #include <api/sch_context.h>
 #include <api/common/commands/editor_commands.pb.h>
+#include <api/common/commands/project_commands.pb.h>
 #include <api/schematic/schematic_commands.pb.h>
 #include <api/schematic/schematic_jobs.pb.h>
 #include <kiid.h>
@@ -87,6 +88,9 @@ protected:
 private:
     HANDLER_RESULT<commands::GetOpenDocumentsResponse>
     handleGetOpenDocuments( const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
+
+    HANDLER_RESULT<commands::OpenDocumentResponse>
+    handleOpenDocument( const HANDLER_CONTEXT<commands::OpenDocument>& aCtx );
 
     HANDLER_RESULT<commands::GetItemsResponse> handleGetItems( const HANDLER_CONTEXT<commands::GetItems>& aCtx );
 
