@@ -18,6 +18,7 @@
 set( QA_API_SRCS
     test_api_module.cpp
     test_api_enums.cpp
+    test_api_handler_editor.cpp
     test_api_proto.cpp
     test_api_e2e.cpp
     test_api_handler_pcb.cpp
