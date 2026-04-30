@@ -143,48 +143,79 @@ bool PCB_EDITOR_CONDITIONS::hasItemsFunc( const SELECTION& aSelection, PCB_BASE_
 
 bool PCB_EDITOR_CONDITIONS::padNumberDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayPadNumbers;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetViewerSettingsBase();
+    return settings && settings->m_ViewersDisplay.m_DisplayPadNumbers;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::padFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayPadFill;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetViewerSettingsBase();
+    return settings && settings->m_ViewersDisplay.m_DisplayPadFill;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::textFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayTextFill;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetViewerSettingsBase();
+    return settings && settings->m_ViewersDisplay.m_DisplayTextFill;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::graphicsFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayGraphicsFill;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetViewerSettingsBase();
+    return settings && settings->m_ViewersDisplay.m_DisplayGraphicsFill;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::viaFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetPcbNewSettings()->m_Display.m_DisplayViaFill;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetPcbNewSettings();
+    return settings && settings->m_Display.m_DisplayViaFill;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::trackFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetPcbNewSettings()->m_Display.m_DisplayPcbTrackFill;
+    if( !aFrame )
+        return false;
+
+    auto* settings = aFrame->GetPcbNewSettings();
+    return settings && settings->m_Display.m_DisplayPcbTrackFill;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::zoneDisplayModeFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame,
                                                  ZONE_DISPLAY_MODE aMode )
 {
+    if( !aFrame )
+        return false;
+
     return aFrame->GetDisplayOptions().m_ZoneDisplayMode == aMode;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::footprintViewerAutoZoom( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return static_cast<PCB_VIEWERS_SETTINGS_BASE*>( aFrame->config() )->m_FootprintViewerAutoZoomOnSelect;
+    if( !aFrame )
+        return false;
+
+    auto* settings = static_cast<PCB_VIEWERS_SETTINGS_BASE*>( aFrame->config() );
+    return settings && settings->m_FootprintViewerAutoZoomOnSelect;
 }
