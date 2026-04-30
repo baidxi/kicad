@@ -1008,6 +1008,14 @@ HANDLER_RESULT<SavedSelectionResponse> API_HANDLER_BOARD::handleSaveSelectionToS
     io.SetBoard( board() );
     io.SaveSelection( selection, false );
 
+    for( EDA_ITEM* item : selection )
+    {
+        if( !item )
+            continue;
+
+        response.add_ids()->set_value( item->m_Uuid.AsStdString() );
+    }
+
     return response;
 }
 
