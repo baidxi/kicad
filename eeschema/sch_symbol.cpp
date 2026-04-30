@@ -46,6 +46,7 @@
 #include <project_sch.h>
 #include <libraries/symbol_library_adapter.h>
 #include <variant_symbol_utils.h>
+#include <schematic.h>
 
 #include <utility>
 #include <validators.h>
@@ -345,25 +346,67 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     LIB_ID libId = UnpackLibId( def.id() );
     m_lib_id = libId;
 
-    LIB_SYMBOL* libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
-    libSymbol->SetLibId( libId );
+    LIB_SYMBOL* libSymbol = nullptr;
+    bool loadedFromLibTable = false;
+
+    // "Place a new symbol from a library reference" path: when the proto's
+    // library description is empty (no inline pins/items), the IPC client is
+    // referencing an already-loaded library entry by id. Resolve it through
+    // the project's SYMBOL_LIB_TABLE so the symbol gets its real pins,
+    // graphics, default fields, and unit/body counts. Without this, a freshly
+    // placed-from-library symbol ends up as an empty placeholder that
+    // CreateItems reports as ISC_OK but that never lands in the schematic.
+    if( def.items_size() == 0 && libId.IsValid() )
+    {
+        if( SCHEMATIC* sch = Schematic() )
+        {
+            if( SYMBOL_LIBRARY_ADAPTER* adapter =
+                        PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) )
+            {
+                if( LIB_SYMBOL* loaded = adapter->LoadSymbol( libId ) )
+                {
+                    libSymbol = new LIB_SYMBOL( *loaded );
+                    libSymbol->SetLibId( libId );
+                    loadedFromLibTable = true;
+                }
+            }
+        }
+    }
+
+    if( !libSymbol )
+    {
+        // Fallback for round-trip (Pack -> Deserialize of an already-loaded
+        // symbol that arrives with its full library definition inline) and
+        // for the case where the lib_id can't be resolved against the
+        // current project's library tables.
+        libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
+        libSymbol->SetLibId( libId );
+    }
 
     google::protobuf::Any any;
 
-    any.PackFrom( def.reference_field() );
-    libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
+    // When we loaded from the library table, the LIB_SYMBOL is already fully
+    // populated; deserializing the proto's empty def.*_field would clobber
+    // the loaded defaults (e.g., the library's "R" reference template) with
+    // empty strings. Skip the def-level field/items/count overrides in that
+    // case and only keep the instance-level overrides applied below.
+    if( !loadedFromLibTable )
+    {
+        any.PackFrom( def.reference_field() );
+        libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
 
-    any.PackFrom( def.value_field() );
-    libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
+        any.PackFrom( def.value_field() );
+        libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
 
-    any.PackFrom( def.footprint_field() );
-    libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
+        any.PackFrom( def.footprint_field() );
+        libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
 
-    any.PackFrom( def.datasheet_field() );
-    libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
+        any.PackFrom( def.datasheet_field() );
+        libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
 
-    any.PackFrom( def.description_field() );
-    libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
+        any.PackFrom( def.description_field() );
+        libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
+    }
 
     std::unordered_map<::KIID, wxString> pinAltMap;
 
