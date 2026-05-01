@@ -535,8 +535,18 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
         m_pins.back()->SetParent( this );
         const_cast<::KIID&>( m_pins.back() ->m_Uuid ) = pin->m_Uuid;
 
-        // We also need to reset the lib pin to use relative coordinates
-        pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
+        // The "reset to relative" only applies to the round-trip case where
+        // PackSymbol serialised pins against the placed instance and the
+        // proto therefore carries absolute coords -- on Deserialize we have
+        // to back the placement offset out of m_part's lib pins. When we
+        // just deep-copied m_part from the project's SYMBOL_LIB_TABLE
+        // (loadedFromLibTable above), the lib pin is already at its
+        // library-relative position, and subtracting m_pos here would
+        // displace it by (-symbol_x, +symbol_y) -- corrupting the cached
+        // (lib_symbols ...) block on the next save and stranding pins ~10cm
+        // off the symbol body in eeschema.
+        if( !loadedFromLibTable )
+            pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
     }
 
     UpdatePins();
