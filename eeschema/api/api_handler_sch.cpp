@@ -74,6 +74,7 @@ std::set<KICAD_T> API_HANDLER_SCH::s_allowedTypes = {
     SCH_HIER_LABEL_T,
     SCH_DIRECTIVE_LABEL_T,
     SCH_SYMBOL_T,
+    SCH_PIN_T,
     SCH_SHEET_T,
 };
 
@@ -396,11 +397,12 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
 
-    if( HANDLER_RESULT<std::optional<KIID>> valid = validateItemHeaderDocument( aCtx.Request.header() );
-        !valid.has_value() )
-    {
+    HANDLER_RESULT<std::optional<KIID>> valid = validateItemHeaderDocument( aCtx.Request.header() );
+
+    if( !valid.has_value() )
         return tl::unexpected( valid.error() );
-    }
+
+    std::optional<KIID> containerId = *valid;
 
     std::set<KICAD_T> typesRequested, typesInserted;
 
@@ -428,6 +430,23 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
 
     std::map<KICAD_T, std::vector<std::pair<EDA_ITEM*, SCH_SHEET_PATH>>> itemMap;
 
+    // Container-aware path: when the request's header.container resolves to
+    // an SCH_SYMBOL, narrow iteration to that symbol's children (pins,
+    // fields). This is the natural shape for "give me the pins of THIS
+    // symbol" instead of "every pin in the schematic". Without this branch
+    // a SCH_PIN_T request would return every pin on the (filtered) sheet.
+    SCH_SYMBOL*    containerSymbol = nullptr;
+    SCH_SHEET_PATH containerPath;
+
+    if( containerId.has_value() )
+    {
+        if( std::optional<SCH_ITEM*> item = getItemById( *containerId, &containerPath ) )
+        {
+            if( ( *item )->Type() == SCH_SYMBOL_T )
+                containerSymbol = static_cast<SCH_SYMBOL*>( *item );
+        }
+    }
+
     auto processScreen =
         [&]( const SCH_SHEET_PATH& aPath )
         {
@@ -446,7 +465,16 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
             }
         };
 
-    if( pathFilter )
+    if( containerSymbol )
+    {
+        containerSymbol->RunOnChildren(
+                [&]( SCH_ITEM* aChild )
+                {
+                    itemMap[ aChild->Type() ].emplace_back( aChild, containerPath );
+                },
+                RECURSE_MODE::NO_RECURSE );
+    }
+    else if( pathFilter )
     {
         processScreen( *pathFilter );
     }
