@@ -998,9 +998,28 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( createdItem->Type() == SCH_SYMBOL_T )
             {
+                SCH_SYMBOL* sym = static_cast<SCH_SYMBOL*>( createdItem );
+
+                // Register the resolved LIB_SYMBOL in the target screen's
+                // lib_symbols cache. The chooser-driven "Place Symbol" path
+                // does this via SCH_EDIT_FRAME::SaveSymbolToSchematic; the
+                // IPC create path didn't. Without it the placed instance
+                // refers to a symbol the schematic file claims it has never
+                // seen, eeschema treats it as unresolved (empty body, no
+                // pins until the user manually triggers "Update Symbols From
+                // Library"), and PackSymbol below also fails because it
+                // reads the library definition out of the same cache.
+                if( const std::unique_ptr<LIB_SYMBOL>& libRef = sym->GetLibSymbolRef() )
+                {
+                    wxString libIdKey = libRef->GetLibId().Format().wx_str();
+
+                    if( !targetScreen->GetLibSymbols().count( libIdKey ) )
+                        targetScreen->AddLibSymbol( new LIB_SYMBOL( *libRef ) );
+                }
+
                 kiapi::schematic::types::SchematicSymbolInstance symbol;
 
-                if( PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( createdItem ), targetPath ) )
+                if( PackSymbol( &symbol, sym, targetPath ) )
                     newItem.PackFrom( symbol );
             }
             else if( createdItem->Type() == SCH_SHEET_T )
