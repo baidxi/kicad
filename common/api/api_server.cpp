@@ -28,6 +28,8 @@
 #include <api/api_handler.h>
 #include <api/api_utils.h> // traceApi
 #include <api/api_server.h>
+#include <api/common/commands/editor_commands.pb.h>
+#include <api/common/types/base_types.pb.h>
 #include <kiid.h>
 #include <kinng.h>
 #include <paths.h>
@@ -268,6 +270,78 @@ void KICAD_API_SERVER::handleApiRequestString( std::string& aRequestString )
     }
 
     API_RESULT result;
+
+    // GetOpenDocuments fan-out: per-frame handlers each scope themselves to a
+    // single DocumentType and return AS_UNHANDLED for anything else, including
+    // DOCTYPE_UNKNOWN. That made the natural "list every open document, of any
+    // kind" request always fail with "no handler available". Detect that case
+    // here and aggregate by re-issuing the request once per known type.
+    {
+        std::string typeName;
+
+        if( google::protobuf::Any::ParseAnyTypeUrl( request.message().type_url(), &typeName )
+            && typeName == "kiapi.common.commands.GetOpenDocuments" )
+        {
+            kiapi::common::commands::GetOpenDocuments req;
+
+            if( request.message().UnpackTo( &req )
+                && req.type() == kiapi::common::types::DocumentType::DOCTYPE_UNKNOWN )
+            {
+                static constexpr kiapi::common::types::DocumentType knownTypes[] = {
+                    kiapi::common::types::DocumentType::DOCTYPE_SCHEMATIC,
+                    kiapi::common::types::DocumentType::DOCTYPE_SYMBOL,
+                    kiapi::common::types::DocumentType::DOCTYPE_PCB,
+                    kiapi::common::types::DocumentType::DOCTYPE_FOOTPRINT,
+                    kiapi::common::types::DocumentType::DOCTYPE_DRAWING_SHEET,
+                    kiapi::common::types::DocumentType::DOCTYPE_PROJECT,
+                };
+
+                kiapi::common::commands::GetOpenDocumentsResponse aggregated;
+
+                for( kiapi::common::types::DocumentType docType : knownTypes )
+                {
+                    req.set_type( docType );
+
+                    ApiRequest typedRequest = request;
+                    typedRequest.mutable_message()->PackFrom( req );
+
+                    for( API_HANDLER* handler : m_handlers )
+                    {
+                        API_RESULT typedResult = handler->Handle( typedRequest );
+
+                        if( typedResult.has_value() )
+                        {
+                            kiapi::common::commands::GetOpenDocumentsResponse local;
+
+                            if( typedResult->message().UnpackTo( &local ) )
+                            {
+                                for( const auto& doc : local.documents() )
+                                    *aggregated.add_documents() = doc;
+                            }
+
+                            break;
+                        }
+                        else if( typedResult.error().status() != ApiStatusCode::AS_UNHANDLED )
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                ApiResponse envelope;
+                envelope.mutable_header()->set_kicad_token( m_token );
+                envelope.mutable_status()->set_status( ApiStatusCode::AS_OK );
+                envelope.mutable_message()->PackFrom( aggregated );
+
+                m_server->Reply( envelope.SerializeAsString() );
+
+                if( ADVANCED_CFG::GetCfg().m_EnableAPILogging )
+                    log( "Response: " + envelope.Utf8DebugString() );
+
+                return;
+            }
+        }
+    }
 
     for( API_HANDLER* handler : m_handlers )
     {
