@@ -177,14 +177,18 @@ void API_HANDLER_EDITOR::pushCurrentCommit( const std::string& aClientName,
 
 HANDLER_RESULT<bool> API_HANDLER_EDITOR::validateDocument( const DocumentSpecifier& aDocument )
 {
-    if( !validateDocumentInternal( aDocument ) )
-    {
-        ApiResponseStatus e;
-        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( fmt::format( "the requested document {} is not open",
-                                          aDocument.board_filename() ) );
-        return tl::unexpected( e );
-    }
+    // Propagate the inner error verbatim. The per-frame validateDocumentInternal
+    // produces document-type-specific diagnostics ("not a schematic", "project X
+    // is not open at path Y", "sheet path Z is not valid", etc.); the previous
+    // wrapper threw all of that away and synthesised a generic "the requested
+    // document {board_filename} is not open" message. board_filename is empty
+    // for any non-PCB document, so schematic / footprint / symbol / drawing-sheet
+    // errors all collapsed to "the requested document  is not open" (with the
+    // tell-tale double space) and the actionable information was lost.
+    auto inner = validateDocumentInternal( aDocument );
+
+    if( !inner )
+        return tl::unexpected( inner.error() );
 
     return true;
 }
