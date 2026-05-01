@@ -237,7 +237,8 @@ bool PackSymbol( kiapi::schematic::types::SchematicSymbolInstance* aOutput, cons
 }
 
 
-bool UnpackSymbol( SCH_SYMBOL* aOutput, const kiapi::schematic::types::SchematicSymbolInstance& aInput )
+bool UnpackSymbol( SCH_SYMBOL* aOutput, const kiapi::schematic::types::SchematicSymbolInstance& aInput,
+                   const SCH_SHEET_PATH* aDefaultPath )
 {
     using namespace kiapi::common::types;
     using namespace kiapi::schematic::types;
@@ -250,6 +251,17 @@ bool UnpackSymbol( SCH_SYMBOL* aOutput, const kiapi::schematic::types::Schematic
 
     SCH_SYMBOL_INSTANCE instance;
     instance.m_Path = UnpackSheetPath( aInput.path() );
+
+    // When the proto carries no sheet path (the natural new-placement case
+    // for IPC clients, which don't know the editor's active sheet UUID),
+    // fall back to the caller-supplied default. Without this the instance
+    // is registered under an empty path and at save time the editor can't
+    // find an entry for the active sheet -- it falls back to the library
+    // default reference and an empty value (Issue 3) and the round-trip
+    // PackSymbol then fails to find the just-placed instance (Issue 1).
+    if( instance.m_Path.empty() && aDefaultPath )
+        instance.m_Path = aDefaultPath->Path();
+
     instance.m_Reference = wxString::FromUTF8( aInput.reference_field().text().text() );
     instance.m_Unit = aInput.has_unit() ? aInput.unit().unit() : 1;
 

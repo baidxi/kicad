@@ -160,6 +160,28 @@ std::unique_ptr<COMMIT> API_HANDLER_SCH::createCommit()
 }
 
 
+void API_HANDLER_SCH::pushCurrentCommit( const std::string& aClientName, const wxString& aMessage )
+{
+    API_HANDLER_EDITOR::pushCurrentCommit( aClientName, aMessage );
+
+    // Mirror the chooser-driven Place Symbol path (SCH_EDIT_FRAME::
+    // SaveSymbolToSchematic ends with GetCurrentSheet().UpdateAllScreenReferences())
+    // so that an IPC create-then-query sequence sees the just-added items in
+    // the same session: refresh the hierarchy cache and re-resolve references
+    // / unit selections on the active sheet. Without this, GetItems and
+    // SCH_SYMBOL::GetField(REFERENCE) return a stale view until the user
+    // saves and reopens the project.
+    if( SCHEMATIC* sch = schematic() )
+        sch->RefreshHierarchy();
+
+    if( std::optional<SCH_SHEET_PATH> sheet = m_context->GetCurrentSheet() )
+        sheet->UpdateAllScreenReferences();
+
+    if( m_frame )
+        m_frame->Refresh();
+}
+
+
 SCHEMATIC* API_HANDLER_SCH::schematic() const
 {
     wxCHECK( m_context, nullptr );
@@ -860,7 +882,8 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
             unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol,
+                                        &targetPath );
         }
         else if( *type == SCH_SHEET_T )
         {

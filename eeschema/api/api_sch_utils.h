@@ -38,7 +38,21 @@ std::unique_ptr<EDA_ITEM> CreateItemForType( KICAD_T aType, EDA_ITEM* aContainer
 bool PackSymbol( kiapi::schematic::types::SchematicSymbolInstance* aOutput, const SCH_SYMBOL* aInput,
                  const SCH_SHEET_PATH& aPath );
 
-bool UnpackSymbol( SCH_SYMBOL* aOutput, const kiapi::schematic::types::SchematicSymbolInstance& aInput );
+/**
+ * Deserialize a SchematicSymbolInstance proto into an existing SCH_SYMBOL.
+ *
+ * @param aDefaultPath Used as the instance sheet path when the proto's path
+ *                     field is empty (the natural "place a new symbol" case
+ *                     where the IPC client doesn't yet know the editor's
+ *                     active sheet UUID). Pass the target sheet path from
+ *                     the create-items handler so the just-added instance's
+ *                     reference / unit / variants register against the
+ *                     right hierarchy entry; otherwise they land on a
+ *                     synthetic empty path and the editor falls back to
+ *                     the library defaults at save time.
+ */
+bool UnpackSymbol( SCH_SYMBOL* aOutput, const kiapi::schematic::types::SchematicSymbolInstance& aInput,
+                   const SCH_SHEET_PATH* aDefaultPath = nullptr );
 
 /// Pack/unpack a pin-to-pad map instance override to/from its protobuf form (issue #2282).
 void PackPinMapOverride( kiapi::schematic::types::PinMapInstanceOverride* aOutput,
