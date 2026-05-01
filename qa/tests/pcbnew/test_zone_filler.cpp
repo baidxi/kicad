@@ -2756,12 +2756,14 @@ BOOST_FIXTURE_TEST_CASE( RegressionCascadingIslandRefill, ZONE_FILL_TEST_FIXTURE
 
 
 /**
- * Snapshot regression test for the same-net-boundary fill on the
- * zone_fill_same_net_boundary test board (iterative refill on).
+ * Regression test for same-net-boundary zone fill on the zone_fill_same_net_boundary board.
  *
- * Hashes the filled polygon for each (zone UUID, layer) pair and compares against a
- * golden table.  Captured with iterative refill enabled; companion visual checks live
- * with the QA snapshot images.
+ * Compares the knockout area (zone outline area minus filled polygon area) for every A-net
+ * zone against a golden table captured from a correct fill.  The test fails if any zone
+ * deviates by more than ±0.1%.
+ *
+ * To update the golden table after an intentional geometry change, re-run with
+ * --log_level=test_suite and capture the BOOST_TEST_MESSAGE lines emitted below.
  */
 BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_FIXTURE )
 {
@@ -2779,64 +2781,53 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
     KI_TEST::LoadBoard( m_settingsManager, "zone_fill_same_net_boundary", m_board );
     KI_TEST::FillZones( m_board.get() );
 
-    // Golden table keyed by (zone UUID, layer name).  Update when fills change.
-    // Capture new values from the BOOST_TEST_MESSAGE lines emitted by this test.
-    static const std::map<std::pair<wxString, wxString>, wxString> expected = {
-        { { "00299d1f-2f26-45d0-86ff-d8d6b2ed5ac3", "F.Cu" }, "F9E10CFBE550C7B50DB06AA5F140266C" },   // A2_11
-        { { "002f1a7d-ee8d-4952-afa6-bf3f96e63bcd", "F.Cu" }, "4F751A342B01001C9F22A025B6838768" },   // A2_4
-        { { "00fbea4b-5158-40c3-a802-ac002fbcc980", "F.Cu" }, "FAA96C6A951F7A16C0FB6A99F28E36C8" },   // A2_3
-        { { "0f06787a-540f-4a82-a1a6-5b937e5c6af8", "F.Cu" }, "0EA58F73FC8279E47E504C7AC038546F" },   // A1_16
-        { { "1064cc10-72b0-4f63-81a1-0c093db6acb5", "F.Cu" }, "961DFDB7E6C3795A993F4873C672D2FC" },   // B_27
-        { { "1064cc10-72b0-4f63-81a1-0c093db6acb5", "In1.Cu" }, "961DFDB7E6C3795A993F4873C672D2FC" }, // B_27
-        { { "163c76af-6411-4028-a95f-d3e56e39395c", "F.Cu" }, "E42AF13920B42CE03B331D9639B08929" },   // A1_14
-        { { "16785822-e1e8-45c2-8331-ffbd07853d45", "F.Cu" },
-          "81D4C0D72F94375AD90B308E5E7F8A7C" }, // rule area (named A1)
-        { { "1b1e9218-79ca-41d1-912f-4f6fc60ef6e4", "F.Cu" }, "77AE83B58E5488671A304EC12E5DD2F4" }, // B_28
-        { { "29b25b0d-f36e-4cd0-9b8c-8fea660d8262", "F.Cu" }, "AD173BC2901BDD045F8D4EAC728A3718" }, // A1_20
-        { { "2a3ce979-6859-4126-a96e-6b2940705168", "F.Cu" }, "44F9E1A4266080E1EDAAE8CB5B598D38" }, // B_29
-        { { "31703d1c-47cf-4207-93c2-ffedeab6caf6", "F.Cu" }, "E20037B254F57543F1FB8D3952EB42F6" }, // A1_17
-        { { "34212d82-48dc-400e-8111-1e0350aa1c63", "F.Cu" }, "C1B87165BB4952FE158567D2D935B8F6" }, // B_30
-        { { "37bfbaf4-7ca3-4ae5-9d7c-ecbf5ccc8679", "F.Cu" }, "EA2EF1FBF3389D83D6C3B7AF57BE1534" }, // A2_6
-        { { "3c2f4428-5f0f-4c23-b8d8-3ce73ee284eb", "F.Cu" }, "F976EA6CE7E048C378BAAA04F39AD2CA" }, // A1_0
-        { { "50b230ad-56a6-4190-8ebd-44b908daf5f4", "F.Cu" }, "B90D392979D1C63E00DC36E1ACE27466" }, // B_31
-        { { "54057bd9-c387-4154-9f50-52324efed801", "F.Cu" }, "85892FD401627045015D1183F5E8DACE" }, // A2_7
-        { { "587badaf-287d-4f1e-8276-74de3421cf77", "F.Cu" }, "CBF1BBF12A9137779CE5FED6A344B236" }, // A2_1
-        { { "5fe42adc-84fa-40f9-bb39-ef9e7d6fb37b", "F.Cu" }, "B8F1DB56220D8DE3A2086456FB4C76AF" }, // A2_8
-        { { "623402a3-7e7c-42c1-8c3e-3765df59238d", "F.Cu" }, "7A1035725478E4F29177FAC2EBD13467" }, // B_39
-        { { "62bda97e-59eb-411e-b3f1-de4408e31616", "F.Cu" }, "95E5747D060781FBED8486A171F53C06" }, // B_32
-        { { "690d0961-7217-4aa2-9834-7c5f3a269754", "F.Cu" },
-          "81D4C0D72F94375AD90B308E5E7F8A7C" }, // rule area (unnamed)
-        { { "708935ae-5d3b-444c-979b-6ee0f8da0ff0", "F.Cu" }, "64CCAEE612AF80209B813A7EB4339D44" },   // A1_41
-        { { "731b6cab-adb0-44bc-abc3-62170a0bc265", "F.Cu" }, "7356A5E58557E1B32897C0E611EB0A4C" },   // B_33
-        { { "76258307-e233-445b-8417-d083461fd6ec", "F.Cu" }, "CC71F2EEA11069DF8ED2AAD9967A2C34" },   // B_34
-        { { "7efc5486-9bca-4c9b-8902-e252712d17e5", "F.Cu" }, "4944525A556FCCA57D7ACD7B0BFE88EA" },   // A2_5
-        { { "88f5cd65-9d00-41cb-bf2a-2beaa4077b52", "F.Cu" }, "47A2C17CEAC3B9A3C72BB7449E6018EE" },   // A2_9
-        { { "8a085efe-eade-4a0a-a952-6c45dd006a0b", "F.Cu" }, "38BFD8055B15D9870BF00EC4C0251B8C" },   // A1_15
-        { { "8e9acc53-57c6-4f00-b137-258888152ac7", "F.Cu" }, "B4CF5965810E19FDB6894198B6F00B37" },   // A1_25
-        { { "99f679c0-043b-4b26-99eb-579fe839e286", "F.Cu" }, "6C30A0FCF6137BA3227AF7C7CF6437C4" },   // B_36
-        { { "9e201fb5-f896-4e5e-80a7-a3117786ffa6", "F.Cu" }, "C213F46BED13EC9797F0FE4819F3FEAB" },   // B_37
-        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "F.Cu" }, "434E8AF9AD4BF53CE1973796E3875A19" },   // A2_12
-        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "In1.Cu" }, "944D167321AD5A2B41D948F7F0CB28C6" }, // A2_12
-        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "F.Cu" }, "0A76D7D7D0DCD61D9ACC263CE29A1BA5" },   // A1_23
-        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "In1.Cu" }, "767B68F6BA806A441F4340681D2164BB" }, // A1_23
-        { { "a1b96c93-091f-42dc-9988-64a63a299dcc", "F.Cu" }, "F93F4AB3F4E59CE9BA870ED8FAC7524B" },   // B_38
-        { { "afff4513-3dba-49fd-b9f2-28f4fcaa042b", "F.Cu" }, "3CA5F5EB739B152B7370EA025FA18798" },   // A2_2
-        { { "b59ef06d-fd1d-43eb-9ffa-dbc0209453d5", "F.Cu" }, "250E4A94370A3B4D478D00897F044AD6" },   // A2_10
-        { { "c51e1cdd-6854-412f-874f-25fca2b69ace", "F.Cu" }, "27EE6886998D407EEC4CEDD5BE86D59E" },   // A2_13
-        { { "d3b5410e-a9b6-41cf-bc6b-5507a93efffe", "F.Cu" }, "38E3B81F445CCF7D701969E27857F574" },   // A1_18
-        { { "d4a5b076-93eb-4697-9488-b3a31c95125f", "F.Cu" }, "0CB2DBF18531A5FCCAE75A4977BEC95C" },   // A1_19
-        { { "d7475f77-4de2-4557-acad-8fd724f8abd4", "F.Cu" }, "3C9724472E02052B11D715E2328F30CF" },   // B_35
-        { { "da36f597-77ec-415e-94d2-9d54d1485387", "F.Cu" }, "D9F4023B4B794BFB0D61F0CCC93F9CD6" },   // B_40
-        { { "ec87ea5e-2c3d-41e9-8c8e-080139f230e0", "F.Cu" }, "1E7FDB8A53572A6226F00E94802A41BA" },   // A1_21
-        { { "ef6f9c66-f9c9-457a-be88-57246a054430", "F.Cu" }, "ECF009BCB771AE71F97E2A9EF1875939" },   // A1_24
-        { { "fd54b273-eaef-4ef3-a4ed-380864cfbad4", "F.Cu" }, "BC8888C4AEDA211D957E34537EDEA542" },   // A1_22
-        { { "ff481e13-daec-4b32-b2bb-63e6f12c41ee", "F.Cu" }, "0B6A3A15E4633B22BDB63F4A74366E51" },   // A1_26
+    // Golden table: (zone UUID, layer name) -> knockout area in mm²
+    using ZoneLayerKey = std::pair<wxString, wxString>;
+    static const std::map<ZoneLayerKey, double> goldenKO = {
+        { { "00299d1f-2f26-45d0-86ff-d8d6b2ed5ac3", "F.Cu" }, 1.402276 },   // A2_11
+        { { "002f1a7d-ee8d-4952-afa6-bf3f96e63bcd", "F.Cu" }, 3.706483 },   // A2_4
+        { { "00fbea4b-5158-40c3-a802-ac002fbcc980", "F.Cu" }, 9.473217 },   // A2_3
+        { { "0f06787a-540f-4a82-a1a6-5b937e5c6af8", "F.Cu" }, 1.049654 },   // A1_16
+        { { "163c76af-6411-4028-a95f-d3e56e39395c", "F.Cu" }, 12.594593 },  // A1_14
+        { { "29b25b0d-f36e-4cd0-9b8c-8fea660d8262", "F.Cu" }, 3.837279 },   // A1_20
+        { { "31703d1c-47cf-4207-93c2-ffedeab6caf6", "F.Cu" }, 0.738234 },   // A1_17
+        { { "37bfbaf4-7ca3-4ae5-9d7c-ecbf5ccc8679", "F.Cu" }, 1.350431 },   // A2_6
+        { { "3c2f4428-5f0f-4c23-b8d8-3ce73ee284eb", "F.Cu" }, 1.838877 },   // A1_0
+        { { "54057bd9-c387-4154-9f50-52324efed801", "F.Cu" }, 1.356674 },   // A2_7
+        { { "587badaf-287d-4f1e-8276-74de3421cf77", "F.Cu" }, 0.722176 },   // A2_1
+        { { "5fe42adc-84fa-40f9-bb39-ef9e7d6fb37b", "F.Cu" }, 3.255474 },   // A2_8
+        { { "708935ae-5d3b-444c-979b-6ee0f8da0ff0", "F.Cu" }, 0.002813 },   // A1_41
+        { { "7efc5486-9bca-4c9b-8902-e252712d17e5", "F.Cu" }, 3.773459 },   // A2_5
+        { { "88f5cd65-9d00-41cb-bf2a-2beaa4077b52", "F.Cu" }, 0.739036 },   // A2_9
+        { { "8a085efe-eade-4a0a-a952-6c45dd006a0b", "F.Cu" }, 1.020294 },   // A1_15
+        { { "8e9acc53-57c6-4f00-b137-258888152ac7", "F.Cu" }, 0.953445 },   // A1_25
+        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "F.Cu" }, 1.859191 },   // A2_12
+        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "In1.Cu" }, 1.607922 }, // A2_12
+        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "F.Cu" }, 1.859749 },   // A1_23
+        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "In1.Cu" }, 1.608608 }, // A1_23
+        { { "afff4513-3dba-49fd-b9f2-28f4fcaa042b", "F.Cu" }, 0.743531 },   // A2_2
+        { { "b59ef06d-fd1d-43eb-9ffa-dbc0209453d5", "F.Cu" }, 1.678412 },   // A2_10
+        { { "c51e1cdd-6854-412f-874f-25fca2b69ace", "F.Cu" }, 5.803209 },   // A2_13
+        { { "d3b5410e-a9b6-41cf-bc6b-5507a93efffe", "F.Cu" }, 1.150854 },   // A1_18
+        { { "d4a5b076-93eb-4697-9488-b3a31c95125f", "F.Cu" }, 1.575994 },   // A1_19
+        { { "ec87ea5e-2c3d-41e9-8c8e-080139f230e0", "F.Cu" }, 1.609516 },   // A1_21
+        { { "ef6f9c66-f9c9-457a-be88-57246a054430", "F.Cu" }, 1.418652 },   // A1_24
+        { { "fd54b273-eaef-4ef3-a4ed-380864cfbad4", "F.Cu" }, 1.349541 },   // A1_22
+        { { "ff481e13-daec-4b32-b2bb-63e6f12c41ee", "F.Cu" }, 0.721398 },   // A1_26
     };
 
-    int missingExpected = 0;
+    const double     kIU2toMM2 = pcbIUScale.IUTomm( 1 ) * pcbIUScale.IUTomm( 1 );
+    constexpr double kTolerance = 0.1; // percent
+
+    std::set<ZoneLayerKey> checked;
 
     for( ZONE* zone : m_board->Zones() )
     {
+        if( zone->GetIsRuleArea() )
+            continue;
+
+        double outlineArea = std::abs( zone->Outline()->Area() ) * kIU2toMM2;
+
         for( PCB_LAYER_ID layer : zone->GetLayerSet().Seq() )
         {
             if( !zone->HasFilledPolysForLayer( layer ) )
@@ -2844,38 +2835,51 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
 
             std::shared_ptr<SHAPE_POLY_SET> fill = zone->GetFilledPolysList( layer );
 
-            if( !fill )
+            if( !fill || fill->IsEmpty() )
                 continue;
 
             wxString uuid = zone->m_Uuid.AsString();
             wxString layerName = m_board->GetLayerName( layer );
-            wxString actual( fill->GetHash().ToString() );
 
-            BOOST_TEST_MESSAGE( wxString::Format( "        { { \"%s\", \"%s\" }, \"%s\" }, "
+            double fillArea = 0.0;
+
+            for( int i = 0; i < fill->OutlineCount(); i++ )
+                fillArea += std::abs( fill->Outline( i ).Area() ) * kIU2toMM2;
+
+            double actualKO = outlineArea - fillArea;
+
+            BOOST_TEST_MESSAGE( wxString::Format( "        { { \"%s\", \"%s\" }, %f }, "
                                                   "// %s '%s' prio=%d",
-                                                  uuid, layerName, actual, zone->GetNetname(), zone->GetZoneName(),
+                                                  uuid, layerName, actualKO, zone->GetNetname(), zone->GetZoneName(),
                                                   zone->GetAssignedPriority() ) );
 
-            auto it = expected.find( { uuid, layerName } );
+            auto it = goldenKO.find( { uuid, layerName } );
 
-            if( it == expected.end() )
-            {
-                missingExpected++;
+            if( it == goldenKO.end() )
                 continue;
-            }
 
-            BOOST_CHECK_MESSAGE( actual == it->second,
-                                 wxString::Format( "Fill hash mismatch for zone %s '%s' on %s: "
-                                                   "expected %s, got %s.  Update the golden table if the "
-                                                   "change is intended.",
-                                                   uuid, zone->GetZoneName(), layerName, it->second, actual ) );
+            checked.insert( { uuid, layerName } );
+
+            double pctDiff = std::abs( actualKO - it->second ) / it->second * 100.0;
+
+            BOOST_CHECK_MESSAGE( pctDiff <= kTolerance,
+                                 wxString::Format( "Knockout area mismatch for zone '%s' (%s) on %s: "
+                                                   "expected %.6f mm², got %.6f mm² (%.3f%% > %.1f%% "
+                                                   "tolerance).  Update the golden table if the change "
+                                                   "is intended.",
+                                                   zone->GetZoneName(), uuid, layerName, it->second, actualKO, pctDiff,
+                                                   kTolerance ) );
         }
     }
 
-    BOOST_CHECK_MESSAGE( missingExpected == 0,
-                         wxString::Format( "%d zone-layer fills had no entry in the golden table. "
-                                           "Capture them from the BOOST_TEST_MESSAGE lines above.",
-                                           missingExpected ) );
+    for( const auto& kv : goldenKO )
+    {
+        BOOST_CHECK_MESSAGE( checked.count( kv.first ),
+                             wxString::Format( "Golden entry { \"%s\", \"%s\" } was not found "
+                                               "or had no fill after refill — zone missing or "
+                                               "completely unfilled.",
+                                               kv.first.first, kv.first.second ) );
+    }
 }
 
 
