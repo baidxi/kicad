@@ -2864,7 +2864,7 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
 
             BOOST_CHECK_MESSAGE( pctDiff <= kTolerance,
                                  wxString::Format( "Knockout area mismatch for zone '%s' (%s) on %s: "
-                                                   "expected %.6f mm², got %.6f mm² (%.3f%% > %.1f%% "
+                                                   "expected %.6f sq mm, got %.6f sq mm (%.3f%% > %.1f%% "
                                                    "tolerance).  Update the golden table if the change "
                                                    "is intended.",
                                                    zone->GetZoneName(), uuid, layerName, it->second, actualKO, pctDiff,
@@ -2876,7 +2876,7 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
     {
         BOOST_CHECK_MESSAGE( checked.count( kv.first ),
                              wxString::Format( "Golden entry { \"%s\", \"%s\" } was not found "
-                                               "or had no fill after refill — zone missing or "
+                                               "or had no fill after refill - zone missing or "
                                                "completely unfilled.",
                                                kv.first.first, kv.first.second ) );
     }
