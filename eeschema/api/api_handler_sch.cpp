@@ -1820,10 +1820,6 @@ HANDLER_RESULT<CreateItemsResponse>
 API_HANDLER_SCH::handleParseAndCreateItemsFromString(
         const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
 {
-    // Parser-side counterpart of SaveSelectionToString. The PCB equivalent is also a stub
-    // today (pcbnew/api/api_handler_board.cpp::handleParseAndCreateItemsFromString returns
-    // an empty response). Mirror that behaviour here pending a real implementation that
-    // wires up SCH_IO_KICAD_SEXPR's clipboard-format parse path through SCH_COMMIT.
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
 
@@ -1833,6 +1829,88 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
         return tl::unexpected( documentValidation.error() );
 
     CreateItemsResponse response;
+
+    if( aCtx.Request.contents().empty() )
+    {
+        response.set_status( ItemRequestStatus::IRS_OK );
+        return response;
+    }
+
+    SCHEMATIC* sch = schematic();
+
+    if( !sch )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "no schematic is loaded" );
+        return tl::unexpected( e );
+    }
+
+    std::optional<SCH_SHEET_PATH> sheetOpt = m_context->GetCurrentSheet();
+
+    if( !sheetOpt )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "no current sheet to paste into" );
+        return tl::unexpected( e );
+    }
+
+    SCH_SCREEN* targetScreen = sheetOpt->LastScreen();
+
+    if( !targetScreen )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "current sheet has no screen" );
+        return tl::unexpected( e );
+    }
+
+    // Mirror the chooser-driven SCH_EDITOR_CONTROL::Paste path: run the
+    // proto's contents through STRING_LINE_READER + SCH_IO_KICAD_SEXPR's
+    // LoadContent into a transient SCH_SHEET / SCH_SCREEN pair, then move
+    // each parsed item (via Clone + fresh KIID) into the active commit.
+    STRING_LINE_READER reader( aCtx.Request.contents(), wxS( "ipc-clipboard" ) );
+    SCH_IO_KICAD_SEXPR plugin;
+
+    SCH_SCREEN* tempScreen = new SCH_SCREEN( sch );
+    SCH_SHEET   tempSheet;
+    tempSheet.SetScreen( tempScreen );        // tempSheet now owns tempScreen
+
+    try
+    {
+        plugin.LoadContent( reader, &tempSheet );
+    }
+    catch( const IO_ERROR& e )
+    {
+        ApiResponseStatus err;
+        err.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        err.set_error_message( fmt::format( "could not parse clipboard contents: {}",
+                                            e.What().ToStdString() ) );
+        return tl::unexpected( err );
+    }
+
+    SCH_COMMIT* commit = static_cast<SCH_COMMIT*>( getCurrentCommit( aCtx.ClientName ) );
+
+    for( SCH_ITEM* item : tempScreen->Items() )
+    {
+        SCH_ITEM* clone = static_cast<SCH_ITEM*>( item->Clone() );
+        const_cast<KIID&>( clone->m_Uuid ) = KIID();
+
+        commit->Add( clone, targetScreen );
+
+        ItemCreationResult itemResult;
+        ItemStatus          status;
+        status.set_code( ItemStatusCode::ISC_OK );
+        itemResult.mutable_status()->CopyFrom( status );
+        clone->Serialize( *itemResult.mutable_item() );
+        response.mutable_created_items()->Add( std::move( itemResult ) );
+    }
+
+    if( !m_activeClients.contains( aCtx.ClientName ) )
+        pushCurrentCommit( aCtx.ClientName, _( "Pasted items via API" ) );
+
+    response.set_status( ItemRequestStatus::IRS_OK );
     return response;
 }
 
