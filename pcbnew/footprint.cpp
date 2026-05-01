@@ -66,6 +66,9 @@
 #include <pcb_track.h>
 #include <pcb_barcode.h>
 #include <name_validation.h>
+#include <project_pcb.h>
+#include <footprint_library_adapter.h>
+#include <io/io_mgr.h>
 #include <refdes_utils.h>
 #include <string_utils.h>
 #include <view/view.h>
@@ -663,6 +666,68 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
 
         if( item && item->Deserialize( itemMsg ) )
             Add( item.release(), ADD_MODE::APPEND );
+    }
+
+    // "Place a new footprint from a library reference" path: when the proto
+    // carried no inline geometry (the dominant case for IPC clients, who
+    // send only an FPID + position and rely on KiCad already having the
+    // libraries loaded), resolve the FPID through the project's
+    // FP_LIB_TABLE and copy the loaded footprint's pads, graphics,
+    // models, zones, and groups onto this instance. Without this fallback
+    // an IPC CreateItems request reports ISC_OK but lands an unrenderable
+    // empty shell -- no pads to solder to, no silk, no courtyard, no fab
+    // graphics. Mirrors the schematic-side fix in SCH_SYMBOL::Deserialize
+    // (commit 4e43156c35).
+    if( footprint.definition().items_size() == 0 && GetFPID().IsValid() )
+    {
+        if( BOARD* brd = GetBoard() )
+        {
+            if( PROJECT* prj = brd->GetProject() )
+            {
+                if( FOOTPRINT_LIBRARY_ADAPTER* adapter =
+                            PROJECT_PCB::FootprintLibAdapter( prj ) )
+                {
+                    FOOTPRINT* loaded = nullptr;
+
+                    try
+                    {
+                        loaded = adapter->LoadFootprint( GetFPID(),
+                                                         /* aKeepUUID */ false );
+                    }
+                    catch( const IO_ERROR& )
+                    {
+                        // Unresolvable FPID -- leave the empty shell as
+                        // before so the request doesn't fail outright,
+                        // but the caller will see no pads / graphics.
+                    }
+
+                    if( loaded )
+                    {
+                        for( PAD* pad : loaded->Pads() )
+                        {
+                            Add( static_cast<PAD*>( pad->Clone() ),
+                                 ADD_MODE::APPEND );
+                        }
+
+                        for( BOARD_ITEM* g : loaded->GraphicalItems() )
+                        {
+                            Add( static_cast<BOARD_ITEM*>( g->Clone() ),
+                                 ADD_MODE::APPEND );
+                        }
+
+                        for( ZONE* z : loaded->Zones() )
+                        {
+                            Add( static_cast<ZONE*>( z->Clone() ),
+                                 ADD_MODE::APPEND );
+                        }
+
+                        Models() = loaded->Models();
+
+                        delete loaded;
+                    }
+                }
+            }
+        }
     }
 
     return true;
