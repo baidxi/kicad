@@ -314,9 +314,14 @@ tl::expected<bool, ApiResponseStatus> API_HANDLER_PCB::validateDocumentInternal(
 {
     if( aDocument.type() != DocumentType::DOCTYPE_PCB )
     {
+        // Wrong document type: this isn't our request to handle. Return
+        // AS_UNHANDLED so the dispatcher continues iterating handlers
+        // (the schematic / footprint / symbol / drawing-sheet handlers
+        // each take their own type). Returning AS_BAD_REQUEST here would
+        // poison dispatch -- the request would never reach the matching
+        // handler whenever this one comes first in registration order.
         ApiResponseStatus e;
-        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( "the requested document is not a board" );
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
 
