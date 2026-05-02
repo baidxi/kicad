@@ -467,6 +467,22 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
 
     SetLibSymbol( libSymbol );
 
+    // The constructor that builds a SCH_SYMBOL from a LIB_SYMBOL resyncs
+    // m_prefix off the lib's REFERENCE template (e.g. "BT" for Battery,
+    // "R" for Resistor) so that SetRef / GetInstance fall-throughs at
+    // save time produce a sensible default. The Init()-then-Deserialize
+    // path didn't, so m_prefix stayed at "U" and any save-time path that
+    // ran ordinalInstance.m_Reference = aSymbol->GetPrefix() before the
+    // m_instances lookup wrote "U" to disk regardless of what the IPC
+    // client supplied.
+    if( m_part )
+    {
+        m_prefix = UTIL::GetRefDesPrefix( m_part->GetReferenceField().GetText() );
+
+        if( m_prefix.IsEmpty() )
+            m_prefix = wxT( "U" );
+    }
+
     if( symbol.has_body_style() )
         SetBodyStyle( symbol.body_style().style() );
 
