@@ -1487,7 +1487,14 @@ void EDA_DRAW_FRAME::AddApiPluginTools( ACTION_TOOLBAR* aToolbar )
 {
     API_PLUGIN_MANAGER& mgr = Pgm().GetPluginManager();
 
-    mgr.ButtonBindings().clear();
+    // Don't clear() here -- m_buttonBindings is a process-wide map shared
+    // across every editor frame. When pcbnew and eeschema are both open and
+    // both rebuild their toolbars, the second rebuild used to wipe the
+    // first frame's button -> action_id entries, leaving the earlier
+    // frame's plugin clicks landing on a no-op (OnApiPluginInvoke looks the
+    // wx ID up and finds nothing). wxID_ANY allocates fresh wx IDs each
+    // toolbar build, so accumulating entries is safe -- stale rows never
+    // collide with live ones.
 
     std::vector<const PLUGIN_ACTION*> actions = GetOrderedPluginActions( PluginActionScope(), config() );
 
