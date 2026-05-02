@@ -723,6 +723,47 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
 
                         Models() = loaded->Models();
 
+                        // Bug 20: copy the field geometry (position, layer,
+                        // size, angle, visibility) from the library
+                        // footprint, keeping the text content the proto
+                        // already deserialised onto each mandatory field
+                        // above. Without this, an IPC client that placed
+                        // the footprint via lib_id leaves the proto's
+                        // default-constructed (0,0) field positions in
+                        // place; on save the file ends up writing the
+                        // mandatory properties at (at -anchor_x -anchor_y)
+                        // (i.e., field absolute (0,0) minus footprint
+                        // anchor) and the silkscreen designator renders at
+                        // world origin instead of next to the part.
+                        // Non-mandatory library fields are also cloned
+                        // verbatim because items_size()==0 means the
+                        // proto's items loop didn't bring any in.
+                        for( PCB_FIELD* libField : loaded->GetFields() )
+                        {
+                            if( libField->IsMandatory() )
+                            {
+                                if( PCB_FIELD* myField = GetField( libField->GetId() ) )
+                                {
+                                    myField->SetPosition( libField->GetPosition() );
+                                    myField->SetLayer( libField->GetLayer() );
+                                    myField->SetTextAngle( libField->GetTextAngle() );
+                                    myField->SetTextSize( libField->GetTextSize() );
+                                    myField->SetTextThickness( libField->GetTextThickness() );
+                                    myField->SetVisible( libField->IsVisible() );
+                                    myField->SetMirrored( libField->IsMirrored() );
+                                    myField->SetItalic( libField->IsItalic() );
+                                    myField->SetBold( libField->IsBold() );
+                                    myField->SetHorizJustify( libField->GetHorizJustify() );
+                                    myField->SetVertJustify( libField->GetVertJustify() );
+                                }
+                            }
+                            else
+                            {
+                                Add( static_cast<PCB_FIELD*>( libField->Clone() ),
+                                     ADD_MODE::APPEND );
+                            }
+                        }
+
                         delete loaded;
                     }
                 }
