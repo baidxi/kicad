@@ -744,7 +744,16 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
                             {
                                 if( PCB_FIELD* myField = GetField( libField->GetId() ) )
                                 {
-                                    myField->SetPosition( libField->GetPosition() );
+                                    // Use SetFPRelativePosition so the
+                                    // library-relative offset is reapplied
+                                    // through this footprint's anchor +
+                                    // orientation. Plain SetPosition would
+                                    // treat the value as absolute and end up
+                                    // saving (at lib_x - anchor_x,
+                                    // lib_y - anchor_y) -- shifted by
+                                    // exactly the library offset.
+                                    myField->SetFPRelativePosition(
+                                            libField->GetFPRelativePosition() );
                                     myField->SetLayer( libField->GetLayer() );
                                     myField->SetTextAngle( libField->GetTextAngle() );
                                     myField->SetTextSize( libField->GetTextSize() );
@@ -759,8 +768,16 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
                             }
                             else
                             {
-                                Add( static_cast<PCB_FIELD*>( libField->Clone() ),
-                                     ADD_MODE::APPEND );
+                                PCB_FIELD* clonedField =
+                                        static_cast<PCB_FIELD*>( libField->Clone() );
+
+                                // Same coordinate-space issue as the
+                                // mandatory branch above: lift the cloned
+                                // field's library-relative offset onto this
+                                // footprint via SetFPRelativePosition.
+                                VECTOR2I libRel = libField->GetFPRelativePosition();
+                                Add( clonedField, ADD_MODE::APPEND );
+                                clonedField->SetFPRelativePosition( libRel );
                             }
                         }
 
