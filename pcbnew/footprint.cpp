@@ -703,22 +703,78 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
 
                     if( loaded )
                     {
+                        // Footprints carry a TRANSFORM_TRS: pads, shapes,
+                        // text, zones, dimensions, etc. store their geometry
+                        // in the parent footprint's library frame and derive
+                        // board coordinates through the transform at read
+                        // time. A child cloned from the library footprint
+                        // (whose transform is identity, so its library-frame
+                        // data equals its board data) already holds the
+                        // correct library-frame values; re-parenting it onto
+                        // this placed footprint applies the placement
+                        // automatically. Rotating / moving the clone here
+                        // would bake the placement into the library-frame
+                        // data and double-apply it. All that's needed is to
+                        // poke items that cache baked board-frame geometry
+                        // (PCB_SHAPE bakes into EDA_SHAPE, PCB_TEXT bakes
+                        // the draw angle, PAD bakes padstack orientation) so
+                        // they rebake under the new parent transform.
+                        //
+                        // The only footprint children that still store
+                        // absolute board coordinates are the non transform
+                        // aware drawings (reference images -- mirror the
+                        // type test in FOOTPRINT::SetPosition); those get
+                        // rotated / translated into place manually, like a
+                        // fully-loaded footprint's children would have been
+                        // by FOOTPRINT::Move / SetOrientation.
+                        const VECTOR2I  delta     = GetPosition() - loaded->GetPosition();
+                        const EDA_ANGLE rot       = GetOrientation() - loaded->GetOrientation();
+                        const VECTOR2I  rotCentre = loaded->GetPosition();
+
+                        auto isTransformAware =
+                                []( const BOARD_ITEM* aChild )
+                                {
+                                    return aChild->Type() == PCB_TEXT_T
+                                            || aChild->Type() == PCB_SHAPE_T
+                                            || aChild->Type() == PCB_TEXTBOX_T
+                                            || aChild->Type() == PCB_BARCODE_T
+                                            || aChild->Type() == PCB_TABLE_T
+                                            || BaseType( aChild->Type() ) == PCB_DIMENSION_T;
+                                };
+
                         for( PAD* pad : loaded->Pads() )
                         {
-                            Add( static_cast<PAD*>( pad->Clone() ),
-                                 ADD_MODE::APPEND );
+                            PAD* cloned = static_cast<PAD*>( pad->Clone() );
+                            Add( cloned, ADD_MODE::APPEND );
+                            cloned->OnFootprintTransformed();
                         }
 
                         for( BOARD_ITEM* g : loaded->GraphicalItems() )
                         {
-                            Add( static_cast<BOARD_ITEM*>( g->Clone() ),
-                                 ADD_MODE::APPEND );
+                            BOARD_ITEM* cloned = static_cast<BOARD_ITEM*>( g->Clone() );
+
+                            if( isTransformAware( cloned ) )
+                            {
+                                Add( cloned, ADD_MODE::APPEND );
+                                cloned->OnFootprintTransformed();
+                            }
+                            else
+                            {
+                                if( !rot.IsZero() )
+                                    cloned->Rotate( rotCentre, rot );
+
+                                if( delta.x != 0 || delta.y != 0 )
+                                    cloned->Move( delta );
+
+                                Add( cloned, ADD_MODE::APPEND );
+                            }
                         }
 
                         for( ZONE* z : loaded->Zones() )
                         {
-                            Add( static_cast<ZONE*>( z->Clone() ),
-                                 ADD_MODE::APPEND );
+                            ZONE* cloned = static_cast<ZONE*>( z->Clone() );
+                            Add( cloned, ADD_MODE::APPEND );
+                            cloned->OnFootprintTransformed();
                         }
 
                         Models() = loaded->Models();
