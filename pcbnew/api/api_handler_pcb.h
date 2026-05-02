@@ -103,6 +103,9 @@ private:
     HANDLER_RESULT<ImportNetlistResponse> handleImportNetlist(
             const HANDLER_CONTEXT<ImportNetlist>& aCtx );
 
+    HANDLER_RESULT<UpdatePCBFromSchematicResponse> handleUpdatePCBFromSchematic(
+            const HANDLER_CONTEXT<UpdatePCBFromSchematic>& aCtx );
+
     HANDLER_RESULT<BoardEditorAppearanceSettings> handleGetBoardEditorAppearanceSettings(
             const HANDLER_CONTEXT<GetBoardEditorAppearanceSettings>& aCtx );
 

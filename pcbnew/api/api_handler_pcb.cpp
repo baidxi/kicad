@@ -82,6 +82,11 @@
 #include <widgets/appearance_controls.h>
 #include <widgets/report_severity.h>
 #include <drc/rule_editor/drc_re_rule_loader.h>
+#include <netlist_reader/board_netlist_updater.h>
+#include <netlist_reader/pcb_netlist.h>
+#include <netlist_reader/netlist_reader.h>
+#include <reporter.h>
+#include <mail_type.h>
 #include <wx/ffile.h>
 
 using namespace kiapi::common::commands;
@@ -125,6 +130,8 @@ API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext, PCB_EDI
             &API_HANDLER_PCB::handleGetNetClassForNets );
     registerHandler<RefillZones, Empty>( &API_HANDLER_PCB::handleRefillZones );
     registerHandler<ImportNetlist, ImportNetlistResponse>( &API_HANDLER_PCB::handleImportNetlist );
+    registerHandler<UpdatePCBFromSchematic, UpdatePCBFromSchematicResponse>(
+            &API_HANDLER_PCB::handleUpdatePCBFromSchematic );
 
     registerHandler<GetBoardEditorAppearanceSettings, BoardEditorAppearanceSettings>(
             &API_HANDLER_PCB::handleGetBoardEditorAppearanceSettings );
@@ -1708,6 +1715,178 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
     response.set_error_count( updater->GetErrorCount() );
     response.set_warning_count( updater->GetWarningCount() );
     response.set_new_footprint_count( updater->GetNewFootprintCount() );
+    return response;
+}
+
+
+namespace
+{
+
+// REPORTER subclass that captures messages with severity for the IPC
+// UpdatePCBFromSchematic response.  Mirrors the role WX_HTML_REPORT_PANEL
+// plays for the dialog, but stores structured (severity, text) pairs
+// instead of HTML.
+class API_NETLIST_REPORTER : public REPORTER
+{
+public:
+    REPORTER& Report( const wxString& aText,
+                      SEVERITY        aSeverity = RPT_SEVERITY_UNDEFINED ) override
+    {
+        REPORTER::Report( aText, aSeverity );
+        m_entries.emplace_back( aSeverity, aText );
+
+        if( aSeverity == RPT_SEVERITY_ERROR )
+            ++m_errors;
+        else if( aSeverity == RPT_SEVERITY_WARNING )
+            ++m_warnings;
+
+        return *this;
+    }
+
+    const std::vector<std::pair<SEVERITY, wxString>>& Entries() const { return m_entries; }
+    int Errors() const   { return m_errors; }
+    int Warnings() const { return m_warnings; }
+
+private:
+    std::vector<std::pair<SEVERITY, wxString>> m_entries;
+    int m_errors{ 0 };
+    int m_warnings{ 0 };
+};
+
+kiapi::board::commands::NetlistUpdateSeverity protoSeverity( SEVERITY aSeverity )
+{
+    using kiapi::board::commands::NetlistUpdateSeverity;
+
+    switch( aSeverity )
+    {
+    case RPT_SEVERITY_INFO:    return NetlistUpdateSeverity::NUS_INFO;
+    case RPT_SEVERITY_WARNING: return NetlistUpdateSeverity::NUS_WARNING;
+    case RPT_SEVERITY_ERROR:   return NetlistUpdateSeverity::NUS_ERROR;
+    case RPT_SEVERITY_ACTION:  return NetlistUpdateSeverity::NUS_ACTION;
+    default:                   return NetlistUpdateSeverity::NUS_UNDEFINED;
+    }
+}
+
+} // anonymous namespace
+
+
+HANDLER_RESULT<UpdatePCBFromSchematicResponse>
+API_HANDLER_PCB::handleUpdatePCBFromSchematic(
+        const HANDLER_CONTEXT<UpdatePCBFromSchematic>& aCtx )
+{
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    if( std::optional<ApiResponseStatus> headless = checkForHeadless( "UpdatePCBFromSchematic" ) )
+        return tl::unexpected( *headless );
+
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    PCB_EDIT_FRAME* pcbFrame = frame();
+
+    if( !pcbFrame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "PCB editor frame is not available" );
+        return tl::unexpected( e );
+    }
+
+    // Headless equivalent of PCB_EDIT_FRAME::FetchNetlistFromSchematic.
+    // The frame version pops modal error dialogs on failure, which is
+    // exactly what the IPC path must avoid -- inline the netlist round
+    // trip here so the failure modes can come back as ApiResponseStatus
+    // codes instead.
+    KIWAY_PLAYER* schPlayer = pcbFrame->Kiway().Player( FRAME_SCH, false );
+
+    if( !schPlayer )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "schematic editor is not open in this project; "
+                             "open the schematic editor first" );
+        return tl::unexpected( e );
+    }
+
+    std::string payload( "Updating PCB requires a fully annotated schematic." );
+    pcbFrame->Kiway().ExpressMail( FRAME_SCH, MAIL_SCH_GET_NETLIST, payload, pcbFrame );
+
+    if( payload == "Updating PCB requires a fully annotated schematic." )
+    {
+        // FetchNetlistFromSchematic uses the unchanged-payload sentinel to
+        // detect "Eeschema couldn't produce a netlist" (typically because
+        // the schematic isn't fully annotated).  Surface it as an error
+        // status instead of the modal dialog.
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( payload );
+        return tl::unexpected( e );
+    }
+
+    NETLIST netlist;
+
+    try
+    {
+        // KICAD_NETLIST_READER takes ownership of the LINE_READER pointer.
+        auto* lineReader = new STRING_LINE_READER( payload, wxS( "Eeschema netlist" ) );
+        KICAD_NETLIST_READER netlistReader( lineReader, &netlist );
+        netlistReader.LoadNetlist();
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "failed to parse schematic netlist: {}",
+                                          ioe.What().ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    netlist.SortByReference();
+
+    const UpdatePCBFromSchematic& req = aCtx.Request;
+    netlist.SetFindByTimeStamp( !req.relink_by_reference() );
+    netlist.SetReplaceFootprints( req.replace_footprints() );
+
+    API_NETLIST_REPORTER reporter;
+
+    BOARD_NETLIST_UPDATER updater( pcbFrame, board() );
+    updater.SetReporter( &reporter );
+    updater.SetIsDryRun( req.dry_run() );
+    updater.SetLookupByTimestamp( !req.relink_by_reference() );
+    updater.SetDeleteUnusedFootprints( req.delete_footprints_with_no_symbols() );
+    updater.SetReplaceFootprints( req.replace_footprints() );
+    updater.SetTransferGroups( req.transfer_groups() );
+    updater.SetOverrideLocks( req.override_locks() );
+    updater.SetUpdateFields( req.update_footprint_fields() );
+    updater.SetRemoveExtraFields( req.remove_footprint_fields_not_in_symbols() );
+
+    updater.UpdateNetlist( netlist );
+
+    if( !req.dry_run() )
+    {
+        // OnNetlistChanged drives the post-update view bookkeeping (zone
+        // fill invalidation, ratsnest rebuild, undo entry).  m_runDragCommand
+        // is only meaningful for the chooser-driven path -- the IPC client
+        // gets the updater state and the audit log instead.
+        bool unusedDrag = false;
+        pcbFrame->OnNetlistChanged( updater, &unusedDrag );
+    }
+
+    UpdatePCBFromSchematicResponse response;
+    response.set_placed_count( static_cast<int32_t>( updater.GetAddedFootprints().size() ) );
+    response.set_error_count( reporter.Errors() );
+    response.set_warning_count( reporter.Warnings() );
+
+    for( const auto& [severity, text] : reporter.Entries() )
+    {
+        kiapi::board::commands::NetlistUpdateLogEntry* entry = response.add_log();
+        entry->set_severity( protoSeverity( severity ) );
+        entry->set_message( text.ToUTF8() );
+    }
+
     return response;
 }
 

@@ -324,6 +324,77 @@ message RefillZones
   repeated kiapi.common.types.KIID zones = 2;
 }
 
+// Headless equivalent of the "Update PCB from Schematic" dialog
+// (BOARD_EDITOR_CONTROL::UpdatePCBFromSchematic).  Fetches the current
+// netlist from the open schematic editor, then drives BOARD_NETLIST_UPDATER
+// directly without showing DIALOG_UPDATE_PCB.  Both editors must be open
+// in the same project; otherwise AS_BAD_REQUEST is returned.
+message UpdatePCBFromSchematic
+{
+  kiapi.common.types.DocumentSpecifier board = 1;
+
+  // Replace existing footprints with the library version when a footprint
+  // change is detected (DIALOG_UPDATE_PCB "Re-link footprints to schematic
+  // symbols based on their reference designators" + "Update footprints").
+  bool replace_footprints = 2;
+
+  // Delete footprints that no longer have a matching schematic symbol.
+  bool delete_footprints_with_no_symbols = 3;
+
+  // Update locked footprints even though they would normally be skipped.
+  bool override_locks = 4;
+
+  // Copy schematic field values onto the corresponding PCB footprints.
+  bool update_footprint_fields = 5;
+
+  // Remove footprint fields that are not present in the schematic symbol.
+  bool remove_footprint_fields_not_in_symbols = 6;
+
+  // Match footprints to symbols by reference designator instead of by KIID.
+  // When false, the per-symbol KIID is used (the new-project default).
+  bool relink_by_reference = 7;
+
+  // Mirror the dialog's "Transfer schematic groups" checkbox: copy SCH
+  // group membership onto the matched PCB footprints.
+  bool transfer_groups = 8;
+
+  // Run as a dry run: report what would change without modifying the PCB.
+  bool dry_run = 9;
+}
+
+// SeverityLevel values mirror reporter.h's RPT_SEVERITY_* constants so the
+// caller can filter the audit log by severity without re-parsing strings.
+enum NetlistUpdateSeverity
+{
+  NUS_UNDEFINED = 0;
+  NUS_INFO      = 1;
+  NUS_WARNING   = 2;
+  NUS_ERROR     = 3;
+  NUS_ACTION    = 4;
+}
+
+message NetlistUpdateLogEntry
+{
+  NetlistUpdateSeverity severity = 1;
+  string                message  = 2;
+}
+
+message UpdatePCBFromSchematicResponse
+{
+  // Number of footprints newly placed on the board.
+  int32 placed_count = 1;
+
+  // Number of errors encountered (counted from the reporter severity mask).
+  int32 error_count = 2;
+
+  // Number of warnings encountered.
+  int32 warning_count = 3;
+
+  // Per-action audit log; same content as the dialog's "Changes to Be
+  // Applied" pane.
+  repeated NetlistUpdateLogEntry log = 4;
+}
+
 /*
  * Utilities
  */
