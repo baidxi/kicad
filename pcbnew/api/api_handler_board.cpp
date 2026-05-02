@@ -359,6 +359,34 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_BOARD::handleCreateUpdateItemsInte
             continue;
         }
 
+        // Tracks / arcs / vias are restricted to copper layers downstream
+        // (BOARD::Add silently drops them off-copper). Reject the type+layer
+        // combination here so the IPC client gets ISC_INVALID_DATA with an
+        // actionable message instead of ISC_OK + a created_count that
+        // includes items that never landed on the board.
+        if( aCreate )
+        {
+            switch( item->Type() )
+            {
+            case PCB_TRACE_T:
+            case PCB_ARC_T:
+            case PCB_VIA_T:
+                if( !IsCopperLayer( item->GetLayer() ) )
+                {
+                    status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                    status.set_error_message(
+                            fmt::format( "{} requires a copper layer, got {}",
+                                         item->GetClass().ToStdString(),
+                                         LayerName( item->GetLayer() ).ToStdString() ) );
+                    aItemHandler( status, anyItem );
+                    continue;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+
         status.set_code( ItemStatusCode::ISC_OK );
         google::protobuf::Any newItem;
 
