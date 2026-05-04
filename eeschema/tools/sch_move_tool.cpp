@@ -2312,11 +2312,9 @@ void SCH_MOVE_TOOL::getConnectedDragItems( SCH_COMMIT* aCommit, SCH_ITEM* aSelec
                 {
                     continue;
                 }
-                else
-                {
-                    line->SetFlags( SELECTED_BY_DRAG );
-                    aList.push_back( line );
-                }
+
+                line->SetFlags( SELECTED_BY_DRAG );
+                aList.push_back( line );
             }
             else if( line->GetEndPoint() == aPoint )
             {
@@ -2326,11 +2324,9 @@ void SCH_MOVE_TOOL::getConnectedDragItems( SCH_COMMIT* aCommit, SCH_ITEM* aSelec
                 {
                     continue;
                 }
-                else
-                {
-                    line->SetFlags( SELECTED_BY_DRAG );
-                    aList.push_back( line );
-                }
+
+                line->SetFlags( SELECTED_BY_DRAG );
+                aList.push_back( line );
             }
             else
             {
