@@ -29,6 +29,8 @@
 #include <pcb_group.h>
 #include <project.h>
 #include <zone.h>
+#include <footprint_library_adapter.h>
+#include <project_pcb.h>
 
 #include <api/common/types/base_types.pb.h>
 
@@ -48,6 +50,8 @@ API_HANDLER_FOOTPRINT::API_HANDLER_FOOTPRINT( std::shared_ptr<FOOTPRINT_CONTEXT>
                                               FOOTPRINT_EDIT_FRAME* aFrame ) :
         API_HANDLER_BOARD( std::move( aContext ), aFrame )
 {
+    registerHandler<OpenLibraryItem, Empty>(
+            &API_HANDLER_FOOTPRINT::handleOpenLibraryItem );
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
             &API_HANDLER_FOOTPRINT::handleGetOpenDocuments );
     registerHandler<SaveDocument, Empty>( &API_HANDLER_FOOTPRINT::handleSaveDocument );
@@ -123,6 +127,48 @@ HANDLER_RESULT<FOOTPRINT*> API_HANDLER_FOOTPRINT::validateAndGetFootprint(
     return editorFootprint;
 }
 
+HANDLER_RESULT<Empty> API_HANDLER_FOOTPRINT::handleOpenLibraryItem(
+    const HANDLER_CONTEXT<OpenLibraryItem>& aCtx )
+{
+    if( aCtx.Request.type() != DocumentType::DOCTYPE_FOOTPRINT )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
+        return tl::unexpected( e );
+    }
+
+    FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &frame()->Prj() );
+
+    wxString libraryName = aCtx.Request.identifier().library_nickname();
+    wxString fpName = aCtx.Request.identifier().entry_name();
+
+    LIB_ID fpid( libraryName, fpName );
+    // preload the footprint to make sure it exists and so that we can make a nice error
+    try
+    {
+        std::unique_ptr<FOOTPRINT> footprint(
+                adapter->LoadFootprintWithOptionalNickname( fpid, true ) );
+
+        if( !footprint )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( "could not open footprint" );
+            return tl::unexpected( e );
+        }
+    }
+    catch( const IO_ERROR& err )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "could not open footprint due to IO error {}",
+                                          err.Problem().ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    frame()->LoadFootprintFromLibrary( fpid );
+    return Empty();
+}
 
 HANDLER_RESULT<GetOpenDocumentsResponse> API_HANDLER_FOOTPRINT::handleGetOpenDocuments(
         const HANDLER_CONTEXT<GetOpenDocuments>& aCtx )

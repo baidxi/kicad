@@ -841,19 +841,6 @@ bool IFACE::HandleApiOpenDocument( const wxString& aPath, KICAD_API_SERVER* aSer
         return false;
     }
 
-    // Check for footprint URI format: "path/to/project.kicad_pro/LibNick:FootprintName"
-    wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension;
-    wxString proSep = proExt + wxS( "/" );
-    int      sepIdx = aPath.Find( proSep );
-
-    if( sepIdx != wxNOT_FOUND )
-    {
-        wxString libIdStr = aPath.Mid( sepIdx + proSep.length() );
-
-        if( !libIdStr.IsEmpty() )
-            return handleOpenFootprint( aPath.Left( sepIdx + proExt.length() ), libIdStr, aServer, aError );
-    }
-
     return handleOpenPcb( aPath, aServer, aError );
 }
 

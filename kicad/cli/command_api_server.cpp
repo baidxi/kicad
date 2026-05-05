@@ -158,42 +158,18 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
             return tl::unexpected( e );
         }
 
-        // For footprints, the path is a URI like "project.kicad_pro/lib:footprint"
-        // and is passed through as-is. For other types, normalize to a project path.
         wxFileName projectPath;
         wxString   openPath;
 
-        if( requestType == types::DOCTYPE_FOOTPRINT )
-        {
-            openPath = inputPath;
+        projectPath = wxFileName( inputPath );
 
-            // Extract the project path portion (everything up to and including .kicad_pro)
-            wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension;
-            int      idx = inputPath.Find( proExt + wxS( "/" ) );
+        // TODO(JE) if the API client just gives a project path rather than sch/board,
+        // we won't dispatch correctly.  We could instead try both handlers until one
+        // succeeds, like we do with other API calls.
 
-            if( idx == wxNOT_FOUND )
-            {
-                ApiResponseStatus e;
-                e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-                e.set_error_message( "Footprint path must be in the format: "
-                                     "/path/to/project.kicad_pro/LibNick:FootprintName" );
-                return tl::unexpected( e );
-            }
-
-            projectPath = wxFileName( inputPath.Left( idx + proExt.length() ) );
-        }
-        else
-        {
-            projectPath = wxFileName( inputPath );
-
-            // TODO(JE) if the API client just gives a project path rather than sch/board,
-            // we won't dispatch correctly.  We could instead try both handlers until one
-            // succeeds, like we do with other API calls.
-
-            projectPath.SetExt( FILEEXT::ProjectFileExtension );
-            projectPath.MakeAbsolute();
-            openPath = projectPath.GetFullPath();
-        }
+        projectPath.SetExt( FILEEXT::ProjectFileExtension );
+        projectPath.MakeAbsolute();
+        openPath = projectPath.GetFullPath();
 
         if( !aKiway.ProcessApiOpenDocument( face, openPath, server.get(), &error ) )
         {
@@ -222,21 +198,6 @@ int CLI::API_SERVER_COMMAND::doPerform( KIWAY& aKiway )
         else if( openDocumentType == types::DOCTYPE_SCHEMATIC )
         {
             // TODO(JE) stateful sheet path handling?
-        }
-        else if( openDocumentType == types::DOCTYPE_FOOTPRINT )
-        {
-            // Extract the LIB_ID from the URI path (everything after .kicad_pro/)
-            wxString proExt = wxS( "." ) + FILEEXT::ProjectFileExtension + wxS( "/" );
-            int      idx = inputPath.Find( proExt );
-
-            if( idx != wxNOT_FOUND )
-            {
-                wxString libIdStr = inputPath.Mid( idx + proExt.length() );
-                LIB_ID   fpid;
-                fpid.Parse( libIdStr );
-                doc->mutable_lib_id()->set_library_nickname( fpid.GetUniStringLibNickname() );
-                doc->mutable_lib_id()->set_entry_name( fpid.GetUniStringLibItemName() );
-            }
         }
 
         doc->mutable_project()->set_name( project.GetProjectName().ToUTF8() );
