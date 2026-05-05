@@ -1346,13 +1346,8 @@ bool IEC60664::Compute()
     m_clearance = ComputeClearanceDistance( m_pollutionDegree, m_field, m_altitude );
     m_creepage = ComputeCreepageDistance( m_pollutionDegree, m_materialGroup );
 
-    // IEC 60664 §4.6.3
-    //     The dimensions for creepage distance cannot be specified where permanently conductive
-    // pollution is present (pollution degree 4).
-
-    // Why?
-    // if( m_creepage < m_clearance || m_clearance <= 0 )
-    //     m_creepage = m_clearance;
+    if( m_creepage < m_clearance || m_clearance <= 0 )
+        m_creepage = m_clearance;
 
     m_minGrooveWidth = GetMinGrooveWidth( m_pollutionDegree, m_clearance );
 
