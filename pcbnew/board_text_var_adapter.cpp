@@ -53,11 +53,7 @@ void BOARD_TEXT_VAR_ADAPTER::registerItem( BOARD_ITEM* aItem )
         // as the dependent and the view can repaint it.
         if( PCB_BARCODE* bc = dynamic_cast<PCB_BARCODE*>( aItem ) )
         {
-            EDA_TEXT* bcText = dynamic_cast<EDA_TEXT*>( &bc->Text() );
-
-            if( bcText )
-                m_tracker.RegisterItem( aItem, FilterTrackable( bcText->GetTextVarReferences() ) );
-
+            m_tracker.RegisterItem( aItem, FilterTrackable( bc->GetTextVarReferences() ) );
             return;
         }
 
@@ -140,13 +136,7 @@ void BOARD_TEXT_VAR_ADAPTER::OnBoardItemChanged( BOARD&, BOARD_ITEM* aItem )
     }
     else if( PCB_BARCODE* bc = dynamic_cast<PCB_BARCODE*>( aItem ) )
     {
-        EDA_TEXT*                     bcText = dynamic_cast<EDA_TEXT*>( &bc->Text() );
-        std::vector<TEXT_VAR_REF_KEY> updated;
-
-        if( bcText )
-            updated = FilterTrackable( bcText->GetTextVarReferences() );
-
-        m_tracker.HandleItemChanged( aItem, updated );
+        m_tracker.HandleItemChanged( aItem, FilterTrackable( bc->GetTextVarReferences() ) );
     }
     else
     {

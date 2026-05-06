@@ -255,10 +255,9 @@ public:
     wxString GetShownText() const;
 
     /**
-     * Access the internal `PCB_TEXT` object used for showing the human-readable text.
+     * Return the text variable references used by the barcode's content string.
      */
-    PCB_TEXT&       Text() { return m_text; }
-    const PCB_TEXT& Text() const { return m_text; }
+    const std::vector<TEXT_VAR_REF_KEY>& GetTextVarReferences() const { return m_text.GetTextVarReferences(); }
 
     /**
      * Function Move
