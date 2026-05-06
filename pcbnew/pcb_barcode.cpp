@@ -801,7 +801,18 @@ void PCB_BARCODE::swapData( BOARD_ITEM* aImage )
 
     PCB_BARCODE* other = static_cast<PCB_BARCODE*>( aImage );
 
-    std::swap( *this, *other );
+    std::swap( m_layer,           other->m_layer );
+    std::swap( m_isKnockout,      other->m_isKnockout );
+    std::swap( m_isLocked,        other->m_isLocked );
+    std::swap( m_width,           other->m_width );
+    std::swap( m_height,          other->m_height );
+    std::swap( m_pos,             other->m_pos );
+    std::swap( m_margin,          other->m_margin );
+    std::swap( m_text,            other->m_text );
+    std::swap( m_kind,            other->m_kind );
+    std::swap( m_angle,           other->m_angle );
+    std::swap( m_errorCorrection, other->m_errorCorrection );
+    std::swap( m_cache,           other->m_cache );
 
     m_text.SetParent( this );
     other->m_text.SetParent( other );
