@@ -246,7 +246,7 @@ bool PCB_BARCODE::Deserialize( const google::protobuf::Any& aContainer )
     BOARD_ITEM::SetIsKnockout( barcode.knockout() );
     SetLocked( barcode.locked() == kiapi::common::types::LockedState::LS_LOCKED );
 
-    m_cache.reset();
+    AssembleBarcode();
 
     return true;
 }
@@ -256,7 +256,7 @@ void PCB_BARCODE::SetLayer( PCB_LAYER_ID aLayer )
 {
     m_layer = aLayer;
     m_text.SetLayer( aLayer );
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -264,7 +264,7 @@ void PCB_BARCODE::SetTextSize( int aTextSize )
 {
     m_text.SetTextSize( VECTOR2I( std::max( 1, aTextSize ), std::max( 1, aTextSize ) ) );
     m_text.SetTextThickness( std::max( 1, GetPenSizeForNormal( m_text.GetTextHeight() ) ) );
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -294,7 +294,7 @@ void PCB_BARCODE::Rotate( const VECTOR2I& aRotCentre, const EDA_ANGLE& aAngle )
 {
     RotatePoint( m_pos, aRotCentre, aAngle );
     m_angle += aAngle;
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -306,7 +306,7 @@ void PCB_BARCODE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         m_angle += ANGLE_180;
 
     SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -633,7 +633,8 @@ void PCB_BARCODE::rescaleSymbolPoly( const VECTOR2I& aTopLeft, const VECTOR2I& a
 
 const BOX2I PCB_BARCODE::GetBoundingBox() const
 {
-    AssembleBarcode();
+    if( !m_cache )
+        AssembleBarcode();
     return m_cache->bbox;
 }
 
@@ -652,7 +653,8 @@ BITMAPS PCB_BARCODE::GetMenuImage() const
 
 const BOX2I PCB_BARCODE::ViewBBox() const
 {
-    AssembleBarcode();
+    if( !m_cache )
+        AssembleBarcode();
     return m_cache->bbox;
 }
 
@@ -751,7 +753,7 @@ void PCB_BARCODE::SetKind( BARCODE_T aKind )
 void PCB_BARCODE::SetBarcodeErrorCorrection( BARCODE_ECC_T aErrorCorrection )
 {
     SetErrorCorrection( aErrorCorrection );
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -762,7 +764,7 @@ void PCB_BARCODE::SetBarcodeWidth( int aWidth )
     if( KeepSquare() )
         m_height = aWidth;
 
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
@@ -773,14 +775,14 @@ void PCB_BARCODE::SetBarcodeHeight( int aHeight )
     if( KeepSquare() )
         m_width = aHeight;
 
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
 void PCB_BARCODE::SetBarcodeKind( BARCODE_T aKind )
 {
     SetKind( aKind );
-    m_cache.reset();
+    AssembleBarcode();
 }
 
 
