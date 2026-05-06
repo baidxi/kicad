@@ -52,6 +52,7 @@
 
 #include <backend/zint.h>
 #include <board_design_settings.h>
+#include <hash.h>
 #include <google/protobuf/any.pb.h>
 #include <properties/property.h>
 #include <properties/property_mgr.h>
@@ -280,11 +281,11 @@ void PCB_BARCODE::Move( const VECTOR2I& offset )
 
     if( m_cache )
     {
-        m_cache->pos += offset;
         m_cache->symbolPoly.Move( offset );
         m_cache->textPoly.Move( offset );
         m_cache->poly.Move( offset );
         m_cache->bbox.Move( offset );
+        m_cache->keyHash = computeCacheKey();
     }
 }
 
@@ -305,7 +306,7 @@ void PCB_BARCODE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         m_angle += ANGLE_180;
 
     SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
-    // SetLayer already resets m_cache
+    m_cache.reset();
 }
 
 
@@ -315,18 +316,20 @@ void PCB_BARCODE::StyleFromSettings( const BOARD_DESIGN_SETTINGS& settings, bool
 }
 
 
+size_t PCB_BARCODE::computeCacheKey() const
+{
+    return hash_val( GetShownText(), m_width, m_height, m_pos.x, m_pos.y, m_margin.x, m_margin.y,
+                     static_cast<int>( m_kind ), m_angle.AsDegrees(), static_cast<int>( m_errorCorrection ),
+                     m_text.IsVisible(), m_text.GetTextHeight(), IsKnockout(), static_cast<int>( m_layer ) );
+}
+
+
 void PCB_BARCODE::AssembleBarcode() const
 {
-    wxString shownText = m_text.GetShownText( true );
+    size_t key = computeCacheKey();
 
-    if( m_cache && m_cache->shownText == shownText && m_cache->width == m_width && m_cache->height == m_height
-        && m_cache->pos == m_pos && m_cache->margin == m_margin && m_cache->kind == m_kind && m_cache->angle == m_angle
-        && m_cache->errorCorrection == m_errorCorrection && m_cache->textVisible == m_text.IsVisible()
-        && m_cache->textSize == m_text.GetTextHeight() && m_cache->isKnockout == IsKnockout()
-        && m_cache->layer == m_layer )
-    {
+    if( m_cache && m_cache->keyHash == key )
         return;
-    }
 
     if( !m_cache )
         m_cache = std::make_unique<PCB_BARCODE_CACHE>();
@@ -334,8 +337,7 @@ void PCB_BARCODE::AssembleBarcode() const
     ComputeBarcode();
 
     // Scale the symbol polygon to the desired barcode width/height and center it at m_pos
-    SetRect( m_pos - VECTOR2I( m_width / 2, m_height / 2 ),
-             m_pos + VECTOR2I( m_width / 2, m_height / 2 ) );
+    rescaleSymbolPoly( m_pos - VECTOR2I( m_width / 2, m_height / 2 ), m_pos + VECTOR2I( m_width / 2, m_height / 2 ) );
 
     ComputeTextPoly();
 
@@ -383,20 +385,7 @@ void PCB_BARCODE::AssembleBarcode() const
 
     m_cache->poly.CacheTriangulation();
     m_cache->bbox = m_cache->poly.BBox();
-
-    // Store key
-    m_cache->shownText = m_text.GetShownText( true );
-    m_cache->width = m_width;
-    m_cache->height = m_height;
-    m_cache->pos = m_pos;
-    m_cache->margin = m_margin;
-    m_cache->kind = m_kind;
-    m_cache->angle = m_angle;
-    m_cache->errorCorrection = m_errorCorrection;
-    m_cache->textVisible = m_text.IsVisible();
-    m_cache->textSize = m_text.GetTextHeight();
-    m_cache->isKnockout = IsKnockout();
-    m_cache->layer = m_layer;
+    m_cache->keyHash = key;
 }
 
 
@@ -612,7 +601,7 @@ bool PCB_BARCODE::HitTest( const BOX2I& aRect, bool aContained, int aAccuracy ) 
 }
 
 
-void PCB_BARCODE::SetRect( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight ) const
+void PCB_BARCODE::rescaleSymbolPoly( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight ) const
 {
     // Rescale only the symbol polygon to the requested rectangle
     BOX2I bbox = m_cache->symbolPoly.BBox();

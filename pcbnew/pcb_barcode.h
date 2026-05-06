@@ -63,19 +63,7 @@ DECLARE_ENUM_TO_WXANY( BARCODE_ECC_T );
 
 struct PCB_BARCODE_CACHE
 {
-    // Key — inputs that were in effect when this cache was built
-    wxString      shownText;
-    int           width = 0;
-    int           height = 0;
-    VECTOR2I      pos;
-    VECTOR2I      margin;
-    BARCODE_T     kind = BARCODE_T::QR_CODE;
-    EDA_ANGLE     angle;
-    BARCODE_ECC_T errorCorrection = BARCODE_ECC_T::L;
-    bool          textVisible = false;
-    int           textSize = 0;
-    bool          isKnockout = false;
-    PCB_LAYER_ID  layer = UNDEFINED_LAYER;
+    size_t keyHash = 0; ///< Hash of all cache-key inputs (via computeCacheKey)
 
     // Geometry
     SHAPE_POLY_SET poly;
@@ -296,16 +284,6 @@ public:
     VECTOR2I GetCenter() const override { return GetPosition(); }
 
     /**
-     * Set the bounding rectangle of the barcode. This will scale the internal polygon outlines
-     * to fit the given rectangle and update width/height accordingly.  This refers to
-     * the size of the barcode symbol excluding margins and text.
-     *
-     * @param aTopLeft top-left coordinate in internal units.
-     * @param aBotRight bottom-right coordinate in internal units.
-     */
-    void SetRect( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight ) const;
-
-    /**
      * Populate message panel information entries (e.g. for selection/property panel).
      *
      * @param aFrame parent draw frame used for context.
@@ -476,6 +454,16 @@ private:
     BARCODE_ECC_T  m_errorCorrection; ///< Error correction level for QR codes
 
     mutable std::unique_ptr<PCB_BARCODE_CACHE> m_cache;
+
+    /**
+     * Compute a hash of all cache-key inputs (shown text + geometry parameters + layer).
+     */
+    size_t computeCacheKey() const;
+
+    /**
+     * Scale and translate the symbol polygon to fill the given bounding rectangle.
+     */
+    void rescaleSymbolPoly( const VECTOR2I& aTopLeft, const VECTOR2I& aBotRight ) const;
 };
 
 #endif // DIMENSION_H_
