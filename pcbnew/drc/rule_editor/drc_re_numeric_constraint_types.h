@@ -75,6 +75,19 @@ public:
 };
 
 
+class DRC_RE_Z_CLEARANCE_CONSTRAINT_DATA : public DRC_RE_NUMERIC_INPUT_CONSTRAINT_DATA
+{
+public:
+    using DRC_RE_NUMERIC_INPUT_CONSTRAINT_DATA::DRC_RE_NUMERIC_INPUT_CONSTRAINT_DATA;
+    BITMAPS                            GetOverlayBitmap() const override { return BITMAPS::constraint_z_clearance; }
+    std::vector<DRC_RE_FIELD_POSITION> GetFieldPositions() const override
+    {
+        return { { 243 + DRC_RE_OVERLAY_XO, 283 + DRC_RE_OVERLAY_XO, 207 + DRC_RE_OVERLAY_YO, 1, wxS( "mm" ),
+                   LABEL_POSITION::RIGHT } };
+    }
+};
+
+
 class DRC_RE_CREEPAGE_DISTANCE_CONSTRAINT_DATA : public DRC_RE_NUMERIC_INPUT_CONSTRAINT_DATA
 {
 public:

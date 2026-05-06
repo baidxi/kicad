@@ -729,6 +729,7 @@ set( BMAPS_CONSTRAINTS
     copper_to_edge_clearance
     copper-to-hole-clearance
     creepage-distance
+    z-clearance
     hole-size
     hole-to-hole-clearance
     hole-to-hole-distance

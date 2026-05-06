@@ -119,7 +119,9 @@ enum PCB_DRC_CODE
 
     DRCE_SCHEMATIC_FIELDS_PARITY, // Mismatch with schematic fields
 
-    DRCE_LAST = DRCE_SCHEMATIC_FIELDS_PARITY
+    DRCE_Z_CLEARANCE,             // dielectric isolation between copper layers is insufficient
+
+    DRCE_LAST = DRCE_Z_CLEARANCE
 };
 
 
@@ -257,6 +259,7 @@ private:
     static DRC_ITEM trackOnPostMachinedLayer;
     static DRC_ITEM trackNotCenteredOnVia;
     static DRC_ITEM schematicFieldsParity;
+    static DRC_ITEM zClearance;
 
 private:
     DRC_RULE*          m_violatingRule = nullptr;

@@ -170,6 +170,9 @@ void DRC_PANEL_MATCHER::initClaims()
             std::set<DRC_CONSTRAINT_T>{},
             30 );
 
+    m_claims.emplace_back( Z_CLEARANCE, std::set<DRC_CONSTRAINT_T>{ Z_CLEARANCE_CONSTRAINT },
+                           std::set<DRC_CONSTRAINT_T>{}, 30 );
+
     // Size constraints
     m_claims.emplace_back(
             HOLE_SIZE,

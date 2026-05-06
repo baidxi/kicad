@@ -877,6 +877,48 @@ int BOARD_STACKUP::GetLayerDistance( PCB_LAYER_ID aFirstLayer, PCB_LAYER_ID aSec
 }
 
 
+int BOARD_STACKUP::GetDielectricDistance( PCB_LAYER_ID aFirstLayer, PCB_LAYER_ID aSecondLayer ) const
+{
+    wxASSERT( IsCopperLayer( aFirstLayer ) && IsCopperLayer( aSecondLayer ) );
+
+    if( aFirstLayer == aSecondLayer )
+        return 0;
+
+    // Normalise order: ensure aFirstLayer comes before aSecondLayer in the stackup.
+    if( aSecondLayer != B_Cu && ( aSecondLayer < aFirstLayer || aFirstLayer == B_Cu ) )
+        std::swap( aFirstLayer, aSecondLayer );
+
+    int  total = 0;
+    bool between = false;
+
+    for( BOARD_STACKUP_ITEM* item : m_list )
+    {
+        PCB_LAYER_ID layer = item->GetBrdLayerId();
+
+        if( item->GetType() == BS_ITEM_TYPE_COPPER )
+        {
+            if( !between )
+            {
+                if( layer == aFirstLayer )
+                    between = true;
+            }
+            else if( layer == aSecondLayer )
+            {
+                break;
+            }
+        }
+        else if( item->GetType() == BS_ITEM_TYPE_DIELECTRIC && between )
+        {
+            // Accumulate only dielectric thicknesses between the two copper layers.
+            for( int sub = 0; sub < item->GetSublayersCount(); sub++ )
+                total += item->GetThickness( sub );
+        }
+    }
+
+    return total;
+}
+
+
 bool IsPrmSpecified( const wxString& aPrmValue )
 {
     // return true if the param value is specified:

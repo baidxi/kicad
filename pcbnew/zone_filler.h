@@ -86,6 +86,25 @@ private:
     void buildDifferentNetZoneClearances( const ZONE* aZone, PCB_LAYER_ID aLayer,
                                           SHAPE_POLY_SET& aHoles );
 
+    /**
+     * Build knockout regions for tracks, vias and pads on other layers that would violate
+     * z_clearance (3D dielectric distance) constraints with the given zone fill.
+     *
+     * These knockouts are static with respect to island removal and can be cached.
+     */
+    void buildZClearanceItemKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles );
+
+    /**
+     * Build knockout regions for filled zones on other layers that would violate z_clearance
+     * constraints with the given zone fill.
+     *
+     * Uses each other-layer zone's filled polygons when available, falling back to its
+     * outline only when the other zone has not been filled yet (initial fill wave).  Kept
+     * separate from buildZClearanceItemKnockouts() so it can be re-applied cheaply during
+     * the post-island-removal iterative refill pass.
+     */
+    void buildZClearanceZoneKnockouts( const ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_POLY_SET& aHoles );
+
     void subtractHigherPriorityZones( const ZONE* aZone, PCB_LAYER_ID aLayer,
                                       SHAPE_POLY_SET& aRawFill );
 
@@ -186,6 +205,17 @@ private:
     int                   m_worstClearance;
 
     bool                  m_debugZoneFiller;
+
+    // Z-clearance cross-layer knockout state (populated once in Fill(), read-only during parallel fills)
+    struct Z_CLEARANCE_LAYER_PAIR
+    {
+        PCB_LAYER_ID otherLayer;
+        int          dielectricDist;
+    };
+
+    bool                                                        m_hasZClearanceRules;
+    int                                                         m_worstZClearance;
+    std::map<PCB_LAYER_ID, std::vector<Z_CLEARANCE_LAYER_PAIR>> m_zClearanceLayerPairs;
 
     // Cache of pre-knockout fills for iterative refill optimization (issue 21746)
     // Key: (zone pointer, layer), Value: fill polygon before higher-priority zone knockout

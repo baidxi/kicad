@@ -162,6 +162,7 @@ wxString DRC_RULE::FormatRuleFromProto( const kiapi::board::CustomRule& aRule, w
                 case kiapi::board::CRCT_VIA_COUNT:               return wxS( "via_count" );
                 case kiapi::board::CRCT_PHYSICAL_CLEARANCE:      return wxS( "physical_clearance" );
                 case kiapi::board::CRCT_PHYSICAL_HOLE_CLEARANCE: return wxS( "physical_hole_clearance" );
+                case kiapi::board::CRCT_Z_CLEARANCE:             return wxS( "z_clearance" );
                 case kiapi::board::CRCT_ASSERTION:               return wxS( "assertion" );
                 case kiapi::board::CRCT_CONNECTION_WIDTH:        return wxS( "connection_width" );
                 case kiapi::board::CRCT_TRACK_ANGLE:             return wxS( "track_angle" );

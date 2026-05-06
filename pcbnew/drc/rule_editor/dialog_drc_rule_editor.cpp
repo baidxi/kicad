@@ -625,6 +625,8 @@ std::vector<RULE_TREE_NODE> DIALOG_DRC_RULE_EDITOR::buildElectricalRuleTreeNodes
                                              PHYSICAL_CLEARANCE ) );
     result.push_back( buildRuleTreeNodeData( "Creepage distance", DRC_RULE_EDITOR_ITEM_TYPE::CONSTRAINT, lastParentId,
                                              CREEPAGE_DISTANCE ) );
+    result.push_back(
+            buildRuleTreeNodeData( "Z clearance", DRC_RULE_EDITOR_ITEM_TYPE::CONSTRAINT, lastParentId, Z_CLEARANCE ) );
 
     result.push_back( buildRuleTreeNodeData( "Minimum connection width", CONSTRAINT, aParentId,
                                              MINIMUM_CONNECTION_WIDTH ) );
