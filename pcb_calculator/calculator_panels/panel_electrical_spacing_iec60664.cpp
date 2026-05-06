@@ -210,11 +210,10 @@ void PANEL_ELECTRICAL_SPACING_IEC60664::CalculateClearanceCreepage()
 
         wxString string;
 
-        // IEC 60664 §4.6.3
-        //     The dimensions for creepage distance cannot be specified where permanently conductive
-        // pollution is present (pollution degree 4). For temporarily conductive pollution (pollution
-        // degree 3), the surface of the insulation may be designed to avoid a continuous path of
-        // conductive pollution, e.g. by means of ribs and grooves (see 5.2.2.5 and 5.2.5).
+        // Creepage distance and minimum trench spacing cannot be determined
+        // in the presence of PD4 because the surface may be covered with permanent
+        // conductive pollution, and surface impregnation should be considered.
+        // See IEC 60664 §4.6.3 for further infomation
 
         if( groove >= 0 && pd < IEC60664::POLLUTION_DEGREE::PD4 )
             string << groove;
