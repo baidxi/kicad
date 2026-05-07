@@ -363,6 +363,16 @@ message SchematicSymbolVariant
   map<string, string> fields = 4;
 }
 
+// One entry of a symbol's pin_map: a symbol pin number resolves to one or more
+// footprint pad numbers.  Consumers translating between schematic pins and PCB
+// pads should consult this map.
+message SchematicSymbolPinMapEntry
+{
+  string symbol_pin = 1;
+  repeated string footprint_pads = 2;
+}
+
+
 message SchematicSymbol
 {
   kiapi.common.types.LibraryIdentifier id = 1;
@@ -384,6 +394,8 @@ message SchematicSymbol
 
   string keywords = 12;
   repeated string footprint_filters = 13;
+
+  repeated SchematicSymbolPinMapEntry pin_map = 14;
 }
 
 message SchematicSymbolTransform
