@@ -782,6 +782,14 @@ public:
     bool ValidatePinMap( const std::map<wxString, std::vector<wxString>>& aMap,
                          std::vector<wxString>*                           aErrors = nullptr ) const;
 
+    /// Resolve a symbol pin number to its footprint pad number(s).  Returns the mapped
+    /// targets if \a aSymPin is in m_pinMap; otherwise returns { aSymPin } (identity).
+    std::vector<wxString> MapPinToPads( const wxString& aSymPin ) const;
+
+    /// Resolve a footprint pad number back to its symbol pin number.  Returns the source
+    /// pin if any entry's targets contain \a aPad; otherwise returns \a aPad (identity).
+    wxString MapPadToPin( const wxString& aPad ) const;
+
     /**
      * @return true if the symbol has multiple units per symbol.
      * When true, the reference has a sub reference to identify symbol.

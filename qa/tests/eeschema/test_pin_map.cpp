@@ -311,4 +311,64 @@ BOOST_AUTO_TEST_CASE( LoadDropsCollidingMap )
 }
 
 
+BOOST_AUTO_TEST_CASE( MapPinToPadsForward )
+{
+    wxString libPath = GetTempLibraryPath();
+    WriteFile( libPath, MakeLib() );
+
+    SCH_IO_KICAD_SEXPR_LIB_CACHE cache( libPath );
+    BOOST_REQUIRE_NO_THROW( cache.Load() );
+
+    auto* parent = cache.GetSymbolMap().at( wxS( "Parent" ) );
+    BOOST_REQUIRE( parent );
+
+    // Pin 1 mapped to single pad.
+    auto v1 = parent->MapPinToPads( wxS( "1" ) );
+    BOOST_REQUIRE_EQUAL( v1.size(), 1u );
+    BOOST_CHECK_EQUAL( v1[0], wxS( "A1" ) );
+
+    // Pin 2 mapped to multiple pads.
+    auto v2 = parent->MapPinToPads( wxS( "2" ) );
+    BOOST_REQUIRE_EQUAL( v2.size(), 2u );
+    BOOST_CHECK_EQUAL( v2[0], wxS( "B1" ) );
+    BOOST_CHECK_EQUAL( v2[1], wxS( "B2" ) );
+
+    // Pin 3 not in map: identity.
+    auto v3 = parent->MapPinToPads( wxS( "3" ) );
+    BOOST_REQUIRE_EQUAL( v3.size(), 1u );
+    BOOST_CHECK_EQUAL( v3[0], wxS( "3" ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( MapPadToPinReverse )
+{
+    wxString libPath = GetTempLibraryPath();
+    WriteFile( libPath, MakeLib() );
+
+    SCH_IO_KICAD_SEXPR_LIB_CACHE cache( libPath );
+    BOOST_REQUIRE_NO_THROW( cache.Load() );
+
+    auto* parent = cache.GetSymbolMap().at( wxS( "Parent" ) );
+    BOOST_REQUIRE( parent );
+
+    BOOST_CHECK_EQUAL( parent->MapPadToPin( wxS( "A1" ) ), wxS( "1" ) );
+    BOOST_CHECK_EQUAL( parent->MapPadToPin( wxS( "B1" ) ), wxS( "2" ) );
+    BOOST_CHECK_EQUAL( parent->MapPadToPin( wxS( "B2" ) ), wxS( "2" ) );
+
+    // Pad not used as a target anywhere: identity.
+    BOOST_CHECK_EQUAL( parent->MapPadToPin( wxS( "Z9" ) ), wxS( "Z9" ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( MapHelpersIdentityWhenNoMap )
+{
+    LIB_SYMBOL bare( wxS( "Bare" ) );
+
+    BOOST_REQUIRE( bare.PinMap().empty() );
+    BOOST_CHECK_EQUAL( bare.MapPinToPads( wxS( "7" ) ).size(), 1u );
+    BOOST_CHECK_EQUAL( bare.MapPinToPads( wxS( "7" ) )[0], wxS( "7" ) );
+    BOOST_CHECK_EQUAL( bare.MapPadToPin( wxS( "Z9" ) ), wxS( "Z9" ) );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()

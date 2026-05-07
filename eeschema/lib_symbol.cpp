@@ -2530,6 +2530,32 @@ std::optional<const std::set<wxString>> LIB_SYMBOL::GetJumperPinGroup( const wxS
 }
 
 
+std::vector<wxString> LIB_SYMBOL::MapPinToPads( const wxString& aSymPin ) const
+{
+    auto it = m_pinMap.find( aSymPin );
+
+    if( it != m_pinMap.end() && !it->second.empty() )
+        return it->second;
+
+    return { aSymPin };
+}
+
+
+wxString LIB_SYMBOL::MapPadToPin( const wxString& aPad ) const
+{
+    for( const auto& [src, targets] : m_pinMap )
+    {
+        for( const wxString& t : targets )
+        {
+            if( t == aPad )
+                return src;
+        }
+    }
+
+    return aPad;
+}
+
+
 bool LIB_SYMBOL::ValidatePinMap( const std::map<wxString, std::vector<wxString>>& aMap,
                                  std::vector<wxString>*                           aErrors ) const
 {
