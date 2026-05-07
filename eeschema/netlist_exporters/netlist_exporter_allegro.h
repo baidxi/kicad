@@ -133,7 +133,7 @@ private:
      * @param aPin
      * @return wxString
      */
-    wxString formatPin( const SCH_PIN& aPin );
+    wxString formatPin( const SCH_PIN& aPin, const wxString& aPadNumber );
 
     /**
      * Generate the definition of a function in Telesis format, which consists of

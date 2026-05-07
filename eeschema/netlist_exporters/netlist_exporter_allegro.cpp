@@ -581,9 +581,9 @@ wxString NETLIST_EXPORTER_ALLEGRO::formatText( wxString aString )
 }
 
 
-wxString NETLIST_EXPORTER_ALLEGRO::formatPin( const SCH_PIN& aPin )
+wxString NETLIST_EXPORTER_ALLEGRO::formatPin( const SCH_PIN& aPin, const wxString& aPadNumber )
 {
-    wxString   pinName4Telesis = aPin.GetName() + wxString( "__" ) + aPin.GetNumber();
+    wxString   pinName4Telesis = aPin.GetName() + wxString( "__" ) + aPadNumber;
     std::regex reg( "[^A-Za-z0-9_+?/-]" );
     return wxString( std::regex_replace( std::string( pinName4Telesis ), reg, "?" ) );
 }
@@ -592,12 +592,23 @@ wxString NETLIST_EXPORTER_ALLEGRO::formatPin( const SCH_PIN& aPin )
 wxString NETLIST_EXPORTER_ALLEGRO::formatFunction( wxString aName, std::vector<SCH_PIN*> aPinList )
 {
     aName.MakeUpper();
-    std::list<wxString> pinNameList;
 
     std::stable_sort( aPinList.begin(), aPinList.end(), NETLIST_EXPORTER_ALLEGRO::CompareLibPin );
 
+    // PINORDER and FUNCTION must stay paired: one entry per footprint pad in both
+    // sections.  Stacked notation and pin_map both expand a single symbol pin to
+    // multiple pads.
+    std::list<wxString> pinNameList;
+    std::list<wxString> padList;
+
     for( auto pin : aPinList )
-        pinNameList.push_back( formatPin( *pin ) );
+    {
+        for( const wxString& pad : pin->GetFootprintPadNumbers() )
+        {
+            pinNameList.push_back( formatPin( *pin, pad ) );
+            padList.push_back( pad );
+        }
+    }
 
     wxString out_str = "";
     wxString str;
@@ -614,9 +625,9 @@ wxString NETLIST_EXPORTER_ALLEGRO::formatFunction( wxString aName, std::vector<S
     str.Printf( wxT( "FUNCTION %s %s " ), TO_UTF8( aName ), TO_UTF8( aName ) );
     out_str += str;
 
-    for( auto pin : aPinList )
+    for( const wxString& pad : padList )
     {
-        str.Printf( ",\n\t%s", TO_UTF8( pin->GetNumber() ) );
+        str.Printf( ",\n\t%s", TO_UTF8( pad ) );
         out_str += str;
     }
 
@@ -748,8 +759,11 @@ void NETLIST_EXPORTER_ALLEGRO::toAllegroNets()
         for( const NET_NODE& netNode : netNodes )
         {
             wxString refText = netNode.m_Pin->GetParentSymbol()->GetRef( &netNode.m_Sheet );
-            wxString pinText = netNode.m_Pin->GetShownNumber();
-            nets.push_back( refText + wxString( "." ) + pinText );
+
+            // One entry per footprint pad: stacked notation and pin_map both
+            // expand a single symbol pin into multiple targets.
+            for( const wxString& pinText : netNode.m_Pin->GetFootprintPadNumbers() )
+                nets.push_back( refText + wxString( "." ) + pinText );
         }
 
         fmt::print( m_f, "{}", fmt::join( nets, ",\n\t" ) );

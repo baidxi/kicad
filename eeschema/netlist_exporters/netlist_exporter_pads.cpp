@@ -203,13 +203,15 @@ bool NETLIST_EXPORTER_PADS::writeListOfNets( FILE* f )
                 SCH_SHEET_PATH sheet = pair.second;
 
                 wxString refText = pin->GetParentSymbol()->GetRef( &sheet );
-                wxString pinText = pin->GetShownNumber();
 
                 // Skip power symbols and virtual symbols
                 if( refText[0] == wxChar( '#' ) )
                     continue;
 
-                netConns.push_back( wxString::Format( "%s.%.4s", refText, pinText ) );
+                // One connection per footprint pad: stacked notation and pin_map
+                // both expand a single symbol pin into multiple targets.
+                for( const wxString& pinText : pin->GetFootprintPadNumbers() )
+                    netConns.push_back( wxString::Format( "%s.%.4s", refText, pinText ) );
             }
 
             // format it such that there are 6 net connections per line
