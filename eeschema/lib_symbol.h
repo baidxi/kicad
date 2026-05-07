@@ -765,6 +765,18 @@ public:
     std::optional<const std::set<wxString>> GetJumperPinGroup( const wxString& aPinNumber ) const;
 
     /**
+     * Pin remap, applied at consumption time (netlist export, cross-probe).  Keys are
+     * symbol pin numbers as defined on the symbol; values are the footprint pad number(s)
+     * the pin should resolve to.  Multiple targets express a single symbol pin bonded to
+     * multiple footprint pads.  Pins not present in the map resolve to themselves.
+     * Storing this map never mutates the underlying SCH_PIN numbers.
+     */
+    std::map<wxString, std::vector<wxString>>&       PinMap() { return m_pinMap; }
+    const std::map<wxString, std::vector<wxString>>& PinMap() const { return m_pinMap; }
+
+    void SetPinMap( const std::map<wxString, std::vector<wxString>>& aMap ) { m_pinMap = aMap; }
+
+    /**
      * @return true if the symbol has multiple units per symbol.
      * When true, the reference has a sub reference to identify symbol.
      */
@@ -909,6 +921,11 @@ private:
     /// A list of jumper pin groups, each of which is a set of pin numbers that should be jumpered
     /// together (treated as internally connected for the purposes of connectivity)
     std::vector<std::set<wxString> > m_jumperPinGroups;
+
+    /// Pin remap consulted by the netlist exporter and cross-probe code.  Symbol pin
+    /// numbers map to one or more footprint pad numbers; pins missing from the map
+    /// resolve to themselves.  Never mutates the underlying SCH_PIN numbers.
+    std::map<wxString, std::vector<wxString>> m_pinMap;
 
     /// Flag that this symbol should automatically treat sets of two or more pins with the same
     /// number as jumpered pin groups

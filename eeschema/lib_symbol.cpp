@@ -278,6 +278,7 @@ LIB_SYMBOL::LIB_SYMBOL( const LIB_SYMBOL& aSymbol, LEGACY_SYMBOL_LIB* aLibrary, 
 
     m_jumperPinGroups = aSymbol.m_jumperPinGroups;
     m_duplicatePinNumbersAreJumpers = aSymbol.m_duplicatePinNumbersAreJumpers;
+    m_pinMap = aSymbol.m_pinMap;
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();
@@ -331,6 +332,7 @@ const LIB_SYMBOL& LIB_SYMBOL::operator=( const LIB_SYMBOL& aSymbol )
 
     m_jumperPinGroups = aSymbol.m_jumperPinGroups;
     m_duplicatePinNumbersAreJumpers = aSymbol.m_duplicatePinNumbersAreJumpers;
+    m_pinMap = aSymbol.m_pinMap;
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();

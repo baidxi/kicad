@@ -472,6 +472,8 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
             aFormatter.Print( ")" );
         }
 
+        savePinMap( aSymbol, aFormatter );
+
         // TODO: add atomic token here.
 
         // TODO: add required token here."
@@ -560,11 +562,40 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
             saveField( field, aFormatter );
 
         saveDcmInfoAsFields( aSymbol, aFormatter );
+        savePinMap( aSymbol, aFormatter );
 
         KICAD_FORMAT::FormatBool( &aFormatter, "embedded_fonts", aSymbol->GetAreFontsEmbedded() );
 
         if( !aSymbol->EmbeddedFileMap().empty() )
             aSymbol->WriteEmbeddedFiles( aFormatter, aIncludeData );
+    }
+
+    aFormatter.Print( ")" );
+}
+
+
+void SCH_IO_KICAD_SEXPR_LIB_CACHE::savePinMap( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter )
+{
+    wxCHECK_RET( aSymbol, "Invalid LIB_SYMBOL pointer." );
+
+    const std::map<wxString, std::vector<wxString>>& pinMap = aSymbol->PinMap();
+
+    if( pinMap.empty() )
+        return;
+
+    aFormatter.Print( "(pin_map" );
+
+    for( const auto& [symPin, targets] : pinMap )
+    {
+        if( targets.empty() )
+            continue;
+
+        aFormatter.Print( "(entry %s", aFormatter.Quotew( symPin ).c_str() );
+
+        for( const wxString& pad : targets )
+            aFormatter.Print( " %s", aFormatter.Quotew( pad ).c_str() );
+
+        aFormatter.Print( ")" );
     }
 
     aFormatter.Print( ")" );

@@ -455,6 +455,49 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
             break;
         }
 
+        case T_pin_map:
+        {
+            /**
+             * (pin_map
+             *   (entry "<sym-pin>" "<pad>" [ "<pad>" ... ])
+             *   ...
+             * )
+             */
+            std::map<wxString, std::vector<wxString>>& pinMap = symbol->PinMap();
+
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                if( token != T_LEFT )
+                    Expecting( T_LEFT );
+
+                token = NextTok();
+
+                if( token != T_entry )
+                    Expecting( "entry" );
+
+                token = NextTok();
+
+                if( !IsSymbol( token ) && token != T_NUMBER )
+                    Expecting( "symbol pin number" );
+
+                wxString              symPin = FromUTF8();
+                std::vector<wxString> targets;
+
+                for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                {
+                    if( !IsSymbol( token ) && token != T_NUMBER )
+                        Expecting( "footprint pad number" );
+
+                    targets.emplace_back( FromUTF8() );
+                }
+
+                if( !symPin.empty() && !targets.empty() )
+                    pinMap[symPin] = std::move( targets );
+            }
+
+            break;
+        }
+
         case T_property:
             parseProperty( symbol );
             break;
