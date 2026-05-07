@@ -372,3 +372,120 @@ BOOST_AUTO_TEST_CASE( MapHelpersIdentityWhenNoMap )
 
 
 BOOST_AUTO_TEST_SUITE_END()
+
+
+// ---------------------------------------------------------------------------
+// XML netlist exporter integration: confirms pin_map translation reaches the
+// emitted <node pin="..."> entries that pcbnew consumes.
+// ---------------------------------------------------------------------------
+
+#include <schematic.h>
+#include <settings/settings_manager.h>
+#include <netlist_exporter_xml.h>
+#include <schematic_utils/schematic_file_util.h>
+
+#include <wx/xml/xml.h>
+
+
+struct PIN_MAP_NETLIST_FIXTURE
+{
+    SETTINGS_MANAGER           m_settingsManager;
+    std::unique_ptr<SCHEMATIC> m_schematic;
+};
+
+
+static std::vector<wxXmlNode*> netlist_find_children( wxXmlNode* aParent, const wxString& aName )
+{
+    std::vector<wxXmlNode*> out;
+
+    for( wxXmlNode* child = aParent->GetChildren(); child; child = child->GetNext() )
+    {
+        if( child->GetName() == aName )
+            out.push_back( child );
+    }
+
+    return out;
+}
+
+
+static wxXmlNode* netlist_find_child( wxXmlNode* aParent, const wxString& aName )
+{
+    for( wxXmlNode* child = aParent->GetChildren(); child; child = child->GetNext() )
+    {
+        if( child->GetName() == aName )
+            return child;
+    }
+
+    return nullptr;
+}
+
+
+BOOST_FIXTURE_TEST_CASE( NetlistExporterXML_PinMapTranslatesNodes, PIN_MAP_NETLIST_FIXTURE )
+{
+    KI_TEST::LoadSchematic( m_settingsManager, wxT( "pin_map_netlist" ), m_schematic );
+
+    wxFileName netFile = m_schematic->Project().GetProjectFullName();
+    netFile.SetName( netFile.GetName() + wxT( "_pin_map_netlist_test" ) );
+    netFile.SetExt( wxT( "xml" ) );
+
+    if( wxFileExists( netFile.GetFullPath() ) )
+        wxRemoveFile( netFile.GetFullPath() );
+
+    WX_STRING_REPORTER                    reporter;
+    std::unique_ptr<NETLIST_EXPORTER_XML> exporter = std::make_unique<NETLIST_EXPORTER_XML>( m_schematic.get() );
+
+    bool success = exporter->WriteNetlist( netFile.GetFullPath(), 0, reporter );
+    BOOST_REQUIRE( success && reporter.GetMessages().IsEmpty() );
+
+    wxXmlDocument xdoc;
+    BOOST_REQUIRE( xdoc.Load( netFile.GetFullPath() ) );
+
+    wxXmlNode* root = xdoc.GetRoot();
+    BOOST_REQUIRE( root );
+
+    wxXmlNode* nets = netlist_find_child( root, wxT( "nets" ) );
+    BOOST_REQUIRE( nets );
+
+    // Collect U1's emitted pad numbers per net.
+    std::map<wxString, std::set<wxString>> u1ByNet;
+
+    for( wxXmlNode* net : netlist_find_children( nets, wxT( "net" ) ) )
+    {
+        wxString netName = net->GetAttribute( wxT( "name" ), wxEmptyString );
+
+        for( wxXmlNode* node : netlist_find_children( net, wxT( "node" ) ) )
+        {
+            if( node->GetAttribute( wxT( "ref" ), wxEmptyString ) == wxT( "U1" ) )
+            {
+                u1ByNet[netName].insert( node->GetAttribute( wxT( "pin" ), wxEmptyString ) );
+            }
+        }
+    }
+
+    // Net names from connection_graph carry the prefix /; locate by suffix match.
+    auto netByLabel = [&]( const wxString& aLabel ) -> std::set<wxString>
+    {
+        for( const auto& [name, pads] : u1ByNet )
+        {
+            if( name.EndsWith( aLabel ) )
+                return pads;
+        }
+
+        return {};
+    };
+
+    // The schematic places three labels on three wires.  Schematic-side Y is inverted
+    // relative to the lib symbol's Y, so the bottom-most label (NET_A in the fixture)
+    // catches pin 1, NET_B catches pin 2, and NET_C catches pin 3.
+    //
+    // Pin 1 -> A1 (single mapped pad).
+    BOOST_CHECK( netByLabel( wxT( "NET_A" ) ) == std::set<wxString>{ wxS( "A1" ) } );
+
+    // Pin 2 -> [B1, B2] (multi-pad: emits two <node> entries).
+    BOOST_CHECK( netByLabel( wxT( "NET_B" ) ) == ( std::set<wxString>{ wxS( "B1" ), wxS( "B2" ) } ) );
+
+    // Pin 3 not in pin_map -> identity ("3").
+    BOOST_CHECK( netByLabel( wxT( "NET_C" ) ) == std::set<wxString>{ wxS( "3" ) } );
+
+    wxRemoveFile( netFile.GetFullPath() );
+}
