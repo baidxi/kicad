@@ -26,6 +26,8 @@
 #include <wx/tokenzr.h>
 
 #include <boost/algorithm/string.hpp>
+#include <json_common.h>
+#include <pin_map.h>
 
 #include <libraries/symbol_library_adapter.h>
 #include <database/database_connection.h>
@@ -494,8 +496,51 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
     }
 
     LIB_ID libId = symbol->GetLibId();
-    libId.SetSubLibraryName( aTable.name );;
+    libId.SetSubLibraryName( aTable.name );
     symbol->SetLibId( libId );
+
+    if( !aTable.pins_col.empty() && aRow.count( aTable.pins_col ) )
+    {
+        try
+        {
+            std::string jsonStr = std::any_cast<std::string>( aRow.at( aTable.pins_col ) );
+
+            if( !jsonStr.empty() )
+            {
+                nlohmann::json                            pinsJson = nlohmann::json::parse( jsonStr );
+                std::map<wxString, std::vector<wxString>> parsed;
+
+                if( pinsJson.is_array() )
+                    parsed = ParsePinMapJson( pinsJson );
+                else if( pinsJson.is_object() && pinsJson.contains( "pin_map" ) && pinsJson["pin_map"].is_array() )
+                    parsed = ParsePinMapJson( pinsJson["pin_map"] );
+
+                if( !parsed.empty() )
+                {
+                    std::vector<wxString> errors;
+
+                    if( symbol->ValidatePinMap( parsed, &errors ) )
+                    {
+                        symbol->SetPinMap( parsed );
+                    }
+                    else
+                    {
+                        wxString joined;
+
+                        for( const wxString& e : errors )
+                            joined += ( joined.IsEmpty() ? wxString() : wxT( "\n" ) ) + e;
+
+                        wxLogWarning( _( "Database library symbol '%s': dropping pin_map (%s)" ), aSymbolName, joined );
+                    }
+                }
+            }
+        }
+        catch( const std::exception& e )
+        {
+            wxLogWarning( _( "Database library symbol '%s': malformed pin_map: %s" ), aSymbolName, e.what() );
+        }
+    }
+
     wxArrayString footprintsList;
 
     if( aRow.count( aTable.footprints_col ) )

@@ -400,6 +400,25 @@ LIB_SYMBOL* SCH_IO_HTTP_LIB::loadSymbolFromPart( const wxString& aLibraryPath,
         symbol->SetLibId( libId );
     }
 
+    if( !aPart.pin_map.empty() )
+    {
+        std::vector<wxString> errors;
+
+        if( symbol->ValidatePinMap( aPart.pin_map, &errors ) )
+        {
+            symbol->SetPinMap( aPart.pin_map );
+        }
+        else
+        {
+            wxString joined;
+
+            for( const wxString& e : errors )
+                joined += ( joined.IsEmpty() ? wxString() : wxT( "\n" ) ) + e;
+
+            wxLogWarning( _( "HTTP library symbol '%s': dropping pin_map (%s)" ), aSymbolName, joined );
+        }
+    }
+
     symbol->SetExcludedFromBOM( aPart.exclude_from_bom );
     symbol->SetExcludedFromBoard( aPart.exclude_from_board );
     symbol->SetExcludedFromSim( aPart.exclude_from_sim );

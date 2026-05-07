@@ -22,6 +22,9 @@
 
 #include <settings/json_settings.h>
 #include <ctime>
+#include <map>
+#include <vector>
+#include <wx/string.h>
 
 
 enum class HTTP_LIB_SOURCE_TYPE
@@ -59,6 +62,11 @@ struct HTTP_LIB_PART
     std::vector<std::string> fp_filters;
 
     std::vector<std::pair<std::string, std::tuple<std::string, bool>>> fields;
+
+    /// Optional symbol-pin to footprint-pad map fetched from the server.  Empty for
+    /// parts that don't ship a pin_map; consumed by SCH_IO_HTTP_LIB::loadSymbolFromPart
+    /// via LIB_SYMBOL::SetPinMap.
+    std::map<wxString, std::vector<wxString>> pin_map;
 };
 
 
