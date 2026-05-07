@@ -2529,6 +2529,48 @@ std::optional<const std::set<wxString>> LIB_SYMBOL::GetJumperPinGroup( const wxS
     return std::nullopt;
 }
 
+
+bool LIB_SYMBOL::ValidatePinMap( const std::map<wxString, std::vector<wxString>>& aMap,
+                                 std::vector<wxString>*                           aErrors ) const
+{
+    if( aMap.empty() )
+        return true;
+
+    bool                         ok = true;
+    std::map<wxString, wxString> seen;
+
+    for( const auto& [src, targets] : aMap )
+    {
+        // Within-entry duplicates are allowed (one pin bonded to one pad twice is harmless);
+        // collapse them so they don't trigger a false collision against themselves.
+        std::set<wxString> uniqTargets( targets.begin(), targets.end() );
+
+        for( const wxString& pad : uniqTargets )
+        {
+            auto it = seen.find( pad );
+
+            if( it != seen.end() && it->second != src )
+            {
+                ok = false;
+
+                if( aErrors )
+                    aErrors->push_back( wxString::Format( _( "Symbol '%s' pin_map: pad '%s' is "
+                                                             "targeted by both pin '%s' and pin "
+                                                             "'%s'." ),
+                                                          m_name, pad, it->second, src ) );
+                else
+                    return false;
+            }
+            else
+            {
+                seen[pad] = src;
+            }
+        }
+    }
+
+    return ok;
+}
+
 static struct LIB_SYMBOL_DESC
 {
     LIB_SYMBOL_DESC()

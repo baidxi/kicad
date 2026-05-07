@@ -776,6 +776,12 @@ public:
 
     void SetPinMap( const std::map<wxString, std::vector<wxString>>& aMap ) { m_pinMap = aMap; }
 
+    /// Validate \a aMap: no fp pad may be the target of more than one entry.  Stacked
+    /// notation within a single entry's vector is allowed (one symbol pin bonded to many
+    /// pads).  Empty maps are always valid.  Errors, if any, are appended to \a aErrors.
+    bool ValidatePinMap( const std::map<wxString, std::vector<wxString>>& aMap,
+                         std::vector<wxString>*                           aErrors = nullptr ) const;
+
     /**
      * @return true if the symbol has multiple units per symbol.
      * When true, the reference has a sub reference to identify symbol.

@@ -214,4 +214,101 @@ BOOST_AUTO_TEST_CASE( PinMapRoundTripsThroughSave )
 }
 
 
+BOOST_AUTO_TEST_CASE( ValidateRejectsTargetCollision )
+{
+    wxString libPath = GetTempLibraryPath();
+    WriteFile( libPath, MakeLib() );
+
+    SCH_IO_KICAD_SEXPR_LIB_CACHE cache( libPath );
+    BOOST_REQUIRE_NO_THROW( cache.Load() );
+
+    auto* parent = cache.GetSymbolMap().at( wxS( "Parent" ) );
+    BOOST_REQUIRE( parent );
+
+    std::map<wxString, std::vector<wxString>> colliding = {
+        { wxS( "1" ), { wxS( "A1" ) } },
+        { wxS( "2" ), { wxS( "A1" ) } }, // collision: same target as "1"
+    };
+
+    std::vector<wxString> errors;
+    BOOST_CHECK( !parent->ValidatePinMap( colliding, &errors ) );
+
+    bool mentionsCollision = false;
+
+    for( const wxString& e : errors )
+        if( e.Contains( wxS( "A1" ) ) )
+            mentionsCollision = true;
+
+    BOOST_CHECK( mentionsCollision );
+}
+
+
+BOOST_AUTO_TEST_CASE( ValidateAllowsWithinEntryDuplicates )
+{
+    // One symbol pin bonded to the same pad multiple times is harmless and must not
+    // count as a collision against itself.
+    wxString libPath = GetTempLibraryPath();
+    WriteFile( libPath, MakeLib() );
+
+    SCH_IO_KICAD_SEXPR_LIB_CACHE cache( libPath );
+    BOOST_REQUIRE_NO_THROW( cache.Load() );
+
+    auto* parent = cache.GetSymbolMap().at( wxS( "Parent" ) );
+    BOOST_REQUIRE( parent );
+
+    std::map<wxString, std::vector<wxString>> ok = {
+        { wxS( "1" ), { wxS( "A1" ), wxS( "A1" ) } },
+        { wxS( "2" ), { wxS( "B1" ), wxS( "B2" ) } },
+    };
+
+    std::vector<wxString> errors;
+    BOOST_CHECK( parent->ValidatePinMap( ok, &errors ) );
+    BOOST_CHECK( errors.empty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( LoadDropsCollidingMap )
+{
+    // Library with a colliding pin_map.  Load succeeds but the map is dropped.
+    wxString    libPath = GetTempLibraryPath();
+    std::string lib = "(kicad_symbol_lib (version 20260507) (generator \"qa_test\")\n"
+                      "  (generator_version \"9.0\")\n"
+                      "  (symbol \"Parent\"\n"
+                      "    (property \"Reference\" \"U\" (at 0 0 0)\n"
+                      "      (effects (font (size 1.27 1.27))))\n"
+                      "    (property \"Value\" \"Parent\" (at 0 -2.54 0)\n"
+                      "      (effects (font (size 1.27 1.27))))\n"
+                      "    (property \"Footprint\" \"\" (at 0 0 0)\n"
+                      "      (effects (font (size 1.27 1.27)) (hide yes)))\n"
+                      "    (property \"Datasheet\" \"\" (at 0 0 0)\n"
+                      "      (effects (font (size 1.27 1.27)) (hide yes)))\n"
+                      "    (property \"Description\" \"\" (at 0 0 0)\n"
+                      "      (effects (font (size 1.27 1.27)) (hide yes)))\n"
+                      "    (pin_map\n"
+                      "      (entry \"1\" \"A1\")\n"
+                      "      (entry \"2\" \"A1\")\n" // collision
+                      "    )\n"
+                      "    (symbol \"Parent_0_1\"\n"
+                      "      (pin passive line (at -5.08 2.54 0) (length 2.54)\n"
+                      "        (name \"P1\" (effects (font (size 1.27 1.27))))\n"
+                      "        (number \"1\" (effects (font (size 1.27 1.27)))))\n"
+                      "      (pin passive line (at -5.08 0 0) (length 2.54)\n"
+                      "        (name \"P2\" (effects (font (size 1.27 1.27))))\n"
+                      "        (number \"2\" (effects (font (size 1.27 1.27)))))\n"
+                      "    )\n"
+                      "    (embedded_fonts no)\n"
+                      "  )\n"
+                      ")\n";
+
+    WriteFile( libPath, lib );
+
+    SCH_IO_KICAD_SEXPR_LIB_CACHE cache( libPath );
+    BOOST_REQUIRE_NO_THROW( cache.Load() );
+
+    auto* parent = cache.GetSymbolMap().at( wxS( "Parent" ) );
+    BOOST_REQUIRE( parent );
+    BOOST_CHECK( parent->PinMap().empty() );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
