@@ -27,6 +27,7 @@
 
 #include <lset.h>
 #include <pcb_group.h>
+#include <geometry/shape_poly_set.h>
 
 class EDIT_POINTS;
 class BOARD;
@@ -34,6 +35,8 @@ class BOARD_ITEM;
 class PCB_BASE_EDIT_FRAME;
 class GENERATOR_TOOL;
 class STATUS_MIN_MAX_POPUP;
+class ACTION_MENU;
+class TOOL_INTERACTIVE;
 
 
 class PCB_GENERATOR : public PCB_GROUP
@@ -55,6 +58,22 @@ public:
     virtual void EditCancel( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT* aCommit ) = 0;
 
     virtual void Remove( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT* aCommit ) = 0;
+
+    /**
+     * @return true if individual children of this generator can be selected, picked, and
+     *         right-clicked independently of the parent.  Default: false (the standard
+     *         group-promotion behavior — clicks on a child select the parent generator).
+     */
+    virtual bool ChildrenAreIndividuallySelectable() const { return false; }
+
+    /**
+     * Build (or return a cached) context menu for a selection consisting of children of
+     * *this* generator.  Implementations should own the returned menu's lifetime.
+     *
+     * @return a non-owning ACTION_MENU* to display, or nullptr to fall through to the
+     *         standard selection menu.
+     */
+    virtual ACTION_MENU* GetChildContextMenu( TOOL_INTERACTIVE* aTool ) const { return nullptr; }
 
 #define STATUS_ITEMS_ONLY true
 
@@ -125,6 +144,47 @@ protected:
     friend class GENERATORS_MGR;
 
     void baseMirror( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection );
+};
+
+class PCB_GENERATOR_POLY : public PCB_GENERATOR
+{
+public:
+    PCB_GENERATOR_POLY( BOARD_ITEM* aParent, PCB_LAYER_ID aLayer ) :
+            PCB_GENERATOR( aParent, aLayer )
+    {
+    }
+
+    SHAPE_POLY_SET&       Outline() { return m_outline; }
+    const SHAPE_POLY_SET& Outline() const { return m_outline; }
+
+    void SetOutline( SHAPE_POLY_SET& aOutline ) { m_outline = aOutline; }
+
+    void Move( const VECTOR2I& aMoveVector ) override
+    {
+        m_outline.Move( aMoveVector );
+        PCB_GENERATOR::Move( aMoveVector );
+    }
+
+    void Rotate( const VECTOR2I& aRotCentre, const EDA_ANGLE& aAngle ) override
+    {
+        m_outline.Rotate( aAngle, aRotCentre );
+        PCB_GENERATOR::Rotate( aRotCentre, aAngle );
+    }
+
+    void Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection ) override
+    {
+        m_outline.Mirror( aCentre, aFlipDirection );
+        PCB_GENERATOR::Flip( aCentre, aFlipDirection );
+    }
+
+    void Mirror( const VECTOR2I& aCentre, FLIP_DIRECTION aMirrorDirection ) override
+    {
+        m_outline.Mirror( aCentre, aMirrorDirection );
+        PCB_GENERATOR::Mirror( aCentre, aMirrorDirection );
+    }
+
+protected:
+    SHAPE_POLY_SET m_outline;
 };
 
 #endif /* GENERATOR_H_ */

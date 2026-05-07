@@ -295,6 +295,8 @@ set( PCBNEW_MICROWAVE_SRCS
 
 set( PCBNEW_GENERATORS_SRCS
     generators/pcb_tuning_pattern.cpp
+    generators/pcb_via_stitch.cpp
+    generators/via_stitch_tool.cpp
     )
 
 set( PCBNEW_DRC_SRCS

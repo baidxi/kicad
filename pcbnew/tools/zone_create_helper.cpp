@@ -19,6 +19,7 @@
 
 #include <core/spinlock.h>
 #include <connectivity/connectivity_data.h>
+#include <tools/generator_tool.h>
 #include <tools/zone_create_helper.h>
 #include <tool/tool_manager.h>
 #include <zone.h>
@@ -30,6 +31,7 @@
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
 #include <view/view_controls.h>
+#include <generators/pcb_via_stitch.h>
 
 ZONE_CREATE_HELPER::ZONE_CREATE_HELPER( DRAWING_TOOL& aTool, PARAMS& aParams ):
         m_tool( aTool ),
@@ -105,7 +107,7 @@ std::unique_ptr<ZONE> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
         zoneInfo.SetPadConnection( ZONE_CONNECTION::NONE );
     }
 
-    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON
+    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON && m_params.m_mode != ZONE_MODE::STITCH
             && ( zoneInfo.m_Layers & LSET::AllCuMask() ).any() )
     {
         setUniquePriority( zoneInfo );
@@ -122,7 +124,7 @@ std::unique_ptr<ZONE> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
             zoneInfo.m_Netcode = bci->GetNetCode();
     }
 
-    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON && !m_params.m_thieving )
+    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON && m_params.m_mode != ZONE_MODE::STITCH && !m_params.m_thieving )
     {
         // When drawing a new zone, skip the pre-draw dialog for thieving copper and
         // graphic polygons as it is more disruptive than useful
@@ -246,6 +248,26 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE> aZone )
             commit.Push( _( "Draw Zone" ) );
 
             m_tool.GetManager()->RunAction<EDA_ITEM*>( ACTIONS::selectItem, aZone.release() );
+            break;
+        }
+
+        case ZONE_MODE::STITCH:
+        {
+            BOARD_COMMIT commit( &m_tool );
+            BOARD*       board = m_tool.getModel<BOARD>();
+
+            PCB_VIA_STITCH* stitcher = new PCB_VIA_STITCH();
+
+            GENERATOR_TOOL* generatorTool = m_tool.GetManager()->GetTool<GENERATOR_TOOL>();
+            stitcher->EditStart( generatorTool, board, &commit );
+            stitcher->SetOutline( *aZone->Outline() );
+            stitcher->Update( generatorTool, board, &commit );
+            stitcher->EditFinish( generatorTool, board, &commit );
+
+            commit.Add( stitcher );
+            commit.Push( _( "Create Via Stitch" ) );
+
+            m_tool.GetManager()->RunAction<EDA_ITEM*>( PCB_ACTIONS::selectItem, stitcher );
             break;
         }
 
