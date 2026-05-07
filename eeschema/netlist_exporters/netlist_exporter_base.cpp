@@ -176,13 +176,12 @@ std::vector<PIN_INFO> NETLIST_EXPORTER_BASE::CreatePinList( SCH_SYMBOL* aSymbol,
                         continue;
                 }
 
-                bool                  valid;
-                std::vector<wxString> numbers = pin->GetStackedPinNumbers( &valid );
+                std::vector<wxString> numbers = pin->GetFootprintPadNumbers();
                 wxString              baseName = pin->GetShownName();
                 wxLogTrace( traceStackedPins,
                             wxString::Format( "CreatePinList(single): ref='%s' pinNameBase='%s' shownNum='%s' net='%s' "
-                                              "valid=%d expand=%zu",
-                                              ref, baseName, pin->GetShownNumber(), netName, valid, numbers.size() ) );
+                                              "expand=%zu",
+                                              ref, baseName, pin->GetShownNumber(), netName, numbers.size() ) );
 
                 for( const wxString& num : numbers )
                 {
@@ -298,12 +297,13 @@ void NETLIST_EXPORTER_BASE::findAllUnitsOfSymbol( SCH_SYMBOL* aSchSymbol,
                             continue;
                     }
 
-                    bool                        valid;
-                    std::vector<wxString> numbers = pin->GetStackedPinNumbers( &valid );
-                    wxString                     baseName = pin->GetShownName();
-                    wxLogTrace( traceStackedPins,
-                               wxString::Format( "CreatePinList(multi): ref='%s' pinNameBase='%s' shownNum='%s' net='%s' valid=%d expand=%zu",
-                                                 ref2, baseName, pin->GetShownNumber(), netName, valid, numbers.size() ) );
+                    std::vector<wxString> numbers = pin->GetFootprintPadNumbers();
+                    wxString              baseName = pin->GetShownName();
+                    wxLogTrace(
+                            traceStackedPins,
+                            wxString::Format( "CreatePinList(multi): ref='%s' pinNameBase='%s' shownNum='%s' net='%s' "
+                                              "expand=%zu",
+                                              ref2, baseName, pin->GetShownNumber(), netName, numbers.size() ) );
 
                     for( const wxString& num : numbers )
                     {

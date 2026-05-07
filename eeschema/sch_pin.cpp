@@ -722,6 +722,36 @@ wxString SCH_PIN::GetEffectivePadNumber() const
 }
 
 
+std::vector<wxString> SCH_PIN::GetFootprintPadNumbers() const
+{
+    std::vector<wxString> stacked = GetStackedPinNumbers();
+
+    // Locate the parent LIB_SYMBOL so we can consult its pin_map.
+    const LIB_SYMBOL* libSym = nullptr;
+
+    if( const SCH_SYMBOL* schSym = dynamic_cast<const SCH_SYMBOL*>( GetParentSymbol() ) )
+        libSym = schSym->GetLibSymbolRef().get();
+    else if( const LIB_SYMBOL* directLib = dynamic_cast<const LIB_SYMBOL*>( GetParentSymbol() ) )
+        libSym = directLib;
+
+    if( !libSym || libSym->PinMap().empty() )
+        return stacked;
+
+    std::vector<wxString> mapped;
+    mapped.reserve( stacked.size() );
+
+    for( const wxString& num : stacked )
+    {
+        std::vector<wxString> pads = libSym->MapPinToPads( num );
+
+        for( const wxString& pad : pads )
+            mapped.push_back( pad );
+    }
+
+    return mapped;
+}
+
+
 void SCH_PIN::SetNumber( const wxString& aNumber )
 {
     if( m_number == aNumber )

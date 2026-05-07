@@ -1259,7 +1259,7 @@ XNODE* NETLIST_EXPORTER_XML::makeListOfNets( unsigned aCtl )
                 added = true;
             }
 
-            std::vector<wxString> nums = netNode.m_Pin->GetStackedPinNumbers();
+            std::vector<wxString> nums = netNode.m_Pin->GetFootprintPadNumbers();
             wxString              baseName = netNode.m_Pin->GetShownName();
             wxString              pinType = netNode.m_Pin->GetCanonicalElectricalTypeName();
 
