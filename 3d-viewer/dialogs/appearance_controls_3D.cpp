@@ -222,9 +222,6 @@ APPEARANCE_CONTROLS_3D::APPEARANCE_CONTROLS_3D( EDA_3D_VIEWER_FRAME* aParent, wx
 
     m_cbLayerPresets->Bind( wxEVT_CHOICE, &APPEARANCE_CONTROLS_3D::onLayerPresetChanged, this );
 
-    m_toggleGridRenderer = new GRID_BITMAP_TOGGLE_RENDERER(
-            KiBitmapBundle( BITMAPS::visibility ), KiBitmapBundle( BITMAPS::visibility_off ) );
-
     m_frame->Bind( EDA_LANG_CHANGED, &APPEARANCE_CONTROLS_3D::OnLanguageChanged, this );
 }
 

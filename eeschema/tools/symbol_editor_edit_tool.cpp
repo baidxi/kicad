@@ -1678,10 +1678,18 @@ int SYMBOL_EDITOR_EDIT_TOOL::Paste( const TOOL_EVENT& aEvent )
 
     try
     {
+        // caller is responsible to delete elements of this vector
         std::vector<LIB_SYMBOL*> newParts = SCH_IO_KICAD_SEXPR::ParseLibSymbols( clipboardData, "Clipboard" );
-
+    
+        // Only the first element is needed
+        for (size_t ii = 1, size = newParts.size(); ii < size; ++ii)
+        {
+            delete newParts[ii];
+        }
         if( newParts.empty() || !newParts[0] )
+        {
             return -1;
+        }
 
         newPart = newParts[0];
     }

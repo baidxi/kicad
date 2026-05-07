@@ -39,6 +39,8 @@
 class wxTextEntryBase;
 class ROW_ICON_PROVIDER;
 
+using wxGridCellEditorPtr = wxObjectDataPtr<wxGridCellEditor>;
+
 
 enum KICOMMON_API GROUP_TYPE
 {

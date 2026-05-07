@@ -85,8 +85,7 @@ public:
             m_sortColumn( 0 ),
             m_sortAscending( false ),
             m_filter( wxEmptyString ),
-            m_groupingEnabled( false ),
-            m_stripedStringRenderer( nullptr )
+            m_groupingEnabled( false )
     {
     }
 
@@ -318,6 +317,5 @@ protected:
     std::vector<std::pair<LIB_SYMBOL*, wxString>> m_createdDerivedSymbols; // symbol, library name
 
     // stripe bitmap support
-    mutable STRIPED_STRING_RENDERER* m_stripedStringRenderer;
     mutable std::map<wxString, wxGridCellRenderer*> m_stripedRenderers;
 };

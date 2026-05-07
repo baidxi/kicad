@@ -1214,8 +1214,6 @@ wxGridCellRenderer* LIB_FIELDS_EDITOR_GRID_DATA_MODEL::getStripedRenderer( int a
     stripedRenderer->IncRef();
     m_stripedRenderers[fieldName] = stripedRenderer;
 
-    // Return with IncRef for the caller (SetRenderer will consume this reference)
-    stripedRenderer->IncRef();
     return stripedRenderer;
 }
 

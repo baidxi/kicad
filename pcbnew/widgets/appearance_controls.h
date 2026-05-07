@@ -407,8 +407,6 @@ private:
     // Nets grid view
     NET_GRID_TABLE* m_netsTable;
 
-    GRID_BITMAP_TOGGLE_RENDERER* m_toggleGridRenderer;
-
     /// Grid cell that is being hovered over, for tooltips
     wxGridCellCoords m_hoveredCell;
 
