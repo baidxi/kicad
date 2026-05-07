@@ -463,7 +463,14 @@ void NETLIST_EXPORTER_ALLEGRO::toAllegroPackages()
             }
         }
 
-        unsigned int pinCount = pinList.size();
+        // PINCOUNT counts the resolved footprint pads, not the symbol pin objects.
+        // Stacked notation and pin_map both expand a single symbol pin to multiple pads,
+        // so PINORDER/FUNCTION below emit one entry per pad and PINCOUNT must agree.
+        unsigned int pinCount = 0;
+
+        for( SCH_PIN* pin : pinList )
+            pinCount += pin->GetFootprintPadNumbers().size();
+
         fmt::print( d, "PINCOUNT {}\n", pinCount );
 
         if( pinCount > 0 )
