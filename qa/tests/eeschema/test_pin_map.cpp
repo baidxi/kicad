@@ -489,3 +489,43 @@ BOOST_FIXTURE_TEST_CASE( NetlistExporterXML_PinMapTranslatesNodes, PIN_MAP_NETLI
 
     wxRemoveFile( netFile.GetFullPath() );
 }
+
+
+// ---------------------------------------------------------------------------
+// Schematic API: SchematicSymbol carries pin_map across Serialize/Deserialize.
+// ---------------------------------------------------------------------------
+
+#include <sch_symbol.h>
+#include <api/schematic/schematic_types.pb.h>
+
+
+BOOST_AUTO_TEST_CASE( ApiSchSymbolPinMapRoundTrip )
+{
+    // Build a LIB_SYMBOL with a pin_map; wrap it in a SCH_SYMBOL.
+    LIB_SYMBOL libSym( wxS( "Mapped" ) );
+
+    std::map<wxString, std::vector<wxString>> map;
+    map[wxS( "1" )] = { wxS( "A1" ) };
+    map[wxS( "2" )] = { wxS( "B1" ), wxS( "B2" ) };
+    libSym.SetPinMap( map );
+
+    SCH_SYMBOL src;
+    src.SetLibSymbol( libSym.Flatten().release() );
+
+    google::protobuf::Any any;
+    src.Serialize( any );
+
+    SCH_SYMBOL dst;
+    BOOST_REQUIRE( dst.Deserialize( any ) );
+
+    BOOST_REQUIRE( dst.GetLibSymbolRef() );
+    const auto& got = dst.GetLibSymbolRef()->PinMap();
+
+    BOOST_CHECK_EQUAL( got.size(), 2u );
+    BOOST_REQUIRE( got.count( wxS( "1" ) ) );
+    BOOST_CHECK_EQUAL( got.at( wxS( "1" ) ).at( 0 ), wxS( "A1" ) );
+    BOOST_REQUIRE( got.count( wxS( "2" ) ) );
+    BOOST_REQUIRE_EQUAL( got.at( wxS( "2" ) ).size(), 2u );
+    BOOST_CHECK_EQUAL( got.at( wxS( "2" ) ).at( 0 ), wxS( "B1" ) );
+    BOOST_CHECK_EQUAL( got.at( wxS( "2" ) ).at( 1 ), wxS( "B2" ) );
+}
