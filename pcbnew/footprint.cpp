@@ -4351,6 +4351,63 @@ static constexpr std::optional<bool> cmp_points_opt( const VECTOR2I& aPtA, const
 }
 
 
+bool FOOTPRINT::cmp_footprints::operator()( const FOOTPRINT* fpA, const FOOTPRINT* fpB ) const
+{
+    // Sort by ref and FPID first as this will leave the same footprints ion the same position in the file
+    // as long as the refdes remains.
+    if( fpA->GetReferenceAsString() != fpB->GetReferenceAsString() )
+        return StrNumCmp( fpA->GetReferenceAsString(), fpB->GetReferenceAsString() ) < 0;
+
+    if( fpA->GetFPIDAsString() != fpB->GetFPIDAsString() )
+        return StrNumCmp( fpA->GetFPIDAsString(), fpB->GetFPIDAsString() ) < 0;
+
+    // Then geographic ordering by layer and position
+    if( fpA->GetLayer() != fpB->GetLayer() )
+        return fpA->GetLayer() < fpB->GetLayer();
+
+    if( std::optional<bool> cmp = cmp_points_opt( fpA->GetPosition(), fpB->GetPosition() ) )
+        return *cmp;
+
+    if( fpA->GetOrientation() != fpB->GetOrientation() )
+        return fpA->GetOrientation() < fpB->GetOrientation();
+
+    // Sort the footprints by type
+    const auto fpTypeAsInt = []( const FOOTPRINT& aFp )
+    {
+        if( aFp.GetAttributes() & FP_SMD )
+            return 1;
+
+        if( aFp.GetAttributes() & FP_THROUGH_HOLE )
+            return 2;
+
+        return 0;
+    };
+
+    const int fpAType = fpTypeAsInt( *fpA );
+    const int fpBType = fpTypeAsInt( *fpB );
+
+    if( fpAType != fpBType )
+        return fpAType < fpBType;
+
+    if( fpA->IsDNP() != fpB->IsDNP() )
+        return fpA->IsDNP() < fpB->IsDNP();
+
+    if( fpA->IsBoardOnly() != fpB->IsBoardOnly() )
+        return fpA->IsBoardOnly() < fpB->IsBoardOnly();
+
+    if( fpA->IsExcludedFromBOM() != fpB->IsExcludedFromBOM() )
+        return fpA->IsExcludedFromBOM() < fpB->IsExcludedFromBOM();
+
+    if( fpA->IsExcludedFromPosFiles() != fpB->IsExcludedFromPosFiles() )
+        return fpA->IsExcludedFromPosFiles() < fpB->IsExcludedFromPosFiles();
+
+    if( fpA->m_Uuid != fpB->m_Uuid )
+        return fpA->m_Uuid < fpB->m_Uuid;
+
+    return fpA < fpB;
+}
+
+
 bool FOOTPRINT::cmp_drawings::operator()( const BOARD_ITEM* itemA, const BOARD_ITEM* itemB ) const
 {
     if( itemA->Type() != itemB->Type() )
@@ -4560,33 +4617,6 @@ bool FOOTPRINT::cmp_padstack::operator()( const PAD* aFirst, const PAD* aSecond 
     return false;
 }
 #endif
-
-
-bool FOOTPRINT::cmp_zones::operator()( const ZONE* aFirst, const ZONE* aSecond ) const
-{
-    if( aFirst->GetAssignedPriority() != aSecond->GetAssignedPriority() )
-        return aFirst->GetAssignedPriority() < aSecond->GetAssignedPriority();
-
-    if( aFirst->GetLayerSet() != aSecond->GetLayerSet() )
-        return aFirst->GetLayerSet().Seq() < aSecond->GetLayerSet().Seq();
-
-    if( aFirst->Outline()->TotalVertices() != aSecond->Outline()->TotalVertices() )
-        return aFirst->Outline()->TotalVertices() < aSecond->Outline()->TotalVertices();
-
-    for( int ii = 0; ii < aFirst->Outline()->TotalVertices(); ++ii )
-    {
-        if( std::optional<bool> cmp =
-                    cmp_points_opt( aFirst->Outline()->CVertex( ii ), aSecond->Outline()->CVertex( ii ) ) )
-        {
-            return *cmp;
-        }
-    }
-
-    if( aFirst->m_Uuid != aSecond->m_Uuid )
-        return aFirst->m_Uuid < aSecond->m_Uuid;
-
-    return aFirst < aSecond;
-}
 
 
 void FOOTPRINT::TransformPadsToPolySet( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,

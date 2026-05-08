@@ -486,9 +486,8 @@ void CheckFootprint( const FOOTPRINT* expected, const FOOTPRINT* fp )
         }
     }
 
-    std::set<ZONE*, FOOTPRINT::cmp_zones> expectedZones( expected->Zones().begin(),
-                                                         expected->Zones().end() );
-    std::set<ZONE*, FOOTPRINT::cmp_zones> fpZones( fp->Zones().begin(), fp->Zones().end() );
+    std::set<ZONE*, ZONE::cmp_zones> expectedZones( expected->Zones().begin(), expected->Zones().end() );
+    std::set<ZONE*, ZONE::cmp_zones> fpZones( fp->Zones().begin(), fp->Zones().end() );
 
     for( auto itExpected = expectedZones.begin(), itFp = fpZones.begin();
          itExpected != expectedZones.end() && itFp != fpZones.end(); itExpected++, itFp++ )

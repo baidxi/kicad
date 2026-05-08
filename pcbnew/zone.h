@@ -87,6 +87,11 @@ public:
         return aItem && aItem->Type() == PCB_ZONE_T;
     }
 
+    struct cmp_zones
+    {
+        bool operator()( const ZONE* aFirst, const ZONE* aSecond ) const;
+    };
+
     void Serialize( google::protobuf::Any &aContainer ) const override;
     bool Deserialize( const google::protobuf::Any &aContainer ) override;
 

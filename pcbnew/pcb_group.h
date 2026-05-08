@@ -54,6 +54,11 @@ class PCB_GROUP : public BOARD_ITEM, public EDA_GROUP
 public:
     PCB_GROUP( BOARD_ITEM* aParent );
 
+    struct cmp_groups
+    {
+        bool operator()( const PCB_GROUP* a, const PCB_GROUP* b ) const;
+    };
+
     void Serialize( google::protobuf::Any &aContainer ) const override;
     bool Deserialize( const google::protobuf::Any &aContainer ) override;
 

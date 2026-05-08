@@ -2720,11 +2720,55 @@ bool PCB_TRACK::cmp_tracks::operator() ( const PCB_TRACK* a, const PCB_TRACK* b 
     if( a->GetNetCode() != b->GetNetCode() )
         return a->GetNetCode() < b->GetNetCode();
 
-    if( a->GetLayer() != b->GetLayer() )
-        return a->GetLayer() < b->GetLayer();
+    if( a->GetLayerSet() != b->GetLayerSet() )
+        return a->GetLayerSet() < b->GetLayerSet();
 
+    // Track or arc
     if( a->Type() != b->Type() )
         return a->Type() < b->Type();
+
+    const KICAD_T type = a->Type();
+
+    if( a->GetStart().x != b->GetStart().x )
+        return a->GetStart().x < b->GetStart().x;
+
+    if( a->GetStart().y != b->GetStart().y )
+        return a->GetStart().y < b->GetStart().y;
+
+    if( type == PCB_TRACE_T || type == PCB_ARC_T )
+    {
+        if( a->GetEnd().x != b->GetEnd().x )
+            return a->GetEnd().x < b->GetEnd().x;
+
+        if( a->GetEnd().y != b->GetEnd().y )
+            return a->GetEnd().y < b->GetEnd().y;
+
+        if( a->Type() == PCB_ARC_T )
+        {
+            const PCB_ARC* arcA = static_cast<const PCB_ARC*>( a );
+            const PCB_ARC* arcB = static_cast<const PCB_ARC*>( b );
+
+            if( arcA->GetMid().x != arcB->GetMid().x )
+                return arcA->GetMid().x < arcB->GetMid().x;
+
+            if( arcA->GetMid().y != arcB->GetMid().y )
+                return arcA->GetMid().y < arcB->GetMid().y;
+        }
+
+        if( a->GetWidth() != b->GetWidth() )
+            return a->GetWidth() < b->GetWidth();
+    }
+    else if( type == PCB_VIA_T )
+    {
+        const PCB_VIA* viaA = static_cast<const PCB_VIA*>( a );
+        const PCB_VIA* viaB = static_cast<const PCB_VIA*>( b );
+
+        if( viaA->GetWidth() != viaB->GetWidth() )
+            return viaA->GetWidth() < viaB->GetWidth();
+
+        if( viaA->GetViaType() != viaB->GetViaType() )
+            return viaA->GetViaType() < viaB->GetViaType();
+    }
 
     if( a->m_Uuid != b->m_Uuid )
         return a->m_Uuid < b->m_Uuid;

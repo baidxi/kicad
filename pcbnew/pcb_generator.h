@@ -112,6 +112,11 @@ public:
 
     static inline bool ClassOf( const EDA_ITEM* aItem );
 
+    struct cmp_generators
+    {
+        bool operator()( const PCB_GENERATOR* a, const PCB_GENERATOR* b ) const;
+    };
+
 #ifdef GENERATOR_ORDER
     int  GetUpdateOrder() const { return m_updateOrder; }
     void SetUpdateOrder( int aValue ) { m_updateOrder = aValue; }

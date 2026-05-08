@@ -201,6 +201,28 @@ bool PCB_GENERATOR::ClassOf( const EDA_ITEM* aItem )
 }
 
 
+bool PCB_GENERATOR::cmp_generators::operator()( const PCB_GENERATOR* a, const PCB_GENERATOR* b ) const
+{
+    // Sort same generator types together first
+    if( a->GetGeneratorType() != b->GetGeneratorType() )
+        return a->GetGeneratorType() < b->GetGeneratorType();
+
+    if( a->GetLayerSet() != b->GetLayerSet() )
+        return a->GetLayerSet() < b->GetLayerSet();
+
+    if( a->GetPosition().x != b->GetPosition().x )
+        return a->GetPosition().x < b->GetPosition().x;
+
+    if( a->GetPosition().y != b->GetPosition().y )
+        return a->GetPosition().y < b->GetPosition().y;
+
+    if( a->m_Uuid != b->m_Uuid )
+        return a->m_Uuid < b->m_Uuid;
+
+    return a < b;
+}
+
+
 #ifdef GENERATOR_ORDER
 static struct PCB_GENERATOR_DESC
 {

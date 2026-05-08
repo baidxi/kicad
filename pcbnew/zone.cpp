@@ -229,6 +229,117 @@ ZONE* ZONE::Clone( PCB_LAYER_ID aLayer ) const
 }
 
 
+bool ZONE::cmp_zones::operator()( const ZONE* a, const ZONE* b ) const
+{
+    if( a->GetAssignedPriority() != b->GetAssignedPriority() )
+        return a->GetAssignedPriority() < b->GetAssignedPriority();
+
+    if( a->GetLayerSet() != b->GetLayerSet() )
+        return a->GetLayerSet().Seq() < b->GetLayerSet().Seq();
+
+    if( a->GetNetCode() != b->GetNetCode() )
+        return a->GetNetCode() < b->GetNetCode();
+
+    if( a->GetZoneName() != b->GetZoneName() )
+        return StrNumCmp( a->GetZoneName(), b->GetZoneName() ) < 0;
+
+    const SHAPE_POLY_SET& polyA = *a->Outline();
+    const SHAPE_POLY_SET& polyB = *b->Outline();
+
+    if( polyA.TotalVertices() != polyB.TotalVertices() )
+        return polyA.TotalVertices() < polyB.TotalVertices();
+
+    for( int ii = 0; ii < polyA.TotalVertices(); ++ii )
+    {
+        if( polyA.CVertex( ii ) != polyB.CVertex( ii ) )
+            return polyA.CVertex( ii ) < polyB.CVertex( ii );
+    }
+
+    if( a->GetIsRuleArea() != b->GetIsRuleArea() )
+        return a->GetIsRuleArea() < b->GetIsRuleArea();
+
+    if( a->GetIsRuleArea() )
+    {
+        if( a->GetPlacementAreaEnabled() != b->GetPlacementAreaEnabled() )
+            return a->GetPlacementAreaEnabled() < b->GetPlacementAreaEnabled();
+
+        if( a->GetPlacementAreaEnabled() )
+        {
+            if( a->GetPlacementAreaSource() != b->GetPlacementAreaSource() )
+                return StrNumCmp( a->GetPlacementAreaSource(), b->GetPlacementAreaSource() ) < 0;
+        }
+        else
+        {
+            if( a->GetDoNotAllowZoneFills() != b->GetDoNotAllowZoneFills() )
+                return a->GetDoNotAllowZoneFills() < b->GetDoNotAllowZoneFills();
+
+            if( a->GetDoNotAllowFootprints() != b->GetDoNotAllowFootprints() )
+                return a->GetDoNotAllowFootprints() < b->GetDoNotAllowFootprints();
+
+            if( a->GetDoNotAllowPads() != b->GetDoNotAllowPads() )
+                return a->GetDoNotAllowPads() < b->GetDoNotAllowPads();
+
+            if( a->GetDoNotAllowTracks() != b->GetDoNotAllowTracks() )
+                return a->GetDoNotAllowTracks() < b->GetDoNotAllowTracks();
+
+            if( a->GetDoNotAllowVias() != b->GetDoNotAllowVias() )
+                return a->GetDoNotAllowVias() < b->GetDoNotAllowVias();
+        }
+    }
+    else
+    {
+        if( a->IsTeardropArea() != b->IsTeardropArea() )
+            return a->IsTeardropArea() < b->IsTeardropArea();
+
+        if( a->IsTeardropArea() )
+        {
+            if( a->GetTeardropAreaType() != b->GetTeardropAreaType() )
+                return a->GetTeardropAreaType() < b->GetTeardropAreaType();
+        }
+
+        if( a->GetPadConnection() != b->GetPadConnection() )
+            return a->GetPadConnection() < b->GetPadConnection();
+
+        if( a->GetCornerSmoothingType() != b->GetCornerSmoothingType() )
+            return a->GetCornerSmoothingType() < b->GetCornerSmoothingType();
+
+        if( a->GetCornerRadius() != b->GetCornerRadius() )
+            return a->GetCornerRadius() < b->GetCornerRadius();
+
+        if( a->GetIslandRemovalMode() != b->GetIslandRemovalMode() )
+            return a->GetIslandRemovalMode() < b->GetIslandRemovalMode();
+
+        if( a->GetMinIslandArea() != b->GetMinIslandArea() )
+            return a->GetMinIslandArea() < b->GetMinIslandArea();
+
+        if( a->GetThermalReliefGap() != b->GetThermalReliefGap() )
+            return a->GetThermalReliefGap() < b->GetThermalReliefGap();
+
+        if( a->GetThermalReliefSpokeWidth() != b->GetThermalReliefSpokeWidth() )
+            return a->GetThermalReliefSpokeWidth() < b->GetThermalReliefSpokeWidth();
+
+        if( a->GetFillMode() != b->GetFillMode() )
+            return a->GetFillMode() < b->GetFillMode();
+
+        if( a->GetLocalClearance() != b->GetLocalClearance() )
+            return a->GetLocalClearance() < b->GetLocalClearance();
+    }
+
+    if( a->GetHatchStyle() != b->GetHatchStyle() )
+        return a->GetHatchStyle() < b->GetHatchStyle();
+
+    if( a->GetHatchGap() != b->GetHatchGap() )
+        return a->GetHatchGap() < b->GetHatchGap();
+
+    // UUID can be null for teardrops, so we can theoretically pass here
+    if( a->m_Uuid != b->m_Uuid )
+        return a->m_Uuid < b->m_Uuid;
+
+    // Finally fall back on pointer value
+    return a < b;
+}
+
+
 void ZONE::Serialize( google::protobuf::Any& aContainer ) const
 {
     using namespace kiapi::board;

@@ -625,7 +625,7 @@ bool zoneNeedsUpdate( const ZONE* a, const ZONE* b, REPORTER* aReporter )
     // Kind of annoying footprint pads use both in1_cu and have an stackup mode setting
     bool innerLayerExpansionAllowed = b->GetLayerSet().Contains( In1_Cu );
 
-    if( !boardLayersMatchWithInnerLayerExpansion( a->GetLayerSet(), 
+    if( !boardLayersMatchWithInnerLayerExpansion( a->GetLayerSet(),
                                                  getBoardNormalizedLayerSet( b, a->GetBoard() ),
                                                  innerLayerExpansionAllowed ) )
     {
@@ -1034,8 +1034,8 @@ bool FOOTPRINT::FootprintNeedsUpdate( const FOOTPRINT* aLibFP, int aCompareFlags
 
     CHECKPOINT;
 
-    std::set<ZONE*, FOOTPRINT::cmp_zones> aZones( Zones().begin(), Zones().end() );
-    std::set<ZONE*, FOOTPRINT::cmp_zones> bZones( aLibFP->Zones().begin(), aLibFP->Zones().end() );
+    std::set<ZONE*, ZONE::cmp_zones> aZones( Zones().begin(), Zones().end() );
+    std::set<ZONE*, ZONE::cmp_zones> bZones( aLibFP->Zones().begin(), aLibFP->Zones().end() );
 
     if( aZones.size() != bZones.size() )
     {
