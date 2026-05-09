@@ -359,12 +359,13 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
             continue;
 
         VECTOR2I p = static_cast<PCB_VIA*>( it )->GetPosition();
-        VECTOR2I posMod( ( ( p.x % detectPitch ) + detectPitch ) % detectPitch,
-                         ( ( p.y % detectPitch ) + detectPitch ) % detectPitch );
+        VECTOR2I expectedPos = positionForCell( cellForPosition( p ), detectPitch );
 
-        if( posMod != m_originOffset )
+        if( expectedPos != p )
         {
-            m_originOffset = posMod;
+            // Recalculate the origin offset but account for stagger possibly being enabled
+            m_originOffset = VECTOR2I( ( ( p.x % detectPitch ) + detectPitch ) % detectPitch,
+                                       ( ( p.y % detectPitch ) + detectPitch ) % detectPitch );
             break;
         }
     }
