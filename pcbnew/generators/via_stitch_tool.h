@@ -18,11 +18,9 @@
  * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  */
 
-#ifndef VIA_STITCH_TOOL_H
-#define VIA_STITCH_TOOL_H
+#pragma once
 
 #include <tools/pcb_tool_base.h>
-
 
 /**
  * Tool that owns actions specific to via-stitch generators (e.g. excluding individual
@@ -40,5 +38,3 @@ public:
 private:
     void setTransitions() override;
 };
-
-#endif // VIA_STITCH_TOOL_H
