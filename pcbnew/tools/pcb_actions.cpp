@@ -352,7 +352,7 @@ TOOL_ACTION PCB_ACTIONS::drawViaStitchArea( TOOL_ACTION_ARGS()
         .LegacyHotkeyName( "Draw Via Stitch area" )
         .FriendlyName( _( "Draw Via Stitch area" ) )
         .Tooltip( _( "Draw a via stitch area" ) )
-        .Icon( BITMAPS::add_graphical_polygon )
+        .Icon( BITMAPS::add_via_stitch )
         .Flags( AF_ACTIVATE )
         .Parameter( ZONE_MODE::STITCH ) );
 
