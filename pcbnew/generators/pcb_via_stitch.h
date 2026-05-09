@@ -73,6 +73,17 @@ public:
 
     VECTOR2I GetPosition() const override;
 
+    /**
+     * This method is overrided to translate the stitch zone outline only on move.
+     * Otherwise the default Move() implementation would move the child vias as well.
+     * As the outline moves, the next Update() call will add/remove vias as needed on the stitch grid.
+     */
+    void Move( const VECTOR2I& aMoveVector ) override
+    {
+        m_outline.Move( aMoveVector );
+        m_origin += aMoveVector;
+    }
+
     void     EditStart( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
     bool     Update( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override; // generate vias
     void     EditFinish( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
