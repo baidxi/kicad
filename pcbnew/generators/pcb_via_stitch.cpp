@@ -47,19 +47,22 @@ const wxString PCB_VIA_STITCH::DISPLAY_NAME = _HKI( "Via Stitching" );
 const wxString PCB_VIA_STITCH::GENERATOR_TYPE = wxS( "via_stitch" );
 
 PCB_VIA_STITCH::PCB_VIA_STITCH( BOARD_ITEM* aParent, PCB_LAYER_ID aLayer ) :
-        PCB_GENERATOR_POLY( aParent, aLayer )
+        PCB_GENERATOR_POLY( aParent, aLayer ),
+        m_viaTemplate( std::make_unique<PCB_VIA>( this ) )
 {
     m_generatorType = GENERATOR_TYPE;
     m_name = DISPLAY_NAME;
+
+
+    m_viaTemplate->SetIsFree( true );
 }
 
 
 PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         PCB_GENERATOR_POLY( aOther ),
-        m_viaSize( aOther.m_viaSize ),
-        m_viaDrill( aOther.m_viaDrill ),
         m_pitch( aOther.m_pitch ),
         m_stagger( aOther.m_stagger ),
+        m_viaTemplate( std::make_unique<PCB_VIA>( *aOther.m_viaTemplate ) ),
         m_lastNetName( aOther.m_lastNetName ),
         m_netCode( aOther.m_netCode ),
         m_excludedCells( aOther.m_excludedCells ),
@@ -76,10 +79,9 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
     if( this != &aOther )
     {
         PCB_GENERATOR_POLY::operator=( aOther );
-        m_viaSize = aOther.m_viaSize;
-        m_viaDrill = aOther.m_viaDrill;
         m_pitch = aOther.m_pitch;
         m_stagger = aOther.m_stagger;
+        m_viaTemplate = std::make_unique<PCB_VIA>( *aOther.m_viaTemplate );
         m_lastNetName = aOther.m_lastNetName;
         m_netCode = aOther.m_netCode;
         m_excludedCells = aOther.m_excludedCells;
@@ -93,6 +95,31 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
 PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( PCB_VIA_STITCH&& aOther ) noexcept = default;
 
 PCB_VIA_STITCH::~PCB_VIA_STITCH() = default;
+
+
+int PCB_VIA_STITCH::GetViaSize() const
+{
+    return m_viaTemplate->GetWidth();
+}
+
+
+void PCB_VIA_STITCH::SetViaSize( int aVal )
+{
+    m_viaTemplate->SetWidth( aVal );
+}
+
+
+int PCB_VIA_STITCH::GetViaDrill() const
+{
+    int d = m_viaTemplate->GetDrillValue();
+    return d > 0 ? d : 0;
+}
+
+
+void PCB_VIA_STITCH::SetViaDrill( int aVal )
+{
+    m_viaTemplate->SetDrill( aVal );
+}
 
 void PCB_VIA_STITCH::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
 {
@@ -185,10 +212,10 @@ void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMM
     }
 
     // Initialize property defaults on first edit
-    if( m_viaSize <= 0 )
-        m_viaSize = defaultViaSize( aBoard );
-    if( m_viaDrill <= 0 )
-        m_viaDrill = defaultViaDrill( aBoard );
+    if( m_viaTemplate->GetWidth() <= 0 )
+        m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
+    if( m_viaTemplate->GetDrillValue() <= 0 )
+        m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
     if( m_pitch <= 0 )
         m_pitch = defaultPitch( aBoard );
 
@@ -388,8 +415,11 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         return false;
 
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
-    int viaSize = m_viaSize > 0 ? m_viaSize : defaultViaSize( aBoard );
-    int drill = m_viaDrill > 0 ? m_viaDrill : defaultViaDrill( aBoard );
+
+    if( m_viaTemplate->GetWidth() <= 0 )
+        m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
+    if( m_viaTemplate->GetDrillValue() <= 0 )
+        m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
 
     // Compute the set of grid cells where a via fits cleanly (DRC + same-net zone overlap).
     // TODO, we will use a cache grid
@@ -402,11 +432,9 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
         VECTOR2I pt = positionForCell( cell, pitch );
 
-        PCB_VIA* via = new PCB_VIA( aBoard );
-        via->SetLayerPair( F_Cu, B_Cu );
+        PCB_VIA* via = static_cast<PCB_VIA*>( m_viaTemplate->Clone() );
+        via->SetParent( aBoard );
         via->SetPosition( pt );
-        via->SetWidth( viaSize );
-        via->SetDrill( drill );
 
         if( m_netCode )
             via->SetNetCode( m_netCode );
@@ -425,8 +453,8 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 {
     STRING_ANY_MAP props = PCB_GENERATOR::GetProperties();
-    props.set_iu( "via_size", m_viaSize );
-    props.set_iu( "via_drill", m_viaDrill );
+    props.set_iu( "via_size", m_viaTemplate->GetWidth() );
+    props.set_iu( "via_drill", m_viaTemplate->GetDrillValue() );
     props.set_iu( "pitch", m_pitch );
     props.set( "stagger", m_stagger );
     props.set_iu( "origin_offset_x", m_originOffset.x );
@@ -456,8 +484,17 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
 {
     PCB_GENERATOR::SetProperties( aProps );
-    aProps.get_to_iu( "via_size", m_viaSize );
-    aProps.get_to_iu( "via_drill", m_viaDrill );
+
+    int viaSize = 0;
+    int viaDrill = 0;
+    aProps.get_to_iu( "via_size", viaSize );
+    aProps.get_to_iu( "via_drill", viaDrill );
+
+    if( viaSize > 0 )
+        m_viaTemplate->SetWidth( viaSize );
+    if( viaDrill > 0 )
+        m_viaTemplate->SetDrill( viaDrill );
+
     aProps.get_to_iu( "pitch", m_pitch );
     aProps.get_to( "stagger", m_stagger );
     aProps.get_to_iu( "origin_offset_x", m_originOffset.x );
@@ -554,8 +591,7 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         return cells;
 
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
-    int viaSize = m_viaSize > 0 ? m_viaSize : defaultViaSize( aBoard );
-    int drill = m_viaDrill > 0 ? m_viaDrill : defaultViaDrill( aBoard );
+    int viaSize = m_viaTemplate->GetWidth() > 0 ? m_viaTemplate->GetWidth() : defaultViaSize( aBoard );
 
     DRC_ENGINE* drcEngine = aBoard->GetDesignSettings().m_DRCEngine.get();
 
@@ -633,12 +669,10 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
             if( allowedRegion.PointOnEdge( pt, viaSize / 2 ) )
                 continue;
 
-            // Probe via — only used to test clearance against the rest of the board.
-            auto probe = std::make_unique<PCB_VIA>( const_cast<BOARD*>( aBoard ) );
-            probe->SetLayerPair( F_Cu, B_Cu );
+            // Now create a probe via to test for placement
+            std::unique_ptr<PCB_VIA> probe( static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
+            probe->SetParent( const_cast<BOARD*>( aBoard ) );
             probe->SetPosition( pt );
-            probe->SetWidth( viaSize );
-            probe->SetDrill( drill );
 
             if( m_netCode )
                 probe->SetNetCode( m_netCode );

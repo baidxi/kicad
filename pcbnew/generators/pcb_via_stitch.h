@@ -32,6 +32,7 @@
 
 class ACTION_MENU;
 class TOOL_INTERACTIVE;
+class PCB_VIA;
 
 class PCB_VIA_STITCH : public PCB_GENERATOR_POLY
 {
@@ -113,15 +114,18 @@ public:
     void Remove( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
     wxString GetCommitMessage() const override { return _( "Stitching Update" ); }
 
-    // Properties
-    int  GetViaSize() const { return m_viaSize; }
-    void SetViaSize( int aVal ) { m_viaSize = aVal; }
-    int  GetViaDrill() const { return m_viaDrill; }
-    void SetViaDrill( int aVal ) { m_viaDrill = aVal; }
+    // Properties 
+    int  GetViaSize() const;
+    void SetViaSize( int aVal );
+    int  GetViaDrill() const;
+    void SetViaDrill( int aVal );
     int  GetPitch() const { return m_pitch; }
     void SetPitch( int aVal ) { m_pitch = aVal; }
     bool GetStagger() const { return m_stagger; }
     void SetStagger( bool aVal ) { m_stagger = aVal; }
+
+    PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
+    const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
 
     /** Remove a board position from the exclusion set so the next Update() places a via there. */
     void ClearExclusion( const VECTOR2I& aPos );
@@ -171,10 +175,10 @@ private:
  //   SHAPE_POLY_SET m_poly; // Stores the S_POLYGON shape
 
     // Stored properties (iu units)
-    int  m_viaSize = 0;
-    int  m_viaDrill = 0;
     int  m_pitch = 0;    // center-to-center spacing
     bool m_stagger = false; // offset alternating rows by half-pitch
+
+    std::unique_ptr<PCB_VIA> m_viaTemplate;
 
     wxString m_lastNetName;
     int      m_netCode = 0;
