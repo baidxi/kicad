@@ -859,8 +859,37 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         if( *type == SCH_SYMBOL_T )
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
-            unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+
+            if( !anyItem.UnpackTo( &symbol ) )
+            {
+                unpacked = false;
+            }
+            else
+            {
+                // When the proto is an id-only reference (no inline pins/items),
+                // SCH_SYMBOL::Deserialize will resolve the lib_id against the
+                // project's SYMBOL_LIB_TABLE and Flatten() the result. If the
+                // id doesn't resolve, Deserialize returns false to surface the
+                // failure here -- name the unresolved id in the per-item status
+                // so the IPC client can react, instead of letting the whole
+                // batch fail with a generic "could not unpack" message.
+                LIB_ID libId = UnpackLibId( symbol.definition().id() );
+
+                unpacked = UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ),
+                                         symbol );
+
+                if( !unpacked && symbol.definition().items_size() == 0
+                    && libId.IsValid() )
+                {
+                    status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                    status.set_error_message( fmt::format(
+                            "lib_id '{}' could not be resolved against the "
+                            "project's symbol library tables",
+                            libId.Format().wx_str().ToStdString() ) );
+                    aItemHandler( status, anyItem );
+                    continue;
+                }
+            }
         }
         else if( *type == SCH_SHEET_T )
         {
