@@ -437,6 +437,8 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         VECTOR2I pt = positionForCell( cell, pitch );
 
         PCB_VIA* via = static_cast<PCB_VIA*>( m_viaTemplate->Clone() );
+        via->ResetUuidDirect();
+
         via->SetParent( aBoard );
         via->SetPosition( pt );
 
