@@ -75,6 +75,12 @@ public:
      */
     virtual ACTION_MENU* GetChildContextMenu( TOOL_INTERACTIVE* aTool ) const { return nullptr; }
 
+    /**
+     * @return true if children of this generator should be treated as
+     *         read-only outside of the generator, i.e. disable property editors
+     */
+    virtual bool ChildrenAreReadOnly() const { return true; }
+
 #define STATUS_ITEMS_ONLY true
 
     virtual std::vector<EDA_ITEM*> GetPreviewItems( GENERATOR_TOOL* aTool,

@@ -528,14 +528,14 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
                     }
 
                     EDA_GROUP* parent = static_cast<BOARD_ITEM*>( item )->GetParentGroup();
-                    PCB_GENERATOR* gen = parent ? dynamic_cast<PCB_GENERATOR*>( parent->AsEdaItem() )
-                                                : nullptr;
 
-                    if( !gen )
+                    if( !parent || parent->AsEdaItem()->Type() != PCB_GENERATOR_T )
                     {
                         allSameParent = false;
                         break;
                     }
+
+                    PCB_GENERATOR* gen = static_cast<PCB_GENERATOR*>( parent->AsEdaItem() );
 
                     if( !sharedParent )
                         sharedParent = gen;
@@ -721,14 +721,17 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
                     {
                         for( EDA_ITEM* item : m_selection )
                         {
-                            EDA_GROUP* parent = item->IsBOARD_ITEM()
-                                    ? static_cast<BOARD_ITEM*>( item )->GetParentGroup()
-                                    : nullptr;
-                            PCB_GENERATOR* gen = parent
-                                    ? dynamic_cast<PCB_GENERATOR*>( parent->AsEdaItem() )
-                                    : nullptr;
+                            if( !item->IsBOARD_ITEM() )
+                                continue;
 
-                            if( gen && gen->ChildrenAreIndividuallySelectable() )
+                            EDA_GROUP* parent = static_cast<BOARD_ITEM*>( item )->GetParentGroup();
+
+                            if( !parent || parent->AsEdaItem()->Type() != PCB_GENERATOR_T )
+                                continue;
+
+                            PCB_GENERATOR* gen = static_cast<PCB_GENERATOR*>( parent->AsEdaItem() );
+
+                            if( gen->ChildrenAreIndividuallySelectable() )
                             {
                                 routable = false;
                                 break;
@@ -5005,8 +5008,10 @@ void PCB_SELECTION_TOOL::FilterCollectorForHierarchy( GENERAL_COLLECTOR& aCollec
 
         if( EDA_GROUP* parent = item->GetParentGroup() )
         {
-            if( PCB_GENERATOR* gen = dynamic_cast<PCB_GENERATOR*>( parent->AsEdaItem() ) )
+            if( parent->AsEdaItem()->Type() == PCB_GENERATOR_T )
             {
+                PCB_GENERATOR* gen = static_cast<PCB_GENERATOR*>( parent->AsEdaItem() );
+
                 if( gen->ChildrenAreIndividuallySelectable() )
                     selectableParent = gen;
             }
