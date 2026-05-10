@@ -163,13 +163,26 @@ private:
     VECTOR2I cellForPosition( const VECTOR2I& aPos ) const;
 
     /** Convert a (col, row) grid cell index to an absolute board position, including
-     *  any stagger shift on odd rows. */
+     *  any stagger shift on odd rows. 
+     */
     VECTOR2I positionForCell( const VECTOR2I& aCell, int aPitch ) const;
 
     /** Walk the placement grid, run DRC clearance tests, and return the set of (col, row)
      *  cells where a via fits cleanly.  Does not consult exclusions — that's a separate
-     *  user-driven concern applied at consumption time. */
+     *  user-driven concern applied at consumption time. 
+     */
     std::set<VECTOR2I> buildPlacementCells( BOARD* aBoard ) const;
+
+    /**
+     * Returns true if @a aVia violates the required copper clearance against any existing board
+     * item (ignoring same-net connected items).  The via must NOT yet have been added to the
+     * board so that the R-tree query only sees pre-existing items.
+     *
+     * @param aBoard Board to test against
+     * @param aDRCEngine Used to retrieve DRC clearance constraints for the via vs. other items.
+     * @param aVia The via to test for clearance violations
+     */
+    bool collidesWithBoard( BOARD* aBoard, class DRC_ENGINE* aDRCEngine, PCB_VIA* aVia ) const;
 
 private:
  //   SHAPE_POLY_SET m_poly; // Stores the S_POLYGON shape

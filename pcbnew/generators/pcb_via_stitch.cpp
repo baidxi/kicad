@@ -264,16 +264,8 @@ int PCB_VIA_STITCH::defaultViaDrill( BOARD* aBoard ) const
 }
 
 
-/**
- * Returns true if @a aVia violates the required copper clearance against any existing board
- * item (ignoring same-net connected items).  The via must NOT yet have been added to the
- * board so that the R-tree query only sees pre-existing items.
- *
- * @param aBoard Board to test against
- * @param aDRCEngine Used to retrieve DRC clearance constraints for the via vs. other items.
- * @param aVia The via to test for clearance violations
- */
-static bool collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine, PCB_VIA* aVia )
+bool PCB_VIA_STITCH::collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine,
+                                        PCB_VIA* aVia ) const
 {
     LSET boardCopperLayers = LSET::AllCuMask( aBoard->GetCopperLayerCount() );
 
