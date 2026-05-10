@@ -284,9 +284,13 @@ static bool collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine, PCB_VIA* a
 
         aBoard->m_CopperItemRTreeCache->QueryColliding(
                 aVia, layer, layer,
-                // Filter: skip same-net items
+                // Filter out same net collisions, generally ok except for collisions with vias
+                // TODO: Probably some other types we dont want to collide with
                 [&]( BOARD_ITEM* other ) -> bool
                 {
+                    if( other->Type() == PCB_VIA_T )
+                        return true;
+
                     if( BOARD_CONNECTED_ITEM* otherCItem =
                                 dynamic_cast<BOARD_CONNECTED_ITEM*>( other ) )
                     {
