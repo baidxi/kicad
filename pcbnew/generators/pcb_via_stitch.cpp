@@ -288,7 +288,7 @@ static bool collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine, PCB_VIA* a
                 // TODO: Probably some other types we dont want to collide with
                 [&]( BOARD_ITEM* other ) -> bool
                 {
-                    if( other->Type() == PCB_VIA_T )
+                    if( other->Type() == PCB_VIA_T && other->GetParent() != aVia->GetParent() )
                         return true;
 
                     if( BOARD_CONNECTED_ITEM* otherCItem =
