@@ -411,6 +411,9 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         if( m_netCode )
             via->SetNetCode( m_netCode );
 
+        // Vias must be marked free to avoid connectivity stealing them away
+        via->SetIsFree( true );
+
         AddItem( via );
         aCommit->Add( via );
     }
