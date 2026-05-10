@@ -52,6 +52,7 @@
 #include <pcb_track.h>
 #include <pcb_generator.h>
 #include <generators/pcb_tuning_pattern.h>
+#include <generators/pcb_via_stitch.h>
 #include <pad.h>
 #include <footprint.h>
 #include <pcb_field.h>
@@ -1171,6 +1172,9 @@ void PCB_PROPERTIES_PANEL::updateLists( const BOARD* aBoard )
 
     auto tuningNet = m_propMgr.GetProperty( TYPE_HASH( PCB_TUNING_PATTERN ), _HKI( "Net" ) );
     tuningNet->SetChoices( nets );
+
+    auto stitchNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ), _HKI( "Net" ) );
+    stitchNet->SetChoices( nets );
 }
 
 
