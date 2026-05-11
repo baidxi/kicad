@@ -34,6 +34,14 @@ class ACTION_MENU;
 class TOOL_INTERACTIVE;
 class PCB_VIA;
 
+
+enum class PCB_VIA_STITCH_LAYOUT
+{
+    PLAIN,      ///< Regular row/column grid.
+    STAGGERED   ///< Odd rows shifted by half the pitch.
+};
+
+
 class PCB_VIA_STITCH : public PCB_GENERATOR_POLY
 {
 public:
@@ -121,8 +129,8 @@ public:
     void SetViaDrill( int aVal );
     int  GetPitch() const { return m_pitch; }
     void SetPitch( int aVal ) { m_pitch = aVal; }
-    bool GetStagger() const { return m_stagger; }
-    void SetStagger( bool aVal ) { m_stagger = aVal; }
+    PCB_VIA_STITCH_LAYOUT GetLayout() const { return m_layout; }
+    void          SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; }
 
     PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
     const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
@@ -188,8 +196,8 @@ private:
  //   SHAPE_POLY_SET m_poly; // Stores the S_POLYGON shape
 
     // Stored properties (iu units)
-    int  m_pitch = 0;    // center-to-center spacing
-    bool m_stagger = false; // offset alternating rows by half-pitch
+    int           m_pitch = 0;                            // center-to-center spacing
+    PCB_VIA_STITCH_LAYOUT m_layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
 
     std::unique_ptr<PCB_VIA> m_viaTemplate;
 

@@ -61,7 +61,7 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( BOARD_ITEM* aParent, PCB_LAYER_ID aLayer ) :
 PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         PCB_GENERATOR_POLY( aOther ),
         m_pitch( aOther.m_pitch ),
-        m_stagger( aOther.m_stagger ),
+        m_layout( aOther.m_layout ),
         m_viaTemplate( std::make_unique<PCB_VIA>( *aOther.m_viaTemplate ) ),
         m_lastNetName( aOther.m_lastNetName ),
         m_netCode( aOther.m_netCode ),
@@ -80,7 +80,7 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
     {
         PCB_GENERATOR_POLY::operator=( aOther );
         m_pitch = aOther.m_pitch;
-        m_stagger = aOther.m_stagger;
+        m_layout = aOther.m_layout;
         m_viaTemplate = std::make_unique<PCB_VIA>( *aOther.m_viaTemplate );
         m_lastNetName = aOther.m_lastNetName;
         m_netCode = aOther.m_netCode;
@@ -454,7 +454,7 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
     props.set_iu( "via_size", m_viaTemplate->GetWidth() );
     props.set_iu( "via_drill", m_viaTemplate->GetDrillValue() );
     props.set_iu( "pitch", m_pitch );
-    props.set( "stagger", m_stagger );
+    props.set( "layout", static_cast<int>( m_layout ) );
     props.set_iu( "origin_offset_x", m_originOffset.x );
     props.set_iu( "origin_offset_y", m_originOffset.y );
 
@@ -494,7 +494,10 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
         m_viaTemplate->SetDrill( viaDrill );
 
     aProps.get_to_iu( "pitch", m_pitch );
-    aProps.get_to( "stagger", m_stagger );
+
+    if( auto layout = aProps.get_opt<int>( "layout" ) )
+        m_layout = static_cast<PCB_VIA_STITCH_LAYOUT>( *layout );
+
     aProps.get_to_iu( "origin_offset_x", m_originOffset.x );
     aProps.get_to_iu( "origin_offset_y", m_originOffset.y );
 
@@ -566,7 +569,9 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
     };
 
     int row = roundDiv( aPos.y - m_originOffset.y, pitch );
-    int xShift = ( m_stagger && ( ( row % 2 + 2 ) % 2 != 0 ) ) ? pitch / 2 : 0;
+    int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( row % 2 + 2 ) % 2 != 0 ) )
+                         ? pitch / 2
+                         : 0;
     int col = roundDiv( aPos.x - m_originOffset.x - xShift, pitch );
 
     return VECTOR2I( col, row );
@@ -575,7 +580,9 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
 
 VECTOR2I PCB_VIA_STITCH::positionForCell( const VECTOR2I& aCell, int aPitch ) const
 {
-    int xShift = ( m_stagger && ( ( aCell.y % 2 + 2 ) % 2 != 0 ) ) ? aPitch / 2 : 0;
+    int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( aCell.y % 2 + 2 ) % 2 != 0 ) )
+                         ? aPitch / 2
+                         : 0;
     return VECTOR2I( aCell.x * aPitch + m_originOffset.x + xShift,
                      aCell.y * aPitch + m_originOffset.y );
 }
@@ -654,7 +661,9 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
     for( int row = startRow, y = origin.y; y <= bbox.GetBottom(); y += pitch, ++row )
     {
         // Odd rows are shifted right by half the pitch when stagger is enabled.
-        int xOffset = ( m_stagger && ( ( row % 2 + 2 ) % 2 != 0 ) ) ? pitch / 2 : 0;
+        int xOffset = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( row % 2 + 2 ) % 2 != 0 ) )
+                              ? pitch / 2
+                              : 0;
 
         for( int col = startCol, x = origin.x + xOffset; x <= bbox.GetRight();
              x += pitch, ++col )
@@ -749,14 +758,22 @@ static struct PCB_VIA_STITCH_DESC
                                      &PCB_VIA_STITCH::SetPitch, &PCB_VIA_STITCH::GetPitch,
                                      PROPERTY_DISPLAY::PT_SIZE ) );
 
-        propMgr.AddProperty( new PROPERTY<PCB_VIA_STITCH, bool>( _HKI( "Stagger" ),
-                                     &PCB_VIA_STITCH::SetStagger, &PCB_VIA_STITCH::GetStagger ) );
+        ENUM_MAP<PCB_VIA_STITCH_LAYOUT>::Instance()
+                .Undefined( PCB_VIA_STITCH_LAYOUT::PLAIN )
+                .Map( PCB_VIA_STITCH_LAYOUT::PLAIN,     _HKI( "Plain grid" ) )
+                .Map( PCB_VIA_STITCH_LAYOUT::STAGGERED, _HKI( "Staggered grid" ) );
+
+        propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, PCB_VIA_STITCH_LAYOUT>( _HKI( "Layout" ),
+                                     &PCB_VIA_STITCH::SetLayout, &PCB_VIA_STITCH::GetLayout ) );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, int>( _HKI( "Net" ),
                                      &PCB_VIA_STITCH::SetNetCode, &PCB_VIA_STITCH::GetNetCode, PT_NET ) );
 
     }
 } _PCB_VIA_STITCH_DESC;
+
+
+ENUM_TO_WXANY( PCB_VIA_STITCH_LAYOUT );
 
 
 static GENERATORS_MGR::REGISTER<PCB_VIA_STITCH> registerMe;
