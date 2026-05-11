@@ -27,8 +27,10 @@
 #include <generators_mgr.h>
 #include <i18n_utility.h>
 #include <geometry/shape_poly_set.h>
+#include <cstdint>
 #include <memory>
 #include <set>
+#include <vector>
 
 class ACTION_MENU;
 class TOOL_INTERACTIVE;
@@ -38,7 +40,8 @@ class PCB_VIA;
 enum class PCB_VIA_STITCH_LAYOUT
 {
     PLAIN,      ///< Regular row/column grid.
-    STAGGERED   ///< Odd rows shifted by half the pitch.
+    STAGGERED,  ///< Odd rows shifted by half the pitch.
+    POISSON     ///< Tiled poisson distribution
 };
 
 
@@ -132,6 +135,9 @@ public:
     PCB_VIA_STITCH_LAYOUT GetLayout() const { return m_layout; }
     void          SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; }
 
+    uint32_t  GetSeed() const { return m_seed; }
+    void SetSeed( uint32_t aVal ) { m_seed = aVal; }
+
     PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
     const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
 
@@ -192,12 +198,31 @@ private:
      */
     bool collidesWithBoard( BOARD* aBoard, class DRC_ENGINE* aDRCEngine, PCB_VIA* aVia ) const;
 
+    /**
+     *  Tile size for the POISSON layout, in units of pitch.  The baked pattern's normalized
+     *  min-distance is 1 / POISSON_TILE_PITCHES, scaled by (pitch * POISSON_TILE_PITCHES)
+     *  at use time → physical min-distance of `pitch`.
+     */
+    static constexpr int      POISSON_TILE_PITCHES = 8;
+
+    /**
+      * Fixed seed for baking the toroidal Poisson pattern.
+      * This is an arbitrary value but must never be changed (it'll break the patterns used in designs).
+      */
+    static constexpr uint32_t POISSON_TILE_SEED = 0x542c21fc;
+
+    /**
+      * Helper method to cache the poisson tile we pattern.
+      */
+    static const std::vector<VECTOR2D>& bakedPoissonTile();
+
 private:
  //   SHAPE_POLY_SET m_poly; // Stores the S_POLYGON shape
 
     // Stored properties (iu units)
-    int           m_pitch = 0;                            // center-to-center spacing
+    int                   m_pitch  = 0;                   // center-to-center spacing
     PCB_VIA_STITCH_LAYOUT m_layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
+    uint32_t              m_seed   = 0;                   // Tile random shift seed
 
     std::unique_ptr<PCB_VIA> m_viaTemplate;
 

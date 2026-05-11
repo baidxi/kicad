@@ -24,7 +24,12 @@
 #include <pcb_via_stitch.h>
 
 #include <cmath>
+#include <vector>
 
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
+
+#include <geometry/poisson_disk.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/painter.h>
 #include <tool/action_menu.h>
@@ -46,6 +51,15 @@
 const wxString PCB_VIA_STITCH::DISPLAY_NAME = _HKI( "Via Stitching" );
 const wxString PCB_VIA_STITCH::GENERATOR_TYPE = wxS( "via_stitch" );
 
+
+const std::vector<VECTOR2D>& PCB_VIA_STITCH::bakedPoissonTile()
+{
+    static const std::vector<VECTOR2D> samples = POISSON_DISK::ToroidalUnitTile(
+            1.0 / POISSON_TILE_PITCHES, POISSON_TILE_SEED );
+    return samples;
+}
+
+
 PCB_VIA_STITCH::PCB_VIA_STITCH( BOARD_ITEM* aParent, PCB_LAYER_ID aLayer ) :
         PCB_GENERATOR_POLY( aParent, aLayer ),
         m_viaTemplate( std::make_unique<PCB_VIA>( this ) )
@@ -62,6 +76,7 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         PCB_GENERATOR_POLY( aOther ),
         m_pitch( aOther.m_pitch ),
         m_layout( aOther.m_layout ),
+        m_seed( aOther.m_seed ),
         m_viaTemplate( std::make_unique<PCB_VIA>( *aOther.m_viaTemplate ) ),
         m_lastNetName( aOther.m_lastNetName ),
         m_netCode( aOther.m_netCode ),
@@ -81,6 +96,7 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
         PCB_GENERATOR_POLY::operator=( aOther );
         m_pitch = aOther.m_pitch;
         m_layout = aOther.m_layout;
+        m_seed = aOther.m_seed;
         m_viaTemplate = std::make_unique<PCB_VIA>( *aOther.m_viaTemplate );
         m_lastNetName = aOther.m_lastNetName;
         m_netCode = aOther.m_netCode;
@@ -376,19 +392,23 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
     // Try to detect origin offset change due to moved via
     for( BOARD_ITEM* it : GetBoardItems() )
+    if( m_layout != PCB_VIA_STITCH_LAYOUT::POISSON )
     {
-        if( it->Type() != PCB_VIA_T )
-            continue;
-
-        VECTOR2I p = static_cast<PCB_VIA*>( it )->GetPosition();
-        VECTOR2I expectedPos = positionForCell( cellForPosition( p ), detectPitch );
-
-        if( expectedPos != p )
+        for( BOARD_ITEM* it : GetBoardItems() )
         {
-            // Recalculate the origin offset but account for stagger possibly being enabled
-            m_originOffset = VECTOR2I( ( ( p.x % detectPitch ) + detectPitch ) % detectPitch,
-                                       ( ( p.y % detectPitch ) + detectPitch ) % detectPitch );
-            break;
+            if( it->Type() != PCB_VIA_T )
+                continue;
+
+            VECTOR2I p = static_cast<PCB_VIA*>( it )->GetPosition();
+            VECTOR2I expectedPos = positionForCell( cellForPosition( p ), detectPitch );
+
+            if( expectedPos != p )
+            {
+                // Recalculate the origin offset but account for stagger possibly being enabled
+                m_originOffset = VECTOR2I( ( ( p.x % detectPitch ) + detectPitch ) % detectPitch,
+                                           ( ( p.y % detectPitch ) + detectPitch ) % detectPitch );
+                break;
+            }
         }
     }
 
@@ -455,6 +475,7 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
     props.set_iu( "via_drill", m_viaTemplate->GetDrillValue() );
     props.set_iu( "pitch", m_pitch );
     props.set( "layout", static_cast<int>( m_layout ) );
+    props.set( "seed", static_cast<int>( m_seed ) );
     props.set_iu( "origin_offset_x", m_originOffset.x );
     props.set_iu( "origin_offset_y", m_originOffset.y );
 
@@ -497,6 +518,9 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
 
     if( auto layout = aProps.get_opt<int>( "layout" ) )
         m_layout = static_cast<PCB_VIA_STITCH_LAYOUT>( *layout );
+
+    if( auto seed = aProps.get_opt<int>( "seed" ) )
+        m_seed = static_cast<uint32_t>( *seed );
 
     aProps.get_to_iu( "origin_offset_x", m_originOffset.x );
     aProps.get_to_iu( "origin_offset_y", m_originOffset.y );
@@ -568,6 +592,10 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
         return ( a >= 0 ) ? ( a + b / 2 ) / b : -( ( -a + b / 2 ) / b );
     };
 
+    // Poisson layout has no grid
+    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
+        return aPos;
+
     int row = roundDiv( aPos.y - m_originOffset.y, pitch );
     int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( row % 2 + 2 ) % 2 != 0 ) )
                          ? pitch / 2
@@ -580,6 +608,9 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
 
 VECTOR2I PCB_VIA_STITCH::positionForCell( const VECTOR2I& aCell, int aPitch ) const
 {
+    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
+        return aCell;
+
     int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( aCell.y % 2 + 2 ) % 2 != 0 ) )
                          ? aPitch / 2
                          : 0;
@@ -652,46 +683,94 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 
     BOX2I bbox = allowedRegion.BBox();
 
-    // Anchor the grid to global (0, 0) + m_originOffset.
-    int      startRow = (int) std::floor( double( bbox.GetY() - m_originOffset.y ) / pitch );
-    int      startCol = (int) std::floor( double( bbox.GetX() - m_originOffset.x ) / pitch );
-    VECTOR2I origin( startCol * pitch + m_originOffset.x,
-                     startRow * pitch + m_originOffset.y );
+    // Via validator
+    auto isValid =
+            [&]( const VECTOR2I& pt ) -> bool
+            {
+                if( !allowedRegion.PointInside( pt, 0 ) )
+                    return false;
 
-    for( int row = startRow, y = origin.y; y <= bbox.GetBottom(); y += pitch, ++row )
+                if( allowedRegion.PointOnEdge( pt, viaSize / 2 ) )
+                    return false;
+
+                std::unique_ptr<PCB_VIA> probe(
+                        static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
+                probe->SetParent( const_cast<BOARD*>( aBoard ) );
+                probe->SetPosition( pt );
+
+                if( m_netCode )
+                    probe->SetNetCode( m_netCode );
+
+                return !collidesWithBoard( aBoard, drcEngine, probe.get() );
+            };
+
+    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
     {
-        // Odd rows are shifted right by half the pitch when stagger is enabled.
-        int xOffset = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( row % 2 + 2 ) % 2 != 0 ) )
-                              ? pitch / 2
-                              : 0;
+        // We tile a one time generated toroidal Poisson pattern
+        // across the bbox at (pitch * POISSON_TILE_PITCHES) per tile.  The tiling is
+        // anchored to the global (0, 0) origin plus a per-seed sub-tile shift.
+        // This gives us a deterministic but non-grid distribution
+        const std::vector<VECTOR2D>& tile     = bakedPoissonTile();
+        const int                    tileSize = std::max( 1, pitch * POISSON_TILE_PITCHES );
 
-        for( int col = startCol, x = origin.x + xOffset; x <= bbox.GetRight();
-             x += pitch, ++col )
+        // Per-seed sub-tile origin shift in [0, tileSize).
+        boost::random::mt19937                           seedRng( m_seed );
+        boost::random::uniform_real_distribution<double> uniform( 0.0, 1.0 );
+        const double offsetX = uniform( seedRng ) * tileSize;
+        const double offsetY = uniform( seedRng ) * tileSize;
+
+        // Range of tiles that intersect bbox.  Tile (tx, ty) covers
+        // [tx*tileSize + offset, (tx+1)*tileSize + offset).
+        const int firstTileX = (int) std::floor( ( bbox.GetX()      - offsetX ) / (double) tileSize );
+        const int firstTileY = (int) std::floor( ( bbox.GetY()      - offsetY ) / (double) tileSize );
+        const int lastTileX  = (int) std::floor( ( bbox.GetRight()  - offsetX ) / (double) tileSize );
+        const int lastTileY  = (int) std::floor( ( bbox.GetBottom() - offsetY ) / (double) tileSize );
+
+        for( int ty = firstTileY; ty <= lastTileY; ++ty )
         {
-            VECTOR2I pt( x, y );
+            for( int tx = firstTileX; tx <= lastTileX; ++tx )
+            {
+                for( const VECTOR2D& s : tile )
+                {
+                    VECTOR2I pt(
+                            (int) std::round( offsetX + ( tx + s.x ) * tileSize ),
+                            (int) std::round( offsetY + ( ty + s.y ) * tileSize ) );
 
-            if( !allowedRegion.PointInside( pt, 0 ) )
-                continue;
+                    if( !bbox.Contains( pt ) )
+                        continue;
 
-            if( allowedRegion.PointOnEdge( pt, viaSize / 2 ) )
-                continue;
-
-            // Now create a probe via to test for placement
-            std::unique_ptr<PCB_VIA> probe( static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
-            probe->SetParent( const_cast<BOARD*>( aBoard ) );
-            probe->SetPosition( pt );
-
-            if( m_netCode )
-                probe->SetNetCode( m_netCode );
-
-            if( collidesWithBoard( aBoard, drcEngine, probe.get() ) )
-                continue;
-
-            cells.insert( VECTOR2I( col, row ) );
+                    if( isValid( pt ) )
+                        cells.insert( pt );  // Poisson "cell" == absolute position
+                }
+            }
         }
-    }
 
-    return cells;
+        return cells;
+    }
+    else
+    {
+        // Anchor the grid to global (0, 0) + m_originOffset.
+        int      startRow = (int) std::floor( double( bbox.GetY() - m_originOffset.y ) / pitch );
+        int      startCol = (int) std::floor( double( bbox.GetX() - m_originOffset.x ) / pitch );
+        VECTOR2I origin( startCol * pitch + m_originOffset.x, startRow * pitch + m_originOffset.y );
+
+        for( int row = startRow, y = origin.y; y <= bbox.GetBottom(); y += pitch, ++row )
+        {
+            // Odd rows are shifted right by half the pitch when stagger is enabled.
+            int xOffset =
+                    ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( row % 2 + 2 ) % 2 != 0 ) ) ? pitch / 2 : 0;
+
+            for( int col = startCol, x = origin.x + xOffset; x <= bbox.GetRight(); x += pitch, ++col )
+            {
+                VECTOR2I pt( x, y );
+
+                if( isValid( pt ) )
+                    cells.insert( VECTOR2I( col, row ) );
+            }
+        }
+
+        return cells;
+    }
 }
 
 
@@ -761,10 +840,14 @@ static struct PCB_VIA_STITCH_DESC
         ENUM_MAP<PCB_VIA_STITCH_LAYOUT>::Instance()
                 .Undefined( PCB_VIA_STITCH_LAYOUT::PLAIN )
                 .Map( PCB_VIA_STITCH_LAYOUT::PLAIN,     _HKI( "Plain grid" ) )
-                .Map( PCB_VIA_STITCH_LAYOUT::STAGGERED, _HKI( "Staggered grid" ) );
+                .Map( PCB_VIA_STITCH_LAYOUT::STAGGERED, _HKI( "Staggered grid" ) )
+                .Map( PCB_VIA_STITCH_LAYOUT::POISSON,   _HKI( "Poisson disk" ) );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, PCB_VIA_STITCH_LAYOUT>( _HKI( "Layout" ),
                                      &PCB_VIA_STITCH::SetLayout, &PCB_VIA_STITCH::GetLayout ) );
+
+        propMgr.AddProperty( new PROPERTY<PCB_VIA_STITCH, uint32_t>( _HKI( "Seed" ),
+                                     &PCB_VIA_STITCH::SetSeed, &PCB_VIA_STITCH::GetSeed ) );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, int>( _HKI( "Net" ),
                                      &PCB_VIA_STITCH::SetNetCode, &PCB_VIA_STITCH::GetNetCode, PT_NET ) );
