@@ -276,8 +276,8 @@ void NETLIST_EXPORTER_SPICE::ConvertToSpiceMarkup( wxString* aNetName )
 
     // Make sure that SPICE zero should be zero anywhere, independent if it is local or not.
     // Therefore any signal ending with '/0' is rewritten as '0' to be recognized by SPICE.
-    if( aNetName->EndsWith( wxS( "/0" ) ) && !aNetName->EndsWith( wxS("//0") ) )
-        aNetName->assign( wxS("0") );
+    if( aNetName->EndsWith( wxS( "/0" ) ) && !aNetName->EndsWith( wxS( "//0" ) ) )
+        aNetName->assign( wxS( "0" ) );
 
     // Make sure that local ground signals with leading slash ('/gnd') are rewritten as gloabal gnd to be recognized
     // by SPICE as zero.
