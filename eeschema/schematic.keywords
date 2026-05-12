@@ -107,6 +107,7 @@ mid
 minor_radius
 mirror
 name
+net_class
 netclass_flag
 no
 no_connect
@@ -124,6 +125,7 @@ output
 page
 paper
 passive
+passthrough
 path
 pin
 pin_del
@@ -160,6 +162,10 @@ sheet
 sheet_instances
 show_name
 size
+from
+net_chain
+nets
+to
 span
 start
 start_angle

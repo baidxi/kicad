@@ -237,6 +237,7 @@ max_length
 max_width
 material
 members
+member
 micro
 mid
 minor_radius
@@ -444,3 +445,6 @@ zone_type
 zone_defaults
 zones
 depth
+net_chain
+net_chains
+terminal_pad

@@ -1730,8 +1730,8 @@ void SCH_EDIT_FRAME::RefreshOperatingPointDisplay()
                 for( const auto& modelPin : model.GetPins() )
                 {
                     SCH_PIN* symbolPin = symbol->GetPin( modelPin.get().symbolPinNumber );
-                    wxString signalName = ref + wxS( ":" ) + modelPin.get().modelPinName;
-                    wxString op = m_schematic->GetOperatingPoint( signalName, settings.m_OPO_IPrecision,
+                    wxString netChainName = ref + wxS( ":" ) + modelPin.get().modelPinName;
+                    wxString op = m_schematic->GetOperatingPoint( netChainName, settings.m_OPO_IPrecision,
                                                                   settings.m_OPO_IRange );
 
                     if( symbolPin && !op.IsEmpty() && op != wxS( "--" ) && op != wxS( "?" ) )
@@ -2090,6 +2090,27 @@ void SCH_EDIT_FRAME::ShowChangedLanguage()
 
 void SCH_EDIT_FRAME::UpdateNetHighlightStatus()
 {
+    if( !GetHighlightedNetChain().IsEmpty() )
+    {
+        if( CONNECTION_GRAPH* graph = m_schematic->ConnectionGraph() )
+        {
+            if( SCH_NETCHAIN* sig = graph->GetNetChainByName( GetHighlightedNetChain() ) )
+            {
+                wxString nets;
+
+                for( const wxString& n : sig->GetNets() )
+                {
+                    if( !nets.IsEmpty() )
+                        nets += wxT( ", " );
+                    nets += n;
+                }
+
+                SetStatusText( wxString::Format( _( "Net chain members: %s" ), nets ) );
+                return;
+            }
+        }
+    }
+
     if( !GetHighlightedConnection().IsEmpty() )
     {
         SetStatusText( wxString::Format( _( "Highlighted net: %s" ),

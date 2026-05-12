@@ -70,6 +70,7 @@ set( QA_EESCHEMA_SRCS
     erc/test_erc_ground_pins.cpp
     erc/test_erc_bus_member_label_local_pins.cpp
     erc/test_erc_marker_deduplication.cpp
+    erc/test_erc_net_chain_pin_to_pin.cpp
 
     test_schematic_text_var_reactive.cpp
     test_annotation_refdes_tracker_units.cpp
@@ -149,7 +150,9 @@ set( QA_EESCHEMA_SRCS
     test_remote_symbol_import.cpp
     test_remote_symbol_load_from_payload.cpp
     test_backannotate_unit_swap.cpp
+    test_netlist_exporter_xml_chain_gating.cpp
     test_netlist_exporter_xml_stacked.cpp
+    test_netlist_exporter_xml_terminal_pins.cpp
     test_resolve_drivers.cpp
     test_saveas_copy_subsheets.cpp
     test_update_items_connectivity.cpp
@@ -161,6 +164,20 @@ set( QA_EESCHEMA_SRCS
     test_schematic_clipboard_export.cpp
     test_autoplace_fields.cpp
     test_field_case_conflicts.cpp
+
+    # Net Chains test suite
+    net_chains/test_net_chains.cpp
+    net_chains/test_net_chains_remove.cpp
+    net_chains/test_net_chains_branching.cpp
+    net_chains/test_net_chains_class_color.cpp
+    net_chains/test_net_chain_remove_rename.cpp
+    net_chains/test_net_chain_save_root_only.cpp
+    net_chains/test_net_chain_resolve_terminals.cpp
+    net_chains/test_net_chain_hierarchical_roundtrip.cpp
+    net_chains/test_net_chain_manual.cpp
+    net_chains/test_net_chain_recalc_refresh.cpp
+    net_chains/test_net_chain_synthetic_filter.cpp
+    net_chains/test_net_chain_rollback.cpp
 )
 
 if( WIN32 )

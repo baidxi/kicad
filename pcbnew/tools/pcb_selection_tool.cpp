@@ -40,6 +40,7 @@ using namespace std::placeholders;
 #include <pcb_tablecell.h>
 #include <pcb_track.h>
 #include <pcb_marker.h>
+#include <pad.h>
 #include <pcb_generator.h>
 #include <pcb_base_edit_frame.h>
 #include <zone.h>
@@ -87,6 +88,7 @@ public:
 
         Add( PCB_ACTIONS::selectConnection );
         Add( PCB_ACTIONS::selectNet );
+        Add( PCB_ACTIONS::selectNetChain );
 
         // This could be enabled if we have better logic for picking the target net with the mouse
         // Add( PCB_ACTIONS::deselectNet );
@@ -102,6 +104,110 @@ private:
     {
         return new SELECT_MENU();
     }
+};
+
+enum
+{
+    ID_REPLACE_TERMINAL_PAD_A = wxID_HIGHEST + 3000,
+    ID_REPLACE_TERMINAL_PAD_B
+};
+
+class REPLACE_TERMINAL_PAD_MENU : public ACTION_MENU
+{
+public:
+    REPLACE_TERMINAL_PAD_MENU() : ACTION_MENU( true )
+    {
+        SetTitle( _( "Set terminal pad" ) );
+    }
+
+protected:
+    ACTION_MENU* create() const override { return new REPLACE_TERMINAL_PAD_MENU(); }
+
+    void update() override
+    {
+        Clear();
+
+        TOOL_MANAGER* toolMgr = getToolManager();
+        if( !toolMgr )
+            return;
+
+        PCB_SELECTION_TOOL* selTool = toolMgr->GetTool<PCB_SELECTION_TOOL>();
+        if( !selTool )
+            return;
+
+        const SELECTION& sel = selTool->GetSelection();
+        if( sel.Empty() )
+            return;
+
+        PAD* pad = dynamic_cast<PAD*>( sel.Front() );
+        PCB_EDIT_FRAME* frame = static_cast<PCB_EDIT_FRAME*>( toolMgr->GetToolHolder() );
+
+        if( !pad || !frame )
+            return;
+
+        NETINFO_ITEM* net = pad->GetNet();
+
+        if( !net || net->GetNetChain().IsEmpty() )
+            return;
+
+        PAD* oldA = net->GetTerminalPad( 0 );
+        PAD* oldB = net->GetTerminalPad( 1 );
+        KIID newId = pad->m_Uuid;
+
+        wxMenuItem* itemA = Append( ID_REPLACE_TERMINAL_PAD_A, _( "Terminal A" ) );
+        wxMenuItem* itemB = Append( ID_REPLACE_TERMINAL_PAD_B, _( "Terminal B" ) );
+
+        if( oldA && oldA->m_Uuid == newId )
+            itemA->Enable( false );
+
+        if( oldB && oldB->m_Uuid == newId )
+            itemB->Enable( false );
+
+        m_oldA = oldA ? oldA->m_Uuid : niluuid;
+        m_oldB = oldB ? oldB->m_Uuid : niluuid;
+        m_new = newId;
+    }
+
+    OPT_TOOL_EVENT eventHandler( const wxMenuEvent& aEvent ) override
+    {
+        if( aEvent.GetId() == ID_REPLACE_TERMINAL_PAD_A )
+        {
+            TOOL_EVENT te = PCB_ACTIONS::setTerminalPad.MakeEvent();
+            te.SetParameter( std::make_pair( m_oldA.AsString(), m_new.AsString() ) );
+            return te;
+        }
+        else if( aEvent.GetId() == ID_REPLACE_TERMINAL_PAD_B )
+        {
+            TOOL_EVENT te = PCB_ACTIONS::setTerminalPad.MakeEvent();
+            te.SetParameter( std::make_pair( m_oldB.AsString(), m_new.AsString() ) );
+            return te;
+        }
+
+        return OPT_TOOL_EVENT();
+    }
+
+private:
+    KIID m_oldA;
+    KIID m_oldB;
+    KIID m_new;
+};
+
+class NET_CHAINS_MENU : public ACTION_MENU
+{
+public:
+    NET_CHAINS_MENU() : ACTION_MENU( true )
+    {
+        SetTitle( _( "Net Chains..." ) );
+        m_replaceMenu = new REPLACE_TERMINAL_PAD_MENU();
+        Add( PCB_ACTIONS::highlightNetChain );
+    Add( m_replaceMenu );
+    }
+
+protected:
+    ACTION_MENU* create() const override { return new NET_CHAINS_MENU(); }
+
+private:
+    REPLACE_TERMINAL_PAD_MENU* m_replaceMenu;
 };
 
 
@@ -163,6 +269,10 @@ bool PCB_SELECTION_TOOL::Init()
     selectMenu->SetTool( this );
     m_menu->RegisterSubMenu( selectMenu );
 
+    std::shared_ptr<NET_CHAINS_MENU> netChainsMenu = std::make_shared<NET_CHAINS_MENU>();
+    netChainsMenu->SetTool( this );
+    m_menu->RegisterSubMenu( netChainsMenu );
+
     static const std::vector<KICAD_T> tableCellTypes = { PCB_TABLECELL_T };
 
     auto& menu = m_menu->GetMenu();
@@ -194,9 +304,19 @@ bool PCB_SELECTION_TOOL::Init()
     auto tableCellSelection = SELECTION_CONDITIONS::MoreThan( 0 )
                                 && SELECTION_CONDITIONS::OnlyTypes( tableCellTypes );
 
+    SELECTION_CONDITION netItemSelection = []( const SELECTION& aSel )
+    {
+        if( aSel.GetSize() != 1 )
+            return false;
+        BOARD_ITEM* item = static_cast<BOARD_ITEM*>( *aSel.begin() );
+        return item->Type() == PCB_PAD_T || item->Type() == PCB_VIA_T || item->Type() == PCB_TRACE_T
+               || item->Type() == PCB_ARC_T;
+    };
+
     if( frame && frame->IsType( FRAME_PCB_EDITOR ) )
     {
         menu.AddMenu( selectMenu.get(), SELECTION_CONDITIONS::NotEmpty  );
+    menu.AddMenu( netChainsMenu.get(), netItemSelection );
         menu.AddSeparator( 1000 );
     }
 
@@ -2518,6 +2638,50 @@ int PCB_SELECTION_TOOL::selectNet( const TOOL_EVENT& aEvent )
 }
 
 
+int PCB_SELECTION_TOOL::selectNetChain( const TOOL_EVENT& aEvent )
+{
+    if( !selectCursor() )
+        return 0;
+
+    auto selection = m_selection.GetItems();
+
+    for( EDA_ITEM* i : selection )
+    {
+        BOARD_CONNECTED_ITEM* connItem = dynamic_cast<BOARD_CONNECTED_ITEM*>( i );
+
+        if( !connItem )
+            continue;
+
+        NETINFO_ITEM* netInfo = connItem->GetNet();
+
+        if( !netInfo )
+            continue;
+
+        const wxString& chainName = netInfo->GetNetChain();
+
+        if( chainName.IsEmpty() )
+        {
+            // Net is not part of any chain; fall back to single-net behaviour.
+            SelectAllItemsOnNet( connItem->GetNetCode(), true );
+            continue;
+        }
+
+        for( NETINFO_ITEM* candidate : board()->GetNetInfo() )
+        {
+            if( candidate && candidate->GetNetChain() == chainName )
+                SelectAllItemsOnNet( candidate->GetNetCode(), true );
+        }
+    }
+
+    if( m_selection.Size() > 0 )
+        m_toolMgr->ProcessEvent( EVENTS::SelectedEvent );
+    else
+        m_toolMgr->ProcessEvent( EVENTS::UnselectedEvent );
+
+    return 0;
+}
+
+
 void PCB_SELECTION_TOOL::selectAllItemsOnSheet( wxString& aSheetPath )
 {
     std::vector<BOARD_ITEM*> footprints;
@@ -4768,6 +4932,7 @@ void PCB_SELECTION_TOOL::setTransitions()
     Go( &PCB_SELECTION_TOOL::unrouteSegment,        PCB_ACTIONS::unrouteSegment.MakeEvent() );
     Go( &PCB_SELECTION_TOOL::selectNet,             PCB_ACTIONS::selectNet.MakeEvent() );
     Go( &PCB_SELECTION_TOOL::selectNet,             PCB_ACTIONS::deselectNet.MakeEvent() );
+    Go( &PCB_SELECTION_TOOL::selectNetChain,        PCB_ACTIONS::selectNetChain.MakeEvent() );
     Go( &PCB_SELECTION_TOOL::selectUnconnected,     PCB_ACTIONS::selectUnconnected.MakeEvent() );
     Go( &PCB_SELECTION_TOOL::grabUnconnected,       PCB_ACTIONS::grabUnconnected.MakeEvent() );
     Go( &PCB_SELECTION_TOOL::syncSelection,         PCB_ACTIONS::syncSelection.MakeEvent() );

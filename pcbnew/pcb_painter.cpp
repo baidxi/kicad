@@ -27,6 +27,7 @@
 
 #include <advanced_config.h>
 #include <board.h>
+#include <netinfo.h>
 #include <board_design_settings.h>
 #include <pcb_track.h>
 #include <pcb_group.h>
@@ -831,6 +832,28 @@ void PCB_PAINTER::draw( const PCB_TRACK* aTrack, int aLayer )
     int      track_width = aTrack->GetWidth();
     COLOR4D  color       = m_pcbSettings.GetColor( aTrack, aLayer );
 
+    // If a chain highlight is active and the track belongs to the highlighted
+    // chain, and the chain has a colour override configured on the board,
+    // prefer that colour.  Only do this when we're drawing the actual copper
+    // (not netname labels, clearance outlines, etc.).
+    if( IsCopperLayer( aLayer ) && !m_pcbSettings.m_highlightedNetChain.IsEmpty() )
+    {
+        if( NETINFO_ITEM* netinfo = aTrack->GetNet() )
+        {
+            if( netinfo->GetNetChain() == m_pcbSettings.m_highlightedNetChain )
+            {
+                if( const BOARD* board = aTrack->GetBoard() )
+                {
+                    COLOR4D chainColor =
+                            board->GetNetChainColor( m_pcbSettings.m_highlightedNetChain );
+
+                    if( chainColor != COLOR4D::UNSPECIFIED )
+                        color = chainColor.WithAlpha( color.a );
+                }
+            }
+        }
+    }
+
     if( IsNetnameLayer( aLayer ) )
     {
         if( !pcbconfig() || pcbconfig()->m_Display.m_NetNames < 2 )
@@ -1068,6 +1091,24 @@ void PCB_PAINTER::draw( const PCB_VIA* aVia, int aLayer )
 
     if( color == COLOR4D::CLEAR )
         return;
+
+    // Chain highlight colour override for copper/hole layers.
+    if( board && !m_pcbSettings.m_highlightedNetChain.IsEmpty()
+        && ( IsCopperLayer( aLayer ) || IsViaCopperLayer( aLayer )
+             || aLayer == LAYER_VIA_HOLES ) )
+    {
+        if( NETINFO_ITEM* netinfo = aVia->GetNet() )
+        {
+            if( netinfo->GetNetChain() == m_pcbSettings.m_highlightedNetChain )
+            {
+                COLOR4D chainColor =
+                        board->GetNetChainColor( m_pcbSettings.m_highlightedNetChain );
+
+                if( chainColor != COLOR4D::UNSPECIFIED )
+                    color = chainColor.WithAlpha( color.a );
+            }
+        }
+    }
 
     const int copperLayer = IsViaCopperLayer( aLayer ) ? aLayer - LAYER_VIA_COPPER_START : aLayer;
 
@@ -1975,6 +2016,65 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
             std::shared_ptr<SHAPE_SEGMENT> slot = aPad->GetEffectiveHoleShape();
             m_gal->DrawSegment( slot->GetSeg().A, slot->GetSeg().B,
                                 slot->GetWidth() + 2 * clearance );
+        }
+    }
+
+    if( m_pcbSettings.IsHighlightEnabled()
+            && m_pcbSettings.GetHighlightNetCodes().contains( aPad->GetNetCode() ) )
+    {
+        NETINFO_ITEM* net = aPad->GetNet();
+        if( net && ( net->GetTerminalPad( 0 ) == aPad || net->GetTerminalPad( 1 ) == aPad ) )
+        {
+            BOX2I box = aPad->GetBoundingBox();
+            m_gal->SetIsFill( false );
+            m_gal->SetIsStroke( true );
+
+            // Base emphasis (net highlight)
+            COLOR4D termColor = color.Brightened( 0.2 );
+            int baseWidth = m_pcbSettings.m_outlineWidth * 2;
+
+            // If a grouped chain highlight is active and this pad belongs to that chain,
+            // make the emphasis stronger (brighter + thicker + inset second rectangle).
+            if( !m_pcbSettings.m_highlightedNetChain.IsEmpty()
+                    && net && net->GetNetChain() == m_pcbSettings.m_highlightedNetChain )
+            {
+                // Prefer the chain's own colour override if the board has one.
+                if( const BOARD* board = aPad->GetBoard() )
+                {
+                    COLOR4D chainColor =
+                            board->GetNetChainColor( m_pcbSettings.m_highlightedNetChain );
+
+                    if( chainColor != COLOR4D::UNSPECIFIED )
+                        termColor = chainColor;
+                    else
+                        termColor = termColor.Brightened( 0.25 );
+                }
+                else
+                {
+                    termColor = termColor.Brightened( 0.25 );
+                }
+
+                baseWidth = m_pcbSettings.m_outlineWidth * 3;
+            }
+
+            m_gal->SetStrokeColor( termColor );
+            m_gal->SetLineWidth( baseWidth );
+            m_gal->DrawRectangle( box.GetOrigin(), box.GetEnd() );
+
+            if( !m_pcbSettings.m_highlightedNetChain.IsEmpty()
+                    && net && net->GetNetChain() == m_pcbSettings.m_highlightedNetChain )
+            {
+                // Draw an inner rectangle for additional visual distinction.
+                // Shrink by one outline width equivalent to avoid excessive size.
+                int inset = baseWidth * 2; // screen-space approx; acceptable heuristic
+                BOX2I inner = box;
+                inner.Inflate( -inset, -inset );
+                if( inner.GetWidth() > 0 && inner.GetHeight() > 0 )
+                {
+                    m_gal->SetLineWidth( m_pcbSettings.m_outlineWidth );
+                    m_gal->DrawRectangle( inner.GetOrigin(), inner.GetEnd() );
+                }
+            }
         }
     }
 }

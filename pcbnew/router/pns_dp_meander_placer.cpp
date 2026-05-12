@@ -20,6 +20,7 @@
  */
 
 #include <optional>
+#include <algorithm>
 
 #include <core/typeinfo.h>
 
@@ -159,6 +160,11 @@ bool DP_MEANDER_PLACER::Start( const VECTOR2I& aP, ITEM* aStartItem )
     const BOARD_CONNECTED_ITEM* conItem = static_cast<BOARD_CONNECTED_ITEM*>( aStartItem->GetSourceItem() );
     m_netClass = conItem->GetEffectiveNetClass();
 
+    m_baselineLength = origPathLength();
+    m_baselineDelay = m_settings.m_isTimeDomain ? origPathDelay() : 0;
+
+    initChainExtras();
+
     calculateTimeDomainTargets();
 
     return true;
@@ -181,7 +187,7 @@ long long int DP_MEANDER_PLACER::origPathLength() const
 int64_t DP_MEANDER_PLACER::origPathDelay() const
 {
     const int64_t totalP = m_padToDieDelayP + lineDelay( m_tunedPathP, m_startPad_p, m_endPad_p );
-    const int64_t totalN = m_padToDieDelayP + lineDelay( m_tunedPathN, m_startPad_n, m_endPad_n );
+    const int64_t totalN = m_padToDieDelayN + lineDelay( m_tunedPathN, m_startPad_n, m_endPad_n );
     return std::max( totalP, totalN );
 }
 
@@ -207,6 +213,36 @@ bool DP_MEANDER_PLACER::pairOrientation( const DIFF_PAIR::COUPLED_SEGMENTS& aPai
 
 bool DP_MEANDER_PLACER::Move( const VECTOR2I& aP, ITEM* aEndItem )
 {
+    // Reuse the chain-extras aggregate captured at Start(). Other nets in the chain are
+    // not edited during a tuning session, so we don't need to walk the BOARD again.
+    const long long extraDelay = m_chainExtrasValid ? m_chainExtrasDelay : 0;
+
+    m_settings.m_signalExtraDelay = extraDelay;
+
+    // Derive per-net budget from chain target, accounting for stubs not in the PNS path.
+    // Take the tighter of chain budget and existing per-net constraint.
+    if( m_settings.m_targetSignalLength.Opt() != MEANDER_SETTINGS::LENGTH_UNCONSTRAINED )
+    {
+        const long long otherLen = chainNarrowingOffset();
+
+        long long budgetMin = std::max( 0LL, m_settings.m_targetSignalLength.Min() - otherLen );
+        long long budgetOpt = std::max( 0LL, m_settings.m_targetSignalLength.Opt() - otherLen );
+        long long budgetMax = std::max( budgetOpt, m_settings.m_targetSignalLength.Max() - otherLen );
+
+        if( m_settings.m_targetLength.Opt() == MEANDER_SETTINGS::LENGTH_UNCONSTRAINED )
+        {
+            m_settings.m_targetLength.SetMin( budgetMin );
+            m_settings.m_targetLength.SetOpt( budgetOpt );
+            m_settings.m_targetLength.SetMax( budgetMax );
+        }
+        else
+        {
+            m_settings.m_targetLength.SetMin( std::max( m_settings.m_targetLength.Min(), budgetMin ) );
+            m_settings.m_targetLength.SetOpt( std::min( m_settings.m_targetLength.Opt(), budgetOpt ) );
+            m_settings.m_targetLength.SetMax( std::min( m_settings.m_targetLength.Max(), budgetMax ) );
+        }
+    }
+
     calculateTimeDomainTargets();
 
     if( m_currentStart == aP )
@@ -670,11 +706,25 @@ void DP_MEANDER_PLACER::calculateTimeDomainTargets()
     // If this is a time domain tuning, calculate the target length for the desired total delay
     if( m_settings.m_isTimeDomain )
     {
-        const int64_t curDelay = origPathDelay();
+        const int64_t curDelayChain = origPathDelay();
+        const int64_t curDelayPair = curDelayChain - m_settings.m_signalExtraDelay; // subtract other nets
 
-        const int64_t desiredDelayMin = m_settings.m_targetLengthDelay.Min();
-        const int64_t desiredDelayOpt = m_settings.m_targetLengthDelay.Opt();
-        const int64_t desiredDelayMax = m_settings.m_targetLengthDelay.Max();
+        bool useSignalTarget = ( m_settings.m_targetSignalLengthDelay.Opt() != MEANDER_SETTINGS::DELAY_UNCONSTRAINED );
+        const MINOPTMAX<long long int>& targetDelaySet = useSignalTarget ? m_settings.m_targetSignalLengthDelay
+                                                                         : m_settings.m_targetLengthDelay;
+
+        int64_t desiredDelayMin = targetDelaySet.Min();
+        int64_t desiredDelayOpt = targetDelaySet.Opt();
+        int64_t desiredDelayMax = targetDelaySet.Max();
+
+        if( useSignalTarget )
+        {
+            desiredDelayMin = std::max<int64_t>( 0, desiredDelayMin - m_settings.m_signalExtraDelay );
+            desiredDelayOpt = std::max<int64_t>( 0, desiredDelayOpt - m_settings.m_signalExtraDelay );
+            desiredDelayMax = std::max<int64_t>( desiredDelayOpt, desiredDelayMax - m_settings.m_signalExtraDelay );
+        }
+
+        const int64_t curDelay = useSignalTarget ? curDelayPair : curDelayChain;
 
         const int64_t delayDifferenceOpt = desiredDelayOpt - curDelay;
 

@@ -2912,6 +2912,94 @@ int PNS_KICAD_IFACE_BASE::GetPNSLayerFromBoardLayer( PCB_LAYER_ID aLayer ) const
     return ( aLayer / 2 ) - 1;
 }
 
+bool PNS_KICAD_IFACE_BASE::GetSignalAggregate( PNS::NET_HANDLE aNetP, PNS::NET_HANDLE aNetN,
+                                                long long& aExtraLength, long long& aExtraDelay ) const
+{
+    aExtraLength = 0;
+    aExtraDelay = 0;
+    if( !m_board || !aNetP || !aNetN )
+        return false;
+
+    auto* netP = static_cast<NETINFO_ITEM*>( aNetP );
+    auto* netN = static_cast<NETINFO_ITEM*>( aNetN );
+    wxString sig = netP->GetNetChain();
+    if( sig.IsEmpty() || sig != netN->GetNetChain() )
+        return false;
+
+    // Build the set of net codes to exclude (the nets the caller is already accounting for).
+    std::set<int> exclude;
+    exclude.insert( netP->GetNetCode() );
+    if( netP != netN )
+        exclude.insert( netN->GetNetCode() );
+
+    // Sum routed length/delay of every other net in the chain.
+    for( NETINFO_ITEM* net : m_board->GetNetInfo() )
+    {
+        if( net->GetNetChain() != sig )
+            continue;
+        if( exclude.count( net->GetNetCode() ) )
+            continue;
+
+        PCB_TRACK* rep = nullptr;
+
+        for( BOARD_ITEM* bi : m_board->Tracks() )
+        {
+            if( auto tr = dynamic_cast<PCB_TRACK*>( bi ) )
+            {
+                if( tr->GetNetCode() == net->GetNetCode() )
+                {
+                    rep = tr;
+                    break;
+                }
+            }
+        }
+
+        if( rep )
+        {
+            int count = 0; double trk = 0, pad = 0, tDelay = 0, padDelay = 0;
+            std::tie( count, trk, pad, tDelay, padDelay ) = m_board->GetTrackLength( *rep );
+            aExtraLength += KiROUND<double, long long>( trk + pad );
+
+            if( tDelay > 0.0 || padDelay > 0.0 )
+                aExtraDelay += KiROUND<double, long long>( tDelay + padDelay );
+        }
+    }
+
+    // Chain is valid; return true even if no sibling nets carry routed length yet so the
+    // placer applies the full chain budget to the net being routed first.
+    return true;
+}
+
+bool PNS_KICAD_IFACE::GetSignalAggregate( PNS::NET_HANDLE aNetP, PNS::NET_HANDLE aNetN,
+                                          long long& aExtraLength, long long& aExtraDelay ) const
+{
+    return PNS_KICAD_IFACE_BASE::GetSignalAggregate( aNetP, aNetN, aExtraLength, aExtraDelay );
+}
+
+
+long long PNS_KICAD_IFACE_BASE::GetNetBoardLength( PNS::NET_HANDLE aNet ) const
+{
+    if( !m_board || !aNet )
+        return 0;
+
+    auto* ni = static_cast<NETINFO_ITEM*>( aNet );
+
+    for( BOARD_ITEM* bi : m_board->Tracks() )
+    {
+        if( auto tr = dynamic_cast<PCB_TRACK*>( bi ) )
+        {
+            if( tr->GetNetCode() == ni->GetNetCode() )
+            {
+                int count = 0; double trk = 0, pad = 0, tDelay = 0, padDelay = 0;
+                std::tie( count, trk, pad, tDelay, padDelay ) = m_board->GetTrackLength( *tr );
+                return KiROUND<double, long long>( trk + pad );
+            }
+        }
+    }
+
+    return 0;
+}
+
 
 void PNS_KICAD_IFACE_BASE::SetStartLayerFromPCBNew( PCB_LAYER_ID aLayer )
 {

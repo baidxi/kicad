@@ -84,6 +84,9 @@ public:
     /// Remove all connections belonging to a single net from the active selection
     static TOOL_ACTION deselectNet;
 
+    /// Select all connections belonging to every net in the current item's net chain.
+    static TOOL_ACTION selectNetChain;
+
     /// Select unconnected footprints from ratsnest of selection
     static TOOL_ACTION selectUnconnected;
 
@@ -592,6 +595,8 @@ public:
     static TOOL_ACTION toggleNetHighlight;      // Toggles between highlight off and highlight on
     static TOOL_ACTION highlightNetSelection;   // Turns on highlight and takes net from selection
     static TOOL_ACTION highlightItem;           // Select component via cross-probe
+    static TOOL_ACTION highlightNetChain;
+    static TOOL_ACTION setTerminalPad;
 
     // Ratsnest
     static TOOL_ACTION hideNetInRatsnest;

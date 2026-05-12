@@ -1605,6 +1605,19 @@ TOOL_ACTION PCB_ACTIONS::highlightNetSelection( TOOL_ACTION_ARGS()
         .Icon( BITMAPS::net_highlight )
         .Parameter<int>( 0 ) );
 
+TOOL_ACTION PCB_ACTIONS::highlightNetChain( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.EditorControl.highlightNetChain" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Highlight Net Chain" ) )
+        .Tooltip( _( "Highlight every net in the net chain" ) )
+        .Icon( BITMAPS::net_highlight ) );
+
+TOOL_ACTION PCB_ACTIONS::setTerminalPad( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.EditorControl.setTerminalPad" )
+        .Scope( AS_GLOBAL )
+        .Parameter<std::pair<KIID, KIID>>( { niluuid, niluuid } )
+        .FriendlyName( _( "Set Terminal Pad" ) ) );
+
 TOOL_ACTION PCB_ACTIONS::highlightItem( TOOL_ACTION_ARGS()
         .Name( "pcbnew.EditorControl.highlightItem" )
         .Scope( AS_GLOBAL ) );
@@ -2434,6 +2447,13 @@ TOOL_ACTION PCB_ACTIONS::deselectNet( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Deselect All Tracks in Net" ) )
         .Tooltip( _( "Deselects all tracks & vias belonging to the same net." ) )
         .Parameter<int>( 0 ) );
+
+TOOL_ACTION PCB_ACTIONS::selectNetChain( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveSelection.SelectNetChain" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Select All Tracks in Net Chain" ) )
+        .Tooltip( _( "Selects all tracks & vias belonging to every net in the same net "
+                     "chain (nets joined through series passives)." ) ) );
 
 TOOL_ACTION PCB_ACTIONS::selectUnconnected( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveSelection.SelectUnconnected" )

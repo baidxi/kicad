@@ -25,7 +25,9 @@
 
 #include "netlist_exporter_xml.h"
 
+#include <algorithm>
 #include <build_version.h>
+#include <gal/color4d.h>
 #include <common.h>     // for ExpandTextVars
 #include <sch_base_frame.h>
 #include <sch_group.h>
@@ -38,6 +40,8 @@
 #include <xnode.h>      // also nests: <wx/xml/xml.h>
 #include <json_common.h>
 #include <project_sch.h>
+#include <project/project_file.h>
+#include <project/net_settings.h>
 #include <sch_rule_area.h>
 #include <trace_helpers.h>
 
@@ -95,7 +99,19 @@ XNODE* NETLIST_EXPORTER_XML::makeRoot( unsigned aCtl )
         xroot->AddChild( makeLibraries() );
 
     if( aCtl & GNL_NETS )
+    {
         xroot->AddChild( makeListOfNets( aCtl ) );
+
+        // Net chains are a KiCad-internal extension that is not part of the public XML
+        // netlist schema (version "E"). Emit them only for the KiCad-internal consumer
+        // (eeschema -> pcbnew via NETLIST_EXPORTER_KICAD) so that generic XML, KiCost and
+        // other schema-validating tools do not see an unexpected element.
+        if( aCtl & GNL_OPT_KICAD )
+        {
+            if( XNODE* xchains = makeNetChains() )
+                xroot->AddChild( xchains );
+        }
+    }
 
     return xroot;
 }
@@ -1299,6 +1315,93 @@ XNODE* NETLIST_EXPORTER_XML::makeListOfNets( unsigned aCtl )
         delete record;
 
     return xnets;
+}
+
+XNODE* NETLIST_EXPORTER_XML::makeNetChains()
+{
+    const auto& committed = m_schematic->ConnectionGraph()->GetCommittedNetChains();
+
+    if( committed.empty() )
+        return nullptr;
+
+    XNODE* xchains = node( wxT( "net_chains" ) );
+
+    for( const std::unique_ptr<SCH_NETCHAIN>& chain : committed )
+    {
+        if( !chain )
+            continue;
+
+        XNODE* xchain;
+        xchains->AddChild( xchain = node( wxT( "net_chain" ) ) );
+        xchain->AddAttribute( wxT( "name" ), chain->GetName() );
+
+        if( !chain->GetNetClass().IsEmpty() )
+            xchain->AddAttribute( wxT( "net_class" ), chain->GetNetClass() );
+
+        // Carry the chain's class assignment (from project's NET_SETTINGS) so
+        // that downstream consumers of the netlist can see chain hierarchy
+        // without having to also parse the .kicad_pro file.
+        if( m_schematic )
+        {
+            PROJECT_FILE& pf = m_schematic->Project().GetProjectFile();
+            const std::shared_ptr<NET_SETTINGS>& ns = pf.NetSettings();
+
+            if( ns )
+            {
+                wxString className = ns->GetNetChainClass( chain->GetName() );
+
+                if( !className.IsEmpty() )
+                    xchain->AddAttribute( wxT( "net_chain_class" ), className );
+            }
+        }
+
+        if( chain->GetColor() != COLOR4D::UNSPECIFIED )
+        {
+            const COLOR4D& c = chain->GetColor();
+            xchain->AddAttribute( wxT( "color" ),
+                                   wxString::Format( wxT( "#%02X%02X%02X%02X" ),
+                                                     (int) std::clamp( KiROUND( c.r * 255.0 ), 0, 255 ),
+                                                     (int) std::clamp( KiROUND( c.g * 255.0 ), 0, 255 ),
+                                                     (int) std::clamp( KiROUND( c.b * 255.0 ), 0, 255 ),
+                                                     (int) std::clamp( KiROUND( c.a * 255.0 ), 0, 255 ) ) );
+        }
+
+        XNODE* xmembers;
+        xchain->AddChild( xmembers = node( wxT( "members" ) ) );
+
+        // Synthetic per-run subgraph names (__SG_*) embed run-specific subgraph codes
+        // that do not survive a reload, and downstream consumers cannot resolve them
+        // back to a real net.  Mirror the sexpr writer's filter so the XML output is
+        // limited to nets that have stable, user-visible names.
+        for( const wxString& net : chain->GetNets() )
+        {
+            if( net.IsEmpty() || net.StartsWith( SCH_NETCHAIN::SYNTHETIC_NET_PREFIX ) )
+                continue;
+
+            XNODE* xmember;
+            xmembers->AddChild( xmember = node( wxT( "member" ) ) );
+            xmember->AddAttribute( wxT( "net" ), net );
+        }
+
+        if( !chain->GetTerminalRef( 0 ).IsEmpty() || !chain->GetTerminalRef( 1 ).IsEmpty() )
+        {
+            XNODE* xterms;
+            xchain->AddChild( xterms = node( wxT( "terminal_pins" ) ) );
+
+            for( int i = 0; i < 2; ++i )
+            {
+                if( chain->GetTerminalRef( i ).IsEmpty() )
+                    continue;
+
+                XNODE* xterm;
+                xterms->AddChild( xterm = node( wxT( "terminal_pin" ) ) );
+                xterm->AddAttribute( wxT( "ref" ), chain->GetTerminalRef( i ) );
+                xterm->AddAttribute( wxT( "pin" ), chain->GetTerminalPinNum( i ) );
+            }
+        }
+    }
+
+    return xchains;
 }
 
 

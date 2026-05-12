@@ -48,6 +48,7 @@
 #include <sch_bitmap.h>
 #include <sch_bus_entry.h>
 #include <sch_symbol.h>
+#include <sch_netchain.h>
 #include <sch_edit_frame.h>          // SYM_ORIENT_XXX
 #include <sch_field.h>
 #include <sch_group.h>
@@ -3062,6 +3063,10 @@ void SCH_IO_KICAD_SEXPR_PARSER::ParseSchematic( SCH_SHEET* aSheet, bool aIsCopya
             screen->Append( parseSchText() );
             break;
 
+        case T_net_chain:
+            parseSchNetChain();
+            break;
+
         case T_text_box:
             screen->Append( parseSchTextBox() );
             break;
@@ -3140,8 +3145,8 @@ void SCH_IO_KICAD_SEXPR_PARSER::ParseSchematic( SCH_SHEET* aSheet, bool aIsCopya
                        "directive_label, ellipse, ellipse_arc, embedded_fonts, embedded_files, "
                        "global_label, hierarchical_label, image, junction, lib_symbols, "
                        "netclass_flag, no_connect, polyline, rectangle, rule_area, sheet, "
-                       "sheet_instances, symbol, symbol_instances, table, text, text_box, "
-                       "title_block, uuid, wire" );
+                       "sheet_instances, signal, symbol, symbol_instances, table, text, "
+                       "text_box, title_block, uuid, wire" );
         }
     }
 
@@ -3326,6 +3331,30 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
             symbol->SetLocked( parseBool() );
             NeedRIGHT();
             break;
+
+        case T_passthrough:
+        {
+            // (passthrough default|block|force)
+            T t = NextTok();
+
+            // Expect a string-like token
+            if( !IsSymbol( t ) )
+                Expecting( "default, block or force" );
+
+            wxString mode = FromUTF8();
+
+            if( mode.IsSameAs( wxT("default"), false ) )
+                symbol->SetPassthroughMode( SCH_SYMBOL::PASSTHROUGH_MODE::DEFAULT );
+            else if( mode.IsSameAs( wxT("block"), false ) )
+                symbol->SetPassthroughMode( SCH_SYMBOL::PASSTHROUGH_MODE::BLOCK );
+            else if( mode.IsSameAs( wxT("force"), false ) )
+                symbol->SetPassthroughMode( SCH_SYMBOL::PASSTHROUGH_MODE::FORCE );
+            else
+                Expecting( "default, block or force" );
+
+            NeedRIGHT();
+            break;
+        }
 
         case T_fields_autoplaced:
             if( parseMaybeAbsentBool( true ) )
@@ -3665,7 +3694,7 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
         }
 
         default:
-            Expecting( "lib_id, lib_name, at, mirror, uuid, exclude_from_sim, on_board, in_bom, dnp, "
+            Expecting( "lib_id, lib_name, at, mirror, uuid, exclude_from_sim, on_board, in_bom, dnp, passthrough, "
                        "default_instance, property, pin, or instances" );
         }
     }
@@ -4451,7 +4480,7 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSchArc()
 
         case T_uuid:
             NeedSYMBOL();
-            const_cast<KIID&>( arc->m_Uuid ) = KIID( FromUTF8() );
+            const_cast<KIID&>( arc->m_Uuid ) = parseKIID();
             NeedRIGHT();
             break;
 
@@ -4516,7 +4545,7 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSchCircle()
 
         case T_uuid:
             NeedSYMBOL();
-            const_cast<KIID&>( circle->m_Uuid ) = KIID( FromUTF8() );
+            const_cast<KIID&>( circle->m_Uuid ) = parseKIID();
             NeedRIGHT();
             break;
 
@@ -4585,7 +4614,7 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSchRectangle()
 
         case T_uuid:
             NeedSYMBOL();
-            const_cast<KIID&>( rectangle->m_Uuid ) = KIID( FromUTF8() );
+            const_cast<KIID&>( rectangle->m_Uuid ) = parseKIID();
             NeedRIGHT();
             break;
 
@@ -4736,7 +4765,7 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSchBezier()
 
         case T_uuid:
             NeedSYMBOL();
-            const_cast<KIID&>( bezier->m_Uuid ) = KIID( FromUTF8() );
+            const_cast<KIID&>( bezier->m_Uuid ) = parseKIID();
             NeedRIGHT();
             break;
 
@@ -5180,7 +5209,7 @@ void SCH_IO_KICAD_SEXPR_PARSER::parseSchTextBoxContent( SCH_TEXTBOX* aTextBox )
 
         case T_uuid:
             NeedSYMBOL();
-            const_cast<KIID&>( aTextBox->m_Uuid ) = KIID( FromUTF8() );
+            const_cast<KIID&>( aTextBox->m_Uuid ) = parseKIID();
             NeedRIGHT();
             break;
 
@@ -5416,6 +5445,100 @@ void SCH_IO_KICAD_SEXPR_PARSER::parseBusAlias( SCH_SCREEN* aScreen )
     NeedRIGHT();
 
     aScreen->AddBusAlias( busAlias );
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseSchNetChain()
+{
+    // (net_chain "name" [(from "ref" "pin")] [(to "ref" "pin")]
+    //   [(net_class "...")] [(color R G B A)] [(nets "n1" "n2" ...)])
+    NeedSYMBOL();
+    wxString name = FromUTF8();
+
+    wxString netClass;
+    COLOR4D  color = COLOR4D::UNSPECIFIED;
+    wxString fromRef, fromPin, toRef, toPin;
+    std::set<wxString> memberNets;
+
+    for( T tok = NextTok(); tok != T_RIGHT; tok = NextTok() )
+    {
+        if( tok == T_LEFT )
+            tok = NextTok();
+
+        if( tok == T_from )
+        {
+            NeedSYMBOLorNUMBER();
+            fromRef = From_UTF8( CurText() );
+            NeedSYMBOLorNUMBER();
+            fromPin = From_UTF8( CurText() );
+            NeedRIGHT();
+        }
+        else if( tok == T_to )
+        {
+            NeedSYMBOLorNUMBER();
+            toRef = From_UTF8( CurText() );
+            NeedSYMBOLorNUMBER();
+            toPin = From_UTF8( CurText() );
+            NeedRIGHT();
+        }
+        else if( tok == T_net_class )
+        {
+            NeedSYMBOLorNUMBER();
+            netClass = FromUTF8();
+            NeedRIGHT();
+        }
+        else if( tok == T_color )
+        {
+            int    r = parseInt( "red" );
+            int    g = parseInt( "green" );
+            int    b = parseInt( "blue" );
+            double al = parseDouble( "alpha" );
+            color = COLOR4D( r / 255.0, g / 255.0, b / 255.0, al );
+            NeedRIGHT();
+        }
+        else if( tok == T_nets )
+        {
+            for( T inner = NextTok(); inner != T_RIGHT; inner = NextTok() )
+            {
+                if( !IsSymbol( inner ) && inner != T_NUMBER )
+                    Expecting( "net name" );
+
+                memberNets.insert( FromUTF8() );
+            }
+        }
+        else
+        {
+            // Skip unknown subsections
+            int depth = 1;
+
+            while( depth > 0 )
+            {
+                T inner = NextTok();
+
+                if( inner == T_EOF )
+                    break;
+
+                if( inner == T_LEFT )
+                    ++depth;
+                else if( inner == T_RIGHT )
+                    --depth;
+            }
+        }
+    }
+
+    if( !fromRef.IsEmpty() && !toRef.IsEmpty() )
+    {
+        m_netChainTerminalRefs[name] = { { fromRef, fromPin }, { toRef, toPin } };
+    }
+
+    if( !netClass.IsEmpty() )
+        m_netChainNetClasses[name] = netClass;
+
+    if( color != KIGFX::COLOR4D::UNSPECIFIED )
+        m_netChainColors[name] = color;
+
+    if( !memberNets.empty() )
+        m_netChainMemberNets[name] = std::move( memberNets );
 }
 
 

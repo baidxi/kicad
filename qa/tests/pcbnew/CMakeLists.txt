@@ -90,6 +90,18 @@ set( QA_PCBNEW_SRCS
     test_zone_filler.cpp
     test_poly_simplify.cpp
 
+    # Net chain roundtrip tests
+    net_chains/test_net_chain_terminal_pads.cpp
+    net_chains/test_net_chain_terminal_pad_assignment.cpp
+    net_chains/test_net_chain_terminal_pad_stale.cpp
+    net_chains/test_apply_chain_assignments_dry_run.cpp
+    # Net chain aggregation / skew / total length tests
+    net_chains/test_net_chain_skew_tuning.cpp
+    net_chains/test_net_chain_total_length.cpp
+    net_chains/test_net_chain_total_length_sexpr.cpp
+    net_chains/test_net_chain_bridging_delay.cpp
+    net_chains/test_tuning_bridging_clamp.cpp
+
     drc/test_custom_rule_severities.cpp
     drc/test_drc_backdrill_postmachining.cpp
     drc/test_drc_courtyard_invalid.cpp
@@ -110,6 +122,15 @@ set( QA_PCBNEW_SRCS
     drc/test_drc_starved_thermal.cpp
     drc/test_drc_orientation.cpp
     drc/test_drc_lengths.cpp
+    drc/test_drc_length_with_chain.cpp
+    drc/test_drc_chain_topology.cpp
+    drc/test_drc_chain_length_trunk.cpp
+    drc/test_drc_return_path_zone_bbox.cpp
+    drc/test_drc_return_path_per_segment.cpp
+    drc/test_drc_return_path_reference_net.cpp
+    drc/test_drc_chain_bridging_multipad.cpp
+    drc/test_drc_tuner_chain_bridging_agreement.cpp
+    drc/test_drc_stub_length.cpp
     drc/test_drc_tuner_agreement.cpp
     drc/test_drc_unconnected_items_exclusion_loss.cpp
     drc/test_drc_via_dangling.cpp

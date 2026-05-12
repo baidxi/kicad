@@ -140,6 +140,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_lib_symbol_properties_base.cpp
     dialogs/dialog_line_properties.cpp
     dialogs/dialog_line_properties_base.cpp
+    dialogs/dialog_create_net_chain.cpp
+    dialogs/dialog_create_net_chain_base.cpp
     dialogs/dialog_migrate_buses.cpp
     dialogs/dialog_migrate_buses_base.cpp
     dialogs/dialog_pin_properties.cpp
@@ -196,6 +198,8 @@ set( EESCHEMA_DLGS
     dialogs/panel_eeschema_editing_options_base.cpp
     dialogs/panel_setup_buses.cpp
     dialogs/panel_setup_buses_base.cpp
+    dialogs/panel_setup_net_chains.cpp
+    dialogs/panel_setup_net_chains_base.cpp
     dialogs/panel_setup_formatting.cpp
     dialogs/panel_setup_formatting_base.cpp
     dialogs/panel_setup_pinmap.cpp

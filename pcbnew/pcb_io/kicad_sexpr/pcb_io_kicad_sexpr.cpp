@@ -847,6 +847,84 @@ void PCB_IO_KICAD_SEXPR::format( const BOARD* aBoard ) const
     for( BOARD_ITEM* gen : sorted_generators )
         Format( gen );
 
+    // After writing all items, write the aggregated net chains section (if any)
+    struct CHAIN_INFO
+    {
+        std::vector<NETINFO_ITEM*> nets;
+        PAD* pads[2] = { nullptr, nullptr };
+    };
+
+    // Simple lexicographic ordering using ValueStringCompare comparator logic
+    auto cmp = []( const wxString& a, const wxString& b )
+    {
+        return ValueStringCompare( a, b ) < 0;
+    };
+
+    std::map<wxString, CHAIN_INFO, decltype( cmp )> chains( cmp );
+
+    for( NETINFO_ITEM* net : aBoard->GetNetInfo() )
+    {
+        if( !net )
+            continue;
+
+        if( net->GetNetChain().IsEmpty() && !net->GetTerminalPad( 0 ) && !net->GetTerminalPad( 1 ) )
+            continue; // nothing to aggregate
+
+        wxString chainName = net->GetNetChain();
+
+        if( chainName.IsEmpty() && ( net->GetTerminalPad( 0 ) || net->GetTerminalPad( 1 ) ) )
+            chainName = net->GetNetname(); // synthetic name for unnamed terminal association
+
+        CHAIN_INFO& info = chains[chainName];
+        info.nets.push_back( net );
+        for( int i = 0; i < 2; ++i )
+        {
+            if( net->GetTerminalPad( i ) && !info.pads[i] )
+                info.pads[i] = net->GetTerminalPad( i );
+        }
+    }
+
+    size_t count = 0;
+    for( const auto& kv : chains )
+    {
+        const CHAIN_INFO& si = kv.second;
+        const wxString& chainName = kv.first;
+        // Persist if: multi-net OR terminal pads OR explicit (non-empty) chain name
+        if( si.nets.size() > 1 || si.pads[0] || si.pads[1] || !chainName.IsEmpty() )
+            ++count;
+    }
+
+    if( count )
+    {
+        m_out->Print( "(net_chains" );
+        for( const auto& kv : chains )
+        {
+            const wxString& name = kv.first;
+            const CHAIN_INFO& si = kv.second;
+
+            if( si.nets.size() == 1 && !si.pads[0] && !si.pads[1] && name.IsEmpty() )
+                continue;
+
+            m_out->Print( " (net_chain (name %s)", m_out->Quotew( name ).c_str() );
+            m_out->Print( " (members" );
+            for( NETINFO_ITEM* n : si.nets )
+            {
+                m_out->Print( " (net %s)", m_out->Quotew( n->GetNetname() ).c_str() );
+            }
+            m_out->Print( ")" );
+
+            for( int i = 0; i < 2; ++i )
+            {
+                if( si.pads[i] )
+                    m_out->Print( " (terminal_pad %s)",
+                                   m_out->Quotew( si.pads[i]->m_Uuid.AsString() ).c_str() );
+            }
+
+            m_out->Print( ")" );
+        }
+        m_out->Print( ")" );
+    }
+
     // Save any embedded files
     // Consolidate the embedded models in footprints into a single map
     // to avoid duplicating the same model in the board file.

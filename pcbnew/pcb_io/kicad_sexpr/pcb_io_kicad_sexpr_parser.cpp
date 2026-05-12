@@ -62,6 +62,7 @@
 #include <font/font.h>
 #include <core/ignore.h>
 #include <netclass.h>
+#include <netinfo.h>
 #include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 #include <pcb_plot_params_parser.h>
 #include <pcb_plot_params.h>
@@ -1216,6 +1217,10 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
             parseNETINFO_ITEM();
             break;
 
+        case T_net_chains:
+            parseNET_CHAINS_SECTION();
+            break;
+
         case T_net_class:
             parseNETCLASS();
             m_board->m_LegacyNetclassesLoaded = true;
@@ -1524,6 +1529,26 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
 
     // Ensure all footprints have their embedded data from the board
     m_board->FixupEmbeddedData();
+
+    for( NETINFO_ITEM* net : m_board->GetNetInfo() )
+    {
+        // Remap terminal pad UUIDs through reset map if needed before resolving
+        for( int i = 0; i < 2; ++i )
+        {
+            const KIID& original = net->GetTerminalPadUuid( i );
+            if( original != niluuid )
+            {
+                auto it = m_resetKIIDMap.find( original.AsString() );
+                if( it != m_resetKIIDMap.end() )
+                {
+                    // Replace with canonical UUID after reset
+                    net->SetTerminalPadUuid( i, it->second );
+                }
+            }
+        }
+
+        net->ResolveTerminalPads( m_board );
+    }
 
     return m_board;
 }
@@ -3121,6 +3146,140 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseNETINFO_ITEM()
 
         // Store the new code mapping
         pushValueIntoMap( netCode, net->GetNetCode() );
+    }
+}
+
+// Parse the (net_chains ...) aggregation block providing chain names, member nets and optional terminal pads.
+void PCB_IO_KICAD_SEXPR_PARSER::parseNET_CHAINS_SECTION()
+{
+    // Tokens inside section: (net_chain (name <str>) (members (member (net <code>))...) (terminal_pad <uuid>) (terminal_pad <uuid>))
+    for( T token = NextTok(); token != T_EOF; token = NextTok() )
+    {
+        if( token == T_RIGHT )
+            break; // end of (net_chains ...)
+        else if( token == T_LEFT )
+            token = NextTok();
+
+        if( token != T_net_chain )
+        {
+            skipCurrent();
+            continue;
+        }
+
+        wxString name;
+        std::vector<int> netCodes;
+        std::vector<wxString> netNames;
+        KIID padUuids[2];
+        int padCount = 0;
+
+        for( T t = NextTok(); t != T_EOF; t = NextTok() )
+        {
+            if( t == T_RIGHT )
+                break; // end chain
+            else if( t == T_LEFT )
+                t = NextTok();
+
+            switch( t )
+            {
+            case T_name:
+                NeedSYMBOLorNUMBER();
+                name = FromUTF8();
+                NeedRIGHT();
+                break;
+
+            case T_members:
+            {
+                for( T mt = NextTok(); mt != T_RIGHT; mt = NextTok() )
+                {
+                    if( mt == T_LEFT )
+                        mt = NextTok();
+                    if( mt == T_net )
+                    {
+                        // Accept either a net code (legacy) or a net name (current).
+                        T tok = NextTok();
+                        if( tok == T_NUMBER )
+                        {
+                            netCodes.push_back( (int) strtol( CurText(), nullptr, 10 ) );
+                        }
+                        else
+                        {
+                            netNames.push_back( FromUTF8() );
+                        }
+                        NeedRIGHT();
+                    }
+                    else if( mt == T_member )
+                    {
+                        // legacy style (member (net <code>)) wrapper
+                        T inner = NextTok();
+                        if( inner == T_LEFT )
+                            inner = NextTok();
+                        if( inner == T_net )
+                        {
+                            T tok2 = NextTok();
+                            if( tok2 == T_NUMBER )
+                                netCodes.push_back( (int) strtol( CurText(), nullptr, 10 ) );
+                            else
+                                netNames.push_back( FromUTF8() );
+                            NeedRIGHT();
+                        }
+                        NeedRIGHT();
+                    }
+                    else
+                        skipCurrent();
+                }
+                break;
+            }
+
+            case T_terminal_pad:
+                if( padCount < 2 )
+                {
+                    NeedSYMBOLorNUMBER();
+                    padUuids[padCount++] = KIID( FromUTF8() );
+                    NeedRIGHT();
+                }
+                else
+                {
+                    skipCurrent();
+                }
+                break;
+
+            default:
+                skipCurrent();
+                break;
+            }
+        }
+
+        std::vector<NETINFO_ITEM*> resolvedNets;
+
+        for( int code : netCodes )
+        {
+            int internalCode = code;
+
+            if( code >= 0 && code < (int) m_netCodes.size() && m_netCodes[code] != 0 )
+                internalCode = m_netCodes[code];
+
+            if( NETINFO_ITEM* net = m_board->FindNet( internalCode ) )
+                resolvedNets.push_back( net );
+        }
+
+        for( const wxString& netName : netNames )
+        {
+            if( NETINFO_ITEM* net = m_board->FindNet( netName ) )
+                resolvedNets.push_back( net );
+        }
+
+        for( NETINFO_ITEM* net : resolvedNets )
+        {
+            net->SetNetChain( name );
+
+            for( int i = 0; i < padCount && i < 2; ++i )
+            {
+                net->SetTerminalPadUuid( i, padUuids[i] );
+
+                if( PAD* pad = m_board->FindPadByUuid( padUuids[i] ) )
+                    net->SetTerminalPad( i, pad );
+            }
+        }
     }
 }
 

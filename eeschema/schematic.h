@@ -202,6 +202,9 @@ public:
         return m_connectionGraph;
     }
 
+    const wxString& GetHighlightedNetChain() const { return m_highlightedNetChain; }
+    void SetHighlightedNetChain( const wxString& aNetChain ) { m_highlightedNetChain = aNetChain; }
+
     SCHEMATIC_SETTINGS& Settings() const;
 
     ERC_SETTINGS& ErcSettings() const;
@@ -298,9 +301,9 @@ public:
      *
      * Called after the simulation completes.
      */
-    void SetOperatingPoint( const wxString& aSignal, double aValue )
+    void SetOperatingPoint( const wxString& aNetChain, double aValue )
     {
-        m_operatingPoints[ aSignal ] = aValue;
+        m_operatingPoints[ aNetChain ] = aValue;
     }
 
     wxString GetOperatingPoint( const wxString& aNetName, int aPrecision, const wxString& aRange );
@@ -578,6 +581,8 @@ private:
 
     /// Hold and calculate connectivity information of this schematic.
     CONNECTION_GRAPH* m_connectionGraph;
+
+    wxString m_highlightedNetChain;
 
     /**
      * Holds a map of labels to the page sequence (virtual page number) that they appear on.
