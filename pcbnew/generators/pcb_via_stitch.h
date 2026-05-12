@@ -141,6 +141,12 @@ public:
     PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
     const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
 
+    /// Exposes m_viaTemplate to the kicad-sexpr writer as a named template item.
+    std::vector<std::pair<wxString, const BOARD_ITEM*>> GetTemplateItems() const override;
+
+    /// Receives the parsed via template from the kicad-sexpr loader.
+    void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem ) override;
+
     /** Remove a board position from the exclusion set so the next Update() places a via there. */
     void ClearExclusion( const VECTOR2I& aPos );
 

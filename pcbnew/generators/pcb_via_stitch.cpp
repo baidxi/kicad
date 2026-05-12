@@ -137,6 +137,24 @@ void PCB_VIA_STITCH::SetViaDrill( int aVal )
     m_viaTemplate->SetDrill( aVal );
 }
 
+
+std::vector<std::pair<wxString, const BOARD_ITEM*>> PCB_VIA_STITCH::GetTemplateItems() const
+{
+    return { { wxS( "via" ), m_viaTemplate.get() } };
+}
+
+
+void PCB_VIA_STITCH::SetTemplateItem( const wxString& aName,
+                                      std::unique_ptr<BOARD_ITEM> aItem )
+{
+    if( aName != wxS( "via" ) || !aItem || aItem->Type() != PCB_VIA_T )
+        return;
+
+    m_viaTemplate.reset( static_cast<PCB_VIA*>( aItem.release() ) );
+    m_viaTemplate->SetParent( this );
+    m_viaTemplate->SetIsFree( true );
+}
+
 void PCB_VIA_STITCH::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
 {
     if( m_outline.OutlineCount() == 0 )
@@ -471,8 +489,7 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 {
     STRING_ANY_MAP props = PCB_GENERATOR::GetProperties();
-    props.set_iu( "via_size", m_viaTemplate->GetWidth() );
-    props.set_iu( "via_drill", m_viaTemplate->GetDrillValue() );
+
     props.set_iu( "pitch", m_pitch );
     props.set( "layout", static_cast<int>( m_layout ) );
     props.set( "seed", static_cast<int>( m_seed ) );
@@ -503,16 +520,6 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
 {
     PCB_GENERATOR::SetProperties( aProps );
-
-    int viaSize = 0;
-    int viaDrill = 0;
-    aProps.get_to_iu( "via_size", viaSize );
-    aProps.get_to_iu( "via_drill", viaDrill );
-
-    if( viaSize > 0 )
-        m_viaTemplate->SetWidth( viaSize );
-    if( viaDrill > 0 )
-        m_viaTemplate->SetDrill( viaDrill );
 
     aProps.get_to_iu( "pitch", m_pitch );
 

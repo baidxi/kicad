@@ -2899,6 +2899,25 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GENERATOR* aGenerator ) const
         }
     }
 
+    std::vector<std::pair<wxString, const BOARD_ITEM*>> templateItems = aGenerator->GetTemplateItems();
+
+    if( !templateItems.empty() )
+    {
+        m_out->Print( "(templates" );
+
+        for( const auto& [name, item] : templateItems )
+        {
+            if( !item )
+                continue;
+
+            m_out->Print( "(template (name %s)", m_out->Quotew( name ).c_str() );
+            Format( item );
+            m_out->Print( ")" ); // Close `template` token.
+        }
+
+        m_out->Print( ")" ); // Close `templates` token.
+    }
+
     wxArrayString memberIds;
 
     for( EDA_ITEM* member : aGenerator->GetItems() )

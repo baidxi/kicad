@@ -22,7 +22,10 @@
 #define GENERATOR_H_
 
 
+#include <memory>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 #include <string_any_map.h>
 
 #include <lset.h>
@@ -60,15 +63,12 @@ public:
     virtual void Remove( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT* aCommit ) = 0;
 
     /**
-     * @return true if individual children of this generator can be selected, picked, and
-     *         right-clicked independently of the parent.  Default: false (the standard
-     *         group-promotion behavior — clicks on a child select the parent generator).
+     * @return true if individual children of this generator can individually selected
      */
     virtual bool ChildrenAreIndividuallySelectable() const { return false; }
 
     /**
-     * Build (or return a cached) context menu for a selection consisting of children of
-     * *this* generator.  Implementations should own the returned menu's lifetime.
+     * Get a context menu when interacting with a generator child
      *
      * @return a non-owning ACTION_MENU* to display, or nullptr to fall through to the
      *         standard selection menu.
@@ -80,6 +80,28 @@ public:
      *         read-only outside of the generator, i.e. disable property editors
      */
     virtual bool ChildrenAreReadOnly() const { return true; }
+
+    /**
+     * Named template items used by the generator. The via stitcher for example
+     * holds a single template via. These are real board items that are not attached
+     * to the board.
+     *
+     * @return non-owning pointers to the template items; empty by default.
+     */
+    virtual std::vector<std::pair<wxString, const BOARD_ITEM*>> GetTemplateItems() const
+    {
+        return {};
+    }
+
+    /**
+     * Insert a template item (from board file loading)
+     *
+     * @param aName Template name
+     * @param aItem The parsed item
+     */
+    virtual void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem )
+    {
+    }
 
 #define STATUS_ITEMS_ONLY true
 
