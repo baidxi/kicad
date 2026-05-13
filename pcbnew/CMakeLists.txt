@@ -328,6 +328,7 @@ set( PCBNEW_DRC_SRCS
     drc/drc_test_provider_track_segment_length.cpp
     drc/drc_test_provider_zone_connections.cpp
     drc/drc_test_provider_via_diameter.cpp
+    drc/drc_test_provider_via_stitch.cpp
     drc/drc_test_provider_solder_mask.cpp
     drc/drc_test_provider_silk_clearance.cpp
     drc/drc_test_provider_matched_length.cpp
