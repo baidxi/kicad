@@ -257,6 +257,7 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE> aZone )
             BOARD*       board = m_tool.getModel<BOARD>();
 
             PCB_VIA_STITCH* stitcher = new PCB_VIA_STITCH();
+            stitcher->SetFlags( IS_NEW );
 
             GENERATOR_TOOL* generatorTool = m_tool.GetManager()->GetTool<GENERATOR_TOOL>();
             stitcher->EditStart( generatorTool, board, &commit );
@@ -264,7 +265,6 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE> aZone )
             stitcher->Update( generatorTool, board, &commit );
             stitcher->EditFinish( generatorTool, board, &commit );
 
-            commit.Add( stitcher );
             commit.Push( _( "Create Via Stitch" ) );
 
             m_tool.GetManager()->RunAction<EDA_ITEM*>( PCB_ACTIONS::selectItem, stitcher );
