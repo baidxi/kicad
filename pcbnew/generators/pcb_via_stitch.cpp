@@ -366,6 +366,14 @@ bool PCB_VIA_STITCH::collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine,
             if( !zone->IsOnLayer( layer ) )
                 continue;
 
+            // If we collide with a zone, of a different net, we will punch through it later
+            // on a refill, so this is ok
+            if( const SHAPE_POLY_SET* zoneOutline = zone->Outline() )
+            {
+                if( zoneOutline->Contains( aVia->GetPosition() ) )
+                    continue;
+            }
+
             int requiredClearance = 0;
 
             if( aDRCEngine )
