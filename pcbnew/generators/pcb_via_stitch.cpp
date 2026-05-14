@@ -409,7 +409,6 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
     int detectPitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
 
     // Try to detect origin offset change due to moved via
-    for( BOARD_ITEM* it : GetBoardItems() )
     if( m_layout != PCB_VIA_STITCH_LAYOUT::POISSON )
     {
         for( BOARD_ITEM* it : GetBoardItems() )
@@ -642,20 +641,23 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
     cacheGenerator.SetDRCEngine( drcEngine );
     cacheGenerator.Run();
 
-    // Build allowed region: outline ∩ union of same-net zones' *filled* polygons across all
-    // copper layers.  Using filled polys (not the user-drawn outline) means the result respects
-    // Edge.Cuts, keepouts, clearances to other items, and unfilled (un-poured) regions — a
-    // via only lands where there's actually same-net copper to connect to.
-    //
-    // If no net is set, or no same-net zone has any fill, the cell set is empty (matches
-    // the existing "do not place vias" early-outs).
-    SHAPE_POLY_SET allowedRegion = m_outline;
-
     if( GetNetCode() == 0 )
         return cells;
 
-    SHAPE_POLY_SET zonesCombined;
-    bool           haveFills = false;
+    // Pre-clip every zone fill to the stitch outline bbox before adding it to perLayerFills.
+    // Without this, a board-wide GND zone would drag in an entire complex polygon when we may
+    // only be stitching part of it.
+    // This also helps us skip same net zones entirely if they aren't in here
+    BOX2I stitchBBox = m_outline.BBox();
+
+    SHAPE_POLY_SET stitchClip;
+    stitchClip.NewOutline();
+    stitchClip.Append( stitchBBox.GetLeft(), stitchBBox.GetTop() );
+    stitchClip.Append( stitchBBox.GetRight(), stitchBBox.GetTop() );
+    stitchClip.Append( stitchBBox.GetRight(), stitchBBox.GetBottom() );
+    stitchClip.Append( stitchBBox.GetLeft(), stitchBBox.GetBottom() );
+
+    std::map<PCB_LAYER_ID, SHAPE_POLY_SET> perLayerFills;
 
     for( ZONE* zone : aBoard->Zones() )
     {
@@ -665,36 +667,66 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         if( zone->GetNetCode() != GetNetCode() )
             continue;
 
+        if( !zone->GetBoundingBox().Intersects( stitchBBox ) )
+            continue;
+
         for( PCB_LAYER_ID layer : zone->GetLayerSet() )
         {
             SHAPE_POLY_SET* fill = zone->GetFill( layer );
 
-            if( fill && !fill->IsEmpty() )
-            {
-                zonesCombined.BooleanAdd( *fill );
-                haveFills = true;
-            }
+            if( !fill || fill->IsEmpty() )
+                continue;
+
+            SHAPE_POLY_SET clipped = *fill;
+            clipped.BooleanIntersection( stitchClip );
+
+            if( clipped.OutlineCount() == 0 )
+                continue;
+
+            perLayerFills[layer].BooleanAdd( clipped );
         }
     }
 
-    if( !haveFills )
+    // Extract the via copper layers, the layer stack may contain the mask layers
+    LSET boardCopperLayers = LSET::AllCuMask( aBoard->GetCopperLayerCount() );
+    LSET viaCopperLayers   = m_viaTemplate->GetLayerSet() & boardCopperLayers;
+
+    // Filter down to just those via layers that actually have same-net copper on them.
+    std::vector<const SHAPE_POLY_SET*> viaLayerFills;
+
+    for( PCB_LAYER_ID layer : viaCopperLayers )
+    {
+        auto it = perLayerFills.find( layer );
+
+        if( it != perLayerFills.end() && !it->second.IsEmpty() )
+            viaLayerFills.push_back( &it->second );
+    }
+
+    // Is there even enough layers left to stitch?
+    if( viaLayerFills.size() < 2 )
         return cells;
 
-    SHAPE_POLY_SET tmp = allowedRegion;
-    tmp.BooleanIntersection( zonesCombined );
+    // Now build an intersecting region where we can place vias that stitch more than 1 layer
+    SHAPE_POLY_SET allowedRegion = *viaLayerFills[0];
 
-    if( tmp.OutlineCount() == 0 )
+    for( size_t i = 1; i < viaLayerFills.size(); ++i )
+        allowedRegion.BooleanIntersection( *viaLayerFills[i] );
+
+    if( allowedRegion.OutlineCount() == 0 )
         return cells;
 
-    allowedRegion = std::move( tmp );
+    // Now intersect it with the via stitch outline
+    allowedRegion.BooleanIntersection( m_outline );
+
+    if( allowedRegion.OutlineCount() == 0 )
+        return cells;
 
     BOX2I bbox = allowedRegion.BBox();
 
-    // Via validator
     auto isValid =
             [&]( const VECTOR2I& pt ) -> bool
             {
-                if( !allowedRegion.PointInside( pt, 0 ) )
+                if( !allowedRegion.Contains( pt ) )
                     return false;
 
                 if( allowedRegion.PointOnEdge( pt, viaSize / 2 ) )
