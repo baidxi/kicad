@@ -4553,6 +4553,14 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
     if( sameNetKnockouts.OutlineCount() > 0 )
         aFillPolys.BooleanSubtract( sameNetKnockouts );
 
+    int min_dim = aZone->GetMinThickness();
+
+    for( int ii = aFillPolys.OutlineCount() - 1; ii >= 0; ii-- )
+    {
+        if( aFillPolys.Outline( ii ).BBox().GetSizeMax() < min_dim )
+            aFillPolys.DeletePolygon( ii );
+    }
+
     aFillPolys.Fracture();
 
     return true;
