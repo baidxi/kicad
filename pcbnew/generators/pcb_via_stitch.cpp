@@ -122,6 +122,7 @@ int PCB_VIA_STITCH::GetViaSize() const
 void PCB_VIA_STITCH::SetViaSize( int aVal )
 {
     m_viaTemplate->SetWidth( aVal );
+    MarkDirty();
 }
 
 
@@ -135,6 +136,7 @@ int PCB_VIA_STITCH::GetViaDrill() const
 void PCB_VIA_STITCH::SetViaDrill( int aVal )
 {
     m_viaTemplate->SetDrill( aVal );
+    MarkDirty();
 }
 
 
@@ -489,6 +491,7 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         aCommit->Add( via );
     }
 
+    ClearDirty();
     return true;
 }
 
@@ -821,21 +824,45 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 }
 
 
+void PCB_VIA_STITCH::OnZoneFillChanged( const std::vector<ZONE*>& aZones )
+{
+    if( m_netCode == 0 )
+        return;
+
+    BOX2I myBBox = GetBoundingBox();
+
+    for( ZONE* zone : aZones )
+    {
+        if( zone->GetNetCode() != m_netCode )
+            continue;
+
+        if( !zone->GetBoundingBox().Intersects( myBBox ) )
+            continue;
+
+        MarkDirty();
+        return;
+    }
+}
+
+
 void PCB_VIA_STITCH::ExcludePosition( const VECTOR2I& aPos )
 {
     m_excludedCells.insert( cellForPosition( aPos ) );
+    MarkDirty();
 }
 
 
 void PCB_VIA_STITCH::ClearExclusion( const VECTOR2I& aPos )
 {
     m_excludedCells.erase( cellForPosition( aPos ) );
+    MarkDirty();
 }
 
 
 void PCB_VIA_STITCH::ClearAllExclusions()
 {
     m_excludedCells.clear();
+    MarkDirty();
 }
 
 
@@ -858,6 +885,8 @@ void PCB_VIA_STITCH::SetNetCode( int aNetCode )
     for( BOARD_ITEM* item : GetBoardItems() )
         if( BOARD_CONNECTED_ITEM* bci = dynamic_cast<BOARD_CONNECTED_ITEM*>( item ) )
             bci->SetNetCode( aNetCode );
+
+    MarkDirty();
 }
 
 static struct PCB_VIA_STITCH_DESC

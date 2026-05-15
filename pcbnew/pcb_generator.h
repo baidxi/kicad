@@ -35,6 +35,7 @@
 class EDIT_POINTS;
 class BOARD;
 class BOARD_ITEM;
+class ZONE;
 class PCB_BASE_EDIT_FRAME;
 class GENERATOR_TOOL;
 class STATUS_MIN_MAX_POPUP;
@@ -160,10 +161,25 @@ public:
     void SetUpdateOrder( int aValue ) { m_updateOrder = aValue; }
 #endif
 
+    /**
+     * Dirty flag system to for determining if generator output is not up to date
+     * It is up to each generator whether or not to actually use this flag
+     */
+    bool IsDirty() const { return m_isDirty; }
+    void MarkDirty() { m_isDirty = true; }
+    void ClearDirty() { m_isDirty = false; }
+
+    /**
+     * Callback to be informed zones have changed
+     */
+    virtual void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) { }
+
 protected:
     wxString m_generatorType;
 
     VECTOR2I m_origin;
+
+    bool m_isDirty;
 
 #ifdef GENERATOR_ORDER
     int m_updateOrder = 0;
@@ -182,33 +198,37 @@ public:
     {
     }
 
-    SHAPE_POLY_SET&       Outline() { return m_outline; }
+    SHAPE_POLY_SET&       Outline() { MarkDirty(); return m_outline; }
     const SHAPE_POLY_SET& Outline() const { return m_outline; }
 
-    void SetOutline( SHAPE_POLY_SET& aOutline ) { m_outline = aOutline; }
+    void SetOutline( SHAPE_POLY_SET& aOutline ) { m_outline = aOutline; MarkDirty(); }
 
     void Move( const VECTOR2I& aMoveVector ) override
     {
         m_outline.Move( aMoveVector );
         PCB_GENERATOR::Move( aMoveVector );
+        MarkDirty();
     }
 
     void Rotate( const VECTOR2I& aRotCentre, const EDA_ANGLE& aAngle ) override
     {
         m_outline.Rotate( aAngle, aRotCentre );
         PCB_GENERATOR::Rotate( aRotCentre, aAngle );
+        MarkDirty();
     }
 
     void Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection ) override
     {
         m_outline.Mirror( aCentre, aFlipDirection );
         PCB_GENERATOR::Flip( aCentre, aFlipDirection );
+        MarkDirty();
     }
 
     void Mirror( const VECTOR2I& aCentre, FLIP_DIRECTION aMirrorDirection ) override
     {
         m_outline.Mirror( aCentre, aMirrorDirection );
         PCB_GENERATOR::Mirror( aCentre, aMirrorDirection );
+        MarkDirty();
     }
 
 protected:

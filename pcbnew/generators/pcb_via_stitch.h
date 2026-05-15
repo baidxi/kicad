@@ -116,6 +116,7 @@ public:
     {
         m_outline.Move( aMoveVector );
         m_origin += aMoveVector;
+        MarkDirty();
     }
 
     void     EditStart( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
@@ -131,12 +132,12 @@ public:
     int  GetViaDrill() const;
     void SetViaDrill( int aVal );
     int  GetPitch() const { return m_pitch; }
-    void SetPitch( int aVal ) { m_pitch = aVal; }
+    void SetPitch( int aVal ) { m_pitch = aVal; MarkDirty(); }
     PCB_VIA_STITCH_LAYOUT GetLayout() const { return m_layout; }
-    void          SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; }
+    void                  SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; MarkDirty(); }
 
     uint32_t  GetSeed() const { return m_seed; }
-    void SetSeed( uint32_t aVal ) { m_seed = aVal; }
+    void SetSeed( uint32_t aVal ) { m_seed = aVal; MarkDirty(); }
 
     PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
     const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
@@ -166,6 +167,8 @@ public:
     bool ChildrenAreIndividuallySelectable() const override { return true; }
 
     ACTION_MENU* GetChildContextMenu( TOOL_INTERACTIVE* aTool ) const override;
+
+    void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) override;
 
 protected:
     void swapData( BOARD_ITEM* aImage ) override

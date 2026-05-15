@@ -173,6 +173,8 @@ void ZONE_FILLER_TOOL::FillAllZones( wxWindow* aCaller, PROGRESS_REPORTER* aRepo
         commit.Push( _( "Fill Zone(s)" ), SKIP_CONNECTIVITY | ZONE_FILL_OP );
         if( !aHeadless )
             frame->m_ZoneFillsDirty = false;
+
+        board()->OnZonesFilled( toFill );
     }
     else
     {
@@ -261,10 +263,17 @@ int ZONE_FILLER_TOOL::ZoneFillDirty( const TOOL_EVENT& aEvent )
         }
     }
 
-    if( m_filler->Fill( toFill ) )
+    bool filled = m_filler->Fill( toFill );
+
+    if( filled )
+    {
         commit.Push( _( "Auto-fill Zone(s)" ), APPEND_UNDO | SKIP_CONNECTIVITY | ZONE_FILL_OP );
+        board()->OnZonesFilled( toFill );
+    }
     else
+    {
         commit.Revert();
+    }
 
     PostFillRefresh();
 
