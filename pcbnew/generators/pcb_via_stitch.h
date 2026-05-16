@@ -170,6 +170,9 @@ public:
 
     void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) override;
 
+    /// Foreign-net zones overlapping our outline — they need anti-pads around our vias.
+    std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const override;
+
 protected:
     void swapData( BOARD_ITEM* aImage ) override
     {

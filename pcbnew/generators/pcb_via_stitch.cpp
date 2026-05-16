@@ -824,6 +824,36 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 }
 
 
+std::vector<ZONE*> PCB_VIA_STITCH::GetZonesNeedingRefillAfterUpdate() const
+{
+    std::vector<ZONE*> result;
+
+    const BOARD* brd = GetBoard();
+
+    if( !brd )
+        return result;
+
+    BOX2I myBBox = GetBoundingBox();
+
+    // Lets return all intersecting zones with different nets
+    for( ZONE* zone : brd->Zones() )
+    {
+        if( zone->GetIsRuleArea() )
+            continue;
+
+        if( zone->GetNetCode() == m_netCode )
+            continue;
+
+        if( !zone->GetBoundingBox().Intersects( myBBox ) )
+            continue;
+
+        result.push_back( zone );
+    }
+
+    return result;
+}
+
+
 void PCB_VIA_STITCH::OnZoneFillChanged( const std::vector<ZONE*>& aZones )
 {
     if( m_netCode == 0 )

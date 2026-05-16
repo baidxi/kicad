@@ -174,6 +174,14 @@ public:
      */
     virtual void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) { }
 
+    /**
+     * Zones that need to be refilled after the generator runs Update()
+     */
+    virtual std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const
+    {
+        return {};
+    }
+
 protected:
     wxString m_generatorType;
 
