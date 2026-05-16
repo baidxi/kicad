@@ -162,13 +162,19 @@ void PCB_VIA_STITCH::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
     if( m_outline.OutlineCount() == 0 )
         return;
 
+    // Only paint on the outline layer — ViewGetLayers() also lists LAYER_VIAS /
+    // LAYER_VIA_HOLES / LAYER_ANCHOR for the produced vias' rendering, but those are
+    // handled by the via children themselves; we don't want to redraw the outline
+    // multiple times per frame.
+    if( aLayer != LAYER_VIA_STITCHING )
+        return;
+
     KIGFX::GAL* gal = aView->GetGAL();
 
     // We are drawing perpendicular ticks along the outline to indicate the stitch zone
     // It kind of looks like a sewing pattern with the ticks, so it fits.
-
-    // Teal color, something unique for now
-    const KIGFX::COLOR4D borderColor( 0.3, 0.8, 0.7, 1.0 );
+    KIGFX::RENDER_SETTINGS* settings = aView->GetPainter()->GetSettings();
+    const KIGFX::COLOR4D    borderColor = settings->GetColor( this, LAYER_VIA_STITCHING );
 
     const SHAPE_LINE_CHAIN& outline = m_outline.COutline( 0 );
     const int               n       = outline.PointCount();

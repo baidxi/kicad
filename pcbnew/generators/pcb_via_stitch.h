@@ -51,7 +51,8 @@ public:
     static const wxString GENERATOR_TYPE;
     static const wxString DISPLAY_NAME;
 
-    PCB_VIA_STITCH( BOARD_ITEM* aParent = nullptr, PCB_LAYER_ID aLayer = F_Cu );
+    PCB_VIA_STITCH( BOARD_ITEM* aParent = nullptr,
+                    PCB_LAYER_ID aLayer = static_cast<PCB_LAYER_ID>( LAYER_VIA_STITCHING ) );
     PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther );
     PCB_VIA_STITCH( PCB_VIA_STITCH&& aOther ) noexcept;
     PCB_VIA_STITCH& operator=( const PCB_VIA_STITCH& aOther );
@@ -73,7 +74,7 @@ public:
 
     std::vector<int> ViewGetLayers() const override
     {
-        return std::vector<int>{ LAYER_VIAS, LAYER_VIA_HOLES, LAYER_ANCHOR, GetLayer() };
+        return std::vector<int>{ LAYER_VIAS, LAYER_VIA_HOLES, LAYER_ANCHOR, LAYER_VIA_STITCHING };
     }
     #if 0
     void SetPolyShape( const SHAPE_POLY_SET& aShape )
