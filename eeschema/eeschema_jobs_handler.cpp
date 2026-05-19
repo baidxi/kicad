@@ -1329,6 +1329,48 @@ int EESCHEMA_JOBS_HANDLER::JobSchErc( JOB* aJob )
 
     wxCHECK( ercJob, CLI::EXIT_CODES::ERR_UNKNOWN );
 
+    // If the input is a sub-sheet of a hierarchical project (i.e. a .kicad_sch
+    // that has no sibling .kicad_pro of the same basename, but the directory
+    // contains a project file pointing at a different root schematic), swap to
+    // the project's root .kicad_sch so the full hierarchy is loaded and
+    // hierarchical labels are evaluated against their cross-sheet mates rather
+    // than being reported as dangling false positives.
+    if( !ercJob->m_filename.IsEmpty() )
+    {
+        wxFileName schFile( ercJob->m_filename );
+        wxFileName siblingPro = schFile;
+        siblingPro.SetExt( FILEEXT::ProjectFileExtension );
+
+        if( schFile.GetExt() == FILEEXT::KiCadSchematicFileExtension
+            && !siblingPro.FileExists() )
+        {
+            wxDir   dir( schFile.GetPath() );
+            wxString proName;
+
+            if( dir.IsOpened()
+                && dir.GetFirst( &proName, wxS( "*." ) + FILEEXT::ProjectFileExtension,
+                                 wxDIR_FILES ) )
+            {
+                wxFileName rootSch = schFile;
+                rootSch.SetName( wxFileName( proName ).GetName() );
+
+                if( rootSch.FileExists()
+                    && rootSch.GetFullPath() != schFile.GetFullPath() )
+                {
+                    m_reporter->Report(
+                            wxString::Format(
+                                    _( "Input '%s' is a sub-sheet of project '%s'; "
+                                       "running ERC against the project root '%s' to "
+                                       "evaluate hierarchical labels in context.\n" ),
+                                    schFile.GetFullName(), proName, rootSch.GetFullName() ),
+                            RPT_SEVERITY_INFO );
+
+                    ercJob->m_filename = rootSch.GetFullPath();
+                }
+            }
+        }
+    }
+
     SCHEMATIC* sch = getSchematic( ercJob->m_filename );
 
     if( !sch )
