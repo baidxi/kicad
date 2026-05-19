@@ -158,7 +158,15 @@ bool ERC_REPORT::WriteJsonReport( const wxString& aFullFileName )
 {
     std::ofstream jsonFileStream( aFullFileName.fn_str() );
 
-    UNITS_PROVIDER            unitsProvider( pcbIUScale, m_reportUnits );
+    // Use C locale for the duration of JSON export so that embedded numbers in
+    // item description strings (e.g. "length 650 mils") use '.' as the decimal
+    // separator — the same convention used by the JSON value fields.
+    LOCALE_IO locale;
+
+    // Schematic items are in schematic internal units (1 IU = 100 nm, i.e.
+    // schIUScale), not PCB units. Using pcbIUScale here produced positions
+    // that were 100× smaller than the declared unit.
+    UNITS_PROVIDER            unitsProvider( schIUScale, m_reportUnits );
     std::map<KIID, EDA_ITEM*> itemMap;
 
     RC_JSON::ERC_REPORT reportHead;
