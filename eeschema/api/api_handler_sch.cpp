@@ -1051,6 +1051,12 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         aItemHandler( status, newItem );
     }
 
+    // SCH_COMMIT::Push calls frame->OnModify() which sets the *active* screen's modified
+    // flag but does not reach non-active screens. Mark the target screen explicitly so
+    // Save / Save All writes every IPC-modified sheet file, not just the currently-
+    // displayed one.
+    targetScreen->SetContentModified();
+
     if( !m_activeClients.contains( aClientName ) )
     {
         pushCurrentCommit( aClientName, aCreate ? _( "Created items via API" )
@@ -1070,6 +1076,8 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
     SCH_SHEET_LIST hierarchy = schematic()->Hierarchy();
     COMMIT* commit = getCurrentCommit( aClientName );
 
+    std::set<SCH_SCREEN*> touchedScreens;
+
     for( auto& [id, status] : aItemsToDelete )
     {
         SCH_SHEET_PATH path;
@@ -1084,9 +1092,14 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
             continue;
         }
 
-        commit->Remove( item, path.LastScreen() );
+        SCH_SCREEN* screen = path.LastScreen();
+        commit->Remove( item, screen );
+        touchedScreens.insert( screen );
         status = ItemDeletionStatus::IDS_OK;
     }
+
+    for( SCH_SCREEN* screen : touchedScreens )
+        screen->SetContentModified();
 
     if( !m_activeClients.contains( aClientName ) )
         pushCurrentCommit( aClientName, _( "Deleted items via API" ) );
