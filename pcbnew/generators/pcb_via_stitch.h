@@ -171,6 +171,8 @@ public:
 
     void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) override;
 
+    void ShowPropertiesDialog( PCB_BASE_EDIT_FRAME* aEditFrame ) override;
+
     /// Foreign-net zones overlapping our outline — they need anti-pads around our vias.
     std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const override;
 
@@ -211,6 +213,7 @@ private:
      */
     bool collidesWithBoard( BOARD* aBoard, class DRC_ENGINE* aDRCEngine, PCB_VIA* aVia ) const;
 
+public:
     /**
      *  Tile size for the POISSON layout, in units of pitch.  The baked pattern's normalized
      *  min-distance is 1 / POISSON_TILE_PITCHES, scaled by (pitch * POISSON_TILE_PITCHES)

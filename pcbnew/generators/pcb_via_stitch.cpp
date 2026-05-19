@@ -23,6 +23,12 @@
 
 #include <pcb_via_stitch.h>
 
+#include <dialogs/dialog_via_stitch_properties.h>
+#include <pcb_base_edit_frame.h>
+#include <tool/tool_manager.h>
+#include <tools/generator_tool.h>
+#include <board_commit.h>
+
 #include <cmath>
 #include <vector>
 
@@ -878,6 +884,26 @@ void PCB_VIA_STITCH::OnZoneFillChanged( const std::vector<ZONE*>& aZones )
         MarkDirty();
         return;
     }
+}
+
+
+void PCB_VIA_STITCH::ShowPropertiesDialog( PCB_BASE_EDIT_FRAME* aEditFrame )
+{
+    BOARD_COMMIT    commit( aEditFrame );
+    GENERATOR_TOOL* genTool = aEditFrame->GetToolManager()->GetTool<GENERATOR_TOOL>();
+
+    commit.Modify( this );
+
+    DIALOG_VIA_STITCH_PROPERTIES dlg( aEditFrame, this );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return;
+
+    EditStart( genTool, GetBoard(), &commit );
+    Update( genTool, GetBoard(), &commit );
+    EditFinish( genTool, GetBoard(), &commit );
+
+    commit.Push( _( "Edit Via Stitching" ) );
 }
 
 

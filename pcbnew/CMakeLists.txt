@@ -174,6 +174,8 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_unused_pad_layers_base.cpp
     dialogs/dialog_update_pcb.cpp
     dialogs/dialog_update_pcb_base.cpp
+    dialogs/dialog_via_stitch_properties.cpp
+    dialogs/dialog_via_stitch_properties_base.cpp
     dialogs/dialog_multichannel_generate_rule_areas_base.cpp
     dialogs/dialog_multichannel_generate_rule_areas.cpp
     dialogs/dialog_multichannel_repeat_layout_base.cpp
