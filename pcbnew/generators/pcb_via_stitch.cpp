@@ -990,6 +990,8 @@ static struct PCB_VIA_STITCH_DESC
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, int>( _HKI( "Net" ),
                                      &PCB_VIA_STITCH::SetNetCode, &PCB_VIA_STITCH::GetNetCode, PT_NET ) );
 
+        // The stitch lives on its own GAL layer and the vias are multi-layer configured separately
+        propMgr.Mask( TYPE_HASH( PCB_VIA_STITCH ), TYPE_HASH( BOARD_ITEM ), _HKI( "Layer" ) );
     }
 } _PCB_VIA_STITCH_DESC;
 
