@@ -51,8 +51,7 @@ public:
     static const wxString GENERATOR_TYPE;
     static const wxString DISPLAY_NAME;
 
-    PCB_VIA_STITCH( BOARD_ITEM* aParent = nullptr,
-                    PCB_LAYER_ID aLayer = static_cast<PCB_LAYER_ID>( LAYER_VIA_STITCHING ) );
+    PCB_VIA_STITCH( BOARD_ITEM* aParent = nullptr );
     PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther );
     PCB_VIA_STITCH( PCB_VIA_STITCH&& aOther ) noexcept;
     PCB_VIA_STITCH& operator=( const PCB_VIA_STITCH& aOther );
@@ -127,7 +126,7 @@ public:
     void Remove( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
     wxString GetCommitMessage() const override { return _( "Stitching Update" ); }
 
-    // Properties 
+    // Properties
     int  GetViaSize() const;
     void SetViaSize( int aVal );
     int  GetViaDrill() const;
@@ -192,13 +191,13 @@ private:
     VECTOR2I cellForPosition( const VECTOR2I& aPos ) const;
 
     /** Convert a (col, row) grid cell index to an absolute board position, including
-     *  any stagger shift on odd rows. 
+     *  any stagger shift on odd rows.
      */
     VECTOR2I positionForCell( const VECTOR2I& aCell, int aPitch ) const;
 
     /** Walk the placement grid, run DRC clearance tests, and return the set of (col, row)
      *  cells where a via fits cleanly.  Does not consult exclusions — that's a separate
-     *  user-driven concern applied at consumption time. 
+     *  user-driven concern applied at consumption time.
      */
     std::set<VECTOR2I> buildPlacementCells( BOARD* aBoard ) const;
 

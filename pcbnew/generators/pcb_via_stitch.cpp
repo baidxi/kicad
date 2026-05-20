@@ -66,8 +66,8 @@ const std::vector<VECTOR2D>& PCB_VIA_STITCH::bakedPoissonTile()
 }
 
 
-PCB_VIA_STITCH::PCB_VIA_STITCH( BOARD_ITEM* aParent, PCB_LAYER_ID aLayer ) :
-        PCB_GENERATOR_POLY( aParent, aLayer ),
+PCB_VIA_STITCH::PCB_VIA_STITCH( BOARD_ITEM* aParent ) :
+        PCB_GENERATOR_POLY( aParent, F_Cu ),
         m_viaTemplate( std::make_unique<PCB_VIA>( this ) )
 {
     m_generatorType = GENERATOR_TYPE;
