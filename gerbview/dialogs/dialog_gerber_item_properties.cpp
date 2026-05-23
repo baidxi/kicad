@@ -19,19 +19,26 @@
 
 #include <dialogs/dialog_gerber_item_properties.h>
 
+#include <algorithm>
+#include <vector>
+
 #include <aperture_macro.h>
 #include <class_draw_panel_gal.h>
 #include <dcode.h>
 #include <eda_units.h>
+#include <gal/color4d.h>
 #include <gerber_draw_item.h>
 #include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
 #include <gerbview_frame.h>
 #include <gerbview_painter.h>
+#include <geometry/shape_line_chain.h>
+#include <geometry/shape_poly_set.h>
 #include <view/view.h>
 
 #include <wx/button.h>
 #include <wx/checkbox.h>
+#include <wx/dcbuffer.h>
 #include <wx/panel.h>
 #include <wx/sizer.h>
 #include <wx/statbox.h>
@@ -59,6 +66,136 @@ static wxString fmtLen( EDA_DRAW_FRAME* aFrame, int aVal )
 {
     return EDA_UNIT_UTILS::UI::StringFromValue( gerbIUScale, aFrame->GetUserUnits(), aVal, true );
 }
+
+
+/**
+ * Custom panel that renders a scaled, aspect-preserving 2D preview of the aperture
+ * (the flashed shape, including any hole, for both standard apertures and macros).
+ *
+ * The polygon is obtained from D_CODE::ConvertShapeToPolygon(), the same routine
+ * used by the GerbView painter, so the preview matches what is drawn on the canvas.
+ */
+class APERTURE_PREVIEW_PANEL : public wxPanel
+{
+public:
+    APERTURE_PREVIEW_PANEL( wxWindow* aParent, GERBER_DRAW_ITEM* aItem ) :
+            wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxSize( 240, 180 ),
+                     wxBORDER_SUNKEN ),
+            m_item( aItem )
+    {
+        SetBackgroundStyle( wxBG_STYLE_PAINT );
+        SetBackgroundColour( wxColour( 240, 240, 232 ) );
+        SetMinSize( wxSize( 200, 160 ) );
+
+        Bind( wxEVT_PAINT, &APERTURE_PREVIEW_PANEL::onPaint, this );
+        Bind( wxEVT_SIZE, &APERTURE_PREVIEW_PANEL::onSize, this );
+    }
+
+private:
+    void onSize( wxSizeEvent& aEvt )
+    {
+        Refresh();
+        aEvt.Skip();
+    }
+
+    void onPaint( wxPaintEvent& )
+    {
+        wxAutoBufferedPaintDC dc( this );
+        dc.SetBackground( wxBrush( GetBackgroundColour() ) );
+        dc.Clear();
+
+        if( !m_item )
+            return;
+
+        D_CODE* dcode = m_item->GetDcodeDescr();
+
+        if( !dcode )
+            return;
+
+        // Build (or refresh) the polygon representation of the aperture in dcode-local
+        // coordinates (centered around the origin).  Safe to call repeatedly: this is
+        // exactly what the painter does for every redraw.
+        dcode->ConvertShapeToPolygon( m_item );
+
+        const SHAPE_POLY_SET& poly = dcode->m_Polygon;
+
+        if( poly.OutlineCount() == 0 )
+            return;
+
+        BOX2I bbox = poly.BBox();
+
+        if( bbox.GetWidth() <= 0 || bbox.GetHeight() <= 0 )
+            return;
+
+        const wxSize sz = GetClientSize();
+        const int    margin = 12;
+        const int    avail_w = std::max( 1, sz.GetWidth() - 2 * margin );
+        const int    avail_h = std::max( 1, sz.GetHeight() - 2 * margin );
+
+        const double sx = double( avail_w ) / double( bbox.GetWidth() );
+        const double sy = double( avail_h ) / double( bbox.GetHeight() );
+        const double scale = std::min( sx, sy );
+
+        const double     cx = sz.GetWidth() / 2.0;
+        const double     cy = sz.GetHeight() / 2.0;
+        const VECTOR2I   bbCenter = bbox.GetCenter();
+
+        auto toScreen = [&]( const VECTOR2I& p ) -> wxPoint
+        {
+            return wxPoint( int( cx + ( p.x - bbCenter.x ) * scale ),
+                            int( cy + ( p.y - bbCenter.y ) * scale ) );
+        };
+
+        // Flatten outlines + holes for wxDC::DrawPolyPolygon.  Using wxODDEVEN_RULE
+        // causes inner holes (which wind opposite to the outer outline) to be
+        // subtracted from the filled area.
+        std::vector<wxPoint> pts;
+        std::vector<int>     counts;
+
+        for( int oi = 0; oi < poly.OutlineCount(); ++oi )
+        {
+            const SHAPE_LINE_CHAIN& outline = poly.COutline( oi );
+            int                     n = 0;
+
+            for( int pi = 0; pi < outline.PointCount(); ++pi )
+            {
+                pts.push_back( toScreen( outline.CPoint( pi ) ) );
+                ++n;
+            }
+
+            counts.push_back( n );
+
+            for( int hi = 0; hi < poly.HoleCount( oi ); ++hi )
+            {
+                const SHAPE_LINE_CHAIN& hole = poly.CHole( oi, hi );
+                int                     nh = 0;
+
+                for( int pi = 0; pi < hole.PointCount(); ++pi )
+                {
+                    pts.push_back( toScreen( hole.CPoint( pi ) ) );
+                    ++nh;
+                }
+
+                counts.push_back( nh );
+            }
+        }
+
+        if( pts.empty() )
+            return;
+
+        // High-contrast fixed colors that work regardless of the user's layer color theme.
+        // (Layer color is reserved for the canvas; the preview just needs to convey shape.)
+        const wxColour fillColor   ( 200, 80,  40 );   // warm copper-ish
+        const wxColour borderColor (  80, 30,  10 );
+
+        dc.SetPen( wxPen( borderColor, 1 ) );
+        dc.SetBrush( wxBrush( fillColor ) );
+        dc.DrawPolyPolygon( int( counts.size() ), counts.data(), pts.data(), 0, 0,
+                            wxODDEVEN_RULE );
+    }
+
+    GERBER_DRAW_ITEM* m_item;
+};
 
 
 DIALOG_GERBER_ITEM_PROPERTIES::DIALOG_GERBER_ITEM_PROPERTIES( GERBVIEW_FRAME* aParent,
@@ -207,15 +344,50 @@ void DIALOG_GERBER_ITEM_PROPERTIES::buildContent()
         appendRow( box->GetStaticBox(), grid, _( "Aperture type" ),
                    D_CODE::ShowApertureType( dcode->m_ApertType ) );
 
-        appendRow( box->GetStaticBox(), grid, _( "Size X" ), fmtLen( m_frame, dcode->m_Size.x ) );
-        appendRow( box->GetStaticBox(), grid, _( "Size Y" ), fmtLen( m_frame, dcode->m_Size.y ) );
-
-        if( dcode->m_ApertType == APT_POLYGON )
+        // m_Size is only meaningful for standard apertures (parsed from %ADD ... C/R/O/P,X[xY]).
+        // For aperture macros it is left at 0, so show the actual flash bounding box instead.
+        switch( dcode->m_ApertType )
         {
+        case APT_CIRCLE:
+            appendRow( box->GetStaticBox(), grid, _( "Diameter" ),
+                       fmtLen( m_frame, dcode->m_Size.x ) );
+            break;
+
+        case APT_RECT:
+        case APT_OVAL:
+            appendRow( box->GetStaticBox(), grid, _( "Size X" ),
+                       fmtLen( m_frame, dcode->m_Size.x ) );
+            appendRow( box->GetStaticBox(), grid, _( "Size Y" ),
+                       fmtLen( m_frame, dcode->m_Size.y ) );
+            break;
+
+        case APT_POLYGON:
+            appendRow( box->GetStaticBox(), grid, _( "Outer diameter" ),
+                       fmtLen( m_frame, dcode->m_Size.x ) );
             appendRow( box->GetStaticBox(), grid, _( "Edges" ),
                        wxString::Format( wxT( "%d" ), dcode->m_EdgesCount ) );
             appendRow( box->GetStaticBox(), grid, _( "Aperture rotation" ),
-                       wxString::Format( wxT( "%.3f\u00B0" ), dcode->m_Rotation.AsDegrees() ) );
+                       wxString::Format( wxT( "%.3f\u00B0" ),
+                                         dcode->m_Rotation.AsDegrees() ) );
+            break;
+
+        case APT_MACRO:
+        default:
+            break;
+        }
+
+        // Always show the actual flash bounding box: this is what the preview draws,
+        // and for macro apertures it is the only meaningful overall size.
+        if( dcode->m_Polygon.OutlineCount() == 0 )
+            dcode->ConvertShapeToPolygon( m_item );
+
+        if( dcode->m_Polygon.OutlineCount() > 0 )
+        {
+            BOX2I bb = dcode->m_Polygon.BBox();
+            appendRow( box->GetStaticBox(), grid, _( "Bounding box" ),
+                       wxString::Format( wxT( "%s \u00D7 %s" ),
+                                         fmtLen( m_frame, bb.GetWidth() ),
+                                         fmtLen( m_frame, bb.GetHeight() ) ) );
         }
 
         wxString drillShape;
@@ -240,8 +412,14 @@ void DIALOG_GERBER_ITEM_PROPERTIES::buildContent()
                            fmtLen( m_frame, dcode->m_Drill.y ) );
         }
 
-        box->Add( grid, 1, wxEXPAND | wxALL, 6 );
-        m_contentSizer->Add( box, 0, wxEXPAND | wxALL, 6 );
+        box->Add( grid, 0, wxEXPAND | wxALL, 6 );
+
+        // Graphical preview of the actual flashed shape.
+        APERTURE_PREVIEW_PANEL* preview =
+                new APERTURE_PREVIEW_PANEL( box->GetStaticBox(), m_item );
+        box->Add( preview, 1, wxEXPAND | wxALL, 6 );
+
+        m_contentSizer->Add( box, 1, wxEXPAND | wxALL, 6 );
 
         // ---- Aperture Macro -----------------------------------------------------------
         if( dcode->m_ApertType == APT_MACRO && dcode->GetMacro() )
