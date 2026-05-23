@@ -519,7 +519,6 @@ int GERBVIEW_CONTROL::LayerRoles( const TOOL_EVENT& aEvent )
 }
 
 
-
 void GERBVIEW_CONTROL::setTransitions()
 {
     Go( &GERBVIEW_CONTROL::OpenAutodetected,   GERBVIEW_ACTIONS::openAutodetected.MakeEvent() );
@@ -564,5 +563,5 @@ void GERBVIEW_CONTROL::setTransitions()
     Go( &GERBVIEW_CONTROL::LoadZipfile,        GERBVIEW_ACTIONS::loadZipFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::LoadGerbFiles,      GERBVIEW_ACTIONS::loadGerbFiles.MakeEvent() );
 
-    Go( &GERBVIEW_CONTROL::LayerRoles,         GERBVIEW_ACTIONS::layerRoles.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::LayerRoles, GERBVIEW_ACTIONS::layerRoles.MakeEvent() );
 }

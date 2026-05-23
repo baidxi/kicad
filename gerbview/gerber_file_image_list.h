@@ -77,6 +77,7 @@ typedef bool( LayerSortFunction )( const GERBER_FILE_IMAGE* const& ref,
                                    const GERBER_FILE_IMAGE* const& test );
 
 class GERBER_FILE_IMAGE;
+class GERBVIEW_SETTINGS;
 
 /**
  * @brief GERBER_FILE_IMAGE_LIST is a helper class to handle a list of GERBER_FILE_IMAGE files
@@ -170,6 +171,20 @@ public:
      * @return a mapping of old to new layer index
      */
     std::unordered_map<int, int> SortImagesByZOrder();
+
+    /**
+     * Sort loaded images by their user-assigned PCB layer roles so that the
+     * slot order in m_GERBER_List matches the layer-manager grouping
+     * (Drill -> Top -> Inner -> Bottom -> Unmapped) and the canvas Z-order.
+     * Inside each group, files are ordered by role (e.g. Top paste -> mask ->
+     * copper -> silk).  Unmapped slots fall back to the file-extension based
+     * order used by SortImagesByFileExtension().
+     *
+     * @param aCfg gives access to the persisted assignments map.  Null is
+     *             treated as "no assignments yet" (everything Unmapped).
+     * @return a mapping of old to new layer index
+     */
+    std::unordered_map<int, int> SortImagesByLayerRoles( const GERBVIEW_SETTINGS* aCfg );
 
     /**
      * Swap two images and their orders.

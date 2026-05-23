@@ -74,8 +74,7 @@ private:
     /// Add one labeled color picker row to the given sizer for @p aRole.
     /// @p aDisplayLabel allows overriding the role's default name (e.g. dropping
     /// the "Top"/"Bottom" prefix in the section headers).
-    void addColorRow( wxSizer* aSizer, GERBVIEW_LAYER_ROLE aRole,
-                      const wxString& aDisplayLabel );
+    void addColorRow( wxSizer* aSizer, GERBVIEW_LAYER_ROLE aRole, const wxString& aDisplayLabel );
 
     /// Push the current loaded-scheme name into m_schemeLabel.
     void updateSchemeLabel();
@@ -105,23 +104,23 @@ private:
     /// Refill all color pickers from m_workingColors.
     void refreshColorPickers();
 
-    GERBVIEW_FRAME*                            m_frame;
-    wxGrid*                                    m_assignmentsGrid;
-    wxScrolledWindow*                          m_colorPanel;
-    wxStaticText*                              m_schemeLabel;
-    wxButton*                                  m_addInnerBtn;
-    wxButton*                                  m_removeInnerBtn;
+    GERBVIEW_FRAME*   m_frame;
+    wxGrid*           m_assignmentsGrid;
+    wxScrolledWindow* m_colorPanel;
+    wxStaticText*     m_schemeLabel;
+    wxButton*         m_addInnerBtn;
+    wxButton*         m_removeInnerBtn;
 
-    std::vector<int>                           m_slotIndices;       // grid row -> slot
-    std::vector<wxColourPickerCtrl*>           m_colorPickers;      // index matches m_coloredRoles
-    std::vector<GERBVIEW_LAYER_ROLE>           m_coloredRoles;      // roles displayed in color panel
-    std::map<std::string, KIGFX::COLOR4D>      m_workingColors;
+    std::vector<int>                      m_slotIndices;  // grid row -> slot
+    std::vector<wxColourPickerCtrl*>      m_colorPickers; // index matches m_coloredRoles
+    std::vector<GERBVIEW_LAYER_ROLE>      m_coloredRoles; // roles displayed in color panel
+    std::map<std::string, KIGFX::COLOR4D> m_workingColors;
 
     /// 2..MAX_INNER_COPPER_LAYERS, controls how many Inner Copper rows are visible.
-    int                                        m_visibleInnerCount;
+    int m_visibleInnerCount;
 
     /// Empty if the palette has not been imported (or was modified after import).
-    wxString                                   m_loadedSchemeName;
+    wxString m_loadedSchemeName;
 };
 
 

@@ -102,7 +102,8 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
     // PCB layer-role assignments + per-role color overrides.  Stored as a single JSON
     // sub-object so import/export is just a copy of this branch.
-    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "layer_roles",
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "layer_roles",
             [this]() -> nlohmann::json
             {
                 nlohmann::json js = nlohmann::json::object();
@@ -127,8 +128,7 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
                 js["assignments"] = assignsObj;
 
                 js["visible_inner_count"] = m_LayerRoles.visibleInnerCount;
-                js["loaded_scheme_name"]  =
-                        std::string( m_LayerRoles.loadedSchemeName.ToUTF8() );
+                js["loaded_scheme_name"] = std::string( m_LayerRoles.loadedSchemeName.ToUTF8() );
 
                 return js;
             },
@@ -151,8 +151,7 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
                         KIGFX::COLOR4D color;
 
-                        if( !color.SetFromHexString(
-                                    wxString::FromUTF8( it.value().get<std::string>() ) ) )
+                        if( !color.SetFromHexString( wxString::FromUTF8( it.value().get<std::string>() ) ) )
                         {
                             continue;
                         }
@@ -169,14 +168,12 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
                 if( aObj.contains( "assignments" ) && aObj["assignments"].is_object() )
                 {
-                    for( auto it = aObj["assignments"].begin();
-                         it != aObj["assignments"].end(); ++it )
+                    for( auto it = aObj["assignments"].begin(); it != aObj["assignments"].end(); ++it )
                     {
                         if( !it.value().is_string() )
                             continue;
 
-                        GERBVIEW_LAYER_ROLE role =
-                                RoleFromSerializedKey( it.value().get<std::string>() );
+                        GERBVIEW_LAYER_ROLE role = RoleFromSerializedKey( it.value().get<std::string>() );
 
                         if( role == GERBVIEW_LAYER_ROLE::Unassigned )
                             continue;
@@ -185,19 +182,15 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
                     }
                 }
 
-                if( aObj.contains( "visible_inner_count" )
-                    && aObj["visible_inner_count"].is_number_integer() )
+                if( aObj.contains( "visible_inner_count" ) && aObj["visible_inner_count"].is_number_integer() )
                 {
                     int n = aObj["visible_inner_count"].get<int>();
-                    m_LayerRoles.visibleInnerCount = std::clamp( n, 2,
-                                                                MAX_INNER_COPPER_LAYERS );
+                    m_LayerRoles.visibleInnerCount = std::clamp( n, 2, MAX_INNER_COPPER_LAYERS );
                 }
 
-                if( aObj.contains( "loaded_scheme_name" )
-                    && aObj["loaded_scheme_name"].is_string() )
+                if( aObj.contains( "loaded_scheme_name" ) && aObj["loaded_scheme_name"].is_string() )
                 {
-                    m_LayerRoles.loadedSchemeName = wxString::FromUTF8(
-                            aObj["loaded_scheme_name"].get<std::string>() );
+                    m_LayerRoles.loadedSchemeName = wxString::FromUTF8( aObj["loaded_scheme_name"].get<std::string>() );
                 }
             },
             nlohmann::json::object() ) );

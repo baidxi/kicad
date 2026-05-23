@@ -32,6 +32,8 @@
 #include <layer_roles.h>
 #include "layer_widget.h"
 
+class GERBER_FILE_IMAGE;
+class GERBVIEW_FRAME;
 class wxCheckBox;
 class wxStaticText;
 
@@ -44,12 +46,12 @@ class wxStaticText;
  */
 enum class GERBER_LAYER_GROUP
 {
-    Top      = 0,
-    Inner    = 1,
-    Bottom   = 2,
-    Drill    = 3,
+    Top = 0,
+    Inner = 1,
+    Bottom = 2,
+    Drill = 3,
     Unmapped = 4,
-    None     = -1
+    None = -1
 };
 
 
@@ -152,8 +154,7 @@ private:
      * the row's cells are given a top border to visually separate this group
      * from the one above.
      */
-    void appendGroupHeader( const wxString& aLabel, GERBER_LAYER_GROUP aGroup,
-                            bool aWithTopGap );
+    void appendGroupHeader( const wxString& aLabel, GERBER_LAYER_GROUP aGroup, bool aWithTopGap );
 
     /**
      * Take the most recently appended layer row, detach its column-3 label and
@@ -198,6 +199,26 @@ private:
 GERBER_LAYER_GROUP GroupForRole( GERBVIEW_LAYER_ROLE aRole );
 
 /**
+ * Layer-Manager bucket for an image, taking both an assigned role and the
+ * file extension into account.
+ *
+ * When @p aRole is anything other than Unassigned, the answer matches
+ * GroupForRole( aRole ).  For unmapped files we still look at the filename:
+ * Excellon-style drill extensions (.drl, .ncd, .xnc, .nc, .tap, .drd, .txt,
+ * .xln) classify as the Drill group so the file shows in the top section of
+ * the Layer Manager -- just like it shows on top of the canvas.  Every other
+ * unmapped file stays in Unmapped.
+ */
+GERBER_LAYER_GROUP EffectiveGroupForImage( const GERBER_FILE_IMAGE* aImg, GERBVIEW_LAYER_ROLE aRole );
+
+/**
+ * Convenience wrapper that resolves the role for @p aSlot via LookupRoleForSlot
+ * and delegates to EffectiveGroupForImage().  Returns Unmapped when @p aFrame
+ * is null or no image is loaded at @p aSlot.
+ */
+GERBER_LAYER_GROUP EffectiveGroupForSlot( GERBVIEW_FRAME* aFrame, int aSlot );
+
+/**
  * Localized header label for the given group; empty string for Unassigned/None.
  */
 wxString GroupDisplayName( GERBER_LAYER_GROUP aGroup );
@@ -207,6 +228,15 @@ wxString GroupDisplayName( GERBER_LAYER_GROUP aGroup );
  * within the Layer Manager).  Lower comes first.
  */
 int RoleOrderInGroup( GERBVIEW_LAYER_ROLE aRole );
+
+/**
+ * Like RoleOrderInGroup() but biased so that promoted-but-unmapped files
+ * (drill files in the Drill bucket without an explicit Drill/Contour role)
+ * always sort after every explicit role inside the same group.  Use this
+ * variant when comparing items inside a bucket that may mix explicit roles
+ * with extension-promoted files.
+ */
+int EffectiveRoleOrderInGroup( GERBER_LAYER_GROUP aGroup, GERBVIEW_LAYER_ROLE aRole );
 
 /**
  * Compact three-letter code for a layer-manager group, shown next to the

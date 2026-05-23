@@ -325,6 +325,16 @@ public:
     void SortLayersByFileExtension();
     void SortLayersByX2Attributes();
 
+    /**
+     * Reorder loaded layers so their slot index matches the Layer Manager
+     * grouping (Drill -> Top -> Inner -> Bottom -> Unmapped) and the canvas
+     * Z-order.  Slots without a user-assigned role keep their relative
+     * file-extension based ordering inside the Unmapped tail.
+     *
+     * Safe to call repeatedly; a no-op when no images are loaded.
+     */
+    void SortLayersByLayerRoles();
+
     // Adjust draw params: draw offset and draw rotation for a gerber file image
     void SetLayerDrawPrms();
 

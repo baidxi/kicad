@@ -41,6 +41,7 @@
 #include "gerbview_draw_panel_gal.h"
 #include <gerbview_frame.h>
 #include <gerbview_settings.h>
+#include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
 #include <core/arraydim.h>
 #include <layer_roles.h>
@@ -92,12 +93,10 @@ class ROLE_DROPDOWN : public wxButton
 public:
     using RoleChangedHandler = std::function<void( GERBVIEW_LAYER_ROLE )>;
 
-    ROLE_DROPDOWN( wxWindow* aParent, GERBVIEW_LAYER_ROLE aCurrentRole,
-                   int aVisibleInnerCount, RoleChangedHandler aOnChanged )
-            : wxButton( aParent, wxID_ANY, wxEmptyString,
-                        wxDefaultPosition, wxDefaultSize,
-                        wxBU_EXACTFIT ),
-              m_onChanged( std::move( aOnChanged ) )
+    ROLE_DROPDOWN( wxWindow* aParent, GERBVIEW_LAYER_ROLE aCurrentRole, int aVisibleInnerCount,
+                   RoleChangedHandler aOnChanged ) :
+            wxButton( aParent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxBU_EXACTFIT ),
+            m_onChanged( std::move( aOnChanged ) )
     {
         // Populate the role list, respecting the visible-inner-count setting.
         for( GERBVIEW_LAYER_ROLE role : AllRoles() )
@@ -160,8 +159,7 @@ private:
             menu.Append( kMenuIdBase + (int) i, entry );
         }
 
-        int chosen = GetPopupMenuSelectionFromUser(
-                menu, wxPoint( 0, GetSize().GetHeight() ) );
+        int chosen = GetPopupMenuSelectionFromUser( menu, wxPoint( 0, GetSize().GetHeight() ) );
 
         if( chosen == wxID_NONE )
             return;
@@ -189,25 +187,62 @@ GERBER_LAYER_GROUP GroupForRole( GERBVIEW_LAYER_ROLE aRole )
     case GERBVIEW_LAYER_ROLE::TopSolderPaste:
     case GERBVIEW_LAYER_ROLE::TopSolderMask:
     case GERBVIEW_LAYER_ROLE::TopCopper:
-    case GERBVIEW_LAYER_ROLE::TopSilkScreen:
-        return GERBER_LAYER_GROUP::Top;
+    case GERBVIEW_LAYER_ROLE::TopSilkScreen: return GERBER_LAYER_GROUP::Top;
 
     case GERBVIEW_LAYER_ROLE::BottomCopper:
     case GERBVIEW_LAYER_ROLE::BottomSolderMask:
     case GERBVIEW_LAYER_ROLE::BottomSolderPaste:
-    case GERBVIEW_LAYER_ROLE::BottomSilkScreen:
-        return GERBER_LAYER_GROUP::Bottom;
+    case GERBVIEW_LAYER_ROLE::BottomSilkScreen: return GERBER_LAYER_GROUP::Bottom;
 
     case GERBVIEW_LAYER_ROLE::DrillPlated:
     case GERBVIEW_LAYER_ROLE::DrillUnplated:
     case GERBVIEW_LAYER_ROLE::ContourPlated:
-    case GERBVIEW_LAYER_ROLE::ContourUnplated:
-        return GERBER_LAYER_GROUP::Drill;
+    case GERBVIEW_LAYER_ROLE::ContourUnplated: return GERBER_LAYER_GROUP::Drill;
 
     case GERBVIEW_LAYER_ROLE::Unassigned:
-    default:
-        return GERBER_LAYER_GROUP::Unmapped;
+    default: return GERBER_LAYER_GROUP::Unmapped;
     }
+}
+
+
+GERBER_LAYER_GROUP EffectiveGroupForImage( const GERBER_FILE_IMAGE* aImg, GERBVIEW_LAYER_ROLE aRole )
+{
+    if( aRole != GERBVIEW_LAYER_ROLE::Unassigned )
+        return GroupForRole( aRole );
+
+    if( !aImg )
+        return GERBER_LAYER_GROUP::Unmapped;
+
+    // Excellon drill files are universally identifiable by extension, so we
+    // promote them into the Drill section even when the user hasn't picked a
+    // specific drill role yet.  This keeps drill data visually on top in the
+    // Layer Manager just like it already is on top of the canvas (slot 0 ==
+    // top of the Z-stack), avoiding the "I see drills on the canvas but they
+    // are hidden under Unmapped" inconsistency.
+    GERBER_ORDER_ENUM order = GERBER_ORDER_ENUM::GERBER_LAYER_UNKNOWN;
+    wxString          matchedExt;
+
+    GERBER_FILE_IMAGE_LIST::GetGerberLayerFromFilename( aImg->m_FileName, order, matchedExt );
+
+    if( order == GERBER_ORDER_ENUM::GERBER_DRILL )
+        return GERBER_LAYER_GROUP::Drill;
+
+    return GERBER_LAYER_GROUP::Unmapped;
+}
+
+
+GERBER_LAYER_GROUP EffectiveGroupForSlot( GERBVIEW_FRAME* aFrame, int aSlot )
+{
+    if( !aFrame )
+        return GERBER_LAYER_GROUP::Unmapped;
+
+    GERBER_FILE_IMAGE_LIST* list = &GERBER_FILE_IMAGE_LIST::GetImagesList();
+    GERBER_FILE_IMAGE*      img = list->GetGbrImage( aSlot );
+
+    if( !img )
+        return GERBER_LAYER_GROUP::Unmapped;
+
+    return EffectiveGroupForImage( img, LookupRoleForSlot( aFrame, aSlot ) );
 }
 
 
@@ -215,12 +250,12 @@ wxString GroupDisplayName( GERBER_LAYER_GROUP aGroup )
 {
     switch( aGroup )
     {
-    case GERBER_LAYER_GROUP::Top:      return _( "Top" );
-    case GERBER_LAYER_GROUP::Inner:    return _( "Inner" );
-    case GERBER_LAYER_GROUP::Bottom:   return _( "Bottom" );
-    case GERBER_LAYER_GROUP::Drill:    return _( "Drill" );
+    case GERBER_LAYER_GROUP::Top: return _( "Top" );
+    case GERBER_LAYER_GROUP::Inner: return _( "Inner" );
+    case GERBER_LAYER_GROUP::Bottom: return _( "Bottom" );
+    case GERBER_LAYER_GROUP::Drill: return _( "Drill" );
     case GERBER_LAYER_GROUP::Unmapped: return _( "Unmapped" );
-    default:                           return wxEmptyString;
+    default: return wxEmptyString;
     }
 }
 
@@ -231,13 +266,28 @@ wxString GroupShortCode( GERBER_LAYER_GROUP aGroup )
     // layer manager.
     switch( aGroup )
     {
-    case GERBER_LAYER_GROUP::Top:      return wxT( "TOP" );
-    case GERBER_LAYER_GROUP::Inner:    return wxT( "INN" );
-    case GERBER_LAYER_GROUP::Bottom:   return wxT( "BOT" );
-    case GERBER_LAYER_GROUP::Drill:    return wxT( "DRL" );
+    case GERBER_LAYER_GROUP::Top: return wxT( "TOP" );
+    case GERBER_LAYER_GROUP::Inner: return wxT( "INN" );
+    case GERBER_LAYER_GROUP::Bottom: return wxT( "BOT" );
+    case GERBER_LAYER_GROUP::Drill: return wxT( "DRL" );
     case GERBER_LAYER_GROUP::Unmapped: return wxT( "UMP" );
-    default:                           return wxEmptyString;
+    default: return wxEmptyString;
     }
+}
+
+
+int EffectiveRoleOrderInGroup( GERBER_LAYER_GROUP aGroup, GERBVIEW_LAYER_ROLE aRole )
+{
+    // Unmapped slots only end up in the Drill bucket via extension promotion
+    // (EffectiveGroupForImage).  We want every such slot to sit below all
+    // files that picked an explicit Drill/Contour role, so push them past the
+    // highest possible role-order (3 today).
+    if( aRole == GERBVIEW_LAYER_ROLE::Unassigned && aGroup == GERBER_LAYER_GROUP::Drill )
+    {
+        return 100;
+    }
+
+    return RoleOrderInGroup( aRole );
 }
 
 
@@ -247,21 +297,22 @@ int RoleOrderInGroup( GERBVIEW_LAYER_ROLE aRole )
     // the inner copper rows below it visually).
     switch( aRole )
     {
-    case GERBVIEW_LAYER_ROLE::TopSolderPaste:    return 0;
-    case GERBVIEW_LAYER_ROLE::TopSolderMask:     return 1;
-    case GERBVIEW_LAYER_ROLE::TopCopper:         return 2;
-    case GERBVIEW_LAYER_ROLE::TopSilkScreen:     return 3;
+    case GERBVIEW_LAYER_ROLE::TopSolderPaste: return 0;
+    case GERBVIEW_LAYER_ROLE::TopSolderMask: return 1;
+    case GERBVIEW_LAYER_ROLE::TopCopper: return 2;
+    case GERBVIEW_LAYER_ROLE::TopSilkScreen: return 3;
 
-    // Bottom side: copper, mask, paste, silk (mirror of Top).
-    case GERBVIEW_LAYER_ROLE::BottomCopper:      return 0;
-    case GERBVIEW_LAYER_ROLE::BottomSolderMask:  return 1;
-    case GERBVIEW_LAYER_ROLE::BottomSolderPaste: return 2;
-    case GERBVIEW_LAYER_ROLE::BottomSilkScreen:  return 3;
+    // Bottom side: paste, mask, copper, silk -- mirrors the visual stack
+    // when looking at the underside of the board.
+    case GERBVIEW_LAYER_ROLE::BottomSolderPaste: return 0;
+    case GERBVIEW_LAYER_ROLE::BottomSolderMask: return 1;
+    case GERBVIEW_LAYER_ROLE::BottomCopper: return 2;
+    case GERBVIEW_LAYER_ROLE::BottomSilkScreen: return 3;
 
-    case GERBVIEW_LAYER_ROLE::DrillPlated:       return 0;
-    case GERBVIEW_LAYER_ROLE::DrillUnplated:     return 1;
-    case GERBVIEW_LAYER_ROLE::ContourPlated:     return 2;
-    case GERBVIEW_LAYER_ROLE::ContourUnplated:   return 3;
+    case GERBVIEW_LAYER_ROLE::DrillPlated: return 0;
+    case GERBVIEW_LAYER_ROLE::DrillUnplated: return 1;
+    case GERBVIEW_LAYER_ROLE::ContourPlated: return 2;
+    case GERBVIEW_LAYER_ROLE::ContourUnplated: return 3;
 
     default:
         // Inner copper: sort by InnerCopperIndex; Unmapped: any constant.
@@ -551,10 +602,10 @@ void GERBER_LAYER_WIDGET::ReFill()
         if( GetImagesList()->GetGbrImage( slot ) == nullptr )
             continue;
 
-        GERBVIEW_LAYER_ROLE role  = LookupRoleForSlot( m_frame, slot );
-        GERBER_LAYER_GROUP  group = GroupForRole( role );
+        GERBVIEW_LAYER_ROLE role = LookupRoleForSlot( m_frame, slot );
+        GERBER_LAYER_GROUP  group = EffectiveGroupForSlot( m_frame, slot );
 
-        bucketed[group].push_back( { slot, role, group, RoleOrderInGroup( role ) } );
+        bucketed[group].push_back( { slot, role, group, EffectiveRoleOrderInGroup( group, role ) } );
     }
 
     // Stable-sort each bucket by within-group role order; ties broken by
@@ -576,11 +627,8 @@ void GERBER_LAYER_WIDGET::ReFill()
     // catching everything without an assigned role at the bottom.  All
     // sections are emitted even when their bucket is empty.
     constexpr GERBER_LAYER_GROUP kDisplayOrder[] = {
-        GERBER_LAYER_GROUP::Drill,
-        GERBER_LAYER_GROUP::Top,
-        GERBER_LAYER_GROUP::Inner,
-        GERBER_LAYER_GROUP::Bottom,
-        GERBER_LAYER_GROUP::Unmapped,
+        GERBER_LAYER_GROUP::Drill,  GERBER_LAYER_GROUP::Top,      GERBER_LAYER_GROUP::Inner,
+        GERBER_LAYER_GROUP::Bottom, GERBER_LAYER_GROUP::Unmapped,
     };
 
     bool firstGroupHeader = true;
@@ -599,28 +647,26 @@ void GERBER_LAYER_WIDGET::ReFill()
         auto it = bucketed.find( group );
 
         if( it == bucketed.end() )
-            continue;   // group exists but has no loaded files
+            continue; // group exists but has no loaded files
 
         for( const LoadedSlot& ls : it->second )
         {
-            bool    visible = true;
-            COLOR4D color   = m_frame->GetLayerColor( GERBER_DRAW_LAYER( ls.slot ) );
-            wxString msg    = GetImagesList()->GetDisplayName( ls.slot,
-                                                               /* include layer number */ false,
-                                                               /* Get the full name */ true );
+            bool     visible = true;
+            COLOR4D  color = m_frame->GetLayerColor( GERBER_DRAW_LAYER( ls.slot ) );
+            wxString msg = GetImagesList()->GetDisplayName( ls.slot,
+                                                            /* include layer number */ false,
+                                                            /* Get the full name */ true );
 
             if( m_frame->GetCanvas() )
             {
-                visible = m_frame->GetCanvas()->GetView()
-                                  ->IsLayerVisible( GERBER_DRAW_LAYER( ls.slot ) );
+                visible = m_frame->GetCanvas()->GetView()->IsLayerVisible( GERBER_DRAW_LAYER( ls.slot ) );
             }
             else
             {
                 visible = m_frame->IsLayerVisible( ls.slot );
             }
 
-            AppendLayerRow( LAYER_WIDGET::ROW( msg, ls.slot, color,
-                                               wxEmptyString, visible, true ) );
+            AppendLayerRow( LAYER_WIDGET::ROW( msg, ls.slot, color, wxEmptyString, visible, true ) );
 
             // Replace the freshly-inserted col-3 file-name label with a
             // panel containing [role dropdown, original file-name label],
@@ -637,8 +683,7 @@ void GERBER_LAYER_WIDGET::ReFill()
 }
 
 
-void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot,
-                                                            GERBVIEW_LAYER_ROLE aRole )
+void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot, GERBVIEW_LAYER_ROLE aRole )
 {
     // Locate the row that was just appended by AppendLayerRow.  The label
     // we want to swap in sits at column 3 of the last row.
@@ -647,10 +692,9 @@ void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot,
     if( row < 0 )
         return;
 
-    int            col3Index = row * LYR_COLUMN_COUNT + COLUMN_COLOR_LYRNAME;
-    wxSizerItem*   col3Item  = m_LayersFlexGridSizer->GetItem( (size_t) col3Index );
-    wxStaticText*  origLabel = dynamic_cast<wxStaticText*>( col3Item ? col3Item->GetWindow()
-                                                                     : nullptr );
+    int           col3Index = row * LYR_COLUMN_COUNT + COLUMN_COLOR_LYRNAME;
+    wxSizerItem*  col3Item = m_LayersFlexGridSizer->GetItem( (size_t) col3Index );
+    wxStaticText* origLabel = dynamic_cast<wxStaticText*>( col3Item ? col3Item->GetWindow() : nullptr );
 
     if( !origLabel )
         return;
@@ -662,8 +706,8 @@ void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot,
     // Build the wrapper: [dropdown][original label].  The wrapper is sized
     // so the FlexGridSizer happily stretches it across the layer-name
     // column.
-    wxPanel*    cell  = new wxPanel( m_LayerScrolledWindow, wxID_ANY );
-    wxBoxSizer* hbox  = new wxBoxSizer( wxHORIZONTAL );
+    wxPanel*    cell = new wxPanel( m_LayerScrolledWindow, wxID_ANY );
+    wxBoxSizer* hbox = new wxBoxSizer( wxHORIZONTAL );
 
     int visibleInnerCount = 2;
 
@@ -672,20 +716,24 @@ void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot,
 
     GERBVIEW_FRAME* frame = m_frame;
 
-    ROLE_DROPDOWN* dropdown = new ROLE_DROPDOWN(
-            cell, aRole, visibleInnerCount,
-            [frame, aSlot]( GERBVIEW_LAYER_ROLE aNewRole )
-            {
-                if( !frame )
-                    return;
+    ROLE_DROPDOWN* dropdown = new ROLE_DROPDOWN( cell, aRole, visibleInnerCount,
+                                                 [frame, aSlot]( GERBVIEW_LAYER_ROLE aNewRole )
+                                                 {
+                                                     if( !frame )
+                                                         return;
 
-                SetRoleForSlot( frame, aSlot, aNewRole );
+                                                     SetRoleForSlot( frame, aSlot, aNewRole );
 
-                // Re-fill the layer manager so the row is moved into its
-                // new group.  Done asynchronously because the dropdown
-                // itself is about to be destroyed by ClearLayerRows().
-                frame->CallAfter( [frame]() { frame->ReFillLayerWidget(); } );
-            } );
+                                                     // Reorder slots and rebuild the layer manager so the row
+                                                     // jumps into its new group (and the canvas Z-stack follows).
+                                                     // Done asynchronously because the dropdown itself is about
+                                                     // to be destroyed when the rows are rebuilt.
+                                                     frame->CallAfter(
+                                                             [frame]()
+                                                             {
+                                                                 frame->SortLayersByLayerRoles();
+                                                             } );
+                                                 } );
 
     hbox->Add( dropdown, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4 );
 
@@ -699,9 +747,7 @@ void GERBER_LAYER_WIDGET::decorateLayerRowWithRoleDropdown( int aSlot,
 }
 
 
-void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel,
-                                             GERBER_LAYER_GROUP aGroup,
-                                             bool aWithTopGap )
+void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel, GERBER_LAYER_GROUP aGroup, bool aWithTopGap )
 {
     // Mirror insertLayerRow's 5-cell row pattern so that the FlexGridSizer
     // keeps its 5-column geometry: an inert INDICATOR_ICON in column 0 (to
@@ -717,28 +763,26 @@ void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel,
     // 32767 16-bit signed limit enforced by wxControlBase::CreateBase().
     // Base-class iterators recognise these rows as "not a real layer" via
     // IsHeaderRowDecodedId() and skip them.
-    int row          = m_LayersFlexGridSizer->GetItemCount() / LYR_COLUMN_COUNT;
-    int index        = row * LYR_COLUMN_COUNT;
+    int row = m_LayersFlexGridSizer->GetItemCount() / LYR_COLUMN_COUNT;
+    int index = row * LYR_COLUMN_COUNT;
     int headerMarker = HEADER_ROW_ID_BASE + int( aGroup );
 
     // A top border on every cell of this row creates a visual gap between
     // this group and the previous one.  The first header in the list gets
     // no extra gap.
     const int border = aWithTopGap ? 8 : 0;
-    const int flags  = wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT
-                       | ( aWithTopGap ? wxTOP : 0 );
+    const int flags = wxALIGN_CENTER_VERTICAL | wxALIGN_LEFT | ( aWithTopGap ? wxTOP : 0 );
 
-    auto emptyCell = [this, headerMarker]( int aCol ) {
-        return new wxStaticText( m_LayerScrolledWindow, encodeId( aCol, headerMarker ),
-                                 wxEmptyString );
+    auto emptyCell = [this, headerMarker]( int aCol )
+    {
+        return new wxStaticText( m_LayerScrolledWindow, encodeId( aCol, headerMarker ), wxEmptyString );
     };
 
     // Col 0 - inert INDICATOR_ICON placeholder.  Using INDICATOR_ICON here
     // (instead of wxStaticText) makes the (INDICATOR_ICON*) C-cast performed
     // by LAYER_WIDGET::UpdateLayerIcons() safe; SetIndicatorState() called on
     // it is effectively a no-op for OFF -> OFF transitions on header rows.
-    auto* indicator = new INDICATOR_ICON( m_LayerScrolledWindow, *m_IconProvider,
-                                          ROW_ICON_PROVIDER::STATE::OFF,
+    auto* indicator = new INDICATOR_ICON( m_LayerScrolledWindow, *m_IconProvider, ROW_ICON_PROVIDER::STATE::OFF,
                                           encodeId( 0, headerMarker ) );
     m_LayersFlexGridSizer->wxSizer::Insert( index + 0, indicator, 0, flags, border );
 
@@ -746,10 +790,8 @@ void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel,
     m_LayersFlexGridSizer->wxSizer::Insert( index + 1, emptyCell( 1 ), 0, flags, border );
 
     // Col 2 - master checkbox.
-    wxCheckBox* master = new wxCheckBox( m_LayerScrolledWindow,
-                                         encodeId( 2, headerMarker ), wxEmptyString,
-                                         wxDefaultPosition, wxDefaultSize,
-                                         wxCHK_3STATE );
+    wxCheckBox* master = new wxCheckBox( m_LayerScrolledWindow, encodeId( 2, headerMarker ), wxEmptyString,
+                                         wxDefaultPosition, wxDefaultSize, wxCHK_3STATE );
     master->Set3StateValue( wxCHK_CHECKED );
     master->SetToolTip( _( "Toggle visibility of every layer in this group" ) );
     master->Bind( wxEVT_COMMAND_CHECKBOX_CLICKED,
@@ -759,7 +801,7 @@ void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel,
                       // -> indeterminate when clicked; we only honour the two
                       // determinate states for the toggle action.
                       wxCheckBoxState s = master->Get3StateValue();
-                      bool wantVisible  = ( s == wxCHK_CHECKED );
+                      bool            wantVisible = ( s == wxCHK_CHECKED );
 
                       // Snap indeterminate -> checked so a single click always
                       // moves to a deterministic state.
@@ -777,10 +819,9 @@ void GERBER_LAYER_WIDGET::appendGroupHeader( const wxString& aLabel,
     // visually from the per-layer rows.  Prefix with the group's compact
     // three-letter code so headers align visually with the per-layer
     // abbreviations below them.
-    wxString fullLabel = GroupShortCode( aGroup ) + wxT( "  " ) + aLabel;
-    wxStaticText* label = new wxStaticText( m_LayerScrolledWindow,
-                                            encodeId( 3, headerMarker ), fullLabel );
-    wxFont        font  = label->GetFont();
+    wxString      fullLabel = GroupShortCode( aGroup ) + wxT( "  " ) + aLabel;
+    wxStaticText* label = new wxStaticText( m_LayerScrolledWindow, encodeId( 3, headerMarker ), fullLabel );
+    wxFont        font = label->GetFont();
     font.SetWeight( wxFONTWEIGHT_BOLD );
     font.SetPointSize( font.GetPointSize() + 1 );
     label->SetFont( font );
@@ -843,7 +884,7 @@ void GERBER_LAYER_WIDGET::syncGroupMasterCheckboxes()
         if( GetImagesList()->GetGbrImage( slot ) == nullptr )
             continue;
 
-        GERBVIEW_LAYER_ROLE role  = LookupRoleForSlot( m_frame, slot );
+        GERBVIEW_LAYER_ROLE role = LookupRoleForSlot( m_frame, slot );
         GERBER_LAYER_GROUP  group = GroupForRole( role );
 
         totalCount[group]++;
@@ -852,8 +893,7 @@ void GERBER_LAYER_WIDGET::syncGroupMasterCheckboxes()
 
         if( m_frame->GetCanvas() )
         {
-            visible = m_frame->GetCanvas()->GetView()
-                              ->IsLayerVisible( GERBER_DRAW_LAYER( slot ) );
+            visible = m_frame->GetCanvas()->GetView()->IsLayerVisible( GERBER_DRAW_LAYER( slot ) );
         }
         else
         {
@@ -867,7 +907,7 @@ void GERBER_LAYER_WIDGET::syncGroupMasterCheckboxes()
     for( auto& [group, cb] : m_groupCheckboxes )
     {
         int total = totalCount[group];
-        int vis   = visibleCount[group];
+        int vis = visibleCount[group];
 
         // Disable master checkbox for empty sections so users don't get
         // confused when clicking it has no effect.
