@@ -24,6 +24,7 @@ set( DIALOGS_SRCS
     dialogs/panel_gerbview_excellon_settings_base.cpp
     dialogs/dialog_draw_layers_settings.cpp
     dialogs/dialog_draw_layers_settings_base.cpp
+      dialogs/dialog_layer_roles.cpp
     dialogs/dialog_map_gerber_layers_to_pcb.cpp
     dialogs/dialog_map_gerber_layers_to_pcb_base.cpp
     dialogs/dialog_print_gerbview.cpp
@@ -57,6 +58,7 @@ set( GERBVIEW_SRCS
     gerbview_settings.cpp
     gerbview_frame.cpp
     job_file_reader.cpp
+    layer_roles.cpp
     menubar.cpp
     readgerb.cpp
     rs274_read_XY_and_IJ_coordinates.cpp

@@ -23,7 +23,9 @@
 
 #include <gerbview_settings.h>
 #include <settings/color_settings.h>
+#include <gal/color4d.h>
 #include <layer_ids.h>
+#include <layer_roles.h>
 #include <pgm_base.h>
 #include <settings/common_settings.h>
 #include <settings/json_settings_internals.h>
@@ -95,6 +97,79 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
     m_params.emplace_back( new PARAM<int>( "excellon_defaults.inch_mantissa_len",
             &m_ExcellonDefaults.m_InchMantissaLen, FMT_MANTISSA_INCH, 2 , 6 ) );
+
+    // PCB layer-role assignments + per-role color overrides.  Stored as a single JSON
+    // sub-object so import/export is just a copy of this branch.
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "layer_roles",
+            [this]() -> nlohmann::json
+            {
+                nlohmann::json js = nlohmann::json::object();
+
+                nlohmann::json colorsObj = nlohmann::json::object();
+
+                for( const auto& [key, color] : m_LayerRoles.colors )
+                    colorsObj[key] = color.ToHexString().ToUTF8().data();
+
+                js["colors"] = colorsObj;
+
+                nlohmann::json assignsObj = nlohmann::json::object();
+
+                for( const auto& [filename, role] : m_LayerRoles.assignments )
+                {
+                    if( role == GERBVIEW_LAYER_ROLE::Unassigned )
+                        continue;
+
+                    assignsObj[std::string( filename.ToUTF8() )] = RoleSerializedKey( role );
+                }
+
+                js["assignments"] = assignsObj;
+
+                return js;
+            },
+            [this]( const nlohmann::json& aObj )
+            {
+                m_LayerRoles.colors.clear();
+                m_LayerRoles.assignments.clear();
+
+                if( !aObj.is_object() )
+                    return;
+
+                if( aObj.contains( "colors" ) && aObj["colors"].is_object() )
+                {
+                    for( auto it = aObj["colors"].begin(); it != aObj["colors"].end(); ++it )
+                    {
+                        if( !it.value().is_string() )
+                            continue;
+
+                        KIGFX::COLOR4D color;
+
+                        if( color.SetFromHexString(
+                                    wxString::FromUTF8( it.value().get<std::string>() ) ) )
+                        {
+                            m_LayerRoles.colors[it.key()] = color;
+                        }
+                    }
+                }
+
+                if( aObj.contains( "assignments" ) && aObj["assignments"].is_object() )
+                {
+                    for( auto it = aObj["assignments"].begin();
+                         it != aObj["assignments"].end(); ++it )
+                    {
+                        if( !it.value().is_string() )
+                            continue;
+
+                        GERBVIEW_LAYER_ROLE role =
+                                RoleFromSerializedKey( it.value().get<std::string>() );
+
+                        if( role == GERBVIEW_LAYER_ROLE::Unassigned )
+                            continue;
+
+                        m_LayerRoles.assignments[wxString::FromUTF8( it.key() )] = role;
+                    }
+                }
+            },
+            nlohmann::json::object() ) );
 }
 
 

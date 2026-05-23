@@ -28,6 +28,7 @@
 #include <gerbview_frame.h>
 #include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
+#include <layer_roles.h>
 #include <richio.h>
 #include <view/view.h>
 
@@ -106,6 +107,12 @@ bool GERBVIEW_FRAME::Read_GERBER_File( const wxString& GERBER_FullFileName )
         for( GERBER_DRAW_ITEM* item : gerber->GetItems() )
             GetCanvas()->GetView()->Add( (KIGFX::VIEW_ITEM*) item );
     }
+
+    // Apply any user-defined PCB layer role color for this file (matched by basename).
+    GERBVIEW_LAYER_ROLE role = LookupRoleForSlot( this, layer );
+
+    if( role != GERBVIEW_LAYER_ROLE::Unassigned )
+        ApplyLayerRoleToSlot( this, layer, role );
 
     return true;
 }

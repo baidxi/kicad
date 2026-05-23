@@ -20,6 +20,7 @@
 
 #include <confirm.h>
 #include <common.h>
+#include <dialogs/dialog_layer_roles.h>
 #include <dialogs/dialog_map_gerber_layers_to_pcb.h>
 #include <export_to_pcbnew.h>
 #include <gerber_file_image.h>
@@ -27,6 +28,7 @@
 #include <gerbview_painter.h>
 #include <gerbview_frame.h>
 #include <gerbview_settings.h>
+#include <layer_roles.h>
 #include <string_utils.h>
 #include <excellon_image.h>
 #include <tool/tool_manager.h>
@@ -507,6 +509,17 @@ int GERBVIEW_CONTROL::LoadGerbFiles( const TOOL_EVENT& aEvent )
 }
 
 
+int GERBVIEW_CONTROL::LayerRoles( const TOOL_EVENT& aEvent )
+{
+    // Modeless dialog: it destroys itself via Destroy() on OK / Cancel.
+    DIALOG_LAYER_ROLES* dlg = new DIALOG_LAYER_ROLES( m_frame );
+    dlg->Show( true );
+
+    return 0;
+}
+
+
+
 void GERBVIEW_CONTROL::setTransitions()
 {
     Go( &GERBVIEW_CONTROL::OpenAutodetected,   GERBVIEW_ACTIONS::openAutodetected.MakeEvent() );
@@ -550,4 +563,6 @@ void GERBVIEW_CONTROL::setTransitions()
 
     Go( &GERBVIEW_CONTROL::LoadZipfile,        GERBVIEW_ACTIONS::loadZipFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::LoadGerbFiles,      GERBVIEW_ACTIONS::loadGerbFiles.MakeEvent() );
+
+    Go( &GERBVIEW_CONTROL::LayerRoles,         GERBVIEW_ACTIONS::layerRoles.MakeEvent() );
 }
