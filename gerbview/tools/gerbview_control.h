@@ -58,6 +58,11 @@ public:
     int OpenJobFile( const TOOL_EVENT& aEvent );
     int OpenZipFile( const TOOL_EVENT& aEvent );
 
+    // GerbView project files
+    int OpenProject( const TOOL_EVENT& aEvent );
+    int SaveProject( const TOOL_EVENT& aEvent );
+    int SaveProjectAs( const TOOL_EVENT& aEvent );
+
     int ToggleLayerManager( const TOOL_EVENT& aEvent );
 
     // Highlight control

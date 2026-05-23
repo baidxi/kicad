@@ -70,6 +70,32 @@ TOOL_ACTION GERBVIEW_ACTIONS::openZipFile( TOOL_ACTION_ARGS()
         .Tooltip( _( "Open a zipped archive (Gerber and Drill) file" ) )
         .Icon( BITMAPS::zip ) );
 
+TOOL_ACTION GERBVIEW_ACTIONS::openProject(
+        TOOL_ACTION_ARGS()
+                .Name( "gerbview.Control.openProject" )
+                .Scope( AS_GLOBAL )
+                .FriendlyName( _( "Open GerbView Project..." ) )
+                .Tooltip( _( "Open a GerbView project file (.kicad_gvp): files, layer roles "
+                             "and color palette" ) )
+                .Icon( BITMAPS::open_project ) );
+
+TOOL_ACTION GERBVIEW_ACTIONS::saveProject(
+        TOOL_ACTION_ARGS()
+                .Name( "gerbview.Control.saveProject" )
+                .Scope( AS_GLOBAL )
+                .FriendlyName( _( "Save GerbView Project" ) )
+                .Tooltip( _( "Save the currently loaded files, layer-role mappings and color "
+                             "palette to the current GerbView project file" ) )
+                .Icon( BITMAPS::save ) );
+
+TOOL_ACTION
+GERBVIEW_ACTIONS::saveProjectAs( TOOL_ACTION_ARGS()
+                                         .Name( "gerbview.Control.saveProjectAs" )
+                                         .Scope( AS_GLOBAL )
+                                         .FriendlyName( _( "Save GerbView Project As..." ) )
+                                         .Tooltip( _( "Save the current GerbView project under a new name" ) )
+                                         .Icon( BITMAPS::save_as ) );
+
 TOOL_ACTION GERBVIEW_ACTIONS::toggleLayerManager( TOOL_ACTION_ARGS()
         .Name( "gerbview.Control.toggleLayerManager" )
         .Scope( AS_GLOBAL )

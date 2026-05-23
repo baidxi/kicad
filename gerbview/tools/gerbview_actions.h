@@ -71,6 +71,11 @@ public:
     static TOOL_ACTION openJobFile;
     static TOOL_ACTION openZipFile;
 
+    // GerbView project files (.kicad_gvp)
+    static TOOL_ACTION openProject;
+    static TOOL_ACTION saveProject;
+    static TOOL_ACTION saveProjectAs;
+
     // Open/close the layer manager
     static TOOL_ACTION toggleLayerManager;
 

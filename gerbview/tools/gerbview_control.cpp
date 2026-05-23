@@ -96,6 +96,41 @@ int GERBVIEW_CONTROL::OpenZipFile( const TOOL_EVENT& aEvent )
 }
 
 
+int GERBVIEW_CONTROL::OpenProject( const TOOL_EVENT& aEvent )
+{
+    // The action is invoked both from the File menu (no parameter) and from
+    // drag-and-drop (a wxString* with the dropped path).
+    wxString path;
+
+    if( aEvent.HasParameter() )
+    {
+        if( const wxString* p = aEvent.Parameter<wxString*>() )
+            path = *p;
+    }
+
+    m_frame->OpenProjectFile( path );
+    canvas()->Refresh();
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::SaveProject( const TOOL_EVENT& aEvent )
+{
+    m_frame->SaveProjectFile( false /*aPromptForName*/ );
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::SaveProjectAs( const TOOL_EVENT& aEvent )
+{
+    m_frame->SaveProjectFile( true /*aPromptForName*/ );
+
+    return 0;
+}
+
+
 int GERBVIEW_CONTROL::ToggleLayerManager( const TOOL_EVENT& aEvent )
 {
     m_frame->ToggleLayerManager();
@@ -526,6 +561,9 @@ void GERBVIEW_CONTROL::setTransitions()
     Go( &GERBVIEW_CONTROL::OpenDrillFile,      GERBVIEW_ACTIONS::openDrillFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::OpenJobFile,        GERBVIEW_ACTIONS::openJobFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::OpenZipFile,        GERBVIEW_ACTIONS::openZipFile.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::OpenProject, GERBVIEW_ACTIONS::openProject.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::SaveProject, GERBVIEW_ACTIONS::saveProject.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::SaveProjectAs, GERBVIEW_ACTIONS::saveProjectAs.MakeEvent() );
     Go( &GERBVIEW_CONTROL::ToggleLayerManager, GERBVIEW_ACTIONS::toggleLayerManager.MakeEvent() );
     Go( &GERBVIEW_CONTROL::ExportToPcbnew,     GERBVIEW_ACTIONS::exportToPcbnew.MakeEvent() );
     Go( &GERBVIEW_CONTROL::Print,              ACTIONS::print.MakeEvent() );

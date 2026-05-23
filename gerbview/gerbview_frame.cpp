@@ -199,6 +199,7 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_acceptedExts.emplace( FILEEXT::GerberFileExtension, &GERBVIEW_ACTIONS::loadGerbFiles );
     m_acceptedExts.emplace( FILEEXT::ArchiveFileExtension, &GERBVIEW_ACTIONS::loadZipFile );
     m_acceptedExts.emplace( FILEEXT::DrillFileExtension, &GERBVIEW_ACTIONS::loadGerbFiles );
+    m_acceptedExts.emplace( FILEEXT::GerbViewProjectFileExtension, &GERBVIEW_ACTIONS::openProject );
     DragAcceptFiles( true );
 
     GetToolManager()->RunAction( ACTIONS::zoomFitScreen );

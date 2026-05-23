@@ -318,6 +318,27 @@ public:
      */
     bool LoadGerberJobFile( const wxString& aFileName );
 
+    /**
+     * Open a GerbView project (`.kicad_gvp`) file.  When called with an empty
+     * string the user is shown a file dialog.  Prompts the user if there are
+     * already loaded layers (they will be replaced on confirmation).
+     *
+     * @return true if the project was opened and applied successfully.
+     */
+    bool OpenProjectFile( const wxString& aFileName );
+
+    /**
+     * Save the current GerbView session to a `.kicad_gvp` project file.
+     *
+     * @param aPromptForName forces a "Save As" file dialog.  When false the
+     *                       previously saved/opened path is reused; if none
+     *                       exists yet, a "Save As" dialog is shown anyway.
+     */
+    bool SaveProjectFile( bool aPromptForName );
+
+    /// Path of the currently associated project file, if any.
+    const wxString& GetProjectFilePath() const { return m_currentProjectFile; }
+
     // PCB handling
     bool Clear_DrawLayers( bool query );
     void Erase_Current_DrawLayer( bool query );
@@ -521,6 +542,11 @@ protected:
 
     wxString                m_lastFileName;     // The last filename chosen to be proposed to the
                                                 // user.
+
+    /// Full path of the currently associated `.kicad_gvp` project file (empty
+    /// when no project has been opened or saved yet).  Used by "Save Project"
+    /// to know whether to prompt for a name.
+    wxString m_currentProjectFile;
 
 private:
     bool                m_show_layer_manager_tools;

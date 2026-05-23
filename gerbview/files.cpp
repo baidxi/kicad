@@ -24,12 +24,15 @@
 
 #include <wx/debug.h>
 #include <wx/filedlg.h>
+#include <wx/filename.h>
+#include <wx/msgdlg.h>
 #include <wx/wfstream.h>
 #include <wx/zipstrm.h>
 #include <reporter.h>
 #include <dialogs/html_message_box.h>
 #include <gerbview_frame.h>
 #include <gerbview_id.h>
+#include <gerbview_project_file.h>
 #include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
 #include <excellon_image.h>
@@ -751,4 +754,121 @@ void GERBVIEW_FRAME::DoWithAcceptedFiles()
     // Open files in editor
     if( !gerbFn.IsEmpty() )
         m_toolManager->RunAction<wxString*>( *m_acceptedExts.at( FILEEXT::GerberFileExtension ), &gerbFn );
+}
+
+
+bool GERBVIEW_FRAME::OpenProjectFile( const wxString& aFileName )
+{
+    wxString path = aFileName;
+
+    if( path.IsEmpty() )
+    {
+        wxString currentPath =
+                m_currentProjectFile.IsEmpty() ? m_mruPath : wxFileName( m_currentProjectFile ).GetPath();
+
+        wxFileDialog dlg( this, _( "Open GerbView Project" ), currentPath, wxEmptyString,
+                          FILEEXT::GerbViewProjectFileWildcard(), wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+        KIPLATFORM::UI::AllowNetworkFileSystems( &dlg );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return false;
+
+        path = dlg.GetPath();
+    }
+
+    // Ask for confirmation if there are loaded layers that would be replaced.
+    if( GetImagesList()->GetLoadedImageCount() > 0 )
+    {
+        int answer = wxMessageBox( _( "Opening this project will replace all currently loaded layers.\n\n"
+                                      "Do you want to continue?" ),
+                                   _( "Open GerbView Project" ), wxYES_NO | wxICON_QUESTION, this );
+
+        if( answer != wxYES )
+            return false;
+    }
+
+    GERBVIEW_PROJECT_FILE project;
+    WX_STRING_REPORTER    reporter;
+
+    if( !project.LoadFromFile( path, &reporter ) )
+    {
+        if( reporter.HasMessage() )
+        {
+            HTML_MESSAGE_BOX mbox( this, _( "Open GerbView Project" ) );
+            mbox.ListSet( reporter.GetMessages() );
+            mbox.ShowModal();
+        }
+
+        return false;
+    }
+
+    wxString projectDir = wxFileName( path ).GetPath();
+    bool     ok = project.ApplyToFrame( this, projectDir, &reporter );
+
+    m_currentProjectFile = path;
+    m_mruPath = projectDir;
+
+    SortLayersByX2Attributes();
+    Zoom_Automatique( false );
+
+    if( reporter.HasMessage() )
+    {
+        HTML_MESSAGE_BOX mbox( this, _( "Open GerbView Project" ) );
+        mbox.ListSet( reporter.GetMessages() );
+        mbox.ShowModal();
+    }
+
+    return ok;
+}
+
+
+bool GERBVIEW_FRAME::SaveProjectFile( bool aPromptForName )
+{
+    wxString path = m_currentProjectFile;
+
+    if( aPromptForName || path.IsEmpty() )
+    {
+        wxString defaultDir = path.IsEmpty() ? m_mruPath : wxFileName( path ).GetPath();
+        wxString defaultName =
+                path.IsEmpty() ? wxString( wxT( "project.kicad_gvp" ) ) : wxFileName( path ).GetFullName();
+
+        wxFileDialog dlg( this, _( "Save GerbView Project As" ), defaultDir, defaultName,
+                          FILEEXT::GerbViewProjectFileWildcard(), wxFD_SAVE | wxFD_OVERWRITE_PROMPT );
+
+        if( dlg.ShowModal() == wxID_CANCEL )
+            return false;
+
+        path = dlg.GetPath();
+
+        // Force the .kicad_gvp extension if the user didn't type one.
+        wxFileName fn( path );
+
+        if( fn.GetExt().IsEmpty() )
+        {
+            fn.SetExt( FILEEXT::GerbViewProjectFileExtension );
+            path = fn.GetFullPath();
+        }
+    }
+
+    GERBVIEW_PROJECT_FILE project;
+    project.CaptureFromFrame( this );
+
+    WX_STRING_REPORTER reporter;
+
+    if( !project.SaveToFile( path, &reporter ) )
+    {
+        if( reporter.HasMessage() )
+        {
+            HTML_MESSAGE_BOX mbox( this, _( "Save GerbView Project" ) );
+            mbox.ListSet( reporter.GetMessages() );
+            mbox.ShowModal();
+        }
+
+        return false;
+    }
+
+    m_currentProjectFile = path;
+    m_mruPath = wxFileName( path ).GetPath();
+    return true;
 }
