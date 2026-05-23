@@ -1138,10 +1138,14 @@ void ODB_LAYER_ENTITY::GenAttrList( ODB_TREE_WRITER& writer )
                 // Convert mm to oz/sqft
                 thicknessOut /= 0.035;
             }
+            else
+            {
+                // Convert mm to µm
+                thicknessOut *= 1000;
+            }
             ost << ".copper_weight=" << ODB::Double2String( thicknessOut ) << std::endl;
         }
-        else if( stackupType == BOARD_STACKUP_ITEM_TYPE::BS_ITEM_TYPE_DIELECTRIC
-                 || stackupType == BOARD_STACKUP_ITEM_TYPE::BS_ITEM_TYPE_SOLDERMASK )
+        else if( stackupType == BS_ITEM_TYPE_DIELECTRIC || stackupType == BS_ITEM_TYPE_SOLDERMASK )
         {
             double thicknessOut = PCB_IO_ODBPP::m_scale * thickness;
             ost << ".layer_dielectric=" << ODB::Double2String( thicknessOut ) << std::endl;
