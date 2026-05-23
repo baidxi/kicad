@@ -68,6 +68,9 @@ public:
     int UpdateMessagePanel( const TOOL_EVENT& aEvent );
     int Print( const TOOL_EVENT& aEvent );
 
+    // Show a read-only properties dialog for the (singly) selected GERBER_DRAW_ITEM
+    int ItemProperties( const TOOL_EVENT& aEvent );
+
     // Drag and drop
     int LoadZipfile( const TOOL_EVENT& aEvent );
     int LoadGerbFiles( const TOOL_EVENT& aEvent );

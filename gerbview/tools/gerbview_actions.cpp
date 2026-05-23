@@ -35,6 +35,13 @@
 
 // GERBVIEW_CONTROL
 //
+TOOL_ACTION GERBVIEW_ACTIONS::properties( TOOL_ACTION_ARGS()
+                                                  .Name( "gerbview.Control.properties" )
+                                                  .Scope( AS_GLOBAL )
+                                                  .FriendlyName( _( "Properties..." ) )
+                                                  .Tooltip( _( "Show item properties" ) )
+                                                  .Icon( BITMAPS::tools ) );
+
 TOOL_ACTION GERBVIEW_ACTIONS::openAutodetected( TOOL_ACTION_ARGS()
         .Name( "gerbview.Control.openAutodetected" )
         .Scope( AS_GLOBAL )
