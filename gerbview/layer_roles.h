@@ -28,6 +28,10 @@
 class GERBVIEW_FRAME;
 
 
+/// Maximum number of inner copper layers exposed by the layer-roles UI.
+constexpr int MAX_INNER_COPPER_LAYERS = 8;
+
+
 /**
  * Logical PCB-layer roles that a loaded Gerber/Excellon file may represent.
  *
@@ -36,37 +40,52 @@ class GERBVIEW_FRAME;
  * slot through the regular GerbView color path.
  *
  * Persisted JSON keys are stable (see RoleSerializedKey) so older settings remain
- * loadable after enum reordering.
+ * loadable after enum reordering.  The deprecated key "inner_copper" is migrated
+ * to InnerCopper1 on load.
  */
 enum class GERBVIEW_LAYER_ROLE
 {
     Unassigned = 0,
 
-    TopCopper,
-    BottomCopper,
-    InnerCopper,
-
-    TopSolderMask,
-    BottomSolderMask,
-
     TopSolderPaste,
+    TopSolderMask,
+    TopSilkScreen,
+    TopCopper,
+
+    InnerCopper1,
+    InnerCopper2,
+    InnerCopper3,
+    InnerCopper4,
+    InnerCopper5,
+    InnerCopper6,
+    InnerCopper7,
+    InnerCopper8,
+
+    BottomCopper,
+    BottomSilkScreen,
+    BottomSolderMask,
     BottomSolderPaste,
 
-    TopSilkScreen,
-    BottomSilkScreen,
-
     DrillPlated,
-    DrillUnplated
+    DrillUnplated,
+    ContourPlated,
+    ContourUnplated
 };
 
 
-/// Localized display name for the role (e.g. "Top Copper").
+/// Localized display name for the role (e.g. "Top Copper", "Inner Copper 3").
 wxString RoleDisplayName( GERBVIEW_LAYER_ROLE aRole );
 
-/// Stable, case-sensitive JSON key (e.g. "top_copper").  Do not localize.
+/// Compact three-letter code shown in the layer manager next to the visibility
+/// checkbox (e.g. "SPT" for Top Solder Paste, "IN1" for Inner Copper 1).
+/// Returns an empty string for Unassigned.
+wxString RoleShortCode( GERBVIEW_LAYER_ROLE aRole );
+
+/// Stable, case-sensitive JSON key (e.g. "top_copper", "inner_copper_3").  Do not localize.
 const char* RoleSerializedKey( GERBVIEW_LAYER_ROLE aRole );
 
 /// Parse a stable JSON key into a role; falls back to Unassigned for unknown values.
+/// Recognises the legacy key "inner_copper" as InnerCopper1.
 GERBVIEW_LAYER_ROLE RoleFromSerializedKey( const std::string& aKey );
 
 /// Built-in predefined color for the given role.
@@ -74,6 +93,15 @@ KIGFX::COLOR4D DefaultColorFor( GERBVIEW_LAYER_ROLE aRole );
 
 /// Every role, ordered for UI presentation (Unassigned first).
 const std::vector<GERBVIEW_LAYER_ROLE>& AllRoles();
+
+/// True if @p aRole is one of InnerCopper1..MAX_INNER_COPPER_LAYERS.
+bool IsInnerCopperRole( GERBVIEW_LAYER_ROLE aRole );
+
+/// 1-based inner-copper layer index for @p aRole, or 0 if it is not an inner copper role.
+int InnerCopperIndex( GERBVIEW_LAYER_ROLE aRole );
+
+/// Inner copper role for @p aIndex (1..MAX_INNER_COPPER_LAYERS); InnerCopper1 if out of range.
+GERBVIEW_LAYER_ROLE InnerCopperRoleAt( int aIndex );
 
 
 /**
@@ -105,6 +133,14 @@ void ReapplyAllLayerRoles( GERBVIEW_FRAME* aFrame );
  * keyed by the file's basename (case-insensitive on Windows).
  */
 GERBVIEW_LAYER_ROLE LookupRoleForSlot( GERBVIEW_FRAME* aFrame, int aSlot );
+
+
+/**
+ * Persist a new role assignment for the file currently loaded at @p aSlot and
+ * apply the corresponding color.  Setting @p aRole to Unassigned removes the
+ * mapping (the slot keeps its current color until the next ReFill).
+ */
+void SetRoleForSlot( GERBVIEW_FRAME* aFrame, int aSlot, GERBVIEW_LAYER_ROLE aRole );
 
 
 #endif // GERBVIEW_LAYER_ROLES_H

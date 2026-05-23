@@ -21,6 +21,8 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
+#include <algorithm>
+
 #include <gerbview_settings.h>
 #include <settings/color_settings.h>
 #include <gal/color4d.h>
@@ -124,12 +126,18 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
                 js["assignments"] = assignsObj;
 
+                js["visible_inner_count"] = m_LayerRoles.visibleInnerCount;
+                js["loaded_scheme_name"]  =
+                        std::string( m_LayerRoles.loadedSchemeName.ToUTF8() );
+
                 return js;
             },
             [this]( const nlohmann::json& aObj )
             {
                 m_LayerRoles.colors.clear();
                 m_LayerRoles.assignments.clear();
+                m_LayerRoles.visibleInnerCount = 2;
+                m_LayerRoles.loadedSchemeName.clear();
 
                 if( !aObj.is_object() )
                     return;
@@ -143,11 +151,19 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
                         KIGFX::COLOR4D color;
 
-                        if( color.SetFromHexString(
+                        if( !color.SetFromHexString(
                                     wxString::FromUTF8( it.value().get<std::string>() ) ) )
                         {
-                            m_LayerRoles.colors[it.key()] = color;
+                            continue;
                         }
+
+                        // Migrate the legacy single-inner key to inner_copper_1.
+                        std::string key = it.key();
+
+                        if( key == "inner_copper" )
+                            key = "inner_copper_1";
+
+                        m_LayerRoles.colors[key] = color;
                     }
                 }
 
@@ -167,6 +183,21 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
                         m_LayerRoles.assignments[wxString::FromUTF8( it.key() )] = role;
                     }
+                }
+
+                if( aObj.contains( "visible_inner_count" )
+                    && aObj["visible_inner_count"].is_number_integer() )
+                {
+                    int n = aObj["visible_inner_count"].get<int>();
+                    m_LayerRoles.visibleInnerCount = std::clamp( n, 2,
+                                                                MAX_INNER_COPPER_LAYERS );
+                }
+
+                if( aObj.contains( "loaded_scheme_name" )
+                    && aObj["loaded_scheme_name"].is_string() )
+                {
+                    m_LayerRoles.loadedSchemeName = wxString::FromUTF8(
+                            aObj["loaded_scheme_name"].get<std::string>() );
                 }
             },
             nlohmann::json::object() ) );

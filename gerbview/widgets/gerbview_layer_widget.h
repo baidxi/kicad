@@ -27,7 +27,31 @@
 #ifndef GERBER_LAYER_WIDGET_H
 #define GERBER_LAYER_WIDGET_H
 
+#include <map>
+
+#include <layer_roles.h>
 #include "layer_widget.h"
+
+class wxCheckBox;
+class wxStaticText;
+
+
+/**
+ * High-level grouping of loaded Gerber/Excellon layers used to bucket rows in
+ * the Layer Manager.  Top and Bottom sides absorb their respective silk-screen
+ * layers; drill files get their own section; files without an assigned role
+ * fall into the "Unmapped" bucket.
+ */
+enum class GERBER_LAYER_GROUP
+{
+    Top      = 0,
+    Inner    = 1,
+    Bottom   = 2,
+    Drill    = 3,
+    Unmapped = 4,
+    None     = -1
+};
+
 
 /**
  * Abstract functions of LAYER_WIDGET so they may be tied into the GERBVIEW_FRAME's data and
@@ -121,12 +145,73 @@ private:
     /// on every child control within the layer panel.
     void installRightLayerClickHandler();
 
+    /**
+     * Insert a non-layer group-header row directly into m_LayersFlexGridSizer,
+     * with a bold label spanning column 3 and a master checkbox in column 2 that
+     * toggles every layer belonging to @p aGroup.  When @p aWithTopGap is true,
+     * the row's cells are given a top border to visually separate this group
+     * from the one above.
+     */
+    void appendGroupHeader( const wxString& aLabel, GERBER_LAYER_GROUP aGroup,
+                            bool aWithTopGap );
+
+    /**
+     * Take the most recently appended layer row, detach its column-3 label and
+     * wrap it together with a per-slot role dropdown inside a small panel.
+     * The dropdown allows the user to remap the slot's layer role on the fly;
+     * selecting a new role persists the assignment, applies the predefined
+     * color and triggers a deferred ReFill so the row is moved into its new
+     * group.
+     */
+    void decorateLayerRowWithRoleDropdown( int aSlot, GERBVIEW_LAYER_ROLE aRole );
+
+    /**
+     * Show or hide every loaded slot whose layer role falls into @p aGroup, and
+     * refresh the per-layer checkboxes accordingly.
+     */
+    void toggleGroupVisibility( GERBER_LAYER_GROUP aGroup, bool aVisible );
+
+    /**
+     * Recompute and apply the tri-state value of every group's master checkbox
+     * by inspecting the current per-slot visibility.  Called after individual
+     * layer visibility toggles.
+     */
+    void syncGroupMasterCheckboxes();
+
     GERBER_FILE_IMAGE_LIST* GetImagesList();
 
     GERBVIEW_FRAME* m_frame;
 
     bool m_alwaysShowActiveLayer;   // If true: Only shows the current active layer
                                     // even if it is changed
+
+    /// Master visibility checkbox for each group present in the layer list,
+    /// keyed by group.  Rebuilt by every ReFill().
+    std::map<GERBER_LAYER_GROUP, wxCheckBox*> m_groupCheckboxes;
 };
+
+
+/**
+ * Map a layer role to the group it belongs to in the Layer Manager (and the
+ * Layer Roles dialog).
+ */
+GERBER_LAYER_GROUP GroupForRole( GERBVIEW_LAYER_ROLE aRole );
+
+/**
+ * Localized header label for the given group; empty string for Unassigned/None.
+ */
+wxString GroupDisplayName( GERBER_LAYER_GROUP aGroup );
+
+/**
+ * Stable ordering key for a role inside its group (for sorting loaded slots
+ * within the Layer Manager).  Lower comes first.
+ */
+int RoleOrderInGroup( GERBVIEW_LAYER_ROLE aRole );
+
+/**
+ * Compact three-letter code for a layer-manager group, shown next to the
+ * master visibility checkbox in the bold group-header row.
+ */
+wxString GroupShortCode( GERBER_LAYER_GROUP aGroup );
 
 #endif  // GERBER_LAYER_WIDGET_H

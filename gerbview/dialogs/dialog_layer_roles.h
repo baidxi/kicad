@@ -31,20 +31,26 @@
 class GERBVIEW_FRAME;
 class wxButton;
 class wxColourPickerCtrl;
-class wxColourPickerEvent;
 class wxGrid;
-class wxGridEvent;
 class wxScrolledWindow;
+class wxSizer;
+class wxStaticText;
 
 
 /**
  * Modeless dialog that lets the user manually map every loaded Gerber/Excellon file to
  * a PCB layer role, and tweak the per-role color palette.
  *
+ * Layout:
+ *   - Left column:  file -> role assignment grid.
+ *   - Right column: grouped role colors (Top / Inner / Bottom / Other),
+ *                   "loaded scheme" label, and Import / Export / Reset buttons.
+ *   - Below both columns: Apply / OK / Cancel.
+ *
  * State lives entirely in the dialog while it is open.  On OK / Apply the contents are
  * written back to GERBVIEW_SETTINGS::m_LayerRoles and pushed to the painter through
- * ReapplyAllLayerRoles().  Import / Export use a small JSON file with two top-level
- * keys ("colors" and "assignments") so configurations can be shared between users.
+ * ReapplyAllLayerRoles().  Import / Export use a small JSON file with stable keys so
+ * configurations can be shared between users.
  */
 class DIALOG_LAYER_ROLES : public DIALOG_SHIM
 {
@@ -61,15 +67,30 @@ public:
 
 private:
     void buildAssignmentsGrid();
+
+    /// Build (or rebuild) the right-hand color column based on m_visibleInnerCount.
     void buildColorPanel();
+
+    /// Add one labeled color picker row to the given sizer for @p aRole.
+    /// @p aDisplayLabel allows overriding the role's default name (e.g. dropping
+    /// the "Top"/"Bottom" prefix in the section headers).
+    void addColorRow( wxSizer* aSizer, GERBVIEW_LAYER_ROLE aRole,
+                      const wxString& aDisplayLabel );
+
+    /// Push the current loaded-scheme name into m_schemeLabel.
+    void updateSchemeLabel();
+
+    /// Tear down and rebuild the color section (used after Add / Remove inner layer).
+    void rebuildColorSection();
 
     void onApply( wxCommandEvent& aEvent );
     void onImport( wxCommandEvent& aEvent );
     void onExport( wxCommandEvent& aEvent );
     void onResetColors( wxCommandEvent& aEvent );
-    void onColorPicked( wxColourPickerEvent& aEvent );
     void onOkButton( wxCommandEvent& aEvent );
     void onCancelButton( wxCommandEvent& aEvent );
+    void onAddInnerLayer( wxCommandEvent& aEvent );
+    void onRemoveInnerLayer( wxCommandEvent& aEvent );
 
     /// Convert the role display-name shown in the dropdown back to the enum.
     GERBVIEW_LAYER_ROLE roleFromDisplayName( const wxString& aName ) const;
@@ -87,10 +108,20 @@ private:
     GERBVIEW_FRAME*                            m_frame;
     wxGrid*                                    m_assignmentsGrid;
     wxScrolledWindow*                          m_colorPanel;
+    wxStaticText*                              m_schemeLabel;
+    wxButton*                                  m_addInnerBtn;
+    wxButton*                                  m_removeInnerBtn;
+
     std::vector<int>                           m_slotIndices;       // grid row -> slot
     std::vector<wxColourPickerCtrl*>           m_colorPickers;      // index matches m_coloredRoles
     std::vector<GERBVIEW_LAYER_ROLE>           m_coloredRoles;      // roles displayed in color panel
     std::map<std::string, KIGFX::COLOR4D>      m_workingColors;
+
+    /// 2..MAX_INNER_COPPER_LAYERS, controls how many Inner Copper rows are visible.
+    int                                        m_visibleInnerCount;
+
+    /// Empty if the palette has not been imported (or was modified after import).
+    wxString                                   m_loadedSchemeName;
 };
 
 
