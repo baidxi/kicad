@@ -32,7 +32,10 @@
 #include <wx/wupdlock.h>
 #include <pcb_edit_frame.h>
 #include <wx/string.h>
-#include <board_commit.h>
+#include <pcb_draw_panel_gal.h>
+#include <tool/tool_manager.h>
+#include <tools/pcb_selection_tool.h>
+#include <view/view.h>
 #include <widgets/std_bitmap_button.h>
 #include <widgets/wx_progress_reporters.h>
 #include <zone.h>
@@ -293,7 +296,6 @@ void DIALOG_ZONE_MANAGER::OnOk( wxCommandEvent& aEvt )
 
     m_zoneSettingsBag.UpdateClonedZones();
 
-    // Apply zone settings changes
     for( const auto& [ zone, zoneClone ] : m_zoneSettingsBag.GetZonesCloneMap() )
     {
         std::map<PCB_LAYER_ID, std::shared_ptr<SHAPE_POLY_SET>> filled_zone_to_restore;
@@ -312,19 +314,6 @@ void DIALOG_ZONE_MANAGER::OnOk( wxCommandEvent& aEvt )
 
         for( const auto& [ layer, fill ] : filled_zone_to_restore )
             zone->SetFilledPolysList( layer, *fill );
-    }
-
-    // Delete zones that were marked for deletion
-    if( !m_zonesToDelete.empty() )
-    {
-        BOARD_COMMIT commit( m_pcbFrame );
-
-        for( ZONE* zone : m_zonesToDelete )
-        {
-            commit.Remove( zone );
-        }
-
-        commit.Push( _( "Delete Zones" ) );
     }
 
     aEvt.Skip();
@@ -440,36 +429,42 @@ void DIALOG_ZONE_MANAGER::OnDeleteClick( wxCommandEvent& aEvent )
     if( !originalZone )
         return;
 
-    // Check if already marked for deletion
-    if( std::find( m_zonesToDelete.begin(), m_zonesToDelete.end(), originalZone ) != m_zonesToDelete.end() )
+    if( std::find( m_zonesToDelete.begin(), m_zonesToDelete.end(), originalZone )
+        != m_zonesToDelete.end() )
+    {
         return;
+    }
 
-    // Confirm deletion
     wxString msg = wxString::Format( _( "Delete zone '%s'?" ), originalZone->GetZoneName() );
 
     if( !IsOK( this, msg ) )
         return;
 
-    // Mark zone for deletion (will be deleted on OK)
     m_zonesToDelete.push_back( originalZone );
 
-    // Remove the zone from the zone settings bag (removes from all maps and lists)
     m_zoneSettingsBag.RemoveZone( originalZone );
 
-    // Save current filter state
+    if( originalZone->IsSelected() )
+    {
+        if( PCB_SELECTION_TOOL* selTool = m_pcbFrame->GetToolManager()->GetTool<PCB_SELECTION_TOOL>() )
+        {
+            selTool->RemoveItemFromSel( originalZone );
+        }
+    }
+
+    if( KIGFX::VIEW* view = m_pcbFrame->GetCanvas()->GetView() )
+        view->Hide( originalZone, true );
+
+    m_pcbFrame->GetCanvas()->Refresh();
+
     wxString currentFilter = m_filterCtrl->GetValue();
 
-    // Recreate the model with the updated zone list
     m_modelZonesOverview = new MODEL_ZONES_OVERVIEW( this, m_pcbFrame, m_zoneSettingsBag );
     m_viewZonesOverview->AssociateModel( m_modelZonesOverview.get() );
 
-    // Reapply filter if one was active
     if( !currentFilter.IsEmpty() )
-    {
         m_modelZonesOverview->ApplyFilter( currentFilter, wxDataViewItem() );
-    }
 
-    // Select the first zone if available, otherwise clear selection
     if( m_modelZonesOverview->GetCount() > 0 )
     {
         wxDataViewItem firstItem = m_modelZonesOverview->GetItem( 0 );

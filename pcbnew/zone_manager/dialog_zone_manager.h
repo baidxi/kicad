@@ -63,6 +63,8 @@ public:
 
     bool GetRepourOnClose() { return m_checkRepour->GetValue(); }
 
+    const std::vector<ZONE*>& GetZonesToDelete() const { return m_zonesToDelete; }
+
 protected:
     void OnZoneSelectionChanged( ZONE* aZone );
     void OnDataViewCtrlSelectionChanged( wxDataViewEvent& event ) override;
@@ -119,5 +121,5 @@ private:
     std::unique_ptr<ZONE_FILLER>          m_filler;
     bool                                  m_isFillingZones;
     bool                                  m_zoneFillComplete;
-    std::vector<ZONE*>                    m_zonesToDelete; // Zones marked for deletion (only deleted on OK)
+    std::vector<ZONE*>                    m_zonesToDelete;
 };
