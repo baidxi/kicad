@@ -90,7 +90,7 @@ public:
         }
     }
 
-private:
+protected:
     void OnUpdateUI( wxUpdateUIEvent& event ) override;
     void OnLocationExit( wxFocusEvent& event ) override;
     void OnOKClick( wxCommandEvent& event ) override;
@@ -101,6 +101,9 @@ private:
     void OnFileUpdated( wxFileDirPickerEvent& event ) override;
     void onCbCustom( wxCommandEvent& event ) override;
 
+    virtual bool TransferDataToWindow() override;
+
+private:
     void setDefaultSSHKey();
 
     void updateAuthControls();
