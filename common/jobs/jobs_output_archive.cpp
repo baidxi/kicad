@@ -54,18 +54,7 @@ bool JOBS_OUTPUT_ARCHIVE::HandleOutputs( const wxString&                baseTemp
     bool success = true;
     aResolvedOutputPath.reset();
 
-    wxString outputPath = m_outputPath;
-    outputPath.Replace( wxT( "\\" ), wxT( "/" ) );
-    outputPath = ExpandTextVars( outputPath, aProject );
-    outputPath = ExpandEnvVarSubstitutions( outputPath, aProject );
-
-    if( outputPath.StartsWith( "~" ) )
-        outputPath.Replace( "~", wxGetHomeDir(), false );
-
-    // Resolve relative paths relative to jobset file directory
-    if( !aJobsetFilePath.IsEmpty() )
-        outputPath = ResolveOutputPath( outputPath, aJobsetFilePath );
-
+    wxString outputPath = ResolveOutputPath( m_outputPath, aJobsetFilePath, aProject );
     outputPath = EnsureFileExtension( outputPath, FILEEXT::ArchiveFileExtension );
 
     // Ensure parent directory exists; matches the behavior of the folder output handler

@@ -19,37 +19,39 @@
  */
 
 #include <jobs/jobs_output.h>
+#include <common.h>
 #include <wx/filename.h>
 #include <wx_filename.h>
 
-wxString JOBS_OUTPUT_HANDLER::ResolveOutputPath( const wxString& aPath, const wxString& aJobsetFilePath )
+
+wxString JOBS_OUTPUT_HANDLER::ResolveOutputPath( const wxString& aPath,
+                                                 const wxString& aJobsetFilePath,
+                                                 PROJECT*        aProject )
 {
     if( aPath.IsEmpty() )
         return aPath;
 
-    wxFileName pathFn( aPath );
+    wxString resolved = aPath;
 
-    // If the path is already absolute, return it as-is
-    if( pathFn.IsAbsolute() )
-        return aPath;
+    if( aProject )
+    {
+        resolved = ExpandTextVars( resolved, aProject );
+        resolved = ExpandEnvVarSubstitutions( resolved, aProject );
+    }
 
-    // Resolve relative path relative to jobset file directory
-    wxFileName jobsetFn( aJobsetFilePath );
-    wxString jobsetDir = jobsetFn.GetPath();
+    if( resolved.StartsWith( "~" ) )
+        resolved.Replace( "~", wxGetHomeDir(), false );
 
-    if( jobsetDir.IsEmpty() )
-        return aPath; // Can't resolve if we don't have a jobset directory
+    wxFileName fn( resolved );
 
-    // Construct the full path - try as file first, then as directory if needed
-    wxString fullPath = jobsetDir + wxFileName::GetPathSeparator() + aPath;
-    wxFileName resolvedFn( fullPath );
+    if( !fn.IsAbsolute() && !aJobsetFilePath.IsEmpty() )
+    {
+        wxString jobsetDir = wxFileName( aJobsetFilePath ).GetPath();
 
-    // If the original path ends with a separator, treat it as a directory
-    if( aPath.EndsWith( wxFileName::GetPathSeparator() ) )
-        resolvedFn.AssignDir( fullPath );
-    else
-        resolvedFn.Assign( fullPath );
+        if( !jobsetDir.IsEmpty() )
+            fn.MakeAbsolute( jobsetDir );
+    }
 
-    resolvedFn.Normalize( FN_NORMALIZE_FLAGS );
-    return resolvedFn.GetFullPath();
+    fn.Normalize( FN_NORMALIZE_FLAGS );
+    return fn.GetFullPath();
 }

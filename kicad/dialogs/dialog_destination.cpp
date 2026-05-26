@@ -33,14 +33,12 @@
 
 #include <wx/dirdlg.h>
 #include <wx/filedlg.h>
-#include <wx/msgdlg.h>
 #include <kiplatform/ui.h>
 #include <wildcards_and_files_ext.h>
 #include <widgets/std_bitmap_button.h>
 #include <widgets/wx_grid.h>
 #include <widgets/grid_text_button_helpers.h>
 #include <confirm.h>
-#include <settings/json_settings.h>
 
 
 extern KICOMMON_API
@@ -78,34 +76,27 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
     isFolder = JobsetDestinationTypeInfos[m_destination->m_type].outputPathIsFolder;
     fileWildcard = JobsetDestinationTypeInfos[m_destination->m_type].fileWildcard;
 
-    // Resolve relative paths to absolute for the dialog
     wxString currentPath = m_textCtrlOutputPath->GetValue();
+
     if( !currentPath.IsEmpty() )
     {
-        wxFileName fn( currentPath );
-        if( !fn.IsAbsolute() )
-        {
-            currentPath = JOBS_OUTPUT_HANDLER::ResolveOutputPath( currentPath,
-                                                                 m_jobsFile->GetFullFilename() );
-        }
+        currentPath = JOBS_OUTPUT_HANDLER::ResolveOutputPath( currentPath,
+                                                              m_jobsFile->GetFullFilename(),
+                                                              &Prj() );
     }
 
     wxString selectedPath;
 
     if( isFolder )
     {
-        wxFileName fn;
-        fn.AssignDir( currentPath );
-        fn.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS );
-        wxString currPath = fn.GetFullPath();
-
-        wxDirDialog dirDialog( this, _( "Select output directory" ), currPath,
+        wxDirDialog dirDialog( this, _( "Select output directory" ), currentPath,
                                wxDD_DEFAULT_STYLE );
 
         if( dirDialog.ShowModal() != wxID_OK )
             return;
 
-        selectedPath = dirDialog.GetPath();
+        // Keep the trailing path separator so the stored value is unambiguously a directory.
+        selectedPath = wxFileName::DirName( dirDialog.GetPath() ).GetFullPath();
     }
     else
     {
@@ -133,32 +124,40 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
         }
     }
 
-    // Ask user if they want to make the path relative
     wxFileName selectedFn( selectedPath );
+
     if( selectedFn.IsAbsolute() )
     {
-        wxFileName jobsetFn( m_jobsFile->GetFullFilename() );
-        wxString jobsetDir = jobsetFn.GetPath();
+        wxString jobsetDir = wxFileName( m_jobsFile->GetFullFilename() ).GetPath();
 
         if( !jobsetDir.IsEmpty() )
         {
             wxFileName relativeFn( selectedPath );
+
             if( relativeFn.MakeRelativeTo( jobsetDir ) )
             {
-                int result = wxMessageBox(
-                    _( "Do you want to make this path relative to the jobset file?\n\n"
-                       "This allows the jobset to work when moved or shared with others.\n\n"
-                       "Absolute path: " ) + selectedPath + wxT( "\n" ) +
-                    _( "Relative path: " ) + relativeFn.GetFullPath(),
-                    _( "Make Path Relative?" ),
-                    wxYES_NO | wxCANCEL | wxICON_QUESTION,
-                    this );
+                wxString msg = wxString::Format(
+                        _( "Make this path relative to the jobset file?\n\n"
+                           "This allows the jobset to work when moved or shared with "
+                           "others.\n\n"
+                           "Absolute: %s\n"
+                           "Relative: %s" ),
+                        selectedPath, relativeFn.GetFullPath() );
 
-                if( result == wxYES )
+                KICAD_MESSAGE_DIALOG ask( this, msg, _( "Make Path Relative?" ),
+                                          wxYES_NO | wxCANCEL | wxICON_QUESTION );
+
+                int result = ask.ShowModal();
+
+                if( result == wxID_YES )
                 {
-                    selectedPath = relativeFn.GetFullPath();
+                    // For folders, re-apply DirName() so the trailing separator survives the
+                    // MakeRelativeTo() round-trip and the path remains recognisable as a dir.
+                    selectedPath = isFolder
+                                   ? wxFileName::DirName( relativeFn.GetFullPath() ).GetFullPath()
+                                   : relativeFn.GetFullPath();
                 }
-                else if( result == wxCANCEL )
+                else if( result == wxID_CANCEL )
                 {
                     return; // User cancelled, don't update the path
                 }
