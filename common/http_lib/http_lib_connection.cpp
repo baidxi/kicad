@@ -25,6 +25,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <json_common.h>
+#include <pin_map.h>
 #include <wx/base64.h>
 
 #include <kicad_curl/kicad_curl_easy.h>
@@ -288,6 +289,21 @@ bool HTTP_LIB_CONNECTION::SelectOne( const std::string& aPartID, HTTP_LIB_PART& 
             // if key value doesn't exists default to false
             exclude = response.at( "exclude_from_sim" );
             aFetchedPart.exclude_from_sim = boolFromString( exclude, false );
+        }
+
+        // Optional pin_map: maps symbol pin numbers to one or more footprint pad numbers.
+        aFetchedPart.pin_map.clear();
+
+        if( response.contains( "pin_map" ) && response["pin_map"].is_array() )
+        {
+            try
+            {
+                aFetchedPart.pin_map = ParsePinMapJson( response["pin_map"] );
+            }
+            catch( const std::exception& e )
+            {
+                wxLogWarning( _( "HTTP library symbol '%s': malformed pin_map: %s" ), aFetchedPart.name, e.what() );
+            }
         }
 
         // remove previously loaded fields

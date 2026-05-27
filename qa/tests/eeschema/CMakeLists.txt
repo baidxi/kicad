@@ -168,6 +168,7 @@ set( QA_EESCHEMA_SRCS
     test_design_block_duplicate.cpp
     test_symbol_library.cpp
     test_symbol_library_parse_error.cpp
+    test_pin_map.cpp
     test_symbol_embedded_files.cpp
     test_symbol_clipboard_export.cpp
     test_schematic_clipboard_export.cpp

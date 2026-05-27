@@ -59,7 +59,8 @@
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION  20250901  // Stacked Pin notation
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION  20250925  // Bus alias in Project File
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION 20251024 // Updated properties formatting (do_not_autoplace, show_name)
-#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260508 // Native ellipse primitive
+//#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260508 // Native ellipse primitive
+#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260509 // Per-symbol pin_map property
 
 /**
  * Schematic file version.

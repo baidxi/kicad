@@ -278,6 +278,7 @@ LIB_SYMBOL::LIB_SYMBOL( const LIB_SYMBOL& aSymbol, LEGACY_SYMBOL_LIB* aLibrary, 
 
     m_jumperPinGroups = aSymbol.m_jumperPinGroups;
     m_duplicatePinNumbersAreJumpers = aSymbol.m_duplicatePinNumbersAreJumpers;
+    m_pinMap = aSymbol.m_pinMap;
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();
@@ -331,6 +332,7 @@ const LIB_SYMBOL& LIB_SYMBOL::operator=( const LIB_SYMBOL& aSymbol )
 
     m_jumperPinGroups = aSymbol.m_jumperPinGroups;
     m_duplicatePinNumbersAreJumpers = aSymbol.m_duplicatePinNumbersAreJumpers;
+    m_pinMap = aSymbol.m_pinMap;
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();
@@ -2525,6 +2527,74 @@ std::optional<const std::set<wxString>> LIB_SYMBOL::GetJumperPinGroup( const wxS
     }
 
     return std::nullopt;
+}
+
+
+std::vector<wxString> LIB_SYMBOL::MapPinToPads( const wxString& aSymPin ) const
+{
+    auto it = m_pinMap.find( aSymPin );
+
+    if( it != m_pinMap.end() && !it->second.empty() )
+        return it->second;
+
+    return { aSymPin };
+}
+
+
+wxString LIB_SYMBOL::MapPadToPin( const wxString& aPad ) const
+{
+    for( const auto& [src, targets] : m_pinMap )
+    {
+        for( const wxString& t : targets )
+        {
+            if( t == aPad )
+                return src;
+        }
+    }
+
+    return aPad;
+}
+
+
+bool LIB_SYMBOL::ValidatePinMap( const std::map<wxString, std::vector<wxString>>& aMap,
+                                 std::vector<wxString>*                           aErrors ) const
+{
+    if( aMap.empty() )
+        return true;
+
+    bool                         ok = true;
+    std::map<wxString, wxString> seen;
+
+    for( const auto& [src, targets] : aMap )
+    {
+        // Within-entry duplicates are allowed (one pin bonded to one pad twice is harmless);
+        // collapse them so they don't trigger a false collision against themselves.
+        std::set<wxString> uniqTargets( targets.begin(), targets.end() );
+
+        for( const wxString& pad : uniqTargets )
+        {
+            auto it = seen.find( pad );
+
+            if( it != seen.end() && it->second != src )
+            {
+                ok = false;
+
+                if( aErrors )
+                    aErrors->push_back( wxString::Format( _( "Symbol '%s' pin_map: pad '%s' is "
+                                                             "targeted by both pin '%s' and pin "
+                                                             "'%s'." ),
+                                                          m_name, pad, it->second, src ) );
+                else
+                    return false;
+            }
+            else
+            {
+                seen[pad] = src;
+            }
+        }
+    }
+
+    return ok;
 }
 
 static struct LIB_SYMBOL_DESC

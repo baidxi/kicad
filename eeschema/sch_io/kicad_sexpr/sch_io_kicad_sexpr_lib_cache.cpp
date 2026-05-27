@@ -84,6 +84,10 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::Load()
 
         SetFileFormatVersionAtLoad( parser.GetParsedRequiredVersion() );
         updateParentSymbolLinks();
+
+        if( wxString warn = dropInvalidPinMaps(); !warn.IsEmpty() )
+            wxLogWarning( "%s", warn );
+
         IncrementModifyHash();
 
         // Check if there were any parse warnings (symbols that failed to parse).
@@ -197,6 +201,10 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::Load()
         }
 
         updateParentSymbolLinks();
+
+        if( wxString warn = dropInvalidPinMaps(); !warn.IsEmpty() )
+            wxLogWarning( "%s", warn );
+
         IncrementModifyHash();
     }
 
@@ -472,6 +480,8 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
             aFormatter.Print( ")" );
         }
 
+        savePinMap( aSymbol, aFormatter );
+
         // TODO: add atomic token here.
 
         // TODO: add required token here."
@@ -560,11 +570,88 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
             saveField( field, aFormatter );
 
         saveDcmInfoAsFields( aSymbol, aFormatter );
+        savePinMap( aSymbol, aFormatter );
 
         KICAD_FORMAT::FormatBool( &aFormatter, "embedded_fonts", aSymbol->GetAreFontsEmbedded() );
 
         if( !aSymbol->EmbeddedFileMap().empty() )
             aSymbol->WriteEmbeddedFiles( aFormatter, aIncludeData );
+    }
+
+    aFormatter.Print( ")" );
+}
+
+
+wxString SCH_IO_KICAD_SEXPR_LIB_CACHE::dropInvalidPinMaps()
+{
+    wxString              warning;
+    std::vector<wxString> droppedNames;
+
+    for( auto& [name, symbol] : m_symbols )
+    {
+        if( symbol->PinMap().empty() )
+            continue;
+
+        std::vector<wxString> errors;
+
+        if( !symbol->ValidatePinMap( symbol->PinMap(), &errors ) )
+        {
+            symbol->SetPinMap( {} );
+            droppedNames.push_back( name );
+
+            for( const wxString& msg : errors )
+                warning += msg + wxT( "\n" );
+        }
+    }
+
+    if( !droppedNames.empty() )
+    {
+        warning = wxString::Format( _( "Library '%s': dropped pin_map for %zu symbol(s) due to "
+                                       "validation errors:\n\n" ),
+                                    m_libFileName.GetFullPath(), droppedNames.size() )
+                  + warning;
+    }
+
+    return warning;
+}
+
+
+void SCH_IO_KICAD_SEXPR_LIB_CACHE::savePinMap( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter )
+{
+    wxCHECK_RET( aSymbol, "Invalid LIB_SYMBOL pointer." );
+
+    const std::map<wxString, std::vector<wxString>>& pinMap = aSymbol->PinMap();
+
+    if( pinMap.empty() )
+        return;
+
+    std::vector<wxString> errors;
+
+    if( !aSymbol->ValidatePinMap( pinMap, &errors ) )
+    {
+        wxString joined;
+
+        for( const wxString& e : errors )
+            joined += ( joined.IsEmpty() ? wxString() : wxT( "\n" ) ) + e;
+
+        THROW_IO_ERROR( wxString::Format( _( "Cannot save symbol '%s': pin_map validation "
+                                             "failed:\n%s" ),
+                                          aSymbol->GetName(), joined ) );
+    }
+
+    aFormatter.Print( "(pin_map" );
+
+    for( const auto& [symPin, targets] : pinMap )
+    {
+        if( targets.empty() )
+            continue;
+
+        aFormatter.Print( "(entry %s", aFormatter.Quotew( symPin ).c_str() );
+
+        for( const wxString& pad : targets )
+            aFormatter.Print( " %s", aFormatter.Quotew( pad ).c_str() );
+
+        aFormatter.Print( ")" );
     }
 
     aFormatter.Print( ")" );

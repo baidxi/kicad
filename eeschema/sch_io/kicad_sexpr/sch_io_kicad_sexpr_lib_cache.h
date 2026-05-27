@@ -86,6 +86,11 @@ private:
     static void saveTextBox( SCH_TEXTBOX* aTextBox, OUTPUTFORMATTER& aFormatter );
 
     static void saveDcmInfoAsFields( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter );
+    static void savePinMap( LIB_SYMBOL* aSymbol, OUTPUTFORMATTER& aFormatter );
+
+    /// Drop pin_map on every loaded symbol that fails ValidatePinMap; aggregate the
+    /// reasons.  Empty when all maps are valid.
+    wxString dropInvalidPinMaps();
 };
 
 #endif    // SCH_IO_KICAD_SEXPR_LIB_CACHE_H_

@@ -50,6 +50,7 @@ embedded_fonts
 embedded_files
 end
 end_angle
+entry
 extends
 external
 exclude_from_sim
@@ -129,6 +130,7 @@ passthrough
 path
 pin
 pin_del
+pin_map
 pin_names
 pin_numbers
 pin_merge

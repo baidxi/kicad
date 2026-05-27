@@ -301,6 +301,15 @@ void SCH_SYMBOL::Serialize( google::protobuf::Any& aContainer ) const
 
         for( const wxString& filter : m_part->GetFPFilters() )
             def->add_footprint_filters( filter.ToUTF8() );
+
+        for( const auto& [symPin, pads] : m_part->PinMap() )
+        {
+            SchematicSymbolPinMapEntry* entry = def->add_pin_map();
+            entry->set_symbol_pin( symPin.ToUTF8() );
+
+            for( const wxString& pad : pads )
+                entry->add_footprint_pads( pad.ToUTF8() );
+        }
     }
 
     symbol.set_show_pin_names( GetShowPinNames() );
@@ -411,6 +420,24 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
             filters.Add( wxString::FromUTF8( filter ) );
 
         libSymbol->SetFPFilters( filters );
+    }
+
+    if( def.pin_map_size() > 0 )
+    {
+        std::map<wxString, std::vector<wxString>> map;
+
+        for( const SchematicSymbolPinMapEntry& entry : def.pin_map() )
+        {
+            std::vector<wxString> pads;
+
+            for( const std::string& pad : entry.footprint_pads() )
+                pads.push_back( wxString::FromUTF8( pad ) );
+
+            if( !entry.symbol_pin().empty() && !pads.empty() )
+                map[wxString::FromUTF8( entry.symbol_pin() )] = std::move( pads );
+        }
+
+        libSymbol->SetPinMap( map );
     }
 
     SetLibSymbol( libSymbol );

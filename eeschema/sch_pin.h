@@ -152,6 +152,15 @@ public:
      * number; otherwise it is the shown number.
      */
     wxString GetEffectivePadNumber() const;
+
+    /**
+     * Return the footprint pad numbers this pin should resolve to in a netlist.
+     * Combines stacked-pin notation expansion (one displayed pin emitted as several
+     * logical numbers) with the parent symbol's pin_map translation (each logical
+     * number remapped to one or more footprint pad numbers).  When the parent symbol
+     * has no pin_map, behaves identically to GetStackedPinNumbers().
+     */
+    std::vector<wxString> GetFootprintPadNumbers() const;
     void SetNumber( const wxString& aNumber );
 
     int GetNameTextSize() const;

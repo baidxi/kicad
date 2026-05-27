@@ -95,7 +95,14 @@ SCH_ITEM* SCH_EDITOR_CONTROL::FindSymbolAndItem( const wxString* aPath, const wx
 
                 if( aSearchType == HIGHLIGHT_PIN )
                 {
-                    pin = symbol->GetPin( aSearchText );
+                    // pcbnew sends a footprint pad number; translate it back to the
+                    // symbol pin number through pin_map (identity if not mapped).
+                    wxString lookup = aSearchText;
+
+                    if( const std::unique_ptr<LIB_SYMBOL>& libSym = symbol->GetLibSymbolRef() )
+                        lookup = libSym->MapPadToPin( aSearchText );
+
+                    pin = symbol->GetPin( lookup );
 
                     // Ensure we have found the right unit in case of multi-units symbol
                     if( pin )
@@ -535,6 +542,10 @@ bool findSymbolsAndPins(
             std::unordered_map<wxString, SCH_PIN*>& pinMap = symPinMatchIt->second;
             std::vector<SCH_PIN*>                   pinsOnSheet = symbol->GetPins( &aSheetPath );
 
+            // pinMap is keyed by footprint pad number (received from pcbnew).  For each
+            // schematic pin, ask pin_map (via GetFootprintPadNumbers) which pad(s) it
+            // resolves to and look those up in pinMap.  Falls back to identity for
+            // symbols with no pin_map.
             for( SCH_PIN* pin : pinsOnSheet )
             {
                 int pinUnit = pin->GetLibPin()->GetUnit();
@@ -542,10 +553,13 @@ bool findSymbolsAndPins(
                 if( pinUnit > 0 && pinUnit != schRef.GetUnit() )
                     continue;
 
-                auto pinIt = pinMap.find( pin->GetNumber() );
+                for( const wxString& pad : pin->GetFootprintPadNumbers() )
+                {
+                    auto pinIt = pinMap.find( pad );
 
-                if( pinIt != pinMap.end() )
-                    pinIt->second = pin;
+                    if( pinIt != pinMap.end() )
+                        pinIt->second = pin;
+                }
             }
         }
     }

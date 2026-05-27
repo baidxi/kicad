@@ -217,37 +217,34 @@ bool NETLIST_EXPORTER_CADSTAR::writeListOfNets( FILE* f )
                 SCH_SHEET_PATH sheet = pair.second;
 
                 wxString refText = pin->GetParentSymbol()->GetRef( &sheet );
-                wxString pinText = pin->GetShownNumber();
 
                 // Skip power symbols and virtual symbols
                 if( refText[0] == wxChar( '#' ) )
                     continue;
 
-                switch( print_ter )
+                // One emission per footprint pad: stacked notation and pin_map both
+                // expand a single symbol pin into multiple footprint pad numbers.
+                for( const wxString& pinText : pin->GetFootprintPadNumbers() )
                 {
-                case 0:
-                    InitNetDescLine.Printf( wxT( "\n%s   %s   %.4s     %s" ),
-                                            InitNetDesc,
-                                            refText,
-                                            pinText,
-                                            netName );
-                    print_ter++;
-                    break;
+                    switch( print_ter )
+                    {
+                    case 0:
+                        InitNetDescLine.Printf( wxT( "\n%s   %s   %.4s     %s" ), InitNetDesc, refText, pinText,
+                                                netName );
+                        print_ter++;
+                        break;
 
-                case 1:
-                    fmt::print( f, "{}\n", TO_UTF8( InitNetDescLine ) );
-                    fmt::print( f, "{}       {}   {:.4s}\n",
-                                    TO_UTF8( StartNetDesc ),
-                                    TO_UTF8( refText ),
+                    case 1:
+                        fmt::print( f, "{}\n", TO_UTF8( InitNetDescLine ) );
+                        fmt::print( f, "{}       {}   {:.4s}\n", TO_UTF8( StartNetDesc ), TO_UTF8( refText ),
                                     TO_UTF8( pinText ) );
-                    print_ter++;
-                    break;
+                        print_ter++;
+                        break;
 
-                default:
-                    fmt::print( f, "            {}   {:.4s}\n",
-                                    TO_UTF8( refText ),
-                                    TO_UTF8( pinText ) );
-                    break;
+                    default:
+                        fmt::print( f, "            {}   {:.4s}\n", TO_UTF8( refText ), TO_UTF8( pinText ) );
+                        break;
+                    }
                 }
             }
         }
