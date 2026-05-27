@@ -26,6 +26,7 @@ add_subdirectory( gerbview )
 add_subdirectory( eeschema )
 add_subdirectory( libs )
 add_subdirectory( pcbnew )
+add_subdirectory( plm )
 
 if( KICAD_SPICE_QA )
     add_subdirectory( spice )

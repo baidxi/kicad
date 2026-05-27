@@ -10,3 +10,5 @@ include_directories(
 )
 
 add_subdirectory( 3d )
+add_subdirectory( plm-git )
+add_subdirectory( plm-odoo )
