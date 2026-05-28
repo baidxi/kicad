@@ -146,6 +146,11 @@ void GERBVIEW_FRAME::doReCreateMenuBar()
 #undef FileHistoryCond
 
     fileMenu->AppendSeparator();
+    fileMenu->Add( GERBVIEW_ACTIONS::openProject );
+    fileMenu->Add( GERBVIEW_ACTIONS::saveProject );
+    fileMenu->Add( GERBVIEW_ACTIONS::saveProjectAs );
+
+    fileMenu->AppendSeparator();
     fileMenu->Add( GERBVIEW_ACTIONS::clearAllLayers );
     fileMenu->Add( GERBVIEW_ACTIONS::reloadAllLayers );
 
@@ -211,6 +216,9 @@ void GERBVIEW_FRAME::doReCreateMenuBar()
     toolsMenu->Add( GERBVIEW_ACTIONS::showSource );
 
     toolsMenu->Add( ACTIONS::measureTool );
+
+    toolsMenu->AppendSeparator();
+    toolsMenu->Add( GERBVIEW_ACTIONS::layerRoles );
 
     toolsMenu->AppendSeparator();
     toolsMenu->Add( GERBVIEW_ACTIONS::clearLayer );

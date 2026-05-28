@@ -141,6 +141,7 @@ public:
     static const std::string PADSNetlistFileExtension;
     static const std::string GerberFileExtension;
     static const std::string GerberJobFileExtension;
+    static const std::string GerbViewProjectFileExtension;
     static const std::string HtmlFileExtension;
     static const std::string EquFileExtension;
     static const std::string HotkeyFileExtension;
@@ -282,6 +283,7 @@ public:
     static wxString GencadFileWildcard();
     static wxString DxfFileWildcard();
     static wxString GerberJobFileWildcard();
+    static wxString GerbViewProjectFileWildcard();
     static wxString SpecctraDsnFileWildcard();
     static wxString SpecctraSessionFileWildcard();
     static wxString IpcD356FileWildcard();

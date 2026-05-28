@@ -20,6 +20,7 @@
 
 #include <confirm.h>
 #include <common.h>
+#include <dialogs/dialog_layer_roles.h>
 #include <dialogs/dialog_map_gerber_layers_to_pcb.h>
 #include <export_to_pcbnew.h>
 #include <gerber_file_image.h>
@@ -27,6 +28,7 @@
 #include <gerbview_painter.h>
 #include <gerbview_frame.h>
 #include <gerbview_settings.h>
+#include <layer_roles.h>
 #include <string_utils.h>
 #include <excellon_image.h>
 #include <tool/tool_manager.h>
@@ -89,6 +91,41 @@ int GERBVIEW_CONTROL::OpenZipFile( const TOOL_EVENT& aEvent )
 {
     m_frame->LoadZipArchiveFile( wxEmptyString );
     canvas()->Refresh();
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::OpenProject( const TOOL_EVENT& aEvent )
+{
+    // The action is invoked both from the File menu (no parameter) and from
+    // drag-and-drop (a wxString* with the dropped path).
+    wxString path;
+
+    if( aEvent.HasParameter() )
+    {
+        if( const wxString* p = aEvent.Parameter<wxString*>() )
+            path = *p;
+    }
+
+    m_frame->OpenProjectFile( path );
+    canvas()->Refresh();
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::SaveProject( const TOOL_EVENT& aEvent )
+{
+    m_frame->SaveProjectFile( false /*aPromptForName*/ );
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::SaveProjectAs( const TOOL_EVENT& aEvent )
+{
+    m_frame->SaveProjectFile( true /*aPromptForName*/ );
 
     return 0;
 }
@@ -507,6 +544,16 @@ int GERBVIEW_CONTROL::LoadGerbFiles( const TOOL_EVENT& aEvent )
 }
 
 
+int GERBVIEW_CONTROL::LayerRoles( const TOOL_EVENT& aEvent )
+{
+    // Modeless dialog: it destroys itself via Destroy() on OK / Cancel.
+    DIALOG_LAYER_ROLES* dlg = new DIALOG_LAYER_ROLES( m_frame );
+    dlg->Show( true );
+
+    return 0;
+}
+
+
 void GERBVIEW_CONTROL::setTransitions()
 {
     Go( &GERBVIEW_CONTROL::OpenAutodetected,   GERBVIEW_ACTIONS::openAutodetected.MakeEvent() );
@@ -514,6 +561,9 @@ void GERBVIEW_CONTROL::setTransitions()
     Go( &GERBVIEW_CONTROL::OpenDrillFile,      GERBVIEW_ACTIONS::openDrillFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::OpenJobFile,        GERBVIEW_ACTIONS::openJobFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::OpenZipFile,        GERBVIEW_ACTIONS::openZipFile.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::OpenProject, GERBVIEW_ACTIONS::openProject.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::SaveProject, GERBVIEW_ACTIONS::saveProject.MakeEvent() );
+    Go( &GERBVIEW_CONTROL::SaveProjectAs, GERBVIEW_ACTIONS::saveProjectAs.MakeEvent() );
     Go( &GERBVIEW_CONTROL::ToggleLayerManager, GERBVIEW_ACTIONS::toggleLayerManager.MakeEvent() );
     Go( &GERBVIEW_CONTROL::ExportToPcbnew,     GERBVIEW_ACTIONS::exportToPcbnew.MakeEvent() );
     Go( &GERBVIEW_CONTROL::Print,              ACTIONS::print.MakeEvent() );
@@ -550,4 +600,6 @@ void GERBVIEW_CONTROL::setTransitions()
 
     Go( &GERBVIEW_CONTROL::LoadZipfile,        GERBVIEW_ACTIONS::loadZipFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::LoadGerbFiles,      GERBVIEW_ACTIONS::loadGerbFiles.MakeEvent() );
+
+    Go( &GERBVIEW_CONTROL::LayerRoles, GERBVIEW_ACTIONS::layerRoles.MakeEvent() );
 }

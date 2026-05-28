@@ -58,6 +58,11 @@ public:
     int OpenJobFile( const TOOL_EVENT& aEvent );
     int OpenZipFile( const TOOL_EVENT& aEvent );
 
+    // GerbView project files
+    int OpenProject( const TOOL_EVENT& aEvent );
+    int SaveProject( const TOOL_EVENT& aEvent );
+    int SaveProjectAs( const TOOL_EVENT& aEvent );
+
     int ToggleLayerManager( const TOOL_EVENT& aEvent );
 
     // Highlight control
@@ -67,6 +72,9 @@ public:
     int ExportToPcbnew( const TOOL_EVENT& aEvent );
     int UpdateMessagePanel( const TOOL_EVENT& aEvent );
     int Print( const TOOL_EVENT& aEvent );
+
+    // Open the modal Layer Roles dialog (manual file -> PCB layer role mapping + colors).
+    int LayerRoles( const TOOL_EVENT& aEvent );
 
     // Drag and drop
     int LoadZipfile( const TOOL_EVENT& aEvent );

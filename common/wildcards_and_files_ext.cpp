@@ -152,6 +152,7 @@ const std::string FILEEXT::PADSNetlistFileExtension( "asc" );
 const std::string FILEEXT::FootprintAssignmentFileExtension( "cmp" );
 const std::string FILEEXT::GerberFileExtension( "gbr" );
 const std::string FILEEXT::GerberJobFileExtension( "gbrjob" );
+const std::string FILEEXT::GerbViewProjectFileExtension( "kicad_gvp" );
 const std::string FILEEXT::HtmlFileExtension( "html" );
 const std::string FILEEXT::EquFileExtension( "equ" );
 const std::string FILEEXT::HotkeyFileExtension( "hotkeys" );
@@ -539,6 +540,12 @@ wxString FILEEXT::DxfFileWildcard()
 wxString FILEEXT::GerberJobFileWildcard()
 {
     return _( "Gerber job file" ) + AddFileExtListToFilter( { GerberJobFileExtension } );
+}
+
+
+wxString FILEEXT::GerbViewProjectFileWildcard()
+{
+    return _( "GerbView project file" ) + AddFileExtListToFilter( { GerbViewProjectFileExtension } );
 }
 
 

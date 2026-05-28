@@ -31,6 +31,7 @@
 #include <gerber_file_image_list.h>
 #include <excellon_image.h>
 #include <gerbview_draw_panel_gal.h>
+#include <layer_roles.h>
 #include <gerbview_settings.h>
 #include <drawing_sheet/ds_proxy_view_item.h>
 #include <lset.h>
@@ -198,6 +199,7 @@ GERBVIEW_FRAME::GERBVIEW_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_acceptedExts.emplace( FILEEXT::GerberFileExtension, &GERBVIEW_ACTIONS::loadGerbFiles );
     m_acceptedExts.emplace( FILEEXT::ArchiveFileExtension, &GERBVIEW_ACTIONS::loadZipFile );
     m_acceptedExts.emplace( FILEEXT::DrillFileExtension, &GERBVIEW_ACTIONS::loadGerbFiles );
+    m_acceptedExts.emplace( FILEEXT::GerbViewProjectFileExtension, &GERBVIEW_ACTIONS::openProject );
     DragAcceptFiles( true );
 
     GetToolManager()->RunAction( ACTIONS::zoomFitScreen );
@@ -518,6 +520,47 @@ void GERBVIEW_FRAME::SortLayersByFileExtension()
 void GERBVIEW_FRAME::SortLayersByX2Attributes()
 {
     RemapLayers( GetImagesList()->SortImagesByZOrder() );
+}
+
+
+void GERBVIEW_FRAME::SortLayersByLayerRoles()
+{
+    GERBER_FILE_IMAGE_LIST* images = GetImagesList();
+
+    if( images->GetLoadedImageCount() == 0 )
+        return;
+
+    RemapLayers( images->SortImagesByLayerRoles( gvconfig() ) );
+
+    // RemapLayers shuffled slot ids around but the per-role color overrides
+    // in COLOR_SETTINGS are still keyed by the old (pre-sort) slot ids.  Walk
+    // every loaded slot and re-apply the configured role color at its new
+    // position so the canvas keeps the user-defined palette intact.
+    for( unsigned slot = 0; slot < images->ImagesMaxCount(); ++slot )
+    {
+        if( !images->GetGbrImage( (int) slot ) )
+            continue;
+
+        GERBVIEW_LAYER_ROLE role = LookupRoleForSlot( this, (int) slot );
+
+        if( role != GERBVIEW_LAYER_ROLE::Unassigned )
+            ApplyLayerRoleToSlot( this, (int) slot, role );
+    }
+
+    // After the sort the topmost-priority loaded file sits at slot 0 (drill
+    // -> top -> inner -> bottom -> unmapped cascade put it there).  Make
+    // that file the active layer so the canvas always renders the most
+    // relevant layer on top via SetTopLayer, and the Layer Manager
+    // highlights it.  Skips empty slots in case the lowest section happens
+    // to be empty when only a single file is loaded.
+    for( unsigned slot = 0; slot < images->ImagesMaxCount(); ++slot )
+    {
+        if( images->GetGbrImage( (int) slot ) )
+        {
+            SetActiveLayer( (int) slot, true );
+            break;
+        }
+    }
 }
 
 

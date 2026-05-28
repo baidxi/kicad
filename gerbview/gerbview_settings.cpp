@@ -21,9 +21,13 @@
 * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 */
 
+#include <algorithm>
+
 #include <gerbview_settings.h>
 #include <settings/color_settings.h>
+#include <gal/color4d.h>
 #include <layer_ids.h>
+#include <layer_roles.h>
 #include <pgm_base.h>
 #include <settings/common_settings.h>
 #include <settings/json_settings_internals.h>
@@ -95,6 +99,101 @@ GERBVIEW_SETTINGS::GERBVIEW_SETTINGS() :
 
     m_params.emplace_back( new PARAM<int>( "excellon_defaults.inch_mantissa_len",
             &m_ExcellonDefaults.m_InchMantissaLen, FMT_MANTISSA_INCH, 2 , 6 ) );
+
+    // PCB layer-role assignments + per-role color overrides.  Stored as a single JSON
+    // sub-object so import/export is just a copy of this branch.
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "layer_roles",
+            [this]() -> nlohmann::json
+            {
+                nlohmann::json js = nlohmann::json::object();
+
+                nlohmann::json colorsObj = nlohmann::json::object();
+
+                for( const auto& [key, color] : m_LayerRoles.colors )
+                    colorsObj[key] = color.ToHexString().ToUTF8().data();
+
+                js["colors"] = colorsObj;
+
+                nlohmann::json assignsObj = nlohmann::json::object();
+
+                for( const auto& [filename, role] : m_LayerRoles.assignments )
+                {
+                    if( role == GERBVIEW_LAYER_ROLE::Unassigned )
+                        continue;
+
+                    assignsObj[std::string( filename.ToUTF8() )] = RoleSerializedKey( role );
+                }
+
+                js["assignments"] = assignsObj;
+
+                js["visible_inner_count"] = m_LayerRoles.visibleInnerCount;
+                js["loaded_scheme_name"] = std::string( m_LayerRoles.loadedSchemeName.ToUTF8() );
+
+                return js;
+            },
+            [this]( const nlohmann::json& aObj )
+            {
+                m_LayerRoles.colors.clear();
+                m_LayerRoles.assignments.clear();
+                m_LayerRoles.visibleInnerCount = 2;
+                m_LayerRoles.loadedSchemeName.clear();
+
+                if( !aObj.is_object() )
+                    return;
+
+                if( aObj.contains( "colors" ) && aObj["colors"].is_object() )
+                {
+                    for( auto it = aObj["colors"].begin(); it != aObj["colors"].end(); ++it )
+                    {
+                        if( !it.value().is_string() )
+                            continue;
+
+                        KIGFX::COLOR4D color;
+
+                        if( !color.SetFromHexString( wxString::FromUTF8( it.value().get<std::string>() ) ) )
+                        {
+                            continue;
+                        }
+
+                        // Migrate the legacy single-inner key to inner_copper_1.
+                        std::string key = it.key();
+
+                        if( key == "inner_copper" )
+                            key = "inner_copper_1";
+
+                        m_LayerRoles.colors[key] = color;
+                    }
+                }
+
+                if( aObj.contains( "assignments" ) && aObj["assignments"].is_object() )
+                {
+                    for( auto it = aObj["assignments"].begin(); it != aObj["assignments"].end(); ++it )
+                    {
+                        if( !it.value().is_string() )
+                            continue;
+
+                        GERBVIEW_LAYER_ROLE role = RoleFromSerializedKey( it.value().get<std::string>() );
+
+                        if( role == GERBVIEW_LAYER_ROLE::Unassigned )
+                            continue;
+
+                        m_LayerRoles.assignments[wxString::FromUTF8( it.key() )] = role;
+                    }
+                }
+
+                if( aObj.contains( "visible_inner_count" ) && aObj["visible_inner_count"].is_number_integer() )
+                {
+                    int n = aObj["visible_inner_count"].get<int>();
+                    m_LayerRoles.visibleInnerCount = std::clamp( n, 2, MAX_INNER_COPPER_LAYERS );
+                }
+
+                if( aObj.contains( "loaded_scheme_name" ) && aObj["loaded_scheme_name"].is_string() )
+                {
+                    m_LayerRoles.loadedSchemeName = wxString::FromUTF8( aObj["loaded_scheme_name"].get<std::string>() );
+                }
+            },
+            nlohmann::json::object() ) );
 }
 
 
