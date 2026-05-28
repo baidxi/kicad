@@ -23,9 +23,14 @@
 
 #pragma once
 
+#include <map>
+#include <string>
+
 #include <settings/app_settings.h>
 #include <excellon_defaults.h>
+#include <gal/color4d.h>
 #include <gbr_display_options.h>
+#include <layer_roles.h>
 
 class GERBVIEW_SETTINGS : public APP_SETTINGS_BASE
 {
@@ -36,6 +41,27 @@ public:
         bool show_dcodes;
         bool show_negative_objects;
         wxString page_type;
+    };
+
+    /**
+     * Persisted "PCB layer role" mapping state.
+     *
+     * - colors:              role serialized-key -> override color. Missing keys fall
+     *                        back to DefaultColorFor() at apply time.
+     * - assignments:         normalized file basename -> role.  When a file is (re)loaded
+     *                        its slot picks up the role (and its color) automatically.
+     * - visibleInnerCount:   how many Inner Copper rows the layer-roles dialog should
+     *                        expose by default (>= 2, <= MAX_INNER_COPPER_LAYERS).
+     * - loadedSchemeName:    basename of the JSON file most recently imported as the
+     *                        active palette; cleared when the user manually edits a
+     *                        color or resets the palette.  Informational only.
+     */
+    struct LAYER_ROLES_STATE
+    {
+        std::map<std::string, KIGFX::COLOR4D>   colors;
+        std::map<wxString, GERBVIEW_LAYER_ROLE> assignments;
+        int                                     visibleInnerCount = 2;
+        wxString                                loadedSchemeName;
     };
 
     GERBVIEW_SETTINGS();
@@ -70,6 +96,9 @@ public:
     std::vector<int> m_GerberToPcbLayerMapping;
 
     EXCELLON_DEFAULTS m_ExcellonDefaults;
+
+    /// User-driven mapping of loaded files to PCB layer roles + per-role color overrides.
+    LAYER_ROLES_STATE m_LayerRoles;
 
 protected:
     virtual std::string getLegacyFrameName() const override { return "GerberFrame"; }

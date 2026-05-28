@@ -35,11 +35,13 @@ class GERBVIEW_ACTIONS : public ACTIONS
 {
 public:
     /// Activation of the edit tool
-    static TOOL_ACTION properties;
     static TOOL_ACTION showDCodes;
     static TOOL_ACTION showSource;
 
     static TOOL_ACTION exportToPcbnew;
+
+    /// Open the modal Layer Roles dialog (manual file -> PCB layer role mapping).
+    static TOOL_ACTION layerRoles;
 
     // Display modes
     static TOOL_ACTION linesDisplayOutlines;

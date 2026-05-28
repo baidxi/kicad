@@ -31,6 +31,9 @@
 #include <gerbview_frame.h>
 #include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
+#include <gerbview_settings.h>
+#include <layer_roles.h>
+#include <widgets/gerbview_layer_widget.h>
 #include <X2_gerber_attributes.h>
 #include <wx/filename.h>
 
@@ -452,6 +455,120 @@ std::unordered_map<int, int> GERBER_FILE_IMAGE_LIST::SortImagesByFileExtension()
 std::unordered_map<int, int> GERBER_FILE_IMAGE_LIST::SortImagesByZOrder()
 {
     return SortImagesByFunction( sortZorder );
+}
+
+
+// Display group order in the Layer Manager / canvas Z-order.  Lower number
+// means "higher in the stack" (closer to the viewer): drill comes first so
+// that drill holes show on top of every metal layer, the assembled top side
+// follows, then inner copper, then the bottom side; anything without an
+// assignment falls into a single tail "Unmapped" bucket.
+static int layerRoleDisplayGroupOrder( GERBER_LAYER_GROUP aGroup )
+{
+    switch( aGroup )
+    {
+    case GERBER_LAYER_GROUP::Drill: return 0;
+    case GERBER_LAYER_GROUP::Top: return 1;
+    case GERBER_LAYER_GROUP::Inner: return 2;
+    case GERBER_LAYER_GROUP::Bottom: return 3;
+    case GERBER_LAYER_GROUP::Unmapped: return 4;
+    default: return 5;
+    }
+}
+
+
+/// Resolve the role currently bound to @p aImg using the persisted assignments
+/// table.  Returns Unassigned when no override exists, when settings are
+/// unavailable, or when the image has no usable filename.
+static GERBVIEW_LAYER_ROLE roleForImage( const GERBVIEW_SETTINGS* aCfg, const GERBER_FILE_IMAGE* aImg )
+{
+    if( !aCfg || !aImg )
+        return GERBVIEW_LAYER_ROLE::Unassigned;
+
+    wxString base = wxFileName( aImg->m_FileName ).GetFullName();
+
+#ifdef __WINDOWS__
+    base.MakeLower();
+#endif
+
+    auto it = aCfg->m_LayerRoles.assignments.find( base );
+
+    if( it == aCfg->m_LayerRoles.assignments.end() )
+        return GERBVIEW_LAYER_ROLE::Unassigned;
+
+    return it->second;
+}
+
+
+std::unordered_map<int, int> GERBER_FILE_IMAGE_LIST::SortImagesByLayerRoles( const GERBVIEW_SETTINGS* aCfg )
+{
+    std::stable_sort( m_GERBER_List.begin(), m_GERBER_List.end(),
+                      [aCfg]( const GERBER_FILE_IMAGE* const& ref, const GERBER_FILE_IMAGE* const& test ) -> bool
+                      {
+                          // Empty / unused slots collapse to the end of the vector,
+                          // mirroring the existing sortFileExtension/sortZorder rules.
+                          if( !ref && !test )
+                              return false;
+
+                          if( !ref || !ref->m_InUse )
+                              return false;
+
+                          if( !test || !test->m_InUse )
+                              return true;
+
+                          GERBVIEW_LAYER_ROLE refRole = roleForImage( aCfg, ref );
+                          GERBVIEW_LAYER_ROLE testRole = roleForImage( aCfg, test );
+
+                          // Use the *effective* group so unmapped drill files (.drl,
+                          // .ncd, .xnc, ...) get promoted into the Drill bucket the
+                          // same way the Layer Manager bucketizes them.  This is what
+                          // keeps the canvas Z-order (drill on top) and the Layer
+                          // Manager grouping (drill section first) consistent.
+                          GERBER_LAYER_GROUP refGroup = EffectiveGroupForImage( ref, refRole );
+                          GERBER_LAYER_GROUP testGroup = EffectiveGroupForImage( test, testRole );
+
+                          int refGo = layerRoleDisplayGroupOrder( refGroup );
+                          int testGo = layerRoleDisplayGroupOrder( testGroup );
+
+                          if( refGo != testGo )
+                              return refGo < testGo;
+
+                          // Drill bucket holds two distinct populations: files with an
+                          // explicit Drill/Contour role assignment (RoleOrderInGroup
+                          // values 0..3) and unmapped drill files promoted by extension.
+                          // The explicit ones should sit above the extension-detected
+                          // tail; that ordering already falls out of the role-order
+                          // comparison below as long as we treat unmapped-in-drill as
+                          // higher than any real role.
+                          if( refGroup == GERBER_LAYER_GROUP::Unmapped )
+                          {
+                              enum GERBER_ORDER_ENUM refLayer;
+                              enum GERBER_ORDER_ENUM testLayer;
+                              wxString               refExt;
+                              wxString               testExt;
+
+                              GetGerberLayerFromFilename( ref->m_FileName, refLayer, refExt );
+                              GetGerberLayerFromFilename( test->m_FileName, testLayer, testExt );
+
+                              if( refLayer != testLayer )
+                                  return static_cast<int>( refLayer ) < static_cast<int>( testLayer );
+
+                              return ref->m_FileName.Cmp( test->m_FileName ) < 0;
+                          }
+
+                          int refRo = EffectiveRoleOrderInGroup( refGroup, refRole );
+                          int testRo = EffectiveRoleOrderInGroup( testGroup, testRole );
+
+                          if( refRo != testRo )
+                              return refRo < testRo;
+
+                          // Same role (e.g. two files both flagged TopCopper): keep a
+                          // deterministic order based on filename so re-sorts are
+                          // stable across runs.
+                          return ref->m_FileName.Cmp( test->m_FileName ) < 0;
+                      } );
+
+    return GetLayerRemap();
 }
 
 

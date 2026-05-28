@@ -68,6 +68,9 @@ public:
     int UpdateMessagePanel( const TOOL_EVENT& aEvent );
     int Print( const TOOL_EVENT& aEvent );
 
+    // Open the modal Layer Roles dialog (manual file -> PCB layer role mapping + colors).
+    int LayerRoles( const TOOL_EVENT& aEvent );
+
     // Drag and drop
     int LoadZipfile( const TOOL_EVENT& aEvent );
     int LoadGerbFiles( const TOOL_EVENT& aEvent );

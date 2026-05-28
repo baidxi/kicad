@@ -213,6 +213,9 @@ void GERBVIEW_FRAME::doReCreateMenuBar()
     toolsMenu->Add( ACTIONS::measureTool );
 
     toolsMenu->AppendSeparator();
+    toolsMenu->Add( GERBVIEW_ACTIONS::layerRoles );
+
+    toolsMenu->AppendSeparator();
     toolsMenu->Add( GERBVIEW_ACTIONS::clearLayer );
 
 

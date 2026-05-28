@@ -71,6 +71,7 @@
 #include <gerber_file_image_list.h>
 #include <excellon_image.h>
 #include <excellon_defaults.h>
+#include <layer_roles.h>
 #include <macros.h>
 #include <richio.h>
 #include <string_utils.h>
@@ -297,6 +298,12 @@ bool GERBVIEW_FRAME::Read_EXCELLON_File( const wxString& aFullFileName )
         for( GERBER_DRAW_ITEM* item : drill_layer->GetItems() )
             GetCanvas()->GetView()->Add( (KIGFX::VIEW_ITEM*) item );
     }
+
+    // Apply any user-defined PCB layer role color for this drill file (matched by basename).
+    GERBVIEW_LAYER_ROLE role = LookupRoleForSlot( this, layerId );
+
+    if( role != GERBVIEW_LAYER_ROLE::Unassigned )
+        ApplyLayerRoleToSlot( this, layerId, role );
 
     return success;
 }

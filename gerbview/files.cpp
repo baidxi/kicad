@@ -193,6 +193,12 @@ bool GERBVIEW_FRAME::LoadFileOrShowDialog( const wxString& aFileName,
         SetActiveLayer( ly, true );
     }
 
+    // Honour any persisted role assignments now that fresh files are in the
+    // list: this both re-applies the role colors and reorders the slots so
+    // the Layer Manager / canvas stack matches the role grouping.  No-op when
+    // the user has not configured any assignments yet.
+    SortLayersByLayerRoles();
+
     return success;
 }
 
@@ -633,11 +639,21 @@ bool GERBVIEW_FRAME::unarchiveFiles( const wxString& aFullFileName, REPORTER* aR
     else
         SortLayersByFileExtension();
 
+    // After the default sort step, promote any user-assigned roles so the
+    // final slot order matches the Layer Manager grouping (drill on top,
+    // top side, inner, bottom, unmapped tail).  This makes the canvas
+    // stack-up agree with what the user sees in the Layer Manager, and
+    // also reselects the topmost-priority loaded file as the active layer.
+    SortLayersByLayerRoles();
+
     SetVisibleLayers( visibility );
 
-    // Select the first layer loaded so we don't show another layer on top after
-    if( firstLoadedLayer != NO_AVAILABLE_LAYERS )
+    // If for some reason the sort did not happen (e.g. no files loaded after
+    // the call) fall back to the legacy "first loaded layer" rule.
+    if( GetImagesList()->GetLoadedImageCount() == 0 && firstLoadedLayer != NO_AVAILABLE_LAYERS )
+    {
         SetActiveLayer( firstLoadedLayer, true );
+    }
 
     return success;
 }

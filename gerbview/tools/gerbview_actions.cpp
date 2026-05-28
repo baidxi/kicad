@@ -98,6 +98,14 @@ TOOL_ACTION GERBVIEW_ACTIONS::exportToPcbnew( TOOL_ACTION_ARGS()
         .Tooltip( _( "Export data as a KiCad PCB file" ) )
         .Icon( BITMAPS::export_to_pcbnew ) );
 
+TOOL_ACTION GERBVIEW_ACTIONS::layerRoles(
+        TOOL_ACTION_ARGS()
+                .Name( "gerbview.Control.layerRoles" )
+                .Scope( AS_GLOBAL )
+                .FriendlyName( _( "Layer Roles..." ) )
+                .Tooltip( _( "Manually map loaded files to PCB layer roles and edit role colors" ) )
+                .Icon( BITMAPS::layers_manager ) );
+
 TOOL_ACTION GERBVIEW_ACTIONS::clearLayer( TOOL_ACTION_ARGS()
         .Name( "gerbview.Control.clearLayer" )
         .Scope( AS_GLOBAL )
