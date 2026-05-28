@@ -36,6 +36,8 @@
 #include <boost/random/uniform_real_distribution.hpp>
 
 #include <geometry/poisson_disk.h>
+#include <geometry/seg.h>
+#include <geometry/shape_line_chain.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/painter.h>
 #include <tool/action_menu.h>
@@ -82,10 +84,13 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         PCB_GENERATOR_POLY( aOther ),
         m_pitch( aOther.m_pitch ),
         m_layout( aOther.m_layout ),
+        m_mode( aOther.m_mode ),
         m_seed( aOther.m_seed ),
         m_viaTemplate( std::make_unique<PCB_VIA>( *aOther.m_viaTemplate ) ),
         m_lastNetName( aOther.m_lastNetName ),
         m_netCode( aOther.m_netCode ),
+        m_lastGuardedNetName( aOther.m_lastGuardedNetName ),
+        m_guardedNetCode( aOther.m_guardedNetCode ),
         m_excludedCells( aOther.m_excludedCells ),
         m_originOffset( aOther.m_originOffset )
 {
@@ -102,10 +107,13 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
         PCB_GENERATOR_POLY::operator=( aOther );
         m_pitch = aOther.m_pitch;
         m_layout = aOther.m_layout;
+        m_mode = aOther.m_mode;
         m_seed = aOther.m_seed;
         m_viaTemplate = std::make_unique<PCB_VIA>( *aOther.m_viaTemplate );
         m_lastNetName = aOther.m_lastNetName;
         m_netCode = aOther.m_netCode;
+        m_lastGuardedNetName = aOther.m_lastGuardedNetName;
+        m_guardedNetCode = aOther.m_guardedNetCode;
         m_excludedCells = aOther.m_excludedCells;
         m_originOffset = aOther.m_originOffset;
         // m_childContextMenu is intentionally not copied.
@@ -274,6 +282,12 @@ void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMM
             m_netCode = net->GetNetCode();
     }
 
+    if( m_guardedNetCode == 0 && !m_lastGuardedNetName.empty() && aBoard )
+    {
+        if( NETINFO_ITEM* net = aBoard->FindNet( m_lastGuardedNetName ) )
+            m_guardedNetCode = net->GetNetCode();
+    }
+
     SetFlags( IN_EDIT );
 }
 
@@ -428,10 +442,16 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
             m_netCode = net->GetNetCode();
     }
 
+    if( m_guardedNetCode == 0 && !m_lastGuardedNetName.empty() )
+    {
+        if( NETINFO_ITEM* net = aBoard->FindNet( m_lastGuardedNetName ) )
+            m_guardedNetCode = net->GetNetCode();
+    }
+
     int detectPitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
 
     // Try to detect origin offset change due to moved via
-    if( m_layout != PCB_VIA_STITCH_LAYOUT::POISSON )
+    if( m_layout != PCB_VIA_STITCH_LAYOUT::POISSON && m_mode != PCB_VIA_STITCH_MODE::GUARD )
     {
         for( BOARD_ITEM* it : GetBoardItems() )
         {
@@ -480,9 +500,31 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
     // TODO, we will use a cache grid
     std::set<VECTOR2I> placementCells = buildPlacementCells( aBoard );
 
+    // Guard mode currently has to exclude by a proximity heuristic since we aren't using a grid.
+    const int64_t guardExcludeRadiusSq = ( (int64_t) pitch / 4 ) * ( pitch / 4 );
+
+    auto isExcluded =
+            [&]( const VECTOR2I& cell ) -> bool
+            {
+                // Stitch mode is a simple check
+                if( m_mode != PCB_VIA_STITCH_MODE::GUARD )
+                    return m_excludedCells.count( cell ) > 0;
+
+                // Guard mode proximity check
+                for( const VECTOR2I& excluded : m_excludedCells )
+                {
+                    VECTOR2I d = excluded - cell;
+
+                    if( (int64_t) d.x * d.x + (int64_t) d.y * d.y < guardExcludeRadiusSq )
+                        return true;
+                }
+
+                return false;
+            };
+
     for( const VECTOR2I& cell : placementCells )
     {
-        if( m_excludedCells.count( cell ) )
+        if( isExcluded( cell ) )
             continue;
 
         VECTOR2I pt = positionForCell( cell, pitch );
@@ -514,6 +556,7 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 
     props.set_iu( "pitch", m_pitch );
     props.set( "layout", static_cast<int>( m_layout ) );
+    props.set( "mode", static_cast<int>( m_mode ) );
     props.set( "seed", static_cast<int>( m_seed ) );
     props.set_iu( "origin_offset_x", m_originOffset.x );
     props.set_iu( "origin_offset_y", m_originOffset.y );
@@ -521,6 +564,9 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
     // Save the net by name so it survives across sessions (net codes are session-local)
     if( !m_lastNetName.empty() )
         props.set( "net_name", m_lastNetName );
+
+    if( !m_lastGuardedNetName.empty() )
+        props.set( "guarded_net_name", m_lastGuardedNetName );
 
     if( !m_excludedCells.empty() )
     {
@@ -548,6 +594,9 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
     if( auto layout = aProps.get_opt<int>( "layout" ) )
         m_layout = static_cast<PCB_VIA_STITCH_LAYOUT>( *layout );
 
+    if( auto mode = aProps.get_opt<int>( "mode" ) )
+        m_mode = static_cast<PCB_VIA_STITCH_MODE>( *mode );
+
     if( auto seed = aProps.get_opt<int>( "seed" ) )
         m_seed = static_cast<uint32_t>( *seed );
 
@@ -556,6 +605,7 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
 
     // Restore net name; net code is resolved from the board in EditStart()/Update()
     aProps.get_to( "net_name", m_lastNetName );
+    aProps.get_to( "guarded_net_name", m_lastGuardedNetName );
 
     m_excludedCells.clear();
     if( auto chain = aProps.get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" ) )
@@ -621,8 +671,9 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
         return ( a >= 0 ) ? ( a + b / 2 ) / b : -( ( -a + b / 2 ) / b );
     };
 
-    // Poisson layout has no grid
-    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
+    // Poisson layout and GUARD mode both place at arbitrary positions, not a grid —
+    // cell index == absolute position.
+    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON || m_mode == PCB_VIA_STITCH_MODE::GUARD )
         return aPos;
 
     int row = roundDiv( aPos.y - m_originOffset.y, pitch );
@@ -637,7 +688,7 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
 
 VECTOR2I PCB_VIA_STITCH::positionForCell( const VECTOR2I& aCell, int aPitch ) const
 {
-    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
+    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON || m_mode == PCB_VIA_STITCH_MODE::GUARD )
         return aCell;
 
     int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( aCell.y % 2 + 2 ) % 2 != 0 ) )
@@ -680,6 +731,7 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
     stitchClip.Append( stitchBBox.GetRight(), stitchBBox.GetBottom() );
     stitchClip.Append( stitchBBox.GetLeft(), stitchBBox.GetBottom() );
 
+    // 
     std::map<PCB_LAYER_ID, SHAPE_POLY_SET> perLayerFills;
 
     for( ZONE* zone : aBoard->Zones() )
@@ -695,12 +747,26 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 
         for( PCB_LAYER_ID layer : zone->GetLayerSet() )
         {
-            SHAPE_POLY_SET* fill = zone->GetFill( layer );
+            SHAPE_POLY_SET clipped;
 
-            if( !fill || fill->IsEmpty() )
+            if( m_mode == PCB_VIA_STITCH_MODE::GUARD )
+            {
+                if( const SHAPE_POLY_SET* outline = zone->Outline() )
+                    clipped = *outline;
+            }
+            else
+            {
+                SHAPE_POLY_SET* fill = zone->GetFill( layer );
+
+                if( !fill || fill->IsEmpty() )
+                    continue;
+
+                clipped = *fill;
+            }
+
+            if( clipped.IsEmpty() )
                 continue;
 
-            SHAPE_POLY_SET clipped = *fill;
             clipped.BooleanIntersection( stitchClip );
 
             if( clipped.OutlineCount() == 0 )
@@ -765,6 +831,141 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 
                 return !collidesWithBoard( aBoard, drcEngine, probe.get() );
             };
+
+    if( m_mode == PCB_VIA_STITCH_MODE::GUARD )
+    {
+        // Walk the perimeter of each guarded-net item's clearance envelope, dropping
+        // candidate vias every `pitch` of arc length.  The envelope is the item's shape
+        // inflated by (viaRadius + DRC clearance), so a via dropped on it sits at the
+        // closest legal distance from the trace
+        if( m_guardedNetCode == 0 )
+            return cells;
+
+        std::vector<VECTOR2I> accepted;
+
+        // Allow opposite-side vias on narrow traces.  pitch * 0.7 keeps adjacent same-
+        // side vias from doubling up while letting two-sided coverage past in places
+        // where the trace itself is narrower than `pitch`.
+        const int64_t minDistSq = (int64_t) ( pitch * 0.7 ) * (int64_t) ( pitch * 0.7 );
+
+        auto farEnough =
+                [&]( const VECTOR2I& pt ) -> bool
+                {
+                    for( const VECTOR2I& other : accepted )
+                    {
+                        VECTOR2I d = other - pt;
+                        if( (int64_t) d.x * d.x + (int64_t) d.y * d.y < minDistSq )
+                            return false;
+                    }
+                    return true;
+                };
+
+        // vias sit at the inner edge of the same-net zone's
+        // anti-pad, which is also `allowedRegion`'s inner edge
+        auto isValidGuard =
+                [&]( const VECTOR2I& pt ) -> bool
+                {
+                    if( !allowedRegion.Contains( pt ) )
+                        return false;
+
+                    if( m_outline.PointOnEdge( pt, viaSize / 2 ) )
+                        return false;
+
+                    std::unique_ptr<PCB_VIA> probe(
+                            static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
+                    probe->SetParent( const_cast<BOARD*>( aBoard ) );
+                    probe->SetPosition( pt );
+
+                    if( m_netCode )
+                        probe->SetNetCode( m_netCode );
+
+                    return !collidesWithBoard( aBoard, drcEngine, probe.get() );
+                };
+
+        auto walkChain =
+                [&]( const SHAPE_LINE_CHAIN& chain )
+                {
+                    double cursor     = 0.0;
+                    double nextSample = pitch / 2.0;
+
+                    for( int i = 0; i < chain.SegmentCount(); ++i )
+                    {
+                        SEG    seg = chain.CSegment( i );
+                        double segLen = ( VECTOR2D( seg.B ) - VECTOR2D( seg.A ) ).EuclideanNorm();
+
+                        if( segLen < 1.0 )
+                            continue;
+
+                        while( nextSample <= cursor + segLen )
+                        {
+                            double t = ( nextSample - cursor ) / segLen;
+                            VECTOR2I pt( (int) std::round( seg.A.x + t * ( seg.B.x - seg.A.x ) ),
+                                         (int) std::round( seg.A.y + t * ( seg.B.y - seg.A.y ) ) );
+
+                            nextSample += pitch;
+
+                            if( isValidGuard( pt ) && farEnough( pt ) )
+                                accepted.push_back( pt );
+                        }
+
+                        cursor += segLen;
+                    }
+                };
+
+        // Polygon-approximation tolerance for arc envelopes
+        const int polyApproxError = pcbIUScale.mmToIU( 0.005 );
+
+        // Merge every guarded-net item's clearance envelope into one polygon
+        SHAPE_POLY_SET mergedEnvelope;
+
+        for( PCB_TRACK* track : aBoard->Tracks() )
+        {
+            if( track->GetNetCode() != m_guardedNetCode )
+                continue;
+
+            if( !track->GetBoundingBox().Intersects( stitchBBox ) )
+                continue;
+
+            PCB_LAYER_ID layer = track->GetLayer();
+
+            if( track->Type() == PCB_VIA_T )
+                layer = F_Cu;  // arbitrary copper layer for clearance evaluation
+
+            int requiredClearance = 0;
+
+            if( drcEngine )
+            {
+                DRC_CONSTRAINT constraint = drcEngine->EvalRules(
+                        CLEARANCE_CONSTRAINT, m_viaTemplate.get(), track, layer );
+                requiredClearance = constraint.GetValue().Min();
+            }
+
+            // Tiny safety margin so diagonal envelope samples don't round through the
+            // DRC threshold.  For axis-aligned envelopes the perpendicular distance is
+            // always integer; for diagonals it's computed in floating point and the
+            // sample coordinate's integer rounding can bias by up to ~0.7 IU inward,
+            // which is enough to fail collidesWithBoard.  A 2µm bump comfortably clears
+            // any sub-IU rounding
+            const int safetyMargin = pcbIUScale.mmToIU( 0.002 );
+            int       margin       = viaSize / 2 + requiredClearance + safetyMargin;
+
+            SHAPE_POLY_SET envelope;
+            track->TransformShapeToPolygon( envelope, layer, margin, polyApproxError,
+                                            ERROR_OUTSIDE );
+
+            mergedEnvelope.BooleanAdd( envelope );
+        }
+
+        mergedEnvelope.Simplify();
+
+        for( int o = 0; o < mergedEnvelope.OutlineCount(); ++o )
+            walkChain( mergedEnvelope.COutline( o ) );
+
+        for( const VECTOR2I& pt : accepted )
+            cells.insert( pt );  // GUARD "cell" == absolute position
+
+        return cells;
+    }
 
     if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON )
     {
@@ -951,6 +1152,22 @@ void PCB_VIA_STITCH::SetNetCode( int aNetCode )
     MarkDirty();
 }
 
+
+void PCB_VIA_STITCH::SetGuardedNetCode( int aNetCode )
+{
+    m_guardedNetCode = aNetCode;
+
+    if( BOARD* board = GetBoard() )
+    {
+        if( NETINFO_ITEM* net = board->FindNet( aNetCode ) )
+            m_lastGuardedNetName = net->GetNetname();
+        else
+            m_lastGuardedNetName.clear();
+    }
+
+    MarkDirty();
+}
+
 static struct PCB_VIA_STITCH_DESC
 {
     PCB_VIA_STITCH_DESC()
@@ -984,11 +1201,23 @@ static struct PCB_VIA_STITCH_DESC
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, PCB_VIA_STITCH_LAYOUT>( _HKI( "Layout" ),
                                      &PCB_VIA_STITCH::SetLayout, &PCB_VIA_STITCH::GetLayout ) );
 
+        ENUM_MAP<PCB_VIA_STITCH_MODE>::Instance()
+                .Undefined( PCB_VIA_STITCH_MODE::STITCH )
+                .Map( PCB_VIA_STITCH_MODE::STITCH, _HKI( "Stitch" ) )
+                .Map( PCB_VIA_STITCH_MODE::GUARD,  _HKI( "Guard" ) );
+
+        propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, PCB_VIA_STITCH_MODE>( _HKI( "Mode" ),
+                                     &PCB_VIA_STITCH::SetMode, &PCB_VIA_STITCH::GetMode ) );
+
         propMgr.AddProperty( new PROPERTY<PCB_VIA_STITCH, uint32_t>( _HKI( "Seed" ),
                                      &PCB_VIA_STITCH::SetSeed, &PCB_VIA_STITCH::GetSeed ) );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, int>( _HKI( "Net" ),
                                      &PCB_VIA_STITCH::SetNetCode, &PCB_VIA_STITCH::GetNetCode, PT_NET ) );
+
+        propMgr.AddProperty( new PROPERTY_ENUM<PCB_VIA_STITCH, int>( _HKI( "Guarded Net" ),
+                                     &PCB_VIA_STITCH::SetGuardedNetCode,
+                                     &PCB_VIA_STITCH::GetGuardedNetCode, PT_NET ) );
 
         // The stitch lives on its own GAL layer and the vias are multi-layer configured separately
         propMgr.Mask( TYPE_HASH( PCB_VIA_STITCH ), TYPE_HASH( BOARD_ITEM ), _HKI( "Layer" ) );
@@ -997,6 +1226,7 @@ static struct PCB_VIA_STITCH_DESC
 
 
 ENUM_TO_WXANY( PCB_VIA_STITCH_LAYOUT );
+ENUM_TO_WXANY( PCB_VIA_STITCH_MODE );
 
 
 static GENERATORS_MGR::REGISTER<PCB_VIA_STITCH> registerMe;

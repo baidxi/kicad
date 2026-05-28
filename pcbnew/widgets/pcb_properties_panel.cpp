@@ -1175,6 +1175,10 @@ void PCB_PROPERTIES_PANEL::updateLists( const BOARD* aBoard )
 
     auto stitchNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ), _HKI( "Net" ) );
     stitchNet->SetChoices( nets );
+
+    auto stitchGuardedNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ),
+                                                   _HKI( "Guarded Net" ) );
+    stitchGuardedNet->SetChoices( nets );
 }
 
 

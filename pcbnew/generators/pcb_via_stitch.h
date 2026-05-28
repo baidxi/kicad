@@ -45,6 +45,13 @@ enum class PCB_VIA_STITCH_LAYOUT
 };
 
 
+enum class PCB_VIA_STITCH_MODE
+{
+    STITCH,     ///< Fill the outline with vias with a pattern
+    GUARD       ///< Place vias to guard a net contained within
+};
+
+
 class PCB_VIA_STITCH : public PCB_GENERATOR_POLY
 {
 public:
@@ -135,6 +142,13 @@ public:
     void SetPitch( int aVal ) { m_pitch = aVal; MarkDirty(); }
     PCB_VIA_STITCH_LAYOUT GetLayout() const { return m_layout; }
     void                  SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; MarkDirty(); }
+
+    PCB_VIA_STITCH_MODE GetMode() const { return m_mode; }
+    void                SetMode( PCB_VIA_STITCH_MODE aVal ) { m_mode = aVal; MarkDirty(); }
+
+    /// Net being guarded in GUARD mode
+    int  GetGuardedNetCode() const { return m_guardedNetCode; }
+    void SetGuardedNetCode( int aNetCode );
 
     uint32_t  GetSeed() const { return m_seed; }
     void SetSeed( uint32_t aVal ) { m_seed = aVal; MarkDirty(); }
@@ -237,12 +251,17 @@ private:
     // Stored properties (iu units)
     int                   m_pitch  = 0;                   // center-to-center spacing
     PCB_VIA_STITCH_LAYOUT m_layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
+    PCB_VIA_STITCH_MODE   m_mode   = PCB_VIA_STITCH_MODE::STITCH;
     uint32_t              m_seed   = 0;                   // Tile random shift seed
 
     std::unique_ptr<PCB_VIA> m_viaTemplate;
 
     wxString m_lastNetName;
     int      m_netCode = 0;
+
+    // GUARD-mode target net name
+    wxString m_lastGuardedNetName;
+    int      m_guardedNetCode = 0;
 
     // Grid cells (col, row) the user has explicitly excluded.  Tracking by cell index instead
     // of absolute position lets exclusions follow the grid as m_originOffset or the outline
