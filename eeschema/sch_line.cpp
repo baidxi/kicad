@@ -142,7 +142,7 @@ void SCH_LINE::Serialize( google::protobuf::Any &aContainer ) const
         break;
     }
 
-    aContainer.PackFrom( line );
+    (void) aContainer.PackFrom( line );
 }
 
 

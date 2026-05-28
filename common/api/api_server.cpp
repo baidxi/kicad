@@ -298,7 +298,7 @@ void KICAD_API_SERVER::handleApiRequestString( std::string& aRequestString )
         if( result.error().status() == ApiStatusCode::AS_UNHANDLED )
         {
             std::string type = "<unparseable Any>";
-            google::protobuf::Any::ParseAnyTypeUrl( request.message().type_url(), &type );
+            (void) google::protobuf::Any::ParseAnyTypeUrl( request.message().type_url(), &type );
             std::string msg = fmt::format( "no handler available for request of type {}", type );
             error.mutable_status()->set_error_message( msg );
         }

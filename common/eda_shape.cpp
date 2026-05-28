@@ -337,7 +337,7 @@ void EDA_SHAPE::Serialize( google::protobuf::Any &aContainer, const EDA_IU_SCALE
 
     // TODO m_hasSolderMask and m_solderMaskMargin
 
-    aContainer.PackFrom( shape );
+    (void) aContainer.PackFrom( shape );
 }
 
 

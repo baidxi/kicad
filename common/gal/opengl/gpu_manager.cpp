@@ -229,6 +229,8 @@ void GPU_CACHED_MANAGER::EndDrawing()
               "Cached manager size: VBO size %u iranges %zu max elt size %u drawcalls %u",
               cached->AllItemsSize(), m_vranges.size(), m_indexBufMaxSize, drawCalls );
     wxLogTrace( traceGalProfile, "Timing: %s", cntDraw.to_string() );
+#else
+    (void) drawCalls;
 #endif
 
     glBindBuffer( GL_ARRAY_BUFFER, 0 );

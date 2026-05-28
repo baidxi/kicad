@@ -69,7 +69,7 @@ void PCB_GROUP::Serialize( google::protobuf::Any &aContainer ) const
         itemId->set_value( item->m_Uuid.AsStdString() );
     }
 
-    aContainer.PackFrom( group );
+    (void) aContainer.PackFrom( group );
 }
 
 

@@ -193,7 +193,7 @@ void PCB_REFERENCE_IMAGE::Serialize( google::protobuf::Any& aContainer ) const
 
     m_referenceImage.PackToBytes( *refImage.mutable_image_data() );
 
-    aContainer.PackFrom( refImage );
+    (void) aContainer.PackFrom( refImage );
 }
 
 

@@ -111,6 +111,7 @@ fedora_report_build_warn_public:
 
 
 # Report on the metrics of the code
+# Fail in case of warnings
 .fedora_report_metrics:
   stage: report
   extends: .only_code
@@ -118,7 +119,9 @@ fedora_report_build_warn_public:
   script:
     - cat build/linux/compilation_log.txt | { grep "warning:" || test $? = 1; } | awk 'END{print "number_of_fedora_warnings "NR}' > metrics.txt
     - cat metrics.txt
+    - (! grep -q "warning:" build/linux/compilation_log.txt)
   artifacts:
+    when: always
     reports:
       metrics: metrics.txt
 

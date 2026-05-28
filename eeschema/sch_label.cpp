@@ -1673,7 +1673,7 @@ void SCH_LABEL::Serialize( google::protobuf::Any& aContainer ) const
 
     packLabel( label, *this );
 
-    aContainer.PackFrom( label );
+    (void) aContainer.PackFrom( label );
 }
 
 

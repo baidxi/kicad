@@ -3330,7 +3330,7 @@ void BOARD_BUILDER::createTracks()
         assignmentWalker.SetMismatchReporter(
                 [this, &net]( uint8_t aType, const BLOCK_BASE& aBlock )
                 {
-                    reportUnexpectedBlockType( aType, 0x04, 0, aBlock.GetOffset(), "Net assignment" );
+                    reportUnexpectedBlockType( aType, 0x04, net.m_Key, aBlock.GetOffset(), "Net assignment" );
                 } );
 
         for( const BLK_0x04_NET_ASSIGNMENT& assign : assignmentWalker )

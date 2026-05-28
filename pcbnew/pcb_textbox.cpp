@@ -112,7 +112,7 @@ void PCB_TEXTBOX::Serialize( google::protobuf::Any& aContainer ) const
     attrs->set_keep_upright( IsKeepUpright() );
     kiapi::common::PackVector2( *attrs->mutable_size(), GetTextSize() );
 
-    aContainer.PackFrom( boardText );
+    (void) aContainer.PackFrom( boardText );
 }
 
 

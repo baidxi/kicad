@@ -505,7 +505,7 @@ void BOARD_STACKUP::Serialize( google::protobuf::Any& aContainer ) const
         }
     }
 
-    aContainer.PackFrom( stackup );
+    (void) aContainer.PackFrom( stackup );
 }
 
 

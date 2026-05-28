@@ -1,5 +1,5 @@
 ##########################################################################
-# Build KiCad on Windows and save the results
+# Build KiCad on macOS and save the results
 ##########################################################################
 macos_build:
   stage: build
@@ -27,3 +27,24 @@ macos_build:
     when: always
     paths:
       - build/macos/compilation_log.txt
+
+# Report on the metrics of the code
+# Fail in case of warnings
+macos_report_build_warn_kicad:
+  stage: report
+  tags:
+    - kicad-macos
+  needs:
+    - job: macos_build
+      artifacts: true
+  only:
+    variables:
+      - $CI_PROJECT_ROOT_NAMESPACE == "kicad"
+  script:
+    - cat build/macos/compilation_log.txt | { grep "warning:" || test $? = 1; } | awk 'END{print "number_of_macos_warnings "NR}' > metrics.txt
+    - cat metrics.txt
+    - (! grep -q "warning:" build/macos/compilation_log.txt)
+  artifacts:
+    when: always
+    reports:
+      metrics: metrics.txt

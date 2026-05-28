@@ -115,7 +115,7 @@ protected:
                     if( response.has_value() )
                     {
                         envelope.mutable_status()->set_status( ApiStatusCode::AS_OK );
-                        envelope.mutable_message()->PackFrom( *response );
+                        (void) envelope.mutable_message()->PackFrom( *response );
                         return envelope;
                     }
                     else

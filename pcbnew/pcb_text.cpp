@@ -123,14 +123,14 @@ void PCB_TEXT::Serialize( google::protobuf::Any& aContainer ) const
 
     google::protobuf::Any any;
     EDA_TEXT::Serialize( any );
-    any.UnpackTo( boardText.mutable_text() );
+    (void) any.UnpackTo( boardText.mutable_text() );
 
     // Some of the common Text message fields are not stored in EDA_TEXT
     types::Text* text = boardText.mutable_text();
 
     PackVector2( *text->mutable_position(), GetPosition() );
 
-    aContainer.PackFrom( boardText );
+    (void) aContainer.PackFrom( boardText );
 }
 
 
@@ -148,7 +148,7 @@ bool PCB_TEXT::Deserialize( const google::protobuf::Any& aContainer )
     SetLocked( boardText.locked() == types::LockedState::LS_LOCKED );
 
     google::protobuf::Any any;
-    any.PackFrom( boardText.text() );
+    (void) any.PackFrom( boardText.text() );
     EDA_TEXT::Deserialize( any );
 
     const types::Text& text = boardText.text();

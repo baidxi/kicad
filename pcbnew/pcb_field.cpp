@@ -68,13 +68,13 @@ void PCB_FIELD::Serialize( google::protobuf::Any &aContainer ) const
 
     google::protobuf::Any anyText;
     PCB_TEXT::Serialize( anyText );
-    anyText.UnpackTo( field.mutable_text() );
+    (void) anyText.UnpackTo( field.mutable_text() );
 
     field.set_name( GetCanonicalName().ToStdString() );
     field.mutable_id()->set_id( (int) GetId() );
     field.set_visible( IsVisible() );
 
-    aContainer.PackFrom( field );
+    (void) aContainer.PackFrom( field );
 }
 
 
@@ -95,7 +95,7 @@ bool PCB_FIELD::Deserialize( const google::protobuf::Any &aContainer )
     if( field.has_text() )
     {
         google::protobuf::Any anyText;
-        anyText.PackFrom( field.text() );
+        (void) anyText.PackFrom( field.text() );
         PCB_TEXT::Deserialize( anyText );
     }
 

@@ -112,12 +112,12 @@ HANDLER_RESULT<NetClassesResponse> API_HANDLER_COMMON::handleGetNetClasses(
     google::protobuf::Any any;
 
     netSettings->GetDefaultNetclass()->Serialize( any );
-    any.UnpackTo( reply.add_net_classes() );
+    (void) any.UnpackTo( reply.add_net_classes() );
 
     for( const auto& netClass : netSettings->GetNetclasses() | std::views::values )
     {
         netClass->Serialize( any );
-        any.UnpackTo( reply.add_net_classes() );
+        (void) any.UnpackTo( reply.add_net_classes() );
     }
 
     return reply;
@@ -138,7 +138,7 @@ HANDLER_RESULT<Empty> API_HANDLER_COMMON::handleSetNetClasses(
 
     for( const auto& ncProto : aCtx.Request.net_classes() )
     {
-        any.PackFrom( ncProto );
+        (void) any.PackFrom( ncProto );
         wxString name = wxString::FromUTF8( ncProto.name() );
 
         if( name == wxT( "Default" ) )
@@ -171,7 +171,8 @@ HANDLER_RESULT<types::Box2> API_HANDLER_COMMON::handleGetTextExtents(
 {
     EDA_TEXT text( pcbIUScale );
     google::protobuf::Any any;
-    any.PackFrom( aCtx.Request.text() );
+
+    (void) any.PackFrom( aCtx.Request.text() );
 
     if( !text.Deserialize( any ) )
     {
@@ -217,7 +218,7 @@ HANDLER_RESULT<GetTextAsShapesResponse> API_HANDLER_COMMON::handleGetTextAsShape
 
         EDA_TEXT text( pcbIUScale );
         google::protobuf::Any any;
-        any.PackFrom( *textPtr );
+        (void) any.PackFrom( *textPtr );
 
         if( !text.Deserialize( any ) )
         {
@@ -237,7 +238,7 @@ HANDLER_RESULT<GetTextAsShapesResponse> API_HANDLER_COMMON::handleGetTextAsShape
             EDA_SHAPE proxy( *subshape );
             proxy.Serialize( any );
             GraphicShape* shapeMsg = entry->mutable_shapes()->add_shapes();
-            any.UnpackTo( shapeMsg );
+            (void) any.UnpackTo( shapeMsg );
         }
 
         if( textMsg.has_textbox() )
