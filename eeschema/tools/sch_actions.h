@@ -42,6 +42,9 @@ public:
     // Menu bar save curr sheet as command
     static TOOL_ACTION saveCurrSheetCopyAs;
 
+    /// Export schematic in KiCad 9 compatible format
+    static TOOL_ACTION exportSchematicAsKicad9;
+
     // Selection Tool
     /// Select the junction, wire or bus segment under the cursor.
     static TOOL_ACTION selectNode;

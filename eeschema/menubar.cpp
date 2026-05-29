@@ -113,6 +113,7 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
     submenuExport->SetTitle( _( "Export" ) );
     submenuExport->SetIcon( BITMAPS::export_file );
     submenuExport->Add( SCH_ACTIONS::drawSheetOnClipboard,   ACTION_MENU::NORMAL, _( "Drawing to Clipboard" ) );
+    submenuExport->Add( SCH_ACTIONS::exportSchematicAsKicad9, ACTION_MENU::NORMAL, _( "As KiCad 9..." ) );
     submenuExport->Add( SCH_ACTIONS::exportNetlist,          ACTION_MENU::NORMAL, _( "Netlist..." ) );
     submenuExport->Add( SCH_ACTIONS::exportSymbolsToLibrary, ACTION_MENU::NORMAL, _( "Symbols..." ) );
     fileMenu->Add( submenuExport );

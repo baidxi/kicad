@@ -1145,6 +1145,9 @@ void EDA_TEXT::Format( OUTPUTFORMATTER* aFormatter, int aControlBits ) const
     if( !( aControlBits & CTL_OMIT_HYPERLINK ) && HasHyperlink() )
         aFormatter->Print( "(href %s)", aFormatter->Quotew( GetHyperlink() ).c_str() );
 
+    if( aControlBits & CTL_HIDE_IN_EFFECTS )
+        aFormatter->Print( " hide" );
+
     aFormatter->Print( ")" ); // (effects
 }
 
