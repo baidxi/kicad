@@ -48,6 +48,12 @@ BOARD_ITEM* PCBEXPR_VAR_REF::GetObject( const LIBEVAL::CONTEXT* aCtx ) const
 
     const PCBEXPR_CONTEXT* ctx = static_cast<const PCBEXPR_CONTEXT*>( aCtx );
     BOARD_ITEM*            item  = ctx->GetItem( m_itemIndex );
+
+    // Walk up to the requested parent so that "A.Parent" used as an object refers to the same
+    // item as "A.Parent" used as a string.
+    for( int i = 0; i < m_parentDepth && item; ++i )
+        item = item->GetParent();
+
     return item;
 }
 
@@ -589,53 +595,89 @@ std::unique_ptr<LIBEVAL::VAR_REF> PCBEXPR_UCODE::CreateVarRef( const wxString& a
         return vref;
     }
 
+    // The receiver may be a navigation chain such as "A.Parent".  Split off the base variable
+    // and count the parent hops.  Only "Parent" is supported.
+
+    wxString baseVar     = aVar;
+    int      parentDepth = 0;
+
+    if( aVar.Contains( wxT( "." ) ) )
+    {
+        wxArrayString tokens = wxSplit( aVar, '.' );
+        baseVar = tokens.IsEmpty() ? wxString() : tokens[0];
+
+        for( size_t i = 1; i < tokens.GetCount(); ++i )
+        {
+            if( tokens[i].CmpNoCase( wxT( "Parent" ) ) == 0 )
+                parentDepth++;
+            else
+                return nullptr;
+        }
+
+        // Navigation is only meaningful for the item operands; the layer pseudo-item "L" has
+        // no parent.
+        if( baseVar != wxT( "A" ) && baseVar != wxT( "AB" ) && baseVar != wxT( "B" ) )
+            return nullptr;
+    }
+
+    auto withNav =
+            [parentDepth]( std::unique_ptr<PCBEXPR_VAR_REF> aRef ) -> std::unique_ptr<PCBEXPR_VAR_REF>
+            {
+                if( aRef && parentDepth > 0 )
+                    aRef->SetParentDepth( parentDepth );
+
+                return aRef;
+            };
+
     // Check for a couple of very common cases and compile them straight to "object code".
 
     if( aField.CmpNoCase( wxT( "NetClass" ) ) == 0 )
     {
-        if( aVar == wxT( "A" ) )
-            return std::make_unique<PCBEXPR_NETCLASS_REF>( 0 );
-        else if( aVar == wxT( "B" ) )
-            return std::make_unique<PCBEXPR_NETCLASS_REF>( 1 );
+        if( baseVar == wxT( "A" ) )
+            return withNav( std::make_unique<PCBEXPR_NETCLASS_REF>( 0 ) );
+        else if( baseVar == wxT( "B" ) )
+            return withNav( std::make_unique<PCBEXPR_NETCLASS_REF>( 1 ) );
         else
             return nullptr;
     }
     else if( aField.CmpNoCase( wxT( "ComponentClass" ) ) == 0 )
     {
-        if( aVar == wxT( "A" ) )
-            return std::make_unique<PCBEXPR_COMPONENT_CLASS_REF>( 0 );
-        else if( aVar == wxT( "B" ) )
-            return std::make_unique<PCBEXPR_COMPONENT_CLASS_REF>( 1 );
+        if( baseVar == wxT( "A" ) )
+            return withNav( std::make_unique<PCBEXPR_COMPONENT_CLASS_REF>( 0 ) );
+        else if( baseVar == wxT( "B" ) )
+            return withNav( std::make_unique<PCBEXPR_COMPONENT_CLASS_REF>( 1 ) );
         else
             return nullptr;
     }
     else if( aField.CmpNoCase( wxT( "NetName" ) ) == 0 )
     {
-        if( aVar == wxT( "A" ) )
-            return std::make_unique<PCBEXPR_NETNAME_REF>( 0 );
-        else if( aVar == wxT( "B" ) )
-            return std::make_unique<PCBEXPR_NETNAME_REF>( 1 );
+        if( baseVar == wxT( "A" ) )
+            return withNav( std::make_unique<PCBEXPR_NETNAME_REF>( 0 ) );
+        else if( baseVar == wxT( "B" ) )
+            return withNav( std::make_unique<PCBEXPR_NETNAME_REF>( 1 ) );
         else
             return nullptr;
     }
     else if( aField.CmpNoCase( wxT( "Type" ) ) == 0 )
     {
-        if( aVar == wxT( "A" ) )
-            return std::make_unique<PCBEXPR_TYPE_REF>( 0 );
-        else if( aVar == wxT( "B" ) )
-            return std::make_unique<PCBEXPR_TYPE_REF>( 1 );
+        if( baseVar == wxT( "A" ) )
+            return withNav( std::make_unique<PCBEXPR_TYPE_REF>( 0 ) );
+        else if( baseVar == wxT( "B" ) )
+            return withNav( std::make_unique<PCBEXPR_TYPE_REF>( 1 ) );
         else
             return nullptr;
     }
 
-    if( aVar == wxT( "A" ) || aVar == wxT( "AB" ) )
+    if( baseVar == wxT( "A" ) || baseVar == wxT( "AB" ) )
         vref = std::make_unique<PCBEXPR_VAR_REF>( 0 );
-    else if( aVar == wxT( "B" ) )
+    else if( baseVar == wxT( "B" ) )
         vref = std::make_unique<PCBEXPR_VAR_REF>( 1 );
-    else if( aVar == wxT( "L" ) )
+    else if( baseVar == wxT( "L" ) )
         vref = std::make_unique<PCBEXPR_VAR_REF>( 2 );
     else
         return nullptr;
+
+    vref->SetParentDepth( parentDepth );
 
     if( aField.length() == 0 ) // return reference to base object
         return vref;
