@@ -97,6 +97,10 @@ set( EESCHEMA_SCH_IO
     sch_io/pads/pads_sch_parser.cpp
     sch_io/pads/pads_sch_symbol_builder.cpp
     sch_io/pads/pads_sch_schematic_builder.cpp
+
+    # P-CAD 2006 ASCII IO plugin
+    sch_io/pcad/sch_io_pcad.cpp
+    sch_io/pcad/pcad_sch_parser.cpp
     )
 
 set( EESCHEMA_DLGS
