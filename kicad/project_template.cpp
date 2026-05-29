@@ -539,7 +539,7 @@ wxString& PROJECT_TEMPLATE::GetTitle()
     bool hasHtml = GetHtmlFile().IsFileReadable();
     bool hasMarkdown = GetMarkdownFile().IsFileReadable();
 
-    if( !hasHtml && !hasMarkdown )
+    if( !m_title.IsEmpty() )
         return m_title;
 
     if( m_title == wxEmptyString )
