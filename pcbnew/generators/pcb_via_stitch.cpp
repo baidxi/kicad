@@ -1131,7 +1131,31 @@ void PCB_VIA_STITCH::ClearAllExclusions()
 
 int PCB_VIA_STITCH::GetNetCode() const
 {
+    if( m_netCode == 0 && !m_lastNetName.empty() )
+    {
+        if( const BOARD* board = GetBoard() )
+        {
+            if( NETINFO_ITEM* net = board->FindNet( m_lastNetName ) )
+                m_netCode = net->GetNetCode();
+        }
+    }
+
     return m_netCode;
+}
+
+
+int PCB_VIA_STITCH::GetGuardedNetCode() const
+{
+    if( m_guardedNetCode == 0 && !m_lastGuardedNetName.empty() )
+    {
+        if( const BOARD* board = GetBoard() )
+        {
+            if( NETINFO_ITEM* net = board->FindNet( m_lastGuardedNetName ) )
+                m_guardedNetCode = net->GetNetCode();
+        }
+    }
+
+    return m_guardedNetCode;
 }
 
 void PCB_VIA_STITCH::SetNetCode( int aNetCode )

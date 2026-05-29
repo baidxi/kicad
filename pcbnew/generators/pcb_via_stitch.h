@@ -147,7 +147,7 @@ public:
     void                SetMode( PCB_VIA_STITCH_MODE aVal ) { m_mode = aVal; MarkDirty(); }
 
     /// Net being guarded in GUARD mode
-    int  GetGuardedNetCode() const { return m_guardedNetCode; }
+    int  GetGuardedNetCode() const;
     void SetGuardedNetCode( int aNetCode );
 
     uint32_t  GetSeed() const { return m_seed; }
@@ -256,12 +256,12 @@ private:
 
     std::unique_ptr<PCB_VIA> m_viaTemplate;
 
-    wxString m_lastNetName;
-    int      m_netCode = 0;
+    wxString    m_lastNetName;
+    mutable int m_netCode = 0;
 
     // GUARD-mode target net name
-    wxString m_lastGuardedNetName;
-    int      m_guardedNetCode = 0;
+    wxString    m_lastGuardedNetName;
+    mutable int m_guardedNetCode = 0;
 
     // Grid cells (col, row) the user has explicitly excluded.  Tracking by cell index instead
     // of absolute position lets exclusions follow the grid as m_originOffset or the outline
