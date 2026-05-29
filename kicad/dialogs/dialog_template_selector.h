@@ -160,9 +160,11 @@ private:
     void ApplyFilter();
     void LoadTemplatePreview( PROJECT_TEMPLATE* aTemplate );
     void SetupFileWatcher();
-    wxString ExtractDescription( const wxFileName& aHtmlFile );
     void ShowWelcomeHtml();
     void EnsureWebViewCreated();
+
+    wxString ExtractMatterBlock( const wxString& aContent );
+    void     RemoveMarkdownFrontMatter( wxString& aContend );
 
     DialogState                                  m_state;
     TEMPLATE_WIDGET*                             m_selectedWidget;

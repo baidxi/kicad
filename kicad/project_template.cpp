@@ -28,6 +28,7 @@
 #include <wx/txtstrm.h>
 #include <wx/wfstream.h>
 #include <wx/log.h>
+#include <wx/regex.h>
 #include <wx/textfile.h>
 #include <unordered_map>
 
@@ -40,10 +41,11 @@
 
 PROJECT_TEMPLATE::PROJECT_TEMPLATE( const wxString& aPath )
 {
-    m_basePath = wxFileName::DirName( aPath );
-    m_metaPath = wxFileName::DirName( aPath + SEP + METADIR );
-    m_metaHtmlFile = wxFileName::FileName( aPath + SEP + METADIR + SEP + METAFILE_INFO_HTML );
-    m_metaIconFile = wxFileName::FileName( aPath + SEP + METADIR + SEP + METAFILE_ICON );
+    m_basePath          = wxFileName::DirName( aPath );
+    m_metaPath          = wxFileName::DirName( aPath + SEP + METADIR );
+    m_metaHtmlFile      = wxFileName::FileName( aPath + SEP + METADIR + SEP + METAFILE_INFO_HTML );
+    m_metaMarkdownFile  = wxFileName::FileName( aPath + SEP + METADIR + SEP + METAFILE_INFO_MARKDOWN );
+    m_metaIconFile      = wxFileName::FileName( aPath + SEP + METADIR + SEP + METAFILE_ICON );
 
     m_title = wxEmptyString;
 
@@ -58,14 +60,13 @@ PROJECT_TEMPLATE::PROJECT_TEMPLATE( const wxString& aPath )
         // Error, the meta information directory doesn't exist!
         m_error.Printf( _( "Could not find the expected 'meta' directory at '%s'" ), m_metaPath.GetPath() );
     }
-    else if( !wxFileName::FileExists( m_metaHtmlFile.GetFullPath() ) )
+    else if( !wxFileName::FileExists( m_metaHtmlFile.GetFullPath() )
+             && !wxFileName::FileExists( m_metaMarkdownFile.GetFullPath() ) )
     {
-        // Error, the meta information directory doesn't contain the informational html file!
-        m_error.Printf( _( "Could not find the expected meta HTML file at '%s'" ), m_metaHtmlFile.GetFullPath() );
+        // Error, the meta information directory doesn't contain the informational html/markdown file!
+        m_error.Printf( _( "Could not find the expected meta HTML/Markdown file (%s/%s) at '%s'" ), METAFILE_INFO_HTML,
+                        METAFILE_INFO_MARKDOWN, m_metaPath.GetPath() );
     }
-
-    if( m_title.IsEmpty() )
-        m_title = GetPrjDirName();
 
     // Try to load an icon
     if( !wxFileName::FileExists( m_metaIconFile.GetFullPath() ) )
@@ -212,6 +213,12 @@ PROJECT_TEMPLATE::~PROJECT_TEMPLATE()
 wxFileName PROJECT_TEMPLATE::GetHtmlFile()
 {
     return m_metaHtmlFile;
+}
+
+
+wxFileName PROJECT_TEMPLATE::GetMarkdownFile()
+{
+    return m_metaMarkdownFile;
 }
 
 
@@ -376,64 +383,365 @@ bool PROJECT_TEMPLATE::CreateProject( wxFileName& aNewProjectPath, wxString* aEr
 }
 
 
-wxString* PROJECT_TEMPLATE::GetTitle()
+wxString PROJECT_TEMPLATE::ExtractHtmlTitle()
 {
-    if( !GetHtmlFile().IsFileReadable() )
-        return &m_title;
+    wxString           title;
+    wxFFileInputStream input( GetHtmlFile().GetFullPath() );
+    wxString           separator( wxT( "\x9" ) );
+    wxTextInputStream  text( input, separator, wxConvUTF8 );
 
-    if( m_title == wxEmptyString )
+    int  start = 0;
+    int  finish = 0;
+    bool done = false;
+    bool hasStart = false;
+
+    while( input.IsOk() && !input.Eof() && !done )
     {
-        wxFFileInputStream input( GetHtmlFile().GetFullPath() );
-        wxString           separator( wxT( "\x9" ) );
-        wxTextInputStream  text( input, separator, wxConvUTF8 );
+        wxString line = text.ReadLine();
+        wxString upperline = line.Clone().Upper();
 
-        int  start = 0;
-        int  finish = 0;
-        bool done = false;
-        bool hasStart = false;
+        start = upperline.Find( wxT( "<TITLE>" ) );
+        finish = upperline.Find( wxT( "</TITLE>" ) );
+        int length = finish - start - 7;
 
-        while( input.IsOk() && !input.Eof() && !done )
+        // find the opening tag
+        if( start != wxNOT_FOUND )
         {
-            wxString line = text.ReadLine();
-            wxString upperline = line.Clone().Upper();
-
-            start = upperline.Find( wxT( "<TITLE>" ) );
-            finish = upperline.Find( wxT( "</TITLE>" ) );
-            int length = finish - start - 7;
-
-            // find the opening tag
-            if( start != wxNOT_FOUND )
+            if( finish != wxNOT_FOUND )
             {
-                if( finish != wxNOT_FOUND )
-                {
-                    m_title = line( start + 7, length );
-                    done = true;
-                }
-                else
-                {
-                    m_title = line.Mid( start + 7 );
-                    hasStart = true;
-                }
+                title = line( start + 7, length );
+                done = true;
             }
             else
             {
-                if( finish != wxNOT_FOUND )
-                {
-                    m_title += line.SubString( 0, finish - 1 );
-                    done = true;
-                }
-                else if( hasStart )
-                    m_title += line;
+                title = line.Mid( start + 7 );
+                hasStart = true;
+            }
+        }
+        else
+        {
+            if( finish != wxNOT_FOUND )
+            {
+                title += line.SubString( 0, finish - 1 );
+                done = true;
+            }
+            else if( hasStart )
+                title += line;
+        }
+    }
+
+    // Remove line endings
+    title.Replace( wxT( "\r" ), wxT( "" ) );
+    title.Replace( wxT( "\n" ), wxT( "" ) );
+
+    title.Trim( false ); // Trim from left
+    title.Trim();        // Trim from right
+
+    return title;
+}
+
+
+wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
+{
+    // Titel (case-insensitive)
+    wxRegEx reTitle( R"(^\s*Title\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
+
+    if( !m_metaMarkdownFile.FileExists() || !m_metaMarkdownFile.IsFileReadable() )
+        return wxEmptyString;
+
+    wxFile file( m_metaMarkdownFile.GetFullPath() );
+
+    if( !file.IsOpened() )
+        return wxEmptyString;
+
+    wxString content;
+    file.ReadAll( &content );
+    file.Close();
+
+    wxString title = wxEmptyString;
+    wxString matterBlock = ExtractMatterBlock( content );
+
+    if( !matterBlock.IsEmpty() )
+    {
+        if( reTitle.Matches( matterBlock ) )
+        {
+            title = reTitle.GetMatch( matterBlock, 1 ).Trim( true ).Trim( false );
+        }
+    }
+
+    /*
+     * Fallback if no matter block is present.
+     * Use the “Heading 1” as title.
+     */
+    if( title.IsEmpty() )
+    {
+        wxArrayString lines = wxSplit( content, '\n' );
+
+        for( const wxString& rawLine : lines )
+        {
+            wxString line = rawLine;
+            line.Trim( true ).Trim( false );
+
+            // Start of the first heading 1
+            if( line.StartsWith( wxT( "# " ) ) )
+            {
+                title = line.AfterFirst( '#' );
+                break;
+            }
+        }
+    }
+
+    title.Trim( false ); // trim left side
+
+    return title;
+}
+
+
+wxString PROJECT_TEMPLATE::ExtractMatterBlock( const wxString& aContent )
+{
+    wxString result;
+    bool     inBlock = false;
+
+    wxArrayString lines = wxSplit( aContent, '\n' );
+
+    for( const wxString& rawLine : lines )
+    {
+        wxString line = rawLine;
+        line.Trim( true ).Trim( false );
+
+        // Start of Block
+        if( !inBlock && line == "---" )
+        {
+            inBlock = true;
+            result.clear();
+            continue;
+        }
+
+        // Ende of Block
+        if( inBlock && line == "---" )
+        {
+            return result.Trim( true ).Trim( false );
+        }
+
+        // Append content
+        if( inBlock )
+        {
+            result += line + "\n";
+        }
+    }
+
+    return wxEmptyString;
+}
+
+
+wxString& PROJECT_TEMPLATE::GetTitle()
+{
+    bool hasHtml = GetHtmlFile().IsFileReadable();
+    bool hasMarkdown = GetMarkdownFile().IsFileReadable();
+
+    if( !hasHtml && !hasMarkdown )
+        return m_title;
+
+    if( m_title == wxEmptyString )
+    {
+        if( hasMarkdown )
+            m_title = ExtractMarkdownTitle();
+        else if( hasHtml )
+            m_title = ExtractHtmlTitle();
+        else
+            m_title = GetPrjDirName();
+    }
+
+    return m_title;
+}
+
+
+wxString PROJECT_TEMPLATE::ExtractHtmlDescription()
+{
+    if( !m_metaHtmlFile.FileExists() || !m_metaHtmlFile.IsFileReadable() )
+        return wxEmptyString;
+
+    wxTextFile file( m_metaHtmlFile.GetFullPath() );
+
+    if( !file.Open() )
+        return wxEmptyString;
+
+    wxString content;
+
+    for( wxString line = file.GetFirstLine(); !file.Eof(); line = file.GetNextLine() )
+    {
+        content += line + wxT( " " );
+    }
+
+    file.Close();
+
+    // Try to extract text from the meta description tag
+    wxRegEx reMetaDesc( wxT( "<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']" ), wxRE_ICASE );
+
+    if( reMetaDesc.Matches( content ) )
+        return reMetaDesc.GetMatch( content, 1 );
+
+    // Fallback to first paragraph tag (allowing nested HTML tags)
+    wxRegEx reParagraph( wxT( "<p[^>]*>(.*?)</p>" ), wxRE_ICASE );
+
+    if( reParagraph.Matches( content ) )
+    {
+        wxString desc = reParagraph.GetMatch( content, 1 );
+
+        // Strip nested HTML tags
+        wxRegEx reTags( wxT( "<[^>]*>" ) );
+        reTags.ReplaceAll( &desc, wxT( " " ) );
+
+        // Decode common HTML entities
+        desc.Replace( wxT( "&nbsp;" ), wxT( " " ) );
+        desc.Replace( wxT( "&amp;" ), wxT( "&" ) );
+        desc.Replace( wxT( "&lt;" ), wxT( "<" ) );
+        desc.Replace( wxT( "&gt;" ), wxT( ">" ) );
+        desc.Replace( wxT( "&quot;" ), wxT( "\"" ) );
+
+        // Normalize whitespace
+        wxRegEx reWhitespace( wxT( "\\s+" ) );
+        reWhitespace.ReplaceAll( &desc, wxT( " " ) );
+
+        desc = desc.Trim().Trim( false );
+
+        if( !desc.IsEmpty() )
+            return desc;
+    }
+
+    // Final fallback: extract text content from body, stripping all HTML tags
+    wxRegEx reBody( wxT( "<body[^>]*>(.*)</body>" ), wxRE_ICASE );
+
+    if( reBody.Matches( content ) )
+    {
+        wxString body = reBody.GetMatch( content, 1 );
+
+        // Strip all HTML tags
+        wxRegEx reTags( wxT( "<[^>]*>" ) );
+        reTags.ReplaceAll( &body, wxT( " " ) );
+
+        // Decode common HTML entities
+        body.Replace( wxT( "&nbsp;" ), wxT( " " ) );
+        body.Replace( wxT( "&amp;" ), wxT( "&" ) );
+        body.Replace( wxT( "&lt;" ), wxT( "<" ) );
+        body.Replace( wxT( "&gt;" ), wxT( ">" ) );
+        body.Replace( wxT( "&quot;" ), wxT( "\"" ) );
+
+        // Normalize whitespace
+        wxRegEx reWhitespace( wxT( "\\s+" ) );
+        reWhitespace.ReplaceAll( &body, wxT( " " ) );
+
+        body = body.Trim().Trim( false );
+
+        // Return up to 250 characters
+        if( body.Length() > 250 )
+            return body.Left( 250 ) + wxS( "..." );
+
+        return body;
+    }
+
+    return wxEmptyString;
+}
+
+
+wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
+{
+    // Description or Desc (case-insensitive)
+    wxRegEx reDesc( R"(Desc(?:ription)?\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
+
+    if( !m_metaMarkdownFile.FileExists() || !m_metaMarkdownFile.IsFileReadable() )
+        return wxEmptyString;
+
+    wxFile file( m_metaMarkdownFile.GetFullPath() );
+
+    if( !file.IsOpened() )
+        return wxEmptyString;
+
+    wxString content;
+    file.ReadAll( &content );
+    file.Close();
+
+    wxString desc = wxEmptyString;
+    wxString matterBlock = ExtractMatterBlock( content );
+
+    if( !matterBlock.IsEmpty() )
+    {
+        if( reDesc.Matches( matterBlock ) )
+        {
+            desc = reDesc.GetMatch( matterBlock, 1 ).Trim( true ).Trim( false );
+        }
+    }
+
+    /*
+     * Fallback if no matter block is present.
+     * Use the first paragraph after the “Heading 1” as description.
+     */
+    if( desc.IsEmpty() )
+    {
+        bool inBlock = false;
+
+        wxArrayString lines = wxSplit( content, '\n' );
+
+        for( const wxString& rawLine : lines )
+        {
+            wxString line = rawLine;
+            line.Trim( true ).Trim( false );
+
+            // Start of the first heading 1
+            if( !inBlock && line.StartsWith( wxT( "# " ) ) )
+            {
+                inBlock = true;
+                desc.clear();
+                continue;
+            }
+
+            // Ende of Block
+            if( inBlock && ( line.StartsWith( wxT( "#" ) ) || line.at( 0 ) == '\n' ) )
+            {
+                desc.Trim( true ).Trim( false );
+                inBlock = false;
+                break;
+            }
+
+            // Append content
+            if( inBlock )
+            {
+                desc += line + "\n";
             }
         }
 
-        // Remove line endings
-        m_title.Replace( wxT( "\r" ), wxT( "" ) );
-        m_title.Replace( wxT( "\n" ), wxT( "" ) );
-
-        m_title.Trim( false ); // Trim from left
-        m_title.Trim();        // Trim from right
+        if( inBlock )
+            desc = wxEmptyString;
     }
 
-    return &m_title;
+    if( !desc.IsEmpty() )
+    {
+        // Normalize whitespace
+        wxRegEx reWhitespace( wxT( "\\s+" ) );
+        reWhitespace.ReplaceAll( &desc, wxT( " " ) );
+
+        desc = desc.Trim().Trim( false );
+
+        // Return up to 250 characters
+        if( desc.Length() > 250 )
+            desc = desc.Left( 250 ) + wxS( "..." );
+    }
+
+    return desc;
+}
+
+
+wxString& PROJECT_TEMPLATE::GetDescription()
+{
+    if( !m_description.IsEmpty() )
+        return m_description;
+
+    if( m_metaMarkdownFile.FileExists() )
+        m_description = m_error.IsEmpty() ? ExtractMarkdownDescription() : m_error;
+    else if( m_metaHtmlFile.FileExists() )
+        m_description = m_error.IsEmpty() ? ExtractHtmlDescription() : m_error;
+    else
+        m_description = m_error;
+
+    return m_description;
 }

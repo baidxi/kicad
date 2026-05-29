@@ -148,12 +148,20 @@ void WEBVIEW_PANEL::LoadURL( const wxString& aURL )
         browser->LoadURL( aURL );
 }
 
-void WEBVIEW_PANEL::SetPage( const wxString& aHtmlContent )
+void WEBVIEW_PANEL::SetPage( const wxString& aHtmlContent, const wxString& aBaseUrl )
 {
     wxLogTrace( "webview", "Setting page content" );
 
+    wxString baseUrl = "file://";
+
+    if( !aBaseUrl.IsEmpty() )
+        baseUrl = aBaseUrl;
+
+    if( !baseUrl.EndsWith( '/' ) )
+        baseUrl.Append( '/' );
+
     if( wxWebView* browser = GetWebView() )
-        browser->SetPage( aHtmlContent, "file://" );
+        browser->SetPage( aHtmlContent, baseUrl );
 }
 
 bool WEBVIEW_PANEL::AddMessageHandler( const wxString& aName, MESSAGE_HANDLER aHandler )
