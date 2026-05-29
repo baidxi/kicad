@@ -696,9 +696,8 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
             }
 
             // Ende of Block
-            if( inBlock && ( line.StartsWith( wxT( "#" ) ) || line.at( 0 ) == '\n' ) )
+            if( inBlock && ( line.StartsWith( wxT( "#" ) ) || ( line.IsEmpty() && !desc.IsEmpty() ) ) )
             {
-                desc.Trim( true ).Trim( false );
                 inBlock = false;
                 break;
             }
