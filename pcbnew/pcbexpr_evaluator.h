@@ -42,6 +42,7 @@ class BOARD_ITEM;
 
 class PCBEXPR_VAR_REF;
 
+
 class PCBEXPR_UCODE final : public LIBEVAL::UCODE
 {
 public:
@@ -120,6 +121,10 @@ public:
         m_matchingTypes[type_hash] = prop;
     }
 
+    // Number of parents walked from the base item before the property/method is resolved.
+    // Zero (the default) resolves the base item directly, as before.
+    void SetParentDepth( int aDepth ) { m_parentDepth = aDepth; }
+
     LIBEVAL::VALUE* GetValue( LIBEVAL::CONTEXT* aCtx ) override;
 
     BOARD_ITEM* GetObject( const LIBEVAL::CONTEXT* aCtx ) const;
@@ -130,6 +135,7 @@ private:
     LIBEVAL::VAR_TYPE_T                         m_type;
     bool                                        m_isEnum;
     bool                                        m_isOptional;
+    int                                         m_parentDepth = 0;
 };
 
 
