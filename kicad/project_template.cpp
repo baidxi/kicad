@@ -443,9 +443,6 @@ wxString PROJECT_TEMPLATE::ExtractHtmlTitle()
 
 wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
 {
-    // Titel (case-insensitive)
-    wxRegEx reTitle( R"(^\s*Title\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
-
     if( !m_metaMarkdownFile.FileExists() || !m_metaMarkdownFile.IsFileReadable() )
         return wxEmptyString;
 
@@ -463,35 +460,59 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
 
     if( !matterBlock.IsEmpty() )
     {
-        if( reTitle.Matches( matterBlock ) )
-        {
-            title = reTitle.GetMatch( matterBlock, 1 ).Trim( true ).Trim( false );
-        }
+        /*
+         * Example:
+         *
+         * ---
+         * Title: Matter block title
+         * or
+         * TITLE: Matter block title
+         * or
+         * title: Matter block title
+         * ---
+         */
+        wxRegEx reTitleMatterblock( R"(^\s*Title\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
+
+        if( reTitleMatterblock.Matches( matterBlock ) )
+            title = reTitleMatterblock.GetMatch( matterBlock, 1 );
     }
 
     /*
      * Fallback if no matter block is present.
-     * Use the “Heading 1” as title.
+     * Use the primary “Heading 1” as title.
      */
     if( title.IsEmpty() )
     {
-        wxArrayString lines = wxSplit( content, '\n' );
+        /*
+         * Example:
+         *
+         * # Heading 1
+         */
+        wxRegEx reTitlePrimary( R"(^#\s+([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
 
-        for( const wxString& rawLine : lines )
-        {
-            wxString line = rawLine;
-            line.Trim( true ).Trim( false );
-
-            // Start of the first heading 1
-            if( line.StartsWith( wxT( "# " ) ) )
-            {
-                title = line.AfterFirst( '#' );
-                break;
-            }
-        }
+        if( reTitlePrimary.Matches( content ) )
+            title = reTitlePrimary.GetMatch( content, 1 );
     }
 
-    title.Trim( false ); // trim left side
+    /*
+     * Fallback if no matter block is present.
+     * Use the alternate “Heading 1” as title.
+     */
+    if( title.IsEmpty() )
+    {
+        /*
+         * Example:
+         *
+         * Heading 1
+         * =========
+         */
+        wxRegEx reTitleAlternate( R"(^(.+)\n={3,}\s*$)", wxRE_ADVANCED | wxRE_ICASE | wxRE_NEWLINE );
+
+        if( reTitleAlternate.Matches( content ) )
+            title = reTitleAlternate.GetMatch( content, 1 );
+    }
+
+    title.Trim( true ).Trim( false ); // Trim both sides
 
     return title;
 }
@@ -548,7 +569,8 @@ wxString& PROJECT_TEMPLATE::GetTitle()
             m_title = ExtractMarkdownTitle();
         else if( hasHtml )
             m_title = ExtractHtmlTitle();
-        else
+
+        if( m_title.IsEmpty() )
             m_title = GetPrjDirName();
     }
 
@@ -646,9 +668,6 @@ wxString PROJECT_TEMPLATE::ExtractHtmlDescription()
 
 wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
 {
-    // Description or Desc (case-insensitive)
-    wxRegEx reDesc( R"(Desc(?:ription)?\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
-
     if( !m_metaMarkdownFile.FileExists() || !m_metaMarkdownFile.IsFileReadable() )
         return wxEmptyString;
 
@@ -664,53 +683,73 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
     wxString desc = wxEmptyString;
     wxString matterBlock = ExtractMatterBlock( content );
 
+    m_error = "<No project description available>";
+
     if( !matterBlock.IsEmpty() )
     {
-        if( reDesc.Matches( matterBlock ) )
+        /*
+         * Example:
+         *
+         * ---
+         * Description: Matter block description
+         * or
+         * DESCRIPTION: Matter block description
+         * or
+         * description: Matter block description
+         * or
+         * Desc: Matter block description
+         * or
+         * DESC: Matter block description
+         * or
+         * desc: Matter block description
+         * ---
+         */
+        wxRegEx reDescMatterblock( R"(Desc(?:ription)?\s*:\s*([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
+
+        if( reDescMatterblock.Matches( matterBlock ) )
         {
-            desc = reDesc.GetMatch( matterBlock, 1 ).Trim( true ).Trim( false );
+            desc = reDescMatterblock.GetMatch( matterBlock, 1 );
         }
     }
 
     /*
      * Fallback if no matter block is present.
-     * Use the first paragraph after the “Heading 1” as description.
+     * Use the first paragraph after the “# Heading 1” as description.
      */
     if( desc.IsEmpty() )
     {
-        bool inBlock = false;
+        wxRegEx reDescPrimary( R"(^#\s+[^\r\n]+\r?\n\r?\n((?:[^\r\n]+\r?\n?)*))", wxRE_ADVANCED | wxRE_NEWLINE );
 
-        wxArrayString lines = wxSplit( content, '\n' );
-
-        for( const wxString& rawLine : lines )
+        if( reDescPrimary.Matches( content ) )
         {
-            wxString line = rawLine;
-            line.Trim( true ).Trim( false );
-
-            // Start of the first heading 1
-            if( !inBlock && line.StartsWith( wxT( "# " ) ) )
-            {
-                inBlock = true;
-                desc.clear();
-                continue;
-            }
-
-            // Ende of Block
-            if( inBlock && ( line.StartsWith( wxT( "#" ) ) || ( line.IsEmpty() && !desc.IsEmpty() ) ) )
-            {
-                inBlock = false;
-                break;
-            }
-
-            // Append content
-            if( inBlock )
-            {
-                desc += line + "\n";
-            }
+            desc = reDescPrimary.GetMatch( content, 1 );
         }
+    }
 
-        if( inBlock )
-            desc = wxEmptyString;
+    /*
+     * Fallback if no matter block is present.
+     * Use the first paragraph after the “Alternate heading 1” as description.
+     * 
+     * Example:
+     * 
+     * Alternate project title
+     * =======================
+     * 
+     * Alternate project description
+     * More project descrition text
+     * Even more lines
+     * 
+     * More text; no further project description
+     */
+    if( desc.IsEmpty() )
+    {
+        wxRegEx reDescAlternate( R"(^[^\r\n]+\r?\n={3,}\r?\n\r?\n((?:[^\r\n]+\r?\n)*[^\r\n]+))",
+                                 wxRE_ADVANCED | wxRE_NEWLINE );
+
+        if( reDescAlternate.Matches( content ) )
+        {
+            desc = reDescAlternate.GetMatch( content, 1 );
+        }
     }
 
     if( !desc.IsEmpty() )
