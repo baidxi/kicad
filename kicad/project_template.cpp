@@ -475,41 +475,44 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
 
         if( reTitleMatterblock.Matches( matterBlock ) )
             title = reTitleMatterblock.GetMatch( matterBlock, 1 );
+        else
+            m_error = wxT( "The project title could not be found in the matter block!" );
     }
 
     /*
      * Fallback if no matter block is present.
-     * Use the primary “Heading 1” as title.
+     
      */
-    if( title.IsEmpty() )
+    if( title.IsEmpty() && m_error.IsEmpty() )
     {
-        /*
-         * Example:
-         *
-         * # Heading 1
-         */
         wxRegEx reTitlePrimary( R"(^#\s+([^\r\n]+))", wxRE_ADVANCED | wxRE_ICASE );
-
-        if( reTitlePrimary.Matches( content ) )
-            title = reTitlePrimary.GetMatch( content, 1 );
-    }
-
-    /*
-     * Fallback if no matter block is present.
-     * Use the alternate “Heading 1” as title.
-     */
-    if( title.IsEmpty() )
-    {
-        /*
-         * Example:
-         *
-         * Heading 1
-         * =========
-         */
         wxRegEx reTitleAlternate( R"(^(.+)\n={3,}\s*$)", wxRE_ADVANCED | wxRE_ICASE | wxRE_NEWLINE );
 
-        if( reTitleAlternate.Matches( content ) )
-            title = reTitleAlternate.GetMatch( content, 1 );
+        /* Use the primary “Heading 1” as title
+         * 
+         * Example:
+         * 
+         * # Heading 1
+         */
+        if( reTitlePrimary.Matches( content ) )
+            title = reTitlePrimary.GetMatch( content, 1 );
+
+        else
+        {
+            /* Use the alternate “Heading 1” as title
+             +
+             * Example:
+             *
+             * Heading 1
+             * =========
+             */
+            if( reTitleAlternate.Matches( content ) )
+                title = reTitleAlternate.GetMatch( content, 1 );
+        }
+
+        if( title.IsEmpty() )
+            m_error = wxT( "The project title could not be found in the first H1 heading or the first alternative H1 "
+                           "heading!" );
     }
 
     title.Trim( true ).Trim( false ); // Trim both sides
@@ -683,8 +686,6 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
     wxString desc = wxEmptyString;
     wxString matterBlock = ExtractMatterBlock( content );
 
-    m_error = "<No project description available>";
-
     if( !matterBlock.IsEmpty() )
     {
         /*
@@ -710,46 +711,59 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
         {
             desc = reDescMatterblock.GetMatch( matterBlock, 1 );
         }
+        else
+            m_error = wxT( "The project description could not be found in the matter block!" );
     }
 
-    /*
-     * Fallback if no matter block is present.
-     * Use the first paragraph after the “# Heading 1” as description.
-     */
-    if( desc.IsEmpty() )
+    /* Fallback if no matter block is present */
+    if( desc.IsEmpty() && m_error.IsEmpty() )
     {
         wxRegEx reDescPrimary( R"(^#\s+[^\r\n]+\r?\n\r?\n((?:[^\r\n]+\r?\n?)*))", wxRE_ADVANCED | wxRE_NEWLINE );
-
-        if( reDescPrimary.Matches( content ) )
-        {
-            desc = reDescPrimary.GetMatch( content, 1 );
-        }
-    }
-
-    /*
-     * Fallback if no matter block is present.
-     * Use the first paragraph after the “Alternate heading 1” as description.
-     * 
-     * Example:
-     * 
-     * Alternate project title
-     * =======================
-     * 
-     * Alternate project description
-     * More project descrition text
-     * Even more lines
-     * 
-     * More text; no further project description
-     */
-    if( desc.IsEmpty() )
-    {
         wxRegEx reDescAlternate( R"(^[^\r\n]+\r?\n={3,}\r?\n\r?\n((?:[^\r\n]+\r?\n)*[^\r\n]+))",
                                  wxRE_ADVANCED | wxRE_NEWLINE );
 
-        if( reDescAlternate.Matches( content ) )
+        if( reDescPrimary.Matches( content ) )
         {
-            desc = reDescAlternate.GetMatch( content, 1 );
+            /* Use the first paragraph after the “# Heading 1” as description. 
+             *
+             * Example:
+             * 
+             * # Primary project title
+             * 
+             * Primary project description
+             * More project descrition text
+             * Even more lines
+             * 
+             * More text; no further project description
+             */
+            desc = reDescPrimary.GetMatch( content, 1 );
         }
+        else
+        {
+            /*
+             * Use the first paragraph after the “Alternate heading 1” as description.
+             * 
+             * Example:
+             * 
+             * Alternate project title
+             * =======================
+             * 
+             * Alternate project description
+             * More project descrition text
+             * Even more lines
+             * 
+             * More text; no further project description
+             */
+
+            if( reDescAlternate.Matches( content ) )
+            {
+                desc = reDescAlternate.GetMatch( content, 1 );
+            }
+        }
+
+        if( desc.IsEmpty() )
+            m_error = wxT( "The project description could not be found after the first H1 heading or after the first "
+                           "alternative H1 heading!" );
     }
 
     if( !desc.IsEmpty() )
@@ -778,7 +792,8 @@ wxString& PROJECT_TEMPLATE::GetDescription()
         m_description = m_error.IsEmpty() ? ExtractMarkdownDescription() : m_error;
     else if( m_metaHtmlFile.FileExists() )
         m_description = m_error.IsEmpty() ? ExtractHtmlDescription() : m_error;
-    else
+
+    if( m_description.IsEmpty() )
         m_description = m_error;
 
     return m_description;
