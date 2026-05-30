@@ -718,9 +718,26 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
     /* Fallback if no matter block is present */
     if( desc.IsEmpty() && m_error.IsEmpty() )
     {
-        wxRegEx reDescPrimary( R"(^#\s+[^\r\n]+\r?\n\r?\n((?:[^\r\n]+\r?\n?)*))", wxRE_ADVANCED | wxRE_NEWLINE );
-        wxRegEx reDescAlternate( R"(^[^\r\n]+\r?\n={3,}\r?\n\r?\n((?:[^\r\n]+\r?\n)*[^\r\n]+))",
+        wxRegEx reDescPrimary( R"(^(#{1,6})\s+[^\r\n]+\r?\n\r?\n((?:[^\r\n]+\r?\n?)*))", wxRE_ADVANCED | wxRE_NEWLINE );
+        wxRegEx reDescAlternate( R"(^[^\r\n]+\r?\n(={3,})\r?\n\r?\n((?:[^\r\n]+\r?\n)*[^\r\n]+))",
                                  wxRE_ADVANCED | wxRE_NEWLINE );
+
+        auto IsDescriptionValid = [&]( const wxString& aString ) -> bool
+        {
+            wxString matchStr = aString;
+            matchStr.Trim( false ).Trim( true );
+
+            wxRegEx rePrimaryHeading( R"(^(#{1,6})\s+[^\r\n]+$)", wxRE_ADVANCED | wxRE_NEWLINE );
+            wxRegEx reAlternateHeading( R"(^([^\r\n]+)\r?\n([=-]{3,})\s*$)", wxRE_ADVANCED | wxRE_NEWLINE );
+
+            if( rePrimaryHeading.Matches( matchStr ) )
+                return false;
+
+            if( reAlternateHeading.Matches( matchStr ) )
+                return false;
+
+            return true;
+        };
 
         if( reDescPrimary.Matches( content ) )
         {
@@ -736,7 +753,13 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
              * 
              * More text; no further project description
              */
-            desc = reDescPrimary.GetMatch( content, 1 );
+            int level = reDescPrimary.GetMatch( content, 1 ).length();
+
+            if( level == 1 )
+                desc = reDescPrimary.GetMatch( content, 2 );
+
+            if( IsDescriptionValid( desc ) == false )
+                desc.Clear();
         }
         else
         {
@@ -757,7 +780,13 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
 
             if( reDescAlternate.Matches( content ) )
             {
-                desc = reDescAlternate.GetMatch( content, 1 );
+                int level = reDescAlternate.GetMatch( content, 1 ).length();
+
+                if( level >= 3 )
+                    desc = reDescAlternate.GetMatch( content, 2 );
+
+                if( IsDescriptionValid( desc ) == false )
+                    desc.Clear();
             }
         }
 
