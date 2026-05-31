@@ -22,9 +22,11 @@
 #include <api/api_pcb_utils.h>
 #include <api/api_enums.h>
 #include <api/api_utils.h>
+#include <board.h>
 #include <board_commit.h>
 #include <footprint.h>
 #include <footprint_edit_frame.h>
+#include <ki_exception.h>
 #include <pad.h>
 #include <pcb_group.h>
 #include <project.h>
@@ -246,7 +248,7 @@ HANDLER_RESULT<Empty> API_HANDLER_FOOTPRINT::handleSaveCopyOfDocument(
     wxString libraryName = targetId.GetLibNickname();
 
     if( libraryName.IsEmpty() )
-        libraryName = footprintContext()->GetLoadedFPID().GetLibNickname();
+        libraryName = footprintContext()->GetLoadedFPID().GetUniStringLibNickname();
 
     wxString newName = targetId.GetLibItemName();
 
