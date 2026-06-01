@@ -109,8 +109,8 @@ TRANSLINE_IDENT::TRANSLINE_IDENT( enum TRANSLINE_TYPE_ID aType )
     // Default value is for copper
     AddPrm( new TRANSLINE_PRM( PRM_TYPE_SUBS, RHO_PRM,
                                "Rho", wxT( "ρ" ),
-                               _( "Electrical resistivity or specific electrical resistance of "
-                                  "conductor (ohm*meter)" ),
+                               _( "Electrical resistivity (specific electrical resistance) of "
+                                  "conductor" ),
                                1.72e-8, false ) );
 
     // Default value is in GHz
