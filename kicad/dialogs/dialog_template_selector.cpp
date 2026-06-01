@@ -1002,6 +1002,9 @@ void DIALOG_TEMPLATE_SELECTOR::LoadTemplatePreview( PROJECT_TEMPLATE* aTemplate 
         mdFile.ReadAll( &mdContent );
         mdFile.Close();
 
+        /* Remove leading blank lines */
+        mdContent.Trim( false );
+
         RemoveMarkdownFrontMatter( mdContent );
         ConvertMarkdown2Html( mdContent, htmlContent );
 
