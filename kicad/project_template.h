@@ -213,7 +213,7 @@ public:
      */
     wxString& GetTitle();
 
-    const wxString& GetError() const { return m_error; }
+    wxString GetError();
 
     /**
      * Get a vector list of filenames for the template. The files are the source files,
@@ -240,7 +240,8 @@ protected:
     wxBitmap*  m_metaIcon;
     wxString   m_description;
     wxString   m_title;
-    wxString   m_error;
+    wxString   m_errorTitle;
+    wxString   m_errorDesc;
 
 private:
     wxString ExtractHtmlDescription();

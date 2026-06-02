@@ -1211,6 +1211,7 @@ void DIALOG_TEMPLATE_SELECTOR::OnWebViewLoaded( wxWebViewEvent& event )
             tr:nth-child(even) {
                 background-color: #252525;
             }
+        }
     `;
     document.head.appendChild( style );
 } )();
