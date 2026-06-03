@@ -2108,6 +2108,13 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
         {
             field->SetVisible( true );
             field->SetPosition( VECTOR2I( eattr->x->ToSchUnits(), -eattr->y->ToSchUnits() ) );
+
+            if( eattr->size )
+            {
+                VECTOR2I textsize = VECTOR2I( eattr->size->ToSchUnits(), eattr->size->ToSchUnits() );
+                field->SetTextSize( textsize );
+            }
+
             int  align      = eattr->align ? *eattr->align : ETEXT::BOTTOM_LEFT;
             int  absdegrees = eattr->rot ? eattr->rot->degrees : 0;
             bool mirror     = eattr->rot ? eattr->rot->mirror : false;
