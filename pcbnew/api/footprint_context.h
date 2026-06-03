@@ -21,6 +21,7 @@
 #define KICAD_FOOTPRINT_CONTEXT_H
 
 #include <memory>
+#include <wx/string.h>
 
 #include <api/board_context.h>
 
