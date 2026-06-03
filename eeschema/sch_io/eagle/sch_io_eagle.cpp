@@ -2076,17 +2076,6 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
         symbol->AddField( newField );
     }
 
-    for( const auto& [variantName, variant] : epart->variants )
-    {
-        SCH_FIELD* field = symbol->AddField( *symbol->GetField( FIELD_T::VALUE ) );
-        field->SetName( wxT( "VARIANT_" ) + variant->name );
-
-        if( variant->value )
-            field->SetText( *variant->value );
-
-        field->SetVisible( false );
-    }
-
     bool valueAttributeFound = false;
     bool nameAttributeFound  = false;
 
