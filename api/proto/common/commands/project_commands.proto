@@ -109,11 +109,9 @@ message SaveDocument
 
 
 // Opens a KiCad editor window.
-// If path is provided, the editor will load that file.
 message OpenEditor
 {
   kiapi.common.types.FrameType frame = 1;
-  string path = 2;
 }
 
 message OpenEditorResponse

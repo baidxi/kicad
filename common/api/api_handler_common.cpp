@@ -34,7 +34,6 @@
 #include <kiway_player.h>
 #include <paths.h>
 #include <pgm_base.h>
-#include <wildcards_and_files_ext.h>
 #include <api/api_plugin.h>
 #include <api/api_utils.h>
 #include <project/net_settings.h>
@@ -506,24 +505,8 @@ HANDLER_RESULT<OpenEditorResponse> API_HANDLER_COMMON::handleOpenEditor(
         return tl::unexpected( e );
     }
 
-    const std::string& path = aCtx.Request.path();
-
     if( !player->IsVisible() )
-    {
-        if( !path.empty() )
-        {
-            if( !player->OpenProjectFiles( { wxString::FromUTF8( path ) } ) )
-            {
-                player->Destroy();
-                ApiResponseStatus e;
-                e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-                e.set_error_message( "Failed to open file: " + path );
-                return tl::unexpected( e );
-            }
-        }
-
         player->Show( true );
-    }
 
     if( player->IsIconized() )
         player->Iconize( false );
@@ -545,8 +528,6 @@ HANDLER_RESULT<OpenEditorResponse> API_HANDLER_COMMON::handleOpenEditor(
     else if( *frameType == FRAME_SCH )
     {
         doc->set_type( types::DOCTYPE_SCHEMATIC );
-        if( !currentFile.IsEmpty() )
-            doc->set_schematic_filename( currentFile.ToStdString() );
     }
 
     if( !currentFile.IsEmpty() )
