@@ -77,7 +77,7 @@ bool SCH_EDIT_FRAME::CheckSheetForRecursion( SCH_SHEET* aSheet, SCH_SHEET_PATH* 
 
     // SCH_SCREEN object file paths are expected to be absolute.  If this assert fires,
     // something is seriously broken.
-    wxASSERT( wxFileName( destFilePath ).IsAbsolute() );
+    wxASSERT_MSG( wxFileName( destFilePath ).IsAbsolute(), destFilePath + wxS( " is not absolute" ) );
 
     if( schematicSheets.TestForRecursion( loadedSheets, destFilePath ) )
     {
@@ -836,8 +836,8 @@ bool SCH_EDIT_FRAME::LoadSheetFromFile( SCH_SHEET* aSheet, SCH_SHEET_PATH* aCurr
     else
         aSheet->GetScreen()->Append( newScreen );
 
-    SCH_SCREENS allLoadedScreens( aSheet );
-    allLoadedScreens.ReplaceDuplicateTimeStamps();
+    SCH_SCREENS allProjectScreens( &Schematic().Root() );
+    allProjectScreens.ReplaceDuplicateTimeStamps();
 
     return true;
 }

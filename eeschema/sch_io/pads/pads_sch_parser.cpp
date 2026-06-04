@@ -274,7 +274,10 @@ bool PADS_SCH_PARSER::parseHeader( const std::string& aLine )
 
     std::string headerTag = aLine.substr( 1, endPos - 1 );
 
-    std::regex headerRegex( R"(PADS-(POWER)?LOGIC-V(\d+\.\d+))" );
+    // Accept an optional trailing suffix after the version, used by some PADS
+    // exporters for the ANSI code page of any non-ASCII strings (e.g.
+    // *PADS-LOGIC-V9.0-CP1250*).
+    std::regex headerRegex( R"(PADS-(POWER)?LOGIC-V(\d+\.\d+)(?:-([A-Za-z0-9]+))?)" );
     std::smatch match;
 
     if( !std::regex_match( headerTag, match, headerRegex ) )
@@ -286,6 +289,9 @@ bool PADS_SCH_PARSER::parseHeader( const std::string& aLine )
         m_header.product = "PADS-LOGIC";
 
     m_header.version = "V" + match[2].str();
+
+    if( match[3].matched )
+        m_header.codepage = match[3].str();
 
     if( endPos + 1 < aLine.size() )
     {
@@ -632,6 +638,7 @@ size_t PADS_SCH_PARSER::parseSectionTEXT( const std::vector<std::string>& aLines
 
         // Each text item is two lines: attribute line + content line
         TEXT_ITEM item;
+        item.sheet_number = m_currentSheet;
         std::istringstream iss( line );
 
         int x = 0, y = 0;
@@ -700,6 +707,7 @@ size_t PADS_SCH_PARSER::parseSectionLINES( const std::vector<std::string>& aLine
                 item.name = name;
                 item.origin.x = x;
                 item.origin.y = y;
+                item.sheet_number = m_currentSheet;
 
                 i++;
 
@@ -753,6 +761,7 @@ size_t PADS_SCH_PARSER::parseSectionLINES( const std::vector<std::string>& aLine
                     {
                         // Text attribute line
                         TEXT_ITEM text;
+                        text.sheet_number = m_currentSheet;
                         std::istringstream tiss( pline );
                         int tx = 0, ty = 0;
 

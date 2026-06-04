@@ -473,6 +473,7 @@ struct ABOARD6_LAYER_STACKUP
     double   dielectricconst;
     int32_t  dielectricthick;
     wxString dielectricmaterial;
+    double   dielectriclosstangent = 0.;
 
     bool            mechenabled = false;
     ALTIUM_MECHKIND mechkind = ALTIUM_MECHKIND::UNKNOWN;
@@ -621,7 +622,7 @@ struct ARULE6
     wxString name;
     int      priority = 0;
 
-    ALTIUM_RULE_KIND kind;
+    ALTIUM_RULE_KIND kind = ALTIUM_RULE_KIND::UNKNOWN;
 
     wxString scope1expr;
     wxString scope2expr;
@@ -663,6 +664,7 @@ struct ARULE6
 
     // TODO: implement different types of rules we need to parse
 
+    ARULE6() = default;
     explicit ARULE6( ALTIUM_BINARY_PARSER& aReader );
 };
 
@@ -840,6 +842,10 @@ struct AVIA6
     bool    soldermask_expansion_manual = false;
     bool    soldermask_expansion_linked = false;
 
+    // When true, the manual solder mask expansion is measured outward from the hole edge rather
+    // than from the via land (copper) edge.  Altium "Solder Mask Expansion From The Hole Edge".
+    bool    soldermask_expansion_from_hole = false;
+
     ALTIUM_LAYER    layer_start;
     ALTIUM_LAYER    layer_end;
     ALTIUM_PAD_MODE viamode;
@@ -952,6 +958,44 @@ struct AFILL6
 
     explicit AFILL6( ALTIUM_BINARY_PARSER& aReader );
 };
+
+
+/**
+ * Return true if an Altium rule scope expression targets polygon pour primitives
+ * (matches InPolygon, InPoly, IsPolygon, or IsPoly).
+ */
+bool altiumScopeExprMatchesPolygon( const wxString& aExpr );
+
+
+/**
+ * Select the highest Altium-priority rule whose scope references polygons.
+ *
+ * Altium priority 1 is the most specific; larger numeric values are more general.
+ * @p aRulesByPriorityAsc must be sorted by ARULE6::priority in ascending numeric
+ * order so the first polygon-scoped match is also the highest Altium priority.
+ *
+ * Returns nullptr if no rule references polygons.
+ */
+const ARULE6* selectAltiumPolygonRule( const std::vector<ARULE6>& aRulesByPriorityAsc );
+
+
+/**
+ * Decide whether one side of an Altium via should be tented when imported into KiCad.
+ *
+ * Returns the explicit Altium tent flag, except when the via uses a manual solder mask expansion
+ * measured from the hole edge.  KiCad vias cannot represent a hole-referenced opening, so when the
+ * resulting opening (hole + 2 * expansion) does not clear the via land the pad copper is covered
+ * and the side is treated as tented.
+ *
+ * @param aTentFlag      explicit Altium tent flag for this side
+ * @param aManual        true if the via carries a manual solder mask expansion
+ * @param aFromHole      true if the manual expansion is measured from the hole edge
+ * @param aHoleSize      via hole diameter (KiCad nm)
+ * @param aMaskExpansion solder mask expansion for this side (KiCad nm, may be negative)
+ * @param aLandDiameter  via land (copper) diameter for this side (KiCad nm)
+ */
+bool altiumViaSideIsTented( bool aTentFlag, bool aManual, bool aFromHole, uint32_t aHoleSize,
+                            int32_t aMaskExpansion, int aLandDiameter );
 
 
 #endif //ALTIUM_PARSER_PCB_H

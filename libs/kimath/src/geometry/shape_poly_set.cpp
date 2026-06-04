@@ -128,6 +128,9 @@ SHAPE_POLY_SET::SHAPE_POLY_SET( const SHAPE_POLY_SET& aOther ) :
         m_hashValid = false;
         m_triangulationValid = false;
     }
+
+    m_failedHash = aOther.m_failedHash;
+    m_failedHashValid.store( aOther.m_failedHashValid.load() );
 }
 
 
@@ -3064,6 +3067,9 @@ SHAPE_POLY_SET &SHAPE_POLY_SET::operator=( const SHAPE_POLY_SET& aOther )
         m_triangulationValid = false;
     }
 
+    m_failedHash = aOther.m_failedHash;
+    m_failedHashValid.store( aOther.m_failedHashValid.load() );
+
     return *this;
 }
 
@@ -3095,17 +3101,22 @@ void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
                                          std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
                                          const TASK_SUBMITTER& aSubmitter )
 {
+    // if( m_triangulationValid && m_hashValid && m_hash == checksum() )
+    //     return;
+    // if( m_failedHashValid && m_failedHash == checksum() )
+    //     return;
+
     std::unique_lock<std::mutex> lock( m_triangulationMutex );
 
-    if( m_triangulationValid && m_hashValid )
-    {
-        if( m_hash == checksum() )
-            return;
-    }
+    if( m_triangulationValid && m_hashValid && m_hash == checksum() )
+        return;
+    if( m_failedHashValid && m_failedHash == checksum() )
+        return;
 
     // Invalidate, in case anything goes wrong below
     m_triangulationValid = false;
     m_hashValid = false;
+    m_failedHashValid = false;
 
     auto triangulate =
             []( SHAPE_POLY_SET& polySet, int forOutline,
@@ -3430,16 +3441,23 @@ void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
             }
             else
             {
-                m_hash = checksum();
-                m_hashValid = true;
                 m_triangulationValid = true;
             }
         }
         else
         {
+            m_triangulationValid = true;
+        }
+
+        if( m_triangulationValid )
+        {
             m_hash = checksum();
             m_hashValid = true;
-            m_triangulationValid = true;
+        }
+        else
+        {
+            m_failedHash = checksum();
+            m_failedHashValid = true;
         }
     }
 }
@@ -3755,7 +3773,7 @@ const std::vector<SEG> SHAPE_POLY_SET::GenerateHatchLines( const std::vector<dou
                 VECTOR2I mid( ( candidate.A.x + candidate.B.x ) / 2, ( candidate.A.y + candidate.B.y ) / 2 );
 
                 // Check if segment is inside the polygon by checking its middle point
-                if( containsSingle( mid, 0, 1, true ) )
+                if( Contains( mid, -1, 1, true ) )
                 {
                     int dx = p2.x - p1.x;
 

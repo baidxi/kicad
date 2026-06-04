@@ -376,7 +376,9 @@ bool NGSPICE::IsRunning()
         restoreSignalHandlers();
 
         // Report the crash to the user
-        if( SIMULATOR_REPORTER* reporter = m_reporter )
+        std::lock_guard<std::mutex> lock( m_reporterMutex );
+
+        if( SIMULATOR_REPORTER* reporter = m_reporter.load( std::memory_order_acquire ) )
         {
             wxString signalName;
 
@@ -727,7 +729,8 @@ int NGSPICE::cbSendChar( char* aWhat, int aId, void* aUser )
 {
     NGSPICE* sim = reinterpret_cast<NGSPICE*>( aUser );
 
-    SIMULATOR_REPORTER* reporter = sim->m_reporter;
+    std::lock_guard<std::mutex> lock( sim->m_reporterMutex );
+    SIMULATOR_REPORTER* reporter = sim->m_reporter.load( std::memory_order_acquire );
 
     if( reporter )
     {
@@ -759,7 +762,11 @@ int NGSPICE::cbBGThreadRunning( NG_BOOL aFinished, int aId, void* aUser )
     if( aFinished )
         sim->restoreSignalHandlers();
 
-    if( SIMULATOR_REPORTER* reporter = sim->m_reporter )
+    // Hold the reporter mutex while invoking the reporter so SetReporter(nullptr)
+    // can serve as a barrier before the caller destroys the reporter.
+    std::lock_guard<std::mutex> lock( sim->m_reporterMutex );
+
+    if( SIMULATOR_REPORTER* reporter = sim->m_reporter.load( std::memory_order_acquire ) )
         reporter->OnSimStateChange( sim, aFinished ? SIM_IDLE : SIM_RUNNING );
 
     return 0;
@@ -775,7 +782,8 @@ int NGSPICE::cbControlledExit( int aStatus, NG_BOOL aImmediate, NG_BOOL aExitOnQ
     // ngspice calls this when it encounters a fatal error (e.g. out of memory) or receives a
     // 'quit' command. For error exits, we must notify the UI before ngspice crashes during
     // cleanup, since cbBGThreadRunning may never fire if the background thread is terminated.
-    SIMULATOR_REPORTER* reporter = sim->m_reporter;
+    std::lock_guard<std::mutex> lock( sim->m_reporterMutex );
+    SIMULATOR_REPORTER* reporter = sim->m_reporter.load( std::memory_order_acquire );
 
     if( !aExitOnQuit && reporter )
     {

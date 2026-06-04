@@ -137,9 +137,12 @@ bool SCH_ITEM::IsGroupableType() const
     case SCH_HIER_LABEL_T:
     case SCH_RULE_AREA_T:
     case SCH_DIRECTIVE_LABEL_T:
-    case SCH_SHEET_PIN_T:
     case SCH_SHEET_T:
         return true;
+
+    // Don't group sheet pins directly, they go along with an SCH_SHEET, and all operations
+    // should be performed on that sheet.
+    case SCH_SHEET_PIN_T:
     default:
         return false;
     }
@@ -556,7 +559,7 @@ void SCH_ITEM::ClearConnectedItems( const SCH_SHEET_PATH& aSheet )
 }
 
 
-const SCH_ITEM_VEC& SCH_ITEM::ConnectedItems( const SCH_SHEET_PATH& aSheet )
+const std::vector<SCH_ITEM*>& SCH_ITEM::ConnectedItems( const SCH_SHEET_PATH& aSheet )
 {
     return m_connected_items[ aSheet ];
 }
@@ -564,7 +567,7 @@ const SCH_ITEM_VEC& SCH_ITEM::ConnectedItems( const SCH_SHEET_PATH& aSheet )
 
 void SCH_ITEM::AddConnectionTo( const SCH_SHEET_PATH& aSheet, SCH_ITEM* aItem )
 {
-    SCH_ITEM_VEC& vec = m_connected_items[ aSheet ];
+    std::vector<SCH_ITEM*>& vec = m_connected_items[ aSheet ];
 
     // The vector elements are small, so reserve 1k at a time to prevent re-allocations
     if( vec.size() == vec.capacity() )
@@ -643,7 +646,9 @@ void SCH_ITEM::SwapItemData( SCH_ITEM* aImage )
     std::swap( m_bodyStyle, aImage->m_bodyStyle );
     std::swap( m_private, aImage->m_private );
     std::swap( m_fieldsAutoplaced, aImage->m_fieldsAutoplaced );
-    std::swap( m_group, aImage->m_group );
+
+    // Don't swap m_group. Group membership is restored by SCH_GROUP::swapData, and the undo copy
+    // has no group, so swapping it here would drop the item out of its group.
     std::swap( m_isLocked, aImage->m_isLocked );
     swapData( aImage );
 

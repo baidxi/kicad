@@ -502,26 +502,16 @@ void PCB_IO_PADS::loadFootprints()
 
         auto decal_it = decals.find( decal_name );
 
+        double decalScale = ( decal_it != decals.end() )
+                                    ? decalUnitScale( decal_it->second.units )
+                                    : 0.0;
+
+        auto decalScaler = [&, decalScale]( double val ) {
+            return decalScale > 0.0 ? KiROUND( val * decalScale ) : scaleSize( val );
+        };
+
         if( decal_it != decals.end() )
-        {
-            auto decalScaler = [&]( double val ) {
-                if( m_parser->IsBasicUnits() )
-                    return scaleSize( val );
-
-                const std::string& units = decal_it->second.units;
-
-                if( units == "M" || units == "D" || units == "MILS" || units == "MIL" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::MILS_TO_NM );
-                else if( units == "MM" || units == "METRIC" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::MM_TO_NM );
-                else if( units == "I" || units == "INCHES" || units == "INCH" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::INCHES_TO_NM );
-                else
-                    return scaleSize( val );
-            };
-
             applyAttributes( decal_it->second.attributes, decalScaler );
-        }
         else
         {
              if( m_reporter )
@@ -573,21 +563,6 @@ void PCB_IO_PADS::loadFootprints()
         {
             const PADS_IO::PART_DECAL& decal = decal_it->second;
 
-            auto decalScaler = [&]( double val ) {
-                if( m_parser->IsBasicUnits() )
-                    return scaleSize( val );
-
-                if( decal.units == "M" || decal.units == "D" || decal.units == "MILS"
-                    || decal.units == "MIL" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::MILS_TO_NM );
-                else if( decal.units == "MM" || decal.units == "METRIC" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::MM_TO_NM );
-                else if( decal.units == "I" || decal.units == "INCHES" || decal.units == "INCH" )
-                    return KiROUND( val * PADS_UNIT_CONVERTER::INCHES_TO_NM );
-                else
-                    return scaleSize( val );
-            };
-
             auto convertPadShape = [&]( const PADS_IO::PAD_STACK_LAYER& layer_def,
                                         PAD* pad, PCB_LAYER_ID kicad_layer,
                                         const EDA_ANGLE& part_orient ) {
@@ -615,27 +590,11 @@ void PCB_IO_PADS::loadFootprints()
                 {
                     pad->SetShape( kicad_layer, PAD_SHAPE::RECTANGLE );
                     pad->SetSize( kicad_layer, size );
-
-                    if( layer_def.finger_offset != 0 )
-                    {
-                        int offset = decalScaler( layer_def.finger_offset );
-                        VECTOR2I pad_offset( offset, 0 );
-                        RotatePoint( pad_offset, EDA_ANGLE( layer_def.rotation, DEGREES_T ) );
-                        pad->SetOffset( kicad_layer, pad_offset );
-                    }
                 }
                 else if( shape == "OF" )
                 {
                     pad->SetShape( kicad_layer, PAD_SHAPE::OVAL );
                     pad->SetSize( kicad_layer, size );
-
-                    if( layer_def.finger_offset != 0 )
-                    {
-                        int offset = decalScaler( layer_def.finger_offset );
-                        VECTOR2I pad_offset( offset, 0 );
-                        RotatePoint( pad_offset, EDA_ANGLE( layer_def.rotation, DEGREES_T ) );
-                        pad->SetOffset( kicad_layer, pad_offset );
-                    }
                 }
                 else if( shape == "RC" || shape == "OC" )
                 {
@@ -654,19 +613,21 @@ void PCB_IO_PADS::loadFootprints()
                     {
                         pad->SetRoundRectRadiusRatio( kicad_layer, 0.25 );
                     }
-
-                    if( layer_def.finger_offset != 0 )
-                    {
-                        int offset = decalScaler( layer_def.finger_offset );
-                        VECTOR2I pad_offset( offset, 0 );
-                        RotatePoint( pad_offset, EDA_ANGLE( layer_def.rotation, DEGREES_T ) );
-                        pad->SetOffset( kicad_layer, pad_offset );
-                    }
                 }
                 else
                 {
                     pad->SetShape( kicad_layer, PAD_SHAPE::CIRCLE );
                     pad->SetSize( kicad_layer, VECTOR2I( size.x, size.x ) );
+                }
+
+                if( layer_def.finger_offset != 0 )
+                {
+                    // finger_offset runs along the finger's long axis (pad-local X before
+                    // rotation).  PAD::ShapePos() rotates the offset by GetOrientation(), so
+                    // store it unrotated; pre-rotating by layer_def.rotation here would
+                    // double-apply the rotation.
+                    pad->SetOffset( kicad_layer,
+                                    VECTOR2I( decalScaler( layer_def.finger_offset ), 0 ) );
                 }
 
                 pad->SetOrientation( part_orient + EDA_ANGLE( layer_def.rotation, DEGREES_T ) );
@@ -781,10 +742,6 @@ void PCB_IO_PADS::loadFootprints()
                     {
                         std::string front_shape;
                         std::string back_shape;
-                        double front_sizeA = 0;
-                        double back_sizeA = 0;
-                        double front_sizeB = 0;
-                        double back_sizeB = 0;
 
                         for( const auto& layer_def : stack )
                         {
@@ -800,27 +757,28 @@ void PCB_IO_PADS::loadFootprints()
                             PCB_LAYER_ID mapped = mapPadsLayer( layer_def.layer );
 
                             if( mapped == F_Cu && front_shape.empty() )
-                            {
                                 front_shape = layer_def.shape;
-                                front_sizeA = layer_def.sizeA;
-                                front_sizeB = layer_def.sizeB;
-                            }
                             else if( mapped == B_Cu && back_shape.empty() )
-                            {
                                 back_shape = layer_def.shape;
-                                back_sizeA = layer_def.sizeA;
-                                back_sizeB = layer_def.sizeB;
-                            }
                         }
 
+                        // Only switch to FRONT_INNER_BACK when the pad shape itself
+                        // differs between front and back copper.  Size-only differences
+                        // (e.g. different annular ring diameters) are represented in
+                        // NORMAL mode using the primary (front/component-side) shape, which
+                        // keeps mirrored placements visually consistent with the original.
                         if( !front_shape.empty() && !back_shape.empty()
-                            && ( front_shape != back_shape
-                                 || front_sizeA != back_sizeA
-                                 || front_sizeB != back_sizeB ) )
+                            && front_shape != back_shape )
                         {
                             pad->Padstack().SetMode( PADSTACK::MODE::FRONT_INNER_BACK );
                         }
                     }
+
+                    // Tracks whether convertPadShape has already been called for a copper
+                    // layer in NORMAL mode.  In NORMAL mode all copper layers map to the
+                    // same ALL_LAYERS slot, so a second call would overwrite the first.
+                    // The primary (layer -2, component-side) entry must win.
+                    bool normal_copper_set = false;
 
                     for( const auto& layer_def : stack )
                     {
@@ -898,7 +856,24 @@ void PCB_IO_PADS::loadFootprints()
                         else if( kicad_layer != UNDEFINED_LAYER )
                         {
                             layer_set.set( kicad_layer );
+
+                            // In NORMAL mode, all copper entries map to the same ALL_LAYERS
+                            // slot.  Only the first (primary/component-side) entry sets the
+                            // shape; later entries for secondary copper are skipped so they
+                            // do not overwrite the primary size.
+                            bool is_copper = IsCopperLayer( kicad_layer );
+
+                            if( is_copper
+                                && normal_copper_set
+                                && pad->Padstack().Mode() == PADSTACK::MODE::NORMAL )
+                            {
+                                continue;
+                            }
+
                             convertPadShape( layer_def, pad, kicad_layer, part_orient );
+
+                            if( is_copper )
+                                normal_copper_set = true;
                         }
                     }
 
@@ -1244,6 +1219,7 @@ void PCB_IO_PADS::loadReuseBlockGroups()
 void PCB_IO_PADS::loadTestPoints()
 {
     const auto& test_points = m_parser->GetTestPoints();
+    const auto& via_defs = m_parser->GetViaDefs();
 
     for( const auto& tp : test_points )
     {
@@ -1256,18 +1232,72 @@ void PCB_IO_PADS::loadTestPoints()
         VECTOR2I pos( scaleCoord( tp.x, true ), scaleCoord( tp.y, false ) );
         footprint->SetPosition( pos );
 
-        PCB_LAYER_ID layer = F_Cu;
+        // Default layer and size; refined below from the via definition.
+        PCB_LAYER_ID layer = ( tp.side == 2 ) ? B_Cu : F_Cu;
+        int tpSize = std::max( scaleSize( 50.0 ), m_minObjectSize );
 
-        if( tp.side == 2 )
-            layer = B_Cu;
+        auto it = via_defs.find( tp.symbol_name );
 
-        footprint->SetLayer( ( layer == B_Cu ) ? B_Cu : F_Cu );
+        if( it != via_defs.end() )
+        {
+            const PADS_IO::VIA_DEF& def = it->second;
+
+            // Inspect the pad stack once to recover both the pad size and the
+            // board side.  A non-zero pad on copper layer -2 (top) or -1 (bottom)
+            // takes first priority for the side; when those are both zero (an
+            // in-circuit test point) the soldermask layers (25=top, 28=bottom)
+            // indicate the side instead.  The pad size falls back to the largest
+            // stack entry when the via definition carries no explicit size.
+            double stackSize    = def.size;
+            bool   hasTopPad    = false;
+            bool   hasBottomPad = false;
+            bool   hasMaskTop   = false;
+            bool   hasMaskBot   = false;
+
+            for( const auto& stackLayer : def.stack )
+            {
+                if( def.size <= 0.0 && stackLayer.sizeA > stackSize )
+                    stackSize = stackLayer.sizeA;
+
+                if( stackLayer.layer == PADS_LAYER_MAPPER::LAYER_PAD_STACK_TOP
+                    && stackLayer.sizeA > 0.0 )
+                {
+                    hasTopPad = true;
+                }
+                else if( stackLayer.layer == PADS_LAYER_MAPPER::LAYER_PAD_STACK_BOTTOM
+                         && stackLayer.sizeA > 0.0 )
+                {
+                    hasBottomPad = true;
+                }
+                else if( stackLayer.layer == PADS_LAYER_MAPPER::LAYER_SOLDERMASK_TOP )
+                {
+                    hasMaskTop = true;
+                }
+                else if( stackLayer.layer == PADS_LAYER_MAPPER::LAYER_SOLDERMASK_BOTTOM )
+                {
+                    hasMaskBot = true;
+                }
+            }
+
+            if( stackSize > 0.0 )
+                tpSize = std::max( scaleSize( stackSize ), m_minObjectSize );
+
+            if( hasTopPad && !hasBottomPad )
+                layer = F_Cu;
+            else if( hasBottomPad && !hasTopPad )
+                layer = B_Cu;
+            else if( hasMaskBot && !hasMaskTop )
+                layer = B_Cu;
+            else if( hasMaskTop && !hasMaskBot )
+                layer = F_Cu;
+        }
+
+        footprint->SetLayer( layer );
 
         PAD* pad = new PAD( footprint );
         pad->SetNumber( wxT( "1" ) );
         pad->SetPosition( pos );
         pad->SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE );
-        int tpSize = std::max( scaleSize( 50.0 ), m_minObjectSize );
         pad->SetSize( PADSTACK::ALL_LAYERS, VECTOR2I( tpSize, tpSize ) );
         pad->SetAttribute( PAD_ATTRIB::SMD );
         pad->SetLayerSet( layer == B_Cu ? LSET( { B_Cu } ) : LSET( { F_Cu } ) );
@@ -1366,6 +1396,19 @@ void PCB_IO_PADS::loadTracksAndVias()
     const auto& routes = m_parser->GetRoutes();
     std::set<std::pair<int, int>> placedThroughVias;
 
+    // Build a position set for test-point vias so we don't also place a bare
+    // PCB_VIA at those locations; loadTestPoints() already creates footprints.
+    std::set<std::pair<int, int>> testPointPositions;
+
+    for( const auto& tp : m_parser->GetTestPoints() )
+    {
+        if( tp.type == "VIA" )
+        {
+            testPointPositions.emplace( scaleCoord( tp.x, true ),
+                                        scaleCoord( tp.y, false ) );
+        }
+    }
+
     for( const auto& route : routes )
     {
         NETINFO_ITEM* net = m_loadBoard->FindNet( PADS_COMMON::ConvertInvertedNetName( route.net_name ) );
@@ -1434,6 +1477,10 @@ void PCB_IO_PADS::loadTracksAndVias()
         {
             VECTOR2I pos( scaleCoord( via_def.location.x, true ),
                           scaleCoord( via_def.location.y, false ) );
+
+            // Test-point vias are imported as footprints by loadTestPoints().
+            if( testPointPositions.count( { pos.x, pos.y } ) )
+                continue;
 
             VIATYPE viaType = VIATYPE::THROUGH;
             auto it = m_parser->GetViaDefs().find( via_def.name );
@@ -1703,6 +1750,8 @@ void PCB_IO_PADS::loadCopperShapes()
             appendArcPoints( outline, copper.outline );
             outline.SetClosed( true );
             zone->Outline()->AddOutline( outline );
+            zone->SetBorderDisplayStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_EDGE, ZONE::GetDefaultHatchPitch(), true );
+
             m_loadBoard->Add( zone );
         }
         else
@@ -1876,6 +1925,7 @@ void PCB_IO_PADS::loadZones()
 
         zone->Outline()->NewOutline();
         appendArcPoints( zone->Outline()->Outline( 0 ), pour_def.points );
+        zone->SetBorderDisplayStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_EDGE, ZONE::GetDefaultHatchPitch(), true );
 
         if( pour_def.is_cutout )
         {
@@ -1940,6 +1990,8 @@ void PCB_IO_PADS::loadZones()
             fillPoly.Simplify();
         }
 
+        fillPoly.Inflate( scaleSize( pour_def.width ) / 2, CORNER_STRATEGY::ROUND_ALL_CORNERS, ARC_HIGH_DEF );
+
         // Collect all matching VOIDOUT regions into a single poly set and
         // subtract in one operation. PADS VOIDOUT shapes can extend beyond
         // the HATOUT outline boundary (PADS clips at render time), so
@@ -1966,8 +2018,12 @@ void PCB_IO_PADS::loadZones()
             if( parentIt->second != pour_def.owner_pour )
                 continue;
 
-            allVoids.NewOutline();
-            appendArcPoints( allVoids.Outline( allVoids.OutlineCount() - 1 ), void_def.points );
+            SHAPE_POLY_SET voidPoly;
+            voidPoly.NewOutline();
+            appendArcPoints( voidPoly.Outline( 0 ), void_def.points );
+            voidPoly.Inflate( scaleSize( void_def.width ) / 2, CORNER_STRATEGY::ROUND_ALL_CORNERS, ARC_HIGH_DEF );
+
+            allVoids.Append( voidPoly );
         }
 
         if( allVoids.OutlineCount() > 0 )
@@ -2226,6 +2282,7 @@ void PCB_IO_PADS::loadKeepouts()
 
         koChain.SetClosed( true );
         zone->Outline()->AddOutline( koChain );
+        zone->SetBorderDisplayStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_EDGE, ZONE::GetDefaultHatchPitch(), true );
 
         m_loadBoard->Add( zone );
     }
@@ -2409,6 +2466,24 @@ int PCB_IO_PADS::scaleSize( double aVal ) const
 {
     int64_t nm = m_unitConverter.ToNanometersSize( aVal );
     return static_cast<int>( std::clamp<int64_t>( nm, INT_MIN, INT_MAX ) );
+}
+
+
+double PCB_IO_PADS::decalUnitScale( const std::string& aUnits ) const
+{
+    if( m_parser->IsBasicUnits() )
+        return 0.0;
+
+    if( aUnits == "I" || aUnits == "MIL" || aUnits == "MILS" )
+        return PADS_UNIT_CONVERTER::MILS_TO_NM;
+
+    if( aUnits == "M" || aUnits == "MM" || aUnits == "METRIC" )
+        return PADS_UNIT_CONVERTER::MM_TO_NM;
+
+    if( aUnits == "INCH" || aUnits == "INCHES" )
+        return PADS_UNIT_CONVERTER::INCHES_TO_NM;
+
+    return 0.0;
 }
 
 

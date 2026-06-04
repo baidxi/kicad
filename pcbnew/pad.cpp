@@ -132,6 +132,7 @@ PAD& PAD::operator=( const PAD &aOther )
     BOARD_CONNECTED_ITEM::operator=( aOther );
 
     ImportSettingsFrom( aOther );
+    SetSimElectricalType( aOther.GetSimElectricalType() );
     SetPadToDieLength( aOther.GetPadToDieLength() );
     SetPadToDieDelay( aOther.GetPadToDieDelay() );
     SetPosition( aOther.GetPosition() );
@@ -211,6 +212,8 @@ void PAD::Serialize( google::protobuf::Any &aContainer ) const
         pad.mutable_symbol_pin()->set_no_connect( pt->second );
     }
 
+    pad.set_sim_electrical_type( ToProtoEnum<PAD_SIM_ELECTRICAL_TYPE, PadSimElectricalType>( GetSimElectricalType() ) );
+
     aContainer.PackFrom( pad );
 }
 
@@ -230,6 +233,7 @@ bool PAD::Deserialize( const google::protobuf::Any &aContainer )
     SetNumber( wxString::FromUTF8( pad.number() ) );
     SetPadToDieLength( pad.pad_to_die_length().value_nm() );
     SetPadToDieDelay( pad.pad_to_die_delay().value_as() );
+    SetSimElectricalType( FromProtoEnum<PAD_SIM_ELECTRICAL_TYPE>( pad.sim_electrical_type() ) );
 
     google::protobuf::Any padStackWrapper;
     padStackWrapper.PackFrom( pad.pad_stack() );
@@ -1570,6 +1574,24 @@ VECTOR2I PAD::ShapePos( PCB_LAYER_ID aLayer ) const
 }
 
 
+void PAD::SwapShapePositions( PAD* aLhs, PAD* aRhs )
+{
+    wxCHECK( aLhs && aRhs, /* void */ );
+
+    VECTOR2I lhsShapePos = aLhs->ShapePos( PADSTACK::ALL_LAYERS );
+    VECTOR2I rhsShapePos = aRhs->ShapePos( PADSTACK::ALL_LAYERS );
+
+    VECTOR2I lhsOffset = aLhs->GetOffset( PADSTACK::ALL_LAYERS );
+    VECTOR2I rhsOffset = aRhs->GetOffset( PADSTACK::ALL_LAYERS );
+
+    RotatePoint( lhsOffset, aLhs->GetOrientation() );
+    RotatePoint( rhsOffset, aRhs->GetOrientation() );
+
+    aLhs->SetPosition( rhsShapePos - lhsOffset );
+    aRhs->SetPosition( lhsShapePos - rhsOffset );
+}
+
+
 bool PAD::IsOnCopperLayer() const
 {
     if( GetAttribute() == PAD_ATTRIB::NPTH )
@@ -1887,6 +1909,14 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
     if( aFrame->GetName() == PCB_EDIT_FRAME_NAME )
     {
         aList.emplace_back( _( "Net" ), UnescapeString( GetNetname() ) );
+
+        if( NETINFO_ITEM* netInfo = GetNet() )
+        {
+            const wxString& chainName = netInfo->GetNetChain();
+
+            if( !chainName.IsEmpty() )
+                aList.emplace_back( _( "Net Chain" ), UnescapeString( chainName ) );
+        }
 
         aList.emplace_back( _( "Resolved Netclass" ),
                             UnescapeString( GetEffectiveNetClass()->GetHumanReadableName() ) );
@@ -2383,17 +2413,28 @@ double PAD::ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const
     const BOARD*         board = GetBoard();
 
     // Meta control for hiding all pads
-    if( !aView->IsLayerVisible( LAYER_PADS ) )
+    if( !aView->IsLayerVisibleCached( LAYER_PADS ) )
         return LOD_HIDE;
 
     // Handle Render tab switches
     //const PCB_LAYER_ID& pcbLayer = static_cast<PCB_LAYER_ID>( aLayer );
 
-    if( !IsFlipped() && !aView->IsLayerVisible( LAYER_FOOTPRINTS_FR ) )
-        return LOD_HIDE;
+    {
+        const LSET padLayers = GetLayerSet();
+        const bool onFront = ( padLayers & LSET::FrontMask() ).any();
+        const bool onBack = ( padLayers & LSET::BackMask() ).any();
+        const bool frVis = aView->IsLayerVisible( LAYER_FOOTPRINTS_FR );
+        const bool bkVis = aView->IsLayerVisible( LAYER_FOOTPRINTS_BK );
 
-    if( IsFlipped() && !aView->IsLayerVisible( LAYER_FOOTPRINTS_BK ) )
-        return LOD_HIDE;
+        if( onFront && !onBack && !frVis )
+            return LOD_HIDE;
+
+        if( onBack && !onFront && !bkVis )
+            return LOD_HIDE;
+
+        if( onFront && onBack && !frVis && !bkVis )
+            return LOD_HIDE;
+    }
 
     if( IsHoleLayer( aLayer ) )
     {
@@ -3313,6 +3354,11 @@ static struct PAD_DESC
                 .Map( PAD_DRILL_SHAPE::CIRCLE,     _HKI( "Round" ) )
                 .Map( PAD_DRILL_SHAPE::OBLONG,     _HKI( "Oblong" ) );
 
+        ENUM_MAP<PAD_SIM_ELECTRICAL_TYPE>::Instance()
+                .Map( PAD_SIM_ELECTRICAL_TYPE::NONE, _HKI( "None" ) )
+                .Map( PAD_SIM_ELECTRICAL_TYPE::SOURCE, _HKI( "Source" ) )
+                .Map( PAD_SIM_ELECTRICAL_TYPE::SINK, _HKI( "Sink" ) );
+
         // Ensure post-machining mode enum choices are defined before properties use them
         {
             ENUM_MAP<PAD_DRILL_POST_MACHINING_MODE>& pmMap =
@@ -3426,6 +3472,7 @@ static struct PAD_DESC
                     &PAD::SetPinFunction, &PAD::GetPinFunction ),
                     groupPad )
                 .SetIsHiddenFromLibraryEditors();
+
         propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pin Type" ),
                     &PAD::SetPinType, &PAD::GetPinType ),
                     groupPad )
@@ -3439,6 +3486,11 @@ static struct PAD_DESC
 
                         return choices;
                     } );
+
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_SIM_ELECTRICAL_TYPE>( _HKI( "Simulation Electrical Type" ),
+                                                                              &PAD::SetSimElectricalType,
+                                                                              &PAD::GetSimElectricalType ),
+                             groupPad );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size X" ),
                     &PAD::SetSizeX, &PAD::GetSizeX, PROPERTY_DISPLAY::PT_SIZE ),
@@ -3781,3 +3833,4 @@ ENUM_TO_WXANY( PAD_ATTRIB );
 ENUM_TO_WXANY( PAD_SHAPE );
 ENUM_TO_WXANY( PAD_PROP );
 ENUM_TO_WXANY( PAD_DRILL_SHAPE );
+ENUM_TO_WXANY( PAD_SIM_ELECTRICAL_TYPE );

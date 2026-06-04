@@ -275,6 +275,25 @@ public:
     std::vector<IbisDiffPinEntry> m_entries;
 };
 
+
+/** @brief One row of a [Series Pin Mapping] table (IBIS 4.1+). */
+class IbisComponentSeriesPinMapping : public IBIS_INPUT
+{
+public:
+    IbisComponentSeriesPinMapping( REPORTER* aReporter ) :
+            IBIS_INPUT( aReporter )
+    {};
+
+    virtual ~IbisComponentSeriesPinMapping()
+    {};
+
+    std::string m_pin1;
+    std::string m_pin2;
+    std::string m_modelName;
+    std::string m_functionTableGroup;
+};
+
+
 class IbisComponent : public IBIS_INPUT
 {
 public:
@@ -287,15 +306,16 @@ public:
     virtual ~IbisComponent()
     {};
 
-    std::string                             m_name = "";
-    std::string                             m_manufacturer = "";
-    IbisComponentPackage                    m_package;
-    std::vector<IbisComponentPin>           m_pins;
-    std::vector<IbisComponentPinMapping>    m_pinMappings;
-    std::string                             m_packageModel;
-    std::string                             m_busLabel;
-    std::string                             m_dieSupplyPads;
-    IbisDiffPin                             m_diffPin;
+    std::string                                    m_name = "";
+    std::string                                    m_manufacturer = "";
+    IbisComponentPackage                           m_package;
+    std::vector<IbisComponentPin>                  m_pins;
+    std::vector<IbisComponentPinMapping>           m_pinMappings;
+    std::string                                    m_packageModel;
+    std::string                                    m_busLabel;
+    std::string                                    m_dieSupplyPads;
+    IbisDiffPin                                    m_diffPin;
+    std::vector<IbisComponentSeriesPinMapping>     m_seriesPinMappings;
 
     bool Check() override;
 };
@@ -538,6 +558,49 @@ public:
 };
 
 
+// One [Series MOSFET] block.  Multiple blocks per path = one per Vds.
+class IbisMosfetEntry : public IBIS_INPUT
+{
+public:
+    IbisMosfetEntry( REPORTER* aReporter ) :
+            IBIS_INPUT( aReporter ),
+            m_table( aReporter )
+    {};
+
+    double  m_Vds = nan( NAN_NA );
+    IVtable m_table;
+};
+
+
+// Per-path series RLC + IV.  m_seen tracks [On]/[Off] presence for Check().
+class IbisSeriesData : public IBIS_INPUT
+{
+public:
+    IbisSeriesData( REPORTER* aReporter ) :
+            IBIS_INPUT( aReporter ),
+            m_Rseries( aReporter ),
+            m_Lseries( aReporter ),
+            m_Cseries( aReporter ),
+            m_RlSeries( aReporter ),
+            m_LcSeries( aReporter ),
+            m_RcSeries( aReporter ),
+            m_seriesCurrent( aReporter )
+    {};
+
+    TypMinMaxValue               m_Rseries;
+    TypMinMaxValue               m_Lseries;
+    TypMinMaxValue               m_Cseries;
+    TypMinMaxValue               m_RlSeries;
+    TypMinMaxValue               m_LcSeries;
+    TypMinMaxValue               m_RcSeries;
+    IVtable                      m_seriesCurrent;
+    std::vector<IbisMosfetEntry> m_seriesMosfet;
+    bool                         m_seen = false;
+
+    bool isPopulated() const;
+};
+
+
 class IbisModel : IBIS_INPUT
 {
 public:
@@ -565,7 +628,10 @@ public:
             m_ISSO_PU( aReporter ),
             m_ISSO_PD( aReporter ),
             m_compositeCurrent( aReporter ),
-            m_ramp( aReporter )
+            m_ramp( aReporter ),
+            m_series( aReporter ),
+            m_seriesOn( aReporter ),
+            m_seriesOff( aReporter )
     {};
 
     virtual ~IbisModel() = default;
@@ -609,6 +675,14 @@ public:
     std::vector<IbisWaveform*> m_risingWaveforms;
     std::vector<IbisWaveform*> m_fallingWaveforms;
     IbisRamp                   m_ramp;
+
+    /* Series and Series_switch model data.  For Series models, m_series holds
+     * the [R/L/C/Rl/Lc/Rc Series] and [Series Current] values that appear
+     * directly inside [Model].  For Series_switch models, the data inside the
+     * [On] and [Off] sub-blocks goes into m_seriesOn and m_seriesOff. */
+    IbisSeriesData             m_series;
+    IbisSeriesData             m_seriesOn;
+    IbisSeriesData             m_seriesOff;
 
     std::vector<IbisSubmodelMode> m_submodels;
 
@@ -715,6 +789,7 @@ enum class IBIS_PARSER_CONTINUE
     COMPONENT_PACKAGE,
     COMPONENT_PINMAPPING,
     COMPONENT_DIFFPIN,
+    COMPONENT_SERIES_PIN_MAPPING,
     COMPONENT_DIESUPPLYPADS,
     COMPONENT_PIN,
     MATRIX,
@@ -730,6 +805,7 @@ enum class IBIS_PARSER_CONTINUE
     VT_TABLE,
     RAMP,
     WAVEFORM,
+    SERIES_MOSFET,
     PACKAGEMODEL_PINS
 };
 
@@ -777,6 +853,8 @@ public:
     IVtable*           m_currentIVtable = nullptr;
     VTtable*           m_currentVTtable = nullptr;
     IbisWaveform*      m_currentWaveform = nullptr;
+    IbisSeriesData*    m_currentSeriesData = nullptr;
+    IbisMosfetEntry*   m_currentMosfetEntry = nullptr;
 
     /** @brief Parse a file
      *
@@ -827,6 +905,18 @@ private:
      * @return True in case of success
      */
     bool parseModel( std::string& aKeyword );
+
+    /** @brief Active series data: [On]/[Off] sub-block when set, else m_series. */
+    IbisSeriesData* currentSeriesData()
+    {
+        if( !m_currentModel )
+            return nullptr;
+
+        return m_currentSeriesData ? m_currentSeriesData : &m_currentModel->m_series;
+    }
+
+    /** @brief Read one [Series MOSFET] line (Vds subparam or IV row). */
+    bool readSeriesMosfet();
 
     /** @brief Parse a single keyword in the submodel context
      *
@@ -927,6 +1017,7 @@ private:
     bool readPin();
     bool readPinMapping();
     bool readDiffPin();
+    bool readSeriesPinMapping();
     bool readModelSelector();
     bool readModel();
     bool readSubmodel();

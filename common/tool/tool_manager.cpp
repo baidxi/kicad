@@ -25,6 +25,7 @@
  */
 
 #include <core/kicad_algo.h>
+#include <scoped_set_reset.h>
 #include <optional>
 #include <map>
 #include <stack>
@@ -181,27 +182,31 @@ struct TOOL_MANAGER::TOOL_STATE
             stateStack.pop();
             return true;
         }
-        else
-        {
-            cofunc = nullptr;
-            return false;
-        }
+
+        resetRuntimeState();
+        return false;
     }
 
 private:
     /// Stack preserving previous states of a TOOL.
     std::stack<std::unique_ptr<TOOL_STATE>> stateStack;
 
-    /// Restores the initial state.
-    void clear()
+    /// Resets runtime-only state that must not leak across tool activations.
+    void resetRuntimeState()
     {
-        idle               = true;
+        cofunc             = nullptr;
         shutdown           = false;
         pendingWait        = false;
         pendingContextMenu = false;
-        cofunc             = nullptr;
         contextMenu        = nullptr;
         contextMenuTrigger = CMENU_OFF;
+    }
+
+    /// Restores the initial state.
+    void clear()
+    {
+        idle = true;
+        resetRuntimeState();
         vcSettings.Reset();
         transitions.clear();
     }
@@ -338,7 +343,7 @@ bool TOOL_MANAGER::doRunAction( const TOOL_ACTION& aAction, bool aNow, const ki:
     TOOL_EVENT event = aAction.MakeEvent();
 
     if( event.Category() == TC_COMMAND )
-        event.SetMousePosition( GetCursorPosition() );
+        event.SetMousePosition( m_hotKeyPos.value_or( GetCursorPosition() ) );
 
     // Allow to override the action parameter
     if( aParam.has_value() )
@@ -1175,6 +1180,16 @@ void TOOL_MANAGER::applyViewControls( const TOOL_STATE* aState )
 bool TOOL_MANAGER::processEvent( const TOOL_EVENT& aEvent )
 {
     wxLogTrace( kicadTraceToolStack, wxS( "TOOL_MANAGER::processEvent - %s" ), aEvent.Format() );
+
+    // Capture the cursor position from the keyboard event so that hotkey-triggered actions use
+    // the position at keypress time rather than polling a potentially stale position later in the
+    // dispatch chain.  The scoped guard restores any prior value so a nested hotkey dispatch does
+    // not clobber the outer position.
+    std::optional<VECTOR2D> hotKeyPos = aEvent.HasPosition() && aEvent.Action() == TA_KEY_PRESSED
+                                                ? std::make_optional( aEvent.Position() )
+                                                : m_hotKeyPos;
+
+    SCOPED_SET_RESET<std::optional<VECTOR2D>> scopedHotKeyPos( m_hotKeyPos, hotKeyPos );
 
     // First try to dispatch the action associated with the event if it is a key press event
     bool handled = DispatchHotKey( aEvent );

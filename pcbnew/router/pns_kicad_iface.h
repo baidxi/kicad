@@ -102,6 +102,9 @@ public:
 
     PCB_LAYER_ID GetBoardLayerFromPNSLayer( int aLayer ) const override;
     int GetPNSLayerFromBoardLayer( PCB_LAYER_ID aLayer ) const override;
+    bool GetSignalAggregate( PNS::NET_HANDLE aNetP, PNS::NET_HANDLE aNetN,
+                             long long& aExtraLength, long long& aExtraDelay ) const override;
+    long long GetNetBoardLength( PNS::NET_HANDLE aNet ) const override;
 
     void SetStartLayerFromPCBNew( PCB_LAYER_ID aLayer );
     void SetStartLayerFromPNS( int aLayer ) { m_startLayer = aLayer; }
@@ -117,6 +120,9 @@ public:
     PNS::RULE_RESOLVER* GetRuleResolver() override;
     PNS::DEBUG_DECORATOR* GetDebugDecorator() override;
 
+    std::vector<LENGTH_DELAY_CALCULATION_ITEM> GetLengthDelayCalculationItems( const PNS::ITEM_SET& aLine,
+                                                                               const NETCLASS*      aNetClass ) const;
+
 protected:
     PNS_PCBNEW_RULE_RESOLVER* m_ruleResolver;
     PNS::DEBUG_DECORATOR* m_debugDecorator;
@@ -131,8 +137,6 @@ protected:
     bool syncZone( PNS::NODE* aWorld, ZONE* aZone, SHAPE_POLY_SET* aBoardOutline );
     bool syncBarcode( PNS::NODE* aWorld, PCB_BARCODE* aBarcode );
     bool inheritTrackWidth( PNS::ITEM* aItem, int* aInheritedWidth, const VECTOR2I& aStartPosition );
-    std::vector<LENGTH_DELAY_CALCULATION_ITEM> getLengthDelayCalculationItems( const PNS::ITEM_SET& aLine,
-                                                                               const NETCLASS*      aNetClass ) const;
 
 protected:
     PNS::NODE* m_world;
@@ -165,6 +169,8 @@ public:
     int GetNetCode( PNS::NET_HANDLE aNet ) const override;
     wxString GetNetName( PNS::NET_HANDLE aNet ) const override;
     void UpdateNet( PNS::NET_HANDLE aNet ) override;
+    bool GetSignalAggregate( PNS::NET_HANDLE aNetP, PNS::NET_HANDLE aNetN,
+                             long long& aExtraLength, long long& aExtraDelay ) const override;
 
     EDA_UNITS GetUnits() const override;
 

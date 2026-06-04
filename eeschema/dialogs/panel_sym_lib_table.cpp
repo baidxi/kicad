@@ -194,9 +194,18 @@ protected:
     void openTable( const LIBRARY_TABLE_ROW& aRow ) override
     {
         wxFileName fn( LIBRARY_MANAGER::ExpandURI( aRow.URI(), Pgm().GetSettingsManager().Prj() ) );
-        std::shared_ptr<LIBRARY_TABLE> child = std::make_shared<LIBRARY_TABLE>( fn, LIBRARY_TABLE_SCOPE::GLOBAL );
+        std::shared_ptr<LIBRARY_TABLE> child = std::make_shared<LIBRARY_TABLE>( fn, LIBRARY_TABLE_SCOPE::GLOBAL, LIBRARY_TABLE_TYPE::SYMBOL );
 
-        m_panel->OpenTable( child, aRow.Nickname() );
+        if( !child->IsOk() )
+        {
+            wxMessageBox( _( "Unable to load library table." ) );
+        }
+        else
+        {
+            Pgm().GetLibraryManager().ApplyLibOverrides( *child );
+
+            m_panel->OpenTable( child, aRow.Nickname() );
+        }
     }
 
     wxString getTablePreamble() override
@@ -216,9 +225,14 @@ protected:
 
 void PANEL_SYM_LIB_TABLE::OpenTable( const std::shared_ptr<LIBRARY_TABLE>& aTable, const wxString& aTitle )
 {
+    wxString tabTitle = aTitle;
+
+    if( aTable->IsReadOnly() )
+        tabTitle += wxS( " " ) + _( "(read-only)" );
+
     for( int ii = 2; ii < (int) m_notebook->GetPageCount(); ++ii )
     {
-        if( m_notebook->GetPageText( ii ) == aTitle )
+        if( m_notebook->GetPageText( ii ) == tabTitle )
         {
             // Something is pretty fishy with wxAuiNotebook::ChangeSelection(); on Mac at least it
             // results in a re-entrant call where the second call is one page behind.
@@ -230,7 +244,7 @@ void PANEL_SYM_LIB_TABLE::OpenTable( const std::shared_ptr<LIBRARY_TABLE>& aTabl
     }
 
     m_nestedTables.push_back( aTable );
-    AddTable( aTable.get(), aTitle, true );
+    AddTable( aTable.get(), tabTitle, true );
 
     // Something is pretty fishy with wxAuiNotebook::ChangeSelection(); on Mac at least it
     // results in a re-entrant call where the second call is one page behind.
@@ -272,6 +286,16 @@ void PANEL_SYM_LIB_TABLE::AddTable( LIBRARY_TABLE* table, const wxString& aTitle
     }
 
     static_cast<LIB_TABLE_GRID_DATA_MODEL*>( grid->GetTable() )->RecheckRows();
+
+    LIB_TABLE_NOTEBOOK_PANEL* notebookPanel =
+            static_cast<LIB_TABLE_NOTEBOOK_PANEL*>( m_notebook->GetPage( m_notebook->GetPageCount() - 1 ) );
+
+    static_cast<LIB_TABLE_GRID_DATA_MODEL*>( grid->GetTable() )
+            ->SetChangeCallback(
+                    [notebookPanel]()
+                    {
+                        notebookPanel->MarkDirty();
+                    } );
 
     // add Cut, Copy, and Paste to wxGrids
     grid->PushEventHandler( new SYMBOL_GRID_TRICKS( this, grid,
@@ -409,6 +433,32 @@ PANEL_SYM_LIB_TABLE::PANEL_SYM_LIB_TABLE( DIALOG_EDIT_LIBRARY_TABLES* aParent, P
     m_notebook->Bind( wxEVT_AUINOTEBOOK_PAGE_CLOSE, &PANEL_SYM_LIB_TABLE::onNotebookPageCloseRequest, this );
     m_notebook->Bind( wxEVT_AUINOTEBOOK_PAGE_CHANGING, &PANEL_SYM_LIB_TABLE::onNotebookPageChangeRequest, this );
     m_browseButton->Bind( wxEVT_BUTTON, &PANEL_SYM_LIB_TABLE::browseLibrariesHandler, this );
+
+    m_parent->SetCanCloseCheck(
+            [this]()
+            {
+                for( int ii = 0; ii < (int) m_notebook->GetPageCount(); ++ii )
+                {
+                    LIB_TABLE_NOTEBOOK_PANEL* panel =
+                            static_cast<LIB_TABLE_NOTEBOOK_PANEL*>( m_notebook->GetPage( ii ) );
+
+                    if( panel->GetClosable() )
+                    {
+                        bool wasDirty = panel->TableModified();
+
+                        if( !panel->GetCanClose() )
+                            return false;
+
+                        if( wasDirty && !panel->TableModified() )
+                        {
+                            m_parent->m_GlobalTableChanged = true;
+                            m_parent->m_ProjectTableChanged = true;
+                        }
+                    }
+                }
+
+                return true;
+            } );
 }
 
 
@@ -698,6 +748,12 @@ void PANEL_SYM_LIB_TABLE::onReset( wxCommandEvent& event )
                                                           lastGlobalLibDir, wxEmptyString ),
                     true /* take ownership */ );
 
+    LIB_TABLE_NOTEBOOK_PANEL* panel0 =
+            static_cast<LIB_TABLE_NOTEBOOK_PANEL*>( m_notebook->GetPage( 0 ) );
+    panel0->ClearDirty();
+    static_cast<LIB_TABLE_GRID_DATA_MODEL*>( grid->GetTable() )->SetChangeCallback(
+            [panel0]() { panel0->MarkDirty(); } );
+
     m_parent->m_GlobalTableChanged = true;
 
     grid->Thaw();
@@ -757,16 +813,19 @@ void PANEL_SYM_LIB_TABLE::onConvertLegacyLibraries( wxCommandEvent& event )
 
     wxArrayInt legacyRows;
     wxString   databaseType = SCH_IO_MGR::ShowType( SCH_IO_MGR::SCH_DATABASE );
+    wxString   httpType = SCH_IO_MGR::ShowType( SCH_IO_MGR::SCH_HTTP );
     wxString   kicadType = SCH_IO_MGR::ShowType( SCH_IO_MGR::SCH_KICAD );
     wxString   msg;
 
+    // HTTP and Database libraries are live, dynamic backends that are not file-based.
+    // Migrating them to a static .kicad_sym snapshot is not meaningful and would silently
+    // produce an empty library, destroying the original table entry.
     for( int row : selectedRows )
     {
-        if( cur_grid()->GetCellValue( row, COL_TYPE ) != databaseType
-                && cur_grid()->GetCellValue( row, COL_TYPE ) != kicadType )
-        {
+        const wxString& type = cur_grid()->GetCellValue( row, COL_TYPE );
+
+        if( type != databaseType && type != httpType && type != kicadType )
             legacyRows.push_back( row );
-        }
     }
 
     if( legacyRows.size() <= 0 )
@@ -882,18 +941,6 @@ bool PANEL_SYM_LIB_TABLE::TransferDataFromWindow()
                         wxMessageBox( _( "Error saving project library table:\n\n" ) + aError.message,
                                       _( "File Save Error" ), wxOK | wxICON_ERROR );
                     } );
-        }
-    }
-
-    for( int ii = 0; ii < (int) m_notebook->GetPageCount(); ++ii )
-    {
-        LIB_TABLE_NOTEBOOK_PANEL* panel = static_cast<LIB_TABLE_NOTEBOOK_PANEL*>( m_notebook->GetPage( ii ) );
-
-        if( panel->GetClosable() && panel->TableModified() )
-        {
-            panel->SaveTable();
-            m_parent->m_GlobalTableChanged = true;
-            m_parent->m_ProjectTableChanged = true;
         }
     }
 

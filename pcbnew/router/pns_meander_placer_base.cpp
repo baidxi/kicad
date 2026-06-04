@@ -18,10 +18,12 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <core/typeinfo.h> 
 
 #include "pns_meander_placer_base.h"
 #include "pns_meander.h"
 #include "pns_router.h"
+#include "pns_segment.h"
 #include "pns_solid.h"
 #include "pns_arc.h"
 
@@ -43,6 +45,51 @@ MEANDER_PLACER_BASE::MEANDER_PLACER_BASE( ROUTER* aRouter ) :
 
 MEANDER_PLACER_BASE::~MEANDER_PLACER_BASE()
 {
+}
+
+
+void MEANDER_PLACER_BASE::initChainExtras()
+{
+    m_chainExtrasLength = 0;
+    m_chainExtrasDelay = 0;
+    m_chainExtrasValid = false;
+
+    const std::vector<NET_HANDLE> startNets = CurrentNets();
+
+    if( startNets.empty() )
+        return;
+
+    NET_HANDLE first = startNets[0];
+    NET_HANDLE second = startNets.size() >= 2 ? startNets[1] : startNets[0];
+
+    long long extraLen = 0;
+    long long extraDelay = 0;
+
+    if( Router()->GetInterface()->GetSignalAggregate( first, second, extraLen, extraDelay ) )
+    {
+        m_chainExtrasLength = extraLen;
+        m_chainExtrasDelay = extraDelay;
+    }
+
+    m_chainExtrasValid = true;
+}
+
+
+long long int MEANDER_PLACER_BASE::chainNarrowingOffset() const
+{
+    if( !m_chainExtrasValid )
+        return 0;
+
+    const std::vector<NET_HANDLE> nets = CurrentNets();
+
+    long long tunedNetBoardLen = 0;
+
+    if( !nets.empty() )
+        tunedNetBoardLen = Router()->GetInterface()->GetNetBoardLength( nets[0] );
+
+    long long unmeasured = std::max( 0LL, tunedNetBoardLen - m_baselineLength );
+
+    return m_chainExtrasLength + unmeasured;
 }
 
 
@@ -254,30 +301,6 @@ void MEANDER_PLACER_BASE::tuneLineLength( MEANDERED_LINE& aTuned, long long int 
 const MEANDER_SETTINGS& MEANDER_PLACER_BASE::MeanderSettings() const
 {
     return m_settings;
-}
-
-
-VECTOR2I MEANDER_PLACER_BASE::getSnappedStartPoint( LINKED_ITEM* aStartItem, VECTOR2I aStartPoint )
-{
-    if( aStartItem->Kind() == ITEM::SEGMENT_T )
-    {
-        return static_cast<SEGMENT*>( aStartItem )->Seg().NearestPoint( aStartPoint );
-    }
-    else
-    {
-        wxASSERT( aStartItem->Kind() == ITEM::ARC_T );
-        ARC* arc = static_cast<ARC*>( aStartItem );
-
-        if( ( VECTOR2I( arc->Anchor( 0 ) - aStartPoint ) ).SquaredEuclideanNorm() <=
-            ( VECTOR2I( arc->Anchor( 1 ) - aStartPoint ) ).SquaredEuclideanNorm() )
-        {
-            return arc->Anchor( 0 );
-        }
-        else
-        {
-            return arc->Anchor( 1 );
-        }
-    }
 }
 
 

@@ -389,6 +389,12 @@ void DIALOG_PAD_PROPERTIES::prepareCanvas()
 }
 
 
+void DIALOG_PAD_PROPERTIES::OnElectricalTypeChaged( wxCommandEvent& event )
+{
+    transferDataToPad( m_previewPad );
+}
+
+
 void DIALOG_PAD_PROPERTIES::OnPadstackModeChanged( wxCommandEvent& aEvent )
 {
     transferDataToPad( m_previewPad );
@@ -882,6 +888,12 @@ void DIALOG_PAD_PROPERTIES::initValues()
         m_bottomPostMachineSize2Binder.SetValue( backPostMachining.depth );
     }
 
+    switch( m_previewPad->GetSimElectricalType() )
+    {
+    case PAD_SIM_ELECTRICAL_TYPE::NONE: m_simElectricalTypeCtrl->SetSelection( 0 ); break;
+    case PAD_SIM_ELECTRICAL_TYPE::SOURCE: m_simElectricalTypeCtrl->SetSelection( 1 ); break;
+    case PAD_SIM_ELECTRICAL_TYPE::SINK: m_simElectricalTypeCtrl->SetSelection( 2 ); break;
+    }
 
     updatePadLayersList( m_previewPad->GetLayerSet(), m_previewPad->GetRemoveUnconnected(),
                          m_previewPad->GetKeepTopBottom() );
@@ -1282,8 +1294,10 @@ void DIALOG_PAD_PROPERTIES::PadTypeSelected( wxCommandEvent& event )
     case APERTURE_DLG_TYPE: hasHole = false; hasConnection = false; break;
     }
 
-    // Update Layers dropdown list and selects the "best" layer set for the new pad type:
-    updatePadLayersList( {}, m_previewPad->GetRemoveUnconnected(), m_previewPad->GetKeepTopBottom() );
+    // Pad type just changed, so the old pad's layer set is no longer meaningful.  Pass nullopt
+    // to populate the defaults for the new type.
+    updatePadLayersList( std::nullopt, m_previewPad->GetRemoveUnconnected(),
+                         m_previewPad->GetKeepTopBottom() );
 
     m_gbSizerHole->Show( hasHole );
     m_staticline71->Show( hasHole );
@@ -1441,18 +1455,21 @@ void DIALOG_PAD_PROPERTIES::OnUpdateUINonCopperWarning( wxUpdateUIEvent& event )
 }
 
 
-void DIALOG_PAD_PROPERTIES::updatePadLayersList( LSET layer_mask, bool remove_unconnected,
-                                                 bool keep_top_bottom )
+void DIALOG_PAD_PROPERTIES::updatePadLayersList( std::optional<LSET> layer_mask,
+                                                 bool remove_unconnected, bool keep_top_bottom )
 {
     UpdateLayersDropdown();
+
+    // An empty LSET supplied by the caller is a valid user choice (a pad with no layers);
+    // std::nullopt is the signal that defaults for the current pad type should be used instead.
+    LSET effective_mask;
 
     switch( m_padType->GetSelection() )
     {
     case PTH_DLG_TYPE:
-        if( !layer_mask.any() )
-            layer_mask = PAD::PTHMask();
+        effective_mask = layer_mask.value_or( PAD::PTHMask() );
 
-        if( !( layer_mask & LSET::AllCuMask() ).any() )
+        if( !( effective_mask & LSET::AllCuMask() ).any() )
             m_rbCopperLayersSel->SetSelection( 3 );
         else if( !remove_unconnected )
             m_rbCopperLayersSel->SetSelection( 0 );
@@ -1464,10 +1481,14 @@ void DIALOG_PAD_PROPERTIES::updatePadLayersList( LSET layer_mask, bool remove_un
         break;
 
     case SMD_DLG_TYPE:
-        if( !layer_mask.any() )
-            layer_mask = PAD::SMDMask();
+        // The SMD/CONN UI has no "no copper" radio choice, so fall back to defaults if the
+        // stored mask has no copper layers.  Otherwise saving would silently force B_Cu.
+        effective_mask = layer_mask.value_or( PAD::SMDMask() );
 
-        if( layer_mask.test( F_Cu ) )
+        if( !( effective_mask & LSET::AllCuMask() ).any() )
+            effective_mask = PAD::SMDMask();
+
+        if( effective_mask.test( F_Cu ) )
             m_rbCopperLayersSel->SetSelection( 0 );
         else
             m_rbCopperLayersSel->SetSelection( 1 );
@@ -1475,10 +1496,12 @@ void DIALOG_PAD_PROPERTIES::updatePadLayersList( LSET layer_mask, bool remove_un
         break;
 
     case CONN_DLG_TYPE:
-        if( !layer_mask.any() )
-            layer_mask = PAD::ConnSMDMask();
+        effective_mask = layer_mask.value_or( PAD::ConnSMDMask() );
 
-        if( layer_mask.test( F_Cu ) )
+        if( !( effective_mask & LSET::AllCuMask() ).any() )
+            effective_mask = PAD::ConnSMDMask();
+
+        if( effective_mask.test( F_Cu ) )
             m_rbCopperLayersSel->SetSelection( 0 );
         else
             m_rbCopperLayersSel->SetSelection( 1 );
@@ -1486,14 +1509,13 @@ void DIALOG_PAD_PROPERTIES::updatePadLayersList( LSET layer_mask, bool remove_un
         break;
 
     case NPTH_DLG_TYPE:
-        if( !layer_mask.any() )
-            layer_mask = PAD::UnplatedHoleMask();
+        effective_mask = layer_mask.value_or( PAD::UnplatedHoleMask() );
 
-        if( layer_mask.test( F_Cu ) && layer_mask.test( B_Cu ) )
+        if( effective_mask.test( F_Cu ) && effective_mask.test( B_Cu ) )
             m_rbCopperLayersSel->SetSelection( 0 );
-        else if( layer_mask.test( F_Cu ) )
+        else if( effective_mask.test( F_Cu ) )
             m_rbCopperLayersSel->SetSelection( 1 );
-        else if( layer_mask.test( B_Cu ) )
+        else if( effective_mask.test( B_Cu ) )
             m_rbCopperLayersSel->SetSelection( 2 );
         else
             m_rbCopperLayersSel->SetSelection( 3 );
@@ -1501,29 +1523,28 @@ void DIALOG_PAD_PROPERTIES::updatePadLayersList( LSET layer_mask, bool remove_un
         break;
 
     case APERTURE_DLG_TYPE:
-        if( !layer_mask.any() )
-            layer_mask = PAD::ApertureMask();
+        effective_mask = layer_mask.value_or( PAD::ApertureMask() );
 
         m_rbCopperLayersSel->SetSelection( 0 );
         break;
     }
 
-    m_layerFrontAdhesive->SetValue( layer_mask[F_Adhes] );
-    m_layerBackAdhesive->SetValue( layer_mask[B_Adhes] );
+    m_layerFrontAdhesive->SetValue( effective_mask[F_Adhes] );
+    m_layerBackAdhesive->SetValue( effective_mask[B_Adhes] );
 
-    m_layerFrontPaste->SetValue( layer_mask[F_Paste] );
-    m_layerBackPaste->SetValue( layer_mask[B_Paste] );
+    m_layerFrontPaste->SetValue( effective_mask[F_Paste] );
+    m_layerBackPaste->SetValue( effective_mask[B_Paste] );
 
-    m_layerFrontSilk->SetValue( layer_mask[F_SilkS] );
-    m_layerBackSilk->SetValue( layer_mask[B_SilkS] );
+    m_layerFrontSilk->SetValue( effective_mask[F_SilkS] );
+    m_layerBackSilk->SetValue( effective_mask[B_SilkS] );
 
-    m_layerFrontMask->SetValue( layer_mask[F_Mask] );
-    m_layerBackMask->SetValue( layer_mask[B_Mask] );
+    m_layerFrontMask->SetValue( effective_mask[F_Mask] );
+    m_layerBackMask->SetValue( effective_mask[B_Mask] );
 
-    m_layerECO1->SetValue( layer_mask[Eco1_User] );
-    m_layerECO2->SetValue( layer_mask[Eco2_User] );
+    m_layerECO1->SetValue( effective_mask[Eco1_User] );
+    m_layerECO2->SetValue( effective_mask[Eco2_User] );
 
-    m_layerUserDwgs->SetValue( layer_mask[Dwgs_User] );
+    m_layerUserDwgs->SetValue( effective_mask[Dwgs_User] );
 }
 
 
@@ -1737,6 +1758,7 @@ bool DIALOG_PAD_PROPERTIES::TransferDataFromWindow()
     m_currentPad->SetPadstack( m_previewPad->Padstack() );
 
     m_currentPad->SetAttribute( m_masterPad->GetAttribute() );
+    m_currentPad->SetSimElectricalType( m_masterPad->GetSimElectricalType() );
     m_currentPad->SetFPRelativeOrientation( m_masterPad->GetOrientation() );
     m_currentPad->SetPadToDieLength( m_masterPad->GetPadToDieLength() );
     m_currentPad->SetPadToDieDelay( m_masterPad->GetPadToDieDelay() );
@@ -2047,6 +2069,14 @@ bool DIALOG_PAD_PROPERTIES::transferDataToPad( PAD* aPad )
             delta.y = aPad->GetSize( m_editLayer ).x - 2;
             error = true;
         }
+    }
+
+    switch( m_simElectricalTypeCtrl->GetSelection() )
+    {
+    case 0: aPad->SetSimElectricalType( PAD_SIM_ELECTRICAL_TYPE::NONE ); break;
+    case 1: aPad->SetSimElectricalType( PAD_SIM_ELECTRICAL_TYPE::SOURCE ); break;
+    case 2: aPad->SetSimElectricalType( PAD_SIM_ELECTRICAL_TYPE::SINK ); break;
+    default: aPad->SetSimElectricalType( PAD_SIM_ELECTRICAL_TYPE::NONE ); break;
     }
 
     aPad->SetDelta( m_editLayer, delta );

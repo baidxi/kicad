@@ -126,6 +126,11 @@ private:
 
 void DRC_TEST_PROVIDER_SOLDER_MASK::addItemToRTrees( BOARD_ITEM* aItem )
 {
+    // Rule areas are purely logical: no copper, no mask, no silk.  Skip them entirely
+    // so they cannot contribute to solder-mask bridge or silk-to-mask collisions.
+    if( aItem->Type() == PCB_ZONE_T && static_cast<ZONE*>( aItem )->GetIsRuleArea() )
+        return;
+
     for( PCB_LAYER_ID layer : { F_Mask, B_Mask } )
     {
         if( !aItem->IsOnLayer( layer ) )
@@ -371,9 +376,17 @@ bool DRC_TEST_PROVIDER_SOLDER_MASK::checkMaskAperture( BOARD_ITEM* aMaskItem, BO
         // avoiding race conditions from parallel thread execution.
         m_maskApertureNetMapAll[ key ].push_back( { aTestItem, aTestNet } );
 
-        if( encounteredItemNet == aTestNet && aTestNet >= 0 )
+        if( encounteredItemNet == aTestNet )
+            return false;
+
+        // Net code <= 0 is no net (NPTH, <no net> items). Cannot bridge.
+        if( aTestNet <= 0 )
+            return false;
+
+        if( encounteredItemNet <= 0 )
         {
-            // Same net; no bridge.
+            // Replace the no-net placeholder with this real net.
+            m_maskApertureNetMap[key] = { aTestItem, aTestNet };
             return false;
         }
     }
@@ -834,6 +847,10 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::testMaskBridges()
         {
             // Only report items from a different net than the colliding item.
             if( firstNet == collision.collidingNet )
+                continue;
+
+            // No-net items cannot bridge.
+            if( firstNet <= 0 )
                 continue;
 
             // Deduplicate: ensure we don't report the same triplet twice.

@@ -24,6 +24,8 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 #include <boost/test/data/test_case.hpp>
 
+#include <chrono>
+
 #include <pcbnew_utils/board_test_utils.h>
 #include <board.h>
 #include <board_commit.h>
@@ -40,6 +42,23 @@
 #include <advanced_config.h>
 #include <connectivity/connectivity_data.h>
 #include <teardrop/teardrop.h>
+
+
+/// Assert every outline in @p aFill has at least @p aMinArea — used to verify
+/// thieving stamps survived the fill unclipped.
+static void CheckAllOutlineAreasAtLeast( const std::shared_ptr<SHAPE_POLY_SET>& aFill,
+                                         double aMinArea, const wxString& aLabel )
+{
+    for( int ii = 0; ii < aFill->OutlineCount(); ++ii )
+    {
+        const double area = std::abs( aFill->Outline( ii ).Area() );
+
+        BOOST_CHECK_MESSAGE( area >= aMinArea,
+                             wxString::Format( "%s %d area %.0f IU^2 below %.0f IU^2; partial "
+                                               "stamps should not survive.",
+                                               aLabel, ii, area, aMinArea ) );
+    }
+}
 
 
 struct ZONE_FILL_TEST_FIXTURE
@@ -1032,6 +1051,98 @@ BOOST_FIXTURE_TEST_CASE( RegressionRoundRectTeardropGeometry, ZONE_FILL_TEST_FIX
 
 
 /**
+ * Reproduction for the teardrop "spike" bug: a track entering a long thin roundrect pad
+ * nearly parallel to the pad's long axis, then bending into a second segment toward a via,
+ * must not produce a teardrop polygon with a vertex spiking far outside the track/pad corridor.
+ */
+BOOST_FIXTURE_TEST_CASE( RegressionTeardropSpike, ZONE_FILL_TEST_FIXTURE )
+{
+    KI_TEST::LoadBoard( m_settingsManager, "teardrop_spike", m_board );
+
+    TOOL_MANAGER toolMgr;
+    toolMgr.SetEnvironment( m_board.get(), nullptr, nullptr, nullptr, nullptr );
+
+    KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+    toolMgr.RegisterTool( dummyTool );
+
+    BOARD_COMMIT commit( dummyTool );
+    TEARDROP_MANAGER teardropMgr( m_board.get(), &toolMgr );
+    teardropMgr.UpdateTeardrops( commit, nullptr, nullptr, true );
+
+    if( !commit.Empty() )
+        commit.Push( _( "Add teardrops" ), SKIP_UNDO | SKIP_SET_DIRTY );
+
+    int  teardropCount = 0;
+    bool foundSpike = false;
+
+    const int maxError = m_board->GetDesignSettings().m_MaxError;
+
+    for( ZONE* zone : m_board->Zones() )
+    {
+        if( !zone->IsTeardropArea() )
+            continue;
+
+        teardropCount++;
+
+        PCB_LAYER_ID layer = zone->GetFirstLayer();
+        int          netcode = zone->GetNetCode();
+
+        // A well-formed teardrop only ever covers the copper it bridges: the pads/vias it
+        // anchors on and the track(s) it follows. Build that corridor from all copper on the
+        // teardrop's net and layer (generously inflated) and require the teardrop to lie
+        // inside it. A spike sweeps area outside the corridor.
+        SHAPE_POLY_SET corridor;
+
+        for( FOOTPRINT* fp : m_board->Footprints() )
+        {
+            for( PAD* pad : fp->Pads() )
+            {
+                if( pad->GetNetCode() == netcode && pad->IsOnLayer( layer ) )
+                    pad->TransformShapeToPolygon( corridor, layer, 0, maxError, ERROR_OUTSIDE );
+            }
+        }
+
+        for( PCB_TRACK* track : m_board->Tracks() )
+        {
+            if( track->GetNetCode() == netcode && track->IsOnLayer( layer ) )
+                track->TransformShapeToPolygon( corridor, layer, 0, maxError, ERROR_OUTSIDE );
+        }
+
+        // Inflate by a full track width so the teardrop's flare toward the pad, which is
+        // legitimately wider than the bare track, is comfortably inside the corridor.
+        corridor.Inflate( pcbIUScale.mmToIU( 0.127 ), CORNER_STRATEGY::ROUND_ALL_CORNERS,
+                          maxError );
+        corridor.Simplify();
+
+        SHAPE_POLY_SET outside = *zone->Outline();
+        outside.BooleanSubtract( corridor );
+
+        double tdArea = std::abs( zone->Outline()->Area() );
+        double outArea = std::abs( outside.Area() );
+        double ratio = tdArea > 0 ? outArea / tdArea : 0.0;
+
+        BOOST_TEST_MESSAGE( wxString::Format(
+                "Teardrop on layer %d: area %.0f, area outside corridor %.0f (%.1f%%)",
+                (int) layer, tdArea, outArea, ratio * 100.0 ) );
+
+        if( ratio > 0.02 )
+        {
+            foundSpike = true;
+            BOOST_TEST_MESSAGE( wxString::Format(
+                    "Teardrop on layer %d sweeps %.1f%% of its area outside the track/pad "
+                    "corridor (spike)",
+                    (int) layer, ratio * 100.0 ) );
+        }
+    }
+
+    BOOST_CHECK_MESSAGE( teardropCount > 0, "Expected at least one teardrop zone" );
+    BOOST_CHECK_MESSAGE( !foundSpike,
+                         "A teardrop vertex spikes outside the track/pad corridor it should "
+                         "follow" );
+}
+
+
+/**
  * Test that teardrops connecting to oval pads at their curved ends have proper tangent curves.
  *
  * Oval pads have semicircular ends. When a track connects to the curved end, the teardrop
@@ -1791,6 +1902,438 @@ BOOST_FIXTURE_TEST_CASE( OffCenterTeardropSymmetry, ZONE_FILL_TEST_FIXTURE )
 
 
 /**
+ * Teardrop on an elongated rectangular pad should not extend outside the pad boundary.
+ *
+ * The test board has a 3.5mm x 0.3mm rectangular SMD pad (rotated 270 degrees in board
+ * coordinates) with a 0.1mm track entering diagonally near the narrow end. Before the fix,
+ * the teardrop's back point (pointD) was projected along the track axis past the pad center,
+ * overshooting the narrow pad boundary by over 0.6mm.
+ */
+BOOST_FIXTURE_TEST_CASE( ElongatedPadTeardropContainment, ZONE_FILL_TEST_FIXTURE )
+{
+    KI_TEST::LoadBoard( m_settingsManager, "teardrop_elongated_pad", m_board );
+
+    TOOL_MANAGER toolMgr;
+    toolMgr.SetEnvironment( m_board.get(), nullptr, nullptr, nullptr, nullptr );
+
+    KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+    toolMgr.RegisterTool( dummyTool );
+
+    BOARD_COMMIT commit( dummyTool );
+    TEARDROP_MANAGER teardropMgr( m_board.get(), &toolMgr );
+    teardropMgr.UpdateTeardrops( commit, nullptr, nullptr, true );
+
+    if( !commit.Empty() )
+        commit.Push( _( "Add teardrops" ), SKIP_UNDO | SKIP_SET_DIRTY );
+
+    // Find the pad to build an expanded outline for containment checking.
+    // The pad is at board position (136.45, 100.819) with size (3.5, 0.3) rotated 270 deg,
+    // giving board extents X: [136.3, 136.6], Y: [99.069, 102.569].
+    PAD* testPad = nullptr;
+
+    for( FOOTPRINT* fp : m_board->Footprints() )
+    {
+        for( PAD* pad : fp->Pads() )
+        {
+            if( pad->GetNumber() == "7" )
+            {
+                testPad = pad;
+                break;
+            }
+        }
+    }
+
+    BOOST_REQUIRE_MESSAGE( testPad != nullptr, "Could not find pad 7 in test board" );
+
+    // Build the pad outline polygon with a small tolerance for the track half-width
+    int tolerance = std::max( m_board->GetDesignSettings().m_MaxError,
+                              pcbIUScale.mmToIU( 0.001 ) );
+    SHAPE_POLY_SET padPoly;
+    testPad->TransformShapeToPolygon( padPoly, B_Cu, tolerance,
+                                      m_board->GetDesignSettings().m_MaxError, ERROR_OUTSIDE );
+
+    int teardropCount = 0;
+
+    for( ZONE* zone : m_board->Zones() )
+    {
+        if( !zone->IsTeardropArea() )
+            continue;
+
+        const SHAPE_POLY_SET* outline = zone->Outline();
+
+        BOOST_REQUIRE_MESSAGE( outline && outline->OutlineCount() > 0,
+                               "Teardrop zone has no outline" );
+
+        teardropCount++;
+
+        const SHAPE_LINE_CHAIN& chain = outline->Outline( 0 );
+
+        // Check each vertex of the teardrop. Vertices on the pad side (closer to pad center
+        // than to the track anchor) must be inside the expanded pad outline.
+        VECTOR2I padCenter = testPad->GetPosition();
+
+        // The track anchor region is near (136.45, 99.16) in mm, i.e., outside the pad.
+        // We only check vertices that are closer to the pad center than to the track anchor.
+        VECTOR2I trackAnchor( pcbIUScale.mmToIU( 136.45 ), pcbIUScale.mmToIU( 99.16 ) );
+
+        for( int i = 0; i < chain.PointCount(); i++ )
+        {
+            VECTOR2I pt = chain.CPoint( i );
+            double distToPad = ( VECTOR2D( pt ) - VECTOR2D( padCenter ) ).EuclideanNorm();
+            double distToTrack = ( VECTOR2D( pt ) - VECTOR2D( trackAnchor ) ).EuclideanNorm();
+
+            // Only check vertices on the pad side of the teardrop
+            if( distToPad < distToTrack )
+            {
+                BOOST_CHECK_MESSAGE(
+                        padPoly.Contains( pt ),
+                        wxString::Format( "Teardrop vertex (%d, %d) is outside the pad "
+                                          "outline with %d nm tolerance",
+                                          pt.x, pt.y, tolerance ) );
+            }
+        }
+    }
+
+    BOOST_CHECK_MESSAGE( teardropCount > 0,
+                         "Expected at least one teardrop zone for elongated pad" );
+}
+
+
+/**
+ * Teardrop spanning two track segments at an angle should not produce self-intersecting
+ * edges. When a teardrop extends from a via along a short horizontal segment then onto
+ * an angled segment, the polygon must follow the track bend with proper junction
+ * transition points rather than cutting diagonally across the bend.
+ *
+ * Tests both curved and straight edge modes since they use different polygon assembly paths.
+ */
+BOOST_FIXTURE_TEST_CASE( TwoSegmentAngledTeardropNoSelfIntersection, ZONE_FILL_TEST_FIXTURE )
+{
+    auto runVariant = [&]( bool aCurvedEdges )
+    {
+        KI_TEST::LoadBoard( m_settingsManager, "two_segment_teardrop", m_board );
+
+        for( PCB_TRACK* track : m_board->Tracks() )
+        {
+            if( track->Type() == PCB_VIA_T )
+            {
+                static_cast<PCB_VIA*>( track )->SetTeardropCurved( aCurvedEdges );
+                break;
+            }
+        }
+
+        TOOL_MANAGER toolMgr;
+        toolMgr.SetEnvironment( m_board.get(), nullptr, nullptr, nullptr, nullptr );
+
+        KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+        toolMgr.RegisterTool( dummyTool );
+
+        BOARD_COMMIT commit( dummyTool );
+        TEARDROP_MANAGER teardropMgr( m_board.get(), &toolMgr );
+        teardropMgr.UpdateTeardrops( commit, nullptr, nullptr, true );
+
+        if( !commit.Empty() )
+            commit.Push( _( "Add teardrops" ), SKIP_UNDO | SKIP_SET_DIRTY );
+
+        int  teardropCount = 0;
+        bool foundSelfIntersection = false;
+
+        for( ZONE* zone : m_board->Zones() )
+        {
+            if( !zone->IsTeardropArea() )
+                continue;
+
+            teardropCount++;
+
+            const SHAPE_POLY_SET* outline = zone->Outline();
+
+            if( !outline || outline->OutlineCount() == 0 )
+                continue;
+
+            const SHAPE_LINE_CHAIN& chain = outline->Outline( 0 );
+            int n = chain.PointCount();
+
+            for( int i = 0; i < n && !foundSelfIntersection; i++ )
+            {
+                SEG segA( chain.CPoint( i ), chain.CPoint( ( i + 1 ) % n ) );
+
+                for( int j = i + 2; j < n; j++ )
+                {
+                    if( i == 0 && j == n - 1 )
+                        continue;
+
+                    SEG segB( chain.CPoint( j ), chain.CPoint( ( j + 1 ) % n ) );
+                    OPT_VECTOR2I hit = segA.Intersect( segB );
+
+                    if( hit.has_value() )
+                    {
+                        BOOST_TEST_MESSAGE( wxString::Format(
+                                "Self-intersection at (%d, %d) between edges %d and %d "
+                                "(curved=%s)",
+                                hit->x, hit->y, i, j,
+                                aCurvedEdges ? "yes" : "no" ) );
+
+                        for( int k = 0; k < n; k++ )
+                        {
+                            BOOST_TEST_MESSAGE( wxString::Format(
+                                    "  pt[%d] = (%d, %d)", k,
+                                    chain.CPoint( k ).x, chain.CPoint( k ).y ) );
+                        }
+
+                        foundSelfIntersection = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        BOOST_CHECK_MESSAGE( teardropCount > 0,
+                             wxString::Format( "Expected at least one teardrop zone "
+                                               "(curved=%s)",
+                                               aCurvedEdges ? "yes" : "no" ) );
+
+        BOOST_CHECK_MESSAGE( !foundSelfIntersection,
+                             wxString::Format( "Teardrop polygon has self-intersecting "
+                                               "edges (curved=%s)",
+                                               aCurvedEdges ? "yes" : "no" ) );
+    };
+
+    runVariant( true );
+    runVariant( false );
+}
+
+
+/**
+ * Regression for issue 23916: Sharp spikes/protrusions generated during teardrop edit.
+ *
+ * Original symptom: a track whose centerline grazed a round via tangentially, with a short
+ * first segment extended onto a second segment, produced pointD (the apex behind the via)
+ * along a direction that was mostly perpendicular to the radius. pointD was projected
+ * outside the via circle, producing a sharp copper spike on the back side of the pad.
+ *
+ * Root-cause fix: segments that emerge from the via copper by less than their own width are
+ * treated as effectively fully covered and no longer anchor a teardrop. The grazing sliver
+ * is not a credible entry; the teardrop that would have been built on it is also the one
+ * that mis-orients along the tangent and produces the spike, so rejecting it at the
+ * candidate filter removes the class of spikes entirely for round pads/vias.
+ *
+ * Also verifies that when a teardrop is created, no polygon vertex sits beyond a reasonable
+ * envelope on the back side of the via (defense-in-depth against any residual spike, e.g.
+ * for non-round pads where the geometry clamp in computeTeardropPolygon is still load-bearing).
+ */
+BOOST_FIXTURE_TEST_CASE( OffCenterTwoSegmentTeardropNoSpike, ZONE_FILL_TEST_FIXTURE )
+{
+    auto runVariant = [&]( bool aCurvedEdges )
+    {
+        KI_TEST::LoadBoard( m_settingsManager, "teardrop_offcenter_two_segment", m_board );
+
+        VECTOR2I viaPos;
+        int      viaRadius = 0;
+
+        for( PCB_TRACK* track : m_board->Tracks() )
+        {
+            if( track->Type() == PCB_VIA_T )
+            {
+                PCB_VIA* via = static_cast<PCB_VIA*>( track );
+                via->SetTeardropCurved( aCurvedEdges );
+                viaPos = via->GetPosition();
+                viaRadius = via->GetWidth( PADSTACK::ALL_LAYERS ) / 2;
+                break;
+            }
+        }
+
+        BOOST_REQUIRE( viaRadius > 0 );
+
+        TOOL_MANAGER toolMgr;
+        toolMgr.SetEnvironment( m_board.get(), nullptr, nullptr, nullptr, nullptr );
+
+        KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+        toolMgr.RegisterTool( dummyTool );
+
+        BOARD_COMMIT commit( dummyTool );
+        TEARDROP_MANAGER teardropMgr( m_board.get(), &toolMgr );
+        teardropMgr.UpdateTeardrops( commit, nullptr, nullptr, true );
+
+        if( !commit.Empty() )
+            commit.Push( _( "Add teardrops" ), SKIP_UNDO | SKIP_SET_DIRTY );
+
+        // The crafted board's first segment emerges from the via by ~10 um on a 100 um
+        // track width; the emerging-length filter rejects it and no teardrop is built.
+        const double maxBackSideDist = viaRadius * 1.2;
+        int      teardropCount = 0;
+        int      spikingPoints = 0;
+        VECTOR2I worstPoint;
+        double   worstDistance = 0.0;
+
+        for( ZONE* zone : m_board->Zones() )
+        {
+            if( !zone->IsTeardropArea() )
+                continue;
+
+            teardropCount++;
+
+            const SHAPE_POLY_SET* outline = zone->Outline();
+
+            if( !outline || outline->OutlineCount() == 0 )
+                continue;
+
+            const SHAPE_LINE_CHAIN& chain = outline->Outline( 0 );
+
+            for( int i = 0; i < chain.PointCount(); i++ )
+            {
+                const VECTOR2I& pt = chain.CPoint( i );
+                VECTOR2I        rel = pt - viaPos;
+
+                // Only consider points on the back side (opposite the track entry).
+                if( rel.x >= 0 )
+                    continue;
+
+                double dist = rel.EuclideanNorm();
+
+                if( dist > maxBackSideDist )
+                {
+                    spikingPoints++;
+
+                    if( dist > worstDistance )
+                    {
+                        worstDistance = dist;
+                        worstPoint = pt;
+                    }
+                }
+            }
+        }
+
+        BOOST_CHECK_MESSAGE( teardropCount == 0,
+                             wxString::Format( "Expected no teardrop on grazing-entry "
+                                               "track (emergence below track width), got "
+                                               "%d (curved=%s)",
+                                               teardropCount,
+                                               aCurvedEdges ? "yes" : "no" ) );
+
+        BOOST_CHECK_MESSAGE( spikingPoints == 0,
+                             wxString::Format( "Found %d teardrop polygon vertex/vertices "
+                                               "outside the expected envelope (worst at "
+                                               "(%d, %d), %f mm from via center; curved=%s)",
+                                               spikingPoints,
+                                               worstPoint.x, worstPoint.y,
+                                               worstDistance / pcbIUScale.IU_PER_MM,
+                                               aCurvedEdges ? "yes" : "no" ) );
+    };
+
+    runVariant( true );
+    runVariant( false );
+}
+
+
+/**
+ * A via with many tracks radiating out, several of which share a junction that lies
+ * inside the via copper (the junction is covered, but the tracks on each side emerge
+ * from the via independently). Every emerging track must produce a well-formed
+ * teardrop zone, and no teardrop polygon may self-intersect.
+ *
+ * Historical failure mode: when two tracks share a junction inside the via, the
+ * teardrop built for each of them can wrap back on itself because the first-segment
+ * direction used to orient the apex does not match the track's real entry direction
+ * at the pad edge.
+ */
+BOOST_FIXTURE_TEST_CASE( MultiTrackSharedInsideJunctionNoSelfIntersection,
+                         ZONE_FILL_TEST_FIXTURE )
+{
+    auto runVariant = [&]( bool aCurvedEdges )
+    {
+        KI_TEST::LoadBoard( m_settingsManager, "teardrop_multi_inside_via", m_board );
+
+        for( PCB_TRACK* track : m_board->Tracks() )
+        {
+            if( track->Type() == PCB_VIA_T )
+            {
+                static_cast<PCB_VIA*>( track )->SetTeardropCurved( aCurvedEdges );
+                break;
+            }
+        }
+
+        TOOL_MANAGER toolMgr;
+        toolMgr.SetEnvironment( m_board.get(), nullptr, nullptr, nullptr, nullptr );
+
+        KI_TEST::DUMMY_TOOL* dummyTool = new KI_TEST::DUMMY_TOOL();
+        toolMgr.RegisterTool( dummyTool );
+
+        BOARD_COMMIT commit( dummyTool );
+        TEARDROP_MANAGER teardropMgr( m_board.get(), &toolMgr );
+        teardropMgr.UpdateTeardrops( commit, nullptr, nullptr, true );
+
+        if( !commit.Empty() )
+            commit.Push( _( "Add teardrops" ), SKIP_UNDO | SKIP_SET_DIRTY );
+
+        int      teardropCount = 0;
+        int      selfIntersectingCount = 0;
+        VECTOR2I worstPoint;
+
+        for( ZONE* zone : m_board->Zones() )
+        {
+            if( !zone->IsTeardropArea() )
+                continue;
+
+            teardropCount++;
+
+            const SHAPE_POLY_SET* outline = zone->Outline();
+
+            if( !outline || outline->OutlineCount() == 0 )
+                continue;
+
+            const SHAPE_LINE_CHAIN& chain = outline->Outline( 0 );
+            int                     n = chain.PointCount();
+            bool                    intersected = false;
+
+            for( int i = 0; i < n && !intersected; i++ )
+            {
+                SEG segA( chain.CPoint( i ), chain.CPoint( ( i + 1 ) % n ) );
+
+                for( int j = i + 2; j < n; j++ )
+                {
+                    if( i == 0 && j == n - 1 )
+                        continue;
+
+                    SEG          segB( chain.CPoint( j ), chain.CPoint( ( j + 1 ) % n ) );
+                    OPT_VECTOR2I hit = segA.Intersect( segB );
+
+                    if( hit.has_value() )
+                    {
+                        BOOST_TEST_MESSAGE( wxString::Format(
+                                "Teardrop polygon self-intersection at (%d, %d) "
+                                "between edges %d and %d (curved=%s)",
+                                hit->x, hit->y, i, j, aCurvedEdges ? "yes" : "no" ) );
+
+                        worstPoint = hit.value();
+                        intersected = true;
+                        break;
+                    }
+                }
+            }
+
+            if( intersected )
+                selfIntersectingCount++;
+        }
+
+        BOOST_CHECK_MESSAGE( teardropCount > 0,
+                             wxString::Format( "Expected at least one teardrop zone "
+                                               "(curved=%s)",
+                                               aCurvedEdges ? "yes" : "no" ) );
+
+        BOOST_CHECK_MESSAGE( selfIntersectingCount == 0,
+                             wxString::Format( "%d of %d teardrop polygon(s) self-intersect "
+                                               "(worst at (%d, %d); curved=%s)",
+                                               selfIntersectingCount, teardropCount,
+                                               worstPoint.x, worstPoint.y,
+                                               aCurvedEdges ? "yes" : "no" ) );
+    };
+
+    runVariant( true );
+    runVariant( false );
+}
+
+
+/**
  * Test for issue 23515: Zone fills have random pieces missing near keepout boundaries.
  *
  * The test board is a reporter-provided v9 board file with stored zone fill from the v9
@@ -2034,4 +2577,506 @@ BOOST_FIXTURE_TEST_CASE( HatchZoneViaConnectionRespectsSetting, ZONE_FILL_TEST_F
                                  "added for THERMAL connection, or thermal ring was incorrectly "
                                  "added for FULL connection (issue 23516 regression).",
                                  thermalFillArea * areaIU2toMM2, fullFillArea * areaIU2toMM2 ) );
+}
+
+
+/**
+ * Regression test for cascading island removal during iterative zone refill.
+ *
+ * Board layout (all zones on F.Cu):
+ *   hi1           - fully filled plane (lowest priority, base zone)
+ *   lo1,lo3,lo5   - small standalone zones, no merging with other zones
+ *   hi2,hi4,hi6   - small standalone zones, no merging with other zones
+ *   lo2,lo4,lo6   - each merged (same net, copper connects) with one part of
+ *                   the corresponding hi zone: lo2↔hi3, lo4↔hi5, lo6↔hi7
+ *   hi3,hi5,hi7   - each split into two copper islands: one standalone,
+ *                   one merged with the corresponding lo zone above
+ *
+ * Expected island counts after correct iterative refill:
+ *   2 islands: hi3, hi5, hi7
+ *   1 island:  lo1, lo2, lo3, lo4, lo5, lo6, hi2, hi4, hi6
+ *   hi1: at least one island (full plane, exact count not asserted)
+ */
+BOOST_FIXTURE_TEST_CASE( RegressionCascadingIslandRefill, ZONE_FILL_TEST_FIXTURE )
+{
+    ADVANCED_CFG& cfg = const_cast<ADVANCED_CFG&>( ADVANCED_CFG::GetCfg() );
+    bool          originalIterativeRefill = cfg.m_ZoneFillIterativeRefill;
+    cfg.m_ZoneFillIterativeRefill = true;
+
+    struct ScopeGuard
+    {
+        bool& ref;
+        bool  orig;
+        ~ScopeGuard() { ref = orig; }
+    } guard{ cfg.m_ZoneFillIterativeRefill, originalIterativeRefill };
+
+    KI_TEST::LoadBoard( m_settingsManager, "zone_refill_cascading_islands", m_board );
+    KI_TEST::FillZones( m_board.get() );
+
+    const std::vector<std::string> checkedNames = { "hi1", "hi2", "hi3", "hi4", "hi5", "hi6", "hi7",
+                                                    "lo1", "lo2", "lo3", "lo4", "lo5", "lo6" };
+    std::map<std::string, ZONE*>   zoneByName;
+
+    for( ZONE* zone : m_board->Zones() )
+        zoneByName[zone->GetZoneName().ToStdString()] = zone;
+
+    for( const std::string& name : checkedNames )
+    {
+        BOOST_REQUIRE_MESSAGE( zoneByName.count( name ), "Zone '" + name + "' not found in test board" );
+        BOOST_REQUIRE_MESSAGE( zoneByName[name]->HasFilledPolysForLayer( F_Cu ),
+                               "Zone '" + name + "' has no fill on F.Cu" );
+    }
+
+    // hi3, hi5, hi7 each split into two copper islands (one standalone, one merged with lo2/lo4/lo6).
+    for( const std::string& name : { "hi3", "hi5", "hi7" } )
+    {
+        int islands = zoneByName[name]->GetFilledPolysList( F_Cu )->OutlineCount();
+
+        BOOST_CHECK_MESSAGE( islands == 2, wxString::Format( "Zone '%s' should have 2 filled islands but has %d. "
+                                                             "Cascading island removal did not converge correctly.",
+                                                             name, islands ) );
+    }
+
+    // All lo zones and hi2/hi4/hi6 are single zones.
+    for( const std::string& name : { "lo1", "lo2", "lo3", "lo4", "lo5", "lo6", "hi2", "hi4", "hi6" } )
+    {
+        int islands = zoneByName[name]->GetFilledPolysList( F_Cu )->OutlineCount();
+
+        BOOST_CHECK_MESSAGE( islands == 1, wxString::Format( "Zone '%s' should have 1 filled island but has %d. "
+                                                             "Iterative refill may have incorrectly blocked or "
+                                                             "expanded this zone.",
+                                                             name, islands ) );
+    }
+}
+
+
+/**
+ * A track bisecting a thieving hatch zone must not destroy the fill on the far
+ * side of the track.  Clearance carves a notch, and the prior subtractive
+ * implementation let void rectangles consume the resulting narrow strip
+ * entirely; assert geometry survives on both sides.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_HatchSurvivesTrackBisection, ZONE_FILL_TEST_FIXTURE )
+{
+    KI_TEST::LoadBoard( m_settingsManager, "zone_thieving_track_bisection", m_board );
+    KI_TEST::FillZones( m_board.get() );
+
+    ZONE* thievingZone = nullptr;
+
+    for( ZONE* z : m_board->Zones() )
+    {
+        if( z->GetFillMode() == ZONE_FILL_MODE::COPPER_THIEVING )
+        {
+            thievingZone = z;
+            break;
+        }
+    }
+
+    BOOST_REQUIRE( thievingZone );
+
+    const std::shared_ptr<SHAPE_POLY_SET>& fill = thievingZone->GetFilledPolysList( F_Cu );
+    BOOST_REQUIRE( fill );
+
+    // The track splits the fill area in two; before the fix the connectivity
+    // pass classified the narrow side as an isolated island and deleted it.
+    // Expect at least two outlines covering both halves of the original zone.
+    BOOST_CHECK_GE( fill->OutlineCount(), 2 );
+
+    // The fill must span the full zone width (left edge through right edge).
+    BOX2I fillBox = fill->BBox();
+    BOX2I zoneBox = thievingZone->Outline()->BBox();
+
+    BOOST_CHECK_LT( fillBox.GetLeft(),   zoneBox.GetLeft()  + pcbIUScale.mmToIU( 2.0 ) );
+    BOOST_CHECK_GT( fillBox.GetRight(),  zoneBox.GetRight() - pcbIUScale.mmToIU( 2.0 ) );
+
+    // The mesh must have real structure on both sides.
+    BOOST_CHECK_GT( fill->TotalVertices(), 200 );
+}
+
+
+/**
+ * Test that iterative zone refill terminates and warns when it cannot converge.
+ *
+ * The board has overlapping zones arranged so that island removal in one zone
+ * triggers island removal in another in an oscillating pattern that cannot
+ * reach a stable state - ever.
+ *
+ * The test verifies:
+ *   1. Fill() completes without hanging (the iteration cap is enforced).
+ *   2. A wxLogWarning is emitted, confirming the cap was hit rather than
+ *      a silent wrong result being returned.
+ */
+BOOST_FIXTURE_TEST_CASE( IterativeRefillConvergenceLimit, ZONE_FILL_TEST_FIXTURE )
+{
+    ADVANCED_CFG& cfg = const_cast<ADVANCED_CFG&>( ADVANCED_CFG::GetCfg() );
+    bool          originalIterativeRefill = cfg.m_ZoneFillIterativeRefill;
+    cfg.m_ZoneFillIterativeRefill = true;
+
+    struct ScopeGuard
+    {
+        bool& ref;
+        bool  orig;
+        ~ScopeGuard() { ref = orig; }
+    } guard{ cfg.m_ZoneFillIterativeRefill, originalIterativeRefill };
+
+    // Capture wxLogWarning calls so we can assert that the iteration cap fires.
+    class WarningCapture : public wxLog
+    {
+    public:
+        bool m_hadWarning = false;
+
+    protected:
+        void DoLogRecord( wxLogLevel aLevel, const wxString&, const wxLogRecordInfo& ) override
+        {
+            if( aLevel == wxLOG_Warning )
+                m_hadWarning = true;
+        }
+    };
+
+    auto*  capture = new WarningCapture();
+    wxLog* oldLog = wxLog::SetActiveTarget( capture );
+
+    struct LogGuard
+    {
+        wxLog* old;
+        ~LogGuard() { wxLog::SetActiveTarget( old ); }
+    } logGuard{ oldLog };
+
+    KI_TEST::LoadBoard( m_settingsManager, "zone_refill_convergence_limit", m_board );
+    KI_TEST::FillZones( m_board.get() );
+
+    BOOST_CHECK_MESSAGE( capture->m_hadWarning, "Expected a wxLogWarning when iterative refill hits the iteration "
+                                                "limit, but none was emitted.  The convergence-limit board may no "
+                                                "longer trigger the cap, or the warning path has changed." );
+}
+
+
+/**
+ * A copper-thieving zone placed on a non-copper layer (silkscreen, fab, etc.)
+ * must still produce stamps rather than degenerating to a solid fill.
+ * Regression for "fills with a solid" on non-copper layers.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_NonCopperLayerStampsNotSolid, ZONE_FILL_TEST_FIXTURE )
+{
+    m_board = std::make_unique<BOARD>();
+
+    ZONE* zone = new ZONE( m_board.get() );
+    zone->SetLayer( F_SilkS );
+    zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+    THIEVING_SETTINGS thieving;
+    thieving.pattern      = THIEVING_PATTERN::DOTS;
+    thieving.element_size = pcbIUScale.mmToIU( 0.5 );
+    thieving.gap          = pcbIUScale.mmToIU( 1.5 );
+    zone->SetThievingSettings( thieving );
+    zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+    m_board->Add( zone );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    const std::shared_ptr<SHAPE_POLY_SET>& fill = zone->GetFilledPolysList( F_SilkS );
+    BOOST_REQUIRE( fill );
+
+    // A solid fill would have one outline (the zone polygon); a dots grid
+    // produces dozens.  Lower bound is conservative to avoid edge-clipping flakiness.
+    BOOST_CHECK_GT( fill->OutlineCount(), 5 );
+}
+
+
+/**
+ * A copper-thieving zone on an empty board should produce a grid of dot
+ * outlines whose count matches the geometric expectation.  No real board is
+ * needed: a single square zone outline exercises the grid generator without
+ * pad/track clearances confusing the count.  Only full dots survive: any
+ * grid position whose disc would touch the zone outline is dropped.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_DotsGrid, ZONE_FILL_TEST_FIXTURE )
+{
+    m_board = std::make_unique<BOARD>();
+    m_board->SetCopperLayerCount( 2 );
+
+    // 10 mm x 10 mm zone outline
+    ZONE* zone = new ZONE( m_board.get() );
+    zone->SetLayer( F_Cu );
+    zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 10 ) ), -1 );
+
+    zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+    THIEVING_SETTINGS thieving;
+    thieving.pattern      = THIEVING_PATTERN::DOTS;
+    thieving.element_size = pcbIUScale.mmToIU( 0.5 );
+    thieving.gap        = pcbIUScale.mmToIU( 2.0 );
+    thieving.line_width   = pcbIUScale.mmToIU( 0.3 );
+    thieving.stagger      = false;
+    thieving.orientation     = ANGLE_0;
+    zone->SetThievingSettings( thieving );
+
+    zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+
+    m_board->Add( zone );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    const std::shared_ptr<SHAPE_POLY_SET>& fill = zone->GetFilledPolysList( F_Cu );
+    BOOST_REQUIRE( fill );
+    BOOST_REQUIRE_GT( fill->OutlineCount(), 0 );
+
+    // 2.5 mm pitch, 0.5 mm dot.  The four positions whose disc touches the
+    // zone edge (x or y at 0 or 10 mm) are dropped, leaving a 3 x 3 grid.
+    BOOST_CHECK_GE( fill->OutlineCount(), 6 );
+    BOOST_CHECK_LE( fill->OutlineCount(), 12 );
+
+    // 10% slack covers the polygonal circle approximation plus post-fill corner rounding.
+    const double fullDotArea = M_PI * std::pow( pcbIUScale.mmToIU( 0.25 ), 2 );
+    CheckAllOutlineAreasAtLeast( fill, 0.9 * fullDotArea, wxT( "Dot" ) );
+}
+
+
+/**
+ * Stagger should shift odd rows by pitch/2 without breaking the fill.  Easiest
+ * positive signal is that staggered and unstaggered fills produce different
+ * dot layouts (different total counts in a finite outline).  Within-a-factor
+ * sanity bound catches the offset-walking-off-the-board failure modes.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_StaggerProducesDifferentLayout, ZONE_FILL_TEST_FIXTURE )
+{
+    auto countDots = []( bool stagger ) -> int
+    {
+        auto board = std::make_unique<BOARD>();
+        board->SetCopperLayerCount( 2 );
+
+        ZONE* zone = new ZONE( board.get() );
+        zone->SetLayer( F_Cu );
+        zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+        zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 20 ), 0 ), -1 );
+        zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 20 ), pcbIUScale.mmToIU( 20 ) ), -1 );
+        zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 20 ) ), -1 );
+        zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+        THIEVING_SETTINGS thieving;
+        thieving.pattern      = THIEVING_PATTERN::DOTS;
+        thieving.element_size = pcbIUScale.mmToIU( 0.5 );
+        thieving.gap        = pcbIUScale.mmToIU( 2.0 );
+        thieving.stagger      = stagger;
+        zone->SetThievingSettings( thieving );
+        zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+        board->Add( zone );
+
+        KI_TEST::FillZones( board.get() );
+        return zone->GetFilledPolysList( F_Cu )->OutlineCount();
+    };
+
+    int plain     = countDots( false );
+    int staggered = countDots( true );
+
+    BOOST_TEST_MESSAGE( "plain dots: " << plain << "  staggered dots: " << staggered );
+
+    // Within a factor of two — catches the offset walking dots off the board
+    // (returning ~0) without being brittle about edge-clipping rounding.
+    BOOST_CHECK_NE( plain, staggered );
+    BOOST_CHECK_GE( staggered, plain / 2 );
+    BOOST_CHECK_LE( staggered, plain * 2 );
+}
+
+
+/**
+ * A SQUARES pattern fills the zone with rectangular stamps on the same grid as
+ * dots.  Verifies the dispatch reaches the squares branch and produces a
+ * comparable stamp count.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_SquaresGrid, ZONE_FILL_TEST_FIXTURE )
+{
+    m_board = std::make_unique<BOARD>();
+    m_board->SetCopperLayerCount( 2 );
+
+    ZONE* zone = new ZONE( m_board.get() );
+    zone->SetLayer( F_Cu );
+    zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+    THIEVING_SETTINGS thieving;
+    thieving.pattern      = THIEVING_PATTERN::SQUARES;
+    thieving.element_size = pcbIUScale.mmToIU( 0.6 );
+    thieving.gap        = pcbIUScale.mmToIU( 2.0 );
+    zone->SetThievingSettings( thieving );
+    zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+    m_board->Add( zone );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    const std::shared_ptr<SHAPE_POLY_SET>& fill = zone->GetFilledPolysList( F_Cu );
+    BOOST_REQUIRE( fill );
+    BOOST_REQUIRE_GT( fill->OutlineCount(), 0 );
+
+    // 2.6 mm pitch, 0.6 mm square.  Same edge-drop behavior as the dots test:
+    // strict-containment leaves a 3 x 3 grid of full squares.
+    BOOST_CHECK_GE( fill->OutlineCount(), 6 );
+    BOOST_CHECK_LE( fill->OutlineCount(), 12 );
+
+    const double fullSquareArea = std::pow( pcbIUScale.mmToIU( 0.6 ), 2 );
+    CheckAllOutlineAreasAtLeast( fill, 0.9 * fullSquareArea, wxT( "Square" ) );
+}
+
+
+/**
+ * Performance gate for high-density thieving fills.  100 x 100 mm zone with
+ * 0.3 mm dots and 1 mm gap gives a 1.3 mm stride and roughly 5 900 stamps.
+ * The filler stamps shapes into a single SHAPE_POLY_SET and performs one
+ * BooleanIntersection at the end; a regression that switches to per-stamp
+ * boolean ops would blow up to minutes.  Bound generously so the gate is not
+ * flaky on slow CI but still catches an order-of-magnitude regression.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_HighDensityPerformance, ZONE_FILL_TEST_FIXTURE )
+{
+    m_board = std::make_unique<BOARD>();
+    m_board->SetCopperLayerCount( 2 );
+
+    ZONE* zone = new ZONE( m_board.get() );
+    zone->SetLayer( F_Cu );
+    zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 100 ), 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 100 ), pcbIUScale.mmToIU( 100 ) ), -1 );
+    zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 100 ) ), -1 );
+    zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+    THIEVING_SETTINGS thieving;
+    thieving.pattern      = THIEVING_PATTERN::DOTS;
+    thieving.element_size = pcbIUScale.mmToIU( 0.3 );
+    thieving.gap          = pcbIUScale.mmToIU( 1.0 );
+    zone->SetThievingSettings( thieving );
+    zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+    m_board->Add( zone );
+
+    auto start = std::chrono::steady_clock::now();
+    KI_TEST::FillZones( m_board.get() );
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now() - start )
+                           .count();
+
+    BOOST_TEST_MESSAGE( "5.9k-dot fill elapsed: " << elapsed << " ms" );
+
+    BOOST_REQUIRE( zone->GetFilledPolysList( F_Cu ) );
+    BOOST_CHECK_GT( zone->GetFilledPolysList( F_Cu )->OutlineCount(), 4000 );
+
+    // 30 s upper bound on QABUILD with assertions on; current implementation
+    // measures in low seconds.
+    BOOST_CHECK_LT( elapsed, 30000 );
+}
+
+
+/**
+ * A HATCH pattern carves a regular grid of voids out of the zone outline,
+ * leaving a perimeter border around an interior mesh.  The result is one
+ * connected polygon with holes — not the dot-grid of disconnected stamps that
+ * dots/squares produce.
+ */
+BOOST_FIXTURE_TEST_CASE( CopperThievingZone_HatchPattern, ZONE_FILL_TEST_FIXTURE )
+{
+    m_board = std::make_unique<BOARD>();
+    m_board->SetCopperLayerCount( 2 );
+
+    ZONE* zone = new ZONE( m_board.get() );
+    zone->SetLayer( F_Cu );
+    zone->AppendCorner( VECTOR2I( 0, 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), 0 ), -1 );
+    zone->AppendCorner( VECTOR2I( pcbIUScale.mmToIU( 10 ), pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->AppendCorner( VECTOR2I( 0, pcbIUScale.mmToIU( 10 ) ), -1 );
+    zone->SetFillMode( ZONE_FILL_MODE::COPPER_THIEVING );
+
+    THIEVING_SETTINGS thieving;
+    thieving.pattern    = THIEVING_PATTERN::HATCH;
+    thieving.gap        = pcbIUScale.mmToIU( 2.0 );
+    thieving.line_width = pcbIUScale.mmToIU( 0.3 );
+    zone->SetThievingSettings( thieving );
+    zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+    m_board->Add( zone );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    const std::shared_ptr<SHAPE_POLY_SET>& fill = zone->GetFilledPolysList( F_Cu );
+    BOOST_REQUIRE( fill );
+    BOOST_REQUIRE_GT( fill->TotalVertices(), 0 );
+
+    // Subtractive hatch produces a single connected outline after fracturing
+    // (perimeter border + interior mesh linked through bridges).  A dot grid
+    // in the same outline would have dozens of disconnected pieces.
+    BOOST_CHECK_EQUAL( fill->OutlineCount(), 1 );
+
+    // The fill bounding box must reach the zone corners — the perimeter
+    // border is what differentiates hatch from a dot grid.  Solid would also
+    // reach the corners; the high vertex count below catches that case.
+    BOX2I fillBox = fill->BBox();
+    BOOST_CHECK_LT( fillBox.GetLeft(),   pcbIUScale.mmToIU( 0.5 ) );
+    BOOST_CHECK_GT( fillBox.GetRight(),  pcbIUScale.mmToIU( 9.5 ) );
+    BOOST_CHECK_LT( fillBox.GetTop(),    pcbIUScale.mmToIU( 0.5 ) );
+    BOOST_CHECK_GT( fillBox.GetBottom(), pcbIUScale.mmToIU( 9.5 ) );
+
+    // A solid 10x10 mm rectangle would have ~4 vertices.  A hatched mesh has
+    // many vertices because each void cut adds outline segments.
+    BOOST_CHECK_GT( fill->TotalVertices(), 30 );
+}
+
+
+/**
+ * Regression test for issue 24089: refilling a non-copper (e.g. silkscreen) zone whose
+ * outline is split into multiple islands by keepout rule areas dropped the first stored
+ * island.  The cause was FillIsolatedIslandsMap unconditionally pushing outline 0 into
+ * the isolated list when a zone had no connectivity entries; non-copper zones never
+ * appear in connectivity, so this fired on every refill of a multi-island silk fill.
+ */
+BOOST_FIXTURE_TEST_CASE( RegressionNonCopperZoneKeepoutIslands, ZONE_FILL_TEST_FIXTURE )
+{
+    KI_TEST::LoadBoard( m_settingsManager, "issue24089/issue24089", m_board );
+
+    auto countIslands =
+            [this]() -> int
+            {
+                int total = 0;
+
+                for( ZONE* zone : m_board->Zones() )
+                {
+                    if( zone->GetIsRuleArea() )
+                        continue;
+
+                    for( PCB_LAYER_ID layer : zone->GetLayerSet().Seq() )
+                    {
+                        if( !zone->HasFilledPolysForLayer( layer ) )
+                            continue;
+
+                        std::shared_ptr<SHAPE_POLY_SET> fill = zone->GetFilledPolysList( layer );
+
+                        if( fill )
+                            total += fill->OutlineCount();
+                    }
+                }
+
+                return total;
+            };
+
+    int storedIslands = countIslands();
+
+    BOOST_REQUIRE_MESSAGE( storedIslands >= 3,
+                           wxString::Format( "Stored v9 fill should have at least 3 silk islands; "
+                                             "found %d",
+                                             storedIslands ) );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    int refilledIslands = countIslands();
+
+    BOOST_CHECK_MESSAGE( refilledIslands == storedIslands,
+                         wxString::Format( "Refill lost silk islands: stored=%d, refilled=%d. "
+                                           "Outline 0 of every non-copper multi-island zone "
+                                           "was being incorrectly removed (issue 24089).",
+                                           storedIslands, refilledIslands ) );
 }

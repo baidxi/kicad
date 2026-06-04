@@ -63,6 +63,7 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS()
           m_ShowCourtyardCollisions( true ),
           m_AutoRefillZones( false ),
           m_AllowFreePads( false ),
+          m_ImportKeepKiCadLayerNames( false ),
           m_PnsSettings( nullptr ),
           m_FootprintViewerLibListWidth( 200 ),
           m_FootprintViewerFPListWidth( 300 )
@@ -106,7 +107,7 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS()
             &m_AuiPanels.appearance_expand_net_display, false ) );
 
     m_params.emplace_back( new PARAM<bool>( "aui.show_properties",
-            &m_AuiPanels.show_properties, false ) );
+            &m_AuiPanels.show_properties, true ) );
 
     m_params.emplace_back( new PARAM<bool>( "aui.show_search",
             &m_AuiPanels.show_search, false ) );
@@ -193,6 +194,9 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS()
 
     m_params.emplace_back( new PARAM<bool>( "editing.allow_free_pads",
             &m_AllowFreePads, false ) );
+
+    m_params.emplace_back( new PARAM<bool>( "import.keep_kicad_layer_names",
+            &m_ImportKeepKiCadLayerNames, false ) );
 
     m_params.emplace_back( new PARAM_LAMBDA<int>( "editing.rotation_angle",
             [this] () -> int
@@ -316,6 +320,21 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS()
 
     m_params.emplace_back( new PARAM<bool>( "DRC.scroll_on_crossprobe",
             &m_DRCDialog.scroll_on_crossprobe, true ) );
+
+    m_params.emplace_back( new PARAM<COLOR4D>( "diff_phase_skew.zero_color", &m_DiffPhaseSkewSettings.m_ZeroSkewColor,
+                                               COLOR4D( 1.0, 1.0, 1.0, 1.0 ) ) );
+
+    m_params.emplace_back( new PARAM<COLOR4D>( "diff_phase_skew.positive_color",
+                                               &m_DiffPhaseSkewSettings.m_PositiveSkewColor,
+                                               COLOR4D( 0.0, 0.0, 1.0, 1.0 ) ) );
+
+    m_params.emplace_back( new PARAM<COLOR4D>( "diff_phase_skew.negative_color",
+                                               &m_DiffPhaseSkewSettings.m_NegativeSkewColor,
+                                               COLOR4D( 1.0, 0.0, 0.0, 1.0 ) ) );
+
+    m_params.emplace_back( new PARAM<COLOR4D>( "diff_phase_skew.unknown_color",
+                                               &m_DiffPhaseSkewSettings.m_UnknownSkewColor,
+                                               COLOR4D( 0.5, 0.5, 0.5, 1.0 ) ) );
 
     registerMigration( 0, 1,
             [&]()

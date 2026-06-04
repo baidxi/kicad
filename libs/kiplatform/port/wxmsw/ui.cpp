@@ -83,6 +83,12 @@ void KIPLATFORM::UI::EnsureVisible( wxWindow* aWindow )
 }
 
 
+void KIPLATFORM::UI::StabilizeWindowPosition( wxWindow* aWindow )
+{
+    // Not needed on this platform
+}
+
+
 void KIPLATFORM::UI::ReparentModal( wxNonOwnedWindow* aWindow )
 {
     // Not needed on this platform
@@ -216,4 +222,10 @@ void KIPLATFORM::UI::ReleaseChildWindow( wxNonOwnedWindow* aWindow )
 void KIPLATFORM::UI::AllowNetworkFileSystems( wxDialog* aDialog )
 {
     // Not needed on Windows - file dialogs show network filesystems by default
+}
+
+
+void KIPLATFORM::UI::CancelPendingScroll( wxDataViewCtrl* aCtrl )
+{
+    // Not needed on this platform; the native control does not race on model resets.
 }

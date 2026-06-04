@@ -248,14 +248,49 @@ void DRC_TEST_PROVIDER_CREEPAGE::CollectBoardEdges( std::vector<BOARD_ITEM*>& aV
     if( !m_board )
         return;
 
-    for( BOARD_ITEM* drawing : m_board->Drawings() )
-    {
-        if( !drawing )
-            continue;
+    const int errorMax = m_board->GetDesignSettings().m_MaxError;
 
-        if( drawing->IsOnLayer( Edge_Cuts ) )
-            aVector.push_back( drawing );
-    }
+    // The creepage graph and intersection tests only handle SEGMENT/ARC/CIRCLE/
+    // RECTANGLE/POLY, so Bezier curves on Edge.Cuts must be flattened to straight
+    // segments owned by aOwned. Without this, any Bezier stretch of the board edge
+    // is silently ignored and creepage paths pass straight through it.
+    auto addEdgeDrawing = [&]( BOARD_ITEM* aDrawing )
+    {
+        if( !aDrawing || !aDrawing->IsOnLayer( Edge_Cuts ) )
+            return;
+
+        // Downstream code in drc_creepage_utils does a static_cast<PCB_SHAPE*> on
+        // every item in m_boardEdge, so non-shape items (text, dimensions, ...)
+        // placed on Edge.Cuts must not enter the graph.
+        PCB_SHAPE* shape = dynamic_cast<PCB_SHAPE*>( aDrawing );
+
+        if( !shape )
+            return;
+
+        if( shape->GetShape() != SHAPE_T::BEZIER )
+        {
+            aVector.push_back( shape );
+            return;
+        }
+
+        shape->RebuildBezierToSegmentsPointsList( errorMax );
+        const std::vector<VECTOR2I>& pts = shape->GetBezierPoints();
+
+        for( size_t i = 1; i < pts.size(); ++i )
+        {
+            if( pts[i - 1] == pts[i] )
+                continue;
+
+            auto seg = std::make_unique<PCB_SHAPE>( nullptr, SHAPE_T::SEGMENT );
+            seg->SetStart( pts[i - 1] );
+            seg->SetEnd( pts[i] );
+            aVector.push_back( seg.get() );
+            aOwned.push_back( std::move( seg ) );
+        }
+    };
+
+    for( BOARD_ITEM* drawing : m_board->Drawings() )
+        addEdgeDrawing( drawing );
 
     for( FOOTPRINT* fp : m_board->Footprints() )
     {
@@ -263,13 +298,7 @@ void DRC_TEST_PROVIDER_CREEPAGE::CollectBoardEdges( std::vector<BOARD_ITEM*>& aV
             continue;
 
         for( BOARD_ITEM* drawing : fp->GraphicalItems() )
-        {
-            if( !drawing )
-                continue;
-
-            if( drawing->IsOnLayer( Edge_Cuts ) )
-                aVector.push_back( drawing );
-        }
+            addEdgeDrawing( drawing );
     }
 
     for( const PAD* p : m_board->GetPads() )
@@ -351,8 +380,11 @@ int DRC_TEST_PROVIDER_CREEPAGE::testCreepage()
 
     SHAPE_POLY_SET outline;
 
-    if( !m_board->GetBoardPolygonOutlines( outline, false ) )
-        return -1;
+    // Subtract NPTH holes from the outline polygon so candidate-path midpoint tests
+    // reject creepage segments routed through slot interiors. Without subtraction,
+    // a midpoint inside an NPTH oval still counts as "inside the board" and the
+    // creepage validator accepts straight-through-slot paths (issue #24286).
+    bool hasValidOutline = m_board->GetBoardPolygonOutlines( outline, false, nullptr, false, true );
 
     const DRAWINGS drawings = m_board->Drawings();
     CREEPAGE_GRAPH graph( *m_board );
@@ -362,7 +394,7 @@ int DRC_TEST_PROVIDER_CREEPAGE::testCreepage()
     else
         graph.m_minGrooveWidth = 0;
 
-    graph.m_boardOutline = &outline;
+    graph.m_boardOutline = hasValidOutline ? &outline : nullptr;
 
     this->CollectBoardEdges( graph.m_boardEdge, graph.m_ownedBoardEdges );
     graph.TransformEdgeToCreepShapes();

@@ -1051,7 +1051,7 @@ BOOST_AUTO_TEST_CASE( Peka_ZoneFillNoSelfIntersection )
                     continue;
                 }
 
-                if( segs[i].Collide( segs[j], 0 ) )
+                if( segs[i].Intersects( segs[j] ) )
                     return true;
             }
         }
@@ -1332,6 +1332,83 @@ BOOST_AUTO_TEST_CASE( ImportIssue23352 )
         BOOST_CHECK_MESSAGE( nc2It->second->HasClearance(),
                              "NETTCLASS2 should have a clearance rule" );
     }
+
+    // Verify net-to-class assignments from the NET_CLASS DATA block
+    const auto& patterns = bds.m_NetSettings->GetNetclassPatternAssignments();
+    std::map<wxString, wxString> netAssignments;
+
+    for( const auto& [matcher, ncName] : patterns )
+        netAssignments[matcher->GetPattern()] = ncName;
+
+    BOOST_CHECK_MESSAGE( netAssignments.count( wxT( "+24V0" ) ),
+                         "+24V0 should be assigned to a net class" );
+    BOOST_CHECK_MESSAGE( netAssignments.count( wxT( "+24V0_FILTER" ) ),
+                         "+24V0_FILTER should be assigned to a net class" );
+    BOOST_CHECK_MESSAGE( netAssignments.count( wxT( "+24V0_FILTER_RTN" ) ),
+                         "+24V0_FILTER_RTN should be assigned to a net class" );
+
+    if( netAssignments.count( wxT( "+24V0" ) ) )
+    {
+        BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0" )], wxT( "NETTCLASS1" ) );
+    }
+
+    if( netAssignments.count( wxT( "+24V0_FILTER_RTN" ) ) )
+    {
+        BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0_FILTER_RTN" )], wxT( "NETTCLASS2" ) );
+    }
+}
+
+
+/**
+ * Verify that net classes inside RULES_SECTION PARENT in the MISC section
+ * are parsed and applied correctly.
+ *
+ * Issue #23393: NET_CLASS DATA blocks nested inside RULES_SECTION PARENT
+ * were not parsed because the brace depth checks were hardcoded instead of
+ * relative to the block entry depth.
+ */
+BOOST_AUTO_TEST_CASE( Issue23393_NetClassImport )
+{
+    PCB_IO_PADS plugin;
+    wxString filename = KI_TEST::GetPcbnewTestDataDir() + "plugins/pads/issue23393/demo.asc";
+
+    std::unique_ptr<BOARD> board( plugin.LoadBoard( filename, nullptr, nullptr, nullptr ) );
+    BOOST_REQUIRE( board != nullptr );
+
+    const BOARD_DESIGN_SETTINGS& bds = board->GetDesignSettings();
+    const auto& netclasses = bds.m_NetSettings->GetNetclasses();
+
+    BOOST_CHECK_MESSAGE( netclasses.find( wxT( "NETTCLASS1" ) ) != netclasses.end(),
+                         "NETTCLASS1 should be imported" );
+    BOOST_CHECK_MESSAGE( netclasses.find( wxT( "NETTCLASS2" ) ) != netclasses.end(),
+                         "NETTCLASS2 should be imported" );
+
+    // Verify net-to-class assignments
+    const auto& patterns = bds.m_NetSettings->GetNetclassPatternAssignments();
+    std::map<wxString, wxString> netAssignments;
+
+    for( const auto& [matcher, ncName] : patterns )
+        netAssignments[matcher->GetPattern()] = ncName;
+
+    // NETTCLASS1 should contain +24V0 and +24V0_FILTER
+    BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0" )], wxT( "NETTCLASS1" ) );
+    BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0_FILTER" )], wxT( "NETTCLASS1" ) );
+
+    // NETTCLASS2 should contain +24V0_FILTER_RTN, +24V0_RTN, GND_CHASSIS
+    BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0_FILTER_RTN" )], wxT( "NETTCLASS2" ) );
+    BOOST_CHECK_EQUAL( netAssignments[wxT( "+24V0_RTN" )], wxT( "NETTCLASS2" ) );
+    BOOST_CHECK_EQUAL( netAssignments[wxT( "GND_CHASSIS" )], wxT( "NETTCLASS2" ) );
+
+    // NETTCLASS2 RULE_SET has TRACK_TO_TRACK 4500000 BASIC
+    auto nc2It = netclasses.find( wxT( "NETTCLASS2" ) );
+
+    if( nc2It != netclasses.end() )
+    {
+        BOOST_CHECK_MESSAGE( nc2It->second->HasClearance(),
+                             "NETTCLASS2 should have clearance from RULE_SET" );
+        BOOST_CHECK_MESSAGE( nc2It->second->HasTrackWidth(),
+                             "NETTCLASS2 should have track width from RULE_SET" );
+    }
 }
 
 
@@ -1385,6 +1462,285 @@ BOOST_AUTO_TEST_CASE( Issue23540_RouteArcSemicircle )
 
     BOOST_CHECK_MESSAGE( arcCount >= 1,
             "expected at least 1 PCB_ARC from route CW/CCW arc, got " << arcCount );
+}
+
+
+/**
+ * Verify RF finger pad offsets are not double-rotated on import (issue #23425).
+ *
+ * The reporter's board ({TXN004} controlCARD docking station) has a 180-pin HSEC8
+ * edge connector (J3) whose finger pads are defined with FINORI 90 and a non-zero
+ * FINOFFSET. In PADS, finger_offset runs along the finger's long axis and is stored
+ * in the pad-local coordinate system (before rotation). PAD::ShapePos() applies the
+ * full pad orientation when computing the shape center, so the importer must NOT
+ * pre-rotate the offset vector by layer_def.rotation. Doing so rotated the offset
+ * twice, shifting every finger pad sideways and visibly misaligning the connector.
+ *
+ * After the fix the stored offset is purely along pad-local X (offset.y == 0); a
+ * double rotation by 90 degrees would instead leave offset.x == 0 and put the
+ * magnitude on offset.y, which these checks reject.
+ */
+BOOST_AUTO_TEST_CASE( ImportFingerPadOffsetIssue23425 )
+{
+    PCB_IO_PADS plugin;
+
+    wxString filename = KI_TEST::GetPcbnewTestDataDir()
+                        + "plugins/pads/issue23425/controlCARDDockingStation.asc";
+
+    std::unique_ptr<BOARD> board( plugin.LoadBoard( filename, nullptr, nullptr, nullptr ) );
+
+    BOOST_REQUIRE( board != nullptr );
+
+    FOOTPRINT* j3 = nullptr;
+
+    for( FOOTPRINT* fp : board->Footprints() )
+    {
+        if( fp->GetReference() == wxT( "J3" ) )
+        {
+            j3 = fp;
+            break;
+        }
+    }
+
+    BOOST_REQUIRE_MESSAGE( j3, "J3 (HSEC8 edge connector) not found on board" );
+
+    // FINOFFSET 1143000 BASIC units * (25400 / 38100) = 762000 nm (30 mil)
+    const int expectedOffset = 762000;
+    const int tolerance = 1000;   // 1um
+
+    int offsetPadCount = 0;
+
+    for( PAD* pad : j3->Pads() )
+    {
+        VECTOR2I offset = pad->GetOffset( F_Cu );
+
+        if( offset == VECTOR2I( 0, 0 ) )
+            continue;
+
+        offsetPadCount++;
+
+        // Stored unrotated in pad-local space: all magnitude on X, none on Y.
+        BOOST_CHECK_MESSAGE( offset.y == 0,
+                "J3 pad " << pad->GetNumber()
+                << " offset Y should be 0 (unrotated pad-local), got " << offset.y );
+
+        BOOST_CHECK_MESSAGE( std::abs( std::abs( offset.x ) - expectedOffset ) < tolerance,
+                "J3 pad " << pad->GetNumber()
+                << " offset X magnitude " << std::abs( offset.x )
+                << " should be ~" << expectedOffset );
+    }
+
+    // The connector's signal fingers all carry the offset; before the fix none of
+    // them satisfied the checks above. Require a substantial number so a parser
+    // change that stops applying the offset entirely cannot pass silently.
+    BOOST_CHECK_MESSAGE( offsetPadCount >= 90,
+            "expected the HSEC8 finger pads to carry a finger offset; got "
+            << offsetPadCount );
+}
+
+
+/**
+ * Verify padstack import for issue #23391.
+ *
+ * A padstack whose layer -2 and layer -1 entries share the same shape but have
+ * different sizes must use NORMAL mode (not FRONT_INNER_BACK).  The primary
+ * (layer -2, component-side) size must be preserved, and top-placed and
+ * bottom-placed instances of the same footprint must produce identical pad sizes.
+ *
+ * A padstack with different shapes on layer -2 and -1 (square pin-1) must still
+ * use FRONT_INNER_BACK so the shape difference is preserved.
+ */
+BOOST_AUTO_TEST_CASE( ImportIssue23391 )
+{
+    PCB_IO_PADS plugin;
+
+    wxString filename = KI_TEST::GetPcbnewTestDataDir() + "plugins/pads/issue23391.asc";
+
+    std::unique_ptr<BOARD> board( plugin.LoadBoard( filename, nullptr, nullptr, nullptr ) );
+
+    BOOST_REQUIRE( board != nullptr );
+
+    // Collect mounting-hole footprints (MTG_HOLE_TYPE: E1/E2 top, E3/E4 bottom)
+    // and connector footprints (SQ_PIN1_TYPE: X1 top, X2 bottom).
+    PAD* mtg_top_pad = nullptr;
+    PAD* mtg_bot_pad = nullptr;
+    PAD* conn_top_pin1 = nullptr;
+    PAD* conn_bot_pin1 = nullptr;
+
+    for( FOOTPRINT* fp : board->Footprints() )
+    {
+        wxString ref = fp->GetReference();
+
+        for( PAD* pad : fp->Pads() )
+        {
+            if( ref == "E1" )
+                mtg_top_pad = pad;
+            else if( ref == "E3" )
+                mtg_bot_pad = pad;
+            else if( ref == "X1" && pad->GetNumber() == "1" )
+                conn_top_pin1 = pad;
+            else if( ref == "X2" && pad->GetNumber() == "1" )
+                conn_bot_pin1 = pad;
+        }
+    }
+
+    BOOST_REQUIRE_MESSAGE( mtg_top_pad, "E1 (top mounting hole) not found" );
+    BOOST_REQUIRE_MESSAGE( mtg_bot_pad, "E3 (bottom mounting hole) not found" );
+    BOOST_REQUIRE_MESSAGE( conn_top_pin1, "X1 pin 1 (top connector square pad) not found" );
+    BOOST_REQUIRE_MESSAGE( conn_bot_pin1, "X2 pin 1 (bottom connector square pad) not found" );
+
+    // Same-shape / different-size padstack must remain in NORMAL mode.
+    BOOST_CHECK_MESSAGE(
+            mtg_top_pad->Padstack().Mode() == PADSTACK::MODE::NORMAL,
+            "Mounting hole with same shape but different sizes should use NORMAL padstack mode" );
+
+    BOOST_CHECK_MESSAGE(
+            mtg_bot_pad->Padstack().Mode() == PADSTACK::MODE::NORMAL,
+            "Bottom-placed mounting hole should also use NORMAL padstack mode" );
+
+    // Both instances of the same footprint must have identical pad sizes.
+    VECTOR2I top_size = mtg_top_pad->GetSize( F_Cu );
+    VECTOR2I bot_size = mtg_bot_pad->GetSize( F_Cu );
+
+    BOOST_CHECK_MESSAGE(
+            top_size == bot_size,
+            "Top and bottom mounting holes should have equal pad size on F_Cu; "
+            "top=" << top_size.x << " bot=" << bot_size.x );
+
+    // The primary (layer -2) size must be used, not the secondary (layer -1) size.
+    // In the test file layer -2 = 200 mils and layer -1 = 150 mils.
+    // At 1 mil = 25400 nm, 200 mils = 5080000 nm.
+    BOOST_CHECK_MESSAGE(
+            top_size.x > 0,
+            "Mounting hole pad size must be non-zero" );
+
+    // Different-shape padstack (square vs round) must still use FRONT_INNER_BACK.
+    BOOST_CHECK_MESSAGE(
+            conn_top_pin1->Padstack().Mode() == PADSTACK::MODE::FRONT_INNER_BACK,
+            "Connector pin-1 with square-on-top / round-on-bottom must use FRONT_INNER_BACK" );
+
+    // Square (RECTANGLE) shape must appear on F_Cu for the top-placed connector.
+    BOOST_CHECK_MESSAGE(
+            conn_top_pin1->GetShape( F_Cu ) == PAD_SHAPE::RECTANGLE,
+            "Top connector pin-1 must have RECTANGLE shape on F_Cu" );
+
+    BOOST_CHECK_MESSAGE(
+            conn_top_pin1->GetShape( B_Cu ) == PAD_SHAPE::CIRCLE,
+            "Top connector pin-1 must have CIRCLE shape on B_Cu" );
+
+    // After Flip, the bottom-placed connector pin-1 must have the shapes swapped.
+    BOOST_CHECK_MESSAGE(
+            conn_bot_pin1->GetShape( F_Cu ) == PAD_SHAPE::CIRCLE,
+            "Bottom connector pin-1 must have CIRCLE shape on F_Cu after flip" );
+
+    BOOST_CHECK_MESSAGE(
+            conn_bot_pin1->GetShape( B_Cu ) == PAD_SHAPE::RECTANGLE,
+            "Bottom connector pin-1 must have RECTANGLE shape on B_Cu after flip" );
+}
+
+
+/**
+ * Verify in-circuit test point import (issue 23637).
+ *
+ * In-circuit test points are zero-drill vias placed on a route layer and tagged
+ * in the *TESTPOINT* section.  Two bugs existed before the fix:
+ *   1. The test point via was also emitted as a bare PCB_VIA by loadTracksAndVias(),
+ *      creating a duplicate object and a DRC open-connection error.
+ *   2. loadTestPoints() always placed the footprint on F.Cu when side=0 ("through"),
+ *      even though the pad definition's soldermask layer indicates B.Cu.
+ *
+ * synthetic_testpoint.asc defines two test point via types:
+ *   TP_BOTTOM_SMD  drill=0, routing-layer pad (layer 0) + soldermask bottom (28)
+ *                  -> SMD footprint on B.Cu, pad ~0.8mm
+ *   TP_TOP_SMD     drill=0, top copper pad (layer -2) + soldermask top (25)
+ *                  -> SMD footprint on F.Cu, pad ~0.8mm
+ */
+BOOST_AUTO_TEST_CASE( InCircuitTestPointImport )
+{
+    PCB_IO_PADS plugin;
+
+    wxString filename =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/pads/synthetic_testpoint.asc";
+
+    std::unique_ptr<BOARD> board( plugin.LoadBoard( filename, nullptr, nullptr, nullptr ) );
+
+    BOOST_REQUIRE( board != nullptr );
+
+    // R1 (1 part) + 2 test point footprints = 3 total
+    BOOST_CHECK_EQUAL( board->Footprints().size(), 3u );
+
+    FOOTPRINT* tpBottom = nullptr;
+    FOOTPRINT* tpTop    = nullptr;
+
+    for( FOOTPRINT* fp : board->Footprints() )
+    {
+        if( fp->GetValue() == wxT( "TP_BOTTOM_SMD" ) )
+            tpBottom = fp;
+        else if( fp->GetValue() == wxT( "TP_TOP_SMD" ) )
+            tpTop = fp;
+    }
+
+    // TP_BOTTOM_SMD: stack has soldermask bottom (layer 28) -> must land on B.Cu
+    BOOST_REQUIRE_MESSAGE( tpBottom, "TP_BOTTOM_SMD test point footprint should exist" );
+    BOOST_CHECK_EQUAL( tpBottom->Pads().size(), 1u );
+
+    if( tpBottom->Pads().size() == 1 )
+    {
+        PAD* pad = tpBottom->Pads().front();
+        BOOST_CHECK_MESSAGE( pad->IsOnLayer( B_Cu ),
+                             "TP_BOTTOM_SMD pad should be on B.Cu" );
+        BOOST_CHECK_MESSAGE( !pad->IsOnLayer( F_Cu ),
+                             "TP_BOTTOM_SMD pad should not be on F.Cu" );
+
+        // Pad size: 1200000 BASIC * 2/3 = 800000 nm (0.8mm).  Allow 5% tolerance.
+        int padSize = pad->GetSize( PADSTACK::ALL_LAYERS ).x;
+        BOOST_CHECK_MESSAGE( padSize > 700000 && padSize < 900000,
+                             "TP_BOTTOM_SMD pad size " << padSize << " should be ~800000 nm" );
+    }
+
+    // TP_TOP_SMD: explicit top copper pad (layer -2) -> must land on F.Cu
+    BOOST_REQUIRE_MESSAGE( tpTop, "TP_TOP_SMD test point footprint should exist" );
+    BOOST_CHECK_EQUAL( tpTop->Pads().size(), 1u );
+
+    if( tpTop->Pads().size() == 1 )
+    {
+        PAD* pad = tpTop->Pads().front();
+        BOOST_CHECK_MESSAGE( pad->IsOnLayer( F_Cu ),
+                             "TP_TOP_SMD pad should be on F.Cu" );
+        BOOST_CHECK_MESSAGE( !pad->IsOnLayer( B_Cu ),
+                             "TP_TOP_SMD pad should not be on B.Cu" );
+
+        int padSize = pad->GetSize( PADSTACK::ALL_LAYERS ).x;
+        BOOST_CHECK_MESSAGE( padSize > 700000 && padSize < 900000,
+                             "TP_TOP_SMD pad size " << padSize << " should be ~800000 nm" );
+    }
+
+    // Test point positions must NOT also appear as bare PCB_VIA objects.
+    // Before the fix, loadTracksAndVias() placed a PCB_VIA at each test point
+    // position, creating a duplicate and causing DRC open-connection errors.
+    VECTOR2I tpBottomPos( 0, 0 );
+    VECTOR2I tpTopPos( 0, 0 );
+
+    if( tpBottom )
+        tpBottomPos = tpBottom->GetPosition();
+
+    if( tpTop )
+        tpTopPos = tpTop->GetPosition();
+
+    for( PCB_TRACK* trk : board->Tracks() )
+    {
+        PCB_VIA* via = dynamic_cast<PCB_VIA*>( trk );
+
+        if( !via )
+            continue;
+
+        VECTOR2I pos = via->GetPosition();
+
+        BOOST_CHECK_MESSAGE( pos != tpBottomPos,
+                             "TP_BOTTOM_SMD position should not have a bare PCB_VIA" );
+        BOOST_CHECK_MESSAGE( pos != tpTopPos,
+                             "TP_TOP_SMD position should not have a bare PCB_VIA" );
+    }
 }
 
 

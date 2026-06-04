@@ -181,8 +181,8 @@ struct COND_FIELD
 
     const T& value_or( const T& aDefault ) const { return has_value() ? value() : aDefault; }
 
-    T&       operator*() { return m_Value.operator->(); }
-    const T& operator*() const { return m_Value.operator->(); }
+    T&       operator*() { return *m_Value; }
+    const T& operator*() const { return *m_Value; }
 
     T*       operator->() { return &m_Value.value(); }
     const T* operator->() const { return &*m_Value; }

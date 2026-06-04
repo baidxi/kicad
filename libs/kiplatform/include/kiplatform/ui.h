@@ -24,6 +24,7 @@
 #include <wx/cursor.h>
 
 class wxChoice;
+class wxDataViewCtrl;
 class wxDialog;
 class wxNonOwnedWindow;
 class wxTopLevelWindow;
@@ -196,6 +197,18 @@ namespace KIPLATFORM
         void EnsureVisible( wxWindow* aWindow );
 
         /**
+         * Prepare a top-level window for reliable position round-tripping.
+         *
+         * On GTK/X11, default window gravity lets window-manager decorations affect the
+         * coordinates returned by wxWindow::GetPosition().  Some window managers, notably
+         * i3, can then shift a restored top-level window each time it is shown.  Other
+         * platforms are nops.
+         *
+         * @param aWindow window to prepare
+         */
+        void StabilizeWindowPosition( wxWindow* aWindow );
+
+        /**
          * Intended to set the floating window level in macOS on a window
          */
         void SetFloatLevel( wxWindow* aWindow );
@@ -228,6 +241,20 @@ namespace KIPLATFORM
          * @param aDialog is the file dialog to configure
          */
         void AllowNetworkFileSystems( wxDialog* aDialog );
+
+        /**
+         * Cancel any pending scroll-to-item request on @p aCtrl.
+         *
+         * GtkTreeView keeps a "scroll_to_path" reference that survives across model
+         * resets.  If the path becomes invalid (because the underlying rows were
+         * rebuilt or removed) the next frame-clock tick crashes in
+         * gtk_tree_view_get_row_height(NULL) from validate_visible_area.  Calling
+         * this helper before a model reset replaces the queued row reference with
+         * a column-only scroll request, which GtkTreeView frees on the way through
+         * its deferred-scroll branch.  No-op on MSW and macOS where the native
+         * controls do not exhibit this race.
+         */
+        void CancelPendingScroll( wxDataViewCtrl* aCtrl );
     }
 }
 

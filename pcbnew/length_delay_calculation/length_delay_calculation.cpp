@@ -27,6 +27,7 @@
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <footprint.h>
 #include <geometry/geometry_utils.h>
 #include <geometry/shape_circle.h>
 #include <geometry/circle.h>
@@ -149,11 +150,10 @@ void LENGTH_DELAY_CALCULATION::clipLineToPad( SHAPE_LINE_CHAIN& aLine, const PAD
 }
 
 
-LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector<LENGTH_DELAY_CALCULATION_ITEM>& aItems,
-                                                                     const PATH_OPTIMISATIONS aOptimisations,
-                                                                     const PAD* aStartPad, const PAD* aEndPad,
-                                                                     const LENGTH_DELAY_LAYER_OPT  aLayerOpt,
-                                                                     const LENGTH_DELAY_DOMAIN_OPT aDomain ) const
+LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails(
+        std::vector<LENGTH_DELAY_CALCULATION_ITEM>& aItems, const PATH_OPTIMISATIONS aOptimisations,
+        const PAD* aStartPad, const PAD* aEndPad, const LENGTH_DELAY_LAYER_OPT aLayerOpt,
+        const LENGTH_DELAY_DOMAIN_OPT aDomain, LENGTH_DELAY_ITEM_DETAILS* aPerItemLengthDelays ) const
 {
     const bool doTrace = wxLog::IsAllowedTraceMask( wxT( "PNS_TUNE" ) );
 
@@ -290,19 +290,56 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
         if( doTrace )
             wxLogTrace( wxT( "PNS_TUNE" ), wxT( "CalculateLengthDetails: inferring vias in pads" ) );
 
-        inferViaInPad( aStartPad, aItems.front(), details );
-        inferViaInPad( aEndPad, aItems.back(), details );
+        std::pair<int64_t, int64_t> inferredStartPadViaDetails{ 0, 0 };
+        std::pair<int64_t, int64_t> inferredEndPadViaDetails{ 0, 0 };
+
+        const bool withDelay = aDomain == LENGTH_DELAY_DOMAIN_OPT::WITH_DELAY_DETAIL;
+        inferViaInPad( aStartPad, aItems.front(), details, inferredStartPadViaDetails, withDelay );
+        inferViaInPad( aEndPad, aItems.back(), details, inferredEndPadViaDetails, withDelay );
+
+        if( aPerItemLengthDelays )
+        {
+            aPerItemLengthDelays->InferredStartViaLength = inferredStartPadViaDetails.first;
+            aPerItemLengthDelays->InferredStartViaDelay = inferredStartPadViaDetails.second;
+            aPerItemLengthDelays->InferredEndViaLength = inferredEndPadViaDetails.first;
+            aPerItemLengthDelays->InferredEndViaDelay = inferredEndPadViaDetails.second;
+        }
     }
 
     // Add stats for each item
     int processedPads = 0, processedVias = 0, processedLines = 0;
     int mergedRetired = 0, unknownType = 0;
 
+    // Output per-item details if required
+    if( aPerItemLengthDelays )
+    {
+        aPerItemLengthDelays->LengthsAndDelays.clear();
+        aPerItemLengthDelays->LengthsAndDelays.resize( aItems.size(), { 0, 0 } );
+    }
+
+    auto setPerItemLengthDetail = [aPerItemLengthDelays]( const size_t idx, const int64_t value )
+    {
+        if( !aPerItemLengthDelays )
+            return;
+
+        aPerItemLengthDelays->LengthsAndDelays[idx].first = value;
+    };
+
+    auto setPerItemDelayDetail = [aPerItemLengthDelays]( const size_t idx, const int64_t value )
+    {
+        if( !aPerItemLengthDelays )
+            return;
+
+        aPerItemLengthDelays->LengthsAndDelays[idx].second = value;
+    };
+
     if( doTrace )
         wxLogTrace( wxT( "PNS_TUNE" ), wxT( "CalculateLengthDetails: processing %zu items..." ), aItems.size() );
 
-    for( const LENGTH_DELAY_CALCULATION_ITEM& item : aItems )
+    for( size_t i = 0; i < aItems.size(); ++i )
     {
+        const LENGTH_DELAY_CALCULATION_ITEM& item = aItems[i];
+
         // Don't include merged items
         if( item.GetMergeStatus() == LENGTH_DELAY_CALCULATION_ITEM::MERGE_STATUS::MERGED_RETIRED
             || item.Type() == LENGTH_DELAY_CALCULATION_ITEM::TYPE::UNKNOWN )
@@ -319,6 +356,7 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
         {
             const int64_t length = item.GetLine().Length();
 
+            setPerItemLengthDetail( i, length );
             details.TrackLength += length;
             processedLines++;
 
@@ -329,7 +367,8 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
         {
             const auto [layerStart, layerEnd] = item.GetLayers();
             int64_t viaHeight = StackupHeight( layerStart, layerEnd );
-            details.ViaLength += viaHeight;
+            setPerItemLengthDetail( i, viaHeight );
+            details.ViaLength += static_cast<int>( viaHeight );
             details.NumVias += 1;
             processedVias++;
 
@@ -340,7 +379,8 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
         else if( item.Type() == LENGTH_DELAY_CALCULATION_ITEM::TYPE::PAD )
         {
             int64_t padToDie = item.GetPad()->GetPadToDieLength();
-            details.PadToDieLength += padToDie;
+            setPerItemLengthDetail( i, padToDie );
+            details.PadToDieLength += static_cast<int>( padToDie );
             details.NumPads += 1;
             processedPads++;
 
@@ -374,6 +414,14 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
         for( size_t i = 0; i < aItems.size(); ++i )
         {
             const LENGTH_DELAY_CALCULATION_ITEM& item = aItems[i];
+
+            if( item.GetMergeStatus() == LENGTH_DELAY_CALCULATION_ITEM::MERGE_STATUS::MERGED_RETIRED
+                || item.Type() == LENGTH_DELAY_CALCULATION_ITEM::TYPE::UNKNOWN )
+            {
+                continue;
+            }
+
+            setPerItemDelayDetail( i, itemDelays[i] );
 
             if( item.Type() == LENGTH_DELAY_CALCULATION_ITEM::TYPE::LINE )
             {
@@ -413,7 +461,9 @@ LENGTH_DELAY_STATS LENGTH_DELAY_CALCULATION::CalculateLengthDetails( std::vector
 
 
 void LENGTH_DELAY_CALCULATION::inferViaInPad( const PAD* aPad, const LENGTH_DELAY_CALCULATION_ITEM& aItem,
-                                              LENGTH_DELAY_STATS& aDetails ) const
+                                              LENGTH_DELAY_STATS&          aDetails,
+                                              std::pair<int64_t, int64_t>& aInferredViaLengthDelay,
+                                              const bool                   aWithDelayDetail ) const
 {
     if( aPad && aItem.Type() == LENGTH_DELAY_CALCULATION_ITEM::TYPE::LINE )
     {
@@ -426,7 +476,20 @@ void LENGTH_DELAY_CALCULATION::inferViaInPad( const PAD* aPad, const LENGTH_DELA
             const PCB_LAYER_ID padLayer = padLayers.Contains( F_Cu ) ? F_Cu : B_Cu;
 
             aDetails.NumVias += 1;
-            aDetails.ViaLength += StackupHeight( startBottomLayer, padLayer );
+            const int64_t height = StackupHeight( startBottomLayer, padLayer );
+            aDetails.ViaLength += height;
+            aInferredViaLengthDelay.first = height;
+
+            // Look up via delay details if required
+            if( aWithDelayDetail )
+            {
+                TUNING_PROFILE_GEOMETRY_CONTEXT ctx;
+                ctx.NetClass = aItem.GetEffectiveNetClass();
+                const int64_t delay = m_tuningProfileParameters->GetViaPropagationDelay( startBottomLayer, padLayer,
+                                                                                         F_Cu, B_Cu, ctx );
+                aDetails.ViaDelay += delay;
+                aInferredViaLengthDelay.second = delay;
+            }
         }
     }
 }
@@ -609,7 +672,7 @@ void LENGTH_DELAY_CALCULATION::optimiseTracesInPads( const std::vector<LENGTH_DE
 void LENGTH_DELAY_CALCULATION::optimiseVias(
         const std::vector<LENGTH_DELAY_CALCULATION_ITEM*>& aVias, std::vector<LENGTH_DELAY_CALCULATION_ITEM*>& aLines,
         std::map<VECTOR2I, std::unordered_set<LENGTH_DELAY_CALCULATION_ITEM*>>&       aLinesPositionMap,
-        const std::map<VECTOR2I, std::unordered_set<LENGTH_DELAY_CALCULATION_ITEM*>>& aPadsPositionMap )
+        const std::map<VECTOR2I, std::unordered_set<LENGTH_DELAY_CALCULATION_ITEM*>>& aPadsPositionMap ) const
 {
     for( LENGTH_DELAY_CALCULATION_ITEM* via : aVias )
     {
@@ -619,13 +682,11 @@ void LENGTH_DELAY_CALCULATION::optimiseVias(
 
         const VECTOR2I viaPos = pcbVia->GetPosition();
 
-        // Check for exact position match (fast path)
         auto exactMatch = aLinesPositionMap.find( viaPos );
 
         if( exactMatch != aLinesPositionMap.end() )
             connectedLines.insert( exactMatch->second.begin(), exactMatch->second.end() );
 
-        // Check for off-center connections
         int maxRadius = 0;
 
         pcbVia->Padstack().ForEachUniqueLayer(
@@ -639,7 +700,7 @@ void LENGTH_DELAY_CALCULATION::optimiseVias(
         for( const auto& [pos, lineSet] : aLinesPositionMap )
         {
             if( pos == viaPos )
-                continue; // already handled
+                continue;
 
             if( ( pos - viaPos ).SquaredEuclideanNorm() > maxRadiusSq )
                 continue;
@@ -654,69 +715,57 @@ void LENGTH_DELAY_CALCULATION::optimiseVias(
             }
         }
 
-        if( connectedLines.empty() )
+        const PAD* coincidentPad = nullptr;
+
+        for( PAD* pad : m_board->GetConnectivity()->GetConnectedPads( pcbVia ) )
         {
-            // No connected lines - this via is floating. Set both layers to the same
-            via->SetLayers( via->GetVia()->GetLayer(), via->GetVia()->GetLayer() );
+            coincidentPad = pad;
+            break;
         }
-        else if( connectedLines.size() == 1 )
+
+        LSET spanLayers;
+
+        for( const LENGTH_DELAY_CALCULATION_ITEM* lineItem : connectedLines )
+            spanLayers.set( lineItem->GetStartLayer() );
+
+        if( coincidentPad )
         {
-            // This is either a via stub, or a via-in-pad
-            bool               isViaInPad = false;
-            const PCB_LAYER_ID lineLayer = ( *connectedLines.begin() )->GetStartLayer();
+            PCB_LAYER_ID padSideLayer;
 
-            auto padItr = aPadsPositionMap.find( via->GetVia()->GetPosition() );
-
-            if( padItr != aPadsPositionMap.end() )
+            if( coincidentPad->GetAttribute() == PAD_ATTRIB::SMD || coincidentPad->GetAttribute() == PAD_ATTRIB::CONN )
             {
-                // This could be a via-in-pad - check for overlapping pads which are not on the line layer
-                const std::unordered_set<LENGTH_DELAY_CALCULATION_ITEM*>& pads = padItr->second;
-
-                if( pads.size() == 1 )
-                {
-                    const LENGTH_DELAY_CALCULATION_ITEM* padItem = *pads.begin();
-
-                    if( !padItem->GetPad()->Padstack().LayerSet().Contains( lineLayer ) )
-                    {
-                        // This is probably a via-in-pad
-                        isViaInPad = true;
-                        via->SetLayers( lineLayer, padItem->GetStartLayer() );
-                    }
-                }
+                padSideLayer = *coincidentPad->Padstack().LayerSet().CuStack().begin();
+            }
+            else
+            {
+                padSideLayer = coincidentPad->GetParentFootprint()->GetLayer();
             }
 
-            if( !isViaInPad )
-            {
-                // This is a via stub - make its electrical length 0
-                via->SetLayers( lineLayer, lineLayer );
-            }
+            spanLayers.set( padSideLayer );
+        }
+
+        wxLogTrace( wxT( "PNS_TUNE" ),
+                    wxT( "optimiseVias: via@(%d,%d) connectedLines=%zu coincidentPad=%d "
+                         "spanLayerCount=%d" ),
+                    viaPos.x, viaPos.y, connectedLines.size(), coincidentPad ? 1 : 0,
+                    static_cast<int>( spanLayers.count() ) );
+
+        const LSEQ cuStack = spanLayers.CuStack();
+
+        if( cuStack.empty() )
+        {
+            // Nothing connects to this via
+            via->SetLayers( pcbVia->GetLayer(), pcbVia->GetLayer() );
+        }
+        else if( cuStack.size() == 1 )
+        {
+            // Stub via
+            via->SetLayers( cuStack.front(), cuStack.front() );
         }
         else
         {
-            // This via has more than one track ending at it. Calculate the connected layer span (which may be shorter
-            // than the overall via span)
-            LSET layers;
-
-            for( const LENGTH_DELAY_CALCULATION_ITEM* lineItem : connectedLines )
-                layers.set( lineItem->GetStartLayer() );
-
-            LSEQ cuStack = layers.CuStack();
-
-            PCB_LAYER_ID firstLayer = UNDEFINED_LAYER;
-            PCB_LAYER_ID lastLayer = UNDEFINED_LAYER;
-
-            for( PCB_LAYER_ID layer : cuStack )
-            {
-                if( firstLayer == UNDEFINED_LAYER )
-                    firstLayer = layer;
-                else
-                    lastLayer = layer;
-            }
-
-            if( lastLayer == UNDEFINED_LAYER )
-                via->SetLayers( firstLayer, firstLayer );
-            else
-                via->SetLayers( firstLayer, lastLayer );
+            // Signal transitions layers
+            via->SetLayers( cuStack.front(), cuStack.back() );
         }
     }
 }

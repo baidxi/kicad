@@ -20,14 +20,21 @@
 #include <boost/test/unit_test.hpp>
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
+#include <lib_symbol.h>
 #include <schematic.h>
 #include <sch_io/pads/sch_io_pads.h>
 #include <sch_io/sch_io_mgr.h>
+#include <sch_line.h>
 #include <sch_screen.h>
 #include <sch_sheet.h>
 #include <sch_sheet_path.h>
 #include <sch_symbol.h>
+#include <sch_text.h>
 #include <settings/settings_manager.h>
+
+#include <algorithm>
+#include <map>
+#include <vector>
 
 
 namespace
@@ -136,6 +143,190 @@ BOOST_AUTO_TEST_CASE( MultiGateImport )
     // Both references should be "U1" (not "U1-A" or "U1-B")
     BOOST_CHECK_EQUAL( u1Symbols[0]->GetRef( &rootPath ), wxT( "U1" ) );
     BOOST_CHECK_EQUAL( u1Symbols[1]->GetRef( &rootPath ), wxT( "U1" ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( Issue23420_HeaderWithCodePageSuffix )
+{
+    // Regression test for https://gitlab.com/kicad/code/kicad/-/issues/23420
+    // PADS Logic schematics exported with a code page suffix in the header
+    // (e.g. *PADS-LOGIC-V9.0-CP1250*) must be detected and parsed.
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir()
+            + "/plugins/pads/issue23420_codepage_schematic.txt" );
+
+    BOOST_CHECK( plugin.CanReadSchematicFile( padsFile ) );
+
+    SCH_SHEET* rootSheet = plugin.LoadSchematicFile( padsFile, &m_schematic );
+
+    BOOST_REQUIRE( rootSheet );
+    BOOST_REQUIRE( rootSheet->GetScreen() );
+}
+
+
+BOOST_AUTO_TEST_CASE( CanReadLibrary )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    BOOST_CHECK( plugin.CanReadLibrary( padsFile ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( EnumerateSymbolLib_NamesFromSchematic )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    wxArrayString names;
+    BOOST_CHECK_NO_THROW( plugin.EnumerateSymbolLib( names, padsFile ) );
+    BOOST_CHECK_GT( names.GetCount(), 0u );
+}
+
+
+BOOST_AUTO_TEST_CASE( EnumerateSymbolLib_ReturnsLibSymbols )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    std::vector<LIB_SYMBOL*> symbols;
+    BOOST_CHECK_NO_THROW( plugin.EnumerateSymbolLib( symbols, padsFile ) );
+    BOOST_CHECK_GT( symbols.size(), 0u );
+
+    for( LIB_SYMBOL* sym : symbols )
+        BOOST_REQUIRE( sym != nullptr );
+}
+
+
+BOOST_AUTO_TEST_CASE( LoadSymbol_ByName )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    wxArrayString names;
+    plugin.EnumerateSymbolLib( names, padsFile );
+
+    BOOST_REQUIRE_GT( names.GetCount(), 0u );
+
+    LIB_SYMBOL* sym = plugin.LoadSymbol( padsFile, names.Item( 0 ) );
+    BOOST_REQUIRE( sym != nullptr );
+    BOOST_CHECK_EQUAL( sym->GetName(), names.Item( 0 ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( LoadSymbol_UnknownReturnsNull )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    LIB_SYMBOL* sym = plugin.LoadSymbol( padsFile, wxT( "NO_SUCH_SYMBOL_12345" ) );
+    BOOST_CHECK( sym == nullptr );
+}
+
+
+BOOST_AUTO_TEST_CASE( MultiGatePartTypeBecomesMultiUnitLibSymbol )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/multigate_schematic.txt" );
+
+    std::vector<LIB_SYMBOL*> symbols;
+    BOOST_CHECK_NO_THROW( plugin.EnumerateSymbolLib( symbols, padsFile ) );
+
+    bool foundMultiUnit = false;
+
+    for( LIB_SYMBOL* sym : symbols )
+    {
+        if( sym && sym->GetUnitCount() > 1 )
+        {
+            foundMultiUnit = true;
+            break;
+        }
+    }
+
+    BOOST_CHECK( foundMultiUnit );
+}
+
+
+BOOST_AUTO_TEST_CASE( IsLibraryNotWritable )
+{
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir() + "/plugins/pads/symbols_schematic.txt" );
+
+    BOOST_CHECK( !plugin.IsLibraryWritable( padsFile ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( Issue24284_TextItemsPlacedOnCorrectSheet )
+{
+    // Regression test for https://gitlab.com/kicad/code/kicad/-/issues/24284
+    // Multi-sheet PADS Logic schematics have one *TEXT* and *LINES* block per
+    // *SHT*. Before the fix every text/line item was placed on the first
+    // sheet, causing page-number text from all sheets to stack on top of each
+    // other and border graphics to overlap.
+    SCH_IO_PADS plugin;
+
+    wxString padsFile = wxString::FromUTF8(
+            KI_TEST::GetEeschemaTestDataDir()
+            + "/plugins/pads/issue24284_multisheet_text.txt" );
+
+    BOOST_REQUIRE( plugin.CanReadSchematicFile( padsFile ) );
+
+    SCH_SHEET* rootSheet = plugin.LoadSchematicFile( padsFile, &m_schematic );
+    BOOST_REQUIRE( rootSheet );
+    BOOST_REQUIRE( rootSheet->GetScreen() );
+
+    // Collect text and line content keyed by hierarchical sheet name.
+    std::map<wxString, std::vector<wxString>> textBySheet;
+    std::map<wxString, int>                   lineCountBySheet;
+
+    for( SCH_ITEM* item : rootSheet->GetScreen()->Items().OfType( SCH_SHEET_T ) )
+    {
+        SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item );
+        wxString   sheetName = sheet->GetField( FIELD_T::SHEET_NAME )->GetText();
+
+        for( SCH_ITEM* screenItem : sheet->GetScreen()->Items().OfType( SCH_TEXT_T ) )
+        {
+            SCH_TEXT* txt = static_cast<SCH_TEXT*>( screenItem );
+            textBySheet[sheetName].push_back( txt->GetText() );
+        }
+
+        for( SCH_ITEM* screenItem : sheet->GetScreen()->Items().OfType( SCH_LINE_T ) )
+        {
+            (void) screenItem;
+            lineCountBySheet[sheetName]++;
+        }
+    }
+
+    for( int sheetNum = 1; sheetNum <= 3; ++sheetNum )
+    {
+        wxString sheetName = wxString::Format( wxT( "Page%d" ), sheetNum );
+        wxString pageText = wxString::Format( wxT( "PAGE %d OF 3" ), sheetNum );
+        wxString bodyText = wxString::Format( wxT( "TEXT ON SHEET %d" ), sheetNum );
+
+        BOOST_REQUIRE_EQUAL( textBySheet.count( sheetName ), 1u );
+        BOOST_CHECK_EQUAL( textBySheet[sheetName].size(), 2u );
+        BOOST_CHECK( std::find( textBySheet[sheetName].begin(), textBySheet[sheetName].end(),
+                                pageText ) != textBySheet[sheetName].end() );
+        BOOST_CHECK( std::find( textBySheet[sheetName].begin(), textBySheet[sheetName].end(),
+                                bodyText ) != textBySheet[sheetName].end() );
+        BOOST_CHECK_EQUAL( lineCountBySheet[sheetName], 1 );
+    }
 }
 
 

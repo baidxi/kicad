@@ -43,6 +43,7 @@
 #include <wx/app.h>
 #include <wx/event.h>
 #include <wx/grid.h>
+#include <widgets/wx_grid.h>
 #include <wx/propgrid/propgrid.h>
 #include <wx/checklst.h>
 #include <wx/dataview.h>
@@ -287,6 +288,15 @@ DIALOG_SHIM::~DIALOG_SHIM()
 
 void DIALOG_SHIM::onInitDialog( wxInitDialogEvent& aEvent )
 {
+#ifdef __WXMAC__
+    CallAfter(
+            [this]
+            {
+                if( wxSizer* sz = GetSizer() )
+                    sz->Layout();
+            } );
+#endif
+
     LoadControlState();
     aEvent.Skip();
 }
@@ -360,6 +370,8 @@ bool DIALOG_SHIM::Show( bool show )
 
     if( show )
     {
+        KIPLATFORM::UI::StabilizeWindowPosition( this );
+
 #ifndef __WINDOWS__
         wxDialog::Raise();  // Needed on OS X and some other window managers (i.e. Unity)
 #endif
@@ -703,10 +715,17 @@ void DIALOG_SHIM::LoadControlState()
                     {
                         const nlohmann::json& j = it->second;
 
-                        if( m_unitBinders.contains( win ) && !m_unitBinders[ win ]->UnitsInvariant() )
+                        if( m_unitBinders.contains( win ) )
                         {
                             if( j.is_number_integer() )
+                            {
                                 m_unitBinders[ win ]->ChangeValue( j.get<int>() );
+                            }
+                            else if( j.is_string() )
+                            {
+                                if( wxTextEntry* textEntry = dynamic_cast<wxTextEntry*>( win ) )
+                                    textEntry->ChangeValue( wxString::FromUTF8( j.get<std::string>().c_str() ) );
+                            }
                         }
                         else if( wxComboBox* combo = dynamic_cast<wxComboBox*>( win ) )
                         {
@@ -836,6 +855,12 @@ void DIALOG_SHIM::OptOut( wxWindow* aWindow )
 }
 
 
+void DIALOG_SHIM::ExcludeFromControlUndoRedo( wxWindow* aWindow )
+{
+    m_noControlUndoRedo.insert( aWindow );
+}
+
+
 void DIALOG_SHIM::RegisterUnitBinder( UNIT_BINDER* aUnitBinder, wxWindow* aWindow )
 {
     m_unitBinders[ aWindow ] = aUnitBinder;
@@ -920,6 +945,9 @@ void DIALOG_SHIM::registerUndoRedoHandlers( wxWindowList& children )
 {
     for( wxWindow* child : children )
     {
+        if( m_noControlUndoRedo.count( child ) )
+            continue;
+
         if( wxTextCtrl* textCtrl = dynamic_cast<wxTextCtrl*>( child ) )
         {
             textCtrl->Bind( wxEVT_TEXT, &DIALOG_SHIM::onCommandEvent, this );
@@ -1092,6 +1120,13 @@ wxVariant DIALOG_SHIM::getControlValue( wxWindow* aCtrl )
         return wxVariant( (long) radioBox->GetSelection() );
     else if( wxGrid* grid = dynamic_cast<wxGrid*>( aCtrl ) )
     {
+        // Tables with regroupable/sortable rows serialize by identity instead of row position.
+        if( auto* table = dynamic_cast<WX_GRID_TABLE_BASE*>( grid->GetTable() );
+            table && table->HasUndoStateSerialization() )
+        {
+            return wxVariant( table->SerializeUndoState() );
+        }
+
         nlohmann::json j = nlohmann::json::array();
         int rows = grid->GetNumberRows();
         int cols = grid->GetNumberCols();
@@ -1182,6 +1217,13 @@ void DIALOG_SHIM::setControlValue( wxWindow* aCtrl, const wxVariant& aValue )
         radioBox->SetSelection( (int) aValue.GetLong() );
     else if( wxGrid* grid = dynamic_cast<wxGrid*>( aCtrl ) )
     {
+        if( auto* table = dynamic_cast<WX_GRID_TABLE_BASE*>( grid->GetTable() );
+            table && table->HasUndoStateSerialization() )
+        {
+            table->RestoreUndoState( aValue.GetString() );
+            return;
+        }
+
         nlohmann::json j = nlohmann::json::parse( aValue.GetString().ToStdString(), nullptr, false );
 
         if( j.is_array() )
@@ -1319,6 +1361,8 @@ void DIALOG_SHIM::ClearModify()
 
 int DIALOG_SHIM::ShowModal()
 {
+    KIPLATFORM::UI::StabilizeWindowPosition( this );
+
     // Apple in its infinite wisdom will raise a disabled window before even passing
     // us the event, so we have no way to stop it.  Instead, we must set an order on
     // the windows so that the modal will be pushed in front of the disabled

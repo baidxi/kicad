@@ -34,6 +34,7 @@
 #include <jobs/job_export_pcb_dxf.h>
 #include <jobs/job_export_pcb_pdf.h>
 #include <jobs/job_export_pcb_plot.h>
+#include <jobs/job_export_pcb_png.h>
 #include <jobs/job_export_pcb_ps.h>
 #include <jobs/job_export_pcb_svg.h>
 #include <pgm_base.h>
@@ -246,6 +247,9 @@ bool PCB_PLOTTER::Plot( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
             catch( ... )
             {
                 success = false;
+                delete plotter->RenderSettings();
+                delete plotter;
+                plotter = nullptr;
                 break;
             }
 
@@ -443,6 +447,7 @@ void PCB_PLOTTER::PlotJobToPlotOpts( PCB_PLOT_PARAMS& aOpts, JOB_EXPORT_PCB_PLOT
         aOpts.SetDXFPlotMode( dxfJob->m_plotGraphicItemsUsingContours ? DXF_OUTLINE_MODE::SKETCH
                                                                       : DXF_OUTLINE_MODE::FILLED );
         aOpts.SetDXFPlotPolygonMode( dxfJob->m_polygonMode );
+        aOpts.SetTextMode( dxfJob->m_useKiCadFont ? PLOT_TEXT_MODE::DEFAULT : PLOT_TEXT_MODE::NATIVE );
         aOpts.SetDXFMultiLayeredExportOption( dxfJob->m_genMode == JOB_EXPORT_PCB_DXF::GEN_MODE::SINGLE );
     }
 
@@ -463,6 +468,13 @@ void PCB_PLOTTER::PlotJobToPlotOpts( PCB_PLOT_PARAMS& aOpts, JOB_EXPORT_PCB_PLOT
         aOpts.SetFineScaleAdjustX( psJob->m_XScaleAdjust );
         aOpts.SetFineScaleAdjustY( psJob->m_YScaleAdjust );
         aOpts.SetA4Output( psJob->m_forceA4 );
+    }
+
+    if( aJob->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PNG )
+    {
+        JOB_EXPORT_PCB_PNG* pngJob = static_cast<JOB_EXPORT_PCB_PNG*>( aJob );
+        aOpts.SetPngDPI( pngJob->m_dpi );
+        aOpts.SetPngAntialias( pngJob->m_antialias );
     }
 
     aOpts.SetUseAuxOrigin( aJob->m_useDrillOrigin );
@@ -492,6 +504,7 @@ void PCB_PLOTTER::PlotJobToPlotOpts( PCB_PLOT_PARAMS& aOpts, JOB_EXPORT_PCB_PLOT
     case JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::DXF:    aOpts.SetFormat( PLOT_FORMAT::DXF );    break;
     case JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::HPGL:   /* no longer supported */               break;
     case JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PDF:    aOpts.SetFormat( PLOT_FORMAT::PDF );    break;
+    case JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PNG:    aOpts.SetFormat( PLOT_FORMAT::PNG );    break;
     }
 
     wxString theme = aJob->m_colorTheme;

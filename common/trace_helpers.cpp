@@ -66,6 +66,7 @@ const wxChar* const traceKiCad2Step = wxT( "KICAD2STEP" );
 const wxChar* const traceUiProfile = wxT( "KICAD_UI_PROFILE" );
 const wxChar* const traceGit = wxT( "KICAD_GIT" );
 const wxChar* const traceEagleIo = wxT( "KICAD_EAGLE_IO" );
+const wxChar* const traceDiptraceIo = wxT( "KICAD_DIPTRACE_IO" );
 const wxChar* const traceDesignBlocks = wxT( "KICAD_DESIGN_BLOCK" );
 const wxChar* const traceLibFieldTable = wxT( "KICAD_LIB_FIELD_TABLE" );
 const wxChar* const tracePdfPlotter = wxT( "KICAD_PDF_PLOTTER" );
@@ -73,6 +74,12 @@ const wxChar* const traceSnap = wxT( "KICAD_SNAP" );
 const wxChar* const traceLibraries = wxT( "KICAD_LIBRARIES" );
 const wxChar* const traceSchMove = wxT( "KICAD_SCH_MOVE" );
 const wxChar* const traceSymbolInheritance = wxT( "KICAD_SYMBOL_INHERITANCE" );
+const wxChar* const traceSchNetChain = wxT( "KICAD_SCH_NETCHAIN" );
+
+#ifdef KICAD_GAL_PROFILE
+LATENCY_PROBE latencyProbeZoomToRender( "zoom-to-render", 16 );
+LATENCY_PROBE latencyProbeRepaintToMotion( "repaint-to-motion", 16 );
+#endif
 
 wxString dump( const wxArrayString& aArray )
 {

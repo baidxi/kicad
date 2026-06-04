@@ -22,7 +22,10 @@
 #include <layer_ids.h>
 #include <lseq.h>
 #include <dialog_map_layers.h>
+#include <pcb_base_frame.h>
+#include <pcbnew_settings.h>
 
+#include <wx/checkbox.h>
 #include <wx/msgdlg.h>
 
 
@@ -145,7 +148,8 @@ void DIALOG_MAP_LAYERS::AddMappings()
     DeleteListItems( rowsToDelete, m_unmatched_layers_list );
 
     // Auto select the first item to improve ease-of-use
-    m_unmatched_layers_list->SetItemState( 0, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED );
+    if( m_unmatched_layers_list->GetItemCount() > 0 )
+        m_unmatched_layers_list->SetItemState( 0, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED );
 }
 
 
@@ -293,6 +297,9 @@ DIALOG_MAP_LAYERS::DIALOG_MAP_LAYERS( wxWindow* aParent, const std::vector<INPUT
     // Auto select the first item to improve ease-of-use
     m_kicad_layers_list->SetItemState( 0, wxLIST_STATE_SELECTED, wxLIST_STATE_SELECTED );
 
+    if( auto* frame = dynamic_cast<PCB_BASE_FRAME*>( m_parentFrame ) )
+        m_cbKeepKiCadLayerNames->SetValue( frame->GetPcbNewSettings()->m_ImportKeepKiCadLayerNames );
+
     SetupStandardButtons();
 
     Fit();
@@ -338,6 +345,9 @@ DIALOG_MAP_LAYERS::RunModal( wxWindow* aParent, const std::vector<INPUT_LAYER_DE
             dataOk = true;
         }
     }
+
+    if( auto* frame = dynamic_cast<PCB_BASE_FRAME*>( dlg.m_parentFrame ) )
+        frame->GetPcbNewSettings()->m_ImportKeepKiCadLayerNames = dlg.m_cbKeepKiCadLayerNames->GetValue();
 
     return dlg.m_matched_layers_map;
 }

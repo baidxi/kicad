@@ -51,6 +51,16 @@ namespace KIGFX
     class VIEW;
 }
 
+
+/// The electrical type of a pad
+enum class PAD_SIM_ELECTRICAL_TYPE : int
+{
+    NONE = 0,
+    SOURCE,
+    SINK
+};
+
+
 class PAD : public BOARD_CONNECTED_ITEM
 {
 public:
@@ -277,7 +287,12 @@ public:
     {
         if( aX > 0 )
         {
-            m_padStack.SetSize( { aX, m_padStack.Size( PADSTACK::ALL_LAYERS ).y }, PADSTACK::ALL_LAYERS );
+            int y = m_padStack.Size( PADSTACK::ALL_LAYERS ).y;
+
+            if( GetShape( PADSTACK::ALL_LAYERS ) == PAD_SHAPE::CIRCLE )
+                y = aX;
+
+            m_padStack.SetSize( { aX, y }, PADSTACK::ALL_LAYERS );
             SetDirty();
         }
     }
@@ -288,7 +303,12 @@ public:
     {
         if( aY > 0 )
         {
-            m_padStack.SetSize( { m_padStack.Size( PADSTACK::ALL_LAYERS ).x, aY }, PADSTACK::ALL_LAYERS );
+            int x = m_padStack.Size( PADSTACK::ALL_LAYERS ).x;
+
+            if( GetShape( PADSTACK::ALL_LAYERS ) == PAD_SHAPE::CIRCLE )
+                x = aY;
+
+            m_padStack.SetSize( { x, aY }, PADSTACK::ALL_LAYERS );
             SetDirty();
         }
     }
@@ -572,6 +592,9 @@ public:
         return ( m_padStack.LayerSet() & LSET::AllCuMask() ).none();
     }
 
+    void                    SetSimElectricalType( PAD_SIM_ELECTRICAL_TYPE aType ) { m_simElectricalType = aType; }
+    PAD_SIM_ELECTRICAL_TYPE GetSimElectricalType() const { return m_simElectricalType; }
+
     bool IsNPTHWithNoCopper() const;
 
     void SetPadToDieLength( int aLength )       { m_lengthPadToDie = aLength; }
@@ -785,6 +808,15 @@ public:
     int GetRoundRectCornerRadius( PCB_LAYER_ID aLayer ) const;
 
     VECTOR2I ShapePos( PCB_LAYER_ID aLayer ) const;
+
+    /**
+     * Swap the visible shape positions of two pads, preserving each pad's own shape offset.
+     *
+     * Using SetPosition() directly would swap anchor (hole) positions, which leaves each pad's
+     * copper shape displaced by its own offset after the swap.  This helper computes the new
+     * anchor for each pad so the visible shape centers (ShapePos) are exchanged.
+     */
+    static void SwapShapePositions( PAD* aLhs, PAD* aRhs );
 
     /**
      * Has meaning only for rounded rectangle pads.
@@ -1113,6 +1145,8 @@ private:
 
     int               m_lengthPadToDie;     // Length net from pad to die, inside the package
     int               m_delayPadToDie;      // Propagation delay from pad to die
+
+    PAD_SIM_ELECTRICAL_TYPE m_simElectricalType{ PAD_SIM_ELECTRICAL_TYPE::NONE };
 
     // Bools at the end for better memory layout
     mutable bool m_polyDirty[2];

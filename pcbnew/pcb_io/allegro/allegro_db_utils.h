@@ -104,8 +104,17 @@ public:
      */
     explicit operator bool() const { return m_block != nullptr; }
 
-    const BLK_T& operator*() const { return BlockDataAs<BLK_T>( *m_block ); }
-    const BLK_T* operator->() const { return &BlockDataAs<BLK_T>( *m_block ); }
+    const BLK_T& operator*() const
+    {
+        wxASSERT( m_block != nullptr );
+        return BlockDataAs<BLK_T>( *m_block );
+    }
+
+    const BLK_T* operator->() const
+    {
+        wxASSERT( m_block != nullptr );
+        return &BlockDataAs<BLK_T>( *m_block );
+    }
 
     const BLOCK_BASE* Block() const { return m_block; }
 

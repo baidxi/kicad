@@ -53,6 +53,7 @@
 #include <wx/msgdlg.h>
 #include <dialogs/eda_view_switcher.h>
 #include "dialog_symbol_fields_table.h"
+#include "dialog_resolve_field_case_conflicts.h"
 #include <fields_data_model.h>
 #include <eda_list_dialog.h>
 #include <project_sch.h>
@@ -197,7 +198,21 @@ DIALOG_SYMBOL_FIELDS_TABLE::DIALOG_SYMBOL_FIELDS_TABLE( SCH_EDIT_FRAME* parent, 
         m_job( aJob )
 {
     // Get all symbols from the list of schematic sheets
-    m_parent->Schematic().Hierarchy().GetSymbols( m_symbolsList, false );
+    m_parent->Schematic().Hierarchy().GetSymbols( m_symbolsList, SYMBOL_FILTER_NON_POWER );
+
+    if( auto conflicts = DetectFieldCaseConflicts( m_symbolsList ); !conflicts.empty() )
+    {
+        DIALOG_RESOLVE_FIELD_CASE_CONFLICTS resolver( this, m_parent, std::move( conflicts ) );
+
+        if( resolver.ShowModal() != wxID_OK )
+        {
+            m_aborted = true;
+            return;
+        }
+
+        m_symbolsList.Clear();
+        m_parent->Schematic().Hierarchy().GetSymbols( m_symbolsList, SYMBOL_FILTER_NON_POWER );
+    }
 
     m_bRefresh->SetBitmap( KiBitmapBundle( BITMAPS::small_refresh ) );
     m_bMenu->SetBitmap( KiBitmapBundle( BITMAPS::config ) );
@@ -215,6 +230,9 @@ DIALOG_SYMBOL_FIELDS_TABLE::DIALOG_SYMBOL_FIELDS_TABLE( SCH_EDIT_FRAME* parent, 
     m_editVariantDescButton->SetBitmap( KiBitmapBundle( BITMAPS::text ) );
 
     m_sidebarButton->SetBitmap( KiBitmapBundle( BITMAPS::left ) );
+
+    // Do not OptOut the notebook. That would also exclude its child controls such as the
+    // scope selector from being persisted. The active page is forced by the opening tool.
 
     m_viewControlsDataModel = new VIEW_CONTROLS_GRID_DATA_MODEL( true );
 
@@ -254,6 +272,10 @@ DIALOG_SYMBOL_FIELDS_TABLE::DIALOG_SYMBOL_FIELDS_TABLE( SCH_EDIT_FRAME* parent, 
 
     m_grid->UseNativeColHeader( true );
     m_grid->SetTable( m_dataModel, true );
+
+    // The field-list grid regroups its rows, so the dialog's position-based Ctrl+Z would shift
+    // values onto the wrong field.
+    ExcludeFromControlUndoRedo( m_viewControlsGrid );
 
     // must be done after SetTable(), which appears to re-set it
     m_grid->SetSelectionMode( wxGrid::wxGridSelectCells );
@@ -585,8 +607,7 @@ bool DIALOG_SYMBOL_FIELDS_TABLE::TransferDataToWindow()
 
     m_dataModel->SetGroupingEnabled( m_groupSymbolsBox->GetValue() );
 
-    wxCommandEvent dummy;
-    OnScope( dummy );
+    setScope( static_cast<SCOPE>( m_scope->GetSelection() ) );
 
     if( selection.GetSize() == 1 )
     {
@@ -694,7 +715,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::AddField( const wxString& aFieldName, const wxS
     // e.g. ${QUANTITY} so make sure we don't add them twice
     for( int row = 0; row < m_viewControlsDataModel->GetNumberRows(); row++ )
     {
-        if( m_viewControlsDataModel->GetCanonicalFieldName( row ) == aFieldName )
+        if( m_viewControlsDataModel->GetCanonicalFieldName( row ).CmpNoCase( aFieldName ) == 0 )
             return;
     }
 
@@ -736,7 +757,12 @@ void DIALOG_SYMBOL_FIELDS_TABLE::LoadFieldNames()
     AddField( FIELDS_EDITOR_GRID_DATA_MODEL::ITEM_NUMBER_VARIABLE, _( "#" ), true, false );
 
     // User fields next
-    std::set<wxString> userFieldNames;
+    auto caseInsensitiveLess = []( const wxString& a, const wxString& b )
+    {
+        return a.CmpNoCase( b ) < 0;
+    };
+
+    std::map<wxString, std::map<wxString, int>, decltype( caseInsensitiveLess )> userFieldGroups( caseInsensitiveLess );
 
     for( int ii = 0; ii < (int) m_symbolsList.GetCount(); ++ii )
     {
@@ -745,17 +771,39 @@ void DIALOG_SYMBOL_FIELDS_TABLE::LoadFieldNames()
         for( const SCH_FIELD& field : symbol->GetFields() )
         {
             if( !field.IsMandatory() && !field.IsPrivate() )
-                userFieldNames.insert( field.GetName() );
+                userFieldGroups[field.GetName()][field.GetName()]++;
         }
     }
 
-    for( const wxString& fieldName : userFieldNames )
-        AddField( fieldName, GetGeneratedFieldDisplayName( fieldName ), true, false );
+    for( const auto& [groupKey, exactCounts] : userFieldGroups )
+    {
+        wxString canonicalName;
 
-    // Add any templateFieldNames which aren't already present in the userFieldNames
+        if( const TEMPLATE_FIELDNAME* tfn = m_schSettings.m_TemplateFieldNames.GetFieldName( groupKey ) )
+        {
+            canonicalName = tfn->m_Name;
+        }
+        else
+        {
+            int bestCount = -1;
+
+            for( const auto& [name, count] : exactCounts )
+            {
+                if( count > bestCount )
+                {
+                    bestCount = count;
+                    canonicalName = name;
+                }
+            }
+        }
+
+        AddField( canonicalName, GetGeneratedFieldDisplayName( canonicalName ), true, false );
+    }
+
+    // Add any templateFieldNames which aren't already present.
     for( const TEMPLATE_FIELDNAME& tfn : m_schSettings.m_TemplateFieldNames.GetTemplateFieldNames() )
     {
-        if( userFieldNames.count( tfn.m_Name ) == 0 )
+        if( userFieldGroups.count( tfn.m_Name ) == 0 )
             AddField( tfn.m_Name, GetGeneratedFieldDisplayName( tfn.m_Name ), false, false );
     }
 }
@@ -778,7 +826,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::OnAddField( wxCommandEvent& event )
 
     for( int i = 0; i < m_dataModel->GetNumberCols(); ++i )
     {
-        if( fieldName == m_dataModel->GetColFieldName( i ) )
+        if( fieldName.CmpNoCase( m_dataModel->GetColFieldName( i ) ) == 0 )
         {
             DisplayError( this, wxString::Format( _( "Field name '%s' already in use." ), fieldName ) );
             return;
@@ -2474,7 +2522,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::OnSchItemsAdded( SCHEMATIC& aSch, std::vector<S
     std::set<wxString> savedSelection = SaveGridSelection();
 
     SCH_REFERENCE_LIST allRefs;
-    m_parent->Schematic().Hierarchy().GetSymbols( allRefs );
+    m_parent->Schematic().Hierarchy().GetSymbols( allRefs, SYMBOL_FILTER_ALL );
 
     for( SCH_ITEM* item : aSchItem )
     {
@@ -2542,7 +2590,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::OnSchItemsChanged( SCHEMATIC& aSch, std::vector
     std::set<wxString> savedSelection = SaveGridSelection();
 
     SCH_REFERENCE_LIST allRefs;
-    m_parent->Schematic().Hierarchy().GetSymbols( allRefs );
+    m_parent->Schematic().Hierarchy().GetSymbols( allRefs, SYMBOL_FILTER_ALL );
 
     for( SCH_ITEM* item : aSchItem )
     {
@@ -2730,7 +2778,7 @@ SCH_REFERENCE_LIST DIALOG_SYMBOL_FIELDS_TABLE::getSheetSymbolReferences( SCH_SHE
                 subSheets.push_back( sheetPath );
                 allSheets.GetSheetsWithinPath( subSheets, sheetPath );
 
-                subSheets.GetSymbolsWithinPath( sheetRefs, sheetPath, false, false );
+                subSheets.GetSymbolsWithinPath( sheetRefs, sheetPath, SYMBOL_FILTER_NON_POWER, false );
                 break;
             }
         }

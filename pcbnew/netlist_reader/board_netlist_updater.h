@@ -35,6 +35,7 @@ class NETLIST;
 class COMPONENT;
 class FOOTPRINT;
 class PCB_EDIT_FRAME;
+class PCB_GROUP;
 
 #include <board_commit.h>
 
@@ -87,6 +88,8 @@ public:
 
     void SetTransferGroups( bool aEnabled ) { m_transferGroups = aEnabled; }
 
+    void SetApplyDesignBlockLayouts( bool aEnabled ) { m_applyDesignBlockLayouts = aEnabled; }
+
     void SetOverrideLocks( bool aOverride ) { m_overrideLocks = aOverride; }
 
     void SetDeleteUnusedFootprints( bool aEnabled ) { m_deleteUnusedFootprints = aEnabled; }
@@ -98,6 +101,18 @@ public:
     void SetRemoveExtraFields( bool aEnabled ) { m_removeExtraFields = aEnabled; }
 
     std::vector<FOOTPRINT*> GetAddedFootprints() const { return m_addedFootprints; }
+
+    std::vector<PCB_GROUP*> GetAddedGroups() const { return m_addedGroups; }
+
+    /**
+     * Apply the netlist's chain assignments to every NETINFO_ITEM on the board.
+     *
+     * Whenever a net's chain name is renamed or cleared, the prior terminal-pad pointer and
+     * its persisted UUID are dropped together so the pair stays in lockstep and stale
+     * terminals from a previous session do not bleed into the resaved board.
+     */
+    static void ApplyChainAssignments( BOARD* aBoard, const NETLIST& aNetlist, REPORTER* aReporter,
+                                       bool aDryRun );
 
 private:
     void cacheNetname( PAD* aPad, const wxString& aNetname );
@@ -146,12 +161,15 @@ private:
     std::map<PAD*, wxString>           m_padNets;
     std::map<PAD*, wxString>           m_padPinFunctions;
     std::vector<FOOTPRINT*>            m_addedFootprints;
+    std::vector<PCB_GROUP*>            m_addedGroups;
     std::map<wxString, NETINFO_ITEM*>  m_addedNets;
+    std::set<wxString>                 m_schematicNetNames;
 
     bool m_deleteUnusedFootprints;
     bool m_isDryRun;
     bool m_replaceFootprints;
     bool m_transferGroups; // copy component group associations from schematic to PCB
+    bool m_applyDesignBlockLayouts;
     bool m_lookupByTimestamp;
     bool m_overrideLocks;
     bool m_updateFields;

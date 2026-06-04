@@ -132,7 +132,8 @@ static const std::vector<KICAD_T> routableTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_
 EDIT_TOOL::EDIT_TOOL() :
         PCB_TOOL_BASE( "pcbnew.InteractiveEdit" ),
         m_selectionTool( nullptr ),
-        m_dragging( false )
+        m_dragging( false ),
+        m_inMoveWithReference( false )
 {
 }
 
@@ -140,8 +141,63 @@ EDIT_TOOL::EDIT_TOOL() :
 void EDIT_TOOL::Reset( RESET_REASON aReason )
 {
     m_dragging = false;
+    m_inMoveWithReference = false;
 
     m_statusPopup = std::make_unique<STATUS_TEXT_POPUP>( getEditFrame<PCB_BASE_EDIT_FRAME>() );
+}
+
+
+static std::shared_ptr<CONDITIONAL_MENU> makeMirrorRotateMenu( TOOL_INTERACTIVE* aTool )
+{
+    auto menu = std::make_shared<CONDITIONAL_MENU>( aTool );
+
+    menu->SetIcon( BITMAPS::special_tools );
+    menu->SetUntranslatedTitle( _HKI( "Mirror / Rotate" ) );
+
+    auto canMirror = []( const SELECTION& aSelection )
+    {
+        if( SELECTION_CONDITIONS::OnlyTypes( padTypes )( aSelection ) )
+        {
+            return false;
+        }
+
+        if( SELECTION_CONDITIONS::HasTypes( groupTypes )( aSelection ) )
+            return true;
+
+        return SELECTION_CONDITIONS::HasTypes( EDIT_TOOL::MirrorableItems )( aSelection );
+    };
+
+    menu->AddItem( PCB_ACTIONS::rotateCcw, SELECTION_CONDITIONS::NotEmpty );
+    menu->AddItem( PCB_ACTIONS::rotateCw, SELECTION_CONDITIONS::NotEmpty );
+    menu->AddItem( PCB_ACTIONS::mirrorH, canMirror );
+    menu->AddItem( PCB_ACTIONS::mirrorV, canMirror );
+
+    return menu;
+}
+
+
+static std::shared_ptr<CONDITIONAL_MENU> makeRoutingToolsMenu( TOOL_INTERACTIVE* aTool )
+{
+    auto menu = std::make_shared<CONDITIONAL_MENU>( aTool );
+
+    menu->SetIcon( BITMAPS::special_tools );
+    menu->SetUntranslatedTitle( _HKI( "Routing" ) );
+
+    auto notMovingCondition = []( const SELECTION& aSelection )
+    {
+        return aSelection.Empty() || !aSelection.Front()->IsMoving();
+    };
+
+    const SELECTION_CONDITION isRoutable =
+            SELECTION_CONDITIONS::NotEmpty && SELECTION_CONDITIONS::HasTypes( routableTypes ) && notMovingCondition;
+
+    menu->AddItem( PCB_ACTIONS::routerRouteSelected, isRoutable );
+    menu->AddItem( PCB_ACTIONS::routerRouteSelectedFromEnd, isRoutable );
+    menu->AddItem( PCB_ACTIONS::unrouteSelected, isRoutable );
+    menu->AddItem( PCB_ACTIONS::unrouteSegment, isRoutable );
+    menu->AddItem( PCB_ACTIONS::routerAutorouteSelected, isRoutable );
+
+    return menu;
 }
 
 
@@ -158,6 +214,8 @@ static std::shared_ptr<CONDITIONAL_MENU> makePositioningToolsMenu( TOOL_INTERACT
     };
 
     menu->AddItem( PCB_ACTIONS::moveExact, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
+    menu->AddItem( PCB_ACTIONS::moveWithReference, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
+    menu->AddItem( PCB_ACTIONS::moveIndividually, SELECTION_CONDITIONS::MoreThan( 1 ) && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::positionRelative, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::interactiveOffsetTool, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     return menu;
@@ -499,8 +557,14 @@ bool EDIT_TOOL::Init()
     // Find the selection tool, so they can cooperate
     m_selectionTool = m_toolMgr->GetTool<PCB_SELECTION_TOOL>();
 
+    std::shared_ptr<CONDITIONAL_MENU> routingSubMenu = makeRoutingToolsMenu( this );
+    m_selectionTool->GetToolMenu().RegisterSubMenu( routingSubMenu );
+
     std::shared_ptr<CONDITIONAL_MENU> positioningToolsSubMenu = makePositioningToolsMenu( this );
     m_selectionTool->GetToolMenu().RegisterSubMenu( positioningToolsSubMenu );
+
+    std::shared_ptr<CONDITIONAL_MENU> mirrorRotateSubMenu = makeMirrorRotateMenu( this );
+    m_selectionTool->GetToolMenu().RegisterSubMenu( mirrorRotateSubMenu );
 
     std::shared_ptr<CONDITIONAL_MENU> shapeModificationSubMenu = makeShapeModificationMenu( this );
     m_selectionTool->GetToolMenu().RegisterSubMenu( shapeModificationSubMenu );
@@ -668,40 +732,37 @@ bool EDIT_TOOL::Init()
     CONDITIONAL_MENU& menu = m_selectionTool->GetToolMenu().GetMenu();
 
     // clang-format off
-    menu.AddItem( PCB_ACTIONS::move,                    SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
-    menu.AddItem( PCB_ACTIONS::moveWithReference,       SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
-    menu.AddItem( PCB_ACTIONS::moveIndividually,        SELECTION_CONDITIONS::MoreThan( 1 ) && notMovingCondition );
-
-    menu.AddItem( PCB_ACTIONS::routerRouteSelected,        isRoutable );
-    menu.AddItem( PCB_ACTIONS::routerRouteSelectedFromEnd, isRoutable );
-    menu.AddItem( PCB_ACTIONS::unrouteSelected,            isRoutable );
-    menu.AddItem( PCB_ACTIONS::unrouteSegment,             isRoutable );
-    menu.AddItem( PCB_ACTIONS::routerAutorouteSelected,    isRoutable );
+    menu.AddItem( ACTIONS::selectAll,             noItemsCondition );
+    menu.AddItem( ACTIONS::unselectAll,           noItemsCondition );
+    menu.AddSeparator();
 
     menu.AddItem( PCB_ACTIONS::skip,              isSkippable );
-    menu.AddItem( PCB_ACTIONS::breakTrack,        SELECTION_CONDITIONS::Count( 1 )
-                                                      && SELECTION_CONDITIONS::OnlyTypes( trackTypes ) );
+    menu.AddItem( PCB_ACTIONS::move,                    SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
+
     menu.AddItem( PCB_ACTIONS::drag45Degree,      SELECTION_CONDITIONS::Count( 1 )
                                                       && SELECTION_CONDITIONS::OnlyTypes( GENERAL_COLLECTOR::DraggableItems ) );
     menu.AddItem( PCB_ACTIONS::dragFreeAngle,     SELECTION_CONDITIONS::Count( 1 )
                                                       && SELECTION_CONDITIONS::OnlyTypes( GENERAL_COLLECTOR::DraggableItems )
                                                       && !SELECTION_CONDITIONS::OnlyTypes( footprintTypes ) );
-    menu.AddItem( PCB_ACTIONS::filletTracks,      SELECTION_CONDITIONS::OnlyTypes( trackTypes ) );
-
-    menu.AddItem( PCB_ACTIONS::rotateCcw,         SELECTION_CONDITIONS::NotEmpty );
-    menu.AddItem( PCB_ACTIONS::rotateCw,          SELECTION_CONDITIONS::NotEmpty );
     menu.AddItem( PCB_ACTIONS::flip,              SELECTION_CONDITIONS::NotEmpty );
-    menu.AddItem( PCB_ACTIONS::mirrorH,           canMirror );
-    menu.AddItem( PCB_ACTIONS::mirrorV,           canMirror );
+
     menu.AddItem( PCB_ACTIONS::swap,              SELECTION_CONDITIONS::MoreThan( 1 ) );
     menu.AddItem( PCB_ACTIONS::swapPadNets,       SELECTION_CONDITIONS::MoreThan( 1 )
                                                       && SELECTION_CONDITIONS::OnlyTypes( padTypes ) );
     menu.AddItem( PCB_ACTIONS::swapGateNets,      gateSwapMultipleUnitsOnOneFootprint );
     menu.AddMenu( gateSwapSubMenu.get(),          gateSwapSingleUnitOnOneFootprint );
+
+    menu.AddSeparator();
+
+    menu.AddItem( PCB_ACTIONS::breakTrack,        SELECTION_CONDITIONS::Count( 1 )
+                                                      && SELECTION_CONDITIONS::OnlyTypes( trackTypes ) );
+
+    menu.AddItem( PCB_ACTIONS::filletTracks,      SELECTION_CONDITIONS::OnlyTypes( trackTypes ) );
+
+    menu.AddSeparator();
+
     menu.AddItem( PCB_ACTIONS::packAndMoveFootprints, SELECTION_CONDITIONS::MoreThan( 1 )
                                                       && SELECTION_CONDITIONS::HasType( PCB_FOOTPRINT_T ) );
-
-    menu.AddItem( PCB_ACTIONS::properties,        propertiesCondition );
 
     menu.AddItem( PCB_ACTIONS::assignNetClass,    SELECTION_CONDITIONS::OnlyTypes( connectedTypes )
                                                       && !inFootprintEditor );
@@ -717,6 +778,8 @@ bool EDIT_TOOL::Init()
 
     // Add the submenu for the special tools: modfiers and positioning tools
     menu.AddSeparator( 100 );
+    menu.AddMenu( routingSubMenu.get(), isRoutable, 100 );
+    menu.AddMenu( mirrorRotateSubMenu.get(), canMirror, 100 );
     menu.AddMenu( shapeModificationSubMenu.get(), shapeModificationCondition, 100 );
     menu.AddMenu( positioningToolsSubMenu.get(),  positioningToolsCondition, 100 );
 
@@ -733,9 +796,8 @@ bool EDIT_TOOL::Init()
     menu.AddItem( ACTIONS::duplicate,             SELECTION_CONDITIONS::NotEmpty, 150 );
     menu.AddItem( ACTIONS::doDelete,              SELECTION_CONDITIONS::NotEmpty, 150 );
 
-    menu.AddSeparator( 150 );
-    menu.AddItem( ACTIONS::selectAll,             noItemsCondition, 150 );
-    menu.AddItem( ACTIONS::unselectAll,           noItemsCondition, 150 );
+    menu.AddSeparator( 2000 );
+    menu.AddItem( PCB_ACTIONS::properties,        propertiesCondition, 2000 );
     // clang-format on
 
     return true;
@@ -955,6 +1017,8 @@ int EDIT_TOOL::Drag( const TOOL_EVENT& aEvent )
 
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( selection.Empty() )
         return 0;
@@ -1334,6 +1398,8 @@ int EDIT_TOOL::ChangeTrackWidth( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     BOARD_COMMIT commit( this );
 
     for( EDA_ITEM* item : selection )
@@ -1413,6 +1479,8 @@ int EDIT_TOOL::ChangeTrackLayer( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     PCB_LAYER_ID origLayer = frame()->GetActiveLayer();
 
     if( isNext )
@@ -1474,6 +1542,8 @@ int EDIT_TOOL::FilletTracks( const TOOL_EVENT& aEvent )
 
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( selection.Size() < 2 )
     {
@@ -1768,6 +1838,8 @@ int EDIT_TOOL::ModifyLines( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     std::set<PCB_SHAPE*>    lines_to_add;
     std::vector<PCB_SHAPE*> items_to_remove;
 
@@ -2011,6 +2083,8 @@ int EDIT_TOOL::SimplifyPolygons( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     // Store last used value
     static int s_toleranceValue = pcbIUScale.mmToIU( 3 );
 
@@ -2081,6 +2155,8 @@ int EDIT_TOOL::HealShapes( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     // Store last used value
     static int s_toleranceValue = pcbIUScale.mmToIU( 3 );
 
@@ -2140,6 +2216,8 @@ int EDIT_TOOL::BooleanPolygons( const TOOL_EVENT& aEvent )
 
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     const EDA_ITEM* const last_item = selection.GetLastAddedItem();
 
@@ -2374,6 +2452,8 @@ int EDIT_TOOL::EditVertices( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     if( !selectionHasEditableCorners( selection ) )
     {
         wxBell();
@@ -2421,6 +2501,8 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
                     sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     if( selection.Empty() )
         return 0;
 
@@ -2444,6 +2526,8 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
                     sTool->FilterCollectorForTableCells( aCollector );
                     sTool->FilterCollectorForLockedItems( aCollector );
                 } );
+
+        m_selectionTool->ReportFilteredLockedItems();
     }
 
     // Did we filter everything out?  If so, don't try to operate further
@@ -2466,7 +2550,7 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
     if( selection.Size() == 1 && !m_dragging && dynamic_cast<PCB_TABLE*>( selection.Front() ) )
         usePcbShapeCenter = true;
 
-    if( selection.Size() == 1 && dynamic_cast<PCB_TEXTBOX*>( selection.Front() ) )
+    if( selection.Size() == 1 && !m_dragging && dynamic_cast<PCB_TEXTBOX*>( selection.Front() ) )
     {
         selection.SetReferencePoint( static_cast<PCB_TEXTBOX*>( selection.Front() )->GetCenter() );
     }
@@ -2578,8 +2662,8 @@ static void mirrorPad( PAD& aPad, const VECTOR2I& aMirrorPoint, FLIP_DIRECTION a
 
 
 const std::vector<KICAD_T> EDIT_TOOL::MirrorableItems = {
-    PCB_SHAPE_T, PCB_FIELD_T, PCB_TEXT_T, PCB_TEXTBOX_T, PCB_ZONE_T,      PCB_PAD_T,
-    PCB_TRACE_T, PCB_ARC_T,   PCB_VIA_T,  PCB_GROUP_T,   PCB_GENERATOR_T, PCB_POINT_T,
+    PCB_SHAPE_T, PCB_FIELD_T, PCB_TEXT_T,  PCB_TEXTBOX_T,   PCB_ZONE_T,  PCB_PAD_T,   PCB_TRACE_T,
+    PCB_ARC_T,   PCB_VIA_T,   PCB_GROUP_T, PCB_GENERATOR_T, PCB_POINT_T, PCB_TABLE_T,
 };
 
 
@@ -2606,6 +2690,8 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     if( selection.Empty() )
         return 0;
 
@@ -2615,10 +2701,17 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     FLIP_DIRECTION flipDirection = aEvent.IsAction( &PCB_ACTIONS::mirrorV ) ? FLIP_DIRECTION::TOP_BOTTOM
                                                                             : FLIP_DIRECTION::LEFT_RIGHT;
 
+    int skippedFootprints = 0;
+
     for( EDA_ITEM* item : selection )
     {
         if( !item->IsType( MirrorableItems ) )
+        {
+            if( item->Type() == PCB_FOOTPRINT_T )
+                skippedFootprints++;
+
             continue;
+        }
 
         commit->Modify( item, nullptr, RECURSE_MODE::RECURSE );
 
@@ -2642,9 +2735,7 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
             static_cast<PCB_TEXTBOX*>( item )->Mirror( mirrorPoint, flipDirection );
             break;
 
-        case PCB_TABLE_T:
-            // JEY TODO: tables
-            break;
+        case PCB_TABLE_T: static_cast<PCB_TABLE*>( item )->Mirror( mirrorPoint, flipDirection ); break;
 
         case PCB_PAD_T:
             mirrorPad( *static_cast<PAD*>( item ), mirrorPoint, flipDirection );
@@ -2678,6 +2769,12 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
         localCommit.Push( _( "Mirror" ) );
+
+    if( skippedFootprints > 0 && !m_dragging )
+    {
+        frame()->ShowInfoBarMsg( _( "Footprints cannot be mirrored. Use Flip to move them to "
+                                    "the other side of the board." ) );
+    }
 
     if( selection.IsHover() && !m_dragging )
         m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -2714,6 +2811,8 @@ int EDIT_TOOL::JustifyText( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForHierarchy( aCollector, true );
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( selection.Empty() )
         return 0;
@@ -2791,6 +2890,8 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
 
+    m_selectionTool->ReportFilteredLockedItems();
+
     if( selection.Empty() )
         return 0;
 
@@ -2804,14 +2905,18 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
     // Flip around the anchor for footprints, and the bounding box center for board items
     VECTOR2I refPt = IsFootprintEditor() ? VECTOR2I( 0, 0 ) : selection.GetCenter();
 
-    // If only one item selected, flip around the selection or item anchor point (instead
-    // of the bounding box center) to avoid moving the item anchor
-    // but only if the item is not a PCB_SHAPE with SHAPE_T::RECTANGLE shape, because
-    // for this shape the flip transform swap start and end coordinates and move the shape.
-    // So using the center of the shape is better (the shape does not move)
-    // (Tables are a bunch of rectangles, so exclude them too)
-    if( selection.GetSize() == 1 )
+    if( m_dragging && m_inMoveWithReference && oldRefPt )
     {
+        refPt = *oldRefPt;
+    }
+    else if( selection.GetSize() == 1 )
+    {
+        // If only one item selected, flip around the selection or item anchor point (instead
+        // of the bounding box center) to avoid moving the item anchor
+        // but only if the item is not a PCB_SHAPE with SHAPE_T::RECTANGLE shape, because
+        // for this shape the flip transform swap start and end coordinates and move the shape.
+        // So using the center of the shape is better (the shape does not move)
+        // (Tables are a bunch of rectangles, so exclude them too)
         PCB_SHAPE* rect = dynamic_cast<PCB_SHAPE*>( selection.GetItem( 0 ) );
         PCB_TABLE* table = dynamic_cast<PCB_TABLE*>( selection.GetItem( 0 ) );
 
@@ -3065,6 +3170,9 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
     }
     else
     {
+        // Hover-pick is only a fallback for an empty selection.
+        const bool hadInitialSelection = !m_selectionTool->GetSelection().Empty();
+
         // When not in free-pad mode we normally auto-promote selected pads to their parent
         // footprints.  But this is probably a little too dangerous for a destructive operation,
         // so we just do the promotion but not the deletion (allowing for a second delete to do
@@ -3075,6 +3183,14 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
                     sTool->FilterCollectorForHierarchy( aCollector, true );
                     sTool->FilterCollectorForLockedItems( aCollector );
                 } );
+
+        m_selectionTool->ReportFilteredLockedItems();
+
+        if( hadInitialSelection && selectionCopy.Empty() )
+        {
+            editFrame->PopTool( aEvent );
+            return 0;
+        }
 
         size_t beforeFPCount = selectionCopy.CountType( PCB_FOOTPRINT_T );
 
@@ -3099,6 +3215,12 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
             m_toolMgr->RunAction( PCB_ACTIONS::selectConnection );
 
         selectionCopy = m_selectionTool->GetSelection();
+
+        if( selectionCopy.Empty() )
+        {
+            editFrame->PopTool( aEvent );
+            return 0;
+        }
     }
 
     DeleteItems( selectionCopy, isCut );
@@ -3126,6 +3248,8 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
                 sTool->FilterCollectorForTableCells( aCollector );
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( selection.Empty() )
         return 0;
@@ -3388,6 +3512,8 @@ int EDIT_TOOL::Increment( const TOOL_EVENT& aEvent )
 
                 sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( selection.Empty() )
         return 0;
@@ -3659,6 +3785,8 @@ int EDIT_TOOL::copyToClipboard( const TOOL_EVENT& aEvent )
                 if( aEvent.IsAction( &ACTIONS::cut ) )
                     sTool->FilterCollectorForLockedItems( aCollector );
             } );
+
+    m_selectionTool->ReportFilteredLockedItems();
 
     if( !selection.Empty() )
     {

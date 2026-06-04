@@ -128,6 +128,20 @@ public:
     /// Notify the adapter that the global library tables have changed
     void GlobalTablesChanged( std::initializer_list<LIBRARY_TABLE_TYPE> aChangedTables = {} );
 
+    /// Notify the adapter that the project library tables are about to be rebuilt.
+    /// Mirrors GlobalTablesChanged: aborts any in-progress loads and invalidates
+    /// cached LIB_DATA entries so raw LIBRARY_TABLE_ROW pointers do not dangle when
+    /// the backing LIBRARY_TABLE objects are destroyed and rebuilt. Entries are
+    /// reset in place (rather than erased) so their nicknames continue to mask
+    /// same-named global libraries until the project scope is repopulated.
+    void ProjectTablesChanged( std::initializer_list<LIBRARY_TABLE_TYPE> aChangedTables = {} );
+
+    /// Complements ProjectTablesChanged by erasing project-scope cache entries
+    /// whose nicknames no longer appear in the rebuilt project table. Must be
+    /// called AFTER the new project table is loaded; otherwise removed libraries
+    /// would be permanently masked by stale sentinels installed during the reset.
+    void ProjectTablesReloaded( std::initializer_list<LIBRARY_TABLE_TYPE> aChangedTables = {} );
+
     void CheckTableRow( LIBRARY_TABLE_ROW& aRow );
 
     /// Loads all available libraries for this adapter type in the background
@@ -201,6 +215,15 @@ protected:
 
     /// Aborts any async load in progress; blocks until fully done aborting
     void abortLoad();
+
+    /// Aborts pending loads and resets every project-scope cache entry in place
+    /// (plugin and row cleared, status returned to INVALID) while preserving the
+    /// nickname keys. Keeping the keys acts as a sentinel: fetchIfLoaded() finds
+    /// the entry, sees it is no longer LOADED, and returns nullopt instead of
+    /// falling through to globalLibs(), which is what preserves project-over-
+    /// global shadowing across a project table reload. Shared between
+    /// ProjectChanged() and ProjectTablesChanged() so both hooks stay in sync.
+    void resetProjectCache();
 
     /// Creates a concrete plugin for the given row
     virtual LIBRARY_RESULT<IO_BASE*> createPlugin( const LIBRARY_TABLE_ROW* row ) = 0;
@@ -334,11 +357,44 @@ public:
 
     static bool UrisAreEquivalent( const wxString& aURI1, const wxString& aURI2 );
 
+    /**
+     * Return true if a library table row was added by the Plugin and Content Manager.
+     *
+     * PCM-managed rows are identified by the unexpanded URI template referencing the
+     * versioned 3RD_PARTY env var (as produced by PCM_LIB_TRAVERSER). Matching on the
+     * URI template, rather than on the expanded absolute path, prevents false positives
+     * when a user library uses a different env var whose expanded path is a descendant
+     * of the 3RD_PARTY directory (e.g. KICAD_USER_LIB pointing inside KICAD10_3RD_PARTY).
+     */
+    static bool IsPcmManagedRow( const LIBRARY_TABLE_ROW& aRow );
+
+    /// Applies stored user overrides (disabled/hidden) to rows of a read-only table.
+    /// Call this after constructing a LIBRARY_TABLE from a read-only file before
+    /// displaying it in the UI.
+    void ApplyLibOverrides( LIBRARY_TABLE& aTable );
+
+    /**
+     * Set a user override for a library in a read-only nested table.
+     * The override is saved to user settings so it persists across sessions.
+     * @param aTablePath normalized path of the read-only library table file
+     * @param aNickname the library nickname to override
+     * @param aDisabled true to mark the library as disabled
+     * @param aHidden true to mark the library as hidden
+     */
+    void SetLibOverride( const wxString& aTablePath, const wxString& aNickname,
+                         bool aDisabled, bool aHidden );
+
+    /// Removes any override for a library that no longer needs one
+    void ClearLibOverride( const wxString& aTablePath, const wxString& aNickname );
+
 private:
     void loadTables( const wxString& aTablePath, LIBRARY_TABLE_SCOPE aScope,
                      std::vector<LIBRARY_TABLE_TYPE> aTablesToLoad = {} );
 
     void loadNestedTables( LIBRARY_TABLE& aTable );
+
+    /// Applies user overrides (disabled/hidden) to rows of a read-only nested table
+    void applyLibOverrides( LIBRARY_TABLE& aTable );
 
     static wxString tableFileName( LIBRARY_TABLE_TYPE aType );
 

@@ -110,6 +110,12 @@ wxString JOB::ResolveOutputPath( const wxString& aPath, bool aPathIsDirectory, P
             };
 
     wxString outPath = aPath;
+
+    // Normalize backslash path separators to forward slashes before expanding text variables.
+    // ExpandTextVars treats \${ as an escape sequence, which misinterprets Windows paths like
+    // "subdir\${REVISION}_file.txt" where the backslash is a path separator, not an escape.
+    outPath.Replace( wxT( "\\" ), wxT( "/" ) );
+
     outPath = ExpandTextVars( outPath, &textResolver );
 
     if( !m_tempOutputDirectory.IsEmpty() )
@@ -157,6 +163,10 @@ wxString JOB::GetFullOutputPath( PROJECT* aProject ) const
 void JOB::SetConfiguredOutputPath( const wxString& aPath )
 {
     m_outputPath = aPath;
+
+    // A newly configured path must take precedence over any transient working path left over
+    // from a prior run that fell back to a generated filename.
+    m_workingOutputPath.clear();
 }
 
 

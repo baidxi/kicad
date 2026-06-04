@@ -35,6 +35,13 @@ message RefreshEditor
   kiapi.common.types.FrameType frame = 1;
 }
 
+// Opens a specific item from a library by identifier
+message OpenLibraryItem
+{
+  kiapi.common.types.DocumentType type = 1;
+  kiapi.common.types.LibraryIdentifier identifier = 2;
+}
+
 // Retrieves a list of open documents of the given type
 message GetOpenDocuments
 {
@@ -117,6 +124,8 @@ message RunActionResponse
  */
 message BeginCommit
 {
+  // Specifies which document to associate the commit with
+  kiapi.common.types.ItemHeader header = 1;
 }
 
 
@@ -145,6 +154,9 @@ message EndCommit
 
   // Optional message describing this changeset
   string message = 3;
+
+  // Specifies which document to associate the commit with
+  kiapi.common.types.ItemHeader header = 4;
 }
 
 
@@ -405,6 +417,19 @@ message SetTitleBlockInfo
   kiapi.common.types.DocumentSpecifier document = 1;
 
   kiapi.common.types.TitleBlockInfo title_block = 2;
+}
+
+// returns common.types.PageSettings
+message GetPageSettings
+{
+  kiapi.common.types.DocumentSpecifier document = 1;
+}
+
+message SetPageSettings
+{
+  kiapi.common.types.DocumentSpecifier document = 1;
+
+  kiapi.common.types.PageSettings page_settings = 2;
 }
 
 message SaveDocumentToString

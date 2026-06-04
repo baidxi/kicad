@@ -159,12 +159,90 @@ void LIBRARY_MANAGER::loadNestedTables( LIBRARY_TABLE& aRootTable )
                             row.SetErrorDescription( child->ErrorDescription() );
                         }
 
+                        applyLibOverrides( *child );
+
                         m_childTables.insert_or_assign( row.URI(), std::move( child ) );
                     }
                 }
             };
 
     processOneTable( aRootTable );
+}
+
+
+void LIBRARY_MANAGER::ApplyLibOverrides( LIBRARY_TABLE& aTable )
+{
+    if( !aTable.IsReadOnly() )
+        return;
+
+    SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
+    KICAD_SETTINGS*   settings = mgr.GetAppSettings<KICAD_SETTINGS>( "kicad" );
+
+    if( !settings )
+        return;
+
+    wxString tablePath = aTable.Path();
+
+    auto it = settings->m_LibOverrides.find( tablePath );
+
+    if( it == settings->m_LibOverrides.end() )
+        return;
+
+    const std::map<wxString, LIB_OVERRIDE>& overrides = it->second;
+
+    for( LIBRARY_TABLE_ROW& row : aTable.Rows() )
+    {
+        auto overIt = overrides.find( row.Nickname() );
+
+        if( overIt != overrides.end() )
+        {
+            row.SetDisabled( overIt->second.disabled );
+            row.SetHidden( overIt->second.hidden );
+        }
+    }
+}
+
+
+void LIBRARY_MANAGER::applyLibOverrides( LIBRARY_TABLE& aTable )
+{
+    ApplyLibOverrides( aTable );
+}
+
+
+void LIBRARY_MANAGER::SetLibOverride( const wxString& aTablePath, const wxString& aNickname,
+                                      bool aDisabled, bool aHidden )
+{
+    SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
+    KICAD_SETTINGS*   settings = mgr.GetAppSettings<KICAD_SETTINGS>( "kicad" );
+
+    wxCHECK( settings, /* void */ );
+
+    if( !aDisabled && !aHidden )
+    {
+        ClearLibOverride( aTablePath, aNickname );
+        return;
+    }
+
+    settings->m_LibOverrides[aTablePath][aNickname] = { aDisabled, aHidden };
+}
+
+
+void LIBRARY_MANAGER::ClearLibOverride( const wxString& aTablePath, const wxString& aNickname )
+{
+    SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
+    KICAD_SETTINGS*   settings = mgr.GetAppSettings<KICAD_SETTINGS>( "kicad" );
+
+    wxCHECK( settings, /* void */ );
+
+    auto tableIt = settings->m_LibOverrides.find( aTablePath );
+
+    if( tableIt == settings->m_LibOverrides.end() )
+        return;
+
+    tableIt->second.erase( aNickname );
+
+    if( tableIt->second.empty() )
+        settings->m_LibOverrides.erase( tableIt );
 }
 
 
@@ -426,6 +504,7 @@ bool LIBRARY_MANAGER::CreateGlobalTable( LIBRARY_TABLE_TYPE aType, bool aPopulat
     {
         PRETTIFIED_FILE_OUTPUTFORMATTER formatter( fn.GetFullPath(), KICAD_FORMAT::FORMAT_MODE::LIBRARY_TABLE );
         table.Format( &formatter );
+        formatter.Finish();
     }
     catch( IO_ERROR& e )
     {
@@ -485,15 +564,18 @@ void LIBRARY_MANAGER::LoadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE
             [&]( LIBRARY_TABLE_TYPE aType )
             {
                 LIBRARY_TABLE* table = Table( aType, LIBRARY_TABLE_SCOPE::GLOBAL ).value_or( nullptr );
-                wxCHECK( table, /* void */ );
+                // No global table file yet (first run): nothing to scan for PCM removals.
+                if( !table )
+                    return;
 
                 auto toErase = std::ranges::remove_if( table->Rows(),
                         [&]( const LIBRARY_TABLE_ROW& aRow )
                         {
-                            wxString path = GetFullURI( &aRow, true );
+                            if( !IsPcmManagedRow( aRow ) )
+                                return false;
 
-                            return path.StartsWith( *packagesPath )
-                                   && !wxFileName::Exists( path );
+                            wxString path = GetFullURI( &aRow, true );
+                            return !wxFileName::Exists( path );
                         } );
 
                 bool hadRemovals = !toErase.empty();
@@ -766,14 +848,44 @@ std::optional<LIB_STATUS> LIBRARY_MANAGER::LoadLibraryEntry( LIBRARY_TABLE_TYPE 
 void LIBRARY_MANAGER::LoadProjectTables( const wxString& aProjectPath,
                                          std::initializer_list<LIBRARY_TABLE_TYPE> aTablesToLoad )
 {
+    // Cancel any in-progress loads and clear adapter caches before destroying project
+    // tables. Cached LIB_DATA entries hold raw LIBRARY_TABLE_ROW pointers into the old
+    // tables, which would dangle once loadTables() replaces them. Mirrors the safety
+    // ordering in LoadGlobalTables().
+    {
+        std::scoped_lock lock( m_adaptersMutex );
+
+        for( const std::unique_ptr<LIBRARY_MANAGER_ADAPTER>& adapter : m_adapters | std::views::values )
+            adapter->ProjectTablesChanged( aTablesToLoad );
+    }
+
     if( wxFileName::IsDirReadable( aProjectPath ) )
     {
         loadTables( aProjectPath, LIBRARY_TABLE_SCOPE::PROJECT, aTablesToLoad );
     }
     else
     {
+        // loadTables() would have cleared m_rowCache before rebuilding the new
+        // table; do the same here so cached entries don't point into the
+        // project tables we are about to destroy.
+        {
+            std::lock_guard lock( m_rowCacheMutex );
+            m_rowCache.clear();
+        }
+
         m_projectTables.clear();
         wxLogTrace( traceLibraries, "New project path %s is not readable, not loading project tables", aProjectPath );
+    }
+
+    // Phase 2: let adapters reconcile their cache against the rebuilt project
+    // table. This erases sentinels installed by ProjectTablesChanged() for any
+    // nickname that no longer has a project row, so a library removed from the
+    // project table stops masking a same-named global library.
+    {
+        std::scoped_lock lock( m_adaptersMutex );
+
+        for( const std::unique_ptr<LIBRARY_MANAGER_ADAPTER>& adapter : m_adapters | std::views::values )
+            adapter->ProjectTablesReloaded( aTablesToLoad );
     }
 }
 
@@ -819,6 +931,29 @@ wxString LIBRARY_MANAGER::ExpandURI( const wxString& aShortURI, const PROJECT& a
     wxFileName path( ExpandEnvVarSubstitutions( aShortURI, &aProject ) );
     path.MakeAbsolute();
     return path.GetFullPath();
+}
+
+
+bool LIBRARY_MANAGER::IsPcmManagedRow( const LIBRARY_TABLE_ROW& aRow )
+{
+    // PCM_LIB_TRAVERSER always stores URIs that begin with the versioned
+    // ${KICADn_3RD_PARTY} env var token. Any row whose URI does not start with that
+    // token was not added by PCM and must not be auto-removed even if its expanded
+    // absolute path happens to live inside the 3RD_PARTY directory via a different
+    // env var.
+    const wxString& uri = aRow.URI();
+
+    if( !uri.StartsWith( wxS( "${" ) ) )
+        return false;
+
+    size_t end = uri.find( wxS( '}' ) );
+
+    if( end == wxString::npos || end <= 2 )
+        return false;
+
+    wxString varName = uri.SubString( 2, end - 1 );
+
+    return varName.Matches( wxS( "KICAD*_3RD_PARTY" ) );
 }
 
 
@@ -869,12 +1004,24 @@ LIBRARY_MANAGER& LIBRARY_MANAGER_ADAPTER::Manager() const
 
 void LIBRARY_MANAGER_ADAPTER::ProjectChanged()
 {
+    resetProjectCache();
+}
+
+
+void LIBRARY_MANAGER_ADAPTER::resetProjectCache()
+{
     abortLoad();
 
-    {
-        std::unique_lock lock( m_librariesMutex );
-        m_libraries.clear();
-    }
+    std::unique_lock lock( m_librariesMutex );
+
+    // Reset entries in place rather than erasing them. Erasing would let
+    // fetchIfLoaded() fall through to globalLibs() for any nickname that is
+    // shadowed by a project library, defeating the project-over-global
+    // precedence enforced by LIBRARY_MANAGER::Rows(). ProjectTablesReloaded()
+    // later prunes any sentinels whose nicknames are no longer in the rebuilt
+    // project table, so stale shadowing cannot persist.
+    for( auto& entry : m_libraries )
+        entry.second = LIB_DATA{};
 }
 
 
@@ -906,6 +1053,60 @@ void LIBRARY_MANAGER_ADAPTER::GlobalTablesChanged( std::initializer_list<LIBRARY
         std::unique_lock lock( globalLibsMutex() );
         globalLibs().clear();
     }
+}
+
+
+void LIBRARY_MANAGER_ADAPTER::ProjectTablesChanged( std::initializer_list<LIBRARY_TABLE_TYPE> aChangedTables )
+{
+    bool me = aChangedTables.size() == 0;
+
+    for( LIBRARY_TABLE_TYPE type : aChangedTables )
+    {
+        if( type == Type() )
+        {
+            me = true;
+            break;
+        }
+    }
+
+    if( !me )
+        return;
+
+    resetProjectCache();
+}
+
+
+void LIBRARY_MANAGER_ADAPTER::ProjectTablesReloaded(
+        std::initializer_list<LIBRARY_TABLE_TYPE> aChangedTables )
+{
+    bool me = aChangedTables.size() == 0;
+
+    for( LIBRARY_TABLE_TYPE type : aChangedTables )
+    {
+        if( type == Type() )
+        {
+            me = true;
+            break;
+        }
+    }
+
+    if( !me )
+        return;
+
+    // Erase sentinels installed by resetProjectCache() for nicknames that no
+    // longer appear in the rebuilt project table. Without this, a library
+    // removed from the project would remain masked in m_libraries and hide a
+    // same-named global library from HasLibrary() / fetchIfLoaded() / etc.
+    // GetRow() is safe to call here: loadTables() reset m_rowCache before
+    // building the new table, and async loads were aborted in phase 1.
+    std::unique_lock lock( m_librariesMutex );
+
+    std::erase_if( m_libraries,
+                   [this]( const auto& aEntry )
+                   {
+                       return !m_manager.GetRow( Type(), aEntry.first,
+                                                 LIBRARY_TABLE_SCOPE::PROJECT ).has_value();
+                   } );
 }
 
 
@@ -1293,12 +1494,21 @@ bool LIBRARY_MANAGER_ADAPTER::CreateLibrary( const wxString& aNickname )
             data->plugin->CreateLibrary( getUri( data->row ), &options );
             return true;
         }
-        catch( ... )
+        catch( const IO_ERROR& ioe )
         {
+            wxLogTrace( traceLibraries, "CreateLibrary: IO_ERROR for %s: %s",
+                        aNickname, ioe.What() );
+            return false;
+        }
+        catch( const std::exception& e )
+        {
+            wxLogTrace( traceLibraries, "CreateLibrary: std::exception for %s: %s",
+                        aNickname, e.what() );
             return false;
         }
     }
 
+    wxLogTrace( traceLibraries, "CreateLibrary: library row '%s' not found", aNickname );
     return false;
 }
 

@@ -37,7 +37,52 @@ GRAPHICS_IMPORTER_PCBNEW::GRAPHICS_IMPORTER_PCBNEW( BOARD_ITEM_CONTAINER* aParen
         m_parent( aParent )
 {
     m_layer = Dwgs_User;
+    m_defaultLayer = Dwgs_User;
+    m_useLayerMap = false;
     m_millimeterToIu = pcbIUScale.mmToIU( 1.0 );
+}
+
+
+void GRAPHICS_IMPORTER_PCBNEW::SetLayerMap( const std::map<wxString, PCB_LAYER_ID>& aLayerMap )
+{
+    m_layerMap = aLayerMap;
+    m_useLayerMap = true;
+}
+
+
+void GRAPHICS_IMPORTER_PCBNEW::ClearLayerMap()
+{
+    m_layerMap.clear();
+    m_useLayerMap = false;
+}
+
+
+bool GRAPHICS_IMPORTER_PCBNEW::CanImportSourceLayer( const wxString& aSourceLayer ) const
+{
+    if( !m_useLayerMap )
+        return true;
+
+    auto it = m_layerMap.find( aSourceLayer );
+
+    return it != m_layerMap.end() && it->second != PCB_LAYER_ID::UNDEFINED_LAYER
+           && it->second != PCB_LAYER_ID::UNSELECTED_LAYER;
+}
+
+
+void GRAPHICS_IMPORTER_PCBNEW::SetCurrentSourceLayer( const wxString& aSourceLayer )
+{
+    m_layer = m_defaultLayer;
+
+    if( !m_useLayerMap )
+        return;
+
+    auto it = m_layerMap.find( aSourceLayer );
+
+    if( it != m_layerMap.end() && it->second != PCB_LAYER_ID::UNDEFINED_LAYER
+        && it->second != PCB_LAYER_ID::UNSELECTED_LAYER )
+    {
+        m_layer = it->second;
+    }
 }
 
 
@@ -215,4 +260,45 @@ void GRAPHICS_IMPORTER_PCBNEW::AddSpline( const VECTOR2D& aStart, const VECTOR2D
     {
         addItem( std::move( spline ) );
     }
+}
+
+
+void GRAPHICS_IMPORTER_PCBNEW::AddEllipse( const VECTOR2D& aCenter, double aMajorRadius, double aMinorRadius,
+                                           const EDA_ANGLE& aRotation, const IMPORTED_STROKE& aStroke, bool aFilled,
+                                           const COLOR4D& aFillColor )
+{
+    std::unique_ptr<PCB_SHAPE> ellipse = std::make_unique<PCB_SHAPE>( m_parent );
+    ellipse->SetShape( SHAPE_T::ELLIPSE );
+    ellipse->SetLayer( GetLayer() );
+    ellipse->SetStroke( MapStrokeParams( aStroke ) );
+    ellipse->SetFilled( aFilled );
+
+    VECTOR2I center = MapCoordinate( aCenter );
+    ellipse->SetEllipseCenter( center );
+    ellipse->SetEllipseMajorRadius( KiROUND( aMajorRadius * ImportScalingFactor().x ) );
+    ellipse->SetEllipseMinorRadius( KiROUND( aMinorRadius * ImportScalingFactor().y ) );
+    ellipse->SetEllipseRotation( aRotation );
+
+    addItem( std::move( ellipse ) );
+}
+
+
+void GRAPHICS_IMPORTER_PCBNEW::AddEllipseArc( const VECTOR2D& aCenter, double aMajorRadius, double aMinorRadius,
+                                              const EDA_ANGLE& aRotation, const EDA_ANGLE& aStartAngle,
+                                              const EDA_ANGLE& aEndAngle, const IMPORTED_STROKE& aStroke )
+{
+    std::unique_ptr<PCB_SHAPE> arc = std::make_unique<PCB_SHAPE>( m_parent );
+    arc->SetShape( SHAPE_T::ELLIPSE_ARC );
+    arc->SetLayer( GetLayer() );
+    arc->SetStroke( MapStrokeParams( aStroke ) );
+
+    VECTOR2I center = MapCoordinate( aCenter );
+    arc->SetEllipseCenter( center );
+    arc->SetEllipseMajorRadius( KiROUND( aMajorRadius * ImportScalingFactor().x ) );
+    arc->SetEllipseMinorRadius( KiROUND( aMinorRadius * ImportScalingFactor().y ) );
+    arc->SetEllipseRotation( aRotation );
+    arc->SetEllipseStartAngle( aStartAngle );
+    arc->SetEllipseEndAngle( aEndAngle );
+
+    addItem( std::move( arc ) );
 }

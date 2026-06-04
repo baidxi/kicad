@@ -99,6 +99,13 @@ std::unique_ptr<ZONE> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
     zoneInfo.m_Netcode = highlightedNets.empty() ? -1 : *highlightedNets.begin();
     zoneInfo.SetIsRuleArea( m_params.m_keepout );
 
+    if( m_params.m_thieving )
+    {
+        zoneInfo.m_FillMode = ZONE_FILL_MODE::COPPER_THIEVING;
+        zoneInfo.m_Netcode  = 0;
+        zoneInfo.SetPadConnection( ZONE_CONNECTION::NONE );
+    }
+
     if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON
             && ( zoneInfo.m_Layers & LSET::AllCuMask() ).any() )
     {
@@ -116,9 +123,10 @@ std::unique_ptr<ZONE> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
             zoneInfo.m_Netcode = bci->GetNetCode();
     }
 
-    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON )
+    if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON && !m_params.m_thieving )
     {
-        // Show options dialog
+        // When drawing a new zone, skip the pre-draw dialog for thieving copper and
+        // graphic polygons as it is more disruptive than useful
         int dialogResult;
 
         if( m_params.m_keepout )
@@ -171,7 +179,16 @@ void ZONE_CREATE_HELPER::performZoneCutout( ZONE& aZone, const ZONE& aCutout )
     toolMgr->RunAction( ACTIONS::selectionClear );
 
     SHAPE_POLY_SET originalOutline( *aZone.Outline() );
-    originalOutline.BooleanSubtract( *aCutout.Outline() );
+    SHAPE_POLY_SET cutoutOutline( *aCutout.Outline() );
+
+    // Clipper2 cannot carry arcs through boolean operations when either operand has holes or
+    // the clip side has outlines, so strip arc metadata first. Without this, zones built from
+    // circles (or any arc-bearing outline) get corrupt arc endpoints written to disk and
+    // render as garbage after reload. See SHAPE_POLY_SET::booleanOp.
+    originalOutline.ClearArcs();
+    cutoutOutline.ClearArcs();
+
+    originalOutline.BooleanSubtract( cutoutOutline );
 
     // After substracting the hole, originalOutline can have more than one main outline.
     // But a zone can have only one main outline, so create as many zones as originalOutline

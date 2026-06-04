@@ -453,6 +453,14 @@ bool IbisRamp::Check()
 
 
 
+bool IbisSeriesData::isPopulated() const
+{
+    return !m_Rseries.isNA() || !m_Lseries.isNA() || !m_Cseries.isNA()
+           || !m_RlSeries.isNA() || !m_RcSeries.isNA() || !m_LcSeries.isNA()
+           || !m_seriesCurrent.m_entries.empty() || !m_seriesMosfet.empty();
+}
+
+
 bool IbisModel::Check()
 {
     bool status = true;
@@ -676,6 +684,78 @@ bool IbisModel::Check()
     {
         Report( _( "Invalid Composite Current table." ), RPT_SEVERITY_ERROR );
         status = false;
+    }
+
+    const bool isSeries = ( m_type == IBIS_MODEL_TYPE::SERIES );
+    const bool isSeriesSwitch = ( m_type == IBIS_MODEL_TYPE::SERIES_SWITCH );
+
+    auto checkSeriesData = [&]( IbisSeriesData& aData, const wxString& aLabel )
+    {
+        auto report = [&]( const wxString& aMsg )
+        {
+            Report( wxString::Format( aMsg, aLabel ).ToStdString(), RPT_SEVERITY_ERROR );
+            status = false;
+        };
+
+        if( !aData.m_seriesCurrent.Check() )
+            report( _( "Invalid Series Current table in %s." ) );
+
+        for( IbisMosfetEntry& mosfet : aData.m_seriesMosfet )
+        {
+            if( !mosfet.m_table.Check() )
+                report( _( "Invalid Series MOSFET table in %s." ) );
+
+            if( isNumberNA( mosfet.m_Vds ) || mosfet.m_Vds <= 0.0 )
+                report( _( "Series MOSFET Vds must be > 0 in %s." ) );
+        }
+
+        if( !aData.m_RlSeries.isNA() && aData.m_Lseries.isNA() )
+            report( _( "Rl Series requires L Series in %s." ) );
+
+        if( ( !aData.m_RcSeries.isNA() || !aData.m_LcSeries.isNA() ) && aData.m_Cseries.isNA() )
+            report( _( "Rc/Lc Series requires C Series in %s." ) );
+    };
+
+    if( isSeries )
+    {
+        checkSeriesData( m_series, wxT( "[Model]" ) );
+
+        if( m_seriesOn.m_seen || m_seriesOff.m_seen )
+        {
+            Report( _( "[On] and [Off] are only allowed in Series_switch models." ),
+                    RPT_SEVERITY_ERROR );
+            status = false;
+        }
+
+        if( !m_series.isPopulated() )
+        {
+            Report( _( "Series model has no series elements." ), RPT_SEVERITY_ERROR );
+            status = false;
+        }
+    }
+    else if( isSeriesSwitch )
+    {
+        checkSeriesData( m_seriesOn, wxT( "[On]" ) );
+        checkSeriesData( m_seriesOff, wxT( "[Off]" ) );
+
+        if( !m_seriesOn.m_seen )
+        {
+            Report( _( "Series_switch model is missing the [On] block." ), RPT_SEVERITY_ERROR );
+            status = false;
+        }
+
+        if( !m_seriesOff.m_seen )
+        {
+            Report( _( "Series_switch model is missing the [Off] block." ), RPT_SEVERITY_ERROR );
+            status = false;
+        }
+
+        if( m_series.isPopulated() )
+        {
+            Report( _( "Series_switch model has series elements outside [On]/[Off]." ),
+                    RPT_SEVERITY_ERROR );
+            status = false;
+        }
     }
 
     if( !m_POWERClamp.Check() )
@@ -1518,6 +1598,8 @@ bool IbisParser::changeContext( std::string& aKeyword )
             status &= storeString( model.m_name, false );
             m_ibisFile.m_models.push_back( model );
             m_currentModel = &( m_ibisFile.m_models.back() );
+            m_currentSeriesData = nullptr;
+            m_currentMosfetEntry = nullptr;
             m_context = IBIS_PARSER_CONTEXT::MODEL;
             m_continue = IBIS_PARSER_CONTINUE::MODEL;
         }
@@ -1658,6 +1740,41 @@ bool IbisParser::readRamp()
         }
     }
 
+    return status;
+}
+
+
+bool IbisParser::readSeriesMosfet()
+{
+    bool status = true;
+
+    if( m_continue != IBIS_PARSER_CONTINUE::SERIES_MOSFET )
+    {
+        IbisSeriesData* data = currentSeriesData();
+
+        if( !data )
+        {
+            Report( _( "[Series MOSFET] outside of [Model] context." ), RPT_SEVERITY_ERROR );
+            return false;
+        }
+
+        data->m_seriesMosfet.emplace_back( m_Reporter );
+        m_currentMosfetEntry = &data->m_seriesMosfet.back();
+        m_currentIVtable = &m_currentMosfetEntry->m_table;
+        m_continue = IBIS_PARSER_CONTINUE::SERIES_MOSFET;
+        return true;
+    }
+
+    if( !m_currentMosfetEntry )
+    {
+        Report( _( "Internal error: no current [Series MOSFET] entry." ), RPT_SEVERITY_ERROR );
+        return false;
+    }
+
+    if( !readNumericSubparam( std::string( "Vds" ), m_currentMosfetEntry->m_Vds ) )
+        status = readIVtableEntry( m_currentMosfetEntry->m_table );
+
+    m_continue = IBIS_PARSER_CONTINUE::SERIES_MOSFET;
     return status;
 }
 
@@ -1817,6 +1934,36 @@ bool IbisParser::parseModel( std::string& aKeyword )
         status = readTypMinMaxValue( m_currentModel->m_Rpower );
     else if( compareIbisWord( aKeyword.c_str(), "Rgnd" ) )
         status = readTypMinMaxValue( m_currentModel->m_Rgnd );
+    else if( compareIbisWord( aKeyword.c_str(), "On" ) )
+    {
+        m_currentSeriesData = &m_currentModel->m_seriesOn;
+        m_currentSeriesData->m_seen = true;
+        m_currentMosfetEntry = nullptr;
+        status = true;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "Off" ) )
+    {
+        m_currentSeriesData = &m_currentModel->m_seriesOff;
+        m_currentSeriesData->m_seen = true;
+        m_currentMosfetEntry = nullptr;
+        status = true;
+    }
+    else if( compareIbisWord( aKeyword.c_str(), "R_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_Rseries );
+    else if( compareIbisWord( aKeyword.c_str(), "L_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_Lseries );
+    else if( compareIbisWord( aKeyword.c_str(), "C_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_Cseries );
+    else if( compareIbisWord( aKeyword.c_str(), "Rl_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_RlSeries );
+    else if( compareIbisWord( aKeyword.c_str(), "Lc_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_LcSeries );
+    else if( compareIbisWord( aKeyword.c_str(), "Rc_Series" ) )
+        status = currentSeriesData() && readTypMinMaxValue( currentSeriesData()->m_RcSeries );
+    else if( compareIbisWord( aKeyword.c_str(), "Series_Current" ) )
+        status = currentSeriesData() && readIVtableEntry( currentSeriesData()->m_seriesCurrent );
+    else if( compareIbisWord( aKeyword.c_str(), "Series_MOSFET" ) )
+        status = readSeriesMosfet();
     else if( compareIbisWord( aKeyword.c_str(), "Algorithmic_Model" ) )
     {
         m_context = IBIS_PARSER_CONTEXT::ALGORITHMIC_MODEL;
@@ -2536,6 +2683,10 @@ bool IbisParser::parseComponent( std::string& aKeyword )
     {
         status &= readDiffPin();
     }
+    else if( compareIbisWord( aKeyword.c_str(), "Series_Pin_Mapping" ) )
+    {
+        status &= readSeriesPinMapping();
+    }
     /*
     // Not supported yet
     else if( aKeyword == "Die_Supply_Pads" )
@@ -2800,6 +2951,46 @@ bool IbisParser::readDiffPin()
 }
 
 
+bool IbisParser::readSeriesPinMapping()
+{
+    // IBIS 4.1+ [Series Pin Mapping] row: pin_1 pin_2 model_name [function_table_group].
+    // Rows with fewer than three columns are tolerated with a warning so that an
+    // unusual layout does not abort parsing of the whole file.
+
+    bool status = true;
+
+    std::vector<std::string> fields;
+    status &= readTableLine( fields );
+
+    if( m_continue == IBIS_PARSER_CONTINUE::NONE )
+    {
+        m_continue = IBIS_PARSER_CONTINUE::COMPONENT_SERIES_PIN_MAPPING;
+    }
+    else if( !fields.empty() )
+    {
+        IbisComponentSeriesPinMapping mapping( m_Reporter );
+
+        if( fields.size() >= 3 )
+        {
+            mapping.m_pin1 = fields.at( 0 );
+            mapping.m_pin2 = fields.at( 1 );
+            mapping.m_modelName = fields.at( 2 );
+
+            if( fields.size() > 3 )
+                mapping.m_functionTableGroup = fields.at( 3 );
+
+            m_currentComponent->m_seriesPinMappings.push_back( mapping );
+        }
+        else
+        {
+            Report( _( "Wrong number of columns for series pin mapping." ), RPT_SEVERITY_WARNING );
+        }
+    }
+
+    return status;
+}
+
+
 bool IbisParser::readIVtableEntry( IVtable& aDest )
 {
     bool status = true;
@@ -3010,6 +3201,9 @@ bool IbisParser::onNewLine()
         case IBIS_PARSER_CONTINUE::COMPONENT_DIFFPIN:
             status &= readDiffPin();
             break;
+        case IBIS_PARSER_CONTINUE::COMPONENT_SERIES_PIN_MAPPING:
+            status &= readSeriesPinMapping();
+            break;
         case IBIS_PARSER_CONTINUE::MODELSELECTOR:
             status &= readModelSelector();
             break;
@@ -3030,6 +3224,9 @@ bool IbisParser::onNewLine()
             break;
         case IBIS_PARSER_CONTINUE::RAMP:
             status &= readRamp();
+            break;
+        case IBIS_PARSER_CONTINUE::SERIES_MOSFET:
+            status &= readSeriesMosfet();
             break;
         case IBIS_PARSER_CONTINUE::MODEL_SPEC:
             status &= readModelSpec();

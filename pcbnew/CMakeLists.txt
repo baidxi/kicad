@@ -47,6 +47,8 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_copper_zones_base.cpp
     dialogs/dialog_create_array.cpp
     dialogs/dialog_create_array_base.cpp
+    dialogs/dialog_diff_phase_skew_properties.cpp
+    dialogs/dialog_diff_phase_skew_properties_base.cpp
     dialogs/dialog_dimension_properties.cpp
     dialogs/dialog_dimension_properties_base.cpp
     dialogs/dialog_drc.cpp
@@ -112,6 +114,8 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_items_list.cpp
     dialogs/dialog_imported_layers_base.cpp
     dialogs/dialog_map_layers.cpp
+    dialogs/dialog_migrate_3d_models.cpp
+    dialogs/dialog_migrate_3d_models_base.cpp
     dialogs/dialog_rule_area_properties.cpp
     dialogs/dialog_rule_area_properties_base.cpp
     dialogs/dialog_layer_selection_base.cpp
@@ -128,6 +132,7 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_pad_properties.cpp
     dialogs/dialog_pad_properties_base.cpp
     dialogs/dialog_fp_edit_pad_table.cpp
+    dialogs/dialog_fp_edit_pad_table_base.cpp
     dialogs/dialog_plot.cpp
     dialogs/dialog_plot_base.cpp
     dialogs/dialog_pns_diff_pair_dimensions.cpp
@@ -284,6 +289,7 @@ set( PCBNEW_GENERATORS_SRCS
     )
 
 set( PCBNEW_DRC_SRCS
+    drc/drc_chain_topology.cpp
     drc/drc_interactive_courtyard_clearance.cpp
     drc/drc_creepage_utils.cpp
     drc/drc_report.cpp
@@ -407,6 +413,7 @@ set( PCBNEW_CLASS_SRCS
     initpcb.cpp
     layer_pairs.cpp
     load_select_footprint.cpp
+    net_chain_bridging.cpp
     menubar_footprint_editor.cpp
     menubar_pcb_editor.cpp
     padstack.cpp
@@ -436,7 +443,8 @@ set( PCBNEW_CLASS_SRCS
     zone_settings_bag.cpp
     edit_zone_helpers.cpp
 
-    api/headless_board_context.cpp
+    api/headless_pcb_context.cpp
+    api/headless_footprint_context.cpp
 
     ratsnest/ratsnest.cpp
 
@@ -445,6 +453,7 @@ set( PCBNEW_CLASS_SRCS
     tools/board_inspection_tool.cpp
     tools/board_reannotate_tool.cpp
     tools/convert_tool.cpp
+    tools/diff_phase_skew_tool.cpp
     tools/drawing_tool.cpp
     tools/drc_tool.cpp
     tools/edit_tool.cpp
@@ -518,8 +527,11 @@ set( PCBNEW_COMMON_SRCS
 
 if( KICAD_IPC_API )
     set( PCBNEW_SRCS ${PCBNEW_SRCS}
+        api/api_handler_board.cpp
+        api/api_handler_footprint.cpp
         api/api_handler_pcb.cpp
-        api/board_context.cpp
+        api/footprint_context.cpp
+        api/pcb_context.cpp
         )
 endif()
 
@@ -636,8 +648,10 @@ add_subdirectory( pcb_io/ipc2581 )
 add_subdirectory( pcb_io/odbpp )
 add_subdirectory( pcb_io/pads )
 add_subdirectory( pcb_io/sprint_layout )
+add_subdirectory( pcb_io/diptrace )
+add_subdirectory( pcb_io/autotrax )
 
-set( PCBNEW_IO_LIBRARIES pcad2kicadpcb allegro2pcbnew altium2pcbnew cadstar2pcbnew easyeda easyedapro fabmaster ipc2581 odbpp pads2pcbnew sprint_layout2pcbnew CACHE INTERNAL "")
+set( PCBNEW_IO_LIBRARIES pcad2kicadpcb allegro2pcbnew altium2pcbnew cadstar2pcbnew easyeda easyedapro fabmaster ipc2581 odbpp pads2pcbnew sprint_layout2pcbnew diptrace2pcbnew autotrax2pcbnew CACHE INTERNAL "")
 
 #a very small program launcher for pcbnew_kiface
 add_executable( pcbnew WIN32 MACOSX_BUNDLE

@@ -46,6 +46,7 @@
 #include <wx/filedlg.h>
 #include <wx/log.h>
 #include <project_sch.h>
+#include <kiplatform/io.h>
 #include <kiplatform/ui.h>
 #include <string_utils.h>
 #include "symbol_saveas_type.h"
@@ -225,8 +226,7 @@ void SYMBOL_EDIT_FRAME::centerItemIdleHandler( wxIdleEvent& aEvent )
 }
 
 
-bool SYMBOL_EDIT_FRAME::LoadSymbolFromCurrentLib( const wxString& aSymbolName, int aUnit,
-                                                  int aBodyStyle )
+bool SYMBOL_EDIT_FRAME::LoadSymbolFromCurrentLib( const wxString& aSymbolName, int aUnit, int aBodyStyle )
 {
     LIB_SYMBOL* symbol = nullptr;
 
@@ -1209,7 +1209,7 @@ void SYMBOL_EDIT_FRAME::UpdateAfterSymbolProperties( wxString* aOldName )
 {
     wxCHECK( m_symbol, /* void */ );
 
-    wxString lib = GetCurLib();
+    wxString lib = m_symbol->GetLibNickname();
 
     if( !lib.IsEmpty() && aOldName && *aOldName != m_symbol->GetName() )
     {
@@ -1604,7 +1604,19 @@ bool SYMBOL_EDIT_FRAME::saveLibrary( const wxString& aLibrary, bool aNewFile )
 
         // Update the library modification time so that we don't reload based on the watcher
         if( aLibrary == getTargetLib() )
-            SetSymModificationTime( fn.GetModificationTime() );
+        {
+            if( fn.DirExists() )
+            {
+                SetSymModificationTime( KIPLATFORM::IO::TimestampDir(
+                        fn.GetFullPath(),
+                        wxS( "*." ) + wxString( FILEEXT::KiCadSymbolLibFileExtension ) ) );
+            }
+            else if( fn.FileExists() )
+            {
+                wxLogNull silence;
+                SetSymModificationTime( fn.GetModificationTime().GetValue().GetValue() );
+            }
+        }
     }
     else
     {

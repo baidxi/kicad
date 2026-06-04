@@ -76,7 +76,9 @@ public:
      * Load footprint models if they are not already loaded, i.e. if m_3dModelMap is empty
      */
     void Load3dModelsIfNeeded();
+
     void                                handleGizmoMouseInput( int mouseX, int mouseY );
+    void                                updateGizmoSelection( glm::mat4 aCameraRotationMatrix );
     void                                setGizmoViewport( int x, int y, int width, int height );
     std::tuple<int, int, int, int>      getGizmoViewport() const;
     SPHERES_GIZMO::GizmoSphereSelection getSelectedGizmoSphere() const;
@@ -298,6 +300,11 @@ private:
                                      ///< outline.
     SPHERES_GIZMO* m_spheres_gizmo;
     MODEL_3D*      m_placeholderModel = nullptr;
+
+    std::map<const FOOTPRINT*, OPENGL_RENDER_LIST*> m_extrudedBodyLists;
+    std::map<const FOOTPRINT*, OPENGL_RENDER_LIST*> m_extrudedPadLists;
+
+    void renderExtrudedBodies();
 };
 
 #endif // RENDER_3D_OPENGL_H

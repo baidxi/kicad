@@ -97,6 +97,10 @@ set( EESCHEMA_SCH_IO
     sch_io/pads/pads_sch_parser.cpp
     sch_io/pads/pads_sch_symbol_builder.cpp
     sch_io/pads/pads_sch_schematic_builder.cpp
+
+    # DipTrace IO plugin
+    sch_io/diptrace/sch_io_diptrace.cpp
+    sch_io/diptrace/diptrace_sch_parser.cpp
     )
 
 set( EESCHEMA_DLGS
@@ -140,6 +144,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_lib_symbol_properties_base.cpp
     dialogs/dialog_line_properties.cpp
     dialogs/dialog_line_properties_base.cpp
+    dialogs/dialog_create_net_chain.cpp
+    dialogs/dialog_create_net_chain_base.cpp
     dialogs/dialog_migrate_buses.cpp
     dialogs/dialog_migrate_buses_base.cpp
     dialogs/dialog_pin_properties.cpp
@@ -150,6 +156,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_erc_job_config.cpp
     dialogs/dialog_rescue_each.cpp
     dialogs/dialog_rescue_each_base.cpp
+    dialogs/dialog_resolve_field_case_conflicts.cpp
+    dialogs/dialog_resolve_field_case_conflicts_base.cpp
     dialogs/dialog_sch_import_settings.cpp
     dialogs/dialog_sch_import_settings_base.cpp
     dialogs/dialog_sch_find.cpp
@@ -194,6 +202,8 @@ set( EESCHEMA_DLGS
     dialogs/panel_eeschema_editing_options_base.cpp
     dialogs/panel_setup_buses.cpp
     dialogs/panel_setup_buses_base.cpp
+    dialogs/panel_setup_net_chains.cpp
+    dialogs/panel_setup_net_chains_base.cpp
     dialogs/panel_setup_formatting.cpp
     dialogs/panel_setup_formatting_base.cpp
     dialogs/panel_setup_pinmap.cpp
@@ -409,6 +419,7 @@ set( EESCHEMA_SRCS
     sch_label.cpp
     sch_line.cpp
     sch_marker.cpp
+    sch_netchain.cpp
     sch_no_connect.cpp
     sch_painter.cpp
     sch_pin.cpp
@@ -430,6 +441,7 @@ set( EESCHEMA_SRCS
     sch_validators.cpp
     sch_view.cpp
     schematic.cpp
+    schematic_text_var_adapter.cpp
     schematic_settings.cpp
     schematic_undo_redo.cpp
     sheet.cpp
@@ -446,6 +458,7 @@ set( EESCHEMA_SRCS
     toolbars_sch_editor.cpp
     toolbars_symbol_viewer.cpp
 
+    api/api_sch_enums.cpp
     api/api_sch_utils.cpp
 
     libraries/legacy_symbol_library.cpp

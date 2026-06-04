@@ -56,9 +56,9 @@ BOOST_AUTO_TEST_CASE( BarcodeWriteRead )
 
     board->Add( barcode, ADD_MODE::APPEND, true );
 
-    const std::filesystem::path savePath = std::filesystem::temp_directory_path() / "barcode_roundtrip.kicad_pcb";
+    KI_TEST::TEMPORARY_DIRECTORY tempDir( "kicad_qa_barcode_roundtrip", "" );
+    const std::filesystem::path  savePath = tempDir.GetPath() / "barcode_roundtrip.kicad_pcb";
 
-    std::filesystem::remove( savePath );
     KI_TEST::DumpBoardToFile( *board, savePath.string() );
     std::unique_ptr<BOARD> board2 = KI_TEST::ReadBoardFromFileOrStream( savePath.string() );
     BOARD_ITEM&            item2 = KI_TEST::RequireBoardItemWithTypeAndId( *board2, PCB_BARCODE_T, id );
@@ -95,9 +95,11 @@ BOOST_AUTO_TEST_CASE( BarcodeFootprintWriteRead )
 
     footprint.Add( barcode, ADD_MODE::APPEND, true );
 
-    const std::filesystem::path savePath = std::filesystem::temp_directory_path() / "barcode_roundtrip.kicad_mod";
+    // Saving a footprint validates its whole containing directory as a library, so use a private
+    // temp directory rather than littering (and reading stray files from) the system temp root.
+    KI_TEST::TEMPORARY_DIRECTORY tempLib( "kicad_qa_barcode_roundtrip", ".pretty" );
+    const std::filesystem::path  savePath = tempLib.GetPath() / "barcode_roundtrip.kicad_mod";
 
-    std::filesystem::remove( savePath );
     KI_TEST::DumpFootprintToFile( footprint, savePath.string() );
     std::unique_ptr<FOOTPRINT> footprint2 = KI_TEST::ReadFootprintFromFileOrStream( savePath.string() );
 
@@ -173,7 +175,7 @@ BOOST_AUTO_TEST_CASE( BarcodePositioningAlignment )
 
         PCB_BARCODE* barcode = new PCB_BARCODE( board.get() );
         barcode->SetText( tc.text );
-        barcode->Text().SetVisible( false );
+        barcode->SetShowText( false );
         barcode->SetLayer( F_SilkS );
         barcode->SetWidth( tc.width );
         barcode->SetHeight( tc.height );
@@ -188,7 +190,7 @@ BOOST_AUTO_TEST_CASE( BarcodePositioningAlignment )
         if( tc.angle != 0.0 )
             barcode->Rotate( tc.position, EDA_ANGLE( tc.angle, DEGREES_T ) );
 
-        barcode->Text().SetVisible( tc.withText );
+        barcode->SetShowText( tc.withText );
         barcode->SetIsKnockout( tc.knockout );
 
         barcode->AssembleBarcode();
@@ -366,10 +368,7 @@ BOOST_AUTO_TEST_CASE( BarcodeDialogEditFlow )
     // Simulate copying current to dummy (as in initValues)
     *dummyBarcode = *currentBarcode;
 
-    // Verify dummy's m_text parent chain is correct after copy
-    BOOST_CHECK( dummyBarcode->Text().GetParent() == static_cast<EDA_ITEM*>( dummyBarcode ) );
     BOOST_CHECK( dummyBarcode->GetBoard() == board.get() );
-    BOOST_CHECK( dummyBarcode->Text().GetBoard() == board.get() );
 
     // Simulate user changing text to use a variable
     dummyBarcode->SetText( wxT( "${PART_NUMBER}" ) );
