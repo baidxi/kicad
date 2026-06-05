@@ -1620,6 +1620,9 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
 
     ImportNetlistResponse response;
     response.set_report( reporter.GetMessages().ToUTF8() );
+    response.set_error_count( updater.GetErrorCount() );
+    response.set_warning_count( updater.GetWarningCount() );
+    response.set_new_footprint_count( updater.GetNewFootprintCount() );
     return response;
 }
 

@@ -289,8 +289,12 @@ message ImportNetlist
 
 message ImportNetlistResponse
 {
+  uint32 error_count = 1;
+  uint32 warning_count = 2;
+  uint32 new_footprint_count = 3;
+
   // Human-readable report of changes and any warnings or errors.
-  string report = 2;
+  string report = 4;
 }
 
 /*
