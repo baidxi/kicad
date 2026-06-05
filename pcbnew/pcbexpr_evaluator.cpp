@@ -721,8 +721,7 @@ const std::vector<wxString>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnits() const
 {
     static const std::vector<wxString> pcbUnits = { wxT( "mil" ), wxT( "mm" ), wxT( "in" ),
                                                     wxT( "fs" ), wxT( "ps" ),
-                                                    wxT( "deg" ), wxT( "rad" ),
-                                                    wxT( "%" ) };
+                                                    wxT( "deg" ), wxT( "%" ) };
 
     return pcbUnits;
 }
@@ -730,7 +729,7 @@ const std::vector<wxString>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnits() const
 
 wxString PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsMessage() const
 {
-    return _( "must be mm, in, mil, fs, ps, deg, rad or %" );
+    return _( "must be mm, in, mil, fs, ps, deg or %" );
 }
 
 
@@ -738,7 +737,7 @@ const std::vector<EDA_UNITS>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsTypes() co
 {
     static const std::vector<EDA_UNITS> pcbUnits = { EDA_UNITS::MILS,     EDA_UNITS::MM,     EDA_UNITS::INCH,
                                                      EDA_UNITS::FS,       EDA_UNITS::PS,     EDA_UNITS::DEGREES,
-                                                     EDA_UNITS::UNSCALED, EDA_UNITS::PERCENT };
+                                                     EDA_UNITS::PERCENT };
 
     return pcbUnits;
 }
@@ -756,8 +755,7 @@ double PCBEXPR_UNIT_RESOLVER::Convert( const wxString& aString, int unitId ) con
     case 3: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::FS, aString );
     case 4: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PS, aString );
     case 5: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::DEGREES, aString );
-    case 6: return v;
-    case 7: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PERCENT, aString );
+    case 6: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PERCENT, aString );
     default: return v;
     }
 };
