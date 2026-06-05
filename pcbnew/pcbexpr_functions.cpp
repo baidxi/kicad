@@ -1622,12 +1622,7 @@ static void hasComponentClassFunc( LIBEVAL::CONTEXT* aCtx, void* self )
                     footprint = item->GetParentFootprint();
 
                 if( !footprint )
-                {
-                    if( item->Type() == PCB_PAD_T )
-                        footprint = dynamic_cast<PAD*>( item )->GetParentFootprint();
-                    else
-                        return 0.0;
-                }
+                    return 0.0;
 
                 const COMPONENT_CLASS* compClass = footprint->GetComponentClass();
 
