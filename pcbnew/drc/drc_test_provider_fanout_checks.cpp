@@ -144,7 +144,7 @@ bool DRC_TEST_PROVIDER_FANOUT_CHECKS::Run()
                     PCB_VIA* via = static_cast<PCB_VIA*>( track );
 
                     int len = length + ( point - via->GetPosition() ).EuclideanNorm()
-                              - via->GetDrill();
+                              - ( via->GetDrill() / 2 );
 
                     if( len < length_limit )
                     {
