@@ -53,18 +53,18 @@ PROJECT_TEMPLATE::PROJECT_TEMPLATE( const wxString& aPath )
     if( !wxFileName::DirExists( m_basePath.GetPath() ) )
     {
         // Error, the path doesn't exist!
-        m_errorDesc.Printf( _( "Could not open the template path '%s'" ), aPath );
+        m_errorDesc.Printf( _( "ERROR: Could not open the template path '%s'" ), aPath );
     }
     else if( !wxFileName::DirExists( m_metaPath.GetPath() ) )
     {
         // Error, the meta information directory doesn't exist!
-        m_errorDesc.Printf( _( "Could not find the expected 'meta' directory at '%s'" ), m_metaPath.GetPath() );
+        m_errorDesc.Printf( _( "ERROR: Could not find the expected 'meta' directory at '%s'" ), m_metaPath.GetPath() );
     }
     else if( !wxFileName::FileExists( m_metaHtmlFile.GetFullPath() )
              && !wxFileName::FileExists( m_metaMarkdownFile.GetFullPath() ) )
     {
         // Error, the meta information directory doesn't contain the informational html/markdown file!
-        m_errorDesc.Printf( _( "Could not find the expected meta HTML/Markdown file (%s/%s) at '%s'" ),
+        m_errorDesc.Printf( _( "ERROR: Could not find the expected meta HTML/Markdown file (%s/%s) at '%s'" ),
                             METAFILE_INFO_HTML, METAFILE_INFO_MARKDOWN, m_metaPath.GetPath() );
     }
 
@@ -395,6 +395,87 @@ wxString PROJECT_TEMPLATE::GetError()
     return errorMsg;
 }
 
+wxString PROJECT_TEMPLATE::GetMatterValue( const wxString& aMatterblock, const wxString& aKey )
+{
+    wxString      result;
+    wxString      keyWord = aKey + ":";
+    wxArrayString lines = wxSplit( aMatterblock, '\n' );
+
+    for( const wxString& rawLine : lines )
+    {
+        wxString line = rawLine.Lower();
+
+        if( line.StartsWith( keyWord ) )
+        {
+            result = rawLine.substr( keyWord.Len(), rawLine.Len() - keyWord.Len() );
+            result.Trim( false ).Trim( true );
+            break;
+        }
+    }
+
+    return result;
+}
+
+wxString PROJECT_TEMPLATE::GetFirstHeadingValue( const wxString& aContent, HEADING_LEVEL aLevel )
+{
+    wxString      result;
+    int           levelHeading = static_cast<int>( aLevel );
+    wxArrayString lines = wxSplit( aContent, '\n' );
+
+    /* Example:
+     * m Heanding 1
+     * ## Heading 2
+     * ...
+     * ###### Heading 6
+     */
+    wxString keyWord( '#', levelHeading );
+    keyWord.Append( " " );
+
+    for( const wxString& rawLine : lines )
+    {
+        wxString line = rawLine.Lower();
+
+        if( line.StartsWith( keyWord ) )
+        {
+            result = rawLine.substr( keyWord.Len(), rawLine.Len() - keyWord.Len() );
+            result.Trim( false ).Trim( true );
+            break;
+        }
+    }
+
+    return result;
+}
+
+wxString PROJECT_TEMPLATE::GetFirstAltHeading( const wxString& aContent, ALT_HEADING_LEVEL aLevel )
+{
+    wxString      result;
+    wxString      keyWord;
+    wxArrayString lines = wxSplit( aContent, '\n' );
+    wxString      lineAbove;
+
+    /*
+     * It must be at least 4 so that the alternative Level 2 heading
+     * can be distinguished from the end of the Matterblock.
+     */
+    if( aLevel == ALT_HEADING_LEVEL::LEVEL_1 )
+        keyWord.assign( 4, '=' );
+    else
+        keyWord.assign( 4, '-' );
+
+    for( const wxString& line : lines )
+    {
+        if( line.StartsWith( keyWord ) && !lineAbove.IsEmpty() )
+        {
+            result = lineAbove;
+            break;
+        }
+
+        lineAbove = line;
+    }
+
+    return result;
+}
+
 wxString PROJECT_TEMPLATE::ExtractHtmlTitle()
 {
     wxString           title;
@@ -483,12 +564,10 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
          * title: Matter block title
          * ---
          */
-        wxRegEx reTitleMatterblock( R"(^Title[ \t]*:[ \t]*([^\r\n]*)$)", wxRE_ADVANCED | wxRE_ICASE | wxRE_NEWLINE );
+        title = GetMatterValue( matterBlock, "title" );
 
-        if( reTitleMatterblock.Matches( matterBlock ) )
-            title = reTitleMatterblock.GetMatch( matterBlock, 1 );
-        else
-            m_errorTitle = wxT( "The project title could not be found in the matter block!" );
+        if( title.IsEmpty() )
+            m_errorTitle = wxT( "ERROR: The project title could not be found in the matter block!" );
     }
 
     /*
@@ -506,10 +585,9 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
          * 
          * # Heading 1
          */
-        if( reTitlePrimary.Matches( content ) )
-            title = reTitlePrimary.GetMatch( content, 1 );
+        title = GetFirstHeadingValue( content, HEADING_LEVEL::LEVEL_1 );
 
-        else
+        if( title.IsEmpty() )
         {
             /* Use the alternate “Heading 1” as title
              +
@@ -518,12 +596,12 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownTitle()
              * Heading 1
              * =========
              */
-            if( reTitleAlternate.Matches( content ) )
-                title = reTitleAlternate.GetMatch( content, 1 );
+            title = GetFirstAltHeading( content, ALT_HEADING_LEVEL::LEVEL_1 );
         }
 
         if( title.IsEmpty() )
-            m_errorTitle = wxT( "The project title could not be found in the first H1 or the first alternative H1!" );
+            m_errorTitle =
+                    wxT( "ERROR: The project title could not be found in the first H1 or the first alternative H1!" );
     }
 
     title.Trim( true ).Trim( false ); // Trim both sides
@@ -716,15 +794,13 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
          * desc: Matter block description
          * ---
          */
-        wxRegEx reDescMatterblock( R"(^Desc(?:ription)?[ \t]*:[ \t]*([^\r\n]*)$)",
-                                   wxRE_ADVANCED | wxRE_ICASE | wxRE_NEWLINE );
+        desc = GetMatterValue( matterBlock, "description" );
 
-        if( reDescMatterblock.Matches( matterBlock ) )
-        {
-            desc = reDescMatterblock.GetMatch( matterBlock, 1 );
-        }
-        else
-            m_errorDesc = wxT( "The project description could not be found in the matter block!" );
+        if( desc.IsEmpty() )
+            desc = GetMatterValue( matterBlock, "desc" );
+
+        if( desc.IsEmpty() )
+            m_errorDesc = wxT( "ERROR: The project description could not be found in the matter block!" );
     }
 
     /* Fallback if no matter block is present */
@@ -803,8 +879,9 @@ wxString PROJECT_TEMPLATE::ExtractMarkdownDescription()
         }
 
         if( desc.IsEmpty() )
-            m_errorDesc = wxT( "The project description could not be found after the first H1 or after the first "
-                               "alternative H1!" );
+            m_errorDesc =
+                    wxT( "ERROR: The project description could not be found after the first H1 or after the first "
+                         "alternative H1!" );
     }
 
     if( !desc.IsEmpty() )

@@ -244,11 +244,29 @@ protected:
     wxString   m_errorDesc;
 
 private:
+    enum class HEADING_LEVEL
+    {
+        LEVEL_1 = 1,
+        LEVEL_2,
+        LEVEL_3,
+        LEVEL_4,
+        LEVEL_5,
+        LEVEL_6
+    };
+
+    enum class ALT_HEADING_LEVEL
+    {
+        LEVEL_1 = 1,
+        LEVEL_2
+    };
+    wxString ExtractMatterBlock( const wxString& aContent );
+    wxString GetMatterValue( const wxString& aMatterblock, const wxString& aKey );
+    wxString GetFirstHeadingValue( const wxString& aContent, HEADING_LEVEL aLevel );
+    wxString GetFirstAltHeading( const wxString& aContent, ALT_HEADING_LEVEL aLevel );
     wxString ExtractHtmlDescription();
     wxString ExtractHtmlTitle();
     wxString ExtractMarkdownTitle();
     wxString ExtractMarkdownDescription();
-    wxString ExtractMatterBlock( const wxString& aContent );
 };
 
 #endif

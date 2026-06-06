@@ -259,8 +259,8 @@ void TEMPLATE_WIDGET::OnSize( wxSizeEvent& event )
         // to avoid cumulative wrapping artifacts
         wxString displayDesc = m_description;
 
-        if( displayDesc.Length() > 120 )
-            displayDesc = displayDesc.Left( 120 ) + wxS( "..." );
+        if( displayDesc.Length() > 165 )
+            displayDesc = displayDesc.Left( 165 ) + wxS( "..." );
 
         m_descLabel->SetLabel( displayDesc );
         m_descLabel->Wrap( wrapWidth );
