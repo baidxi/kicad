@@ -170,6 +170,7 @@ wxString EDA_UNIT_UTILS::GetText( EDA_UNITS aUnits, EDA_DATA_TYPE aType )
     case EDA_DATA_TYPE::DISTANCE:                               break;
     case EDA_DATA_TYPE::TIME:                                   break;
     case EDA_DATA_TYPE::LENGTH_DELAY:                           break;
+    case EDA_DATA_TYPE::ANGLE:                                  break;
     default: UNIMPLEMENTED_FOR( wxS( "Unknown measurement" ) ); break;
     }
 

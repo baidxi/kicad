@@ -41,7 +41,8 @@ enum class EDA_DATA_TYPE
     VOLUME       = 2,
     UNITLESS     = 3,
     TIME         = 4,
-    LENGTH_DELAY = 5
+    LENGTH_DELAY = 5,
+    ANGLE        = 6
 };
 
 enum class EDA_UNITS

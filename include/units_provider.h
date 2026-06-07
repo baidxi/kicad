@@ -236,6 +236,7 @@ public:
         case EDA_UNITS::MILS:
             return EDA_DATA_TYPE::DISTANCE;
         case EDA_UNITS::DEGREES:
+            return EDA_DATA_TYPE::ANGLE;
         case EDA_UNITS::PERCENT:
         case EDA_UNITS::UNSCALED:
             return EDA_DATA_TYPE::UNITLESS;
