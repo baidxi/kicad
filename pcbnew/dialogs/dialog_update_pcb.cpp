@@ -27,6 +27,7 @@
 #include <ratsnest/ratsnest_data.h>
 #include "widgets/wx_html_report_panel.h"
 #include <netlist_reader/pcb_netlist.h>
+#include <board_commit.h>
 #include <netlist_reader/board_netlist_updater.h>
 #include <pcb_group.h>
 #include <tool/tool_manager.h>
@@ -99,7 +100,8 @@ void DIALOG_UPDATE_PCB::PerformUpdate( bool aDryRun )
         m_frame->GetToolManager()->RunAction( ACTIONS::selectionClear );
     }
 
-    BOARD_NETLIST_UPDATER updater( m_frame, m_frame->GetBoard() );
+    BOARD_COMMIT          commit( m_frame );
+    BOARD_NETLIST_UPDATER updater( m_frame, m_frame->GetBoard(), commit );
     updater.SetReporter ( &reporter );
     updater.SetIsDryRun( aDryRun );
     updater.SetLookupByTimestamp( !m_cbRelinkFootprints->GetValue() );

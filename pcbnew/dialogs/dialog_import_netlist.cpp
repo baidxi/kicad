@@ -34,6 +34,7 @@
 #include <wildcards_and_files_ext.h>
 #include <widgets/std_bitmap_button.h>
 #include <netlist_reader/pcb_netlist.h>
+#include <board_commit.h>
 #include <netlist_reader/board_netlist_updater.h>
 #include <project/project_file.h>  // LAST_PATH_TYPE
 #include <dialog_import_netlist.h>
@@ -234,7 +235,8 @@ void DIALOG_IMPORT_NETLIST::loadNetlist( bool aDryRun )
     if( !m_parent->ReadNetlistFromFile( netlistFileName, netlist, reporter ) )
         return;
 
-    BOARD_NETLIST_UPDATER updater( m_parent, m_parent->GetBoard() );
+    BOARD_COMMIT          commit( m_parent );
+    BOARD_NETLIST_UPDATER updater( m_parent, m_parent->GetBoard(), commit );
     updater.SetReporter ( &reporter );
     updater.SetIsDryRun( aDryRun );
     updater.SetLookupByTimestamp( m_matchByTimestamp->GetSelection() == 0 );

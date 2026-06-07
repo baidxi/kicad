@@ -261,6 +261,8 @@ public:
         m_fields[aFieldName] = aValue;
     }
 
+    bool ClearFieldValue( const wxString& aFieldName ) { return m_fields.erase( aFieldName ) > 0; }
+
     bool HasFieldValue( const wxString& aFieldName ) const
     {
         return m_fields.find( aFieldName ) != m_fields.end();

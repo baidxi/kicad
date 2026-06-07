@@ -30,14 +30,13 @@
 #define BOARD_NETLIST_UPDATER_H
 
 class BOARD;
+class BOARD_COMMIT;
 class REPORTER;
 class NETLIST;
 class COMPONENT;
 class FOOTPRINT;
 class PCB_EDIT_FRAME;
 class PCB_GROUP;
-
-#include <board_commit.h>
 
 /**
  * Update the #BOARD with a new netlist.
@@ -66,7 +65,8 @@ class PCB_GROUP;
 class BOARD_NETLIST_UPDATER
 {
 public:
-    BOARD_NETLIST_UPDATER( PCB_EDIT_FRAME* aFrame, BOARD* aBoard );
+    BOARD_NETLIST_UPDATER( PCB_EDIT_FRAME* aFrame, BOARD* aBoard, BOARD_COMMIT& aCommit );
+
     ~BOARD_NETLIST_UPDATER();
 
     /**
@@ -121,6 +121,8 @@ public:
                                        bool aDryRun );
 
 private:
+    friend struct BOARD_NETLIST_UPDATER_TEST_ACCESS;
+
     void cacheNetname( PAD* aPad, const wxString& aNetname );
     wxString getNetname( PAD* aPad );
 
@@ -158,7 +160,7 @@ private:
     bool testConnectivity( NETLIST& aNetlist, std::map<COMPONENT*, FOOTPRINT*>& aFootprintMap );
 
     PCB_EDIT_FRAME* m_frame;
-    BOARD_COMMIT    m_commit;
+    BOARD_COMMIT&   m_commit;
     BOARD*          m_board;
     REPORTER*       m_reporter;
 

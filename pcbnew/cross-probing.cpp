@@ -46,6 +46,7 @@
 #include <kiway_mail.h>
 #include <string_utils.h>
 #include <netlist_reader/pcb_netlist.h>
+#include <board_commit.h>
 #include <netlist_reader/board_netlist_updater.h>
 #include <gal/painter.h>
 #include <pcb_painter.h>
@@ -632,7 +633,8 @@ void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
             NETLIST netlist;
             FetchNetlistFromSchematic( netlist, wxEmptyString );
 
-            BOARD_NETLIST_UPDATER updater( this, GetBoard() );
+            BOARD_COMMIT          commit( this );
+            BOARD_NETLIST_UPDATER updater( this, GetBoard(), commit );
             updater.SetLookupByTimestamp( false );
             updater.SetDeleteUnusedFootprints( false );
             updater.SetReplaceFootprints( false );
