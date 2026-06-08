@@ -1,0 +1,102 @@
+tool_name	invoke_return_expr	registration_file	callback_heuristic	heuristic_family	doc_hint
+get_project_info	out	common/mcp/mcp_executor.cpp	other	workspace	manifest_mentioned
+get_workspace_overview	doc	common/mcp/mcp_executor.cpp	other	workspace	manifest_mentioned
+qa_open_editor_frame	makeBadRequest( "field 'type' must be either 'pcb' or 'sch'" )	common/mcp/mcp_executor.cpp	other	QA	manifest_mentioned
+get_open_documents	makeBadRequest( "field 'type' must be one of: 'pcb', 'sch', 'all'" )	common/mcp/mcp_executor.cpp	other	workspace	manifest_mentioned
+get_selection_sch	InvokeGetSelectionSchInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+library_footprint_search_session	InvokeLibraryFootprintSearchSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+library_footprint_inspect_session	InvokeLibraryFootprintInspectSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+get_sch_items_by_id	InvokeGetSchItemsByIdInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+get_sch_items	InvokeGetSchItemsInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+create_sch_items	InvokeCreateSchItemsSchInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+delete_sch_items	InvokeDeleteSchItemsSchInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+update_sch_items	InvokeUpdateSchItemsSchInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+sch_wire_edit_session	InvokeSchWireEditSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+sch_wire_quick_fix_session	invokeSchWireQuickFixSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	SCH	manifest_mentioned
+sch_pin_connection_fix_session	invokeSchPinConnectionFixSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	SCH	manifest_mentioned
+sch_connection_repair_decision_session	invokeSchConnectionRepairDecisionSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	SCH	manifest_mentioned
+schematic_net_inspect_session	InvokeSchematicNetInspectSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_symbol_connectivity_session	InvokeSchematicSymbolConnectivitySessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_create_wire_segment_session	InvokeSchematicCreateWireSegmentSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_create_junction_session	InvokeSchematicCreateJunctionSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_unknown
+schematic_connect_symbol_pin_session	InvokeSchematicConnectSymbolPinSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_connect_pins_l_shape_session	InvokeSchematicConnectPinsLShapeSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_create_label_session	InvokeSchematicCreateLabelSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_place_symbol_session	InvokeSchematicPlaceSymbolSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_move_symbol_session	InvokeSchematicMoveSymbolSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_move_label_session	InvokeSchematicMoveLabelSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_set_symbol_reference_session	InvokeSchematicSetSymbolReferenceSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_set_symbol_value_session	InvokeSchematicSetSymbolValueSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_set_symbol_field_session	InvokeSchematicSetSymbolFieldSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+schematic_assign_footprint_session	InvokeSchematicAssignFootprintSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned; R143_scope_hierarchy_dry_run; R144_safe_limited; R146_shared_sheet_guard; R147_safe_assign_footprint_guard; R149_advanced_safe_footprint_workflow; R158_upstream_design_required; R159_prototype_upstream_api; R160_hierarchy_instance_safe_mutation; R161_hierarchy_assign_instance_safe_enabled; hierarchy_assign_instance_safe_enabled
+schematic_footprint_readiness_session	InvokeSchematicFootprintReadinessSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned; R135b; R138_V1_readiness; R141_scope_hierarchy; R165_runtime_workflow_echo; R166_dual_source_local; R168_observability_alert_policy
+get_schematic_active_sheet_context_session	InvokeSchematicActiveSheetContextSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	R150_active_sheet_context; R151_workflow_consolidated; R152_hierarchy_fixture_qa; read_only
+navigate_schematic_sheet_session	InvokeSchematicNavigateSheetSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	R154_hierarchy_navigation; R155_workflow_consolidated; R156_e2e_example; ui_only_no_sch_commit
+schematic_set_label_text_session	InvokeSchematicSetLabelTextSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+library_symbol_search_session	InvokeLibrarySymbolSearchSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+library_symbol_inspect_session	InvokeLibrarySymbolInspectSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+get_symbol_pins_by_id	InvokeGetSymbolPinsByIdInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+get_symbol_fields_by_id	InvokeGetSymbolFieldsByIdInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	library	manifest_mentioned
+hit_test_sch	InvokeHitTestSchInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	SCH	manifest_mentioned
+get_pcb_items	InvokeGetPcbItemsInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pcb_items_by_id	InvokeGetPcbItemsByIdInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+pcb_get_board_items_session	InvokePcbGetBoardItemsSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+pcb_get_board_item_by_id_session	InvokePcbGetBoardItemByIdSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+pcb_get_net_items_session	InvokePcbGetNetItemsSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+pcb_measure_distance_session	InvokePcbMeasureDistanceSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pcb_clearance_context_session	InvokePcbClearanceContextSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pcb_nearby_items_context_session	InvokePcbNearbyItemsContextSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pcb_drc_violations_context_session	InvokePcbDrcViolationsContextSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB_DRC_context	checkpoint_covered_mcp_v2
+get_pcb_item_geometry_session	InvokePcbItemGeometrySessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pcb_sync_readiness_session	InvokePcbSyncReadinessSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB_sync_readiness	R170_read_only_hors_checkpoint_v2;R179_series_closed
+pcb_update_from_schematic_preview_session	InvokePcbUpdateFromSchematicPreviewSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB_update_preview	R171_dry_run_hors_checkpoint_v2;R179_series_closed
+pcb_update_from_schematic_session	InvokePcbUpdateFromSchematicSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB_update_apply	R173_controlled_apply_hors_checkpoint_v2;R174_pcb_update_apply_controlled_v1;R176_post_apply_drc_advisory;R177_pcb_apply_drc_save_workflow_v1;R179_series_closed
+save_board_session	InvokePcbSaveBoardSessionInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB_save	R176_controlled_save_hors_checkpoint_v2;R177_pcb_apply_drc_save_workflow_v1;R179_series_closed
+hit_test_pcb	InvokeHitTestPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_selection_pcb	InvokeGetSelectionPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_board_stackup	InvokeGetBoardStackupInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_nets	InvokeGetNetsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_bounding_box_pcb	InvokeGetBoundingBoxPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	other	manifest_mentioned
+get_visible_layers	InvokeGetVisibleLayersPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	other	manifest_mentioned
+get_board_enabled_layers	InvokeGetBoardEnabledLayersPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_board_layer_names	InvokeGetBoardLayerNamesPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_active_layer	InvokeGetActiveLayerPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	other	manifest_mentioned
+set_active_layer	InvokeSetActiveLayerPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	other	manifest_mentioned
+set_visible_layers	InvokeSetVisibleLayersPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	other	manifest_mentioned
+set_board_editor_appearance_settings	InvokeSetBoardEditorAppearanceSettingsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+set_board_origin	InvokeSetBoardOriginPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+create_pcb_items	InvokeCreatePcbItemsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+delete_pcb_items	InvokeDeletePcbItemsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+update_pcb_items	InvokeUpdatePcbItemsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+pcb_graphic_annotation_session	invokePcbGraphicAnnotationSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	PCB	manifest_mentioned
+pcb_fabrication_origin_prepare_session	invokePcbFabricationOriginPrepareSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	PCB	manifest_mentioned
+pcb_origin_decision_correction_session	invokePcbOriginDecisionCorrectionSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	PCB	manifest_mentioned
+get_board_editor_appearance_settings	InvokeGetBoardEditorAppearanceSettingsPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_board_origin	InvokeGetBoardOriginPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_board_extent	InvokeGetBoardExtentPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_pad_shape_as_polygon	InvokeGetPadShapeAsPolygonPcbInvoke( aArgs )	common/mcp/mcp_executor.cpp	callback_bridge	PCB	manifest_mentioned
+get_kicad_binary_path	makeBadRequest( "binary_name is missing or not a string" )	common/mcp/mcp_executor.cpp	other	other	manifest_mentioned
+get_plugin_settings_path	makeBadRequest( "plugin identifier is missing" )	common/mcp/mcp_executor.cpp	other	other	manifest_mentioned
+get_text_variables	makeNotReady( "no valid project is loaded, cannot get text variables" )	common/mcp/mcp_executor.cpp	other	text	manifest_mentioned
+expand_text_variables	makeBadRequest( "text must be an array of strings" )	common/mcp/mcp_executor.cpp	other	text	manifest_mentioned
+get_text_extents	makeBadRequest( "missing 'text' field" )	common/mcp/mcp_executor.cpp	other	text	manifest_mentioned
+get_text_as_shapes	makeBadRequest( "missing 'text' field" )	common/mcp/mcp_executor.cpp	other	text	manifest_mentioned
+get_net_classes	tl::unexpected( classes.error() )	common/mcp/mcp_executor.cpp	other	netclass	manifest_mentioned
+set_net_classes	makeBadRequest( "missing or invalid 'merge_mode' (string enum required)" )	common/mcp/mcp_executor.cpp	other	netclass	manifest_mentioned
+get_project_context_snapshot	invokeGetProjectContextSnapshot( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	workspace	drc_summary_opt_in_R129; project_readiness_summary_R135a; footprints_summary_opt_in_R135b; footprints_validate_R137; R162_hierarchy_assign_runtime_status; R163_runtime_workflow_example; R166_dual_source_primary; R168_observability_alert_policy; pcb_sync_summary_opt_in_R172
+netclass_patch_session	invokeNetclassPatchSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	netclass	manifest_mentioned
+electrical_profile_prepare_session	invokeElectricalProfilePrepareSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	netclass	manifest_mentioned
+cross_context_preflight_correction_session	invokeCrossContextPreflightCorrectionSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	other	manifest_mentioned
+workflow_preflight_gate_session	invokeWorkflowPreflightGateSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	workflow	manifest_mentioned
+workflow_next_best_action_session	invokeWorkflowNextBestActionSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	workflow	manifest_mentioned
+workflow_handoff_readiness_session	invokeWorkflowHandoffReadinessSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	workflow	manifest_mentioned
+workflow_assistant_session	invokeWorkflowAssistantSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	workflow	manifest_mentioned
+simulation_directive_inspect	invokeSimulationDirectiveInspect( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_netlist_preview_session	invokeSimulationNetlistPreviewSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_model_library_inspect	invokeSimulationModelLibraryInspect( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_preflight_readiness_session	invokeSimulationPreflightReadinessSession( reg, aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_run_status_session	invokeSimulationRunStatusSession( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_run_minimal_summary_session	invokeSimulationRunMinimalSummarySession( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_run_vector_catalog_session	invokeSimulationRunVectorCatalogSession( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_vector_scalar_probe_session	invokeSimulationVectorScalarProbeSession( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned
+simulation_xaxis_probe_session	invokeSimulationXAxisProbeSession( aArgs )	common/mcp/mcp_executor.cpp	invoke_fn	simulation	manifest_mentioned

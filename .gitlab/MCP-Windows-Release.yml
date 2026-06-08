@@ -1,0 +1,67 @@
+##########################################################################
+# R187 - Manual Windows release pack MCP v2 (non-blocking dev gate)
+# Runs run_mcp_v2_release_pack.ps1; fails job if release_decision != go.
+# Does not modify ci_baseline_green dev criteria or checkpoint MCP v2 gates.
+##########################################################################
+
+.mcp_v2_release_pack_windows_base:
+  stage: release
+  tags:
+    - kicad-windows-ltsc2022
+  interruptible: false
+  image: registry.gitlab.com/kicad/kicad-ci/windows-build-image/ltsc2022-msvc:latest
+  variables:
+    MCP_V2_RELEASE_BUILD_DIR: build/msvc-win64-release
+    VCPKG_BINARY_SOURCES: 'nuget,gitlab,readwrite'
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: "fast"
+  cache:
+    key: mcp-v2-release-vcpkg-$CI_COMMIT_REF_SLUG
+    paths:
+      - build/msvc-win64-release/vcpkg_installed
+      - .vcpkgCache
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_PROJECT_ROOT_NAMESPACE == "kicad"
+      when: manual
+    - when: never
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_release_pack_pipeline_summary.txt
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_release_pack.md
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_release_pack.json
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_ci_baseline_summary.txt
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_ci_advisory_report.txt
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_release_advisory_check_summary.txt
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_checkpoint_summary.txt
+      - build/msvc-win64-release/ipc-v1-artifacts/**/qa_mcp_v2_ci_advisory_report.md
+
+mcp_v2_release_pack_windows:
+  extends: .mcp_v2_release_pack_windows_base
+  allow_failure: false
+  script:
+    - C:\builder\build.ps1 -Env -Arch x64
+    - $env:VCPKG_ROOT = "C:\builder\vcpkg"
+    - $vcpkgCache = Join-Path -Path (Get-Location) -ChildPath ".vcpkgCache"
+    - $env:VCPKG_DEFAULT_BINARY_CACHE = $vcpkgCache
+    - New-Item -ItemType Directory -Force -Path $vcpkgCache | Out-Null
+    - nuget.exe sources add -Name gitlab -Source "https://gitlab.com/api/v4/projects/27426693/packages/nuget/index.json" -UserName gitlab-ci-token -Password $env:CI_JOB_TOKEN 2>$null; if ($LASTEXITCODE -ne 0) { Write-Host "nuget source add skipped or already present" }
+    - $buildDir = Join-Path $env:CI_PROJECT_DIR $env:MCP_V2_RELEASE_BUILD_DIR
+    - $kicadExe = Join-Path $buildDir "kicad\kicad.exe"
+    - $smokeExe = Join-Path $buildDir "qa\tools\ipc_tools\qa_ipc_smoke.exe"
+    - if ((-not (Test-Path -LiteralPath $kicadExe)) -or (-not (Test-Path -LiteralPath $smokeExe))) {
+        Write-Host "Configuring and building MCP v2 release targets (msvc-win64-release)...";
+        cmake --preset msvc-win64-release;
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE };
+        cmake --build --preset win64-release --target kicommon pcbnew_kiface kicad qa_ipc_smoke;
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      } else {
+        Write-Host "Release binaries present; skipping cmake build (use fresh pipeline to force rebuild)."
+      }
+    - $releaseScript = Join-Path $env:CI_PROJECT_DIR "qa\tools\ipc_tools\run_mcp_v2_release_pack.ps1"
+    - powershell -NoProfile -ExecutionPolicy Bypass -File "$releaseScript" -BuildDir "$buildDir" -SkipBuild -KillRunningKiCad
+    - if ($LASTEXITCODE -ne 0) { Write-Host "release_pack_pipeline_failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
+    - Write-Host "mcp_v2_release_pack_windows_ok=true"
