@@ -468,7 +468,8 @@ public:
         if( GetIntValue( CSAE_RADIUS ) == 0 )
         {
             // Can be negative, result is a mirrored arc around the center
-            // Negative radius value is stored as positive value, the angles are changed accordingly
+            // Negative radius value is upon confirmation stored as positive value
+            // and the angles are changed accordingly
             aErrs.push_back( _( "Radius must be non-zero." ) );
             return false;
         }
@@ -575,11 +576,8 @@ public:
     void OnCSAEChange()
     {
         const VECTOR2I center{ GetIntValue( CSAE_CENTER_X ), GetIntValue( CSAE_CENTER_Y ) };
-
         const int radius{ GetIntValue( CSAE_RADIUS ) };
-
         const EDA_ANGLE start_angle{ GetAngleValue( CSAE_START_ANGLE ) };
-
         const EDA_ANGLE end_angle{ GetAngleValue( CSAE_END_ANGLE ) } ;
 
         VECTOR2I start(
@@ -606,16 +604,15 @@ public:
     void updateCSAE()
     {
         const VECTOR2I center = GetShape().GetCenter();
+        double radius = ( center - start ).EuclideanNorm();
         const VECTOR2I start = GetShape().GetStart();
         const EDA_ANGLE inc_angle = GetShape().GetArcAngle();
 
-        double radius = ( center - start ).EuclideanNorm();
-
-        VECTOR2D startVec = VECTOR2D( start ) - VECTOR2D(center);
+        VECTOR2D startVec = VECTOR2D( start ) - VECTOR2D( center );
 
         // Convert KiCad screen coordinates (+Y down)
         // into conventional polar coordinates (+Y up).
-        EDA_ANGLE start_angle(atan2( -startVec.y, startVec.x ), RADIANS_T );
+        EDA_ANGLE start_angle( atan2( -startVec.y, startVec.x ), RADIANS_T );
 
         while( start_angle < ANGLE_0 )
             start_angle += ANGLE_360;
