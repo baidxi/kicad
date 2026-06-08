@@ -604,9 +604,9 @@ public:
     void updateCSAE()
     {
         const VECTOR2I center = GetShape().GetCenter();
-        double radius = ( center - start ).EuclideanNorm();
         const VECTOR2I start = GetShape().GetStart();
         const EDA_ANGLE inc_angle = GetShape().GetArcAngle();
+        double radius = ( center - start ).EuclideanNorm();
 
         VECTOR2D startVec = VECTOR2D( start ) - VECTOR2D( center );
 
