@@ -1,5 +1,5 @@
 ##########################################################################
-# R187 — Manual Windows release pack MCP v2 (non-blocking dev gate)
+# R187 - Manual Windows release pack MCP v2 (non-blocking dev gate)
 # Runs run_mcp_v2_release_pack.ps1; fails job if release_decision != go.
 # Does not modify ci_baseline_green dev criteria or checkpoint MCP v2 gates.
 ##########################################################################
@@ -63,6 +63,6 @@ mcp_v2_release_pack_windows:
         Write-Host "Release binaries present; skipping cmake build (use fresh pipeline to force rebuild)."
       }
     - $releaseScript = Join-Path $env:CI_PROJECT_DIR "qa\tools\ipc_tools\run_mcp_v2_release_pack.ps1"
-    - & $releaseScript -BuildDir $buildDir -SkipBuild -KillRunningKiCad
+    - powershell -NoProfile -ExecutionPolicy Bypass -File "$releaseScript" -BuildDir "$buildDir" -SkipBuild -KillRunningKiCad
     - if ($LASTEXITCODE -ne 0) { Write-Host "release_pack_pipeline_failed exit=$LASTEXITCODE"; exit $LASTEXITCODE }
     - Write-Host "mcp_v2_release_pack_windows_ok=true"
