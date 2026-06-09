@@ -2257,7 +2257,19 @@ EAGLE_LIBRARY* SCH_IO_EAGLE::loadLibrary( const ELIBRARY* aLibrary, EAGLE_LIBRAR
                 std::unique_ptr<LIB_SYMBOL> derivedSymbol;
 
                 if( !technology->name.IsEmpty() )
+                {
                     derivedSymbol = std::make_unique<LIB_SYMBOL>( symbolName + technology->name, libSymbol.get() );
+                    std::vector<SCH_FIELD*> parentFields;
+                    libSymbol->GetFields( parentFields );
+
+                    for( SCH_FIELD* parentField : parentFields )
+                    {
+                        SCH_FIELD* childField = derivedSymbol->GetField( parentField->GetName() );
+
+                        if( childField && parentField )
+                            childField->SetAttributes( *parentField );
+                    }
+                }
 
                 for( const std::unique_ptr<EATTR>& attr : technology->attributes )
                 {
@@ -2279,6 +2291,14 @@ EAGLE_LIBRARY* SCH_IO_EAGLE::loadLibrary( const ELIBRARY* aLibrary, EAGLE_LIBRAR
                     {
                         SCH_FIELD* newField = new SCH_FIELD( derivedSymbol ? derivedSymbol.get() : libSymbol.get(),
                                                              FIELD_T::USER, attr->name );
+
+                        if( derivedSymbol )
+                        {
+                            SCH_FIELD* parentField = libSymbol->FindFieldCaseInsensitive( attr->name );
+
+                            if( parentField )
+                                newField->SetAttributes( *parentField );
+                        }
 
                         nextFieldPosition.y += newField->GetTextHeight() + schIUScale.MilsToIU( 10 );
                         newField->SetText( *attr->value );
