@@ -75,6 +75,7 @@ std::set<KICAD_T> API_HANDLER_SCH::s_allowedTypes = {
     SCH_DIRECTIVE_LABEL_T,
     SCH_SYMBOL_T,
     SCH_SHEET_T,
+    SCH_SHEET_PIN_T,
 };
 
 
