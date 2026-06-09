@@ -21,9 +21,9 @@ The PD category can be determined as follows:
 - PD3: Industrial environments, or humid areas (conductive pollution, or non-conductive pollution becomes conductive due to expected condensation)
 - PD4: Outdoors or exposed equipment (persistent conductive pollution)
 
-The Material Group examples (As quick reference, ask your supplier for final calculation):
+Material Insulation Groups (For reference only, verify the final calculations with your supplier):
 
-- I: Glass, Ceramic, PTFE, PE, PMMA, PA, PP, PVC, ABS (CTI >= 600)
-- II: PBT, PS, PEN, Non-Brominated Epoxy (400 <= CTI < 600)
-- IIIa: Standard FR4, CEM-1, PC, PPS, Brominated Epoxy (175 <= CTI < 400)
-- IIIb: PEEK, PI, PF (100 <= CTI < 175)
+- I: PTFE, PE, PA, PP, PVC, ABS (CTI >= 600V)
+- II: PBT, PS, Non-Brominated Epoxy (400V <= CTI < 600V)
+- IIIa: Standard FR4, CEM-1, Brominated Epoxy (175V <= CTI < 400V)
+- IIIb: PEEK, PI, PF (100V <= CTI < 175V)
