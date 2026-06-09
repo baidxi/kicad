@@ -85,8 +85,15 @@ wxString ERC_REPORT::GetTextReport()
     {
         if( auto item = dynamic_cast<ERC_ITEM*>( m_markersProvider->GetItem( i ).get() ) )
         {
+            // Most checkers only bind a violation to its sheet through
+            // SetSheetSpecificPath(); only a few also record the main item's
+            // own sheet.  Falling straight back to sheetList[0] dumped every
+            // such violation under the first sheet even when the offending
+            // item lives on a sub-sheet.
             if( item->MainItemHasSheetPath() )
                 orderedItems[item->GetMainItemSheetPath()].emplace_back( item );
+            else if( item->IsSheetSpecific() )
+                orderedItems[item->GetSpecificSheetPath()].emplace_back( item );
             else
                 orderedItems[sheetList[0]].emplace_back( item );
         }
@@ -190,8 +197,15 @@ bool ERC_REPORT::WriteJsonReport( const wxString& aFullFileName )
     {
         if( auto item = dynamic_cast<ERC_ITEM*>( m_markersProvider->GetItem( i ).get() ) )
         {
+            // Most checkers only bind a violation to its sheet through
+            // SetSheetSpecificPath(); only a few also record the main item's
+            // own sheet.  Falling straight back to sheetList[0] dumped every
+            // such violation under the first sheet even when the offending
+            // item lives on a sub-sheet.
             if( item->MainItemHasSheetPath() )
                 orderedItems[item->GetMainItemSheetPath()].emplace_back( item );
+            else if( item->IsSheetSpecific() )
+                orderedItems[item->GetSpecificSheetPath()].emplace_back( item );
             else
                 orderedItems[sheetList[0]].emplace_back( item );
         }
