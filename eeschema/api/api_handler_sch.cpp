@@ -955,7 +955,56 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
             SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item.get() );
 
             if( aCreate && !sheet->GetScreen() )
-                sheet->SetScreen( new SCH_SCREEN( schematic() ) );
+            {
+                // A sheet created over the API must end up backed by a file,
+                // like one placed in the GUI: load the file when it already
+                // exists (its contents join the hierarchy), otherwise attach
+                // a fresh screen that carries the resolved filename.  An
+                // anonymous screen here means SaveProject() never writes the
+                // sub-sheet file, silently losing anything later placed on it.
+                wxString filename = sheet->GetField( FIELD_T::SHEET_FILENAME )->GetText();
+
+                if( filename.IsEmpty() )
+                {
+                    status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                    status.set_error_message( fmt::format(
+                            "sheet {} has no filename; the Sheetfile field is required",
+                            item->m_Uuid.AsStdString() ) );
+                    aItemHandler( status, anyItem );
+                    continue;
+                }
+
+                wxFileName fn( filename );
+
+                if( !fn.IsAbsolute() )
+                    fn.MakeAbsolute( m_context->Prj().GetProjectPath() );
+
+                if( m_frame && fn.FileExists() )
+                {
+                    SCH_SHEET_PATH parent( targetPath );
+
+                    if( !m_frame->LoadSheetFromFile( sheet, &parent, fn.GetFullPath() ) )
+                    {
+                        status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                        status.set_error_message( fmt::format(
+                                "could not load sheet file '{}'",
+                                fn.GetFullPath().ToStdString() ) );
+                        aItemHandler( status, anyItem );
+                        continue;
+                    }
+                }
+                else if( m_frame && !fn.FileExists() )
+                {
+                    m_frame->InitSheet( sheet, fn.GetFullPath() );
+                }
+                else
+                {
+                    SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
+                    newScreen->SetFileName( fn.GetFullPath() );
+                    newScreen->SetContentModified();
+                    sheet->SetScreen( newScreen );
+                }
+            }
 
             SCH_SHEET_PATH parentPath;
 
