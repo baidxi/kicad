@@ -2114,6 +2114,10 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
         {
             field->SetVisible( true );
             field->SetPosition( VECTOR2I( eattr->x->ToSchUnits(), -eattr->y->ToSchUnits() ) );
+
+            if( eattr->size )
+                field->SetTextSize( ConvertEagleTextSize( eattr->font, eattr->size.Get() ) );
+
             int  align      = eattr->align ? *eattr->align : ETEXT::BOTTOM_LEFT;
             int  absdegrees = eattr->rot ? eattr->rot->degrees : 0;
             bool mirror     = eattr->rot ? eattr->rot->mirror : false;
