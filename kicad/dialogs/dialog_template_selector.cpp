@@ -44,6 +44,7 @@
 #include <wx/regex.h>
 #include <confirm.h>
 #include <project_tree_traverser.h>
+#include <string_utils.h>
 #include "template_default_html.h"
 
 
@@ -194,7 +195,7 @@ void TEMPLATE_WIDGET::SetTemplate( PROJECT_TEMPLATE* aTemplate )
 {
     m_currTemplate = aTemplate;
     m_titleLabel->SetFont( KIUI::GetInfoFont( this ).Bold() );
-    m_titleLabel->SetLabel( *aTemplate->GetTitle() );
+    m_titleLabel->SetLabel( aTemplate->GetTitle() );
 
     // Generate bitmap bundle from template icon bitmap (64x64)
     // so wxStaticBitmap can size itself to the closest match
@@ -258,8 +259,8 @@ void TEMPLATE_WIDGET::OnSize( wxSizeEvent& event )
         // to avoid cumulative wrapping artifacts
         wxString displayDesc = m_description;
 
-        if( displayDesc.Length() > 120 )
-            displayDesc = displayDesc.Left( 120 ) + wxS( "..." );
+        if( displayDesc.Length() > 165 )
+            displayDesc = displayDesc.Left( 165 ) + wxS( "..." );
 
         m_descLabel->SetLabel( displayDesc );
         m_descLabel->Wrap( wrapWidth );
@@ -613,7 +614,7 @@ void DIALOG_TEMPLATE_SELECTOR::BuildMRUList()
 
         PROJECT_TEMPLATE templ( path );
 
-        wxString* title = templ.GetTitle();
+        wxString& title = templ.GetTitle();
         wxBitmap* icon = templ.GetIcon();
 
         wxBitmap scaledIcon;
@@ -632,7 +633,7 @@ void DIALOG_TEMPLATE_SELECTOR::BuildMRUList()
             scaledIcon = wxBitmap( img );
         }
 
-        wxString displayTitle = title ? *title : templateDir.GetDirs().Last();
+        wxString displayTitle = title.IsEmpty() ? templateDir.GetDirs().Last() : title;
 
         TEMPLATE_MRU_WIDGET* mruWidget = new TEMPLATE_MRU_WIDGET( m_scrolledMRU, this, path, displayTitle,
                                                                   scaledIcon );
@@ -676,12 +677,11 @@ void DIALOG_TEMPLATE_SELECTOR::BuildTemplateList()
                 if( dir.HasSubDirs( "meta" ) )
                 {
                     auto templ = std::make_unique<PROJECT_TEMPLATE>( aPath );
-                    wxFileName htmlFile = templ->GetHtmlFile();
-                    wxString description = ExtractDescription( htmlFile );
+
 
                     TEMPLATE_WIDGET* widget = new TEMPLATE_WIDGET( m_scrolledTemplates, this );
                     widget->SetTemplate( templ.get() );
-                    widget->SetDescription( description );
+                    widget->SetDescription( templ->GetDescription() );
                     widget->SetIsUserTemplate( aIsUser );
 
                     m_templates.push_back( std::move( templ ) );
@@ -705,14 +705,11 @@ void DIALOG_TEMPLATE_SELECTOR::BuildTemplateList()
 
                         if( metaTest.DirExists() )
                         {
-                            auto templ = std::make_unique<PROJECT_TEMPLATE>( subFull );
-                            wxFileName htmlFile = templ->GetHtmlFile();
-                            wxString description = templ->GetError().IsEmpty() ? ExtractDescription( htmlFile ) : templ->GetError();
-
+                            auto             templ = std::make_unique<PROJECT_TEMPLATE>( subFull );
                             TEMPLATE_WIDGET* widget =
                                     new TEMPLATE_WIDGET( m_scrolledTemplates, this );
                             widget->SetTemplate( templ.get() );
-                            widget->SetDescription( description );
+                            widget->SetDescription( templ->GetDescription() );
                             widget->SetIsUserTemplate( aIsUser );
 
                             m_templates.push_back( std::move( templ ) );
@@ -731,8 +728,8 @@ void DIALOG_TEMPLATE_SELECTOR::BuildTemplateList()
     std::sort( m_templateWidgets.begin(), m_templateWidgets.end(),
                []( TEMPLATE_WIDGET* a, TEMPLATE_WIDGET* b )
                {
-                   wxString titleA = *a->GetTemplate()->GetTitle();
-                   wxString titleB = *b->GetTemplate()->GetTitle();
+                   wxString titleA = a->GetTemplate()->GetTitle();
+                   wxString titleB = b->GetTemplate()->GetTitle();
                    int      cmp = titleA.CmpNoCase( titleB );
 
                    if( cmp == 0 )
@@ -783,7 +780,7 @@ void DIALOG_TEMPLATE_SELECTOR::ApplyFilter()
 
         if( !searchText.IsEmpty() )
         {
-            wxString title = widget->GetTemplate()->GetTitle()->Lower();
+            wxString title = widget->GetTemplate()->GetTitle().Lower();
             wxString description = widget->GetDescription().Lower();
 
             matchesSearch = title.Contains( searchText ) || description.Contains( searchText );
@@ -955,6 +952,32 @@ void DIALOG_TEMPLATE_SELECTOR::EnsureWebViewCreated()
 }
 
 
+void DIALOG_TEMPLATE_SELECTOR::RemoveMarkdownFrontMatter( wxString& aContent )
+{
+    if( !aContent.StartsWith( "---" ) )
+        return;
+
+    // Position after the first "---"
+    int start = aContent.Find( "\n" );
+    if( start == wxNOT_FOUND )
+        return;
+
+    start += 1;
+
+    // Find the end of the front matter block
+    int end = aContent.find( "\n---", start );
+    if( end == wxNOT_FOUND )
+        return;
+
+    // End of line after closing ---
+    end = aContent.find( "\n", end + 4 );
+    if( end == wxNOT_FOUND )
+        return;
+
+    aContent = aContent.Mid( end + 1 );
+}
+
+
 void DIALOG_TEMPLATE_SELECTOR::LoadTemplatePreview( PROJECT_TEMPLATE* aTemplate )
 {
     if( !aTemplate )
@@ -963,8 +986,43 @@ void DIALOG_TEMPLATE_SELECTOR::LoadTemplatePreview( PROJECT_TEMPLATE* aTemplate 
     EnsureWebViewCreated();
 
     wxFileName htmlFile = aTemplate->GetHtmlFile();
+    wxFileName markdownFile = aTemplate->GetMarkdownFile();
 
-    if( htmlFile.FileExists() && htmlFile.IsFileReadable() )
+    if( markdownFile.FileExists() && markdownFile.IsFileReadable() )
+    {
+        m_loadingExternalHtml = true;
+        wxFile mdFile( markdownFile.GetFullPath() );
+
+        if( !mdFile.IsOpened() )
+            return;
+
+        wxString mdContent;
+        wxString htmlContent;
+
+        mdFile.ReadAll( &mdContent );
+        mdFile.Close();
+
+        /* Remove leading blank lines */
+        mdContent.Trim( false );
+
+        RemoveMarkdownFrontMatter( mdContent );
+        ConvertMarkdown2Html( mdContent, htmlContent );
+
+#ifdef LOG_MARKDOWN_CONTENT
+        wxFile logFile;
+        logFile.Create( markdownFile.GetPathWithSep() + "info_md.html", true );
+
+        if( !logFile )
+            wxLogMessage( wxString::Format( wxT( "Could not create the log file '%s'!" ), logFile.GetFullPath() ) );
+
+        logFile.Write( htmlContent );
+        logFile.Close();
+#endif // MARKDOWN_CONTENT_LOG
+
+        wxString baseUrl = wxFileName::FileNameToURL( markdownFile.GetPath() );
+        m_webviewPanel->SetPage( htmlContent, baseUrl );
+    }
+    else if( htmlFile.FileExists() && htmlFile.IsFileReadable() )
     {
         m_loadingExternalHtml = true;
         wxString url = wxFileName::FileNameToURL( htmlFile );
@@ -973,7 +1031,7 @@ void DIALOG_TEMPLATE_SELECTOR::LoadTemplatePreview( PROJECT_TEMPLATE* aTemplate 
     else
     {
         m_loadingExternalHtml = false;
-        wxString html = GetTemplateInfoHtml( *aTemplate->GetTitle(), KIPLATFORM::UI::IsDarkTheme() );
+        wxString html = GetTemplateInfoHtml( aTemplate->GetTitle(), KIPLATFORM::UI::IsDarkTheme() );
         m_webviewPanel->SetPage( html );
     }
 }
@@ -1114,9 +1172,51 @@ void DIALOG_TEMPLATE_SELECTOR::OnWebViewLoaded( wxWebViewEvent& event )
     style.textContent = `
 %s
     `;
+
+    // ---- TABLE STYLE ----
+    style.innerHTML = `
+        table {
+            border-collapse: collapse;
+            width: auto;
+        }
+
+        th, td {
+            border: 1px solid black;
+            padding: 6px 10px;
+        }
+
+        th {
+            background-color: #e0e0e0;
+        }
+
+        /* DARK MODE */
+        @media (prefers-color-scheme: dark) {
+
+            table {
+                color: #e8e8e8;
+            }
+
+            th, td {
+                border: 1px solid #cfcfcf;
+            }
+
+            th {
+                background-color: #3a3a3a;
+                color: white;
+            }
+
+            tr {
+                background-color: #1e1e1e;
+            }
+            tr:nth-child(even) {
+                background-color: #252525;
+            }
+        }
+    `;
     document.head.appendChild( style );
 } )();
-                                                 )" ), GetCommonStyles() );
+)" ),
+                                            GetCommonStyles() );
 
 #if !defined( __MINGW32__ )     // RunScriptAsync() is not supported on MINGW build
         if( m_webviewPanel->GetBackend() != wxWebViewBackendIE )
@@ -1145,95 +1245,6 @@ void DIALOG_TEMPLATE_SELECTOR::RefreshTemplateList()
 
     if( !selectedPath.IsEmpty() )
         SelectTemplateByPath( selectedPath );
-}
-
-
-wxString DIALOG_TEMPLATE_SELECTOR::ExtractDescription( const wxFileName& aHtmlFile )
-{
-    if( !aHtmlFile.FileExists() || !aHtmlFile.IsFileReadable() )
-        return wxEmptyString;
-
-    wxTextFile file( aHtmlFile.GetFullPath() );
-
-    if( !file.Open() )
-        return wxEmptyString;
-
-    wxString content;
-
-    for( wxString line = file.GetFirstLine(); !file.Eof(); line = file.GetNextLine() )
-    {
-        content += line + wxT( " " );
-    }
-
-    file.Close();
-
-    // Try to extract text from the meta description tag
-    wxRegEx reMetaDesc( wxT( "<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']" ),
-                        wxRE_ICASE );
-
-    if( reMetaDesc.Matches( content ) )
-        return reMetaDesc.GetMatch( content, 1 );
-
-    // Fallback to first paragraph tag (allowing nested HTML tags)
-    wxRegEx reParagraph( wxT( "<p[^>]*>(.*?)</p>" ), wxRE_ICASE );
-
-    if( reParagraph.Matches( content ) )
-    {
-        wxString desc = reParagraph.GetMatch( content, 1 );
-
-        // Strip nested HTML tags
-        wxRegEx reTags( wxT( "<[^>]*>" ) );
-        reTags.ReplaceAll( &desc, wxT( " " ) );
-
-        // Decode common HTML entities
-        desc.Replace( wxT( "&nbsp;" ), wxT( " " ) );
-        desc.Replace( wxT( "&amp;" ), wxT( "&" ) );
-        desc.Replace( wxT( "&lt;" ), wxT( "<" ) );
-        desc.Replace( wxT( "&gt;" ), wxT( ">" ) );
-        desc.Replace( wxT( "&quot;" ), wxT( "\"" ) );
-
-        // Normalize whitespace
-        wxRegEx reWhitespace( wxT( "\\s+" ) );
-        reWhitespace.ReplaceAll( &desc, wxT( " " ) );
-
-        desc = desc.Trim().Trim( false );
-
-        if( !desc.IsEmpty() )
-            return desc;
-    }
-
-    // Final fallback: extract text content from body, stripping all HTML tags
-    wxRegEx reBody( wxT( "<body[^>]*>(.*)</body>" ), wxRE_ICASE );
-
-    if( reBody.Matches( content ) )
-    {
-        wxString body = reBody.GetMatch( content, 1 );
-
-        // Strip all HTML tags
-        wxRegEx reTags( wxT( "<[^>]*>" ) );
-        reTags.ReplaceAll( &body, wxT( " " ) );
-
-        // Decode common HTML entities
-        body.Replace( wxT( "&nbsp;" ), wxT( " " ) );
-        body.Replace( wxT( "&amp;" ), wxT( "&" ) );
-        body.Replace( wxT( "&lt;" ), wxT( "<" ) );
-        body.Replace( wxT( "&gt;" ), wxT( ">" ) );
-        body.Replace( wxT( "&quot;" ), wxT( "\"" ) );
-
-        // Normalize whitespace
-        wxRegEx reWhitespace( wxT( "\\s+" ) );
-        reWhitespace.ReplaceAll( &body, wxT( " " ) );
-
-        body = body.Trim().Trim( false );
-
-        // Return up to 250 characters
-        if( body.Length() > 250 )
-            return body.Left( 250 ) + wxS( "..." );
-
-        return body;
-    }
-
-    return wxEmptyString;
 }
 
 

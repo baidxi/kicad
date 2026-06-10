@@ -119,7 +119,7 @@ class wxFileName;
  * copied. This define is the default filename for this directory
  *
  */
-#define METADIR             wxT( "meta" )
+#define METADIR                 wxT( "meta" )
 
 
 /**
@@ -127,7 +127,15 @@ class wxFileName;
  * This define is the default filename for this file
  *
  */
-#define METAFILE_INFO_HTML  wxT( "info.html" )
+#define METAFILE_INFO_HTML      wxT( "info.html" )
+
+
+/**
+ * A required markdown formatted file which contains information about the project template.
+ * This define is the default filename for this file
+ *
+ */
+#define METAFILE_INFO_MARKDOWN  wxT( "info.md" )
 
 
 /**
@@ -135,22 +143,13 @@ class wxFileName;
  * present. This define is the default filename for this file
  *
  */
-#define METAFILE_ICON       wxT( "icon.png" )
+#define METAFILE_ICON           wxT( "icon.png" )
 
 /**
  * A class which provides project template functionality.
  */
 class PROJECT_TEMPLATE
 {
-protected:
-    wxFileName m_basePath;
-    wxFileName m_metaPath;
-    wxFileName m_metaHtmlFile;
-    wxFileName m_metaIconFile;
-    wxBitmap*  m_metaIcon;
-    wxString   m_title;
-    wxString   m_error;
-
 public:
 
     /**
@@ -182,6 +181,13 @@ public:
     wxFileName GetHtmlFile();
 
     /**
+     * Get the full Markdown filename for the project template
+     *
+     * @return the Markdown meta information file for this template
+     */
+    wxFileName GetMarkdownFile();
+
+    /**
      * Copies and renames all template files to create a new project.
      *
      * @param aNewProjectPath The full path of the new project file to create
@@ -191,6 +197,11 @@ public:
     bool CreateProject( wxFileName& aNewProjectPath, wxString* aErrorMsg = nullptr );
 
     /**
+     * Get the description of the project
+     */
+    wxString& GetDescription();
+
+    /**
      * Get the 64px^2 icon for the project template
      *
      * @return an image file of 64px x 64px which is the templates icon
@@ -198,11 +209,11 @@ public:
     wxBitmap* GetIcon();
 
     /**
-     * Get the title of the project (extracted from the html title tag)
+     * Get the title of the project (extracted from the html title tag or markdown)
      */
-    wxString* GetTitle();
+    wxString& GetTitle();
 
-    const wxString& GetError() const { return m_error; }
+    wxString GetError();
 
     /**
      * Get a vector list of filenames for the template. The files are the source files,
@@ -219,6 +230,43 @@ public:
      */
     size_t GetDestinationFiles( const wxFileName& aNewProjectPath,
                                 std::vector< wxFileName >& aDestFiles );
+
+protected:
+    wxFileName m_basePath;
+    wxFileName m_metaPath;
+    wxFileName m_metaHtmlFile;
+    wxFileName m_metaMarkdownFile;
+    wxFileName m_metaIconFile;
+    wxBitmap*  m_metaIcon;
+    wxString   m_description;
+    wxString   m_title;
+    wxString   m_errorTitle;
+    wxString   m_errorDesc;
+
+private:
+    enum class HEADING_LEVEL
+    {
+        LEVEL_1 = 1,
+        LEVEL_2,
+        LEVEL_3,
+        LEVEL_4,
+        LEVEL_5,
+        LEVEL_6
+    };
+
+    enum class ALT_HEADING_LEVEL
+    {
+        LEVEL_1 = 1,
+        LEVEL_2
+    };
+    wxString ExtractMatterBlock( const wxString& aContent );
+    wxString GetMatterValue( const wxString& aMatterblock, const wxString& aKey );
+    wxString GetFirstHeadingValue( const wxString& aContent, HEADING_LEVEL aLevel );
+    wxString GetFirstAltHeading( const wxString& aContent, ALT_HEADING_LEVEL aLevel );
+    wxString ExtractHtmlDescription();
+    wxString ExtractHtmlTitle();
+    wxString ExtractMarkdownTitle();
+    wxString ExtractMarkdownDescription();
 };
 
 #endif

@@ -58,7 +58,7 @@ public:
     const wxString& GetBackend() const { return m_backend; }
 
     void LoadURL( const wxString& url );
-    void SetPage( const wxString& htmlContent );
+    void SetPage( const wxString& htmlContent, const wxString& aBaseUrl = wxEmptyString );
 
     bool AddMessageHandler( const wxString& name, MESSAGE_HANDLER handler );
     void ClearMessageHandlers();

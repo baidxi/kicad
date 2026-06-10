@@ -232,14 +232,13 @@ BOOST_AUTO_TEST_CASE( TemplateWithoutMetaDirSetsErrorTitle )
 
     PROJECT_TEMPLATE tmpl( wxString::FromUTF8( noMetaPath.string() ) );
 
-    wxString* title = tmpl.GetTitle();
-    BOOST_REQUIRE( title != nullptr );
-    BOOST_CHECK_MESSAGE( !title->IsEmpty(), "Template without meta dir should have an error title" );
+    wxString& title = tmpl.GetTitle();
+    BOOST_CHECK_MESSAGE( !title.IsEmpty(), "Template without meta dir should have an error title" );
 
     // Calling GetTitle() again should return the same cached result without
     // attempting to open meta/info.html
-    wxString* title2 = tmpl.GetTitle();
-    BOOST_CHECK( *title == *title2 );
+    wxString& title2 = tmpl.GetTitle();
+    BOOST_CHECK( &title == &title2 );
 }
 
 
@@ -255,10 +254,8 @@ BOOST_AUTO_TEST_CASE( TemplateWithMetaDirButNoInfoHtml )
 
     PROJECT_TEMPLATE tmpl( wxString::FromUTF8( tmplPath.string() ) );
 
-    wxString* title = tmpl.GetTitle();
-    BOOST_REQUIRE( title != nullptr );
-    BOOST_CHECK_MESSAGE( !title->IsEmpty(),
-                         "Template with meta dir but no info.html should have an error title" );
+    wxString& title = tmpl.GetTitle();
+    BOOST_CHECK_MESSAGE( !title.IsEmpty(), "Template with meta dir but no info.html should have an error title" );
 }
 
 

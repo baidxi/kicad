@@ -189,6 +189,7 @@ else()
     target_link_libraries( kicad
         nlohmann_json
         common
+        markdown_lib
         gal
         common      #repeated due to a circular dependency between gal and common
         pads_common
