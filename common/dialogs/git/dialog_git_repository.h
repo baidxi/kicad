@@ -91,6 +91,9 @@ public:
     }
 
 protected:
+    virtual bool TransferDataToWindow() override;
+
+private:
     void OnUpdateUI( wxUpdateUIEvent& event ) override;
     void OnLocationExit( wxFocusEvent& event ) override;
     void OnOKClick( wxCommandEvent& event ) override;
@@ -101,9 +104,6 @@ protected:
     void OnFileUpdated( wxFileDirPickerEvent& event ) override;
     void onCbCustom( wxCommandEvent& event ) override;
 
-    virtual bool TransferDataToWindow() override;
-
-private:
     void setDefaultSSHKey();
 
     void updateAuthControls();
@@ -113,9 +113,9 @@ private:
     std::tuple<bool,wxString,wxString,wxString> isValidHTTPS( const wxString& url );
     std::tuple<bool,wxString, wxString> isValidSSH( const wxString& url );
 
-private:
     git_repository* m_repository;
     wxString        m_fullURL;
+    wxString        m_incomeURL;
 
     wxString        m_prevFile;
 

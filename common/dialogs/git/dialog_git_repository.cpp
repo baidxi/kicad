@@ -40,7 +40,7 @@ DIALOG_GIT_REPOSITORY::DIALOG_GIT_REPOSITORY( wxWindow* aParent, git_repository*
                                               wxString aURL ) :
         DIALOG_GIT_REPOSITORY_BASE( aParent ),
         m_repository( aRepository ),
-        m_fullURL( aURL ),
+        m_incomeURL( aURL ),
         m_prevFile( wxEmptyString ),
         m_tempRepo( false )
 {
@@ -336,7 +336,7 @@ void DIALOG_GIT_REPOSITORY::OnTestClick( wxCommandEvent& event )
     git_remote_create_anonymous( &remote, m_repository, fullURL.mbc_str() );
     KIGIT::GitRemotePtr remotePtr( remote );
 
-    if( git_remote_connect( remote, GIT_DIRECTION_FETCH, &callbacks, nullptr, nullptr ) == GIT_OK )
+    if( git_remote_connect( remote, GIT_DIRECTION_FETCH, &callbacks, &proxyOpts, nullptr ) == GIT_OK )
         success = true;
     else
         error = KIGIT_COMMON::GetLastGitError();
@@ -475,8 +475,8 @@ void DIALOG_GIT_REPOSITORY::OnSelectConnType( wxCommandEvent& event )
 
 bool DIALOG_GIT_REPOSITORY::TransferDataToWindow()
 {
-    if( !m_fullURL.empty() )
-        m_txtURL->SetValue( m_fullURL );
+    if( !m_incomeURL.empty() )
+        m_txtURL->SetValue( m_incomeURL );
     else
         extractClipboardData();
 
