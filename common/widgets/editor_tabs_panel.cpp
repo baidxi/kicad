@@ -150,6 +150,12 @@ EDITOR_TABS_PANEL::EDITOR_TABS_PANEL( wxWindow* aParent, EDA_DRAW_PANEL_GAL* aSh
         wxPanel( aParent ),
         m_sharedCanvas( aSharedCanvas )
 {
+#if defined( __WXMSW__ ) && wxCHECK_VERSION( 3, 3, 0 )
+    // wx 3.3 windows are WS_EX_COMPOSITED by default that double-buffers from WM_PAINT.
+    // since the canvas isn't drawn at WM_PAINT-time, the canvas doesn't show up unless we disable composition.
+    MSWDisableComposited();
+#endif
+
     // wxWidgets 3.3 made wxAuiTabCtrl an internal class that only works as a child of a notebook, so
     // the strip is a real wxAuiNotebook. Its (empty) page area is collapsed by updateTabStripHeight and
     // the host-owned canvas sits below it as a sibling; documents are tracked by hidden key windows.
