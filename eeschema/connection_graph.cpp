@@ -344,8 +344,17 @@ bool CONNECTION_SUBGRAPH::ResolveDrivers( bool aCheckMultipleDrivers )
     }
 
     // Cache driver connection
-    if( m_driver )
+    if( m_driver && m_driver->Connection( &m_sheet ) )
     {
+        // SCH_ITEM::Connection() can legitimately return nullptr — e.g. the
+        // driver has no connection cached for this sheet yet. That happens
+        // when ResolveDrivers runs against a subgraph during the incremental
+        // recalc kicked off by an IPC EndCommit (ExtractAffectedItems ->
+        // ResolveDrivers, before the connection map for the affected items
+        // is rebuilt). Dereferencing it unconditionally was a SIGSEGV
+        // (ConfigureFromLabel on a null connection). Treat a missing
+        // connection like "no driver" for this pass; the subsequent full
+        // recalculation reconfigures it.
         m_driver_connection = m_driver->Connection( &m_sheet );
         m_driver_connection->ConfigureFromLabel( GetNameForDriver( m_driver ) );
         m_driver_connection->SetDriver( m_driver );
