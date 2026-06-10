@@ -48,6 +48,7 @@
 #include <wx/msgdlg.h>
 #include <confirm.h>
 #include <kiplatform/ui.h>
+#include <env_vars.h>
 
 #define MAX_PAGE_EXAMPLE_SIZE 200
 
@@ -700,7 +701,7 @@ void DIALOG_PAGES_SETTINGS::OnWksFileSelection( wxCommandEvent& event )
         if( expanded.IsAbsolute() )
             path = expanded.GetPath();
         else
-            path = m_projectPath;
+            path = ENV_VAR::GetEnvVar<wxString>( wxS( "KICAD_USER_TEMPLATE_DIR" ) ).value_or( m_projectPath );
     }
 
     // Display a file picker dialog
