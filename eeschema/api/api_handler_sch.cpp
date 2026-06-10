@@ -1085,7 +1085,30 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
             continue;
         }
 
-        commit->Remove( item, path.LastScreen() );
+        if( item->Type() == SCH_SHEET_PIN_T )
+        {
+            // Sheet pins are children of their sheet, not screen-level
+            // items: COMMIT::Remove() would stage a screen removal that
+            // never applies while still reporting success. Mirror the
+            // GUI delete path instead: modify the parent sheet and
+            // detach the pin.
+            SCH_SHEET_PIN* pin = static_cast<SCH_SHEET_PIN*>( item );
+            SCH_SHEET*     sheet = static_cast<SCH_SHEET*>( pin->GetParent() );
+
+            if( !sheet )
+            {
+                status = ItemDeletionStatus::IDS_NONEXISTENT;
+                continue;
+            }
+
+            commit->Modify( sheet, path.LastScreen() );
+            sheet->RemovePin( pin );
+        }
+        else
+        {
+            commit->Remove( item, path.LastScreen() );
+        }
+
         status = ItemDeletionStatus::IDS_OK;
     }
 
