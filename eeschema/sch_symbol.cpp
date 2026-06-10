@@ -546,7 +546,18 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     {
         m_pins.emplace_back( std::make_unique<SCH_PIN>( *pin ) );
         m_pins.back()->SetParent( this );
-        const_cast<::KIID&>( m_pins.back() ->m_Uuid ) = pin->m_Uuid;
+
+        // Round-trip case: def.items carried the instance pins (with their
+        // ids), so GetAllLibPins() returns them and stamping pin->m_Uuid
+        // preserves pin identity across Pack/Deserialize.  Lib-table case:
+        // GetAllLibPins() are the *session-cached library* pins — stamping
+        // their ids would give every placed instance of the same lib symbol
+        // identical pin KIIDs (ghost net membership, two "different" pins
+        // resolving to one id).  Generate a fresh id per instance instead.
+        if( loadedFromLibTable )
+            const_cast<::KIID&>( m_pins.back()->m_Uuid ) = ::KIID();
+        else
+            const_cast<::KIID&>( m_pins.back()->m_Uuid ) = pin->m_Uuid;
 
         // We also need to reset the lib pin to use relative coordinates
         pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
