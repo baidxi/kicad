@@ -336,9 +336,24 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     SetPosition( UnpackVector2( symbol.position(), schIUScale ) );
     SetLocked( symbol.locked() == LockedState::LS_LOCKED );
 
-    SetOrientationProp( FromProtoEnum<SYMBOL_ORIENTATION_PROP>( symbol.transform().orientation() ) );
-    SetMirrorX( symbol.transform().mirror_x() );
-    SetMirrorY( symbol.transform().mirror_y() );
+    // Apply the whole transform in one SetOrientation() call. The sequential
+    // property setters (SetOrientationProp + SetMirrorX + SetMirrorY) each
+    // re-derive the current state via GetOrientation(), and because the
+    // transform group is non-unique (e.g. 180° + mirror-X ≡ 0° + mirror-Y)
+    // an explicit "mirror off" can land on the canonicalised axis and cancel
+    // the rotation+mirror that was just applied.
+    {
+        int orientation =
+                FromProtoEnum<SYMBOL_ORIENTATION_PROP>( symbol.transform().orientation() );
+
+        if( symbol.transform().mirror_x() )
+            orientation |= SYMBOL_ORIENTATION_T::SYM_MIRROR_X;
+
+        if( symbol.transform().mirror_y() )
+            orientation |= SYMBOL_ORIENTATION_T::SYM_MIRROR_Y;
+
+        SetOrientation( orientation );
+    }
 
     const SchematicSymbol& def = symbol.definition();
 
