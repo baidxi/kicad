@@ -1018,6 +1018,22 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         else
         {
             commit->Modify( existingItem, targetScreen );
+
+            // Updating a symbol swaps in the pins of the freshly
+            // deserialized temp item, whose pin KIIDs are NOT the placed
+            // instance's (they are newly generated, or — worse, before the
+            // lib-table fix — shared with every sibling of the same lib
+            // symbol). Pin identity must be stable across updates: the
+            // netlist and ERC reference pins by KIID. Capture the existing
+            // pins' ids by number before the swap and restore them after.
+            std::multimap<wxString, ::KIID> existingPinIds;
+
+            if( existingItem->Type() == SCH_SYMBOL_T )
+            {
+                for( SCH_PIN* pin : static_cast<SCH_SYMBOL*>( existingItem )->GetPins() )
+                    existingPinIds.insert( { pin->GetNumber(), pin->m_Uuid } );
+            }
+
             existingItem->SwapItemData( static_cast<SCH_ITEM*>( item.get() ) );
 
             if( existingItem->IsConnectable() )
@@ -1028,6 +1044,17 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( existingItem->Type() == SCH_SYMBOL_T )
             {
+                for( SCH_PIN* pin : static_cast<SCH_SYMBOL*>( existingItem )->GetPins() )
+                {
+                    auto it = existingPinIds.find( pin->GetNumber() );
+
+                    if( it != existingPinIds.end() )
+                    {
+                        const_cast<::KIID&>( pin->m_Uuid ) = it->second;
+                        existingPinIds.erase( it );
+                    }
+                }
+
                 SCH_SHEET_PATH path = existingPath;
                 kiapi::schematic::types::SchematicSymbolInstance symbol;
 
