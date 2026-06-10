@@ -20,6 +20,7 @@
 #include "command_pcb_import.h"
 #include <cli/exit_codes.h>
 #include <jobs/job_pcb_import.h>
+#include <jobs/job_import_utils.h>
 #include <kiface_base.h>
 #include <string_utils.h>
 #include <macros.h>
@@ -106,19 +107,7 @@ int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     wxString reportFormat = From_UTF8( m_argParser.get<std::string>( ARG_REPORT_FORMAT ).c_str() );
 
-    if( reportFormat == wxS( "none" ) )
-    {
-        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::NONE;
-    }
-    else if( reportFormat == wxS( "json" ) )
-    {
-        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::JSON;
-    }
-    else if( reportFormat == wxS( "text" ) )
-    {
-        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::TEXT;
-    }
-    else
+    if( !ParseImportReportFormat( reportFormat, importJob->m_reportFormat ) )
     {
         wxFprintf( stderr, _( "Invalid report format: %s\n" ), reportFormat );
         return EXIT_CODES::ERR_ARGS;
@@ -128,6 +117,10 @@ int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
     importJob->m_reportFile = reportFile;
 
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, importJob.get() );
+
+    // The sentinel is internal to the top-level `import` classifier; standalone, it is invalid input.
+    if( exitCode == EXIT_CODES::ERR_UNKNOWN_FILE_FORMAT )
+        exitCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
     return exitCode;
 }

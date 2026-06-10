@@ -22,6 +22,7 @@
 
 #include <kicommon.h>
 #include "job.h"
+#include "job_import_utils.h"
 
 /**
  * Job to import a non-KiCad PCB file to KiCad format.
@@ -49,17 +50,10 @@ public:
         SOLIDWORKS
     };
 
-    enum class REPORT_FORMAT
-    {
-        NONE,
-        JSON,
-        TEXT
-    };
-
-    wxString      m_inputFile;
-    FORMAT        m_format = FORMAT::AUTO;
-    REPORT_FORMAT m_reportFormat = REPORT_FORMAT::NONE;
-    wxString      m_reportFile;
+    wxString             m_inputFile;
+    FORMAT               m_format = FORMAT::AUTO;
+    IMPORT_REPORT_FORMAT m_reportFormat = IMPORT_REPORT_FORMAT::NONE;
+    wxString             m_reportFile;
 };
 
 #endif

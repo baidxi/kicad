@@ -66,6 +66,7 @@
 #include <jobs/job_pcb_render.h>
 #include <jobs/job_pcb_drc.h>
 #include <jobs/job_pcb_import.h>
+#include <jobs/job_import_utils.h>
 #include <jobs/job_pcb_upgrade.h>
 #include <eda_units.h>
 #include <footprint_library_adapter.h>
@@ -2898,6 +2899,15 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     if( !job )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
+    // Check that input file exists
+    if( !wxFile::Exists( job->m_inputFile ) )
+    {
+        m_reporter->Report( wxString::Format( _( "Input file not found: '%s'\n" ),
+                                              job->m_inputFile ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+    }
+
     // Map job format to PCB_IO file type
     PCB_IO_MGR::PCB_FILE_T fileType = PCB_IO_MGR::PCB_FILE_UNKNOWN;
 
@@ -2920,30 +2930,22 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     case JOB_PCB_IMPORT::FORMAT::SOLIDWORKS: fileType = PCB_IO_MGR::SOLIDWORKS_PCB; break;
     }
 
-    if( fileType == PCB_IO_MGR::PCB_FILE_UNKNOWN )
+    // FindPluginTypeFromBoardPath returns FILE_TYPE_NONE (not PCB_FILE_UNKNOWN) when no plugin
+    // claims the file.  Quiet sentinel: lets the top-level `import` command try the schematic face.
+    if( fileType == PCB_IO_MGR::PCB_FILE_UNKNOWN || fileType == PCB_IO_MGR::FILE_TYPE_NONE )
     {
-        m_reporter->Report( wxString::Format( _( "Unable to determine file format for '%s'\n" ), job->m_inputFile ),
-                            RPT_SEVERITY_ERROR );
-        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
-    }
-
-    // Check that input file exists
-    if( !wxFile::Exists( job->m_inputFile ) )
-    {
-        m_reporter->Report( wxString::Format( _( "Input file not found: '%s'\n" ), job->m_inputFile ),
-                            RPT_SEVERITY_ERROR );
-        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        m_reporter->Report( wxString::Format( _( "No PCB importer recognizes the file format of "
+                                                 "'%s'\n" ),
+                                              job->m_inputFile ),
+                            RPT_SEVERITY_INFO );
+        return CLI::EXIT_CODES::ERR_UNKNOWN_FILE_FORMAT;
     }
 
     // Determine output path
     wxString outputPath = job->GetConfiguredOutputPath();
 
     if( outputPath.IsEmpty() )
-    {
-        wxFileName fn( job->m_inputFile );
-        fn.SetExt( FILEEXT::KiCadPcbFileExtension );
-        outputPath = fn.GetFullPath();
-    }
+        outputPath = DefaultImportOutputPath( job->m_inputFile, FILEEXT::KiCadPcbFileExtension );
 
     BOARD*                board = nullptr;
     wxString              formatName = PCB_IO_MGR::ShowType( fileType );
@@ -2980,16 +2982,16 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                             RPT_SEVERITY_INFO );
 
         // Generate report if requested
-        if( job->m_reportFormat != JOB_PCB_IMPORT::REPORT_FORMAT::NONE )
+        if( job->m_reportFormat != IMPORT_REPORT_FORMAT::NONE )
         {
-            wxFileName inputFn( job->m_inputFile );
-            wxFileName outputFn( outputPath );
+            IMPORT_REPORT_DATA reportData;
 
-            // Count board statistics
-            size_t footprintCount = board->Footprints().size();
+            reportData.m_sourceFile = wxFileName( job->m_inputFile ).GetFullName();
+            reportData.m_sourceFormat = formatName;
+            reportData.m_outputFile = wxFileName( outputPath ).GetFullName();
+
             size_t trackCount = 0;
             size_t viaCount = 0;
-            size_t zoneCount = board->Zones().size();
 
             for( PCB_TRACK* track : board->Tracks() )
             {
@@ -2999,11 +3001,17 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                     trackCount++;
             }
 
-            // Build layer mapping info
-            nlohmann::json layerMappings = nlohmann::json::object();
-            LSEQ           enabledLayers = board->GetEnabledLayers().Seq();
+            reportData.m_statistics = {
+                { wxS( "footprints" ), board->Footprints().size() },
+                { wxS( "tracks" ), trackCount },
+                { wxS( "vias" ), viaCount },
+                { wxS( "zones" ), board->Zones().size() }
+            };
 
-            for( PCB_LAYER_ID layer : enabledLayers )
+            // Build layer mapping info, carried only in the JSON report.
+            nlohmann::json layerMappings = nlohmann::json::object();
+
+            for( PCB_LAYER_ID layer : board->GetEnabledLayers().Seq() )
             {
                 wxString layerName = board->GetLayerName( layer );
 
@@ -3011,82 +3019,10 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                                                            { "method", "auto" } };
             }
 
-            if( job->m_reportFormat == JOB_PCB_IMPORT::REPORT_FORMAT::JSON )
-            {
-                nlohmann::json report;
+            reportData.m_extraJson["layer_mapping"] = layerMappings;
+            reportData.m_warnings = warnings;
 
-                report["source_file"] = inputFn.GetFullName().ToStdString();
-                report["source_format"] = formatName.ToStdString();
-                report["output_file"] = outputFn.GetFullName().ToStdString();
-                report["layer_mapping"] = layerMappings;
-                report["statistics"] = { { "footprints", footprintCount },
-                                         { "tracks", trackCount },
-                                         { "vias", viaCount },
-                                         { "zones", zoneCount } };
-
-                nlohmann::json warningsJson = nlohmann::json::array();
-
-                for( const wxString& warning : warnings )
-                    warningsJson.push_back( warning.ToStdString() );
-
-                report["warnings"] = warningsJson;
-                report["errors"] = nlohmann::json::array();
-
-                wxString reportOutput = wxString::FromUTF8( report.dump( 2 ) );
-
-                if( !job->m_reportFile.IsEmpty() )
-                {
-                    wxFile file( job->m_reportFile, wxFile::write );
-
-                    if( file.IsOpened() )
-                    {
-                        file.Write( reportOutput );
-                        file.Close();
-                    }
-                }
-                else
-                {
-                    m_reporter->Report( reportOutput + wxS( "\n" ), RPT_SEVERITY_INFO );
-                }
-            }
-            else if( job->m_reportFormat == JOB_PCB_IMPORT::REPORT_FORMAT::TEXT )
-            {
-                wxString text;
-
-                text += wxString::Format( wxS( "Import Report\n" ) );
-                text += wxString::Format( wxS( "=============\n\n" ) );
-                text += wxString::Format( wxS( "Source file: %s\n" ), inputFn.GetFullName() );
-                text += wxString::Format( wxS( "Source format: %s\n" ), formatName );
-                text += wxString::Format( wxS( "Output file: %s\n\n" ), outputFn.GetFullName() );
-                text += wxS( "Statistics:\n" );
-                text += wxString::Format( wxS( "  Footprints: %zu\n" ), footprintCount );
-                text += wxString::Format( wxS( "  Tracks: %zu\n" ), trackCount );
-                text += wxString::Format( wxS( "  Vias: %zu\n" ), viaCount );
-                text += wxString::Format( wxS( "  Zones: %zu\n" ), zoneCount );
-
-                if( !warnings.empty() )
-                {
-                    text += wxS( "\nWarnings:\n" );
-
-                    for( const wxString& warning : warnings )
-                        text += wxString::Format( wxS( "  - %s\n" ), warning );
-                }
-
-                if( !job->m_reportFile.IsEmpty() )
-                {
-                    wxFile file( job->m_reportFile, wxFile::write );
-
-                    if( file.IsOpened() )
-                    {
-                        file.Write( text );
-                        file.Close();
-                    }
-                }
-                else
-                {
-                    m_reporter->Report( text, RPT_SEVERITY_INFO );
-                }
-            }
+            WriteImportReport( m_reporter, job->m_reportFormat, job->m_reportFile, reportData );
         }
 
         delete board;
