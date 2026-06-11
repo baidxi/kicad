@@ -2254,6 +2254,36 @@ EAGLE_LIBRARY* SCH_IO_EAGLE::loadLibrary( const ELIBRARY* aLibrary, EAGLE_LIBRAR
                 gateindex++;
             }
 
+            if( gate_count > 1 )
+                libSymbol->SetUnitCount( gate_count, true );
+
+            if( gate_count == 1 && ispower )
+                libSymbol->SetGlobalPower();
+
+            // Don't set the footprint field if no package is defined in the Eagle schematic.
+            if( edevice->package )
+            {
+                wxString libName;
+
+                if( m_schematic )
+                {
+                    // assume that footprint library is identical to project name
+                    libName = m_schematic->Project().GetProjectName();
+                }
+                else
+                {
+                    libName = m_libName;
+                }
+
+                wxString packageString = libName + wxT( ":" ) + aEagleLibrary->package[symbolName];
+
+                libSymbol->GetFootprintField().SetText( packageString );
+            }
+
+            wxString libName = libSymbol->GetName();
+            libSymbol->SetName( libName );
+            libSymbol->SetDescription( deviceSetDescr );
+
             for( const std::unique_ptr<ETECHNOLOGY>& technology : edevice->technologies )
             {
                 std::unique_ptr<LIB_SYMBOL> derivedSymbol;
@@ -2270,7 +2300,13 @@ EAGLE_LIBRARY* SCH_IO_EAGLE::loadLibrary( const ELIBRARY* aLibrary, EAGLE_LIBRAR
                         SCH_FIELD* childField = derivedSymbol->GetField( parentField->GetName() );
 
                         if( childField && parentField )
+                        {
                             childField->SetAttributes( *parentField );
+                            // Right after instantiation, derivedSymbol contains only mandatory fields
+                            // with empty text. Copy the text from the parent to prevent unintended override
+                            // with an empty KiCad default.
+                            childField->SetText( parentField->GetText() );
+                        }
                     }
                 }
 
@@ -2318,36 +2354,6 @@ EAGLE_LIBRARY* SCH_IO_EAGLE::loadLibrary( const ELIBRARY* aLibrary, EAGLE_LIBRAR
                 if( derivedSymbol )
                     derivedSymbols.push_back( std::move( derivedSymbol ) );
             }
-
-            if( gate_count > 1 )
-                libSymbol->SetUnitCount( gate_count, true );
-
-            if( gate_count == 1 && ispower )
-                libSymbol->SetGlobalPower();
-
-            // Don't set the footprint field if no package is defined in the Eagle schematic.
-            if( edevice->package )
-            {
-                wxString libName;
-
-                if( m_schematic )
-                {
-                    // assume that footprint library is identical to project name
-                    libName = m_schematic->Project().GetProjectName();
-                }
-                else
-                {
-                    libName = m_libName;
-                }
-
-                wxString packageString = libName + wxT( ":" ) + aEagleLibrary->package[symbolName];
-
-                libSymbol->GetFootprintField().SetText( packageString );
-            }
-
-            wxString libName = libSymbol->GetName();
-            libSymbol->SetName( libName );
-            libSymbol->SetDescription( deviceSetDescr );
 
             if( m_pi )
             {
