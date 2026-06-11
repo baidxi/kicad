@@ -57,6 +57,7 @@
 #include <sch_symbol.h>
 #include <schematic.h>
 #include <string_utils.h>
+#include <trace_helpers.h>
 #include <wildcards_and_files_ext.h>
 #include <libraries/symbol_library_adapter.h>
 
@@ -733,6 +734,16 @@ void SCH_IO_EAGLE::loadSchematic( const ESCHEMATIC& aSchematic )
     // Map all children into a readable dictionary
     if( aSchematic.sheets.empty() )
         return;
+
+    if( !aSchematic.variantdefs.empty() )
+    {
+        for( const auto& [variantName, evariantdef] : aSchematic.variantdefs )
+        {
+            m_schematic->AddVariant( variantName );
+            // TODO: variantdef contains an optional bool current.
+            // Can we select the active assembly variant based on this information?
+        }
+    }
 
     // N.B. Eagle parts are case-insensitive in matching but we keep the display case
     for( const auto& [name, epart] : aSchematic.parts )
@@ -1884,15 +1895,18 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
     wxString gatename    = epart->deviceset + wxS( "_" ) + epart->device + wxS( "_" ) +
                            aInstance->gate;
     wxString symbolname  = wxString( epart->deviceset + epart->device );
+    wxString symbolnameNoTech = symbolname;
     wxString kiPackageName = epart->deviceset + epart->device;
 
     if( epart->technology )
         symbolname += *epart->technology;
 
     symbolname.Replace( wxT( "*" ), wxEmptyString );
+    symbolnameNoTech.Replace( wxT( "*" ), wxEmptyString );
     kiPackageName.Replace( wxT( "*" ), wxEmptyString );
 
     wxString kisymbolname = EscapeString( symbolname, CTX_LIBID );
+    wxString kisymbolnameNoTech = EscapeString( symbolnameNoTech, CTX_LIBID );
 
     // Eagle schematics can have multiple libraries containing symbols with duplicate symbol
     // names.  Because this parser stores all of the symbols in a single library, the
@@ -1900,9 +1914,12 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
     // in case of a name clash.  Check for the prefixed symbol first.  This ensures that
     // the correct library symbol gets mapped on load.
     wxString altSymbolName = libName + wxT( "_" ) + symbolname;
+    wxString altSymbolNameNoTech = libName + wxT( "_" ) + symbolnameNoTech;
     altSymbolName = EscapeString( altSymbolName, CTX_LIBID );
+    altSymbolNameNoTech = EscapeString( altSymbolNameNoTech, CTX_LIBID );
 
     wxString libIdSymbolName = altSymbolName;
+    wxString libIdSymbolNameNoTech = altSymbolNameNoTech;
 
     const auto libIt = m_eagleLibs.find( libName );
 
@@ -1953,6 +1970,7 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
     {
         part = m_pi->LoadSymbol( getLibFileName().GetFullPath(), kisymbolname, &properties );
         libIdSymbolName = kisymbolname;
+        libIdSymbolNameNoTech = kisymbolnameNoTech;
     }
 
     if( !part )
@@ -2159,6 +2177,55 @@ void SCH_IO_EAGLE::loadInstance( const std::unique_ptr<EINSTANCE>& aInstance,
     }
 
     symbol->AddHierarchicalReference( m_sheetPath.Path(), refPrefix + reference, unit );
+
+    for( const auto& [variantName, variant] : epart->variants )
+    {
+        if( variant->populate )
+            symbol->SetDNP( !variant->populate.Get(), &m_sheetPath,
+                            variantName ); // populate and DNP are logically inverse
+
+        if( variant->technology )
+        {
+            // override all fields using values from technology; lookup matching derived symbol
+            wxString varSymbolName = libIdSymbolNameNoTech + *variant->technology;
+            varSymbolName = EscapeString( varSymbolName, CTX_LIBID );
+            LIB_SYMBOL* varpart = m_pi->LoadSymbol( getLibFileName().GetFullPath(), varSymbolName, &properties );
+
+            if( !varpart )
+            {
+                wxLogTrace( traceEagleIo,
+                            wxT( "EAGLE loadInstance: Symbol %s is required in variant %s, but could not be loaded" ),
+                            varSymbolName, variantName );
+                continue;
+            }
+
+            std::vector<SCH_FIELD*> varpartFields;
+            varpart->GetFields( varpartFields );
+
+            for( const SCH_FIELD* field : varpartFields )
+            {
+                SCH_FIELD* varSymbolField = nullptr;
+
+                if( field->GetId() == FIELD_T::REFERENCE )
+                    continue; // reference must not change in a variant
+
+                varSymbolField = symbol->GetField( field->GetName() );
+
+                if( varSymbolField )
+                    varSymbolField->SetText( field->GetText(), &m_sheetPath, variantName );
+                else
+                    wxLogTrace(
+                            traceEagleIo,
+                            wxT( "EAGLE loadInstance: field %s is missing in symbol %s, but required in variant %s" ),
+                            field->GetName(), symbol->GetSchSymbolLibraryName(), variantName );
+            }
+        }
+        else if( variant->value )
+        {
+            SCH_FIELD* varSymbolField = symbol->GetField( FIELD_T::VALUE );
+            varSymbolField->SetText( variant->value.Get(), &m_sheetPath, variantName );
+        }
+    }
 
     // Cache the lib symbol so pin positions are available for connection-point tracking.
     // Use the already-loaded `part` directly rather than re-fetching through the adapter,
