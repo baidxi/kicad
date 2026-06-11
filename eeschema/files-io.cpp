@@ -1654,6 +1654,7 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
         }
 
         updateTitle();
+        UpdateVariantSelectionCtrl( Schematic().GetVariantNamesForUI() );
 
         if( KISTATUSBAR* statusBar = dynamic_cast<KISTATUSBAR*>( GetStatusBar() ) )
             statusBar->AddWarningMessages( "load", loadReporter.GetMessages() );
