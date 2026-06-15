@@ -21,6 +21,7 @@
 #define JOB_PCB_IMPORT_H
 
 #include <kicommon.h>
+#include <map>
 #include "job.h"
 #include "job_import_utils.h"
 
@@ -54,6 +55,11 @@ public:
     FORMAT               m_format = FORMAT::AUTO;
     IMPORT_REPORT_FORMAT m_reportFormat = IMPORT_REPORT_FORMAT::NONE;
     wxString             m_reportFile;
+
+    /// Explicit overrides from source layer name to KiCad layer name (canonical board-file name,
+    /// e.g. "F.Cu").  Source layers absent from the map keep the importer's automatic best-guess.
+    /// An empty map means fully automatic layer mapping.
+    std::map<wxString, wxString> m_layerMap;
 };
 
 #endif

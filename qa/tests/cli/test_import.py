@@ -73,6 +73,7 @@ class TestImportHelp:
         assert return_code == 0
         assert "INPUT_FILES" in stdout
         assert "--format" not in stdout
+        assert "--layer-map" in stdout
 
 
 class TestImportErrors:
@@ -119,6 +120,24 @@ class TestImportBoardOnly:
         # Project file must be valid JSON
         with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
             json.load( f )
+
+    def test_import_board_with_layer_map( self, kitest: KiTestFixture ):
+        """The top-level import accepts --layer-map and wires it through to the board job"""
+        pads_file = get_pads_test_file()
+        stem = get_project_stem( kitest, "layer_map", "widget" )
+
+        map_path = stem.with_suffix( ".layermap.json" )
+        map_path.parent.mkdir( parents=True, exist_ok=True )
+        map_path.write_text( json.dumps( { "Bottom Layer": "B.Cu" } ) )
+
+        command = [ utils.kicad_cli(), "import", "--layer-map", str( map_path ),
+                    pads_file, "-o", str( stem ) ]
+
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert stem.with_suffix( ".kicad_pro" ).exists()
+        assert stem.with_suffix( ".kicad_pcb" ).exists()
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,

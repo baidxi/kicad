@@ -31,6 +31,7 @@
 #define ARG_FORMAT "--format"
 #define ARG_REPORT_FORMAT "--report-format"
 #define ARG_REPORT_FILE "--report-file"
+#define ARG_LAYER_MAP "--layer-map"
 
 
 CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
@@ -54,6 +55,12 @@ CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
     m_argParser.add_argument( ARG_REPORT_FILE )
             .default_value( std::string( "" ) )
             .help( UTF8STDSTR( _( "File path for import report (default: stdout)" ) ) )
+            .metavar( "FILE" );
+
+    m_argParser.add_argument( ARG_LAYER_MAP )
+            .default_value( std::string( "" ) )
+            .help( UTF8STDSTR( _( "JSON file mapping source layer names to KiCad layer names; "
+                                  "unmapped layers use the automatic best-guess" ) ) )
             .metavar( "FILE" );
 }
 
@@ -115,6 +122,19 @@ int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     wxString reportFile = From_UTF8( m_argParser.get<std::string>( ARG_REPORT_FILE ).c_str() );
     importJob->m_reportFile = reportFile;
+
+    wxString layerMapFile = From_UTF8( m_argParser.get<std::string>( ARG_LAYER_MAP ).c_str() );
+
+    if( !layerMapFile.IsEmpty() )
+    {
+        wxString error;
+
+        if( !LoadLayerMapFile( layerMapFile, importJob->m_layerMap, error ) )
+        {
+            wxFprintf( stderr, wxS( "%s\n" ), error );
+            return EXIT_CODES::ERR_ARGS;
+        }
+    }
 
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, importJob.get() );
 

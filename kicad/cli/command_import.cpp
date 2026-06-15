@@ -21,6 +21,7 @@
 #include <cli/exit_codes.h>
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_sch_import.h>
+#include <jobs/job_import_utils.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <project.h>
@@ -35,6 +36,9 @@
 
 #include <memory>
 #include <vector>
+
+
+#define ARG_LAYER_MAP "--layer-map"
 
 
 CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
@@ -54,6 +58,12 @@ CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
                                   "imported <stem>.kicad_pcb and/or <stem>.kicad_sch beside it. "
                                   "Defaults to the first input's name in the current directory." ) ) )
             .metavar( "PROJECT" );
+
+    m_argParser.add_argument( ARG_LAYER_MAP )
+            .default_value( std::string( "" ) )
+            .help( UTF8STDSTR( _( "JSON file mapping source layer names to KiCad layer names for "
+                                  "imported boards; unmapped layers use the automatic best-guess" ) ) )
+            .metavar( "FILE" );
 }
 
 
@@ -72,6 +82,20 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     for( const std::string& raw : rawInputs )
         inputFiles.push_back( From_UTF8( raw.c_str() ) );
+
+    std::map<wxString, wxString> layerMap;
+    wxString layerMapFile = From_UTF8( m_argParser.get<std::string>( ARG_LAYER_MAP ).c_str() );
+
+    if( !layerMapFile.IsEmpty() )
+    {
+        wxString error;
+
+        if( !LoadLayerMapFile( layerMapFile, layerMap, error ) )
+        {
+            wxFprintf( stderr, wxS( "%s\n" ), error );
+            return EXIT_CODES::ERR_ARGS;
+        }
+    }
 
     wxFileName projectFn;
 
@@ -132,6 +156,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
             std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
             pcbJob->m_inputFile = input;
             pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
+            pcbJob->m_layerMap = layerMap;
             pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
 
             int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );

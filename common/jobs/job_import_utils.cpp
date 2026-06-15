@@ -19,7 +19,9 @@
 
 #include <jobs/job_import_utils.h>
 #include <reporter.h>
+#include <string_utils.h>
 #include <wx/file.h>
+#include <wx/ffile.h>
 #include <wx/filename.h>
 #include <wx/intl.h>
 
@@ -45,6 +47,63 @@ wxString DefaultImportOutputPath( const wxString& aInputFile, const wxString& aK
     fn.SetExt( aKiCadExt );
 
     return fn.GetFullPath();
+}
+
+
+bool LoadLayerMapFile( const wxString& aFile, std::map<wxString, wxString>& aMap, wxString& aError )
+{
+    wxFFile file( aFile, wxS( "rb" ) );
+
+    if( !file.IsOpened() )
+    {
+        aError = wxString::Format( _( "Could not open layer map file '%s'" ), aFile );
+        return false;
+    }
+
+    wxString content;
+
+    if( !file.ReadAll( &content ) )
+    {
+        aError = wxString::Format( _( "Could not read layer map file '%s'" ), aFile );
+        return false;
+    }
+
+    nlohmann::json json;
+
+    try
+    {
+        json = nlohmann::json::parse( content.ToStdString() );
+    }
+    catch( const nlohmann::json::exception& e )
+    {
+        aError = wxString::Format( _( "Layer map file '%s' is not valid JSON: %s" ), aFile,
+                                   From_UTF8( e.what() ) );
+        return false;
+    }
+
+    if( !json.is_object() )
+    {
+        aError = wxString::Format( _( "Layer map file '%s' must be a JSON object mapping source "
+                                      "layer names to KiCad layer names" ), aFile );
+        return false;
+    }
+
+    std::map<wxString, wxString> parsed;
+
+    for( auto it = json.begin(); it != json.end(); ++it )
+    {
+        if( !it.value().is_string() )
+        {
+            aError = wxString::Format( _( "Layer map entry for '%s' must be a KiCad layer name "
+                                          "string" ), From_UTF8( it.key().c_str() ) );
+            return false;
+        }
+
+        parsed[From_UTF8( it.key().c_str() )] = From_UTF8( it.value().get<std::string>().c_str() );
+    }
+
+    aMap = std::move( parsed );
+    return true;
 }
 
 

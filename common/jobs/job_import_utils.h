@@ -23,6 +23,7 @@
 #include <kicommon.h>
 #include <json_common.h>
 #include <wx/string.h>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -84,6 +85,18 @@ KICOMMON_API bool ParseImportReportFormat( const wxString& aText, IMPORT_REPORT_
  */
 KICOMMON_API wxString DefaultImportOutputPath( const wxString& aInputFile,
                                                const wxString& aKiCadExt );
+
+
+/**
+ * Load an explicit layer-mapping file into @p aMap.  The file is a flat JSON object whose keys
+ * are source (foreign) layer names and whose values are KiCad layer names, e.g.
+ * @code { "Top": "F.Cu", "Bottom": "B.Cu" } @endcode
+ *
+ * @return false if the file cannot be read or does not parse as an object of string-to-string
+ *         pairs, leaving @p aMap untouched and a human-readable reason in @p aError.
+ */
+KICOMMON_API bool LoadLayerMapFile( const wxString& aFile, std::map<wxString, wxString>& aMap,
+                                    wxString& aError );
 
 
 /**
