@@ -234,6 +234,7 @@ private:
         SHAPE_POLY_SET thermalRings;   // thermal connection rings for hatch zones; passed
                                        // to addHatch so it can drop holes that would
                                        // isolate a thermal relief
+        SHAPE_POLY_SET solidViaDiscs;  // disc per FULL-connection via, for hatch hole-drop
     };
 
     std::map<std::pair<const ZONE*, PCB_LAYER_ID>, PRE_KNOCKOUT_CACHE_ENTRY> m_preKnockoutFillCache;

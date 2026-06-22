@@ -3032,15 +3032,10 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
             && ( !m_board->GetProject() || !m_board->GetProject()->GetLocalSettings().m_PrototypeZoneFill );
     const bool deferHatch = hatchPattern && iterativeRefill;
 
-    if( hatchPattern && !deferHatch )
-    {
-        // Combine thermal rings with clearance holes (non-connected pad clearances) so that
-        // the hatch hole-dropping logic considers both types of rings
-        SHAPE_POLY_SET ringsToProtect = thermalRings;
-        ringsToProtect.BooleanAdd( clearanceHoles );
+    SHAPE_POLY_SET solidViaDiscs;
 
-        // Drop the hatch hole around each fully connected via so it stays on the webbing.
-        // Feed only the hole-drop set, not the fill, so wider vias are left untouched.
+    if( hatchPattern )
+    {
         for( BOARD_ITEM* item : solidConnectionItems )
         {
             if( item->Type() != PCB_VIA_T || !item->IsOnLayer( aLayer ) )
@@ -3052,8 +3047,19 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
             TransformCircleToPolygon( disc, via->GetPosition(), via->GetWidth( aLayer ) / 2, m_maxError,
                                       ERROR_OUTSIDE );
             disc.BooleanIntersection( aSmoothedOutline );
-            ringsToProtect.BooleanAdd( disc );
+            solidViaDiscs.BooleanAdd( disc );
         }
+    }
+
+    if( hatchPattern && !deferHatch )
+    {
+        // Combine thermal rings with clearance holes (non-connected pad clearances) so that
+        // the hatch hole-dropping logic considers both types of rings
+        SHAPE_POLY_SET ringsToProtect = thermalRings;
+        ringsToProtect.BooleanAdd( clearanceHoles );
+
+        // Drop the hatch hole around each fully connected via so it stays on the webbing.
+        ringsToProtect.BooleanAdd( solidViaDiscs );
 
         if( !addHatchFillTypeOnZone( aZone, aLayer, aDebugLayer, aFillPolys, ringsToProtect ) )
             return false;
@@ -3131,8 +3137,8 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     {
         {
             std::lock_guard<std::mutex> lock( m_cacheMutex );
-            m_preKnockoutFillCache[{ aZone, aLayer }] = { aFillPolys, sameNetApron, aMaxExtents, clearanceHoles,
-                                                          thermalRings };
+            m_preKnockoutFillCache[{ aZone, aLayer }] = { aFillPolys,     sameNetApron, aMaxExtents,
+                                                          clearanceHoles, thermalRings, solidViaDiscs };
         }
 
         // Reuse the zone clearances already computed for spoke endpoint testing
@@ -3181,6 +3187,7 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
     {
         SHAPE_POLY_SET ringsToProtect = thermalRings;
         ringsToProtect.BooleanAdd( clearanceHoles );
+        ringsToProtect.BooleanAdd( solidViaDiscs );
 
         SHAPE_POLY_SET        hatchBoundaryStorage;
         const SHAPE_POLY_SET* hatchBoundary = nullptr;
@@ -4350,6 +4357,7 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
     SHAPE_POLY_SET sameNetApron;
     SHAPE_POLY_SET clearanceHoles;
     SHAPE_POLY_SET thermalRings;
+    SHAPE_POLY_SET solidViaDiscs;
 
     {
         std::lock_guard<std::mutex> lock( m_cacheMutex );
@@ -4364,6 +4372,7 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
         maxExtents = it->second.maxExtents;
         clearanceHoles = it->second.clearanceHoles;
         thermalRings = it->second.thermalRings;
+        solidViaDiscs = it->second.solidViaDiscs;
     }
 
     // Subtract the FILLED area of higher-priority zones (with clearance for different nets).
@@ -4506,6 +4515,7 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
     {
         SHAPE_POLY_SET ringsToProtect = thermalRings;
         ringsToProtect.BooleanAdd( clearanceHoles );
+        ringsToProtect.BooleanAdd( solidViaDiscs );
 
         SHAPE_POLY_SET        hatchBoundaryStorage;
         const SHAPE_POLY_SET* hatchBoundary = nullptr;
