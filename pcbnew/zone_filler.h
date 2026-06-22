@@ -189,6 +189,11 @@ private:
     void postKnockoutMinWidthPrune( const ZONE* aZone, SHAPE_POLY_SET& aFillPolys );
 
     /**
+     * Drop islands too narrow to survive a min-width deflate.
+     */
+    void dropSlivers( const ZONE* aZone, SHAPE_POLY_SET& aFillPolys );
+
+    /**
      * Snapshot of zone fill polygons captured before an iterative refill wave.
      */
     using FillSnapshot = std::map<std::pair<const ZONE*, PCB_LAYER_ID>, SHAPE_POLY_SET>;

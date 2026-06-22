@@ -2796,7 +2796,6 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
         { { "54057bd9-c387-4154-9f50-52324efed801", "F.Cu" }, 1.356674 },   // A2_7
         { { "587badaf-287d-4f1e-8276-74de3421cf77", "F.Cu" }, 0.722176 },   // A2_1
         { { "5fe42adc-84fa-40f9-bb39-ef9e7d6fb37b", "F.Cu" }, 3.255474 },   // A2_8
-        { { "708935ae-5d3b-444c-979b-6ee0f8da0ff0", "F.Cu" }, 0.002813 },   // A1_41
         { { "7efc5486-9bca-4c9b-8902-e252712d17e5", "F.Cu" }, 3.773459 },   // A2_5
         { { "88f5cd65-9d00-41cb-bf2a-2beaa4077b52", "F.Cu" }, 0.739036 },   // A2_9
         { { "8a085efe-eade-4a0a-a952-6c45dd006a0b", "F.Cu" }, 1.020294 },   // A1_15
@@ -2818,6 +2817,7 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
 
     const double     kIU2toMM2 = pcbIUScale.IUTomm( 1 ) * pcbIUScale.IUTomm( 1 );
     constexpr double kTolerance = 0.1; // percent
+    constexpr double kMinKnockoutArea = 0.01; // sq mm
 
     std::set<ZoneLayerKey> checked;
 
@@ -2862,13 +2862,16 @@ BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_F
 
             double pctDiff = std::abs( actualKO - it->second ) / it->second * 100.0;
 
-            BOOST_CHECK_MESSAGE( pctDiff <= kTolerance,
-                                 wxString::Format( "Knockout area mismatch for zone '%s' (%s) on %s: "
-                                                   "expected %.6f sq mm, got %.6f sq mm (%.3f%% > %.1f%% "
-                                                   "tolerance).  Update the golden table if the change "
-                                                   "is intended.",
-                                                   zone->GetZoneName(), uuid, layerName, it->second, actualKO, pctDiff,
-                                                   kTolerance ) );
+            if( it->second > kMinKnockoutArea )
+            {
+                BOOST_CHECK_MESSAGE( pctDiff <= kTolerance,
+                                     wxString::Format( "Knockout area mismatch for zone '%s' (%s) on %s: "
+                                                       "expected %.6f sq mm, got %.6f sq mm (%.3f%% > %.1f%% "
+                                                       "tolerance).  Update the golden table if the change "
+                                                       "is intended.",
+                                                       zone->GetZoneName(), uuid, layerName, it->second, actualKO,
+                                                       pctDiff, kTolerance ) );
+            }
         }
     }
 

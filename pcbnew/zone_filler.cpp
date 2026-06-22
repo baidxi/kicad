@@ -2731,6 +2731,26 @@ void ZONE_FILLER::postKnockoutMinWidthPrune( const ZONE* aZone, SHAPE_POLY_SET& 
 }
 
 
+void ZONE_FILLER::dropSlivers( const ZONE* aZone, SHAPE_POLY_SET& aFillPolys )
+{
+    int half_min_width = aZone->GetMinThickness() / 2;
+    int epsilon = pcbIUScale.mmToIU( 0.001 );
+
+    if( half_min_width - epsilon <= epsilon )
+        return;
+
+    for( int ii = aFillPolys.OutlineCount() - 1; ii >= 0; ii-- )
+    {
+        SHAPE_POLY_SET test;
+        test.AddOutline( aFillPolys.Outline( ii ) );
+        test.Deflate( half_min_width - epsilon, CORNER_STRATEGY::CHAMFER_ALL_CORNERS, m_maxError );
+
+        if( test.IsEmpty() )
+            aFillPolys.DeletePolygon( ii );
+    }
+}
+
+
 #define DUMP_POLYS_TO_COPPER_LAYER( a, b, c ) \
     { if( m_debugZoneFiller && aDebugLayer == b ) \
         { \
@@ -3231,6 +3251,8 @@ bool ZONE_FILLER::fillCopperZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LA
 
     subtractHigherPriorityZones( aZone, aLayer, aFillPolys );
     DUMP_POLYS_TO_COPPER_LAYER( aFillPolys, In19_Cu, wxT( "minus-higher-priority-zones" ) );
+
+    dropSlivers( aZone, aFillPolys );
 
     aFillPolys.Fracture();
     return true;
@@ -4553,13 +4575,7 @@ bool ZONE_FILLER::refillZoneFromCache( ZONE* aZone, PCB_LAYER_ID aLayer, SHAPE_P
     if( sameNetKnockouts.OutlineCount() > 0 )
         aFillPolys.BooleanSubtract( sameNetKnockouts );
 
-    int min_dim = aZone->GetMinThickness();
-
-    for( int ii = aFillPolys.OutlineCount() - 1; ii >= 0; ii-- )
-    {
-        if( aFillPolys.Outline( ii ).BBox().GetSizeMax() < min_dim )
-            aFillPolys.DeletePolygon( ii );
-    }
+    dropSlivers( aZone, aFillPolys );
 
     aFillPolys.Fracture();
 
