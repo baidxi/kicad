@@ -50,7 +50,8 @@ KICAD_SETTINGS::KICAD_SETTINGS() :
 
     m_params.emplace_back( new PARAM<wxString>( "system.last_update_check_time", &m_lastUpdateCheckTime, "" ) );
     m_params.emplace_back( new PARAM<wxString>( "system.last_received_update", &m_lastReceivedUpdate, "" ) );
-    m_params.emplace_back( new PARAM<bool>( "system.check_for_kicad_updates", &m_KiCadUpdateCheck, true ) );
+    m_params.emplace_back(
+            new PARAM<bool>( "system.check_for_kicad_updates", &m_KiCadUpdateCheck, DEFAULT_KICAD_UPDATE_CHECK ) );
 
     m_params.emplace_back( new PARAM<wxPoint>( "template.window.pos", &m_TemplateWindowPos, wxDefaultPosition ) );
     m_params.emplace_back( new PARAM<wxSize>( "template.window.size", &m_TemplateWindowSize, wxDefaultSize ) );
@@ -161,7 +162,7 @@ KICAD_SETTINGS::KICAD_SETTINGS() :
     m_params.emplace_back(
             new PARAM<wxString>( "pcm.last_download_dir", &m_PcmLastDownloadDir, "" ) );
 
-    m_params.emplace_back( new PARAM<bool>( "pcm.check_for_updates", &m_PcmUpdateCheck, true ) );
+    m_params.emplace_back( new PARAM<bool>( "pcm.check_for_updates", &m_PcmUpdateCheck, DEFAULT_PCM_UPDATE_CHECK ) );
 
     m_params.emplace_back( new PARAM<bool>( "pcm.lib_auto_add", &m_PcmLibAutoAdd, true ) );
 

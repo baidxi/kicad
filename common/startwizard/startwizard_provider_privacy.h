@@ -26,8 +26,18 @@
 
 struct STARTWIZARD_PROVIDER_PRIVACY_MODEL
 {
+#ifdef KICAD_UPDATE_CHECK
     bool m_autoUpdateKiCad = true;
+#else
+    bool m_autoUpdateKiCad = false;
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
     bool m_autoUpdatePCM   = true;
+#else
+    bool m_autoUpdatePCM = false;
+#endif
+
     bool m_enableSentry    = false;
 };
 

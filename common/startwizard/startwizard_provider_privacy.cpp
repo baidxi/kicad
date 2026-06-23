@@ -36,6 +36,27 @@ public:
             PANEL_STARTWIZARD_PRIVACY_BASE( aParent ),
             m_model( aModel )
     {
+#ifndef KICAD_UPDATE_CHECK
+        m_cbAutoUpdateKiCad->Hide();
+#endif
+
+#ifndef KICAD_PCM_UPDATE_CHECK
+        m_cbAutoUpdatePCM->Hide();
+#endif
+
+#if !defined( KICAD_UPDATE_CHECK ) && !defined( KICAD_PCM_UPDATE_CHECK )
+        if( wxSizer* updatesSizer = m_stIntro->GetContainingSizer() )
+        {
+            static_cast<wxStaticBoxSizer*>( updatesSizer )->GetStaticBox()->Hide();
+
+            if( wxSizer* panelSizer = GetSizer() )
+            {
+                panelSizer->Hide( updatesSizer, true );
+                panelSizer->Layout();
+            }
+        }
+#endif
+
 #ifndef KICAD_USE_SENTRY
         m_sizerDataCollection->Show( false );
 #endif
@@ -43,8 +64,13 @@ public:
 
     bool TransferDataFromWindow() override
     {
+#ifdef KICAD_UPDATE_CHECK
         m_model->m_autoUpdateKiCad = m_cbAutoUpdateKiCad->GetValue();
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
         m_model->m_autoUpdatePCM   = m_cbAutoUpdatePCM->GetValue();
+#endif
 
 #ifdef KICAD_USE_SENTRY
         m_model->m_enableSentry    = m_cbDataCollection->GetValue();
@@ -57,8 +83,13 @@ public:
 
     bool TransferDataToWindow() override
     {
+#ifdef KICAD_UPDATE_CHECK
         m_cbAutoUpdateKiCad->SetValue( m_model->m_autoUpdateKiCad );
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
         m_cbAutoUpdatePCM->SetValue( m_model->m_autoUpdatePCM );
+#endif
 
 #ifdef KICAD_USE_SENTRY
         m_cbDataCollection->SetValue( m_model->m_enableSentry );
@@ -80,31 +111,59 @@ STARTWIZARD_PROVIDER_PRIVACY::STARTWIZARD_PROVIDER_PRIVACY() :
 
 bool STARTWIZARD_PROVIDER_PRIVACY::NeedsUserInput() const
 {
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK ) || defined( KICAD_USE_SENTRY )
     COMMON_SETTINGS* commonSettings = Pgm().GetCommonSettings();
 
-    return !commonSettings->m_DoNotShowAgain.update_check_prompt
-           || !commonSettings->m_DoNotShowAgain.data_collection_prompt;
+    bool needsInput = false;
+
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK )
+    needsInput |= !commonSettings->m_DoNotShowAgain.update_check_prompt;
+#endif
+
+#ifdef KICAD_USE_SENTRY
+    needsInput |= !commonSettings->m_DoNotShowAgain.data_collection_prompt;
+#endif
+
+    return needsInput;
+#else
+    return false;
+#endif
 }
 
 
 wxPanel* STARTWIZARD_PROVIDER_PRIVACY::GetWizardPanel( wxWindow* aParent, STARTWIZARD* aWizard )
 {
     m_model = std::make_shared<STARTWIZARD_PROVIDER_PRIVACY_MODEL>();
+    m_model->m_autoUpdateKiCad = KICAD_SETTINGS::DEFAULT_KICAD_UPDATE_CHECK;
+    m_model->m_autoUpdatePCM = KICAD_SETTINGS::DEFAULT_PCM_UPDATE_CHECK;
     return new PANEL_STARTWIZARD_PRIVACY( m_model, aParent );
 }
 
 
 void STARTWIZARD_PROVIDER_PRIVACY::Finish()
 {
-    COMMON_SETTINGS* commonSettings = Pgm().GetCommonSettings();
+    [[maybe_unused]] COMMON_SETTINGS* commonSettings = Pgm().GetCommonSettings();
+
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK )
     KICAD_SETTINGS* settings = Pgm().GetSettingsManager().GetAppSettings<KICAD_SETTINGS>( "kicad" );
+#endif
 
+#ifdef KICAD_UPDATE_CHECK
     settings->m_KiCadUpdateCheck = m_model->m_autoUpdateKiCad;
-    settings->m_PcmUpdateCheck   = m_model->m_autoUpdatePCM;
-    commonSettings->m_DoNotShowAgain.update_check_prompt = true;
+#endif
 
+#ifdef KICAD_PCM_UPDATE_CHECK
+    settings->m_PcmUpdateCheck = m_model->m_autoUpdatePCM;
+#endif
+
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK )
+    commonSettings->m_DoNotShowAgain.update_check_prompt = true;
+#endif
+
+#ifdef KICAD_USE_SENTRY
     APP_MONITOR::SENTRY::Instance()->SetSentryOptIn( m_model->m_enableSentry );
     commonSettings->m_DoNotShowAgain.data_collection_prompt = true;
+#endif
 
     Pgm().GetSettingsManager().Save();
 }
@@ -112,15 +171,31 @@ void STARTWIZARD_PROVIDER_PRIVACY::Finish()
 
 void STARTWIZARD_PROVIDER_PRIVACY::ApplyDefaults()
 {
-    COMMON_SETTINGS* commonSettings = Pgm().GetCommonSettings();
+    [[maybe_unused]] COMMON_SETTINGS* commonSettings = Pgm().GetCommonSettings();
+
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK )
     KICAD_SETTINGS* settings = Pgm().GetSettingsManager().GetAppSettings<KICAD_SETTINGS>( "kicad" );
+#endif
 
-    settings->m_KiCadUpdateCheck = true;
-    settings->m_PcmUpdateCheck   = true;
+#ifdef KICAD_UPDATE_CHECK
+    settings->m_KiCadUpdateCheck = KICAD_SETTINGS::DEFAULT_KICAD_UPDATE_CHECK;
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
+    settings->m_PcmUpdateCheck = KICAD_SETTINGS::DEFAULT_PCM_UPDATE_CHECK;
+#endif
+
+#ifdef KICAD_USE_SENTRY
     APP_MONITOR::SENTRY::Instance()->SetSentryOptIn( false );
+#endif
 
+#if defined( KICAD_UPDATE_CHECK ) || defined( KICAD_PCM_UPDATE_CHECK )
     commonSettings->m_DoNotShowAgain.update_check_prompt = true;
+#endif
+
+#ifdef KICAD_USE_SENTRY
     commonSettings->m_DoNotShowAgain.data_collection_prompt = true;
+#endif
 
     Pgm().SaveCommonSettings();
 }

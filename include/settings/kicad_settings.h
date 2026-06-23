@@ -42,6 +42,18 @@ struct LIB_OVERRIDE
 class KICOMMON_API KICAD_SETTINGS : public APP_SETTINGS_BASE
 {
 public:
+#ifdef KICAD_UPDATE_CHECK
+    static constexpr bool DEFAULT_KICAD_UPDATE_CHECK = true;
+#else
+    static constexpr bool DEFAULT_KICAD_UPDATE_CHECK = false;
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
+    static constexpr bool DEFAULT_PCM_UPDATE_CHECK = true;
+#else
+    static constexpr bool DEFAULT_PCM_UPDATE_CHECK = false;
+#endif
+
     KICAD_SETTINGS();
 
     virtual ~KICAD_SETTINGS() {}

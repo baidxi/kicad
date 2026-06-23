@@ -38,6 +38,10 @@ PANEL_PACKAGES_AND_UPDATES::PANEL_PACKAGES_AND_UPDATES( wxWindow* parent ) :
     m_staticline3->Hide();
     m_cbKicadUpdate->Hide();
 #endif
+
+#ifndef KICAD_PCM_UPDATE_CHECK
+    m_cbPcmUpdate->Hide();
+#endif
 }
 
 
@@ -45,8 +49,14 @@ bool PANEL_PACKAGES_AND_UPDATES::TransferDataToWindow()
 {
     if( KICAD_SETTINGS* cfg = GetAppSettings<KICAD_SETTINGS>( "kicad" ) )
     {
+#ifdef KICAD_UPDATE_CHECK
         m_cbKicadUpdate->SetValue( cfg->m_KiCadUpdateCheck );
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
         m_cbPcmUpdate->SetValue( cfg->m_PcmUpdateCheck );
+#endif
+
         m_libAutoAdd->SetValue( cfg->m_PcmLibAutoAdd );
         m_libAutoRemove->SetValue( cfg->m_PcmLibAutoRemove );
         m_libPrefix->SetValue( cfg->m_PcmLibPrefix );
@@ -60,8 +70,14 @@ bool PANEL_PACKAGES_AND_UPDATES::TransferDataFromWindow()
 {
     if( KICAD_SETTINGS* cfg = GetAppSettings<KICAD_SETTINGS>( "kicad" ) )
     {
+#ifdef KICAD_UPDATE_CHECK
         cfg->m_KiCadUpdateCheck = m_cbKicadUpdate->GetValue();
+#endif
+
+#ifdef KICAD_PCM_UPDATE_CHECK
         cfg->m_PcmUpdateCheck = m_cbPcmUpdate->GetValue();
+#endif
+
         cfg->m_PcmLibAutoAdd = m_libAutoAdd->GetValue();
         cfg->m_PcmLibAutoRemove = m_libAutoRemove->GetValue();
         cfg->m_PcmLibPrefix = m_libPrefix->GetValue();
