@@ -2673,7 +2673,7 @@ SCH_SHAPE* SCH_IO_EAGLE::loadSymbolCircle( std::unique_ptr<LIB_SYMBOL>& aSymbol,
     wxCHECK( aSymbol && aCircle, nullptr );
 
     // Parse the circle properties
-    SCH_SHAPE* circle = new SCH_SHAPE( SHAPE_T::CIRCLE );
+    SCH_SHAPE* circle = new SCH_SHAPE( SHAPE_T::CIRCLE, LAYER_DEVICE );
     VECTOR2I   center( aCircle->x.ToSchUnits(), -aCircle->y.ToSchUnits() );
 
     circle->SetParent( aSymbol.get() );
@@ -2702,7 +2702,7 @@ SCH_SHAPE* SCH_IO_EAGLE::loadSymbolRectangle( std::unique_ptr<LIB_SYMBOL>& aSymb
 {
     wxCHECK( aSymbol && aRectangle, nullptr );
 
-    SCH_SHAPE* rectangle = new SCH_SHAPE( SHAPE_T::RECTANGLE );
+    SCH_SHAPE* rectangle = new SCH_SHAPE( SHAPE_T::RECTANGLE, LAYER_DEVICE );
 
     rectangle->SetParent( aSymbol.get() );
     rectangle->SetPosition( VECTOR2I( aRectangle->x1.ToSchUnits(), -aRectangle->y1.ToSchUnits() ) );
@@ -2803,7 +2803,7 @@ SCH_SHAPE* SCH_IO_EAGLE::loadSymbolPolyLine( std::unique_ptr<LIB_SYMBOL>& aSymbo
     if( !aPolygon->IsValidOutline() )
         return nullptr;
 
-    SCH_SHAPE* poly = new SCH_SHAPE( SHAPE_T::POLY );
+    SCH_SHAPE* poly = new SCH_SHAPE( SHAPE_T::POLY, LAYER_DEVICE );
     VECTOR2I   pt, prev_pt;
     opt_double prev_curve;
     std::optional<VECTOR2I> first_pt;
@@ -2937,6 +2937,7 @@ SCH_TEXT* SCH_IO_EAGLE::loadSymbolText( std::unique_ptr<LIB_SYMBOL>& aSymbol,
 
     std::unique_ptr<SCH_TEXT> libtext = std::make_unique<SCH_TEXT>();
 
+    libtext->SetLayer( LAYER_DEVICE );
     libtext->SetParent( aSymbol.get() );
     libtext->SetUnit( aGateNumber );
     libtext->SetPosition( VECTOR2I( aText->x.ToSchUnits(), -aText->y.ToSchUnits() ) );
