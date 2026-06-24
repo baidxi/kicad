@@ -370,6 +370,77 @@ void appendZoneOutlineWithoutArcs( const ZONE* aZone, SHAPE_POLY_SET& aPolys )
     aPolys.Append( outline );
 }
 
+/**
+ * A same-net zone of strictly higher priority than the zone being filled, paired with its
+ * outline.  Such a zone is in charge of the clearance and thermal relief inside its own
+ * outline, so the surrounding pour adopts those settings where the two overlap.
+ * https://gitlab.com/kicad/code/kicad/-/issues/24175
+ */
+struct GOVERNING_CANDIDATE
+{
+    ZONE*          zone;
+    SHAPE_POLY_SET outline;
+};
+
+/**
+ * Collect the zones that can govern @p aZone's fill on @p aLayer within @p aScope, sorted
+ * highest priority first.  The clearance and thermal paths share one call so the per-item
+ * lookups never recopy an outline or rescan the board.
+ */
+std::vector<GOVERNING_CANDIDATE> collectGoverningZones( BOARD* aBoard, const ZONE* aZone,
+                                                        PCB_LAYER_ID aLayer, const BOX2I& aScope )
+{
+    std::vector<GOVERNING_CANDIDATE> candidates;
+
+    if( aZone->GetIsRuleArea() || aZone->IsTeardropArea() || aZone->GetNetCode() < 0 )
+        return candidates;
+
+    forEachBoardAndFootprintZone( aBoard,
+            [&]( ZONE* z )
+            {
+                if( z == aZone || z->GetIsRuleArea() || z->IsTeardropArea() )
+                    return;
+
+                if( z->GetNetCode() != aZone->GetNetCode() || !z->IsOnLayer( aLayer ) )
+                    return;
+
+                if( z->GetNumCorners() <= 2
+                        || z->GetAssignedPriority() <= aZone->GetAssignedPriority() )
+                    return;
+
+                if( z->GetBoundingBox().Intersects( aScope ) )
+                    candidates.push_back( { z, z->GetBoardOutline() } );
+            } );
+
+    std::sort( candidates.begin(), candidates.end(),
+               []( const GOVERNING_CANDIDATE& a, const GOVERNING_CANDIDATE& b )
+               {
+                   return a.zone->GetAssignedPriority() > b.zone->GetAssignedPriority();
+               } );
+
+    for( GOVERNING_CANDIDATE& c : candidates )
+        c.outline.BuildBBoxCaches();
+
+    return candidates;
+}
+
+/**
+ * Highest-priority candidate whose outline contains @p aPos, or @p aZone if none.  Thermal
+ * relief keys on the pad position rather than clipping per region, so a pad straddling a
+ * priority boundary takes the settings of the zone holding its centre.
+ */
+const ZONE* governingZoneAt( const std::vector<GOVERNING_CANDIDATE>& aCandidates,
+                             const VECTOR2I& aPos, const ZONE* aZone )
+{
+    for( const GOVERNING_CANDIDATE& c : aCandidates )
+    {
+        if( c.outline.BBoxFromCaches().Contains( aPos ) && c.outline.Contains( aPos ) )
+            return c.zone;
+    }
+
+    return aZone;
+}
+
 } // anonymous namespace
 
 
@@ -1849,6 +1920,11 @@ void ZONE_FILLER::knockoutThermalReliefs( const ZONE* aZone, PCB_LAYER_ID aLayer
     std::unordered_set<PAD_KNOCKOUT_KEY, PAD_KNOCKOUT_KEY_HASH> processedPads;
     std::unordered_set<VIA_KNOCKOUT_KEY, VIA_KNOCKOUT_KEY_HASH> processedVias;
 
+    BOX2I governingScope = aZone->GetBoundingBox();
+    governingScope.Inflate( m_worstClearance );
+    std::vector<GOVERNING_CANDIDATE> governingZones = collectGoverningZones( m_board, aZone, aLayer,
+                                                                             governingScope );
+
     for( FOOTPRINT* footprint : m_board->Footprints() )
     {
         for( PAD* pad : footprint->Pads() )
@@ -1964,13 +2040,17 @@ void ZONE_FILLER::knockoutThermalReliefs( const ZONE* aZone, PCB_LAYER_ID aLayer
                 continue;
             }
 
+            // The merged copper must show the governing zone's relief, so evaluate the
+            // connection style and gap against it rather than the surrounding pour.
+            const ZONE* thermalZone = governingZoneAt( governingZones, pad->GetPosition(), aZone );
+
             if( aZone->IsTeardropArea() )
             {
                 connection = ZONE_CONNECTION::FULL;
             }
             else
             {
-                constraint = bds.m_DRCEngine->EvalZoneConnection( pad, aZone, aLayer );
+                constraint = bds.m_DRCEngine->EvalZoneConnection( pad, thermalZone, aLayer );
                 connection = constraint.m_ZoneConnection;
             }
 
@@ -1984,7 +2064,8 @@ void ZONE_FILLER::knockoutThermalReliefs( const ZONE* aZone, PCB_LAYER_ID aLayer
 
                 if( aFill.Collide( padShape.get(), 0 ) )
                 {
-                    constraint = bds.m_DRCEngine->EvalRules( THERMAL_RELIEF_GAP_CONSTRAINT, pad, aZone, aLayer );
+                    constraint = bds.m_DRCEngine->EvalRules( THERMAL_RELIEF_GAP_CONSTRAINT, pad,
+                                                             thermalZone, aLayer );
                     padClearance = constraint.GetValue().Min();
 
                     aThermalConnectionPads.push_back( pad );
@@ -2190,6 +2271,93 @@ void ZONE_FILLER::buildCopperItemClearances( const ZONE* aZone, PCB_LAYER_ID aLa
                     return c.GetValue().Min();
             };
 
+    // Partition the higher-priority same-net outlines into disjoint regions, each holding only
+    // the area no even-higher zone claims, so the highest priority wins any overlap.  Composing
+    // the foreign-item knockouts per region is what stops the pour from reclaiming the notch an
+    // interior zone left for its own, wider clearance.
+    struct GOVERNING_ZONE
+    {
+        const ZONE*    zone;
+        SHAPE_POLY_SET region;
+    };
+
+    std::vector<GOVERNING_ZONE> governingZones;
+    SHAPE_POLY_SET              allGoverningOutlines;
+
+    for( const GOVERNING_CANDIDATE& c : collectGoverningZones( m_board, aZone, aLayer, zone_boundingbox ) )
+    {
+        SHAPE_POLY_SET region = c.outline;
+
+        if( allGoverningOutlines.OutlineCount() > 0 )
+            region.BooleanSubtract( allGoverningOutlines );
+
+        allGoverningOutlines.BooleanAdd( c.outline );
+
+        if( region.OutlineCount() > 0 )
+        {
+            region.BuildBBoxCaches();
+            governingZones.push_back( { c.zone, std::move( region ) } );
+        }
+    }
+
+    allGoverningOutlines.BuildBBoxCaches();
+
+    // Knock out a foreign item per governed region: aZone's gap applies outside every higher
+    // same-net outline, and each higher zone's gap inside its own region.  aGapForZone returns
+    // the copper gap for a zone or <0 to skip it; aRender receives the gap with extra_margin
+    // already added.
+    auto buildGovernedClearanceHole =
+            [&]( const BOARD_ITEM* aItem,
+                 const std::function<int( const ZONE* )>& aGapForZone,
+                 const std::function<void( int, SHAPE_POLY_SET& )>& aRender )
+            {
+                int gapL = aGapForZone( aZone );
+
+                // The knockout halo, not just the item's copper, can reach into a higher zone,
+                // so test proximity against the worst-clearance-inflated bbox.
+                BOX2I itemBBox = aItem->GetBoundingBox();
+                itemBBox.Inflate( m_worstClearance + extra_margin );
+
+                bool nearGoverning = !governingZones.empty()
+                        && itemBBox.Intersects( allGoverningOutlines.BBoxFromCaches() );
+
+                if( !nearGoverning )
+                {
+                    if( gapL >= 0 )
+                        aRender( gapL + extra_margin, aHoles );
+
+                    return;
+                }
+
+                if( gapL >= 0 )
+                {
+                    SHAPE_POLY_SET lHole;
+                    aRender( gapL + extra_margin, lHole );
+                    lHole.BooleanSubtract( allGoverningOutlines );
+
+                    if( lHole.OutlineCount() > 0 )
+                        aHoles.Append( lHole );
+                }
+
+                for( const GOVERNING_ZONE& gz : governingZones )
+                {
+                    if( !itemBBox.Intersects( gz.region.BBoxFromCaches() ) )
+                        continue;
+
+                    int gapH = aGapForZone( gz.zone );
+
+                    if( gapH < 0 )
+                        continue;
+
+                    SHAPE_POLY_SET hHole;
+                    aRender( gapH + extra_margin, hHole );
+                    hHole.BooleanIntersection( gz.region );
+
+                    if( hHole.OutlineCount() > 0 )
+                        aHoles.Append( hHole );
+                }
+            };
+
     // Add non-connected pad clearances
     //
     auto knockoutPadClearance =
@@ -2205,8 +2373,20 @@ void ZONE_FILLER::buildCopperItemClearances( const ZONE* aZone, PCB_LAYER_ID aLa
                 if( flashLayer || platedHole )
                     gap = std::max( gap, evalRulesForItems( CLEARANCE_CONSTRAINT, aZone, aPad, aLayer ) );
 
-                if( flashLayer && gap >= 0 )
-                    addKnockout( aPad, aLayer, gap + extra_margin, aHoles );
+                if( flashLayer )
+                {
+                    buildGovernedClearanceHole( aPad,
+                            [&]( const ZONE* z ) -> int
+                            {
+                                int g = evalRulesForItems( PHYSICAL_CLEARANCE_CONSTRAINT, z, aPad, aLayer );
+                                g = std::max( g, evalRulesForItems( CLEARANCE_CONSTRAINT, z, aPad, aLayer ) );
+                                return g;
+                            },
+                            [&]( int aGap, SHAPE_POLY_SET& aOut )
+                            {
+                                addKnockout( aPad, aLayer, aGap, aOut );
+                            } );
+                }
 
                 if( hasHole )
                 {
@@ -2298,14 +2478,33 @@ void ZONE_FILLER::buildCopperItemClearances( const ZONE* aZone, PCB_LAYER_ID aLa
                     if( !sameNet )
                         gap = std::max( gap, evalRulesForItems( CLEARANCE_CONSTRAINT, aZone, aTrack, aLayer ) );
 
+                    // Copper gap only; the via hole and backdrill knockouts below stay on
+                    // aZone's gap because they are not governed per region.
+                    auto trackCopperGap =
+                            [&]( const ZONE* z ) -> int
+                            {
+                                int g = evalRulesForItems( PHYSICAL_CLEARANCE_CONSTRAINT, z, aTrack, aLayer );
+
+                                if( !sameNet )
+                                    g = std::max( g, evalRulesForItems( CLEARANCE_CONSTRAINT, z, aTrack, aLayer ) );
+
+                                return g;
+                            };
+
                     if( aTrack->Type() == PCB_VIA_T )
                     {
                         PCB_VIA* via = static_cast<PCB_VIA*>( aTrack );
 
-                        if( via->FlashLayer( aLayer ) && gap > 0 )
+                        // gap is the owner zone's clearance.  A governing zone may want a
+                        // positive gap where the owner's is zero, so it cannot gate the test.
+                        if( via->FlashLayer( aLayer ) && ( gap > 0 || !governingZones.empty() ) )
                         {
-                            via->TransformShapeToPolygon( aHoles, aLayer, gap + extra_margin, m_maxError,
-                                                          ERROR_OUTSIDE );
+                            buildGovernedClearanceHole( via, trackCopperGap,
+                                    [&]( int aGap, SHAPE_POLY_SET& aOut )
+                                    {
+                                        via->TransformShapeToPolygon( aOut, aLayer, aGap, m_maxError,
+                                                                      ERROR_OUTSIDE );
+                                    } );
                         }
 
                         int holeGap = evalRulesForItems( PHYSICAL_HOLE_CLEARANCE_CONSTRAINT, aZone, via, aLayer );
@@ -2344,8 +2543,12 @@ void ZONE_FILLER::buildCopperItemClearances( const ZONE* aZone, PCB_LAYER_ID aLa
                     {
                         if( gap >= 0 )
                         {
-                            aTrack->TransformShapeToPolygon( aHoles, aLayer, gap + extra_margin, m_maxError,
-                                                             ERROR_OUTSIDE );
+                            buildGovernedClearanceHole( aTrack, trackCopperGap,
+                                    [&]( int aGap, SHAPE_POLY_SET& aOut )
+                                    {
+                                        aTrack->TransformShapeToPolygon( aOut, aLayer, aGap, m_maxError,
+                                                                         ERROR_OUTSIDE );
+                                    } );
                         }
                     }
                 }
@@ -3379,6 +3582,9 @@ void ZONE_FILLER::buildThermalSpokes( const ZONE* aZone, PCB_LAYER_ID aLayer,
     // The boundary may be off by MaxError
     int epsilon = bds.m_MaxError;
 
+    std::vector<GOVERNING_CANDIDATE> governingZones = collectGoverningZones( m_board, aZone, aLayer,
+                                                                             zoneBB );
+
     for( BOARD_ITEM* item : aSpokedPadsList )
     {
         // We currently only connect to pads, not pad holes
@@ -3452,10 +3658,14 @@ void ZONE_FILLER::buildThermalSpokes( const ZONE* aZone, PCB_LAYER_ID aLayer,
         }
         else if( pad )
         {
-            constraint = bds.m_DRCEngine->EvalRules( THERMAL_RELIEF_GAP_CONSTRAINT, pad, aZone, aLayer );
+            // Must match the zone knockoutThermalReliefs picked, or the spokes and the gap
+            // they bridge come from different rules.
+            const ZONE* spokeZone = governingZoneAt( governingZones, pad->GetPosition(), aZone );
+
+            constraint = bds.m_DRCEngine->EvalRules( THERMAL_RELIEF_GAP_CONSTRAINT, pad, spokeZone, aLayer );
             thermalReliefGap = constraint.GetValue().Min();
 
-            constraint = bds.m_DRCEngine->EvalRules( THERMAL_SPOKE_WIDTH_CONSTRAINT, pad, aZone, aLayer );
+            constraint = bds.m_DRCEngine->EvalRules( THERMAL_SPOKE_WIDTH_CONSTRAINT, pad, spokeZone, aLayer );
             spoke_w = constraint.GetValue().Opt();
 
             // Spoke width should ideally be smaller than the pad minor axis.
