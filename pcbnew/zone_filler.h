@@ -153,10 +153,15 @@ private:
      * filled areas, and after adding the grid pattern, the modified filled areas with holes
      * @param aThermalRings: Thermal ring geometry used to drop hatch holes that would isolate
      *                       thermal reliefs from the zone fill.
+     * @param aBoundary polygon used for the additional `min`-thickness deflation that pulls
+     *                  hatch holes back from the zone perimeter.  If null, defaults to
+     *                  aZone->Outline().  Pass an outline-minus-knockouts polygon when this
+     *                  function runs after the iterative-refill knockout subtraction so the
+     *                  deflation also retracts holes from the knockout boundary.
      */
     bool addHatchFillTypeOnZone( const ZONE* aZone, PCB_LAYER_ID aLayer, PCB_LAYER_ID aDebugLayer,
-                                 SHAPE_POLY_SET& aFillPolys,
-                                 const SHAPE_POLY_SET& aThermalRings );
+                                 SHAPE_POLY_SET& aFillPolys, const SHAPE_POLY_SET& aThermalRings,
+                                 const SHAPE_POLY_SET* aBoundary = nullptr );
 
     /**
      * Stamp a regular grid of pattern shapes onto a zone's filled area for
@@ -182,6 +187,11 @@ private:
      * to avoid re-inflating into cleared areas.
      */
     void postKnockoutMinWidthPrune( const ZONE* aZone, SHAPE_POLY_SET& aFillPolys );
+
+    /**
+     * Drop islands too narrow to survive a min-width deflate.
+     */
+    void dropSlivers( const ZONE* aZone, SHAPE_POLY_SET& aFillPolys );
 
     /**
      * Snapshot of zone fill polygons captured before an iterative refill wave.
@@ -211,10 +221,24 @@ private:
 
     bool                  m_debugZoneFiller;
 
-    // Cache of pre-knockout fills for iterative refill optimization (issue 21746)
-    // Key: (zone pointer, layer), Value: fill polygon before higher-priority zone knockout
-    std::map<std::pair<const ZONE*, PCB_LAYER_ID>, SHAPE_POLY_SET> m_preKnockoutFillCache;
-    mutable std::mutex                                             m_cacheMutex;
+    // Pre-knockout state cached for iterative refill (issue 21746): the fill, the
+    // same-net apron buffering the post-knockout min-width prune, and the maxExtents
+    // used to re-trim after the prune.
+    struct PRE_KNOCKOUT_CACHE_ENTRY
+    {
+        SHAPE_POLY_SET fill;
+        SHAPE_POLY_SET sameNetApron;
+        SHAPE_POLY_SET maxExtents;
+        SHAPE_POLY_SET clearanceHoles; // pads/traces/keepouts: re-clip target after the
+                                       // deferred-hatch deflate/inflate cycle in refill
+        SHAPE_POLY_SET thermalRings;   // thermal connection rings for hatch zones; passed
+                                       // to addHatch so it can drop holes that would
+                                       // isolate a thermal relief
+        SHAPE_POLY_SET solidViaDiscs;  // disc per FULL-connection via, for hatch hole-drop
+    };
+
+    std::map<std::pair<const ZONE*, PCB_LAYER_ID>, PRE_KNOCKOUT_CACHE_ENTRY> m_preKnockoutFillCache;
+    mutable std::mutex                                                       m_cacheMutex;
 };
 
 #endif

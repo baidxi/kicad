@@ -2756,6 +2756,137 @@ BOOST_FIXTURE_TEST_CASE( RegressionCascadingIslandRefill, ZONE_FILL_TEST_FIXTURE
 
 
 /**
+ * Regression test for same-net-boundary zone fill on the zone_fill_same_net_boundary board.
+ *
+ * Compares the knockout area (zone outline area minus filled polygon area) for every A-net
+ * zone against a golden table captured from a correct fill.  The test fails if any zone
+ * deviates by more than ±0.1%.
+ *
+ * To update the golden table after an intentional geometry change, re-run with
+ * --log_level=test_suite and capture the BOOST_TEST_MESSAGE lines emitted below.
+ */
+BOOST_FIXTURE_TEST_CASE( RegressionSameNetBoundaryFillSnapshot, ZONE_FILL_TEST_FIXTURE )
+{
+    ADVANCED_CFG& cfg = const_cast<ADVANCED_CFG&>( ADVANCED_CFG::GetCfg() );
+    bool          originalIterativeRefill = cfg.m_ZoneFillIterativeRefill;
+    cfg.m_ZoneFillIterativeRefill = true;
+
+    struct ScopeGuard
+    {
+        bool& ref;
+        bool  orig;
+        ~ScopeGuard() { ref = orig; }
+    } guard{ cfg.m_ZoneFillIterativeRefill, originalIterativeRefill };
+
+    KI_TEST::LoadBoard( m_settingsManager, "zone_fill_same_net_boundary", m_board );
+    KI_TEST::FillZones( m_board.get() );
+
+    // Golden table: (zone UUID, layer name) -> knockout area in mm²
+    using ZoneLayerKey = std::pair<wxString, wxString>;
+    static const std::map<ZoneLayerKey, double> goldenKO = {
+        { { "00299d1f-2f26-45d0-86ff-d8d6b2ed5ac3", "F.Cu" }, 1.402276 },   // A2_11
+        { { "002f1a7d-ee8d-4952-afa6-bf3f96e63bcd", "F.Cu" }, 3.706483 },   // A2_4
+        { { "00fbea4b-5158-40c3-a802-ac002fbcc980", "F.Cu" }, 9.473217 },   // A2_3
+        { { "0f06787a-540f-4a82-a1a6-5b937e5c6af8", "F.Cu" }, 1.049654 },   // A1_16
+        { { "163c76af-6411-4028-a95f-d3e56e39395c", "F.Cu" }, 12.594593 },  // A1_14
+        { { "29b25b0d-f36e-4cd0-9b8c-8fea660d8262", "F.Cu" }, 3.837279 },   // A1_20
+        { { "31703d1c-47cf-4207-93c2-ffedeab6caf6", "F.Cu" }, 0.738234 },   // A1_17
+        { { "37bfbaf4-7ca3-4ae5-9d7c-ecbf5ccc8679", "F.Cu" }, 1.350431 },   // A2_6
+        { { "3c2f4428-5f0f-4c23-b8d8-3ce73ee284eb", "F.Cu" }, 1.838877 },   // A1_0
+        { { "54057bd9-c387-4154-9f50-52324efed801", "F.Cu" }, 1.356674 },   // A2_7
+        { { "587badaf-287d-4f1e-8276-74de3421cf77", "F.Cu" }, 0.722176 },   // A2_1
+        { { "5fe42adc-84fa-40f9-bb39-ef9e7d6fb37b", "F.Cu" }, 3.255474 },   // A2_8
+        { { "7efc5486-9bca-4c9b-8902-e252712d17e5", "F.Cu" }, 3.773459 },   // A2_5
+        { { "88f5cd65-9d00-41cb-bf2a-2beaa4077b52", "F.Cu" }, 0.739036 },   // A2_9
+        { { "8a085efe-eade-4a0a-a952-6c45dd006a0b", "F.Cu" }, 1.020294 },   // A1_15
+        { { "8e9acc53-57c6-4f00-b137-258888152ac7", "F.Cu" }, 0.953445 },   // A1_25
+        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "F.Cu" }, 1.859191 },   // A2_12
+        { { "9f0d07d0-a9bf-4f23-941c-d113e05bdc00", "In1.Cu" }, 1.607922 }, // A2_12
+        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "F.Cu" }, 1.859749 },   // A1_23
+        { { "a04200bc-9545-44b3-93f3-8edf7338eff8", "In1.Cu" }, 1.608608 }, // A1_23
+        { { "afff4513-3dba-49fd-b9f2-28f4fcaa042b", "F.Cu" }, 0.743531 },   // A2_2
+        { { "b59ef06d-fd1d-43eb-9ffa-dbc0209453d5", "F.Cu" }, 1.678412 },   // A2_10
+        { { "c51e1cdd-6854-412f-874f-25fca2b69ace", "F.Cu" }, 5.803209 },   // A2_13
+        { { "d3b5410e-a9b6-41cf-bc6b-5507a93efffe", "F.Cu" }, 1.150854 },   // A1_18
+        { { "d4a5b076-93eb-4697-9488-b3a31c95125f", "F.Cu" }, 1.575994 },   // A1_19
+        { { "ec87ea5e-2c3d-41e9-8c8e-080139f230e0", "F.Cu" }, 1.609516 },   // A1_21
+        { { "ef6f9c66-f9c9-457a-be88-57246a054430", "F.Cu" }, 1.418652 },   // A1_24
+        { { "fd54b273-eaef-4ef3-a4ed-380864cfbad4", "F.Cu" }, 1.349541 },   // A1_22
+        { { "ff481e13-daec-4b32-b2bb-63e6f12c41ee", "F.Cu" }, 0.721398 },   // A1_26
+    };
+
+    const double     kIU2toMM2 = pcbIUScale.IUTomm( 1 ) * pcbIUScale.IUTomm( 1 );
+    constexpr double kTolerance = 0.1; // percent
+    constexpr double kMinKnockoutArea = 0.01; // sq mm
+
+    std::set<ZoneLayerKey> checked;
+
+    for( ZONE* zone : m_board->Zones() )
+    {
+        if( zone->GetIsRuleArea() )
+            continue;
+
+        double outlineArea = std::abs( zone->Outline()->Area() ) * kIU2toMM2;
+
+        for( PCB_LAYER_ID layer : zone->GetLayerSet().Seq() )
+        {
+            if( !zone->HasFilledPolysForLayer( layer ) )
+                continue;
+
+            std::shared_ptr<SHAPE_POLY_SET> fill = zone->GetFilledPolysList( layer );
+
+            if( !fill || fill->IsEmpty() )
+                continue;
+
+            wxString uuid = zone->m_Uuid.AsString();
+            wxString layerName = m_board->GetLayerName( layer );
+
+            double fillArea = 0.0;
+
+            for( int i = 0; i < fill->OutlineCount(); i++ )
+                fillArea += std::abs( fill->Outline( i ).Area() ) * kIU2toMM2;
+
+            double actualKO = outlineArea - fillArea;
+
+            BOOST_TEST_MESSAGE( wxString::Format( "        { { \"%s\", \"%s\" }, %f }, "
+                                                  "// %s '%s' prio=%d",
+                                                  uuid, layerName, actualKO, zone->GetNetname(), zone->GetZoneName(),
+                                                  zone->GetAssignedPriority() ) );
+
+            auto it = goldenKO.find( { uuid, layerName } );
+
+            if( it == goldenKO.end() )
+                continue;
+
+            checked.insert( { uuid, layerName } );
+
+            double pctDiff = std::abs( actualKO - it->second ) / it->second * 100.0;
+
+            if( it->second > kMinKnockoutArea )
+            {
+                BOOST_CHECK_MESSAGE( pctDiff <= kTolerance,
+                                     wxString::Format( "Knockout area mismatch for zone '%s' (%s) on %s: "
+                                                       "expected %.6f sq mm, got %.6f sq mm (%.3f%% > %.1f%% "
+                                                       "tolerance).  Update the golden table if the change "
+                                                       "is intended.",
+                                                       zone->GetZoneName(), uuid, layerName, it->second, actualKO,
+                                                       pctDiff, kTolerance ) );
+            }
+        }
+    }
+
+    for( const auto& kv : goldenKO )
+    {
+        BOOST_CHECK_MESSAGE( checked.count( kv.first ),
+                             wxString::Format( "Golden entry { \"%s\", \"%s\" } was not found "
+                                               "or had no fill after refill - zone missing or "
+                                               "completely unfilled.",
+                                               kv.first.first, kv.first.second ) );
+    }
+}
+
+
+/**
  * A track bisecting a thieving hatch zone must not destroy the fill on the far
  * side of the track.  Clearance carves a notch, and the prior subtractive
  * implementation let void rectangles consume the resulting narrow strip
