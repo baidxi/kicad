@@ -35,6 +35,7 @@ import numpy as np
 GERBER_FILE_FCU = "cli/artwork_generation_regressions/ZoneFill-4.0.7-F_Cu.gbr"
 GERBER_FILE_BCU = "cli/artwork_generation_regressions/ZoneFill-4.0.7-B_Cu.gbr"
 GERBER_FILE_LEGACY_FCU = "cli/artwork_generation_regressions/ZoneFill-Legacy-F_Cu.gbr"
+GERBER_FILE_APERTURE_MACRO_TRANSFORM = "cli/artwork_generation_regressions/ApertureMacroPngTransform.gbr"
 GERBER_FILE_DRILL = "cli/basic_test/basic_test-PTH-drl.gbr"
 EXCELLON_FILE = "cli/basic_test/basic_test_excellon_default.drl"
 
@@ -106,6 +107,41 @@ def get_png_colors( png_path: str ) -> dict:
             "has_white": bool( has_white ),
             "has_transparent": bool( has_transparent ),
         }
+
+
+def get_png_foreground_components( png_path: str ) -> list:
+    """Return 8-connected foreground components as arrays of (y, x) pixels."""
+    with Image.open( png_path ) as img:
+        data = np.array( img.convert( "RGBA" ) )
+
+    r, g, b, a = data[:,:,0], data[:,:,1], data[:,:,2], data[:,:,3]
+    foreground = (a > 128) & ~((r > 240) & (g > 240) & (b > 240))
+    seen = np.zeros( foreground.shape, dtype=bool )
+    components = []
+    height, width = foreground.shape
+
+    for y, x in zip( *np.nonzero( foreground ) ):
+        if seen[y, x]:
+            continue
+
+        stack = [(int( y ), int( x ))]
+        seen[y, x] = True
+        pixels = []
+
+        while stack:
+            cy, cx = stack.pop()
+            pixels.append( (cy, cx) )
+
+            for ny in range( max( 0, cy - 1 ), min( height, cy + 2 ) ):
+                for nx in range( max( 0, cx - 1 ), min( width, cx + 2 ) ):
+                    if foreground[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        stack.append( (ny, nx) )
+
+        if len( pixels ) > 4:
+            components.append( np.array( pixels ) )
+
+    return components
 
 
 # ==============================================================================
@@ -428,6 +464,54 @@ class TestGerberConvertPng:
 
         assert exitcode != 0
         assert not output_file.exists()
+
+    def test_export_aperture_macro_transform( self, kitest: KiTestFixture ):
+        """Test PNG export applies aperture macro transforms exactly once."""
+        input_file = kitest.get_data_file_path( GERBER_FILE_APERTURE_MACRO_TRANSFORM )
+        output_file = get_output_path( kitest, "export_aperture_macro_transform", "output.png" )
+
+        command = [utils.kicad_cli(), "gerber", "convert", "png",
+                   "--width", "128", "--no-antialias", "-o", str( output_file ), input_file]
+        stdout, stderr, exitcode = utils.run_and_capture( command )
+
+        assert exitcode == 0
+        assert output_file.exists()
+
+        components = sorted( get_png_foreground_components( str( output_file ) ),
+                             key=len, reverse=True )
+        assert len( components ) >= 2
+
+        triangle = components[0]
+        dot = components[1]
+
+        assert len( triangle ) > len( dot ) * 2
+
+        tri_y = triangle[:,0]
+        dot_y = dot[:,0]
+        tri_min_y = tri_y.min()
+        tri_max_y = tri_y.max()
+        tri_center_y = tri_y.mean()
+        dot_center_y = dot_y.mean()
+        band_height = max( 1, (tri_max_y - tri_min_y + 1) // 5 )
+
+        if dot_center_y < tri_center_y:
+            assert dot_y.max() < tri_min_y
+            tip_band = triangle[tri_y <= tri_min_y + band_height]
+            base_band = triangle[tri_y >= tri_max_y - band_height]
+        else:
+            assert dot_y.min() > tri_max_y
+            tip_band = triangle[tri_y >= tri_max_y - band_height]
+            base_band = triangle[tri_y <= tri_min_y + band_height]
+
+        assert len( tip_band ) > 0
+        assert len( base_band ) > 0
+
+        tip_width = tip_band[:,1].max() - tip_band[:,1].min() + 1
+        base_width = base_band[:,1].max() - base_band[:,1].min() + 1
+
+        assert tip_width < base_width * 0.75
+
+        kitest.add_attachment( str( output_file ) )
 
 
 # ==============================================================================
