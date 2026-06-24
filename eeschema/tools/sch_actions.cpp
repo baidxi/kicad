@@ -1278,6 +1278,12 @@ TOOL_ACTION SCH_ACTIONS::editPageNumber( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Edit Sheet Page Number..." ) )
         .Tooltip( _( "Edit the page number of the current or selected sheet" ) ) );
 
+TOOL_ACTION SCH_ACTIONS::editSubsheetNumbers( TOOL_ACTION_ARGS()
+        .Name( "eeschema.EditorControl.editSubsheetNumbers" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Page numbering of the sub-sheets..." ) )
+        .Tooltip( _( "Add/Remove page numbering of the sub-sheets" ) ) );
+
 TOOL_ACTION SCH_ACTIONS::rescueSymbols( TOOL_ACTION_ARGS()
         .Name( "eeschema.EditorControl.rescueSymbols" )
         .Scope( AS_GLOBAL )

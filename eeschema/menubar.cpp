@@ -167,7 +167,13 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
     editMenu->Add( ACTIONS::deleteTool );
     editMenu->Add( SCH_ACTIONS::editTextAndGraphics );
     editMenu->Add( SCH_ACTIONS::changeSymbols );
-    editMenu->Add( SCH_ACTIONS::editPageNumber );
+
+    ACTION_MENU* submenuPageNumber = new ACTION_MENU( false, selTool );
+    submenuPageNumber->SetTitle( _( "Page Number" ) );
+    submenuPageNumber->Add( SCH_ACTIONS::editPageNumber );
+    submenuPageNumber->Add( SCH_ACTIONS::editSubsheetNumbers );
+
+    editMenu->Add( submenuPageNumber );
 
     ACTION_MENU* submenuAttributes = new ACTION_MENU( false, selTool );
     submenuAttributes->SetTitle( _( "Attributes" ) );
