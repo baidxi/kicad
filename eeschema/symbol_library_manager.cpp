@@ -1236,6 +1236,13 @@ size_t LIB_BUFFER::GetDerivedSymbolNames( const wxString& aSymbolName, wxArraySt
 {
     wxCHECK( !aSymbolName.IsEmpty(), 0 );
 
+    // The requested symbol may not be in this buffer (for example, when the symbol editor
+    // targets an unloadable HTTP/database symbol).
+    LIB_SYMBOL* startSymbol = GetSymbol( aSymbolName );
+
+    if( !startSymbol )
+        return aList.GetCount();
+
     // Parent: children map
     std::unordered_map<std::shared_ptr<LIB_SYMBOL>, std::vector<std::shared_ptr<LIB_SYMBOL>>> derivedMap;
 
@@ -1274,8 +1281,7 @@ size_t LIB_BUFFER::GetDerivedSymbolNames( const wxString& aSymbolName, wxArraySt
                 }
             };
 
-    // Start the recursion at the top
-    std::shared_ptr<LIB_SYMBOL> symbol = GetSymbol( aSymbolName )->SharedPtr();
+    std::shared_ptr<LIB_SYMBOL> symbol = startSymbol->SharedPtr();
     getDerived( symbol );
 
     return aList.GetCount();
