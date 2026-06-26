@@ -687,7 +687,7 @@ void DIALOG_PAGES_SETTINGS::OnWksFileSelection( wxCommandEvent& event )
 {
     wxFileName fn = GetWksFileName();
     wxString   name = fn.GetFullName();
-    wxString   path;
+    wxString   path = m_projectPath;
     wxString   msg;
 
     if( fn.IsAbsolute() )
@@ -699,9 +699,24 @@ void DIALOG_PAGES_SETTINGS::OnWksFileSelection( wxCommandEvent& event )
         wxFileName expanded( ExpandEnvVarSubstitutions( GetWksFileName(), &m_parentFrame->Prj() ) );
 
         if( expanded.IsAbsolute() )
+        {
             path = expanded.GetPath();
+        }
         else
-            path = ENV_VAR::GetEnvVar<wxString>( wxS( "KICAD_USER_TEMPLATE_DIR" ) ).value_or( m_projectPath );
+        {
+            ENV_VAR_MAP_CITER itUser = Pgm().GetLocalEnvVariables().find( "KICAD_USER_TEMPLATE_DIR" );
+            if( itUser != Pgm().GetLocalEnvVariables().end() && itUser->second.GetValue() != wxEmptyString )
+            {
+                wxString resolved = ExpandEnvVarSubstitutions( itUser->second.GetValue(), &m_parentFrame->Prj() );
+                if( !resolved.Contains( wxT( "${" ) ) && !resolved.Contains( wxT( "$(" ) ) )
+                {
+                    wxFileName resolvedFn;
+                    resolvedFn.AssignDir( resolved );
+                    resolvedFn.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS );
+                    path = resolvedFn.GetFullPath();
+                }
+            }
+        }
     }
 
     // Display a file picker dialog
