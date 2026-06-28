@@ -355,9 +355,15 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
     if( !m_reg )
         return {};
 
+    int j = 0;
+    int i = 0;
     // Applying the IDX algorithm defined in the Developper recommendations
+
+    // Phase 1: Validate all items and register all identifiers
     for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
     {
+        std::cout << "item: " << i++ << std::endl;
+
         if( !item )
             continue;
 
@@ -367,52 +373,36 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
 
         for( idx_foundation::EDMD_IDENTIFIER& id : item->m_identifier )
         {
-            // If the identifier is not is repository, create a new item
+            std::cout << "identifier: " << j++ << std::endl;
 
             if( !m_reg->isIdentifierKnown( id ) )
             {
                 m_reg->addIdentifier( id );
-
-                for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
-                {
-                    if( !item )
-                        continue;
-
-                    for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
-                    {
-                        if( !instance )
-                            continue;
-
-
-                        std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
-
-                        kChange->m_name = instance->m_id;
-                        kChange->m_type = kChange->GetType( *instance );
-                        kChange->m_newItems = ConvertInstance( *instance );
-
-                        result.push_back( kChange );
-                    }
-
-                    m_reg->m_itemRepository.push_back( *item );
-                }
-            }
-            else
-            {
-                // Receiving a baseline message, but components are already on the board
-
-                // Adjustment of the identifier repository
-
-                // Adjustment of item type
-
-                // Adjustment of the package names
-
-                // Adjustments of the item instances
-
-                // Adjustments of the shape
-
-                // Adjustements of roles
             }
         }
+    }
+
+    // Phase 2: Process instances for all items (each item processed exactly once)
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
+    {
+        if( !item )
+            continue;
+
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
+        {
+            if( !instance )
+                continue;
+
+            std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+
+            kChange->m_name = instance->m_id;
+            kChange->m_type = kChange->GetType( *instance );
+            kChange->m_newItems = ConvertInstance( *instance );
+
+            result.push_back( kChange );
+        }
+
+        m_reg->GetItemRepository().push_back( *item );
     }
     // Adjustment of the package names
 

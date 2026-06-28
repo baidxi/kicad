@@ -100,7 +100,7 @@ public:
     std::shared_ptr<EDMD_SHAPE_DESCRIPTION> m_boundingBox;
 
 private:
-    std::string m_boudingBoxRef;
+    std::string m_boundingBoxRef;
 };
 
 class EDMD_TRANSFORMATION : public idx_foundation::EDMD_OBJECT

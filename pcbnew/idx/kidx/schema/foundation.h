@@ -174,6 +174,7 @@ public:
 
     IDX_REGISTRY m_registry;
 
+    std::vector<std::shared_ptr<idx_annotation::EDMD_HISTORY>>        m_history;
     std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>>      m_actors;
     std::vector<std::shared_ptr<idx_foundation::EDMD_SYSTEM>>         m_systems;
     std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>             m_units;
@@ -226,8 +227,7 @@ public:
     EDMD_DATASET_BODY                                      m_body;
     std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
 
-    bool Parse( IDX_XML_NODE& aNode );
-
+    bool Parse( IDX_XML_NODE& aNode ) override;
     bool Resolve();
     void Prepare();
 

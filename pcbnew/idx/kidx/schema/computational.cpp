@@ -49,12 +49,33 @@ bool EDMD_PROCESS_INSTRUCTION_SEND_CHANGES::Parse( IDX_XML_NODE& aNode )
     const std::string content = aNode.GetNodeContent();
 
     if( IDX_keyword_compare( name, "computational:Actor" ) )
+    {
         m_actorRef = content;
+    }
     else if( IDX_keyword_compare( name, "computational:Changes" ) )
+    {
         m_transaction = std::make_shared<EDMD_TRANSACTION>( aNode, true );
+        return true;
+    }
     else
         return this->EDMD_PROCESS_INSTRUCTION::Parse( aNode );
     return true;
+}
+
+// -----------------------------
+// EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION
+// -----------------------------
+EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION() :
+        idx_foundation::EDMD_PROCESS_INSTRUCTION()
+{
+}
+
+EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION( IDX_XML_NODE& aNode,
+                                                                                                    bool aTopLevel ) :
+        idx_foundation::EDMD_PROCESS_INSTRUCTION( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
 }
 
 
@@ -114,23 +135,6 @@ EDMD_SERVICE_RESULT::EDMD_SERVICE_RESULT() :
 
 
 // -----------------------------
-// EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION
-// -----------------------------
-EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION() :
-        idx_foundation::EDMD_PROCESS_INSTRUCTION()
-{
-}
-
-EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION( IDX_XML_NODE& aNode,
-                                                                                                    bool aTopLevel ) :
-        idx_foundation::EDMD_PROCESS_INSTRUCTION( aNode, false )
-{
-    if( aTopLevel )
-        ParseChildren( aNode );
-}
-
-
-// -----------------------------
 // EDMD_TRANSACTION
 // -----------------------------
 EDMD_TRANSACTION::EDMD_TRANSACTION() :
@@ -154,7 +158,11 @@ bool EDMD_TRANSACTION::Parse( IDX_XML_NODE& aNode )
     if( IDX_keyword_compare( name, "computational:Change" ) )
     {
         std::string type = aNode.GetAttribute( "xsi:type", "" );
-        if( IDX_keyword_compare( type, "computational:EDMDChange" ) )
+        // Default to EDMDChange if xsi:type is missing or matches
+        bool isEDMDChange = type.empty() || IDX_keyword_compare( type, "computational:EDMDChange" )
+                            || type.find( "EDMDChange" ) != std::string::npos;
+
+        if( isEDMDChange )
             m_changes.push_back( std::make_shared<EDMD_CHANGE>( aNode, true ) );
         else
             invalidValueIDX( name, type );

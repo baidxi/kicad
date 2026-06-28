@@ -49,9 +49,9 @@ EDMD_SHAPE_DESCRIPTION::EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode, bool aTopLe
             else if( IDX_keyword_compare( content, "ExternalGeometricModel" ) )
                 m_shapeDescriptionType = SHAPE_DESCRIPTION_TYPE::EXTERNAL_GEOMETRIC_MODEL;
         }
-        else if( IDX_keyword_compare( name, "pdm::BoundingBox" ) )
+        else if( IDX_keyword_compare( name, "pdm:BoundingBox" ) )
         {
-            m_boudingBoxRef = content;
+            m_boundingBoxRef = content;
         }
         child = child->GetNext();
     }
@@ -72,8 +72,8 @@ bool EDMD_SHAPE_DESCRIPTION::Parse( IDX_XML_NODE& aNode )
         else
             invalidValueIDX( name, content );
     }
-    else if( IDX_keyword_compare( name, "pdm::BoundingBox" ) )
-        m_boudingBoxRef = content;
+    else if( IDX_keyword_compare( name, "pdm:BoundingBox" ) )
+        m_boundingBoxRef = content;
     else
         return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 

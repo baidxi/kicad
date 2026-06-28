@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_set>
 #include "../kidx.h"
 
 
@@ -47,7 +48,9 @@ public:
 
     bool operator==( const IDX_FILE_REGISTRY& other ) const
     {
-        return m_author == other.m_author && m_date == other.m_date && m_name == other.m_name;
+        return m_author == other.m_author && m_date == other.m_date && 
+               m_name == other.m_name && m_path == other.m_path &&
+               m_soft == other.m_soft && m_baseline == other.m_baseline;
     }
 
     bool operator!=( const IDX_FILE_REGISTRY& other ) const { return !( *this == other ); }
@@ -59,7 +62,7 @@ public:
     const std::string GetSoft() const { return m_soft; };
     STATUS            GetStatus() const { return m_status; };
     bool              IsBaseline() const { return m_baseline; };
-    bool              IsProbablyNext() const { return m_next; };
+    bool              IsNext() const { return m_next; };
     void              SetAuthor( const std::string aValue ) { m_author = aValue; };
     void              SetDate( const std::string aValue ) { m_date = aValue; };
     void              SetName( const std::string aValue ) { m_name = aValue; };
@@ -95,6 +98,7 @@ public:
     bool                                            AddFile( const std::shared_ptr<IDX_FILE_REGISTRY> aFile );
     std::string                                     GetPath() const { return m_path; };
     std::string                                     GetCollaborationFolder() const { return m_collaborationFolder; };
+    std::vector<idx_pdm::EDMD_ITEM>&                 GetItemRepository() { return m_itemRepository; };
     bool                                            SetCollaborationFolder( std::string aPath )
     {
         m_collaborationFolder = aPath;
@@ -102,8 +106,8 @@ public:
     };
 
 
-    void         MarkProcessed( std::shared_ptr<IDX_FILE_REGISTRY> aDataset ) {};
-    virtual void Save() {};
+    void         MarkProcessed( std::shared_ptr<IDX_FILE_REGISTRY> aDataset );
+    virtual void Save();
     void         writeXml( std::shared_ptr<IDX_XML_NODE> aRoot );
     bool         isIdentifierKnown( const idx_foundation::EDMD_IDENTIFIER& aId ) const;
     void         addIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId );
@@ -117,13 +121,15 @@ public:
     bool SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const;
     bool SC_2CheckIdentifierOfPredecessorItem( const idx_computational::EDMD_CHANGE& aChange ) const;
     // SC3_RequestInformation
-    void SC_4AdjustmentOfItemType() {};
-
-    std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_repository;
-    std::vector<idx_pdm::EDMD_ITEM>                    m_itemRepository;
+    void SC_3RequestInformation( const idx_computational::EDMD_CHANGE& aChange );
+    void SC_4AdjustmentOfItemType();
+    void ApplyChangeToRepository( idx_computational::EDMD_CHANGE& aChange );
 
 protected:
     std::string                                     m_file;
+    std::unordered_set<std::string>                   m_identifierSet;
+    std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_repository;
+    std::vector<idx_pdm::EDMD_ITEM>                    m_itemRepository;
     bool                                            m_baselined = false;
     std::vector<std::shared_ptr<IDX_FILE_REGISTRY>> m_files;
     std::string                                     m_path;

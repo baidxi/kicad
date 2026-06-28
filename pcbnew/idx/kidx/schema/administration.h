@@ -75,9 +75,9 @@ public:
                 m_givenName = content;
             else if( IDX_keyword_compare( name, "administration:Initials" ) )
                 m_initials = content;
-            else if( IDX_keyword_compare( name, "adminitration:EMailAddress" ) )
+            else if( IDX_keyword_compare( name, "administration:EMailAddress" ) )
                 m_emailAddress = content;
-            else if( IDX_keyword_compare( name, "adminitration:PhoneNumber" ) )
+            else if( IDX_keyword_compare( name, "administration:PhoneNumber" ) )
                 m_phoneNumber = content;
             else if( IDX_keyword_compare( name, "administration:FaxNumber" ) )
                 m_faxNumber = content;
@@ -161,7 +161,7 @@ public:
             if( IDX_keyword_compare( name, "administration:Actor" ) )
                 m_actor = content;
             else if( IDX_keyword_compare( name, "administration:RoleName" ) )
-                m_actor = content;
+                m_roleName.m_objectName = content;
             else
             {
             }
@@ -186,7 +186,6 @@ public:
     {
         auto child = aNode.GetChildren();
 
-        return;
         while( child )
         {
             const std::string content = child->GetNodeContent();
@@ -195,7 +194,7 @@ public:
             if( IDX_keyword_compare( name, "administration:Actor" ) )
                 m_actor = content;
             else if( IDX_keyword_compare( name, "administration:RoleName" ) )
-                m_actor = content;
+                m_roleName.m_objectName = content; // Fixed: assign to m_roleName
             else
             {
             }

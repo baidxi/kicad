@@ -27,13 +27,29 @@
 #include <iostream>
 #include <stdexcept>
 #include <filesystem>
+#include <unordered_set>
+#include <algorithm>
 
 
 KIDX_REGISTRY::KIDX_REGISTRY( const std::string& aFile ) :
-        m_file( aFile )
+        m_file( aFile ),
+        m_identifierSet(),
+        m_repository( std::make_shared<idx_foundation::EDMD_DATASET_BODY>() ),
+        m_itemRepository(),
+        m_baselined( false ),
+        m_files(),
+        m_path(),
+        m_collaborationFolder(),
+        m_identifiers()
 {
     std::ifstream in( aFile );
-    m_baselined = in.good();
+    if( !in.good() )
+    {
+        std::cerr << "Failed to open IDX file: " << aFile << std::endl;
+        return;
+    }
+    
+    m_path = std::filesystem::path( aFile ).parent_path().string();
 }
 
 bool KIDX_REGISTRY::IsFileKnown( const std::shared_ptr<IDX_FILE_REGISTRY> aFile ) const
@@ -62,14 +78,39 @@ bool KIDX_REGISTRY::AddFile( const std::shared_ptr<IDX_FILE_REGISTRY> aFile )
 
 void KIDX_REGISTRY::ComputeNext()
 {
-    for( std::shared_ptr<IDX_FILE_REGISTRY> file : GetFiles() )
+    bool hasBaseline = false;
+    std::shared_ptr<IDX_FILE_REGISTRY> latestNonBaseline = nullptr;
+    std::shared_ptr<IDX_FILE_REGISTRY> firstBaseline = nullptr;
+    
+    for( auto& file : m_files )
     {
-        if( !m_baselined )
-            file->m_next = file->IsBaseline();
+        if( file->IsBaseline() )
+        {
+            hasBaseline = true;
+            if( !firstBaseline )
+                firstBaseline = file;
+        }
         else
         {
-            file->m_next = !file->IsBaseline();
+            if( !latestNonBaseline || file->GetDate() > latestNonBaseline->GetDate() )
+                latestNonBaseline = file;
         }
+    }
+    
+    // Reset all m_next flags
+    for( auto& file : m_files )
+        file->m_next = false;
+    
+    // Determine next file
+    if( !hasBaseline && firstBaseline )
+    {
+        // No baseline exists yet, the first baseline is next
+        firstBaseline->m_next = true;
+    }
+    else if( latestNonBaseline )
+    {
+        // We have baseline(s), the latest non-baseline (changeset) is next
+        latestNonBaseline->m_next = true;
     }
 }
 
@@ -113,47 +154,140 @@ void KIDX_REGISTRY::writeXml( std::shared_ptr<IDX_XML_NODE> aRoot )
 
 bool KIDX_REGISTRY::isIdentifierKnown( const idx_foundation::EDMD_IDENTIFIER& aId ) const
 {
-    for( const auto& id : m_identifiers )
-    {
-        if( id == aId )
-            return true;
-    }
-    return false;
+    // Create a unique key for the identifier
+    std::string key = aId.m_systemScopeRef + ":" + aId.m_number;
+    if( !aId.m_version.empty() )
+        key += ":" + aId.m_version;
+    if( !aId.m_revision.empty() )
+        key += ":" + aId.m_revision;
+    if( !aId.m_sequence.empty() )
+        key += ":" + aId.m_sequence;
+    
+    return m_identifierSet.find( key ) != m_identifierSet.end();
 }
 
 void KIDX_REGISTRY::addIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId )
 {
+    std::string key = aId.m_systemScopeRef + ":" + aId.m_number;
+    if( !aId.m_version.empty() )
+        key += ":" + aId.m_version;
+    if( !aId.m_revision.empty() )
+        key += ":" + aId.m_revision;
+    if( !aId.m_sequence.empty() )
+        key += ":" + aId.m_sequence;
+    
+    m_identifierSet.insert( key );
     m_identifiers.push_back( aId );
 }
 
 
 bool KIDX_REGISTRY::SC_Process( idx_computational::EDMD_CHANGE& aChange )
 {
+    // SC1: Check NewItem identifier
     if( !SC_1CheckIdentifierOfNewItem( aChange ) )
+    {
+        std::cerr << "SC1 failed: NewItem identifier unknown or missing" << std::endl;
         return false;
+    }
 
+    // SC2: Check PredecessorItem identifier
     if( !SC_2CheckIdentifierOfPredecessorItem( aChange ) )
     {
+        // SC3: Request information for the predecessor
+        std::cerr << "SC2 failed: PredecessorItem unknown, requesting information" << std::endl;
+        SC_3RequestInformation( aChange );
         return false;
-        // TODO Implement the request for information message...
     }
+
+    // SC4: Adjust item type if needed
+    SC_4AdjustmentOfItemType();
+
+    // Actually apply the change to the repository
+    ApplyChangeToRepository( aChange );
 
     return true;
 }
 
+void KIDX_REGISTRY::SC_3RequestInformation( const idx_computational::EDMD_CHANGE& aChange )
+{
+    // TODO: Implement actual RequestForInformation message
+    std::cerr << "SC3: Requesting information for predecessor: " 
+              << (aChange.m_predecessorItem ? aChange.m_predecessorItem->m_number : "unknown") 
+              << std::endl;
+    // In a real implementation, this would:
+    // 1. Create a RequestForInformation ProcessInstruction
+    // 2. Send it to the source system
+    // 3. Wait for response with the predecessor data
+}
+
+void KIDX_REGISTRY::SC_4AdjustmentOfItemType()
+{
+    // TODO: Implement item type adjustment logic
+    // This would handle cases where the item type needs to be adjusted
+    // based on the change context
+}
 
 bool KIDX_REGISTRY::SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const
 {
     if( !aChange.m_newItem )
+    {
+        std::cerr << "SC1: NewItem is null" << std::endl;
         return false;
+    }
 
-    return this->isIdentifierKnown( *( aChange.m_newItem ) );
+    bool known = this->isIdentifierKnown( *( aChange.m_newItem ) );
+    if( !known )
+        std::cerr << "SC1: NewItem identifier unknown: " 
+                  << aChange.m_newItem->m_systemScopeRef << ":" 
+                  << aChange.m_newItem->m_number << std::endl;
+    return known;
 }
 
 bool KIDX_REGISTRY::SC_2CheckIdentifierOfPredecessorItem( const idx_computational::EDMD_CHANGE& aChange ) const
 {
     if( !aChange.m_predecessorItem )
-        return false;
+    {
+        // PredecessorItem is optional per spec, but if present, must be known
+        return true;
+    }
 
-    return this->isIdentifierKnown( *( aChange.m_predecessorItem ) );
+    bool known = this->isIdentifierKnown( *( aChange.m_predecessorItem ) );
+    if( !known )
+        std::cerr << "SC2: PredecessorItem identifier unknown: " 
+                  << aChange.m_predecessorItem->m_systemScopeRef << ":" 
+                  << aChange.m_predecessorItem->m_number << std::endl;
+    return known;
+}
+
+void KIDX_REGISTRY::ApplyChangeToRepository( idx_computational::EDMD_CHANGE& aChange )
+{
+    std::cerr << "Applying change to repository" << std::endl;
+    
+    // TODO: Implement actual change application
+    // This would:
+    // 1. Find or create the item in m_itemRepository
+    // 2. Apply the changes (add new item, update from predecessor, delete instances)
+    // 3. Update identifiers in m_identifierSet
+    
+    if( aChange.m_newItem )
+    {
+        addIdentifier( *( aChange.m_newItem ) );
+    }
+    
+    if( aChange.m_predecessorItem )
+    {
+        addIdentifier( *( aChange.m_predecessorItem ) );
+    }
+}
+
+void KIDX_REGISTRY::MarkProcessed( std::shared_ptr<IDX_FILE_REGISTRY> aDataset )
+{
+    if( aDataset )
+        aDataset->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
+}
+
+void KIDX_REGISTRY::Save()
+{
+    // TODO: Implement save to persistent storage
+    std::cerr << "KIDX_REGISTRY::Save() - Not yet implemented" << std::endl;
 }

@@ -330,11 +330,13 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     if( IDX_keyword_compare( name, "foundation:System" ) )
     {
         std::shared_ptr<idx_foundation::EDMD_SYSTEM> s = std::make_shared<idx_foundation::EDMD_SYSTEM>( aNode );
+        m_registry.registerObject<idx_foundation::EDMD_SYSTEM>( s->m_id, s );
         m_systems.push_back( s );
     }
     else if( IDX_keyword_compare( name, "foundation:History" ) )
     {
-        std::shared_ptr<idx_annotation::EDMD_HISTORY> s = std::make_shared<idx_annotation::EDMD_HISTORY>( aNode );
+        std::shared_ptr<idx_annotation::EDMD_HISTORY> history = std::make_shared<idx_annotation::EDMD_HISTORY>( aNode );
+        m_history.push_back( history );
     }
     else if( IDX_keyword_compare( name, "foundation:Person" ) )
     {
@@ -447,7 +449,7 @@ void EDMD_DATASET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
     if( !aNode )
         return;
 
-    aNode->SetName( "testststs" );
+    aNode->SetName( "foundation:Body" );
 }
 
 
@@ -515,18 +517,24 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
     {
         std::string type = aNode.GetAttribute( "xsi:type", "" );
 
-        if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" ) )
+        // Check for full namespace URI or prefix-based type
+        bool isSendInfo = ( type.find( "SendInformation" ) != std::string::npos ) ||
+                         IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" );
+        bool isSendChanges = ( type.find( "SendChanges" ) != std::string::npos ) ||
+                            IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" );
+        bool isRequestInfo = ( type.find( "RequestForInformation" ) != std::string::npos ) ||
+                             IDX_keyword_compare( type, "computational:EDMDProcessInstructionRequestForInformation" );
+
+        if( isSendInfo )
         {
             if( !m_headerOnly )
             {
                 m_processInstruction.push_back(
-
                         std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( aNode, true ) );
             }
             m_baseline = true;
         }
-
-        else if( IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" ) )
+        else if( isSendChanges )
         {
             if( !m_headerOnly )
             {
@@ -534,7 +542,15 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
                         std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( aNode, true ) );
             }
         }
-        else
+        else if( isRequestInfo )
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION>( aNode, true ) );
+            }
+        }
+        else if( !type.empty() )
             invalidValueIDX( name, type );
     }
     else

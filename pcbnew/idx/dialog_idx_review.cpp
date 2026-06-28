@@ -371,8 +371,8 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
 
     if( !m_historyReady[row] )
     {
-        wxLogMessage( wxT( "Can't apply file %s on top of history." ), filename );
-        return;
+        // wxLogMessage( wxT( "Can't apply file %s on top of history." ), filename );
+        //return;
     }
 
     clearIDX();
@@ -439,9 +439,10 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
 
     m_idx = aIDX;
     std::unique_ptr<BOX2I> bb;
-
+    int                    i = 0;
     for( std::shared_ptr<KICAD_IDX_CHANGE>& change : m_idx->Process() )
     {
+        std::cout << "Change " << i++ << std::endl;
         if( !change )
             continue;
 
@@ -519,7 +520,7 @@ wxString Format( std::shared_ptr<IDX_FILE_REGISTRY> aFile, const wxString& aTxt 
         result = GreyText( result );
     else if( aFile->GetStatus() == IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED_DELETED )
         result = GreyText( StrikeText( result ) );
-    if( aFile->IsProbablyNext() )
+    if( aFile->IsNext() )
     {
         result = BoldText( result );
     }
@@ -572,7 +573,7 @@ void DIALOG_IDX_REVIEW::loadDir( const wxString& aDir )
 
         wxString name = rawname;
 
-        m_historyReady.push_back( file->IsProbablyNext() );
+        m_historyReady.push_back( file->IsNext() );
 
 
         row.push_back( wxVariant( rawname ) );
