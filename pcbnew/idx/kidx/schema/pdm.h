@@ -29,6 +29,12 @@
 #include <idx/kidx/schema/property.h>
 #include <idx/kidx/schema/foundation.h>
 
+namespace idx_geometry
+{
+class EDMD_POINT;
+class EDMD_CURVE;
+} // namespace idx_geometry
+
 namespace idx_pdm
 {
 
@@ -412,6 +418,172 @@ public:
     ASSEMBLY_COMPONENT_TYPE m_assemblyComponentType;
 
 private:
+};
+
+
+// -----------------------------------------------------
+// EDMD_PACKAGE_PIN
+// -----------------------------------------------------
+
+class EDMD_PACKAGE_PIN : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_PACKAGE_PIN() {};
+    EDMD_PACKAGE_PIN( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+
+    std::string m_pointRef;
+    std::string m_shapeRef;
+    std::string m_pin_number;
+    bool        m_primary = false;
+
+    std::shared_ptr<idx_geometry::EDMD_POINT> m_point;
+    std::shared_ptr<idx_pdm::EDMD_ITEM_SHAPE> m_shape;
+};
+
+
+// -----------------------------------------------------
+// EDMD_3DMODEL
+// -----------------------------------------------------
+
+class EDMD_3DMODEL : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_3DMODEL() {};
+    EDMD_3DMODEL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_modelIdentifier;
+    std::string m_modelVersion;
+    std::string m_modelLocation;
+};
+
+
+// -----------------------------------------------------
+// EDMD_BEND_TYPE enums
+// -----------------------------------------------------
+
+enum class EDMDINNER_SIDE
+{
+    TOP = 0,
+    BOTTOM
+};
+
+
+// -----------------------------------------------------
+// EDMD_BEND
+// -----------------------------------------------------
+
+class EDMD_BEND : public EDMD_ITEM_SHAPE
+{
+public:
+    EDMD_BEND() {};
+    EDMD_BEND( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+
+    std::string                      m_bendTypeRef;
+    int                              m_sequenceNumber = 0;
+    std::shared_ptr<EDMD_ITEM_SHAPE> m_bendType;
+};
+
+
+// -----------------------------------------------------
+// EDMD_BEND_TYPE
+// -----------------------------------------------------
+
+class EDMD_BEND_TYPE : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_BEND_TYPE() {};
+    EDMD_BEND_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+
+    std::string                               m_bendLineRef;
+    std::shared_ptr<idx_geometry::EDMD_CURVE> m_bendLine;
+};
+
+
+// -----------------------------------------------------
+// EDMD_CIRCULAR_BEND_TYPE
+// -----------------------------------------------------
+
+class EDMD_CIRCULAR_BEND_TYPE : public EDMD_BEND_TYPE
+{
+public:
+    EDMD_CIRCULAR_BEND_TYPE() {};
+    EDMD_CIRCULAR_BEND_TYPE( IDX_XML_NODE& aNode );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    EDMDINNER_SIDE m_innerSide = EDMDINNER_SIDE::TOP;
+    double         m_innerRadius = 0.0;
+    double         m_innerAngle = 0.0;
+};
+
+
+// -----------------------------------------------------
+// EDMDNonFeatureItemShape missing types
+// -----------------------------------------------------
+
+enum class NON_FEATURE_ITEM_SHAPE_PURPOSE
+{
+    INFO_TEXT = 0,
+    INFO_GEOMETRY,
+    AUXILIARY_GEOMETRY
+};
+
+
+class EDMD_NON_FEATURE_ITEM_SHAPE : public EDMD_ITEM_SHAPE
+{
+public:
+    EDMD_NON_FEATURE_ITEM_SHAPE() {};
+    EDMD_NON_FEATURE_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+
+    NON_FEATURE_ITEM_SHAPE_PURPOSE m_purpose;
+    std::vector<std::string>         m_relatedItemShapeRef;
+    std::vector<std::shared_ptr<EDMD_ITEM_SHAPE>> m_relatedItemShape;
+};
+
+
+// -----------------------------------------------------
+// Geometry and Signal Types
+// -----------------------------------------------------
+
+enum class SIGNAL_TYPE
+{
+    SIGNAL = 0,
+    POWER,
+    GROUND,
+    TEST,
+    OTHER
+};
+
+
+enum class GEOMETRY_TYPE
+{
+    BOARD_OUTLINE = 0,
+    COMPONENT_OUTLINE,
+    PAD,
+    TRACK,
+    VIA,
+    KEEPOUT,
+    KEEPIN,
+    AREA,
+    TEXT,
+    DRILL,
+    HOLE,
+    OTHER
+};
+
+
+enum class STRATUM_TYPE
+{
+    DOCUMENTATION_LAYER_STRATUM = 0,
+    DESIGN_LAYER_STRATUM
 };
 
 enum class INTERSTRATUM_FEATURE_TYPE

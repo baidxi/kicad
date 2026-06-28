@@ -50,6 +50,8 @@ namespace idx_property
 {
 class ARRAY_EDMD_NAME;
 class EDMD_ANGLE_PROPERTY;
+class EDMD_ANY_PROPERTY_VALUE;
+class EDMD_BOOLEAN_PROPERTY;
 class EDMD_BOOLEAN_PROPERTY_TYPE;
 class EDMD_CLEARANCE_STATE_PROPERTY;
 class EDMD_COLOR_PROPERTY;
@@ -70,12 +72,18 @@ class EDMD_UNIT_ANGLE;
 class EDMD_UNIT_CAPACITANCE;
 class EDMD_UNIT_LENGTH;
 class EDMD_UNIT_POWER;
+class EDMD_UNIT_RESISTANCE;
 class EDMD_UNIT_SURFACE;
 class EDMD_UNIT_VOLTAGE;
 class EDMD_UNIT_VOLUME;
 class EDMD_UNIT_WEIGHT;
 class EDMD_UNIT_WORK;
 class EDMD_USER_PROPERTY;
+class EDMD_USER_SIMPLE_PROPERTY;
+class EDMD_USER_COMPOUND_PROPERTY;
+class EDMD_USER_ANY_PROPERTY;
+class EDMD_USER_ANY_PROPERTY_VALUE;
+class EDMD_USER_NON_VALUE_PROPERTY;
 } // namespace idx_property
 
 namespace idx_geometry
@@ -112,11 +120,41 @@ class EDMD_KEEP_CONSTRAINT;
 class EDMD_ITEM;
 class EDMD_ITEM_INSTANCE;
 class EDMD_ASSEMBLY_COMPONENT;
+class EDMD_PACKAGE_PIN;
+class EDMD_3DMODEL;
+class EDMD_BEND;
+class EDMD_BEND_TYPE;
+class EDMD_CIRCULAR_BEND_TYPE;
 } // namespace idx_pdm
 
 namespace idx_annotation
 {
 class EDMD_HISTORY;
+class EDMD_ANNOTATION;
+class EDMD_HISTORY_ENTRY;
+class EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE;
+class EDMD_HISTORY_ENTRY_ADD_COMMENT;
+class EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP;
+class EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE;
+class EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE;
+class ARRAY_OF_EDMD_NAME;
+}
+
+namespace idx_text
+{
+class EDMD_SIMPLE_TEXT;
+}
+
+namespace idx_grouping
+{
+class EDMD_GROUP;
+class EDMD_ITEM_CONSTRAINT;
+class EDMD_GENERAL_CLASSIFICATION;
+}
+
+namespace idx_material
+{
+class EDMD_MATERIAL;
 }
 
 namespace idx_foundation
@@ -244,6 +282,40 @@ public:
         return value;
     }
 
+    bool parseBool( const std::string& inputStr )
+    {
+        std::string str = inputStr;
+        str.erase( 0, str.find_first_not_of( " \t\n\r" ) );
+        str.erase( str.find_last_not_of( " \t\n\r" ) + 1 );
+        
+        if( str == "true" || str == "1" )
+            return true;
+        else if( str == "false" || str == "0" )
+            return false;
+        else
+        {
+            std::cerr << "Warning: '" << inputStr << "' is not a valid boolean. Defaulting to false." << std::endl;
+            return false;
+        }
+    }
+
+    int parseInt( const std::string& inputStr )
+    {
+        std::string str = inputStr;
+        str.erase( 0, str.find_first_not_of( " \t\n\r" ) );
+        str.erase( str.find_last_not_of( " \t\n\r" ) + 1 );
+        
+        try
+        {
+            return std::stoi( str );
+        }
+        catch( const std::exception& e )
+        {
+            std::cerr << "Error: '" << inputStr << "' is not a valid integer." << std::endl;
+            return 0;
+        }
+    }
+
 
 protected:
     void         Report( std::string aMsg, IDX_REPORT_LEVEL aLvl ) const;
@@ -270,6 +342,20 @@ protected:
         *aDest = std::dynamic_pointer_cast<U>( resolvedPoint );
 
         return static_cast<bool>( *aDest );
+    }
+
+    template <typename T, typename U>
+    bool resolve( std::string aName, std::shared_ptr<U>& aDest, IDX_REGISTRY& aRegistry, bool aSuppressWarning = false )
+    {
+        auto resolvedPoint = aRegistry.resolve<U>( aName, aSuppressWarning );
+
+        if( !resolvedPoint )
+            return false;
+
+        // Single dynamic cast
+        aDest = std::dynamic_pointer_cast<U>( resolvedPoint );
+
+        return static_cast<bool>( aDest );
     }
 
     template <typename T, typename U>

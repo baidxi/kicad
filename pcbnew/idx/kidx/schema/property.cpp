@@ -174,39 +174,6 @@ EDMD_UNIT_SURFACE::EDMD_UNIT_SURFACE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         ParseChildren( aNode );
 }
 
-// ------------------- EDMD_ANGLE_PROPERTY -------------------
-
-EDMD_ANGLE_PROPERTY::EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
-        EDMD_CONSTRAINED_PROPERTY( aNode, false )
-{
-    if( aTopLevel )
-        ParseChildren( aNode );
-}
-
-bool EDMD_ANGLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
-{
-    const std::string name = aNode.GetName();
-    const std::string content = aNode.GetNodeContent();
-
-    if( IDX_keyword_compare( name, "property:Value" ) )
-    {
-        m_value = parseDouble( content );
-        return true;
-    }
-    else if( IDX_keyword_compare( name, "property:Unit" ) )
-    {
-        if( IDX_keyword_compare( content, "degrees" ) || IDX_keyword_compare( content, "grad" ) )
-        {
-            m_unit = content;
-            return true;
-        }
-        else
-            return false;
-    }
-    else
-        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
-}
-
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
 
 EDMD_LENGTH_PROPERTY::EDMD_LENGTH_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -251,6 +218,465 @@ bool EDMD_LOGIC_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 
     return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+}
+
+// ------------------- EDMD_PROPERTY -------------------
+
+EDMD_PROPERTY::EDMD_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Unit" ) )
+    {
+        m_unit = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_ANGLE_PROPERTY -------------------
+
+EDMD_ANGLE_PROPERTY::EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_ANGLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = parseDouble( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Unit" ) )
+    {
+        m_unit = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_DATETIME_PROPERTY -------------------
+
+EDMD_DATETIME_PROPERTY::EDMD_DATETIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_DATETIME_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_INTEGER_PROPERTY -------------------
+
+EDMD_INTEGER_PROPERTY::EDMD_INTEGER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_INTEGER_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = std::stoi( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Unit" ) )
+    {
+        m_unit = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_COLOR_PROPERTY -------------------
+
+EDMD_COLOR_PROPERTY::EDMD_COLOR_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_COLOR_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = std::stoi( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Mixed" ) )
+    {
+        m_mixed = ( IDX_keyword_compare( content, "true" ) );
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_CLEARANCE_STATE_PROPERTY -------------------
+
+EDMD_CLEARANCE_STATE_PROPERTY::EDMD_CLEARANCE_STATE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_CLEARANCE_STATE_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:StateName" ) )
+    {
+        m_stateName.emplace_back( idx_foundation::EDMD_NAME( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Accept" ) )
+    {
+        m_accept = ( IDX_keyword_compare( content, "true" ) );
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_USER_SIMPLE_PROPERTY -------------------
+
+EDMD_USER_SIMPLE_PROPERTY::EDMD_USER_SIMPLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_USER_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_USER_SIMPLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_simpleValue = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Unit" ) )
+    {
+        m_unit = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_USER_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_USER_COMPOUND_PROPERTY -------------------
+
+EDMD_USER_COMPOUND_PROPERTY::EDMD_USER_COMPOUND_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_USER_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_USER_COMPOUND_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        // For compound properties, Value elements contain nested EDMDUserProperty elements
+        auto child = aNode.GetChildren();
+        while( child )
+        {
+            // Create appropriate user property based on the child element
+            // This is a simplified approach - in a full implementation, you'd need to determine the type
+            m_values.push_back( std::make_shared<EDMD_USER_SIMPLE_PROPERTY>( *child, true ) );
+            child = child->GetNext();
+        }
+        return true;
+    }
+    else
+    {
+        return this->EDMD_USER_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_USER_ANY_PROPERTY_VALUE -------------------
+
+EDMD_USER_ANY_PROPERTY_VALUE::EDMD_USER_ANY_PROPERTY_VALUE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_USER_ANY_PROPERTY_VALUE::Parse( IDX_XML_NODE& aNode )
+{
+    // Capture the entire XML content as a string
+    m_anyValue = aNode.GetText();
+    return true;
+}
+
+// ------------------- EDMD_USER_ANY_PROPERTY -------------------
+
+EDMD_USER_ANY_PROPERTY::EDMD_USER_ANY_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_USER_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_USER_ANY_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = std::make_shared<EDMD_USER_ANY_PROPERTY_VALUE>( aNode, true );
+        return true;
+    }
+    else
+    {
+        return this->EDMD_USER_PROPERTY::Parse( aNode );
+    }
+}
+
+// ------------------- EDMD_USER_NON_VALUE_PROPERTY -------------------
+
+EDMD_USER_NON_VALUE_PROPERTY::EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_USER_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+// ------------------- Missing Unit Classes -------------------
+
+EDMD_UNIT_VOLUME::EDMD_UNIT_VOLUME( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_UNIT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+EDMD_UNIT_WEIGHT::EDMD_UNIT_WEIGHT( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_UNIT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+EDMD_UNIT_WORK::EDMD_UNIT_WORK( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_UNIT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+// ------------------- Enum Property Types -------------------
+
+EDMD_BOOLEAN_PROPERTY_TYPE::EDMD_BOOLEAN_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_BOOLEAN_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = std::stoi( content );
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+EDMD_CUTOUT_SIDE_PROPERTY_TYPE::EDMD_CUTOUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_CUTOUT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+EDMD_PIN_TYPE_PROPERTY_TYPE::EDMD_PIN_TYPE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_PIN_TYPE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_CONSTRAINED_PROPERTY( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:Value" ) )
+    {
+        m_value = content;
+        return true;
+    }
+    else
+    {
+        return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
+    }
+}
+
+EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        IDX_BASE()
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    auto child = aNode.GetChildren();
+
+    while( child )
+    {
+        const std::string name = child->GetName();
+        const std::string content = child->GetNodeContent();
+
+        if( IDX_keyword_compare( name, "property:i" ) )
+        {
+            m_i = std::stoi( content );
+        }
+        else if( IDX_keyword_compare( name, "property:j" ) )
+        {
+            m_j = std::stoi( content );
+        }
+        else
+        {
+            unknownKeywordIDX( name );
+        }
+        child = child->GetNext();
+    }
+    return true;
 }
 
 } // namespace idx_property

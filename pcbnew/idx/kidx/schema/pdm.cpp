@@ -23,6 +23,7 @@
  */
 
 #include <idx/kidx/schema/pdm.h>
+#include <idx/kidx/schema/geometry.h>
 #include <iostream>
 
 namespace idx_pdm
@@ -917,6 +918,275 @@ bool EDMD_INTERSTRATUM_FEATURE::Resolve( IDX_REGISTRY& aRegistry )
     bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
 
     result &= resolve<EDMD_STRATUM>( m_stratumRef, m_stratum, aRegistry );
+
+    return result;
+}
+
+
+// -----------------------------------------------------
+// EDMD_PACKAGE_PIN
+// -----------------------------------------------------
+
+EDMD_PACKAGE_PIN::EDMD_PACKAGE_PIN( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+    
+    // Handle attributes
+    m_pin_number = aNode.GetAttribute( "pin_number", "" );
+    m_primary = parseBool( aNode.GetAttribute( "primary", "false" ) );
+}
+
+
+bool EDMD_PACKAGE_PIN::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:Point" ) )
+    {
+        m_pointRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:Shape" ) )
+    {
+        m_shapeRef = content;
+        return true;
+    }
+    else
+        return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_3DMODEL
+// -----------------------------------------------------
+
+EDMD_3DMODEL::EDMD_3DMODEL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_3DMODEL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:ModelIdentifier" ) )
+    {
+        m_modelIdentifier = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:ModelVersion" ) )
+    {
+        m_modelVersion = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:ModelLocation" ) )
+    {
+        m_modelLocation = content;
+        return true;
+    }
+    else
+        return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_BEND
+// -----------------------------------------------------
+
+EDMD_BEND::EDMD_BEND( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_ITEM_SHAPE( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+    
+    // Handle SequenceNumber attribute
+    std::string seqNum = aNode.GetAttribute( "SequenceNumber", "0" );
+    if( !seqNum.empty() )
+        m_sequenceNumber = parseInt( seqNum );
+}
+
+
+bool EDMD_BEND::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:BendType" ) )
+    {
+        m_bendTypeRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:SequenceNumber" ) )
+    {
+        m_sequenceNumber = parseInt( content );
+        return true;
+    }
+    else
+        return this->EDMD_ITEM_SHAPE::Parse( aNode );
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_BEND_TYPE
+// -----------------------------------------------------
+
+EDMD_BEND_TYPE::EDMD_BEND_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_BEND_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:BendLine" ) )
+    {
+        m_bendLineRef = content;
+        return true;
+    }
+    else
+        return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_CIRCULAR_BEND_TYPE
+// -----------------------------------------------------
+
+EDMD_CIRCULAR_BEND_TYPE::EDMD_CIRCULAR_BEND_TYPE( IDX_XML_NODE& aNode ) :
+        EDMD_BEND_TYPE( aNode, false )
+{
+}
+
+
+bool EDMD_CIRCULAR_BEND_TYPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:InnerSide" ) )
+    {
+        if( IDX_keyword_compare( content, "Top" ) )
+            m_innerSide = EDMDINNER_SIDE::TOP;
+        else if( IDX_keyword_compare( content, "Bottom" ) )
+            m_innerSide = EDMDINNER_SIDE::BOTTOM;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:InnerRadius" ) )
+    {
+        m_innerRadius = parseDouble( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:InnerAngle" ) )
+    {
+        m_innerAngle = parseDouble( content );
+        return true;
+    }
+    else
+        return this->EDMD_BEND_TYPE::Parse( aNode );
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// Resolve methods for new classes
+// -----------------------------------------------------
+
+bool EDMD_PACKAGE_PIN::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+
+    result &= resolve<idx_geometry::EDMD_POINT>( m_pointRef, m_point, aRegistry );
+    result &= resolve<idx_pdm::EDMD_ITEM_SHAPE>( m_shapeRef, m_shape, aRegistry );
+
+    return result;
+}
+
+
+bool EDMD_BEND::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
+
+    result &= resolve<idx_pdm::EDMD_ITEM_SHAPE>( m_bendTypeRef, m_bendType, aRegistry );
+
+    return result;
+}
+
+
+bool EDMD_BEND_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+
+    result &= resolve<idx_geometry::EDMD_CURVE>( m_bendLineRef, m_bendLine, aRegistry );
+
+    return result;
+}
+
+
+// -----------------------------------------------------
+// EDMD_NON_FEATURE_ITEM_SHAPE
+// -----------------------------------------------------
+
+EDMD_NON_FEATURE_ITEM_SHAPE::EDMD_NON_FEATURE_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_ITEM_SHAPE( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_NON_FEATURE_ITEM_SHAPE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "pdm:NonFeatureItemShapePurposePurpose" ) )
+    {
+        if( IDX_keyword_compare( content, "InfoText" ) )
+            m_purpose = NON_FEATURE_ITEM_SHAPE_PURPOSE::INFO_TEXT;
+        else if( IDX_keyword_compare( content, "InfoGeometry" ) )
+            m_purpose = NON_FEATURE_ITEM_SHAPE_PURPOSE::INFO_GEOMETRY;
+        else if( IDX_keyword_compare( content, "AuxiliaryGeometry" ) )
+            m_purpose = NON_FEATURE_ITEM_SHAPE_PURPOSE::AUXILIARY_GEOMETRY;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "pdm:RelatedItemShape" ) )
+    {
+        m_relatedItemShapeRef.push_back( content );
+        return true;
+    }
+    else
+        return this->EDMD_ITEM_SHAPE::Parse( aNode );
+
+    return true;
+}
+
+
+bool EDMD_NON_FEATURE_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
+
+    result &= resolve<idx_pdm::EDMD_ITEM_SHAPE>( m_relatedItemShapeRef, m_relatedItemShape, aRegistry );
 
     return result;
 }

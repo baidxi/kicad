@@ -30,6 +30,7 @@
 #include <wx/string.h>
 #include <memory>
 #include <vector>
+#include <string>
 
 namespace idx_foundation
 {
@@ -41,6 +42,8 @@ namespace idx_property
 
 class ARRAY_EDMD_NAME;
 class EDMD_ANGLE_PROPERTY;
+class EDMD_ANY_PROPERTY_VALUE;
+class EDMD_BOOLEAN_PROPERTY;
 class EDMD_BOOLEAN_PROPERTY_TYPE;
 class EDMD_CLEARANCE_STATE_PROPERTY;
 class EDMD_COLOR_PROPERTY;
@@ -61,17 +64,23 @@ class EDMD_UNIT_ANGLE;
 class EDMD_UNIT_CAPACITANCE;
 class EDMD_UNIT_LENGTH;
 class EDMD_UNIT_POWER;
+class EDMD_UNIT_RESISTANCE;
 class EDMD_UNIT_SURFACE;
 class EDMD_UNIT_VOLTAGE;
 class EDMD_UNIT_VOLUME;
 class EDMD_UNIT_WEIGHT;
 class EDMD_UNIT_WORK;
 class EDMD_USER_PROPERTY;
+class EDMD_USER_SIMPLE_PROPERTY;
+class EDMD_USER_COMPOUND_PROPERTY;
+class EDMD_USER_ANY_PROPERTY;
+class EDMD_USER_ANY_PROPERTY_VALUE;
+class EDMD_USER_NON_VALUE_PROPERTY;
 
 class ARRAY_EDMD_NAME : public IDX_BASE
 {
 public:
-    ARRAY_EDMD_NAME() {};
+    ARRAY_EDMD_NAME() : IDX_BASE() {};
     ARRAY_EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
     std::vector<std::string> m_EDMDname;
 };
@@ -79,7 +88,7 @@ public:
 class EDMD_CONSTRAINED_PROPERTY : public idx_foundation::EDMD_OBJECT
 {
 public:
-    EDMD_CONSTRAINED_PROPERTY() {};
+    EDMD_CONSTRAINED_PROPERTY() : idx_foundation::EDMD_OBJECT() {};
     EDMD_CONSTRAINED_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -98,7 +107,7 @@ public:
 class EDMD_USER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_USER_PROPERTY() {};
+    EDMD_USER_PROPERTY() : EDMD_CONSTRAINED_PROPERTY() {};
     EDMD_USER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
@@ -192,18 +201,6 @@ public:
     EDMD_UNIT_SURFACE( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
-// ------------------- EDMD_ANGLE_PROPERTY -------------------
-
-class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
-{
-public:
-    EDMD_ANGLE_PROPERTY() {};
-    EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
-
-    double m_value = 0.0;
-};
-
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
 
 class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
@@ -227,6 +224,229 @@ public:
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     double m_value = true;
+};
+
+// ------------------- EDMD_PROPERTY -------------------
+
+class EDMD_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_PROPERTY() {};
+    EDMD_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;
+    std::string m_unit;
+};
+
+
+// ------------------- EDMD_ANGLE_PROPERTY -------------------
+
+class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_ANGLE_PROPERTY() {};
+    EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    double m_value = 0.0;
+    std::string m_unit;
+};
+
+// ------------------- EDMD_DATETIME_PROPERTY -------------------
+
+class EDMD_DATETIME_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_DATETIME_PROPERTY() {};
+    EDMD_DATETIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;  // xs:dateTime
+};
+
+// ------------------- EDMD_INTEGER_PROPERTY -------------------
+
+class EDMD_INTEGER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_INTEGER_PROPERTY() {};
+    EDMD_INTEGER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    int m_value = 0;
+    std::string m_unit;
+};
+
+// ------------------- EDMD_COLOR_PROPERTY -------------------
+
+class EDMD_COLOR_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_COLOR_PROPERTY() {};
+    EDMD_COLOR_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    int m_value = 0;
+    bool m_mixed = false;
+};
+
+// ------------------- EDMD_CLEARANCE_STATE_PROPERTY -------------------
+
+class EDMD_CLEARANCE_STATE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_CLEARANCE_STATE_PROPERTY() {};
+    EDMD_CLEARANCE_STATE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::vector<idx_foundation::EDMD_NAME> m_stateName;
+    bool m_accept = true;
+};
+
+// ------------------- EDMD_USER_SIMPLE_PROPERTY -------------------
+
+class EDMD_USER_SIMPLE_PROPERTY : public EDMD_USER_PROPERTY
+{
+public:
+    EDMD_USER_SIMPLE_PROPERTY() {};
+    EDMD_USER_SIMPLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_simpleValue;
+    std::string m_unit;
+};
+
+// ------------------- EDMD_USER_COMPOUND_PROPERTY -------------------
+
+class EDMD_USER_COMPOUND_PROPERTY : public EDMD_USER_PROPERTY
+{
+public:
+    EDMD_USER_COMPOUND_PROPERTY() {};
+    EDMD_USER_COMPOUND_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::vector<std::shared_ptr<EDMD_USER_PROPERTY>> m_values;
+};
+
+// ------------------- EDMD_USER_ANY_PROPERTY_VALUE -------------------
+
+class EDMD_USER_ANY_PROPERTY_VALUE : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_USER_ANY_PROPERTY_VALUE() {};
+    EDMD_USER_ANY_PROPERTY_VALUE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    // Contains any XML data
+    std::string m_anyValue;
+};
+
+// ------------------- EDMD_USER_ANY_PROPERTY -------------------
+
+class EDMD_USER_ANY_PROPERTY : public EDMD_USER_PROPERTY
+{
+public:
+    EDMD_USER_ANY_PROPERTY() {};
+    EDMD_USER_ANY_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::shared_ptr<EDMD_USER_ANY_PROPERTY_VALUE> m_value;
+};
+
+// ------------------- EDMD_USER_NON_VALUE_PROPERTY -------------------
+
+class EDMD_USER_NON_VALUE_PROPERTY : public EDMD_USER_PROPERTY
+{
+public:
+    EDMD_USER_NON_VALUE_PROPERTY() {};
+    EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+// ------------------- Missing Unit Classes -------------------
+
+class EDMD_UNIT_VOLUME : public EDMD_UNIT
+{
+public:
+    EDMD_UNIT_VOLUME() {};
+    EDMD_UNIT_VOLUME( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+class EDMD_UNIT_WEIGHT : public EDMD_UNIT
+{
+public:
+    EDMD_UNIT_WEIGHT() {};
+    EDMD_UNIT_WEIGHT( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+class EDMD_UNIT_WORK : public EDMD_UNIT
+{
+public:
+    EDMD_UNIT_WORK() {};
+    EDMD_UNIT_WORK( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+// ------------------- Enum Property Types -------------------
+
+class EDMD_BOOLEAN_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_BOOLEAN_PROPERTY_TYPE() {};
+    EDMD_BOOLEAN_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    int m_value = -1;  // EDMDBooleanRestrictionType: -1 or 1
+};
+
+class EDMD_CUTOUT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_CUTOUT_SIDE_PROPERTY_TYPE() {};
+    EDMD_CUTOUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;  // Top, Bottom, All
+};
+
+class EDMD_PIN_TYPE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_PIN_TYPE_PROPERTY_TYPE() {};
+    EDMD_PIN_TYPE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;  // I, L, Z, C
+};
+
+class EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE() {};
+    EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;  // Both, Top, Bottom
+};
+
+class EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+{
+public:
+    EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE() {};
+    EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_value;  // Both, Top, Bottom, All, Inner
+};
+
+class EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE : public IDX_BASE
+{
+public:
+    EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE() {};
+    EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    int m_i = 0;
+    int m_j = 0;
 };
 
 } // namespace idx_property

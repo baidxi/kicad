@@ -436,6 +436,37 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
         m_registry.registerObject<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( s->m_id, s );
         m_functionalItemShapes.push_back( s );
     }
+    else if( IDX_keyword_compare( name, "pdm:PackagePin" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_PACKAGE_PIN> s = std::make_shared<idx_pdm::EDMD_PACKAGE_PIN>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_PACKAGE_PIN>( s->m_id, s );
+        m_packagePins.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:3DModel" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_3DMODEL> s = std::make_shared<idx_pdm::EDMD_3DMODEL>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_3DMODEL>( s->m_id, s );
+        m_3dModels.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:Bend" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_BEND> s = std::make_shared<idx_pdm::EDMD_BEND>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_bends.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:BendType" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_BEND_TYPE> s = std::make_shared<idx_pdm::EDMD_BEND_TYPE>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_BEND_TYPE>( s->m_id, s );
+        m_bendTypes.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:CircularBendType" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_CIRCULAR_BEND_TYPE> s =
+                std::make_shared<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( aNode );
+        m_registry.registerObject<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( s->m_id, s );
+        m_circularBendTypes.push_back( s );
+    }
     else
     {
         return false;
@@ -483,6 +514,21 @@ bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
 
     for( auto& fs : m_functionalItemShapes )
         result &= fs->Resolve( aRegistry );
+
+    for( auto& packagePin : m_packagePins )
+        result &= packagePin->Resolve( aRegistry );
+
+    for( auto& model3d : m_3dModels )
+        result &= model3d->Resolve( aRegistry );
+
+    for( auto& bend : m_bends )
+        result &= bend->Resolve( aRegistry );
+
+    for( auto& bendType : m_bendTypes )
+        result &= bendType->Resolve( aRegistry );
+
+    for( auto& circularBendType : m_circularBendTypes )
+        result &= circularBendType->Resolve( aRegistry );
 
     return result;
 }
@@ -559,7 +605,7 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
 }
 
 
-bool EDMD_DATASET::Resolve()
+bool EDMD_DATASET::ResolveAll()
 {
     return m_body.Resolve( m_body.m_registry );
 }

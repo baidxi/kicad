@@ -27,39 +27,140 @@
 #include <idx/kidx/schema/foundation.h>
 #include <idx/kidx/schema/idx_base.h>
 #include <memory>
+#include <vector>
+#include <string>
 
 namespace idx_annotation
 {
 
+// Forward declarations
+class EDMD_ANNOTATION;
+class EDMD_HISTORY_ENTRY;
+class EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE;
+class EDMD_HISTORY_ENTRY_ADD_COMMENT;
+class EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP;
+class EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE;
+class EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE;
+class EDMD_HISTORY;
+class ARRAY_OF_EDMD_NAME;
+
+/**
+ * @brief Array of EDMD_NAME elements
+ */
+class ARRAY_OF_EDMD_NAME : public IDX_BASE
+{
+public:
+    ARRAY_OF_EDMD_NAME() : IDX_BASE() {};
+    ARRAY_OF_EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_EDMDName;
+};
+
+/**
+ * @brief Annotation to an object
+ */
+class EDMD_ANNOTATION : public idx_foundation::EDMD_COLLABORATION_OBJECT
+{
+public:
+    EDMD_ANNOTATION() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_ANNOTATION( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string              m_subject;           // IDREF to EDMDObject
+    std::string              m_creator;           // IDREF to EDMDPerson
+    std::vector<std::string> m_relatedAnnotation; // IDREF to EDMDAnnotation
+    std::string              m_caption;
+    std::string              m_text;
+    std::vector<std::string> m_reference; // anyURI
+};
+
+/**
+ * @brief Abstract super type for history entry
+ */
+class EDMD_HISTORY_ENTRY : public EDMD_ANNOTATION
+{
+public:
+    EDMD_HISTORY_ENTRY() : EDMD_ANNOTATION() {};
+    EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_history;          // IDREF to EDMDHistory
+    std::string m_creationDateTime; // xs:dateTime
+    std::string m_systemScope;      // IDREF to EDMDSystem
+};
+
+/**
+ * @brief History entry indicating a change on an item instance
+ */
+class EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE : public EDMD_HISTORY_ENTRY
+{
+public:
+    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE & aNode, bool aTopLevel );
+};
+
+/**
+ * @brief History entry adding only a comment to the history
+ */
+class EDMD_HISTORY_ENTRY_ADD_COMMENT : public EDMD_HISTORY_ENTRY
+{
+public:
+    EDMD_HISTORY_ENTRY_ADD_COMMENT() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+/**
+ * @brief History entry indicating the change of ownership
+ */
+class EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP : public EDMD_HISTORY_ENTRY
+{
+public:
+    EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP( IDX_XML_NODE& aNode, bool aTopLevel );
+
+    bool Parse( IDX_XML_NODE& aNode ) override;
+
+    std::string m_oldOwner; // IDREF, nillable
+};
+
+/**
+ * @brief History entry indicating addition of an item instance
+ */
+class EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE : public EDMD_HISTORY_ENTRY
+{
+public:
+    EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+/**
+ * @brief History entry indicating acceptance of a change
+ */
+class EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE : public EDMD_HISTORY_ENTRY
+{
+public:
+    EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
+/**
+ * @brief Represents a human readable history
+ */
 class EDMD_HISTORY : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_HISTORY() :
-            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_HISTORY();
+    EDMD_HISTORY( IDX_XML_NODE& aNode );
+    EDMD_HISTORY( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    EDMD_HISTORY( IDX_XML_NODE& aNode ) :
-            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
-    {
-        auto child = aNode.GetChildren();
+    bool Parse( IDX_XML_NODE& aNode ) override;
 
-        while( child )
-        {
-            const std::string content = child->GetNodeContent();
-            const std::string name = child->GetName();
-
-            if( IDX_keyword_compare( name, "annotation:HistoryName" ) )
-            {
-                m_historyName.m_objectName = content;
-            }
-            else
-            {
-                unknownKeywordIDX( name );
-            }
-            child = child->GetNext();
-        }
-    }
-
-    idx_foundation::EDMD_NAME m_historyName;
+    ARRAY_OF_EDMD_NAME m_historyName;
+    std::string        m_subject; // IDREF to EDMDObject
 };
 
 } // namespace idx_annotation

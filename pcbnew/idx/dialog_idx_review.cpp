@@ -388,7 +388,7 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
     std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( doc.GetRoot() );
 
     m_loadedDataset = std::make_shared<idx_foundation::EDMD_DATASET>( *child );
-    m_loadedDataset->Resolve();
+    m_loadedDataset->ResolveAll();
     m_loadedDataset->Prepare();
 
 

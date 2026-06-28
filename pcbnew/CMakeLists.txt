@@ -373,12 +373,16 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
+     idx/kidx/schema/annotation.cpp
      idx/kidx/schema/computational.cpp
      idx/kidx/schema/external.cpp
      idx/kidx/schema/foundation.cpp
+     idx/kidx/schema/grouping.cpp
      idx/kidx/schema/geometry.cpp
      idx/kidx/schema/idx_base.cpp
+     idx/kidx/schema/material.cpp
      idx/kidx/schema/pdm.cpp
+     idx/kidx/schema/text.cpp
      idx/kidx/sync/sync.cpp
      idx/CAD_software.cpp
      idx/kidx/schema/property.cpp
