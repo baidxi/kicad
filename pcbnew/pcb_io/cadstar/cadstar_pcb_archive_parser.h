@@ -69,6 +69,7 @@ public:
     typedef wxString COPPERCODE_ID;
     typedef wxString PADCODE_ID;
     typedef wxString VIACODE_ID;
+    typedef wxString LAYERPAIR_UNSUPPORTED_CHILD_ID;
     typedef wxString SPACINGCODE_ID;
     typedef wxString LAYERPAIR_ID;
     typedef wxString RULESET_ID;
@@ -355,6 +356,7 @@ public:
         PHYSICAL_LAYER_ID PhysicalLayerStart;
         PHYSICAL_LAYER_ID PhysicalLayerEnd;
         VIACODE_ID        ViacodeID;
+        LAYERPAIR_UNSUPPORTED_CHILD_ID UnsupportedChildID;
 
         void Parse( XNODE* aNode, PARSER_CONTEXT* aContext ) override;
     };
@@ -399,6 +401,7 @@ public:
         std::map<VIACODE_ID, VIACODE>         ViaCodes;
         std::map<LAYERPAIR_ID, LAYERPAIR>
                                    LayerPairs; ///< Default vias to use between pairs of layers
+        std::map<LAYERPAIR_ID, LAYERPAIR>     UnsupportedLayerPairs;
         std::vector<SPCCLASSSPACE> SpacingClasses;
 
         void Parse( XNODE* aNode, PARSER_CONTEXT* aContext ) override;
