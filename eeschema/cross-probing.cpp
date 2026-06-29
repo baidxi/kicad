@@ -93,6 +93,12 @@ SCH_ITEM* SCH_EDITOR_CONTROL::FindSymbolAndItem( const wxString* aPath, const wx
                 {
                     pin = symbol->GetPin( aSearchText );
 
+                    // Fall back to reverse pin-to-pad resolution so a remapped pad highlights its
+                    // owning pin (issue #2282); the search text from pcbnew is a pad number.
+                    if( !pin )
+                        pin = symbol->GetPinByEffectivePadNumber( aSearchText, &sheet,
+                                                                  m_frame->Schematic().GetCurrentVariant() );
+
                     // Ensure we have found the right unit in case of multi-units symbol
                     if( pin )
                     {
@@ -340,8 +346,16 @@ void SCH_EDIT_FRAME::SendSelectItemsToPcb( const std::vector<EDA_ITEM*>& aItems,
             SYMBOL*  symbol = pin->GetParentSymbol();
             wxString ref = symbol->GetRef( &GetCurrentSheet(), false );
 
-            parts.push_back( wxT( "P" ) + EscapeString( ref, CTX_IPC ) + wxT( "/" )
-                             + EscapeString( pin->GetShownNumber(), CTX_IPC ) );
+            // Highlight the resolved pad(s) in pcbnew (issue #2282); a mapped pin may target more
+            // than one pad via stacked notation, so highlight all of them.
+            wxString effective = pin->GetEffectivePadNumber( GetCurrentSheet(), Schematic().GetCurrentVariant() );
+
+            for( const wxString& pad : ExpandStackedPinNotation( effective ) )
+            {
+                parts.push_back( wxT( "P" ) + EscapeString( ref, CTX_IPC ) + wxT( "/" )
+                                 + EscapeString( pad, CTX_IPC ) );
+            }
+
             break;
         }
 
@@ -470,11 +484,10 @@ void SCH_EDIT_FRAME::SendCrossProbeClearHighlight()
 }
 
 
-bool findSymbolsAndPins(
-        const SCH_SHEET_LIST& aSchematicSheetList, const SCH_SHEET_PATH& aSheetPath,
-        std::unordered_map<wxString, std::vector<SCH_REFERENCE>>&             aSyncSymMap,
-        std::unordered_map<wxString, std::unordered_map<wxString, SCH_PIN*>>& aSyncPinMap,
-        bool                                                                  aRecursive = false )
+bool findSymbolsAndPins( const SCH_SHEET_LIST& aSchematicSheetList, const SCH_SHEET_PATH& aSheetPath,
+                         std::unordered_map<wxString, std::vector<SCH_REFERENCE>>&             aSyncSymMap,
+                         std::unordered_map<wxString, std::unordered_map<wxString, SCH_PIN*>>& aSyncPinMap,
+                         const wxString& aVariantName = wxEmptyString, bool aRecursive = false )
 {
     if( aRecursive )
     {
@@ -484,8 +497,7 @@ bool findSymbolsAndPins(
             if( candidate == aSheetPath || !candidate.IsContainedWithin( aSheetPath ) )
                 continue;
 
-            findSymbolsAndPins( aSchematicSheetList, candidate, aSyncSymMap, aSyncPinMap,
-                                aRecursive );
+            findSymbolsAndPins( aSchematicSheetList, candidate, aSyncSymMap, aSyncPinMap, aVariantName, aRecursive );
         }
     }
 
@@ -538,10 +550,19 @@ bool findSymbolsAndPins(
                 if( pinUnit > 0 && pinUnit != schRef.GetUnit() )
                     continue;
 
-                auto pinIt = pinMap.find( pin->GetNumber() );
+                // Reverse-map the requested pad back to the owning pin (issue #2282).  A pin may
+                // resolve to several pads via the map; match the first that pcbnew asked for.
+                for( const wxString& pad :
+                     ExpandStackedPinNotation( pin->GetEffectivePadNumber( aSheetPath, aVariantName ) ) )
+                {
+                    auto pinIt = pinMap.find( pad );
 
-                if( pinIt != pinMap.end() )
-                    pinIt->second = pin;
+                    if( pinIt != pinMap.end() )
+                    {
+                        pinIt->second = pin;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -779,7 +800,7 @@ findItemsFromSyncSelection( const SCHEMATIC& aSchematic, const std::string aSync
                 clearSyncMaps();
 
                 // Fill sync maps
-                findSymbolsAndPins( allSheetsList, aSheet, syncSymMap, syncPinMap );
+                findSymbolsAndPins( allSheetsList, aSheet, syncSymMap, syncPinMap, aSchematic.GetCurrentVariant() );
                 std::vector<SCH_ITEM*> itemsVector = flattenSyncMaps();
 
                 // Add fully wanted sheets to vector
@@ -810,7 +831,7 @@ findItemsFromSyncSelection( const SCHEMATIC& aSchematic, const std::string aSync
         {
             clearSyncMaps();
 
-            findSymbolsAndPins( allSheetsList, sheetPath, syncSymMap, syncPinMap );
+            findSymbolsAndPins( allSheetsList, sheetPath, syncSymMap, syncPinMap, aSchematic.GetCurrentVariant() );
 
             checkFocusItems( sheetPath );
         }
@@ -832,7 +853,7 @@ findItemsFromSyncSelection( const SCHEMATIC& aSchematic, const std::string aSync
         {
             clearSyncMaps();
 
-            findSymbolsAndPins( allSheetsList, sheetPath, syncSymMap, syncPinMap );
+            findSymbolsAndPins( allSheetsList, sheetPath, syncSymMap, syncPinMap, aSchematic.GetCurrentVariant() );
 
             if( !syncMapsValuesEmpty() )
             {
@@ -1040,6 +1061,7 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
         NETLIST_EXPORTER_KICAD exporter( &Schematic() );
         STRING_FORMATTER formatter;
 
+        exporter.SetKiway( &Kiway() );
         exporter.Format( &formatter, GNL_ALL | GNL_OPT_KICAD );
 
         payload = formatter.GetString();

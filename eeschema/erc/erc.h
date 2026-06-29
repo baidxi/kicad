@@ -70,6 +70,16 @@ public:
     int TestDuplicateSheetNames( bool aCreateMarker );
 
     /**
+     * Check pin-to-pad maps (issue #2282): stale pin references, duplicate pad targets, bad pads
+     * and unmapped connected pins.  Footprint pad numbers come from the cvpcb kiface (aCvPcb), so
+     * the footprint-dependent checks (bad-pad, unmapped-connected-pin) run here when it is
+     * available.  Drops a SCH_MARKER at the symbol body per violation.
+     *
+     * @return the number of violations found.
+     */
+    int TestPinMap( KIFACE* aCvPcb, PROJECT* aProject );
+
+    /**
      * Check for any unresolved text variable references.
      */
     void TestTextVars( DS_PROXY_VIEW_ITEM* aDrawingSheet );

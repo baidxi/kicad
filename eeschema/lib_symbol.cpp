@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include <advanced_config.h>
 #include <properties/property.h>
@@ -264,6 +265,8 @@ LIB_SYMBOL::LIB_SYMBOL( const LIB_SYMBOL& aSymbol, LEGACY_SYMBOL_LIB* aLibrary, 
     m_library = aLibrary;
     m_name = aSymbol.m_name;
     m_fpFilters = wxArrayString( aSymbol.m_fpFilters );
+    m_pinMaps = aSymbol.m_pinMaps;
+    m_associatedFootprints = aSymbol.m_associatedFootprints;
     m_unitCount = aSymbol.m_unitCount;
     m_demorgan = aSymbol.m_demorgan;
     m_unitsLocked = aSymbol.m_unitsLocked;
@@ -317,6 +320,8 @@ const LIB_SYMBOL& LIB_SYMBOL::operator=( const LIB_SYMBOL& aSymbol )
     m_library = aSymbol.m_library;
     m_name = aSymbol.m_name;
     m_fpFilters = wxArrayString( aSymbol.m_fpFilters );
+    m_pinMaps = aSymbol.m_pinMaps;
+    m_associatedFootprints = aSymbol.m_associatedFootprints;
     m_unitCount = aSymbol.m_unitCount;
     m_demorgan = aSymbol.m_demorgan;
     m_unitsLocked = aSymbol.m_unitsLocked;
@@ -694,6 +699,11 @@ std::unique_ptr<LIB_SYMBOL> LIB_SYMBOL::Flatten() const
             retv->SetExcludedFromBoard( parentChain.front()->GetExcludedFromBoard() );
             retv->SetExcludedFromPosFiles( parentChain.front()->GetExcludedFromPosFiles() );
         }
+
+        // Pin maps and associated footprints inherit as a coupled bundle; copy the resolved
+        // effective bundle so the flattened symbol is self-contained.
+        retv->m_pinMaps = GetEffectivePinMaps();
+        retv->m_associatedFootprints = GetEffectiveAssociatedFootprints();
 
         retv->m_parent.reset();
     }
@@ -2256,6 +2266,40 @@ int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aR
                     return retv;
             }
         }
+    }
+
+    if( int tmp = static_cast<int>( m_pinMaps.GetAll().size() - aRhs.m_pinMaps.GetAll().size() ) )
+    {
+        retv = tmp;
+        REPORT( _( "Pin map count differs." ) );
+
+        if( !aReporter )
+            return retv;
+    }
+    else if( m_pinMaps != aRhs.m_pinMaps )
+    {
+        retv = 1;
+        REPORT( _( "Pin maps differ." ) );
+
+        if( !aReporter )
+            return retv;
+    }
+
+    if( int tmp = static_cast<int>( m_associatedFootprints.size() - aRhs.m_associatedFootprints.size() ) )
+    {
+        retv = tmp;
+        REPORT( _( "Associated footprint count differs." ) );
+
+        if( !aReporter )
+            return retv;
+    }
+    else if( m_associatedFootprints != aRhs.m_associatedFootprints )
+    {
+        retv = 1;
+        REPORT( _( "Associated footprints differ." ) );
+
+        if( !aReporter )
+            return retv;
     }
 
     if( int tmp = m_keyWords.Cmp( aRhs.m_keyWords ) )
