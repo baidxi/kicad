@@ -42,6 +42,18 @@ ARRAY_EDMD_NAME::ARRAY_EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
 EDMD_CONSTRAINED_PROPERTY::EDMD_CONSTRAINED_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
         idx_foundation::EDMD_OBJECT( aNode, false )
 {
+    std::string value;
+
+    value = aNode.GetAttribute( "IsChanged", "" );
+
+    if( !value.empty() )
+        m_isChanged = parseBool( value );
+
+    value = aNode.GetAttribute( "IsNew", "" );
+
+    if( !value.empty() )
+        m_isNew = parseBool( value );
+
     if( aTopLevel )
         ParseChildren( aNode );
 };
@@ -600,7 +612,8 @@ bool EDMD_PIN_TYPE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
     }
 }
 
-EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE(
+        IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
     if( aTopLevel )
@@ -623,7 +636,8 @@ bool EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNo
     }
 }
 
-EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode,
+                                                                                                  bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
     if( aTopLevel )
@@ -646,7 +660,8 @@ bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode
     }
 }
 
-EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode,
+                                                                                            bool          aTopLevel ) :
         IDX_BASE()
 {
     if( aTopLevel )

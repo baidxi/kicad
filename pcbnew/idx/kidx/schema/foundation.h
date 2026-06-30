@@ -58,7 +58,7 @@ protected:
 
 public:
     std::string         m_id;
-    enum OPTIONAL_LOGIC m_isAttributeChanged = UNSPECIFIED;
+    std::optional<bool> m_isAttributeChanged;
 };
 
 
@@ -130,7 +130,8 @@ class EDMD_HEADER : public EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_HEADER( IDX_XML_NODE& aNode, bool aTopLevel );
-    EDMD_HEADER() : EDMD_EXTENSIBLE_OBJECT() {};
+    EDMD_HEADER() :
+            EDMD_EXTENSIBLE_OBJECT() {};
 
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
@@ -164,7 +165,8 @@ class EDMD_DATASET_BODY : public IDX_BASE
 {
 public:
     EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
-    EDMD_DATASET_BODY() : IDX_BASE() {};
+    EDMD_DATASET_BODY() :
+            IDX_BASE() {};
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
@@ -188,11 +190,11 @@ public:
     std::vector<std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT>>       m_keeps;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM>>                  m_items;
     std::vector<std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT>>    m_assemblies;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_PACKAGE_PIN>>         m_packagePins;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_3DMODEL>>             m_3dModels;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_BEND>>                m_bends;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_BEND_TYPE>>           m_bendTypes;
-    std::vector<std::shared_ptr<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>> m_circularBendTypes;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_PACKAGE_PIN>>           m_packagePins;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_3DMODEL>>               m_3dModels;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_BEND>>                  m_bends;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_BEND_TYPE>>             m_bendTypes;
+    std::vector<std::shared_ptr<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>>    m_circularBendTypes;
 
 
     std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>> m_boardOutline;
@@ -274,10 +276,10 @@ public:
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
-    std::string m_systemScopeRef;
-    bool        m_persistant = false;
-    std::string m_originatorId;
-    bool        m_isOriginator = false;
+    std::string         m_systemScopeRef;
+    std::optional<bool> m_persistant = false;
+    std::string         m_originatorId;
+    std::optional<bool> m_isOriginator = false;
 };
 
 

@@ -51,12 +51,8 @@ EDMD_OBJECT::EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel ) :
 
     isAttributeChanged = aNode.GetAttribute( "isAttributeChanged", "" );
 
-    if( isAttributeChanged == "true" )
-        m_isAttributeChanged = LOGIC_TRUE;
-    else if( isAttributeChanged == "false" )
-        m_isAttributeChanged = LOGIC_FALSE;
-    else
-        m_isAttributeChanged = UNSPECIFIED;
+    if( !isAttributeChanged.empty() )
+        m_isAttributeChanged = parseBool( isAttributeChanged );
 }
 
 bool EDMD_OBJECT::Parse( IDX_XML_NODE& aNode )
@@ -82,8 +78,8 @@ void EDMD_OBJECT::Write( IDX_XML_NODE& aNode ) const
 
     aNode.SetAttribute( "xsi:type", m_xsiType );
 
-    if( m_isAttributeChanged != OPTIONAL_LOGIC::UNSPECIFIED )
-        aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged == OPTIONAL_LOGIC::LOGIC_TRUE );
+    if( m_isAttributeChanged.has_value() )
+        aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged.value() );
 }
 
 void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName, const std::string aValue ) const
@@ -564,12 +560,13 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
         std::string type = aNode.GetAttribute( "xsi:type", "" );
 
         // Check for full namespace URI or prefix-based type
-        bool isSendInfo = ( type.find( "SendInformation" ) != std::string::npos ) ||
-                         IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" );
-        bool isSendChanges = ( type.find( "SendChanges" ) != std::string::npos ) ||
-                            IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" );
-        bool isRequestInfo = ( type.find( "RequestForInformation" ) != std::string::npos ) ||
-                             IDX_keyword_compare( type, "computational:EDMDProcessInstructionRequestForInformation" );
+        bool isSendInfo = ( type.find( "SendInformation" ) != std::string::npos )
+                          || IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" );
+        bool isSendChanges = ( type.find( "SendChanges" ) != std::string::npos )
+                             || IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" );
+        bool isRequestInfo =
+                ( type.find( "RequestForInformation" ) != std::string::npos )
+                || IDX_keyword_compare( type, "computational:EDMDProcessInstructionRequestForInformation" );
 
         if( isSendInfo )
         {
@@ -593,7 +590,8 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
             if( !m_headerOnly )
             {
                 m_processInstruction.push_back(
-                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION>( aNode, true ) );
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION>( aNode,
+                                                                                                               true ) );
             }
         }
         else if( !type.empty() )
@@ -764,17 +762,17 @@ EDMD_IDENTIFIER::EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel ) :
 {
     m_xsiType = "foundation:EDMDIdentifier";
 
-    if( aNode.GetAttribute( "Persistant", "false" ) == "true" )
-        m_persistant = true;
-    else
-        m_persistant = false;
+    std::string value;
+    value = aNode.GetAttribute( "Persistant", "" );
 
-    if( aNode.GetAttribute( "IsOriginator", "false" ) == "true" )
-        m_isOriginator = true;
-    else
-        m_isOriginator = false;
+    if( !value.empty() )
+        m_persistant = parseBool( value );
 
-    m_originatorId = aNode.GetAttribute( "OriginatorId", "" );
+    value = aNode.GetAttribute( "IsOriginator", "" );
+
+    if( !value.empty() )
+        m_isOriginator = parseBool( value );
+
 
     if( aTopLevel )
         ParseChildren( aNode );
@@ -825,16 +823,18 @@ EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_DESIGNATOR( aNode, false )
 {
     m_xsiType = "foundation:EDMDName";
+    std::string value;
 
-    if( aNode.GetAttribute( "Persistant", "false" ) == "true" )
-        m_persistant = true;
-    else
-        m_persistant = false;
+    value = aNode.GetAttribute( "Persistant", "" );
 
-    if( aNode.GetAttribute( "IsOriginator", "false" ) == "true" )
-        m_isOriginator = true;
-    else
-        m_isOriginator = false;
+    if( !value.empty() )
+        m_persistant = parseBool( value );
+
+
+    value = aNode.GetAttribute( "IsOriginator", "" );
+
+    if( !value.empty() )
+        m_isOriginator = parseBool( value );
 
     m_originatorId = aNode.GetAttribute( "OriginatorId", "" );
 

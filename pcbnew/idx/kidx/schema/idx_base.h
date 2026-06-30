@@ -35,6 +35,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <optional>
 
 bool IDX_keyword_compare( std::string a, std::string b );
 
@@ -138,7 +139,7 @@ class EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP;
 class EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE;
 class EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE;
 class ARRAY_OF_EDMD_NAME;
-}
+} // namespace idx_annotation
 
 namespace idx_text
 {
@@ -150,7 +151,7 @@ namespace idx_grouping
 class EDMD_GROUP;
 class EDMD_ITEM_CONSTRAINT;
 class EDMD_GENERAL_CLASSIFICATION;
-}
+} // namespace idx_grouping
 
 namespace idx_material
 {
@@ -234,13 +235,6 @@ public:
     virtual ~IDX_BASE() = default;
     virtual bool Resolve( IDX_REGISTRY& aRegistry );
 
-    enum OPTIONAL_LOGIC : int
-    {
-        UNSPECIFIED = -1,
-        LOGIC_FALSE = 0,
-        LOGIC_TRUE = 1
-    };
-
     enum IDX_REPORT_LEVEL : int
     {
         IDX_INFO = 0,
@@ -287,7 +281,7 @@ public:
         std::string str = inputStr;
         str.erase( 0, str.find_first_not_of( " \t\n\r" ) );
         str.erase( str.find_last_not_of( " \t\n\r" ) + 1 );
-        
+
         if( str == "true" || str == "1" )
             return true;
         else if( str == "false" || str == "0" )
@@ -304,7 +298,7 @@ public:
         std::string str = inputStr;
         str.erase( 0, str.find_first_not_of( " \t\n\r" ) );
         str.erase( str.find_last_not_of( " \t\n\r" ) + 1 );
-        
+
         try
         {
             return std::stoi( str );
