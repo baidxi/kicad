@@ -49,7 +49,7 @@ EDMD_OBJECT::EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel ) :
     std::string isAttributeChanged;
     m_id = aNode.GetAttribute( "id", "" );
 
-    isAttributeChanged = aNode.GetAttribute( "isAttributeChanged", "" );
+    isAttributeChanged = aNode.GetAttribute( "IsAttributeChanged", "" );
 
     if( !isAttributeChanged.empty() )
         m_isAttributeChanged = parseBool( isAttributeChanged );
