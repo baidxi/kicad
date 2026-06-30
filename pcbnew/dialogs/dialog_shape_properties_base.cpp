@@ -151,7 +151,7 @@ DIALOG_SHAPE_PROPERTIES_BASE::DIALOG_SHAPE_PROPERTIES_BASE( wxWindow* parent, wx
 	wxBoxSizer* bSizer181;
 	bSizer181 = new wxBoxSizer( wxVERTICAL );
 
-	m_gbsArcByCSAE = new wxGridBagSizer( 4, 0 );
+	m_gbsArcByCSAE = new wxGridBagSizer( 4, 5 );
 	m_gbsArcByCSAE->SetFlexibleDirection( wxBOTH );
 	m_gbsArcByCSAE->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
 

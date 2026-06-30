@@ -465,6 +465,7 @@ public:
     {
         const EDA_ANGLE angle = GetAngleValue( CSA_ANGLE );
 
+
         if( GetIntValue( CSAE_RADIUS ) == 0 )
         {
             // Can be negative, result is a mirrored arc around the center
@@ -473,7 +474,7 @@ public:
             aErrs.push_back( _( "Radius must be non-zero." ) );
             return false;
         }
-        else if( GetAngleValue( CSAE_START_ANGLE ) == GetAngleValue( CSAE_END_ANGLE ) )
+        else if( GetAngleValue( CSAE_START_ANGLE ).Normalized() == GetAngleValue( CSAE_END_ANGLE ).Normalized() )
         {
             aErrs.push_back( _( "Start angle must not equal end angle." ) );
             return false;
@@ -498,8 +499,8 @@ public:
         {
             const VECTOR2D center = CalcArcCenter( start, end, angle );
 
-            double radius = ( center - start ).EuclideanNorm();
-            double max_offset = std::max( std::abs( center.x ), std::abs( center.y ) ) + radius;
+            double   radius = GetShape().GetRadius();
+            double   max_offset = std::max( std::abs( center.x ), std::abs( center.y ) ) + radius;
             VECTOR2I center_i = VECTOR2I( center.x, center.y );
 
             if( max_offset >= ( std::numeric_limits<VECTOR2I::coord_type>::max() / 2.0 )
@@ -583,13 +584,7 @@ public:
         VECTOR2I start( KiROUND( center.x + radius * cos( start_angle.AsRadians() ) ),
                         KiROUND( center.y - radius * sin( start_angle.AsRadians() ) ) );
 
-        EDA_ANGLE inc_angle = start_angle - end_angle;
-
-        while( inc_angle < ANGLE_0 )
-            inc_angle += ANGLE_360;
-
-        while( inc_angle >= ANGLE_360 )
-            inc_angle -= ANGLE_360;
+        EDA_ANGLE inc_angle = ( start_angle - end_angle ).Normalized();
 
         GetShape().SetCenter( center );
         GetShape().SetStart( start );
@@ -604,22 +599,17 @@ public:
         const VECTOR2I  center = GetShape().GetCenter();
         const VECTOR2I  start = GetShape().GetStart();
         const EDA_ANGLE inc_angle = GetShape().GetArcAngle();
-        double          radius = ( center - start ).EuclideanNorm();
+        double          radius = GetShape().GetRadius();
 
         VECTOR2D startVec = VECTOR2D( start ) - VECTOR2D( center );
 
         // Convert KiCad screen coordinates (+Y down)
         // into conventional polar coordinates (+Y up).
         EDA_ANGLE start_angle( atan2( -startVec.y, startVec.x ), RADIANS_T );
-
-        while( start_angle < ANGLE_0 )
-            start_angle += ANGLE_360;
+        start_angle.Normalize();
 
         // KiCad stores positive arc angles as clockwise rotation.
-        EDA_ANGLE end_angle = start_angle - inc_angle;
-
-        while( end_angle < ANGLE_0 )
-            end_angle += ANGLE_360;
+        EDA_ANGLE end_angle = ( start_angle - inc_angle ).Normalized();
 
         ChangeValue( CSAE_CENTER_X, center.x );
         ChangeValue( CSAE_CENTER_Y, center.y );
