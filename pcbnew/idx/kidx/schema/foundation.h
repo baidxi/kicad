@@ -211,7 +211,7 @@ class EDMD_PROCESS_INSTRUCTION : public EDMD_EXTENSIBLE_OBJECT
 public:
     enum class PROCESS_TYPE
     {
-        BASELINE = 0,
+        SEND_INFORMATION = 0,
         SEND_CHANGES
     };
     EDMD_PROCESS_INSTRUCTION() :

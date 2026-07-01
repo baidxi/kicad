@@ -347,46 +347,47 @@ std::vector<BOARD_ITEM*> KICAD_IDX::ConvertInstance( idx_pdm::EDMD_ITEM_INSTANCE
     }
 }
 
-std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
 {
-    std::cout << "processing baseline" << std::endl;
+    std::cout << "processing SendInformation" << std::endl;
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
 
-    if( !m_reg )
+    if( !m_reg || !m_dataset )
         return {};
 
-    int j = 0;
-    int i = 0;
-    // Applying the IDX algorithm defined in the Developper recommendations
+    // SendInformation processing according to Developer Recommendations 6.4.2
+    // Items in the message are processed one after the other
 
-    // Phase 1: Validate all items and register all identifiers
     for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
     {
-        std::cout << "item: " << i++ << std::endl;
-
         if( !item )
             continue;
 
-        // If at least one item has no identifier, we reject the entire transaction
-        if( item->m_identifier.size() < 1 )
-            return {};
+        std::cout << "Processing SendInformation item: " << item->m_id << std::endl;
 
-        for( idx_foundation::EDMD_IDENTIFIER& id : item->m_identifier )
+        // Create a copy of the item so we can modify it during processing
+        idx_pdm::EDMD_ITEM itemCopy = *item;
+
+        // Step 1: Checking identifiers (list) - handled by SI_Process
+        // If the item does not contain any identifiers, the message is errored and the processing transaction is aborted
+        if( !m_reg->SI_1CheckIdentifiers( *item ) )
         {
-            std::cout << "identifier: " << j++ << std::endl;
-
-            if( !m_reg->isIdentifierKnown( id ) )
-            {
-                m_reg->addIdentifier( id );
-            }
+            std::cerr << "SendInformation: Item " << item->m_id << " has no identifiers - aborting transaction"
+                      << std::endl;
+            return {}; // Abort the entire transaction
         }
-    }
 
-    // Phase 2: Process instances for all items (each item processed exactly once)
-    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
-    {
-        if( !item )
-            continue;
+        // Step 2-8: Process through SI_Process which handles all adjustment steps
+        if( !m_reg->SI_Process( itemCopy ) )
+        {
+            std::cerr << "SendInformation: SI_Process failed for item " << item->m_id << " - aborting transaction"
+                      << std::endl;
+            return {}; // Abort the entire transaction
+        }
+
+        // If we reach here, the item has been successfully processed through all 8 steps
+        // Now we can convert the item instances to KiCad board items
 
         for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
         {
@@ -402,10 +403,9 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Baseline()
             result.push_back( kChange );
         }
 
+        // Add the processed item to the repository
         m_reg->GetItemRepository().push_back( *item );
     }
-    // Adjustment of the package names
-
 
     return result;
 }
@@ -421,9 +421,9 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Process()
     idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE type;
     type = m_dataset->m_processInstruction[0]->m_processType;
 
-    if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::BASELINE )
+    if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION )
     {
-        return Baseline();
+        return SendInformation();
     }
     else if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
     {

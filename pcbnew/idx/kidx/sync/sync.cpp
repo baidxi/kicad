@@ -291,3 +291,172 @@ void KIDX_REGISTRY::Save()
     // TODO: Implement save to persistent storage
     std::cerr << "KIDX_REGISTRY::Save() - Not yet implemented" << std::endl;
 }
+
+
+// ============================================================================
+// SendInformation Processing Methods (Developer Recommendations 6.4.2)
+// ============================================================================
+
+bool KIDX_REGISTRY::SI_1CheckIdentifiers( const idx_pdm::EDMD_ITEM& aItem ) const
+{
+    // Step 1: Checking identifiers (list)
+    // a. If the item does not contain any identifiers, the message is errored
+    if( aItem.m_identifier.empty() )
+    {
+        std::cerr << "SI_1a: Item has no identifiers - error" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_2AdjustIdentifierRepository( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 2: Adjustment of identifier repository
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        // a. If the identifiers contained in the item do not agree with the identifier repository
+        if( isIdentifierKnown( identifier ) )
+        {
+            // Check if the identifier is consistent with repository
+            // For now, we assume it agrees if it's known
+            // In a full implementation, we'd need to check system scope, number, version, etc.
+            continue;
+        }
+        else
+        {
+            // b. If the identifiers contained in the item do not disagree with the identifier repository
+            // (i.e., they are new), store new identifiers in the repository
+            addIdentifier( identifier );
+        }
+    }
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_3AdjustItemType( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 3: Adjustment of ItemType
+    // This step would compare the ItemType in the message with the existing representation
+    // Since we don't have a way to look up existing items by identifier yet,
+    // we'll skip the detailed comparison for now and just accept the message's ItemType
+
+    // a. If the ItemType is not set in the existing representation of the item but is set in the message
+    // b. If the ItemType is set in the existing representation of the item but is not set in the message
+    // c. If the ItemType is set in the existing representation of the item and the same ItemType is set in the message
+    // d. If the ItemType is set in the existing representation of the item but a different ItemType is set in the message
+    // For now, we'll just accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_4AdjustPackageNames( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 4: Adjustment of PackageName, for every PackageName in the list
+    // Similar to ItemType, we need to compare PackageNames between message and existing representation
+    // For now, we'll accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_5AdjustItemInstances( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 5: Adjustment ItemInstance (list)
+    // Compare ItemInstances between message and existing representation
+    // For now, we'll accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_6AdjustShape( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 6: Adjustment Shape
+    // Compare Shape between message and existing representation
+    // For now, we'll accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_7AdjustAcceptStatus( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 7: Adjustment of Accept-Status, for every entry in the list
+    // Compare Accept-Status between message and existing representation
+    // For now, we'll accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_8AdjustRoles( idx_pdm::EDMD_ITEM& aItem )
+{
+    // Step 8: Adjustment of the roles in EDMDItems and EDMDItemInstances
+    // Note: roles and acceptance statuses are exceptions since they describe relationships
+    // of individual actors to the state of the element, not the state itself
+    // For now, we'll accept whatever is in the message
+    return true;
+}
+
+
+bool KIDX_REGISTRY::SI_Process( idx_pdm::EDMD_ITEM& aItem )
+{
+    // SendInformation item processing according to Developer Recommendations 6.4.2
+    // Process the 8 steps in order
+
+    // Step 1: Checking identifiers (list)
+    if( !SI_1CheckIdentifiers( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 1 (CheckIdentifiers) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 2: Adjustment of identifier repository
+    if( !SI_2AdjustIdentifierRepository( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 2 (AdjustIdentifierRepository) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 3: Adjustment of ItemType
+    if( !SI_3AdjustItemType( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 3 (AdjustItemType) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 4: Adjustment of PackageName
+    if( !SI_4AdjustPackageNames( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 4 (AdjustPackageNames) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 5: Adjustment ItemInstance (list)
+    if( !SI_5AdjustItemInstances( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 5 (AdjustItemInstances) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 6: Adjustment Shape
+    if( !SI_6AdjustShape( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 6 (AdjustShape) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 7: Adjustment of Accept-Status
+    if( !SI_7AdjustAcceptStatus( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 7 (AdjustAcceptStatus) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // Step 8: Adjustment of the roles
+    if( !SI_8AdjustRoles( aItem ) )
+    {
+        std::cerr << "SI_Process: Step 8 (AdjustRoles) failed for item " << aItem.m_id << std::endl;
+        return false;
+    }
+
+    // All steps completed successfully
+    return true;
+}

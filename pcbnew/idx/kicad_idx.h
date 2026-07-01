@@ -98,7 +98,7 @@ public:
     // Abstraction
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> Process();
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> GetChanges();
-    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> Baseline();
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> SendInformation();
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
 

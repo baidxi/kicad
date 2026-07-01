@@ -48,9 +48,8 @@ public:
 
     bool operator==( const IDX_FILE_REGISTRY& other ) const
     {
-        return m_author == other.m_author && m_date == other.m_date && 
-               m_name == other.m_name && m_path == other.m_path &&
-               m_soft == other.m_soft && m_baseline == other.m_baseline;
+        return m_author == other.m_author && m_date == other.m_date && m_name == other.m_name && m_path == other.m_path
+               && m_soft == other.m_soft && m_baseline == other.m_baseline;
     }
 
     bool operator!=( const IDX_FILE_REGISTRY& other ) const { return !( *this == other ); }
@@ -98,7 +97,7 @@ public:
     bool                                            AddFile( const std::shared_ptr<IDX_FILE_REGISTRY> aFile );
     std::string                                     GetPath() const { return m_path; };
     std::string                                     GetCollaborationFolder() const { return m_collaborationFolder; };
-    std::vector<idx_pdm::EDMD_ITEM>&                 GetItemRepository() { return m_itemRepository; };
+    std::vector<idx_pdm::EDMD_ITEM>&                GetItemRepository() { return m_itemRepository; };
     bool                                            SetCollaborationFolder( std::string aPath )
     {
         m_collaborationFolder = aPath;
@@ -115,7 +114,15 @@ public:
     // Functions used to process messages
 
     // SendInformation
-
+    bool SI_Process( idx_pdm::EDMD_ITEM& aItem ); // SendInformation item processing
+    bool SI_1CheckIdentifiers( const idx_pdm::EDMD_ITEM& aItem ) const;
+    bool SI_2AdjustIdentifierRepository( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_3AdjustItemType( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_4AdjustPackageNames( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_5AdjustItemInstances( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_6AdjustShape( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_7AdjustAcceptStatus( idx_pdm::EDMD_ITEM& aItem );
+    bool SI_8AdjustRoles( idx_pdm::EDMD_ITEM& aItem );
     // SendChange
     bool SC_Process( idx_computational::EDMD_CHANGE& aChange );
     bool SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const;
@@ -126,13 +133,13 @@ public:
     void ApplyChangeToRepository( idx_computational::EDMD_CHANGE& aChange );
 
 protected:
-    std::string                                     m_file;
-    std::unordered_set<std::string>                   m_identifierSet;
+    std::string                                        m_file;
+    std::unordered_set<std::string>                    m_identifierSet;
     std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_repository;
     std::vector<idx_pdm::EDMD_ITEM>                    m_itemRepository;
-    bool                                            m_baselined = false;
-    std::vector<std::shared_ptr<IDX_FILE_REGISTRY>> m_files;
-    std::string                                     m_path;
-    std::string                                     m_collaborationFolder;
-    std::vector<idx_foundation::EDMD_IDENTIFIER>    m_identifiers;
+    bool                                               m_baselined = false;
+    std::vector<std::shared_ptr<IDX_FILE_REGISTRY>>    m_files;
+    std::string                                        m_path;
+    std::string                                        m_collaborationFolder;
+    std::vector<idx_foundation::EDMD_IDENTIFIER>       m_identifiers;
 };
