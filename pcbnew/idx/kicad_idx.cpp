@@ -364,16 +364,15 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
         if( !item )
             continue;
 
-        std::cout << "Processing SendInformation item: " << item->m_id << std::endl;
-
         // Create a copy of the item so we can modify it during processing
         idx_pdm::EDMD_ITEM itemCopy = *item;
+        std::cout << "Processing SendInformation item: " << itemCopy.m_id << std::endl;
 
         // Step 1: Checking identifiers (list) - handled by SI_Process
         // If the item does not contain any identifiers, the message is errored and the processing transaction is aborted
-        if( !m_reg->SI_1CheckIdentifiers( *item ) )
+        if( !m_reg->SI_1CheckIdentifiers( itemCopy ) )
         {
-            std::cerr << "SendInformation: Item " << item->m_id << " has no identifiers - aborting transaction"
+            std::cerr << "SendInformation: Item " << itemCopy.m_id << " has no identifiers - aborting transaction"
                       << std::endl;
             return {}; // Abort the entire transaction
         }
@@ -381,7 +380,7 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
         // Step 2-8: Process through SI_Process which handles all adjustment steps
         if( !m_reg->SI_Process( itemCopy ) )
         {
-            std::cerr << "SendInformation: SI_Process failed for item " << item->m_id << " - aborting transaction"
+            std::cerr << "SendInformation: SI_Process failed for item " << itemCopy.m_id << " - aborting transaction"
                       << std::endl;
             return {}; // Abort the entire transaction
         }
@@ -389,7 +388,7 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
         // If we reach here, the item has been successfully processed through all 8 steps
         // Now we can convert the item instances to KiCad board items
 
-        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : item->m_itemInstance )
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : itemCopy.m_itemInstance )
         {
             if( !instance )
                 continue;
@@ -404,7 +403,7 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
         }
 
         // Add the processed item to the repository
-        m_reg->GetItemRepository().push_back( *item );
+        m_reg->GetItemRepository().push_back( itemCopy );
     }
 
     return result;
