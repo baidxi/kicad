@@ -101,6 +101,7 @@ public:
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> SendInformation();
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
+    bool ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const;
 
     std::vector<BOARD_ITEM*> AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
     std::vector<BOARD_ITEM*> AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );

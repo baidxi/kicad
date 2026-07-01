@@ -509,9 +509,7 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::GetChanges()
             continue;
         }
 
-        // Any item not referenced by a change should be processed like in a SenfInformation message
-        // TODO
-
+        // Process changes first
         for( auto change : instr->m_transaction->m_changes )
         {
             if( !std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) )
@@ -519,6 +517,64 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::GetChanges()
 
 
             result.push_back( ConvertChange( *std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) ) );
+        }
+
+        // Process unreferenced items like SendInformation messages (Dev Rec 6.4.3)
+        for( const auto& item : m_dataset->m_body.m_items )
+        {
+            if( !item )
+                continue;
+
+            bool isReferenced = false;
+
+            // Check if this item is referenced by any change as NewItem
+            for( const auto& change : instr->m_transaction->m_changes )
+            {
+                auto edmdChange = std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change );
+                if( edmdChange && edmdChange->m_newItem && ItemHasIdentifier( *item, *edmdChange->m_newItem ) )
+                {
+                    isReferenced = true;
+                    break;
+                }
+            }
+
+            if( !isReferenced )
+            {
+                // Process this unreferenced item using SendInformation algorithm
+                std::cout << "Processing unreferenced item: " << item->m_id << std::endl;
+
+                // Step 1: Check identifiers
+                if( !m_reg->SI_1CheckIdentifiers( *item ) )
+                {
+                    std::cerr << "GetChanges: Unreferenced item " << item->m_id << " has no identifiers - aborting"
+                              << std::endl;
+                    return {};
+                }
+
+                // Step 2-8: Process through SI_Process
+                idx_pdm::EDMD_ITEM itemCopy = *item;
+                if( !m_reg->SI_Process( itemCopy ) )
+                {
+                    std::cerr << "GetChanges: SI_Process failed for unreferenced item " << item->m_id << std::endl;
+                    return {};
+                }
+
+                // Convert instances to changes
+                for( const auto& instance : itemCopy.m_itemInstance )
+                {
+                    if( !instance )
+                        continue;
+
+                    auto kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+                    kChange->m_name = instance->m_id;
+                    kChange->m_type = kChange->GetType( *instance );
+                    kChange->m_newItems = ConvertInstance( *instance );
+                    result.push_back( kChange );
+                }
+
+                // Add the processed item to the repository
+                m_reg->GetItemRepository().push_back( itemCopy );
+            }
         }
     }
 
@@ -678,6 +734,17 @@ bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
         return false;
     }
     return true;
+}
+
+
+bool KICAD_IDX::ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const
+{
+    for( const auto& itemId : aItem.m_identifier )
+    {
+        if( aId == itemId ) // Uses EDMD_IDENTIFIER::operator==
+            return true;
+    }
+    return false;
 }
 
 
