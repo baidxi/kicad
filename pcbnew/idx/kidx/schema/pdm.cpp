@@ -100,23 +100,50 @@ bool EDMD_TRANSFORMATION::Parse( IDX_XML_NODE& aNode )
     const std::string name = aNode.GetName();
 
     if( IDX_keyword_compare( name, "pdm:xx" ) )
+    {
         m_xx = parseDouble( content );
+        m_xx_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:xy" ) )
+    {
         m_xy = parseDouble( content );
+        m_xy_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:xz" ) )
+    {
         m_xz = parseDouble( content );
+        m_xz_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:yx" ) )
+    {
         m_yx = parseDouble( content );
+        m_yx_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:yy" ) )
+    {
         m_yy = parseDouble( content );
+        m_yy_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:yz" ) )
+    {
         m_yz = parseDouble( content );
+        m_yz_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:zx" ) )
+    {
         m_zx = parseDouble( content );
+        m_zx_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:zy" ) )
+    {
         m_zy = parseDouble( content );
+        m_zy_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:zz" ) )
+    {
         m_zz = parseDouble( content );
+        m_zz_str = content;
+    }
     else if( IDX_keyword_compare( name, "pdm:tx" ) )
         m_tx = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
     else if( IDX_keyword_compare( name, "pdm:ty" ) )
@@ -135,6 +162,39 @@ bool EDMD_TRANSFORMATION::Parse( IDX_XML_NODE& aNode )
     else
         return this->EDMD_OBJECT::Parse( aNode );
     return true;
+}
+
+
+void EDMD_TRANSFORMATION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+
+    switch( m_type )
+    {
+    case TYPE::D2: aNode.AppendChild( "TransformationType" )->SetText( "d2" ); break;
+    case TYPE::D3: aNode.AppendChild( "TransformationType" )->SetText( "d3" ); break;
+    }
+
+    if( !m_xx_str.empty() )
+        aNode.AppendChild( "pdm:xx" )->SetText( m_xx_str );
+    if( !m_xy_str.empty() )
+        aNode.AppendChild( "pdm:xy" )->SetText( m_xy_str );
+    if( m_xz_str.has_value() && !m_xz_str.value().empty() )
+        aNode.AppendChild( "pdm:xz" )->SetText( m_xz_str.value() );
+
+    if( !m_yx_str.empty() )
+        aNode.AppendChild( "pdm:yx" )->SetText( m_yx_str );
+    if( !m_yy_str.empty() )
+        aNode.AppendChild( "pdm:yy" )->SetText( m_yy_str );
+    if( m_yz_str.has_value() && !m_yz_str.value().empty() )
+        aNode.AppendChild( "pdm:yz" )->SetText( m_yz_str.value() );
+
+    if( m_zx_str.has_value() && !m_zx_str.value().empty() )
+        aNode.AppendChild( "pdm:zx" )->SetText( m_zx_str.value() );
+    if( m_zy_str.has_value() && !m_zy_str.value().empty() )
+        aNode.AppendChild( "pdm:zy" )->SetText( m_zy_str.value() );
+    if( m_zz_str.has_value() && !m_zz_str.value().empty() )
+        aNode.AppendChild( "pdm:zz" )->SetText( m_zz_str.value() );
 }
 
 
@@ -655,14 +715,17 @@ void EDMD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
 
-    auto child = aNode.AppendChild( "pdm:InstanceName" );
-    m_instanceName.Write( *child );
+    std::shared_ptr<IDX_XML_NODE> child = aNode.AppendChild( "pdm:InstanceName" );
 
     if( m_item )
     {
         child = aNode.AppendChild( "pdm:Item" );
         child->SetText( m_item->m_id );
     }
+
+    child = aNode.AppendChild( "pdm:Transformation" );
+    m_transformation.Write( *child );
+
 
     /*
     

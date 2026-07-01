@@ -752,6 +752,13 @@ void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
 
+    // Write Persistant and IsOriginator attributes if they have values
+    if( m_persistant.has_value() )
+        aNode.SetAttribute( "Persistant", m_persistant ? "true" : "false" );
+
+    if( m_isOriginator.has_value() )
+        aNode.SetAttribute( "IsOriginator", m_isOriginator ? "true" : "false" );
+
     auto child = aNode.AppendChild( "foundation:SystemScope" );
     child->SetText( m_systemScopeRef );
 }
@@ -850,12 +857,6 @@ EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
 void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_DESIGNATOR::Write( aNode );
-
-    if( m_persistant.has_value() )
-        aNode.SetAttribute( "Persistant", m_persistant ? "true" : "false" );
-
-    if( m_isOriginator.has_value() )
-        aNode.SetAttribute( "IsOriginator", m_isOriginator ? "true" : "false" );
 
     auto child = aNode.AppendChild( "foundation:ObjectName" );
     child->SetText( m_objectName );

@@ -122,21 +122,33 @@ public:
     EDMD_TRANSFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    void Write( IDX_XML_NODE& aNode ) const override;
 
 
-    double                             m_xx = 1;
-    double                             m_xy = 0;
-    double                             m_xz = 0;
-    double                             m_yx = 0;
-    double                             m_yy = 1;
-    double                             m_yz = 0;
-    double                             m_zx = 0;
-    double                             m_zy = 0;
-    double                             m_zz = 1;
-    idx_property::EDMD_LENGTH_PROPERTY m_tx;
-    idx_property::EDMD_LENGTH_PROPERTY m_ty;
-    idx_property::EDMD_LENGTH_PROPERTY m_tz;
-    TYPE                               m_type;
+    double m_xx = 1;
+    double m_xy = 0;
+    double m_xz = 0;
+    double m_yx = 0;
+    double m_yy = 1;
+    double m_yz = 0;
+    double m_zx = 0;
+    double m_zy = 0;
+    double m_zz = 1;
+
+    std::string                m_xx_str = "";
+    std::string                m_xy_str = "";
+    std::optional<std::string> m_xz_str = "";
+    std::string                m_yx_str = "";
+    std::string                m_yy_str = "";
+    std::optional<std::string> m_yz_str = "";
+    std::optional<std::string> m_zx_str = "";
+    std::optional<std::string> m_zy_str = "";
+    std::optional<std::string> m_zz_str = "";
+
+    idx_property::EDMD_LENGTH_PROPERTY                m_tx;
+    idx_property::EDMD_LENGTH_PROPERTY                m_ty;
+    std::optional<idx_property::EDMD_LENGTH_PROPERTY> m_tz;
+    TYPE                                              m_type;
 };
 
 class EDMD_SHAPE_ELEMENT : public idx_foundation::EDMD_COLLABORATION_OBJECT
@@ -540,11 +552,11 @@ class EDMD_NON_FEATURE_ITEM_SHAPE : public EDMD_ITEM_SHAPE
 public:
     EDMD_NON_FEATURE_ITEM_SHAPE() {};
     EDMD_NON_FEATURE_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
-    NON_FEATURE_ITEM_SHAPE_PURPOSE m_purpose;
-    std::vector<std::string>         m_relatedItemShapeRef;
+    NON_FEATURE_ITEM_SHAPE_PURPOSE                m_purpose;
+    std::vector<std::string>                      m_relatedItemShapeRef;
     std::vector<std::shared_ptr<EDMD_ITEM_SHAPE>> m_relatedItemShape;
 };
 
