@@ -160,7 +160,6 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
     // Get the row and column of the clicked cell
     int row = event.GetRow();
     int col = event.GetCol();
-    std::cout << "clik click" << std::endl;
 
     if( !m_changeGrid || row < 0 || row >= (int) m_changes.size() )
     {
@@ -225,7 +224,6 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
         }
         j++;
     }
-    std::cout << "Looking for new items " << std::endl;
 
     for( BOARD_ITEM* item : m_changes[row].second->m_newItems )
     {
@@ -442,7 +440,6 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
     int                    i = 0;
     for( std::shared_ptr<KICAD_IDX_CHANGE>& change : m_idx->Process() )
     {
-        std::cout << "Change " << i++ << std::endl;
         if( !change )
             continue;
 
