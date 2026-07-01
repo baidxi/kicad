@@ -2532,7 +2532,9 @@ void PCB_IO_IPC2581::addPadStack( wxXmlNode* aPadNode, const PAD* aPad )
         addAttribute( padStackPadDefNode,  "padUse", "REGULAR" );
         addLocationNode( padStackPadDefNode, aPad->GetOffset( PADSTACK::TEMP_ALL_LAYERS ).x, aPad->GetOffset( PADSTACK::TEMP_ALL_LAYERS ).y );
 
-        if( aPad->HasHole() || !aPad->FlashLayer( layer ) )
+        // A copper layer whose copper is unflashed only exposes the hole barrel; every other
+        // layer carries the pad's per-layer shape.
+        if( IsCopperLayer( layer ) && !aPad->FlashLayer( layer ) )
         {
             PCB_SHAPE shape( nullptr, SHAPE_T::CIRCLE );
             shape.SetStart( aPad->GetOffset( PADSTACK::TEMP_ALL_LAYERS ) );
