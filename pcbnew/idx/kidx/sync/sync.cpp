@@ -337,24 +337,65 @@ bool KIDX_REGISTRY::SI_2AdjustIdentifierRepository( idx_pdm::EDMD_ITEM& aItem )
 bool KIDX_REGISTRY::SI_3AdjustItemType( idx_pdm::EDMD_ITEM& aItem )
 {
     // Step 3: Adjustment of ItemType
-    // This step would compare the ItemType in the message with the existing representation
-    // Since we don't have a way to look up existing items by identifier yet,
-    // we'll skip the detailed comparison for now and just accept the message's ItemType
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
 
-    // a. If the ItemType is not set in the existing representation of the item but is set in the message
-    // b. If the ItemType is set in the existing representation of the item but is not set in the message
-    // c. If the ItemType is set in the existing representation of the item and the same ItemType is set in the message
-    // d. If the ItemType is set in the existing representation of the item but a different ItemType is set in the message
-    // For now, we'll just accept whatever is in the message
-    return true;
+    // If no existing item found, this is a new item - accept the ItemType
+    if( !existingItem )
+        return true;
+
+    // a. If the ItemType is not set in the existing representation but is set in the message
+    if( existingItem->m_itemType == idx_pdm::ITEM_TYPE::SINGLE && aItem.m_itemType != idx_pdm::ITEM_TYPE::SINGLE )
+    {
+        existingItem->m_itemType = aItem.m_itemType;
+        return true;
+    }
+
+    // b. If the ItemType is set in the existing representation but is not set in the message
+    if( existingItem->m_itemType != idx_pdm::ITEM_TYPE::SINGLE && aItem.m_itemType == idx_pdm::ITEM_TYPE::SINGLE )
+    {
+        return true; // Keep existing ItemType
+    }
+
+    // c. If the ItemType is set in the existing representation and the same ItemType is set in the message
+    if( existingItem->m_itemType == aItem.m_itemType )
+    {
+        return true; // Same ItemType - OK
+    }
+
+    // d. If the ItemType is set in the existing representation but a different ItemType is set in the message
+    std::cerr << "SI_3d: ItemType conflict - existing: " << static_cast<int>( existingItem->m_itemType )
+              << ", new: " << static_cast<int>( aItem.m_itemType ) << std::endl;
+    return false; // Different ItemTypes - error
 }
 
 
 bool KIDX_REGISTRY::SI_4AdjustPackageNames( idx_pdm::EDMD_ITEM& aItem )
 {
     // Step 4: Adjustment of PackageName, for every PackageName in the list
-    // Similar to ItemType, we need to compare PackageNames between message and existing representation
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
+
+    // If no existing item found, this is a new item - accept all PackageNames
+    if( !existingItem )
+        return true;
+
     // For now, we'll accept whatever is in the message
+    // TODO: Implement per-system-context PackageName comparison
+    // This would require tracking which system context each PackageName belongs to
+    // and comparing them appropriately
     return true;
 }
 
@@ -362,8 +403,22 @@ bool KIDX_REGISTRY::SI_4AdjustPackageNames( idx_pdm::EDMD_ITEM& aItem )
 bool KIDX_REGISTRY::SI_5AdjustItemInstances( idx_pdm::EDMD_ITEM& aItem )
 {
     // Step 5: Adjustment ItemInstance (list)
-    // Compare ItemInstances between message and existing representation
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
+
+    // If no existing item found, this is a new item - accept all ItemInstances
+    if( !existingItem )
+        return true;
+
     // For now, we'll accept whatever is in the message
+    // TODO: Implement ItemInstance list comparison
+    // This would require merging/validating ItemInstance lists between existing and new
     return true;
 }
 
@@ -371,8 +426,22 @@ bool KIDX_REGISTRY::SI_5AdjustItemInstances( idx_pdm::EDMD_ITEM& aItem )
 bool KIDX_REGISTRY::SI_6AdjustShape( idx_pdm::EDMD_ITEM& aItem )
 {
     // Step 6: Adjustment Shape
-    // Compare Shape between message and existing representation
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
+
+    // If no existing item found, this is a new item - accept the Shape
+    if( !existingItem )
+        return true;
+
     // For now, we'll accept whatever is in the message
+    // TODO: Implement Shape comparison
+    // This would require comparing Shape objects and handling updates appropriately
     return true;
 }
 
@@ -380,8 +449,22 @@ bool KIDX_REGISTRY::SI_6AdjustShape( idx_pdm::EDMD_ITEM& aItem )
 bool KIDX_REGISTRY::SI_7AdjustAcceptStatus( idx_pdm::EDMD_ITEM& aItem )
 {
     // Step 7: Adjustment of Accept-Status, for every entry in the list
-    // Compare Accept-Status between message and existing representation
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
+
+    // If no existing item found, this is a new item - accept all Accept-Status entries
+    if( !existingItem )
+        return true;
+
     // For now, we'll accept whatever is in the message
+    // TODO: Implement Accept-Status comparison per originator
+    // This would require comparing Accept-Status for each originator and handling conflicts
     return true;
 }
 
@@ -391,7 +474,22 @@ bool KIDX_REGISTRY::SI_8AdjustRoles( idx_pdm::EDMD_ITEM& aItem )
     // Step 8: Adjustment of the roles in EDMDItems and EDMDItemInstances
     // Note: roles and acceptance statuses are exceptions since they describe relationships
     // of individual actors to the state of the element, not the state itself
+    // Find existing item by any of its identifiers
+    idx_pdm::EDMD_ITEM* existingItem = nullptr;
+    for( const auto& identifier : aItem.m_identifier )
+    {
+        existingItem = FindItemByIdentifier( identifier );
+        if( existingItem )
+            break;
+    }
+
+    // If no existing item found, this is a new item - accept all roles
+    if( !existingItem )
+        return true;
+
     // For now, we'll accept whatever is in the message
+    // TODO: Implement role assignment comparison and merging
+    // Roles describe actor relationships, not element state, so they can be updated
     return true;
 }
 
