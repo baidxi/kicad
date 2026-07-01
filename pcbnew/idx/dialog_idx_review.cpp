@@ -35,6 +35,9 @@
 #include <math/box2.h>
 #include <idx/kicad_idx.h>
 #include <wx/dirdlg.h>
+#include <wx/filename.h>
+#include <wx/wfstream.h>
+#include <idx/CAD_software.h>
 
 #include "dialog_idx_review.h"
 
@@ -606,7 +609,200 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
 {
     if( m_reg && m_idx && m_currentFile )
     {
+        // Apply the accepted changes to the board
         m_idx->Apply( GetAccepted() );
+
+        // Check if the current dataset is a SendInformation message
+        // If so, generate and save a SendInformation response
+        if( m_loadedDataset && m_loadedDataset->m_processInstruction.size() > 0 )
+        {
+            auto firstPI = m_loadedDataset->m_processInstruction[0];
+            if( firstPI->m_processType == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION )
+            {
+                // Generate SendInformation response file
+                wxString responseFilename = m_currentFile->GetName() + wxT( ".response.idx" );
+
+                // Use the collaboration folder if set, otherwise use the current file's directory
+                wxString responsePath;
+                if( !m_reg->GetCollaborationFolder().empty() )
+                {
+                    responsePath = m_reg->GetCollaborationFolder() + wxFILE_SEP_PATH + responseFilename;
+                }
+                else if( !m_reg->GetPath().empty() )
+                {
+                    // Fall back to registry path directory
+                    wxFileName registryPath( m_reg->GetPath() );
+                    responsePath = registryPath.GetPath() + wxFILE_SEP_PATH + responseFilename;
+                }
+                else
+                {
+                    // Last fallback: use current working directory
+                    responsePath = responseFilename;
+                }
+
+                // Create response dataset with accept/reject information from dialog
+                auto responseDataset = std::make_shared<idx_foundation::EDMD_DATASET>();
+
+                // Copy header information from original dataset
+                responseDataset->m_header = m_loadedDataset->m_header;
+
+                // Update header for response
+                responseDataset->m_header.m_creationDateTime =
+                        wxDateTime::Now().Format( "%Y-%m-%dT%H:%M:%S" ).ToStdString();
+                if( !responseDataset->m_header.m_creatorName.empty() )
+                    responseDataset->m_header.m_creatorName += " (Response)";
+                else
+                    responseDataset->m_header.m_creatorName = "KiCad IDX Response";
+                responseDataset->m_header.m_creatorSystem = "KiCad";
+
+                // Create SendInformation process instruction
+                auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>();
+                processInstruction->m_processType =
+                        idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION;
+                responseDataset->m_processInstruction.push_back( processInstruction );
+
+                // Create response items with item stubs containing identifier mapping and accept status
+                // According to IDX spec: "the receiver sends a mandatory message of the type SendInformation,
+                // which contains an item stub with at least two identifiers for all new items:
+                // the identifier of the original sender and the identifier of the receiver"
+
+                // We need to match changes with original items from the dataset
+                // Since m_changes and m_loadedDataset->m_body.m_items should be in the same order
+                size_t changeIndex = 0;
+                for( const auto& originalItem : m_loadedDataset->m_body.m_items )
+                {
+                    if( !originalItem || changeIndex >= m_changes.size() )
+                        continue;
+
+                    const auto& changePair = m_changes[changeIndex];
+                    bool        isAccepted = changePair.first;
+                    changeIndex++;
+
+                    // Create response item as a copy of the original
+                    auto responseItem = std::make_shared<idx_pdm::EDMD_ITEM>( *originalItem );
+
+                    // Update the item ID to indicate it's a response
+                    responseItem->m_id = originalItem->m_id;
+
+                    // Add receiver's (KiCad's) identifiers from registry
+                    auto kicadIdentifier = std::make_shared<idx_foundation::EDMD_IDENTIFIER>();
+                    kicadIdentifier->m_systemScopeRef = "KiCad";
+                    kicadIdentifier->m_originatorId = "KiCad";
+                    kicadIdentifier->m_isOriginator = true;         // KiCad is the originator of this identifier
+                    kicadIdentifier->m_number = originalItem->m_id; // Use same number for mapping
+                    kicadIdentifier->m_version = "1";
+                    kicadIdentifier->m_revision = "0";
+
+                    // Check if this identifier already exists to avoid duplicates
+                    bool identifierExists = false;
+                    for( const auto& existingId : responseItem->m_identifier )
+                    {
+                        if( existingId.m_systemScopeRef == "KiCad" && existingId.m_originatorId == "KiCad"
+                            && existingId.m_number == originalItem->m_id )
+                        {
+                            identifierExists = true;
+                            break;
+                        }
+                    }
+
+                    if( !identifierExists )
+                    {
+                        responseItem->m_identifier.push_back( *kicadIdentifier );
+                    }
+
+                    // Set Accept-Status based on user's decision in the dialog
+                    responseItem->m_accept.m_isChanged = true;
+                    responseItem->m_accept.m_value =
+                            isAccepted ? 1.0 : 0.0; // 1.0 = true/accepted, 0.0 = false/rejected
+
+                    // Add to response body
+                    responseDataset->m_body.m_items.push_back( responseItem );
+                }
+
+                // Save the response dataset to XML file
+                wxXmlDocument doc;
+                wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "EDMDDataSet" );
+                doc.SetRoot( root );
+
+                // Set XML namespaces and attributes for root
+                root->AddAttribute( "xmlns", "http://www.prostep.org/IDX/4.5" );
+                root->AddAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
+                root->AddAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
+
+                // Write header
+                wxXmlNode* headerNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:Header" );
+                root->AddChild( headerNode );
+
+                wxXmlNode* creatorNameNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreatorName" );
+                headerNode->AddChild( creatorNameNode );
+                creatorNameNode->SetContent( responseDataset->m_header.m_creatorName );
+
+                wxXmlNode* creatorSystemNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreatorSystem" );
+                headerNode->AddChild( creatorSystemNode );
+                creatorSystemNode->SetContent( responseDataset->m_header.m_creatorSystem );
+
+                wxXmlNode* creationDateNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreationDateTime" );
+                headerNode->AddChild( creationDateNode );
+                creationDateNode->SetContent( responseDataset->m_header.m_creationDateTime );
+
+                // Write process instruction
+                if( !responseDataset->m_processInstruction.empty() )
+                {
+                    wxXmlNode* piNode =
+                            new wxXmlNode( wxXML_ELEMENT_NODE, "computational:EDMDProcessInstructionSendInformation" );
+                    root->AddChild( piNode );
+                    piNode->AddAttribute( "ProcessType", "SendInformation" );
+                }
+
+                // Write body
+                wxXmlNode* bodyNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:EDMDDataSetBody" );
+                root->AddChild( bodyNode );
+
+                // Write items using EDMD_ITEM::Write() function
+                for( const auto& item : responseDataset->m_body.m_items )
+                {
+                    if( !item )
+                        continue;
+
+
+                    // Create the item node and wrap it in IDX_XML_NODE_KICAD
+                    wxXmlNode* itemNode = new wxXmlNode( wxXML_ELEMENT_NODE, "pdm:EDMDItem" );
+                    bodyNode->AddChild( itemNode );
+
+                    // Use the Write() function to serialize the item
+                    std::shared_ptr<IDX_XML_NODE_KICAD> itemIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( itemNode );
+                    item->Write( *itemIdxNode );
+                }
+
+                // Save to file
+                wxFFileOutputStream output( responsePath );
+                if( !output.IsOk() )
+                {
+                    wxLogError( wxT( "Error: Cannot open file for writing: %s" ), responsePath );
+                }
+                else if( !doc.Save( output ) )
+                {
+                    wxLogError( wxT( "Error: Failed to save XML to %s" ), responsePath );
+                }
+                else
+                {
+                    wxLogMessage( wxT( "SendInformation response saved to: %s" ), responsePath );
+
+                    // Add the response file to the registry
+                    auto responseFile = std::make_shared<IDX_FILE_REGISTRY_KICAD>();
+                    responseFile->SetName( responseFilename.ToStdString() );
+                    responseFile->SetAuthor( responseDataset->m_header.m_creatorName );
+                    responseFile->SetDate( wxDateTime::Now().Format( "%Y-%m-%dT%H:%M:%S" ).ToStdString() );
+                    responseFile->SetSoft( "KiCad" );
+                    responseFile->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
+                    responseFile->SetPath( m_reg->GetCollaborationFolder() );
+
+                    m_reg->AddFile( responseFile );
+                }
+            }
+        }
+
+        // Mark the current file as processed
         m_currentFile->SetStatus( IDX_FILE_REGISTRY::STATUS::IDX_PROCESSED );
         m_reg->Save();
     }

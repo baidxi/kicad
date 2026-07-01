@@ -100,6 +100,10 @@ public:
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> GetChanges();
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> SendInformation();
 
+    // Response file generation
+    std::shared_ptr<idx_foundation::EDMD_DATASET> CreateSendInformationResponse();
+    bool                                          SaveSendInformationResponse( const std::string& aFilename );
+
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
     bool ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const;
 

@@ -73,11 +73,6 @@ bool EDMD_OBJECT::operator==( const EDMD_OBJECT& rhs )
 
 void EDMD_OBJECT::Write( IDX_XML_NODE& aNode ) const
 {
-    if( !m_id.empty() )
-        aNode.SetAttribute( "id", m_id );
-
-    aNode.SetAttribute( "xsi:type", m_xsiType );
-
     if( m_isAttributeChanged.has_value() )
         aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged.value() );
 }
@@ -533,6 +528,15 @@ bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
 // EDMD_DATASET
 // -----------------------------------------------------
 
+EDMD_DATASET::EDMD_DATASET() :
+        EDMD_OBJECT()
+{
+    // Default constructor - initialize members
+    m_baseline = false;
+    m_headerOnly = false;
+}
+
+
 EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
         EDMD_OBJECT( aNode, false )
 {
@@ -846,6 +850,12 @@ EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
 void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_DESIGNATOR::Write( aNode );
+
+    if( m_persistant.has_value() )
+        aNode.SetAttribute( "Persistant", m_persistant ? "true" : "false" );
+
+    if( m_isOriginator.has_value() )
+        aNode.SetAttribute( "IsOriginator", m_isOriginator ? "true" : "false" );
 
     auto child = aNode.AppendChild( "foundation:ObjectName" );
     child->SetText( m_objectName );

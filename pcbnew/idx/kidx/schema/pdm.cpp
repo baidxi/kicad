@@ -684,7 +684,7 @@ void EDMD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 EDMD_ITEM::EDMD_ITEM( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-    m_xsiType = "pdm:EDMDItem";
+    m_xsiType = "foundation:Item";
 
     if( aTopLevel )
         ParseChildren( aNode );
@@ -760,9 +760,11 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 
 void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
 {
-    aNode.SetName( "foundation:Item" );
+    aNode.SetName( m_xsiType );
+    aNode.SetAttribute( "id", m_id );
 
     this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
 
     auto child = aNode.AppendChild( "pdm:ItemType" );
 
@@ -791,15 +793,12 @@ void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
     if( m_shape )
         WriteValueChild( aNode, "pdm:Shape", m_shape->m_id );
 
-    /*
-    std::shared_ptr<EDMD_ITEM_SHAPE>                 m_shape;
-    //ShapeTransformation
-    idx_property::EDMD_LOGIC_PROPERTY m_accept;
-    //ClearanceState
-    idx_property::EDMD_LOGIC_PROPERTY m_baseline;
-    std::string                       m_referenceName;
-    std::string                       m_assembleToName;
-    */
+    // Write Accept property if it has been set
+    if( m_accept.m_isChanged.has_value() && m_accept.m_isChanged.value() )
+    {
+        auto acceptNode = aNode.AppendChild( "property:Accept" );
+        acceptNode->SetText( m_accept.m_value > 0.5 ? "true" : "false" );
+    }
 }
 
 

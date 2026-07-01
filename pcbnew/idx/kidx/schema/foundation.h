@@ -277,15 +277,19 @@ public:
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string         m_systemScopeRef;
-    std::optional<bool> m_persistant = false;
+    std::optional<bool> m_persistant;
     std::string         m_originatorId;
-    std::optional<bool> m_isOriginator = false;
+    std::optional<bool> m_isOriginator;
 };
 
 
 class EDMD_IDENTIFIER : public EDMD_DESIGNATOR
 {
 public:
+    EDMD_IDENTIFIER() :
+            EDMD_DESIGNATOR()
+    {
+    }
     EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel );
 
 
