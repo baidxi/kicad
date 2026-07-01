@@ -176,15 +176,15 @@ bool EDMD_POLYLINE::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 // --------------------------------------------------------------------------
-// EDMD_CURVESET2D
+// EDMD_CURVE_SET_2D
 // --------------------------------------------------------------------------
 
-EDMD_CURVESET2D::EDMD_CURVESET2D() :
+EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D() :
         idx_pdm::EDMD_SHAPE_DESCRIPTION()
 {
 }
 
-EDMD_CURVESET2D::EDMD_CURVESET2D( IDX_XML_NODE& aNode ) :
+EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode ) :
         idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode, false )
 {
     auto child = aNode.GetChildren();
@@ -210,7 +210,7 @@ EDMD_CURVESET2D::EDMD_CURVESET2D( IDX_XML_NODE& aNode ) :
     }
 }
 
-bool EDMD_CURVESET2D::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_CURVE_SET_2D::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = true;
     result &= resolve<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( m_modelElementRef, m_modelElement, aRegistry );
@@ -323,10 +323,10 @@ double EDMD_CIRCLE::GetRadius() const
 }
 
 // --------------------------------------------------------------------------
-// EDMD_CIRCLE_3POINTS
+// EDMD_CIRCLE_3_POINTS
 // --------------------------------------------------------------------------
 
-EDMD_CIRCLE_3POINTS::EDMD_CIRCLE_3POINTS( IDX_XML_NODE& aNode ) :
+EDMD_CIRCLE_3_POINTS::EDMD_CIRCLE_3_POINTS( IDX_XML_NODE& aNode ) :
         EDMD_CIRCLE( aNode )
 {
 }

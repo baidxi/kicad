@@ -540,11 +540,11 @@ bool EDMD_KEEP_CONSTRAINT::Parse( IDX_XML_NODE& aNode )
 
 
 // -----------------------------------------------------
-// EDMD_KEEPOUT
+// EDMD_KEEP_OUT
 // -----------------------------------------------------
 
 
-EDMD_KEEPOUT::EDMD_KEEPOUT( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_KEEP_OUT::EDMD_KEEP_OUT( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_KEEP_CONSTRAINT( aNode, false )
 {
     if( aTopLevel )
@@ -553,11 +553,11 @@ EDMD_KEEPOUT::EDMD_KEEPOUT( IDX_XML_NODE& aNode, bool aTopLevel ) :
 
 
 // -----------------------------------------------------
-// EDMD_KEEPIN
+// EDMD_KEEP_IN
 // -----------------------------------------------------
 
 
-EDMD_KEEPIN::EDMD_KEEPIN( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_KEEP_IN::EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_KEEP_CONSTRAINT( aNode, false )
 {
     if( aTopLevel )
@@ -611,7 +611,7 @@ EDMD_ITEM_INSTANCE::TYPE EDMD_ITEM_INSTANCE::GetType() const
     }
 
 
-    auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( m_item->m_shape );
+    auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTER_STRATUM_FEATURE>( m_item->m_shape );
     if( interstratum )
     {
         using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
@@ -628,7 +628,7 @@ EDMD_ITEM_INSTANCE::TYPE EDMD_ITEM_INSTANCE::GetType() const
     {
         auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( m_item->m_shape );
         if( keep )
-            return TYPE::KEEPOUT;
+            return TYPE::KEEP_OUT;
     }
 
     if( !m_name.empty() )
@@ -849,17 +849,17 @@ bool EDMD_ASSEMBLY_COMPONENT::Resolve( IDX_REGISTRY& aRegistry )
 
 
 // -----------------------------------------------------
-// EDMD_INTERSTRATUM_FEATURE
+// EDMD_INTER_STRATUM_FEATURE
 // -----------------------------------------------------
 
-EDMD_INTERSTRATUM_FEATURE::EDMD_INTERSTRATUM_FEATURE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_INTER_STRATUM_FEATURE::EDMD_INTER_STRATUM_FEATURE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_ITEM_SHAPE( aNode, false )
 {
     if( aTopLevel )
         ParseChildren( aNode );
 };
 
-bool EDMD_INTERSTRATUM_FEATURE::Parse( IDX_XML_NODE& aNode )
+bool EDMD_INTER_STRATUM_FEATURE::Parse( IDX_XML_NODE& aNode )
 {
     const std::string content = aNode.GetNodeContent();
     const std::string name = aNode.GetName();
@@ -913,7 +913,7 @@ bool EDMD_INTERSTRATUM_FEATURE::Parse( IDX_XML_NODE& aNode )
 }
 
 
-bool EDMD_INTERSTRATUM_FEATURE::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_INTER_STRATUM_FEATURE::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
 
@@ -932,7 +932,7 @@ EDMD_PACKAGE_PIN::EDMD_PACKAGE_PIN( IDX_XML_NODE& aNode, bool aTopLevel ) :
 {
     if( aTopLevel )
         ParseChildren( aNode );
-    
+
     // Handle attributes
     m_pin_number = aNode.GetAttribute( "pin_number", "" );
     m_primary = parseBool( aNode.GetAttribute( "primary", "false" ) );
@@ -962,10 +962,10 @@ bool EDMD_PACKAGE_PIN::Parse( IDX_XML_NODE& aNode )
 
 
 // -----------------------------------------------------
-// EDMD_3DMODEL
+// EDMD_3D_MODEL
 // -----------------------------------------------------
 
-EDMD_3DMODEL::EDMD_3DMODEL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_3D_MODEL::EDMD_3D_MODEL( IDX_XML_NODE& aNode, bool aTopLevel ) :
         idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
     if( aTopLevel )
@@ -973,7 +973,7 @@ EDMD_3DMODEL::EDMD_3DMODEL( IDX_XML_NODE& aNode, bool aTopLevel ) :
 }
 
 
-bool EDMD_3DMODEL::Parse( IDX_XML_NODE& aNode )
+bool EDMD_3D_MODEL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
@@ -1009,7 +1009,7 @@ EDMD_BEND::EDMD_BEND( IDX_XML_NODE& aNode, bool aTopLevel ) :
 {
     if( aTopLevel )
         ParseChildren( aNode );
-    
+
     // Handle SequenceNumber attribute
     std::string seqNum = aNode.GetAttribute( "SequenceNumber", "0" );
     if( !seqNum.empty() )

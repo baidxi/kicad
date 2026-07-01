@@ -90,7 +90,7 @@ public:
     std::shared_ptr<KICAD_IDX_CHANGE> ConvertChange( idx_computational::EDMD_CHANGE& aChange );
 
     // Convert IDX shapes to BOARD_ITEM*
-    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVESET2D& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVE_SET_2D& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_ARC& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE& );
@@ -118,7 +118,7 @@ public:
     PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
 
     void AddItem( BOARD_ITEM*, LSET );
-    LSET GetLayers( idx_geometry::EDMD_CURVESET2D& );
+    LSET GetLayers( idx_geometry::EDMD_CURVE_SET_2D& );
 
     std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
 

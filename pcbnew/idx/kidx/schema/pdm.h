@@ -39,19 +39,19 @@ namespace idx_pdm
 {
 
 // Forward‑declarations of classes
-class EDMD_3DMODEL;
+class EDMD_3D_MODEL;
 class EDMD_ASSEMBLY_COMPONENT;
 class EDMD_BEND;
 class EDMD_BEND_TYPE;
 class EDMD_CIRCULAR_BEND_TYPE;
 class EDMD_FUNCTIONAL_ITEM_SHAPE;
-class EDMD_INTERSTRATUM_FEATURE;
+class EDMD_INTER_STRATUM_FEATURE;
 class EDMD_ITEM;
 class EDMD_ITEM_INSTANCE;
 class EDMD_ITEM_SHAPE;
 class EDMD_KEEP_CONSTRAINT;
-class EDMD_KEEPIN;
-class EDMD_KEEPOUT;
+class EDMD_KEEP_IN;
+class EDMD_KEEP_OUT;
 class EDMD_NON_FEATURE_ITEM_SHAPE;
 class EDMD_PACKAGE_PIN;
 class EDMD_SHAPE_DESCRIPTION;
@@ -305,20 +305,20 @@ private:
 };
 
 
-class EDMD_KEEPOUT : public EDMD_KEEP_CONSTRAINT
+class EDMD_KEEP_OUT : public EDMD_KEEP_CONSTRAINT
 {
 public:
-    EDMD_KEEPOUT() {};
-    EDMD_KEEPOUT( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_KEEP_OUT() {};
+    EDMD_KEEP_OUT( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
 };
 
 
-class EDMD_KEEPIN : public EDMD_KEEP_CONSTRAINT
+class EDMD_KEEP_IN : public EDMD_KEEP_CONSTRAINT
 {
 public:
-    EDMD_KEEPIN() {};
-    EDMD_KEEPIN( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_KEEP_IN() {};
+    EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel );
 
 
     bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
@@ -334,8 +334,8 @@ public:
     enum class TYPE
     {
         BOARD_OUTLINE = 0,
-        KEEPIN,
-        KEEPOUT,
+        KEEP_IN,
+        KEEP_OUT,
         NPTH,
         PTH,
         COMPONENT,
@@ -444,14 +444,14 @@ public:
 
 
 // -----------------------------------------------------
-// EDMD_3DMODEL
+// EDMD_3D_MODEL
 // -----------------------------------------------------
 
-class EDMD_3DMODEL : public idx_foundation::EDMD_COLLABORATION_OBJECT
+class EDMD_3D_MODEL : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_3DMODEL() {};
-    EDMD_3DMODEL( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_3D_MODEL() {};
+    EDMD_3D_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_modelIdentifier;
@@ -570,8 +570,8 @@ enum class GEOMETRY_TYPE
     PAD,
     TRACK,
     VIA,
-    KEEPOUT,
-    KEEPIN,
+    KEEP_OUT,
+    KEEP_IN,
     AREA,
     TEXT,
     DRILL,
@@ -607,11 +607,11 @@ enum class INTERSTRATUM_FEATURE_TYPE
     BOARD_CUTOUT
 };
 
-class EDMD_INTERSTRATUM_FEATURE : public EDMD_ITEM_SHAPE
+class EDMD_INTER_STRATUM_FEATURE : public EDMD_ITEM_SHAPE
 {
 public:
-    EDMD_INTERSTRATUM_FEATURE() {};
-    EDMD_INTERSTRATUM_FEATURE( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_INTER_STRATUM_FEATURE() {};
+    EDMD_INTER_STRATUM_FEATURE( IDX_XML_NODE& aNode, bool aTopLevel );
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;

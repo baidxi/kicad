@@ -371,7 +371,7 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "foundation:CurveSet2d" ) )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVESET2D> s = std::make_shared<idx_geometry::EDMD_CURVESET2D>( aNode );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> s = std::make_shared<idx_geometry::EDMD_CURVE_SET_2D>( aNode );
         m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
         m_curvesets.push_back( s );
     }
@@ -389,13 +389,13 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "foundation:KeepOut" ) )
     {
-        std::shared_ptr<idx_pdm::EDMD_KEEPOUT> s = std::make_shared<idx_pdm::EDMD_KEEPOUT>( aNode, true );
+        std::shared_ptr<idx_pdm::EDMD_KEEP_OUT> s = std::make_shared<idx_pdm::EDMD_KEEP_OUT>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_keeps.push_back( s );
     }
     else if( IDX_keyword_compare( name, "foundation:KeepIn" ) )
     {
-        std::shared_ptr<idx_pdm::EDMD_KEEPIN> s = std::make_shared<idx_pdm::EDMD_KEEPIN>( aNode, true );
+        std::shared_ptr<idx_pdm::EDMD_KEEP_IN> s = std::make_shared<idx_pdm::EDMD_KEEP_IN>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_keeps.push_back( s );
     }
@@ -414,8 +414,8 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "foundation:InterStratumFeature" ) )
     {
-        std::shared_ptr<idx_pdm::EDMD_INTERSTRATUM_FEATURE> s =
-                std::make_shared<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( aNode, true );
+        std::shared_ptr<idx_pdm::EDMD_INTER_STRATUM_FEATURE> s =
+                std::make_shared<idx_pdm::EDMD_INTER_STRATUM_FEATURE>( aNode, true );
         m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
         m_interStratums.push_back( s );
     }
@@ -440,8 +440,8 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "pdm:3DModel" ) )
     {
-        std::shared_ptr<idx_pdm::EDMD_3DMODEL> s = std::make_shared<idx_pdm::EDMD_3DMODEL>( aNode, true );
-        m_registry.registerObject<idx_pdm::EDMD_3DMODEL>( s->m_id, s );
+        std::shared_ptr<idx_pdm::EDMD_3D_MODEL> s = std::make_shared<idx_pdm::EDMD_3D_MODEL>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_3D_MODEL>( s->m_id, s );
         m_3dModels.push_back( s );
     }
     else if( IDX_keyword_compare( name, "pdm:Bend" ) )
@@ -624,7 +624,7 @@ void EDMD_DATASET::Prepare()
                 }
             }
 
-            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTERSTRATUM_FEATURE>( inst->m_item->m_shape );
+            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTER_STRATUM_FEATURE>( inst->m_item->m_shape );
             if( interstratum )
             {
                 using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;

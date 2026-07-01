@@ -127,10 +127,10 @@ public:
      * 
      * Context has to refer to an EDMDOrganisation or an EDMDSystem
      */
-class EDMD_ROLEINORGANISATION
+class EDMD_ROLE_IN_ORGANISATION
 {
 public:
-    EDMD_ROLEINORGANISATION( std::shared_ptr<EDMD_ORGANISATION> aContext ) :
+    EDMD_ROLE_IN_ORGANISATION( std::shared_ptr<EDMD_ORGANISATION> aContext ) :
             m_context( aContext ) {};
 
     std::shared_ptr<EDMD_ORGANISATION> m_context;

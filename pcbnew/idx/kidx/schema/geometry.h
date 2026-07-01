@@ -130,11 +130,11 @@ private:
     std::vector<std::string> m_pointRef;
 };
 
-class EDMD_CURVESET2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
+class EDMD_CURVE_SET_2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
 {
 public:
-    EDMD_CURVESET2D();
-    EDMD_CURVESET2D( IDX_XML_NODE& aNode );
+    EDMD_CURVE_SET_2D();
+    EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     idx_property::EDMD_LENGTH_PROPERTY                                  m_lowerBound;
@@ -190,10 +190,10 @@ public:
     virtual double                      GetRadius() const;
 };
 
-class EDMD_CIRCLE_3POINTS : public EDMD_CIRCLE
+class EDMD_CIRCLE_3_POINTS : public EDMD_CIRCLE
 {
 public:
-    EDMD_CIRCLE_3POINTS( IDX_XML_NODE& aNode );
+    EDMD_CIRCLE_3_POINTS( IDX_XML_NODE& aNode );
     std::shared_ptr<EDMD_POINT> m_p1;
     std::shared_ptr<EDMD_POINT> m_p2;
     std::shared_ptr<EDMD_POINT> m_p3;
