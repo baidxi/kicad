@@ -171,8 +171,8 @@ void EDMD_TRANSFORMATION::Write( IDX_XML_NODE& aNode ) const
 
     switch( m_type )
     {
-    case TYPE::D2: aNode.AppendChild( "TransformationType" )->SetText( "d2" ); break;
-    case TYPE::D3: aNode.AppendChild( "TransformationType" )->SetText( "d3" ); break;
+    case TYPE::D2: aNode.AppendChild( "pdm:TransformationType" )->SetText( "d2" ); break;
+    case TYPE::D3: aNode.AppendChild( "pdm:TransformationType" )->SetText( "d3" ); break;
     }
 
     if( !m_xx_str.empty() )
