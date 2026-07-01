@@ -460,3 +460,17 @@ bool KIDX_REGISTRY::SI_Process( idx_pdm::EDMD_ITEM& aItem )
     // All steps completed successfully
     return true;
 }
+
+
+idx_pdm::EDMD_ITEM* KIDX_REGISTRY::FindItemByIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId )
+{
+    for( auto& item : m_itemRepository )
+    {
+        for( const auto& identifier : item.m_identifier )
+        {
+            if( aId == identifier ) // Uses EDMD_IDENTIFIER::operator==
+                return &item;
+        }
+    }
+    return nullptr;
+}

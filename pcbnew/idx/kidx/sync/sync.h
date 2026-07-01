@@ -123,6 +123,9 @@ public:
     bool SI_6AdjustShape( idx_pdm::EDMD_ITEM& aItem );
     bool SI_7AdjustAcceptStatus( idx_pdm::EDMD_ITEM& aItem );
     bool SI_8AdjustRoles( idx_pdm::EDMD_ITEM& aItem );
+
+    // Item Lookup
+    idx_pdm::EDMD_ITEM* FindItemByIdentifier( const idx_foundation::EDMD_IDENTIFIER& aId );
     // SendChange
     bool SC_Process( idx_computational::EDMD_CHANGE& aChange );
     bool SC_1CheckIdentifierOfNewItem( const idx_computational::EDMD_CHANGE& aChange ) const;
