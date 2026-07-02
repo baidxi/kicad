@@ -708,13 +708,13 @@ bool EDMD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
 
 void EDMD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 {
-    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
-
-    std::shared_ptr<IDX_XML_NODE> child = aNode.AppendChild( "pdm:InstanceName" );
-
     if( m_item )
         WriteValueChild( aNode, "pdm:Item", m_item->m_id );
 
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+
+    WriteChild( aNode, "pdm:InstanceName", m_instanceName );
     WriteChild( aNode, "pdm:Transformation", m_transformation );
 
 
