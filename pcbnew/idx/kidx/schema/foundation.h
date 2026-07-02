@@ -226,6 +226,8 @@ public:
     std::shared_ptr<EDMD_OBJECT> m_object;
     std::shared_ptr<EDMD_SYSTEM> m_targetSystem;
     PROCESS_TYPE                 m_processType;
+
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 
@@ -239,9 +241,10 @@ public:
     EDMD_DATASET_BODY                                      m_body;
     std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
-    bool ResolveAll();
-    void Prepare();
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    bool         ResolveAll();
+    void         Prepare();
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     bool IsBaseline();
 

@@ -321,6 +321,8 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
 
 void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
 {
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
     WriteValueChild( aNode, "foundation:CreatorName", m_creatorName );
     WriteValueChild( aNode, "foundation:CreatorCompany", m_creatorCompany );
     WriteValueChild( aNode, "foundation:CreatorSystem", m_creatorSystem );
@@ -339,8 +341,6 @@ void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "foundation:GlobalUnitVoltage", m_globalUnitVoltageRef );
     WriteValueChild( aNode, "foundation:GlobalUnitWeight", m_globalUnitWeightRef );
     WriteValueChild( aNode, "foundation:GlobalUnitWork", m_globalUnitWorkRef );
-
-    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
 }
 
 // -----------------------------------------------------
@@ -644,6 +644,67 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
     else
         return this->EDMD_OBJECT::Parse( aNode );
     return true;
+}
+
+
+void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_OBJECT::Write( aNode );
+
+    // Set XML namespaces and schema location
+    aNode.SetAttribute( "xmlns", "http://www.prostep.org/IDX/4.5" );
+    aNode.SetAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
+    aNode.SetAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
+
+    // Write header
+    if( true ) // Always write header for now
+    {
+        std::shared_ptr<IDX_XML_NODE> headerNode = aNode.AppendChild( "foundation:Header" );
+        m_header.Write( *headerNode );
+    }
+
+    // Write process instructions
+    for( const auto& pi : m_processInstruction )
+    {
+        if( pi )
+        {
+            // Determine the correct node name based on process type
+            std::string nodeName;
+            switch( pi->m_processType )
+            {
+            case EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION:
+                nodeName = "computational:EDMDProcessInstructionSendInformation";
+                break;
+            case EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES:
+                nodeName = "computational:EDMDProcessInstructionSendChanges";
+                break;
+            default: nodeName = "computational:EDMDProcessInstruction"; break;
+            }
+
+            std::shared_ptr<IDX_XML_NODE> piNode = aNode.AppendChild( nodeName );
+            pi->Write( *piNode );
+
+            // Add ProcessType attribute
+            piNode->SetAttribute( "ProcessType",
+                                  pi->m_processType == EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION
+                                          ? "SendInformation"
+                                          : "SendChanges" );
+        }
+    }
+
+    // Write body
+    std::shared_ptr<IDX_XML_NODE> bodyNode = aNode.AppendChild( "foundation:EDMDDataSetBody" );
+
+    // Write items from the body
+    for( const auto& item : m_body.m_items )
+    {
+        if( !item )
+            continue;
+
+        std::shared_ptr<IDX_XML_NODE> itemNode = bodyNode->AppendChild( "pdm:EDMDItem" );
+        item->Write( *itemNode );
+    }
+
 }
 
 

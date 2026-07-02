@@ -719,52 +719,14 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                     responseDataset->m_body.m_items.push_back( responseItem );
                 }
 
-                // Save the response dataset to XML file
+                // Save the response dataset to XML file using EDMD_DATASET::Write
                 wxXmlDocument doc;
                 wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "EDMDDataSet" );
                 doc.SetRoot( root );
 
-                // Set XML namespaces and attributes for root
-                root->AddAttribute( "xmlns", "http://www.prostep.org/IDX/4.5" );
-                root->AddAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
-                root->AddAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
-
-                // Write header using EDMD_HEADER::Write method
-                wxXmlNode* headerNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:Header" );
-                root->AddChild( headerNode );
-
-                // Use the Write() function to serialize the header
-                std::shared_ptr<IDX_XML_NODE_KICAD> headerIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( headerNode );
-                responseDataset->m_header.Write( *headerIdxNode );
-
-                // Write process instruction
-                if( !responseDataset->m_processInstruction.empty() )
-                {
-                    wxXmlNode* piNode =
-                            new wxXmlNode( wxXML_ELEMENT_NODE, "computational:EDMDProcessInstructionSendInformation" );
-                    root->AddChild( piNode );
-                    piNode->AddAttribute( "ProcessType", "SendInformation" );
-                }
-
-                // Write body
-                wxXmlNode* bodyNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:EDMDDataSetBody" );
-                root->AddChild( bodyNode );
-
-                // Write items using EDMD_ITEM::Write() function
-                for( const auto& item : responseDataset->m_body.m_items )
-                {
-                    if( !item )
-                        continue;
-
-
-                    // Create the item node and wrap it in IDX_XML_NODE_KICAD
-                    wxXmlNode* itemNode = new wxXmlNode( wxXML_ELEMENT_NODE, "pdm:EDMDItem" );
-                    bodyNode->AddChild( itemNode );
-
-                    // Use the Write() function to serialize the item
-                    std::shared_ptr<IDX_XML_NODE_KICAD> itemIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( itemNode );
-                    item->Write( *itemIdxNode );
-                }
+                // Use the Write() function to serialize the entire dataset
+                std::shared_ptr<IDX_XML_NODE_KICAD> datasetIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( root );
+                responseDataset->Write( *datasetIdxNode );
 
                 // Save to file
                 wxFFileOutputStream output( responsePath );
