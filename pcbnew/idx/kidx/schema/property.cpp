@@ -203,11 +203,20 @@ bool EDMD_LENGTH_PROPERTY::Parse( IDX_XML_NODE& aNode )
     if( IDX_keyword_compare( name, "property:Value" ) )
     {
         m_value = parseDouble( content );
+        m_value_str = content;
         return true;
     }
 
     return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
 }
+
+void EDMD_LENGTH_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value_str );
+}
+
 
 // ------------------- EDMD_LOGIC_PROPERTY -------------------
 
@@ -231,6 +240,14 @@ bool EDMD_LOGIC_PROPERTY::Parse( IDX_XML_NODE& aNode )
 
     return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
 }
+
+void EDMD_LOGIC_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value ? "true" : "false" );
+}
+
 
 // ------------------- EDMD_PROPERTY -------------------
 

@@ -211,9 +211,11 @@ class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LENGTH_PROPERTY() {};
     EDMD_LENGTH_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
-    double m_value = 0.0;
+    double      m_value = 0.0;
+    std::string m_value_str;
 };
 
 
@@ -224,7 +226,8 @@ class EDMD_LOGIC_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LOGIC_PROPERTY() {};
     EDMD_LOGIC_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     double m_value = true;
 };

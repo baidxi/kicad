@@ -195,6 +195,17 @@ void EDMD_TRANSFORMATION::Write( IDX_XML_NODE& aNode ) const
         aNode.AppendChild( "pdm:zy" )->SetText( m_zy_str.value() );
     if( m_zz_str.has_value() && !m_zz_str.value().empty() )
         aNode.AppendChild( "pdm:zz" )->SetText( m_zz_str.value() );
+
+    auto child = aNode.AppendChild( "pdm:tx" );
+    m_tx.Write( *child );
+    child = aNode.AppendChild( "pdm:ty" );
+    m_ty.Write( *child );
+
+    if( m_tz.has_value() )
+    {
+        child = aNode.AppendChild( "pdm:tz" );
+        m_tz.value().Write( *child );
+    }
 }
 
 
@@ -851,7 +862,7 @@ void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
 
     WriteValueChild( aNode, "pdm:ReferenceName", m_referenceName );
 
-    WriteChild( aNode, "pdm:Baseline", m_baseline );
+    WriteChild( aNode, "pdm:BaseLine", m_baseline );
 
     if( m_shape )
         WriteValueChild( aNode, "pdm:Shape", m_shape->m_id );
