@@ -45,7 +45,11 @@ public:
     virtual void Write( IDX_XML_NODE& aNode ) const;
 
     void WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName, const std::string aValue ) const;
+    void WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                          const std::optional<std::string> aValue ) const;
     void WriteChild( IDX_XML_NODE& aNode, const std::string aChildName, const EDMD_OBJECT& aChild ) const;
+    void WriteChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                     const std::optional<EDMD_OBJECT>& aChild ) const;
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 

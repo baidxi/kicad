@@ -106,10 +106,7 @@ void EDMD_GROUP::Write( IDX_XML_NODE& aNode ) const
     }
 
     // Write Owner element if set
-    if( !m_owner.empty() )
-    {
-        aNode.AppendChild( "grouping:Owner" )->SetText( m_owner );
-    }
+    WriteValueChild( aNode, "grouping:Owner", m_owner );
 }
 
 // ------------------- EDMD_ITEM_CONSTRAINT -------------------
@@ -192,8 +189,7 @@ void EDMD_GENERAL_CLASSIFICATION::Write( IDX_XML_NODE& aNode ) const
     // Write Identifier elements
     for( const auto& identifier : m_identifier )
     {
-        auto identNode = aNode.AppendChild( "grouping:Identifier" );
-        identifier.Write( *identNode );
+        WriteChild( aNode, "grouping:Identifier", identifier );
     }
 }
 

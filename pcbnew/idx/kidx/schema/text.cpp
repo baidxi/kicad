@@ -305,8 +305,7 @@ void EDMD_SIMPLE_TEXT::Write( IDX_XML_NODE& aNode ) const
     aNode.AppendChild( "text:UpperLeft" )->SetText( m_upperLeft );
     aNode.AppendChild( "text:LowerRight" )->SetText( m_lowerRight );
 
-    if( !m_fontFace.empty() )
-        aNode.AppendChild( "text:FontFace" )->SetText( m_fontFace );
+    WriteValueChild( aNode, "text:FontFace", m_fontFace );
 
     writeFontFamily( aNode, "text:FontFamily", m_fontFamily );
 

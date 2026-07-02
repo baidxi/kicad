@@ -245,7 +245,7 @@ void EDMD_LOGIC_PROPERTY::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
 
-    WriteValueChild( aNode, "property:Value", m_value ? "true" : "false" );
+    WriteValueChild( aNode, "property:Value", std::string( m_value ? "true" : "false" ) );
 }
 
 

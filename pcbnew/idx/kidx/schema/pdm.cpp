@@ -175,37 +175,21 @@ void EDMD_TRANSFORMATION::Write( IDX_XML_NODE& aNode ) const
     case TYPE::D3: aNode.AppendChild( "pdm:TransformationType" )->SetText( "d3" ); break;
     }
 
-    if( !m_xx_str.empty() )
-        aNode.AppendChild( "pdm:xx" )->SetText( m_xx_str );
-    if( !m_xy_str.empty() )
-        aNode.AppendChild( "pdm:xy" )->SetText( m_xy_str );
-    if( m_xz_str.has_value() && !m_xz_str.value().empty() )
-        aNode.AppendChild( "pdm:xz" )->SetText( m_xz_str.value() );
+    WriteValueChild( aNode, "pdm:xx", m_xx_str );
+    WriteValueChild( aNode, "pdm:xy", m_xy_str );
+    WriteValueChild( aNode, "pdm:xz", m_xz_str );
 
-    if( !m_yx_str.empty() )
-        aNode.AppendChild( "pdm:yx" )->SetText( m_yx_str );
-    if( !m_yy_str.empty() )
-        aNode.AppendChild( "pdm:yy" )->SetText( m_yy_str );
-    if( m_yz_str.has_value() && !m_yz_str.value().empty() )
-        aNode.AppendChild( "pdm:yz" )->SetText( m_yz_str.value() );
+    WriteValueChild( aNode, "pdm:yx", m_yx_str );
+    WriteValueChild( aNode, "pdm:yy", m_yy_str );
+    WriteValueChild( aNode, "pdm:yz", m_yz_str );
 
-    if( m_zx_str.has_value() && !m_zx_str.value().empty() )
-        aNode.AppendChild( "pdm:zx" )->SetText( m_zx_str.value() );
-    if( m_zy_str.has_value() && !m_zy_str.value().empty() )
-        aNode.AppendChild( "pdm:zy" )->SetText( m_zy_str.value() );
-    if( m_zz_str.has_value() && !m_zz_str.value().empty() )
-        aNode.AppendChild( "pdm:zz" )->SetText( m_zz_str.value() );
+    WriteValueChild( aNode, "pdm:zx", m_zx_str );
+    WriteValueChild( aNode, "pdm:zy", m_zy_str );
+    WriteValueChild( aNode, "pdm:zz", m_zz_str );
 
-    auto child = aNode.AppendChild( "pdm:tx" );
-    m_tx.Write( *child );
-    child = aNode.AppendChild( "pdm:ty" );
-    m_ty.Write( *child );
-
-    if( m_tz.has_value() )
-    {
-        child = aNode.AppendChild( "pdm:tz" );
-        m_tz.value().Write( *child );
-    }
+    WriteChild( aNode, "pdm:tx", m_tx );
+    WriteChild( aNode, "pdm:ty", m_ty );
+    WriteChild( aNode, "pdm:tz", m_tz );
 }
 
 
@@ -729,19 +713,12 @@ void EDMD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
     std::shared_ptr<IDX_XML_NODE> child = aNode.AppendChild( "pdm:InstanceName" );
 
     if( m_item )
-    {
-        child = aNode.AppendChild( "pdm:Item" );
-        child->SetText( m_item->m_id );
-    }
+        WriteValueChild( aNode, "pdm:Item", m_item->m_id );
 
-    child = aNode.AppendChild( "pdm:Transformation" );
-    m_transformation.Write( *child );
+    WriteChild( aNode, "pdm:Transformation", m_transformation );
 
 
     /*
-    
-    else if( IDX_keyword_compare( name, "pdm:Transformation" ) )
-        m_transformation = idx_pdm::EDMD_TRANSFORMATION( aNode, true );
     else if( IDX_keyword_compare( name, "pdm:InstanceUserAreaLayerName" ) )
         m_instanceUserAreaLayerName.emplace_back( aNode, true );
     else if( IDX_keyword_compare( name, "pdm:zOffset" ) )
@@ -840,12 +817,10 @@ void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_COLLABORATION_OBJECT::Write( aNode );
 
 
-    auto child = aNode.AppendChild( "pdm:ItemType" );
-
     switch( m_itemType )
     {
-    case ITEM_TYPE::SINGLE: child->SetText( "single" ); break;
-    case ITEM_TYPE::ASSEMBLY: child->SetText( "assembly" ); break;
+    case ITEM_TYPE::SINGLE: WriteValueChild( aNode, "pdm:ItemType", std::string( "single" ) ); break;
+    case ITEM_TYPE::ASSEMBLY: WriteValueChild( aNode, "pdm:ItemType", std::string( "assembly" ) ); break;
     }
 
     for( auto id : m_identifier )
@@ -869,10 +844,7 @@ void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
 
     // Write Accept property if it has been set
     if( m_accept.m_isChanged.has_value() && m_accept.m_isChanged.value() )
-    {
-        auto acceptNode = aNode.AppendChild( "property:Accept" );
-        acceptNode->SetText( m_accept.m_value > 0.5 ? "true" : "false" );
-    }
+        WriteValueChild( aNode, "property:Accept", std::string( m_accept.m_value > 0.5 ? "true" : "false" ) );
 }
 
 

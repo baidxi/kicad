@@ -83,9 +83,24 @@ void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChild
         aNode.AppendChild( aChildName )->SetText( aValue );
 }
 
+void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                                   const std::optional<std::string> aValue ) const
+{
+    if( aValue.has_value() )
+        WriteValueChild( aNode, aChildName, aValue.value() );
+}
+
+
 void EDMD_OBJECT::WriteChild( IDX_XML_NODE& aNode, const std::string aChildName, const EDMD_OBJECT& aChild ) const
 {
     aChild.Write( *( aNode.AppendChild( aChildName ) ) );
+}
+
+void EDMD_OBJECT::WriteChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                              const std::optional<EDMD_OBJECT>& aChild ) const
+{
+    if( aChild.has_value() )
+        aChild.value().Write( *( aNode.AppendChild( aChildName ) ) );
 }
 
 // -----------------------------------------------------
@@ -759,8 +774,7 @@ void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
     if( m_isOriginator.has_value() )
         aNode.SetAttribute( "IsOriginator", m_isOriginator ? "true" : "false" );
 
-    auto child = aNode.AppendChild( "foundation:SystemScope" );
-    child->SetText( m_systemScopeRef );
+    WriteValueChild( aNode, "foundation:SystemScope", m_systemScopeRef );
 }
 
 
@@ -858,8 +872,7 @@ void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_DESIGNATOR::Write( aNode );
 
-    auto child = aNode.AppendChild( "foundation:ObjectName" );
-    child->SetText( m_objectName );
+    WriteValueChild( aNode, "foundation:ObjectName", m_objectName );
 }
 
 

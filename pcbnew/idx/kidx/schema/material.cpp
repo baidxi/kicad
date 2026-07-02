@@ -42,7 +42,7 @@ bool EDMD_MATERIAL::Parse( IDX_XML_NODE& aNode )
     // beyond what's inherited from EDMDCollaborationObject.
     // However, we parse common material properties that might be present
     // in extended implementations or future versions.
-    
+
     auto child = aNode.GetChildren();
 
     while( child )
@@ -91,24 +91,13 @@ void EDMD_MATERIAL::Write( IDX_XML_NODE& aNode ) const
     this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
 
     // Write material-specific properties if they are set
-    if( !m_name.empty() )
-        aNode.AppendChild( "material:Name" )->SetText( m_name );
-    
-    if( !m_description.empty() )
-        aNode.AppendChild( "material:Description" )->SetText( m_description );
-    
-    if( !m_type.empty() )
-        aNode.AppendChild( "material:Type" )->SetText( m_type );
-    
-    if( !m_manufacturer.empty() )
-        aNode.AppendChild( "material:Manufacturer" )->SetText( m_manufacturer );
-    
-    if( !m_partNumber.empty() )
-        aNode.AppendChild( "material:PartNumber" )->SetText( m_partNumber );
-    
-    if( !m_color.empty() )
-        aNode.AppendChild( "material:Color" )->SetText( m_color );
-    
+    WriteValueChild( aNode, "material:Name", m_name );
+    WriteValueChild( aNode, "material:Description", m_description );
+    WriteValueChild( aNode, "material:Type", m_type );
+    WriteValueChild( aNode, "material:Manufacturer", m_manufacturer );
+    WriteValueChild( aNode, "material:PartNumber", m_partNumber );
+    WriteValueChild( aNode, "material:Color", m_color );
+
     // Note: Numeric properties are not written as they may not be standard
     // in the current schema version, but the infrastructure is in place
     // for when they are needed.
