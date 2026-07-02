@@ -139,6 +139,7 @@ public:
 
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string m_creatorName;
     std::string m_creatorCompany;

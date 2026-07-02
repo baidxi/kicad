@@ -729,21 +729,13 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                 root->AddAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
                 root->AddAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
 
-                // Write header
+                // Write header using EDMD_HEADER::Write method
                 wxXmlNode* headerNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:Header" );
                 root->AddChild( headerNode );
 
-                wxXmlNode* creatorNameNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreatorName" );
-                headerNode->AddChild( creatorNameNode );
-                creatorNameNode->SetContent( responseDataset->m_header.m_creatorName );
-
-                wxXmlNode* creatorSystemNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreatorSystem" );
-                headerNode->AddChild( creatorSystemNode );
-                creatorSystemNode->SetContent( responseDataset->m_header.m_creatorSystem );
-
-                wxXmlNode* creationDateNode = new wxXmlNode( wxXML_ELEMENT_NODE, "foundation:CreationDateTime" );
-                headerNode->AddChild( creationDateNode );
-                creationDateNode->SetContent( responseDataset->m_header.m_creationDateTime );
+                // Use the Write() function to serialize the header
+                std::shared_ptr<IDX_XML_NODE_KICAD> headerIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( headerNode );
+                responseDataset->m_header.Write( *headerIdxNode );
 
                 // Write process instruction
                 if( !responseDataset->m_processInstruction.empty() )

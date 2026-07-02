@@ -318,6 +318,31 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
+{
+    WriteValueChild( aNode, "foundation:CreatorName", m_creatorName );
+    WriteValueChild( aNode, "foundation:CreatorCompany", m_creatorCompany );
+    WriteValueChild( aNode, "foundation:CreatorSystem", m_creatorSystem );
+    WriteValueChild( aNode, "foundation:PostProcessor", m_postProcessor );
+    WriteValueChild( aNode, "foundation:PostProcessorVersion", m_postProcessorVersion );
+    WriteValueChild( aNode, "foundation:CreationDateTime", m_creationDateTime );
+    WriteValueChild( aNode, "foundation:ModifiedDateTime", m_modifiedDateTime );
+    WriteValueChild( aNode, "foundation:Creator", m_creatorRef );
+    WriteValueChild( aNode, "foundation:System", m_systemRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitLength", m_globalUnitLengthRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitAmperage", m_globalUnitAmperageRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitAngle", m_globalUnitAngleRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitCapacitance", m_globalUnitCapacitanceRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitPower", m_globalUnitPowerRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitResistance", m_globalUnitResistanceRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitVoltage", m_globalUnitVoltageRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitWeight", m_globalUnitWeightRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitWork", m_globalUnitWorkRef );
+
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+}
+
 // -----------------------------------------------------
 // EDMD_DATASET_BODY
 // -----------------------------------------------------
