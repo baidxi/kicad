@@ -129,6 +129,32 @@ bool EDMD_UNIT::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_UNIT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    if( !m_unitName.empty() )
+        aNode.AppendChild( "foundation:UnitName" )->SetText( m_unitName );
+
+    if( !m_fundamental.empty() )
+        aNode.AppendChild( "property:Fundamental" )->SetText( m_fundamental );
+
+    if( m_scalingFactor != 1.0 )
+        aNode.AppendChild( "foundation:DependendScaleFactor" )->SetText( std::to_string( m_scalingFactor ) );
+
+    if( m_dependsOn )
+    {
+        std::shared_ptr<IDX_XML_NODE> dependsOnNode = aNode.AppendChild( "foundation:DependsOn" );
+        m_dependsOn->Write( *dependsOnNode );
+    }
+    else if( !m_dependsOnKey.empty() )
+    {
+        aNode.AppendChild( "foundation:DependsOn" )->SetText( m_dependsOnKey );
+    }
+}
+
+
 // ------------------- EDMD_UNIT Subclasses -------------------
 
 EDMD_UNIT_AMPERAGE::EDMD_UNIT_AMPERAGE( IDX_XML_NODE& aNode, bool aTopLevel ) :

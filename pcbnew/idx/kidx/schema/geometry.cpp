@@ -89,6 +89,20 @@ bool EDMD_CURVE::Resolve( IDX_REGISTRY& aRegistry )
     return EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve( aRegistry );
 }
 
+
+void EDMD_CURVE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Write( aNode );
+
+    // Write thickness if set
+    if( m_thickness.m_value != 0.0 )
+    {
+        std::shared_ptr<IDX_XML_NODE> thicknessNode = aNode.AppendChild( "property:Thickness" );
+        thicknessNode->SetText( std::to_string( m_thickness.m_value ) );
+    }
+}
+
+
 // --------------------------------------------------------------------------
 // EDMD_HYPERBOLA
 // --------------------------------------------------------------------------
@@ -168,6 +182,32 @@ bool EDMD_POLYLINE::Parse( IDX_XML_NODE& aNode )
     return this->EDMD_CURVE::Parse( aNode );
 }
 
+
+void EDMD_POLYLINE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    // Write points
+    for( const auto& point : m_point )
+    {
+        if( point )
+        {
+            std::shared_ptr<IDX_XML_NODE> pointNode = aNode.AppendChild( "d2:Point" );
+            point->Write( *pointNode );
+        }
+    }
+
+    // Write point references
+    for( const auto& pointRef : m_pointRef )
+    {
+        if( !pointRef.empty() )
+        {
+            std::shared_ptr<IDX_XML_NODE> pointRefNode = aNode.AppendChild( "d2:Point" );
+            pointRefNode->SetText( pointRef );
+        }
+    }
+}
+
 bool EDMD_POLYLINE::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = EDMD_CURVE::Resolve( aRegistry );
@@ -216,6 +256,35 @@ bool EDMD_CURVE_SET_2D::Resolve( IDX_REGISTRY& aRegistry )
     result &= resolve<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( m_modelElementRef, m_modelElement, aRegistry );
     return result;
 }
+
+
+void EDMD_CURVE_SET_2D::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_SHAPE_DESCRIPTION::Write( aNode );
+
+    if( m_lowerBound.m_value != 0.0 )
+    {
+        std::shared_ptr<IDX_XML_NODE> lowerNode = aNode.AppendChild( "property:LowerBound" );
+        lowerNode->SetText( std::to_string( m_lowerBound.m_value ) );
+    }
+
+    if( m_upperBound.m_value != 0.0 )
+    {
+        std::shared_ptr<IDX_XML_NODE> upperNode = aNode.AppendChild( "property:UpperBound" );
+        upperNode->SetText( std::to_string( m_upperBound.m_value ) );
+    }
+
+    // Write model elements
+    for( const auto& element : m_modelElement )
+    {
+        if( element )
+        {
+            std::shared_ptr<IDX_XML_NODE> elementNode = aNode.AppendChild( "foundation:ModelElement" );
+            element->Write( *elementNode );
+        }
+    }
+}
+
 
 // --------------------------------------------------------------------------
 // EDMD_ARC
@@ -413,6 +482,28 @@ EDMD_CARTESIAN_POINT::EDMD_CARTESIAN_POINT( IDX_XML_NODE& aNode, bool aTopLevel 
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
+
+void EDMD_POINT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Write( aNode );
+}
+
+
+void EDMD_CARTESIAN_POINT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_POINT::Write( aNode );
+
+    // Write X, Y, Z coordinates
+    std::shared_ptr<IDX_XML_NODE> xNode = aNode.AppendChild( "d2:X" );
+    xNode->SetText( std::to_string( m_x.m_value ) );
+
+    std::shared_ptr<IDX_XML_NODE> yNode = aNode.AppendChild( "d2:Y" );
+    yNode->SetText( std::to_string( m_y.m_value ) );
+
+    std::shared_ptr<IDX_XML_NODE> zNode = aNode.AppendChild( "d2:Z" );
+    zNode->SetText( std::to_string( m_z.m_value ) );
+}
 
 
 bool EDMD_CARTESIAN_POINT::Parse( IDX_XML_NODE& aNode )

@@ -373,6 +373,7 @@ set( ZONE_MANAGER_SRCS
 
 
 set( PCBNEW_IDX
+     idx/kidx/schema/administration.cpp
      idx/kidx/schema/annotation.cpp
      idx/kidx/schema/computational.cpp
      idx/kidx/schema/external.cpp

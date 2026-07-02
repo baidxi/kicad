@@ -695,7 +695,102 @@ void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
     // Write body
     std::shared_ptr<IDX_XML_NODE> bodyNode = aNode.AppendChild( "foundation:EDMDDataSetBody" );
 
-    // Write items from the body
+    // Write systems
+    for( const auto& system : m_body.m_systems )
+    {
+        if( system )
+        {
+            std::shared_ptr<IDX_XML_NODE> systemNode = bodyNode->AppendChild( "foundation:System" );
+            system->Write( *systemNode );
+        }
+    }
+
+    // Write history
+    for( const auto& history : m_body.m_history )
+    {
+        if( history )
+        {
+            std::shared_ptr<IDX_XML_NODE> historyNode = bodyNode->AppendChild( "foundation:History" );
+            history->Write( *historyNode );
+        }
+    }
+
+    // Write actors (persons) - EDMD_PERSON inherits from EDMD_ACTOR which inherits from EDMD_COLLABORATION_OBJECT
+    for( const auto& actor : m_body.m_actors )
+    {
+        if( actor )
+        {
+            std::shared_ptr<IDX_XML_NODE> actorNode = bodyNode->AppendChild( "foundation:Person" );
+            actor->Write( *actorNode );
+        }
+    }
+
+    // Write units - EDMD_UNIT now has Write method
+    for( const auto& unit : m_body.m_units )
+    {
+        if( unit )
+        {
+            // Use a generic Unit node name for now, or determine from xsiType if available
+            std::string unitNodeName = "foundation:Unit";
+            if( !unit->m_xsiType.empty() )
+            {
+                // Convert xsiType to node name
+                if( unit->m_xsiType.find( "UnitLength" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitLength";
+                else if( unit->m_xsiType.find( "UnitAmperage" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitAmperage";
+                else if( unit->m_xsiType.find( "UnitAngle" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitAngle";
+                else if( unit->m_xsiType.find( "UnitCapacitance" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitCapacitance";
+                else if( unit->m_xsiType.find( "UnitPower" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitPower";
+                else if( unit->m_xsiType.find( "UnitResistance" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitResistance";
+                else if( unit->m_xsiType.find( "UnitVoltage" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitVoltage";
+                else if( unit->m_xsiType.find( "UnitWeight" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitWeight";
+                else if( unit->m_xsiType.find( "UnitWork" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitWork";
+            }
+
+            std::shared_ptr<IDX_XML_NODE> unitNode = bodyNode->AppendChild( unitNodeName );
+            unit->Write( *unitNode );
+        }
+    }
+
+    // Write points - EDMD_POINT now has Write method
+    for( const auto& point : m_body.m_points )
+    {
+        if( point )
+        {
+            std::shared_ptr<IDX_XML_NODE> pointNode = bodyNode->AppendChild( "foundation:CartesianPoint" );
+            point->Write( *pointNode );
+        }
+    }
+
+    // Write curves - EDMD_POLYLINE inherits from EDMD_CURVE which inherits from EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
+    for( const auto& curve : m_body.m_curves )
+    {
+        if( curve )
+        {
+            std::shared_ptr<IDX_XML_NODE> curveNode = bodyNode->AppendChild( "foundation:PolyLine" );
+            curve->Write( *curveNode );
+        }
+    }
+
+    // Write curve sets
+    for( const auto& curveSet : m_body.m_curvesets )
+    {
+        if( curveSet )
+        {
+            std::shared_ptr<IDX_XML_NODE> curveSetNode = bodyNode->AppendChild( "foundation:PolyLine" );
+            curveSet->Write( *curveSetNode );
+        }
+    }
+
+    // Write items
     for( const auto& item : m_body.m_items )
     {
         if( !item )
@@ -705,6 +800,35 @@ void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
         item->Write( *itemNode );
     }
 
+    // Write assemblies
+    for( const auto& assembly : m_body.m_assemblies )
+    {
+        if( assembly )
+        {
+            std::shared_ptr<IDX_XML_NODE> assemblyNode = bodyNode->AppendChild( "pdm:EDMDAssemblyComponent" );
+            assembly->Write( *assemblyNode );
+        }
+    }
+
+    // Write package pins
+    for( const auto& packagePin : m_body.m_packagePins )
+    {
+        if( packagePin )
+        {
+            std::shared_ptr<IDX_XML_NODE> pinNode = bodyNode->AppendChild( "pdm:EDMPackagePin" );
+            packagePin->Write( *pinNode );
+        }
+    }
+
+    // Write 3D models
+    for( const auto& model3d : m_body.m_3dModels )
+    {
+        if( model3d )
+        {
+            std::shared_ptr<IDX_XML_NODE> modelNode = bodyNode->AppendChild( "pdm:EDMD3DModel" );
+            model3d->Write( *modelNode );
+        }
+    }
 }
 
 
@@ -988,6 +1112,30 @@ EDMD_PROCESS_INSTRUCTION::EDMD_PROCESS_INSTRUCTION( IDX_XML_NODE& aNode, bool aT
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
+
+void EDMD_PROCESS_INSTRUCTION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    if( m_subject )
+    {
+        std::shared_ptr<IDX_XML_NODE> subjectNode = aNode.AppendChild( "foundation:Subject" );
+        m_subject->Write( *subjectNode );
+    }
+
+    if( m_object )
+    {
+        std::shared_ptr<IDX_XML_NODE> objectNode = aNode.AppendChild( "foundation:Object" );
+        m_object->Write( *objectNode );
+    }
+
+    if( m_targetSystem )
+    {
+        std::shared_ptr<IDX_XML_NODE> targetNode = aNode.AppendChild( "foundation:TargetSystem" );
+        m_targetSystem->Write( *targetNode );
+    }
+}
 
 
 } // namespace idx_foundation

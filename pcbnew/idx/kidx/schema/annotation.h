@@ -50,7 +50,8 @@ class ARRAY_OF_EDMD_NAME;
 class ARRAY_OF_EDMD_NAME : public IDX_BASE
 {
 public:
-    ARRAY_OF_EDMD_NAME() : IDX_BASE() {};
+    ARRAY_OF_EDMD_NAME() :
+            IDX_BASE() {};
     ARRAY_OF_EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -64,7 +65,8 @@ public:
 class EDMD_ANNOTATION : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_ANNOTATION() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_ANNOTATION() :
+            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
     EDMD_ANNOTATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -83,7 +85,8 @@ public:
 class EDMD_HISTORY_ENTRY : public EDMD_ANNOTATION
 {
 public:
-    EDMD_HISTORY_ENTRY() : EDMD_ANNOTATION() {};
+    EDMD_HISTORY_ENTRY() :
+            EDMD_ANNOTATION() {};
     EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -99,8 +102,9 @@ public:
 class EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE : public EDMD_HISTORY_ENTRY
 {
 public:
-    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE() : EDMD_HISTORY_ENTRY() {};
-    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE & aNode, bool aTopLevel );
+    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE() :
+            EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
 /**
@@ -109,7 +113,8 @@ public:
 class EDMD_HISTORY_ENTRY_ADD_COMMENT : public EDMD_HISTORY_ENTRY
 {
 public:
-    EDMD_HISTORY_ENTRY_ADD_COMMENT() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_ADD_COMMENT() :
+            EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
@@ -119,7 +124,8 @@ public:
 class EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP : public EDMD_HISTORY_ENTRY
 {
 public:
-    EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP() :
+            EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
@@ -133,7 +139,8 @@ public:
 class EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE : public EDMD_HISTORY_ENTRY
 {
 public:
-    EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE() :
+            EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
@@ -143,7 +150,8 @@ public:
 class EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE : public EDMD_HISTORY_ENTRY
 {
 public:
-    EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE() : EDMD_HISTORY_ENTRY() {};
+    EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE() :
+            EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
 };
 
@@ -157,7 +165,8 @@ public:
     EDMD_HISTORY( IDX_XML_NODE& aNode );
     EDMD_HISTORY( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     ARRAY_OF_EDMD_NAME m_historyName;
     std::string        m_subject; // IDREF to EDMDObject

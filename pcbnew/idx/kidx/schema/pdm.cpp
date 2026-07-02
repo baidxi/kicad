@@ -81,6 +81,35 @@ bool EDMD_SHAPE_DESCRIPTION::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_SHAPE_DESCRIPTION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    // Write ShapeDescriptionType
+    std::string typeStr;
+    switch( m_shapeDescriptionType )
+    {
+    case SHAPE_DESCRIPTION_TYPE::GEOMETRIC_MODEL: typeStr = "GeometricModel"; break;
+    case SHAPE_DESCRIPTION_TYPE::EXTERNAL_GEOMETRIC_MODEL: typeStr = "ExternalGeometricModel"; break;
+    default: typeStr = "Unknown"; break;
+    }
+    if( !typeStr.empty() )
+        aNode.AppendChild( "pdm:ShapeDescriptionType" )->SetText( typeStr );
+
+    // Write BoundingBox
+    if( m_boundingBox )
+    {
+        std::shared_ptr<IDX_XML_NODE> bbNode = aNode.AppendChild( "pdm:BoundingBox" );
+        m_boundingBox->Write( *bbNode );
+    }
+    else if( !m_boundingBoxRef.empty() )
+    {
+        aNode.AppendChild( "pdm:BoundingBox" )->SetText( m_boundingBoxRef );
+    }
+}
+
+
 // -----------------------------------------------------
 // EDMD_TRANSFORMATION
 // -----------------------------------------------------
@@ -886,6 +915,27 @@ bool EDMD_ASSEMBLY_COMPONENT::Parse( IDX_XML_NODE& aNode )
     return this->EDMD_ITEM_SHAPE::Parse( aNode );
 }
 
+
+void EDMD_ASSEMBLY_COMPONENT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    // Write AssemblyComponentType
+    std::string typeStr;
+    switch( m_assemblyComponentType )
+    {
+    case ASSEMBLY_COMPONENT_TYPE::ASSEMBLY_GROUP_COMPONENT: typeStr = "AssemblyGroupComponent"; break;
+    case ASSEMBLY_COMPONENT_TYPE::LAMINATE_COMPONENT: typeStr = "LaminateComponent"; break;
+    case ASSEMBLY_COMPONENT_TYPE::THERMAL_COMPONENT: typeStr = "ThermalComponent"; break;
+    case ASSEMBLY_COMPONENT_TYPE::PHYSICAL: typeStr = "Physical"; break;
+    case ASSEMBLY_COMPONENT_TYPE::PADSTACK: typeStr = "Padstack"; break;
+    default: typeStr = "Unknown"; break;
+    }
+    if( !typeStr.empty() )
+        aNode.AppendChild( "pdm:AssemblyComponentType" )->SetText( typeStr );
+}
+
+
 bool EDMD_ASSEMBLY_COMPONENT::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = idx_pdm::EDMD_ITEM_SHAPE::Resolve( aRegistry );
@@ -1234,6 +1284,57 @@ bool EDMD_NON_FEATURE_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
     result &= resolve<idx_pdm::EDMD_ITEM_SHAPE>( m_relatedItemShapeRef, m_relatedItemShape, aRegistry );
 
     return result;
+}
+
+
+void EDMD_PACKAGE_PIN::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    // Write Point reference or actual point
+    if( m_point )
+    {
+        std::shared_ptr<IDX_XML_NODE> pointNode = aNode.AppendChild( "pdm:Point" );
+        m_point->Write( *pointNode );
+    }
+    else if( !m_pointRef.empty() )
+    {
+        aNode.AppendChild( "pdm:Point" )->SetText( m_pointRef );
+    }
+
+    // Write Shape reference or actual shape
+    if( m_shape )
+    {
+        std::shared_ptr<IDX_XML_NODE> shapeNode = aNode.AppendChild( "pdm:Shape" );
+        m_shape->Write( *shapeNode );
+    }
+    else if( !m_shapeRef.empty() )
+    {
+        aNode.AppendChild( "pdm:Shape" )->SetText( m_shapeRef );
+    }
+
+    // Write pin number
+    if( !m_pin_number.empty() )
+        aNode.AppendChild( "pdm:PinNumber" )->SetText( m_pin_number );
+
+    // Write primary flag
+    if( m_primary )
+        aNode.AppendChild( "pdm:Primary" )->SetText( "true" );
+}
+
+
+void EDMD_3D_MODEL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    if( !m_modelIdentifier.empty() )
+        aNode.AppendChild( "pdm:ModelIdentifier" )->SetText( m_modelIdentifier );
+
+    if( !m_modelVersion.empty() )
+        aNode.AppendChild( "pdm:ModelVersion" )->SetText( m_modelVersion );
+
+    if( !m_modelLocation.empty() )
+        aNode.AppendChild( "pdm:ModelLocation" )->SetText( m_modelLocation );
 }
 
 

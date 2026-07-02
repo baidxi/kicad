@@ -94,6 +94,8 @@ public:
     std::string m_emailAddress;
     std::string m_phoneNumber;
     std::string m_faxNumber;
+
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 /**
@@ -146,7 +148,9 @@ public:
     EDMD_ROLE( std::string aActor = "" ) :
             IDX_BASE(),
             m_actor( aActor ),
-            m_roleName() {}
+            m_roleName()
+    {
+    }
 
     EDMD_ROLE( IDX_XML_NODE& aNode ) :
             IDX_BASE()
@@ -179,7 +183,9 @@ class EDMD_ROLE_ON_OBJECT : public EDMD_ROLE
 {
 public:
     EDMD_ROLE_ON_OBJECT() :
-            EDMD_ROLE() {}
+            EDMD_ROLE()
+    {
+    }
 
     EDMD_ROLE_ON_OBJECT( IDX_XML_NODE& aNode ) :
             EDMD_ROLE( aNode )

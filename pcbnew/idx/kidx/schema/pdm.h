@@ -99,7 +99,8 @@ class EDMD_SHAPE_DESCRIPTION : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_SHAPE_DESCRIPTION() {};
     EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     SHAPE_DESCRIPTION_TYPE                  m_shapeDescriptionType;
@@ -426,6 +427,7 @@ public:
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     ASSEMBLY_COMPONENT_TYPE m_assemblyComponentType;
 
@@ -444,6 +446,7 @@ public:
     EDMD_PACKAGE_PIN( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string m_pointRef;
     std::string m_shapeRef;
@@ -464,7 +467,8 @@ class EDMD_3D_MODEL : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_3D_MODEL() {};
     EDMD_3D_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string m_modelIdentifier;
     std::string m_modelVersion;

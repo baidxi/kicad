@@ -149,7 +149,8 @@ bool EDMD_HISTORY_ENTRY::Parse( IDX_XML_NODE& aNode )
 
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE -------------------
 
-EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode,
+                                                                                  bool          aTopLevel ) :
         EDMD_HISTORY_ENTRY( aNode, false )
 {
     if( aTopLevel )
@@ -217,7 +218,9 @@ EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_
 // ------------------- EDMD_HISTORY -------------------
 
 EDMD_HISTORY::EDMD_HISTORY() :
-        idx_foundation::EDMD_COLLABORATION_OBJECT() {}
+        idx_foundation::EDMD_COLLABORATION_OBJECT()
+{
+}
 
 EDMD_HISTORY::EDMD_HISTORY( IDX_XML_NODE& aNode ) :
         idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
@@ -257,5 +260,27 @@ bool EDMD_HISTORY::Parse( IDX_XML_NODE& aNode )
     }
     return true;
 }
+
+
+void EDMD_HISTORY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    // Write HistoryName
+    if( !m_historyName.m_EDMDName.empty() )
+    {
+        std::shared_ptr<IDX_XML_NODE> historyNameNode = aNode.AppendChild( "annotation:HistoryName" );
+        for( const auto& name : m_historyName.m_EDMDName )
+        {
+            if( name )
+                name->Write( *historyNameNode );
+        }
+    }
+
+    // Write Subject
+    if( !m_subject.empty() )
+        aNode.AppendChild( "annotation:Subject" )->SetText( m_subject );
+}
+
 
 } // namespace idx_annotation

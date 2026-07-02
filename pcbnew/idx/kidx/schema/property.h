@@ -142,7 +142,8 @@ class EDMD_UNIT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_UNIT() {};
     EDMD_UNIT( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string                m_unitName;
     double                     m_scalingFactor = 1.0;

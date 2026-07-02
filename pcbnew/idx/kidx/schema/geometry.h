@@ -55,6 +55,7 @@ public:
     virtual ~EDMD_CURVE();
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     idx_property::EDMD_LENGTH_PROPERTY m_thickness;
 };
@@ -123,6 +124,7 @@ public:
     EDMD_POLYLINE( IDX_XML_NODE& aNode, bool aTopLevel );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::vector<std::shared_ptr<EDMD_POINT>> m_point;
 
@@ -136,6 +138,7 @@ public:
     EDMD_CURVE_SET_2D();
     EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     idx_property::EDMD_LENGTH_PROPERTY                                  m_lowerBound;
     idx_property::EDMD_LENGTH_PROPERTY                                  m_upperBound;
@@ -179,6 +182,7 @@ public:
     virtual double GetX() const;
     virtual double GetY() const;
     virtual ~EDMD_POINT();
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 class EDMD_CIRCLE : public EDMD_CURVE
@@ -246,6 +250,7 @@ public:
     bool   Parse( IDX_XML_NODE& aNode ) override;
     double GetX() const override;
     double GetY() const override;
+    void   Write( IDX_XML_NODE& aNode ) const override;
 
 private:
     idx_property::EDMD_LENGTH_PROPERTY m_x;
