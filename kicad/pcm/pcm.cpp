@@ -257,7 +257,8 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
             if( code == CURLE_ABORTED_BY_CALLBACK && size_exceeded )
                 wxMessageBox( _( "Download is too large." ) );
             else if( code != CURLE_ABORTED_BY_CALLBACK )
-                wxLogError( wxString( curl.GetErrorText( code ) ) );
+                wxLogError( _( "Failed to download '%s': %s" ), aUrl,
+                            wxString( curl.GetErrorText( code ) ) );
         }
 
         return false;
