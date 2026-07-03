@@ -218,6 +218,44 @@ public:
     bool CacheRepository( const wxString& aRepositoryId );
 
     /**
+     * @brief Returns true if metadata of given repository is present in the in-memory cache
+     *
+     * @param aRepositoryId id of the repository
+     */
+    bool IsRepositoryCached( const wxString& aRepositoryId ) const
+    {
+        return m_repository_cache.count( aRepositoryId ) > 0;
+    }
+
+    /**
+     * @brief Fetch repository data without touching the in-memory cache
+     *
+     * Downloads the repository and packages metadata, using the on-disk cache for
+     * the package list if it is up to date, and fills aRepository with the result.
+     * Does not modify PLUGIN_CONTENT_MANAGER state, so with a non-null aReporter it
+     * is safe to call from a worker thread as long as the repository list is not
+     * modified concurrently.
+     *
+     * @param aRepositoryId id of the repository to fetch
+     * @param aRepository filled with the fetched repository data on success
+     * @param aReporter progress reporter used for feedback and cancellation, required
+     * @return true if the repository data was fetched successfully
+     */
+    bool DownloadRepository( const wxString& aRepositoryId, PCM_REPOSITORY& aRepository,
+                             std::shared_ptr<PROGRESS_REPORTER> aReporter );
+
+    /**
+     * @brief Store fetched repository data in the in-memory cache
+     *
+     * Also updates metadata of installed packages from the new data.
+     * Must be called from the main thread.
+     *
+     * @param aRepositoryId id of the repository
+     * @param aRepository repository data previously filled by DownloadRepository()
+     */
+    void StoreRepositoryCache( const wxString& aRepositoryId, PCM_REPOSITORY&& aRepository );
+
+    /**
      * @brief Get the packages metadata from a previously cached repository
      *
      * This should only be called after a successful CacheRepository call
@@ -248,6 +286,10 @@ public:
 
     /**
      * @brief Get current state of the package
+     *
+     * Consults only repositories already present in the in-memory cache and does not
+     * trigger a network fetch. If the repository is not cached, installed packages are
+     * reported as PPS_INSTALLED and other packages as PPS_UNAVAILABLE.
      *
      * @param aRepositoryId repository id
      * @param aPackageId package id

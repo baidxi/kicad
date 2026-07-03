@@ -59,6 +59,9 @@ public:
     ///< Destroys package panels
     void ClearData();
 
+    ///< Clears the package list and shows a single centered informational message
+    void ShowMessage( const wxString& aText );
+
     ///< Selects full row of the clicked cell
     void OnVersionsCellClicked( wxGridEvent& event ) override;
 
