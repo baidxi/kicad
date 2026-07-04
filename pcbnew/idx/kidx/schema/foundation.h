@@ -177,6 +177,7 @@ public:
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     void BuildXML( std::shared_ptr<IDX_XML_NODE> );
+    void Write( IDX_XML_NODE& aNode ) const;
 
 
     IDX_REGISTRY m_registry;
