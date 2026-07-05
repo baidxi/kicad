@@ -418,87 +418,8 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
 
 std::shared_ptr<idx_foundation::EDMD_DATASET> KICAD_IDX::CreateSendInformationResponse()
 {
-    std::cout << "Creating SendInformation response dataset" << std::endl;
-
-    if( !m_dataset || !m_reg )
-    {
-        std::cerr << "Cannot create response: missing dataset or registry" << std::endl;
-        return nullptr;
-    }
-
     // Create a new dataset for the response
     auto responseDataset = std::make_shared<idx_foundation::EDMD_DATASET>();
-
-    // Copy header information from original dataset
-    responseDataset->m_header = m_dataset->m_header;
-
-    // Update header for response
-    responseDataset->m_header.m_creationDateTime = wxDateTime::Now().Format( "%Y-%m-%dT%H:%M:%S" ).ToStdString();
-    if( !responseDataset->m_header.m_creatorName.empty() )
-        responseDataset->m_header.m_creatorName += " (Response)";
-    else
-        responseDataset->m_header.m_creatorName = "KiCad IDX Response";
-
-    // Create SendInformation process instruction
-    auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>();
-    processInstruction->m_processType = idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION;
-
-    responseDataset->m_processInstruction.push_back( processInstruction );
-
-    // Create response items with item stubs containing identifier mapping
-    // According to spec: "the receiver sends a mandatory message of the type SendInformation,
-    // which contains an item stub with at least two identifiers for all new items:
-    // the identifier of the original sender and the identifier of the receiver"
-
-    for( const auto& originalItem : m_dataset->m_body.m_items )
-    {
-        if( !originalItem )
-            continue;
-
-        // Create response item (item stub)
-        auto responseItem = std::make_shared<idx_pdm::EDMD_ITEM>();
-        responseItem->m_id = originalItem->m_id;
-        responseItem->m_itemType = originalItem->m_itemType;
-
-        // Copy all identifiers from original (sender's identifiers)
-        responseItem->m_identifier = originalItem->m_identifier;
-
-        // Add receiver's (KiCad's) identifiers from registry
-        // According to spec, we need at least two identifiers: sender + receiver
-        // For now, we'll add a KiCad-specific identifier
-        auto kicadIdentifier = std::make_shared<idx_foundation::EDMD_IDENTIFIER>();
-        kicadIdentifier->m_systemScopeRef = "KiCad";
-        kicadIdentifier->m_originatorId = "KiCad";
-        kicadIdentifier->m_isOriginator = true;         // KiCad is the originator of this identifier
-        kicadIdentifier->m_number = originalItem->m_id; // Use same number for mapping
-        kicadIdentifier->m_version = "1";
-        kicadIdentifier->m_revision = "0";
-
-        // Check if this identifier already exists to avoid duplicates
-        bool identifierExists = false;
-        for( const auto& existingId : responseItem->m_identifier )
-        {
-            if( existingId.m_systemScopeRef == "KiCad" && existingId.m_originatorId == "KiCad"
-                && existingId.m_number == originalItem->m_id )
-            {
-                identifierExists = true;
-                break;
-            }
-        }
-
-        if( !identifierExists )
-        {
-            responseItem->m_identifier.push_back( *kicadIdentifier );
-        }
-
-        // Set Accept-Status to indicate acceptance
-        // According to spec: Accept-Status indicates acceptance of the item
-        responseItem->m_accept.m_isChanged = true; // Mark as changed
-        responseItem->m_accept.m_value = 1.0;      // Accepted = true (stored as double in EDMD_LOGIC_PROPERTY)
-
-        // Add to response body
-        responseDataset->m_body.m_items.push_back( responseItem );
-    }
 
     return responseDataset;
 }

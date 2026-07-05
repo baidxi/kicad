@@ -73,6 +73,9 @@ bool EDMD_OBJECT::operator==( const EDMD_OBJECT& rhs )
 
 void EDMD_OBJECT::Write( IDX_XML_NODE& aNode ) const
 {
+    if( !m_id.empty() )
+        aNode.SetAttribute( "id", m_id );
+
     if( m_isAttributeChanged.has_value() )
         aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged.value() );
 }
@@ -384,6 +387,7 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
         std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
                 std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( aNode, true );
         m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
     }
     else if( IDX_keyword_compare( name, "foundation:PolyLine" ) )
     {
@@ -582,7 +586,18 @@ void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
         }
     }
 
-    // Write points - EDMD_POINT now has Write method
+
+    // Write curve sets
+    for( const auto& curveSet : m_curvesets )
+    {
+        if( curveSet )
+        {
+            std::shared_ptr<IDX_XML_NODE> curveSetNode = aNode.AppendChild( "foundation:CurveSet2d" );
+            curveSet->Write( *curveSetNode );
+        }
+    }
+
+    // Write points
     for( const auto& point : m_points )
     {
         if( point )
@@ -599,16 +614,6 @@ void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
         {
             std::shared_ptr<IDX_XML_NODE> curveNode = aNode.AppendChild( "foundation:PolyLine" );
             curve->Write( *curveNode );
-        }
-    }
-
-    // Write curve sets
-    for( const auto& curveSet : m_curvesets )
-    {
-        if( curveSet )
-        {
-            std::shared_ptr<IDX_XML_NODE> curveSetNode = aNode.AppendChild( "foundation:PolyLine" );
-            curveSet->Write( *curveSetNode );
         }
     }
 
@@ -649,6 +654,37 @@ void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
         {
             std::shared_ptr<IDX_XML_NODE> modelNode = aNode.AppendChild( "pdm:EDMD3DModel" );
             model3d->Write( *modelNode );
+        }
+    }
+
+
+    // Write stratums
+    for( const auto& stratum : m_stratums )
+    {
+        if( stratum )
+        {
+            std::shared_ptr<IDX_XML_NODE> stratumNode = aNode.AppendChild( "foundation:Stratum" );
+            stratum->Write( *stratumNode );
+        }
+    }
+
+    // Write inter stratums
+    for( const auto& interStratum : m_interStratums )
+    {
+        if( interStratum )
+        {
+            std::shared_ptr<IDX_XML_NODE> interStratumNode = aNode.AppendChild( "foundation:InterStratumFeature" );
+            interStratum->Write( *interStratumNode );
+        }
+    }
+
+    // Write keep constraints
+    for( const auto& keep : m_keeps )
+    {
+        if( keep )
+        {
+            std::shared_ptr<IDX_XML_NODE> keepNode = aNode.AppendChild( "foundation:KeepOut" );
+            keep->Write( *keepNode );
         }
     }
 }
@@ -794,6 +830,12 @@ void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
     aNode.SetAttribute( "xmlns", "http://www.prostep.org/IDX/4.5" );
     aNode.SetAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
     aNode.SetAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
+
+    // Set additional namespaces for geometric elements and properties
+    aNode.SetAttribute( "xmlns:foundation", "http://www.prostep.org/ecad-mcad/edmd/3.5/foundation" );
+    aNode.SetAttribute( "xmlns:d2", "http://www.prostep.org/ecad-mcad/edmd/3.5/geometry.d2" );
+    aNode.SetAttribute( "xmlns:property", "http://www.prostep.org/ecad-mcad/edmd/3.5/property" );
+    aNode.SetAttribute( "xmlns:pdm", "http://www.prostep.org/ecad-mcad/edmd/3.5/pdm" );
 
     // Write header
     if( true ) // Always write header for now

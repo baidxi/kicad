@@ -655,6 +655,28 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                     responseDataset->m_header.m_creatorName = "KiCad IDX Response";
                 responseDataset->m_header.m_creatorSystem = "KiCad";
 
+                // Copy geometric elements from original dataset
+                // These are needed for proper IDX round-trip
+                responseDataset->m_body.m_points = m_loadedDataset->m_body.m_points;
+                responseDataset->m_body.m_curves = m_loadedDataset->m_body.m_curves;
+                responseDataset->m_body.m_curvesets = m_loadedDataset->m_body.m_curvesets;
+                responseDataset->m_body.m_shapeElements = m_loadedDataset->m_body.m_shapeElements;
+                responseDataset->m_body.m_assemblies = m_loadedDataset->m_body.m_assemblies;
+                responseDataset->m_body.m_stratums = m_loadedDataset->m_body.m_stratums;
+                responseDataset->m_body.m_interStratums = m_loadedDataset->m_body.m_interStratums;
+                responseDataset->m_body.m_keeps = m_loadedDataset->m_body.m_keeps;
+                responseDataset->m_body.m_functionalItemShapes = m_loadedDataset->m_body.m_functionalItemShapes;
+                responseDataset->m_body.m_packagePins = m_loadedDataset->m_body.m_packagePins;
+                responseDataset->m_body.m_3dModels = m_loadedDataset->m_body.m_3dModels;
+                responseDataset->m_body.m_bends = m_loadedDataset->m_body.m_bends;
+                responseDataset->m_body.m_bendTypes = m_loadedDataset->m_body.m_bendTypes;
+                responseDataset->m_body.m_circularBendTypes = m_loadedDataset->m_body.m_circularBendTypes;
+                responseDataset->m_body.m_systems = m_loadedDataset->m_body.m_systems;
+                responseDataset->m_body.m_history = m_loadedDataset->m_body.m_history;
+                responseDataset->m_body.m_actors = m_loadedDataset->m_body.m_actors;
+                responseDataset->m_body.m_units = m_loadedDataset->m_body.m_units;
+                responseDataset->m_body.m_items = m_loadedDataset->m_body.m_items;
+
                 // Create SendInformation process instruction
                 auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>();
                 processInstruction->m_processType =

@@ -46,6 +46,7 @@ public:
     EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT( IDX_XML_NODE& aNode, bool aTopLevel );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 class EDMD_CURVE : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT

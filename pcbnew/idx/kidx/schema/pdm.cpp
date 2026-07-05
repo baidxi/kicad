@@ -302,12 +302,97 @@ bool EDMD_SHAPE_ELEMENT::Parse( IDX_XML_NODE& aNode )
     else if( IDX_keyword_compare( name, "pdm:DefiningShape" ) )
     {
         m_definingShapeRef = content;
-        // ✅ m_definingShapeRef modified
         return true;
     }
 
-    // ✅ Fallback to base class parser if no member modified
     return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+}
+
+
+void EDMD_SHAPE_ELEMENT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    // Write ShapeElementType
+    switch( m_shapeElementType )
+    {
+    case SHAPE_ELEMENT_TYPE::NON_FEATURE_SHAPE_ELEMENT:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "NonFeatureShapeElement" );
+        break;
+    case SHAPE_ELEMENT_TYPE::FEATURE_SHAPE_ELEMENT:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "FeatureShapeElement" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PART_FEATURE: aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PartFeature" ); break;
+    case SHAPE_ELEMENT_TYPE::PART_MOUNTING_FEATURE:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PartMountingFeature" );
+        break;
+    case SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ComponentTerminationPassageTemplateTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_INTERFACE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ComponentTerminationPassageTemplateInterfaceTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::COMPONENT_TERMINATION_PASSAGE_TEMPLATE_JOIN_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ComponentTerminationPassageTemplateJoinTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PRINTED_PART_CROSS_SECTION_TEMPLATE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PrintedPartCrossSectionTemplateTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_INTERFACE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PrintedPartTemplateInterfaceTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_JOIN_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PrintedPartTemplateJoinTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::STRUCTURED_PRINTED_PART_TEMPLATE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "StructuredPrintedPartTemplateTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PRINTED_PART_TEMPLATE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PrintedPartTemplateTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::PART_TOOLING_FEATURE:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PartToolingFeature" );
+        break;
+    case SHAPE_ELEMENT_TYPE::FIDUCIAL_PART_FEATURE:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "FiducialPartFeature" );
+        break;
+    case SHAPE_ELEMENT_TYPE::THERMAL_FEATURE:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ThermalFeature" );
+        break;
+    case SHAPE_ELEMENT_TYPE::TEST_POINT_PART_FEATURE:
+        aNode.AppendChild( "pdm:ShapeElementTypv EDe" )->SetText( "TestPointPartFeature" );
+        break;
+    case SHAPE_ELEMENT_TYPE::CONNECTION_ZONE:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ConnectionZone" );
+        break;
+    case SHAPE_ELEMENT_TYPE::COMPONENT_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ComponentTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::BARE_DIE_COMPONENT_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "BareDieComponentTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::LAND: aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "Land" ); break;
+    case SHAPE_ELEMENT_TYPE::PACKAGE: aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "Package" ); break;
+    case SHAPE_ELEMENT_TYPE::PACKAGE_TERMINAL:
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "PackageTerminal" );
+        break;
+    case SHAPE_ELEMENT_TYPE::VIA_TERMINAL: aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ViaTerminal" ); break;
+    default:
+        // Handle unexpected enum values gracefully
+        break;
+    }
+
+    // Write Inverted
+    if( m_inverted )
+        aNode.AppendChild( "pdm:Inverted" )->SetText( "true" );
+    else
+        aNode.AppendChild( "pdm:Inverted" )->SetText( "false" );
+
+    // Write DefiningShape
+    if( !m_definingShapeRef.empty() )
+        aNode.AppendChild( "pdm:DefiningShape" )->SetText( m_definingShapeRef );
+
+    return;
 }
 
 
@@ -1007,6 +1092,74 @@ bool EDMD_INTER_STRATUM_FEATURE::Parse( IDX_XML_NODE& aNode )
     return this->EDMD_ITEM_SHAPE::Parse( aNode );
 }
 
+
+void EDMD_INTER_STRATUM_FEATURE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    // Write InterStratumFeatureType
+    switch( m_interstratumFeatureType )
+    {
+    case INTERSTRATUM_FEATURE_TYPE::UNSUPPORTED_PASSAGE:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "UnsupportedPassage" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::STRATUM_FEATURE_TEMPLATE_COMPONENT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "StratumFeatureTemplateComponent" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::CUTOUT_EDGE_SEGMENT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "CutoutEdgeSegment" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT_EDGE_SEGMENT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PlatedCutoutEdgeSegment" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "Cutout" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::PLATED_INTERSTRATUM_FEATURE:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PlatedInterStratumFeature" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::PLATED_PASSAGE:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PlatedPassage" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::MILLED_CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "MilledCutout" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::PLATED_CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PlatedCutout" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::VIA: aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "Via" ); break;
+    case INTERSTRATUM_FEATURE_TYPE::PHYSICAL_CONNECTIVITY_INTERRUPTING_CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PhysicalConnectivityInterruptingCutout" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::PARTIALLY_PLATED_CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "PartiallyPlatedCutout" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::COMPONENT_TERMINATION_PASSAGE:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "ComponentTerminationPassage" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::FILLED_VIA:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "FilledVia" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::MECHANICAL_COMPONENT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "MechanicalComponent" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::CUSTOM_ELECTROMECHANICAL_COMPONENT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "CustomElectroMechanicalComponent" );
+        break;
+    case INTERSTRATUM_FEATURE_TYPE::BOARD_CUTOUT:
+        aNode.AppendChild( "pdm:InterStratumFeatureType" )->SetText( "BoardCutout" );
+        break;
+    default:
+        // Handle unexpected enum values gracefully
+        break;
+    }
+
+    // Write Stratum references
+    for( const auto& stratum : m_stratumRef )
+    {
+        aNode.AppendChild( "pdm:Stratum" )->SetText( stratum );
+    }
+}
 
 bool EDMD_INTER_STRATUM_FEATURE::Resolve( IDX_REGISTRY& aRegistry )
 {

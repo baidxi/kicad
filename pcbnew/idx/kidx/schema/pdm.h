@@ -160,6 +160,7 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     bool                                    m_inverted;
     SHAPE_ELEMENT_TYPE                      m_shapeElementType;
@@ -631,6 +632,8 @@ public:
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
 
     std::vector<std::shared_ptr<EDMD_STRATUM>> m_stratum;
     INTERSTRATUM_FEATURE_TYPE                  m_interstratumFeatureType;
