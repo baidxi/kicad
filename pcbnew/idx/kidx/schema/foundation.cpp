@@ -1026,10 +1026,10 @@ void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
 
     // Write Persistant and IsOriginator attributes if they have values
     if( m_persistant.has_value() )
-        aNode.SetAttribute( "Persistant", m_persistant ? "true" : "false" );
+        aNode.SetAttributeBool( "Persistant", m_persistant );
 
     if( m_isOriginator.has_value() )
-        aNode.SetAttribute( "IsOriginator", m_isOriginator ? "true" : "false" );
+        aNode.SetAttributeBool( "IsOriginator", m_isOriginator );
 
     WriteValueChild( aNode, "foundation:SystemScope", m_systemScopeRef );
 }

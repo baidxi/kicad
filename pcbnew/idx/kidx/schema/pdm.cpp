@@ -1095,6 +1095,8 @@ bool EDMD_INTER_STRATUM_FEATURE::Parse( IDX_XML_NODE& aNode )
 
 void EDMD_INTER_STRATUM_FEATURE::Write( IDX_XML_NODE& aNode ) const
 {
+    aNode.SetAttribute( "xsi:type", "pdm:EDMDInterStratumFeature" );
+
     this->EDMD_ITEM_SHAPE::Write( aNode );
 
     // Write InterStratumFeatureType

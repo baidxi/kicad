@@ -394,9 +394,24 @@ public:
     virtual std::string GetNodeContent() const = 0;
     virtual void        SetAttribute( const std::string& name, const std::string& value ) = 0;
 
+    void SetAttribute( const std::string& name, const char* value )
+    {
+        this->SetAttribute( name, std::string( value ) );
+    }
+
     void SetAttribute( const std::string& name, bool value )
     {
         this->SetAttribute( name, std::string( value ? "true" : "false" ) );
+    }
+
+    void SetAttributeBool( const std::string& name, bool value ) { this->SetAttribute( name, value ); }
+
+    void SetAttributeBool( const char* name, bool value ) { this->SetAttribute( std::string( name ), value ); }
+
+    void SetAttributeBool( const char* name, const std::optional<bool>& value )
+    {
+        if( value.has_value() )
+            this->SetAttribute( std::string( name ), *value );
     }
 
 

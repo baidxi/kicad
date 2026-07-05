@@ -211,11 +211,13 @@ bool EDMD_POLYLINE::Resolve( IDX_REGISTRY& aRegistry )
 EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D() :
         idx_pdm::EDMD_SHAPE_DESCRIPTION()
 {
+    m_xsiType = "d2:EDMDCurveSet2d";
 }
 
 EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode ) :
         idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode, false )
 {
+    m_xsiType = "d2:EDMDCurveSet2d";
     auto child = aNode.GetChildren();
 
     while( child )
@@ -249,6 +251,8 @@ bool EDMD_CURVE_SET_2D::Resolve( IDX_REGISTRY& aRegistry )
 
 void EDMD_CURVE_SET_2D::Write( IDX_XML_NODE& aNode ) const
 {
+    aNode.SetAttribute( "xsi:type", "d2:EDMDCurveSet2d" );
+
     this->EDMD_SHAPE_DESCRIPTION::Write( aNode );
 
     WriteChild( aNode, "d2:LowerBound", m_lowerBound );
