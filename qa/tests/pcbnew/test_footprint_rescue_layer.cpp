@@ -87,22 +87,6 @@ BOOST_AUTO_TEST_CASE( OrphanLayerCheckIgnoresRescue )
 
         BOOST_TEST( orphans.test( In1_Cu ) );
     }
-
-    // Multi-layer items (PTH pads span all copper layers plus their masks) must be
-    // fully aggregated by GetAllFootprintLayers rather than collapsed to a single
-    // layer.
-    {
-        FOOTPRINT footprint( nullptr );
-
-        PAD* pthPad = new PAD( &footprint );
-        pthPad->SetAttribute( PAD_ATTRIB::PTH );
-        footprint.Add( pthPad );
-
-        LSET padLayers = pthPad->GetLayerSet();
-        LSET allLayers = LAYER_UTILS::GetAllFootprintLayers( footprint );
-
-        BOOST_TEST( ( allLayers & padLayers ) == padLayers );
-    }
 }
 
 

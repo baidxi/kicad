@@ -19,6 +19,7 @@
 
 #include "layer_utils.h"
 
+#include "pad.h"
 
 wxString LAYER_UTILS::AccumulateNames( const LSEQ& aLayers, const BOARD* aBoard )
 {
@@ -44,7 +45,20 @@ LSET LAYER_UTILS::GetAllFootprintLayers( const FOOTPRINT& aFootprint )
             [&]( BOARD_ITEM* aSubItem )
             {
                 wxCHECK2( aSubItem, /*void*/ );
-                usedLayers |= aSubItem->GetLayerSet();
+                if( aSubItem->Type() == PCB_PAD_T )
+                {
+                    // PTH pads may "exist" on all copper layers, but they don't necessarely "use" them.
+                    PAD* pad = static_cast<PAD*>( aSubItem );
+                    pad->Padstack().ForEachUniqueLayer(
+                            [&]( PCB_LAYER_ID layer )
+                            {
+                                usedLayers.set( layer );
+                            } );
+                }
+                else
+                {
+                    usedLayers |= aSubItem->GetLayerSet();
+                }
             },
             RECURSE_MODE::RECURSE );
 
@@ -55,17 +69,7 @@ LSET LAYER_UTILS::GetAllFootprintLayers( const FOOTPRINT& aFootprint )
 LSET LAYER_UTILS::GetOrphanedFootprintLayers( const FOOTPRINT& aFootprint,
                                               const LSET&      aCustomUserLayers )
 {
-    LSET usedLayers{};
-
-    aFootprint.RunOnChildren(
-            [&]( BOARD_ITEM* aSubItem )
-            {
-                wxCHECK2( aSubItem, /*void*/ );
-                // Pads "exist" on all copper layers, but they don't necessarely "use" them.
-                usedLayers |= aSubItem->Type() == PCB_PAD_T ? LSET{ F_Cu, B_Cu } : aSubItem->GetLayerSet();
-            },
-            RECURSE_MODE::RECURSE );
-
+    LSET usedLayers = GetAllFootprintLayers( aFootprint );
     usedLayers &= ~aCustomUserLayers;
     usedLayers &= ~LSET::AllTechMask();
     usedLayers &= ~LSET::UserMask();

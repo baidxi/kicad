@@ -61,6 +61,7 @@ set( QA_PCBNEW_SRCS
     test_footprint_editor_tabs.cpp
     test_footprint_library_adapter.cpp
     test_footprint_load_save.cpp
+    test_footprint_orphan_layers.cpp
     test_footprint_realignment.cpp
     test_footprint_transform_sync.cpp
     test_footprint_rescue_layer.cpp
@@ -246,7 +247,7 @@ set( QA_PCBNEW_SRCS
     pcb_io/odbpp/test_odbpp_netlist.cpp
 
     group_saveload.cpp
-)
+ )
 
 # DipTrace PCB benchmark tests that exercise proprietary reference designs kept outside the source
 # tree. The file is intentionally not committed; include it only when a developer has it.
