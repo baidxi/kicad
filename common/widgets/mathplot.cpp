@@ -1832,7 +1832,12 @@ void mpWindow::Fit( double xMin, double xMax, double yMin, double yMax, const wx
     // The caller wanting to print should perform another Fit() afterwards to restore this
     // object's state.
     if( !isPrinting )
+    {
         UpdateAll();
+
+        if( ( directions & wxHORIZONTAL ) != 0 )
+            OnXViewChanged();
+    }
 }
 
 
@@ -1893,6 +1898,8 @@ bool mpWindow::SetXView( double pos, double desiredMax, double desiredMin )
     m_desiredXmax   = desiredMax;
     m_desiredXmin   = desiredMin;
     AdjustLimitedView( wxHORIZONTAL );
+
+    OnXViewChanged();
 
     return true;
 }
@@ -2305,6 +2312,9 @@ void mpWindow::DoZoom( const wxPoint& centerPoint, double zoomFactor, wxOrientat
     }
 
     UpdateAll();
+
+    if( horizontally )
+        OnXViewChanged();
 }
 
 
