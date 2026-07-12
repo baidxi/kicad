@@ -279,10 +279,11 @@ public:
         BOX2I                  BoundingBox;
     };
 
-    explicit LTSPICE_SCHEMATIC( const wxString& aFilename, const wxFileName& aLTspiceDataDir,
-                                REPORTER* aReporter, PROGRESS_REPORTER* aProgressReporter ) :
+    explicit LTSPICE_SCHEMATIC( const wxString& aFilename, const wxFileName& aLTspiceDataDir, REPORTER* aReporter,
+                                PROGRESS_REPORTER* aProgressReporter ) :
             m_reporter( aReporter ),
             m_schematic( nullptr ),
+            m_sourceFile( aFilename ),
             m_ltspiceDataDir( aLTspiceDataDir )
     {}
 
@@ -353,6 +354,8 @@ public:
     LT_SYMBOL MakeDummySymbol( const wxString& aAscFileName );
 
     const wxFileName& GetLTspiceDataDir() { return m_ltspiceDataDir; }
+
+    const wxFileName& GetSourceFile() const { return m_sourceFile; }
 
 private:
     /**
@@ -436,6 +439,7 @@ private:
 private:
     REPORTER*            m_reporter;
     SCHEMATIC*           m_schematic;
+    wxFileName           m_sourceFile;
     wxFileName           m_ltspiceDataDir;
 
     std::map<wxString, std::map<wxString, wxString>> m_fileCache;
