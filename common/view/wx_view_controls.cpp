@@ -616,6 +616,8 @@ void WX_VIEW_CONTROLS::onButton( wxMouseEvent& aEvent )
 
 void WX_VIEW_CONTROLS::onEnter( wxMouseEvent& aEvent )
 {
+    m_parentPanel->SetCursorInCanvas( true );
+
     // Avoid stealing focus from text controls
     // This is particularly important for users using On-Screen-Keyboards
     // They may move the mouse over the canvas to reach the keyboard
@@ -644,6 +646,8 @@ void WX_VIEW_CONTROLS::onEnter( wxMouseEvent& aEvent )
 
 void WX_VIEW_CONTROLS::onLeave( wxMouseEvent& aEvent )
 {
+    m_parentPanel->SetCursorInCanvas( false );
+
 #if !defined USE_MOUSE_CAPTURE
     onMotion( aEvent );
 #endif

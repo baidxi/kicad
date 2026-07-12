@@ -133,6 +133,13 @@ public:
     KIGFX::GAL* GetGAL() const { return m_gal; }
 
     /**
+     * Set whether the mouse cursor is inside the drawing canvas.
+     *
+     * @param aCursorInCanvas is true if the cursor is inside the canvas.
+     */
+    void SetCursorInCanvas( bool aCursorInCanvas );
+
+    /**
      * Return a pointer to the #VIEW instance used in the panel.
      *
      * @return The instance of #VIEW.
@@ -314,7 +321,9 @@ protected:
     void onLostFocus( wxFocusEvent& aEvent );
     void onIdle( wxIdleEvent& aEvent );
     void onRefreshTimer( wxTimerEvent& aEvent );
+    void onCursorPollTimer( wxTimerEvent& aEvent );
     void onShowEvent( wxShowEvent& aEvent );
+    void syncCursorInCanvas();
 
     bool recoverFromGalError( const std::exception& aErr );
 
@@ -324,6 +333,7 @@ protected:
     std::chrono::steady_clock::time_point m_lastRepaintStart; ///< Timestamp of the last repaint start
     std::chrono::steady_clock::time_point m_lastRepaintEnd;   ///< Timestamp of the last repaint end
     wxTimer                               m_refreshTimer;     ///< Timer to prevent too-frequent refreshing
+    wxTimer                               m_cursorPollTimer;  ///< Windows cursor containment polling
 
     std::mutex               m_refreshMutex;     ///< Blocks multiple calls to the draw
 
@@ -338,6 +348,9 @@ protected:
 
     /// Last cursor position sent to GAL for drawing
     VECTOR2D                 m_lastCursorPosition;
+
+    /// True while the mouse cursor is inside the drawing canvas
+    bool                     m_cursorInCanvas;
 
     /// Interface for drawing objects on a 2D-surface
     KIGFX::GAL*              m_gal;
