@@ -430,44 +430,46 @@ std::shared_ptr<COMPONENT_CLASS_ASSIGNMENT_RULE> DRC_RULES_PARSER::parseComponen
 
 void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
 {
-    DRC_CONSTRAINT c;
-    int            value;
-    EDA_UNITS      units = EDA_UNITS::UNSCALED;
-    EDA_DATA_TYPE  unitsType = EDA_DATA_TYPE::UNITLESS;
-    wxString       msg;
-    bool           allowsTimeDomain = false;
+    DRC_CONSTRAINT          c;
+    int                     value;
+    EDA_UNITS               units = EDA_UNITS::UNSCALED;
+    EDA_DATA_TYPE           unitsType = EDA_DATA_TYPE::UNITLESS;
+    wxString                msg;
+    std::set<EDA_DATA_TYPE> allowedUnits = {};
 
     auto validateAndSetValueWithUnits =
-            [this, &allowsTimeDomain, &unitsType, &c]( int aValue, const EDA_UNITS aUnits, auto aSetter )
+            [this, &allowedUnits, &unitsType, &c]( int aValue, const EDA_UNITS aUnits, auto aSetter )
+    {
+        const EDA_DATA_TYPE unitsTypeTmp = UNITS_PROVIDER::GetTypeFromUnits( aUnits );
+
+        if( !allowedUnits.contains( unitsTypeTmp ) && !( aUnits == EDA_UNITS::UNSCALED ) )
+        {
+            reportError( wxString::Format( _( "Unit '%s' not allowed for constraint type." ),
+                                           EDA_UNIT_UTILS::GetLabel( aUnits, unitsTypeTmp ) ) );
+        }
+
+        if( ( c.m_Value.HasMin() || c.m_Value.HasMax() || c.m_Value.HasOpt() ) && unitsType != unitsTypeTmp )
+        {
+            reportError( _( "Mixed units for constraint values." ) );
+        }
+
+        unitsType = unitsTypeTmp;
+        aSetter( aValue );
+
+        if( allowedUnits.contains( EDA_DATA_TYPE::TIME ) )
+        {
+            if( unitsType == EDA_DATA_TYPE::TIME )
             {
-                const EDA_DATA_TYPE unitsTypeTmp = UNITS_PROVIDER::GetTypeFromUnits( aUnits );
-
-                if( !allowsTimeDomain && unitsTypeTmp == EDA_DATA_TYPE::TIME )
-                    reportError( _( "Time based units not allowed for constraint type." ) );
-
-                if( ( c.m_Value.HasMin() || c.m_Value.HasMax() || c.m_Value.HasOpt() )
-                    && unitsType != unitsTypeTmp )
-                {
-                    reportError( _( "Mixed units for constraint values." ) );
-                }
-
-                unitsType = unitsTypeTmp;
-                aSetter( aValue );
-
-                if( allowsTimeDomain )
-                {
-                    if( unitsType == EDA_DATA_TYPE::TIME )
-                    {
-                        c.SetOption( DRC_CONSTRAINT::OPTIONS::TIME_DOMAIN );
-                        c.ClearOption( DRC_CONSTRAINT::OPTIONS::SPACE_DOMAIN );
-                    }
-                    else
-                    {
-                        c.SetOption( DRC_CONSTRAINT::OPTIONS::SPACE_DOMAIN );
-                        c.ClearOption( DRC_CONSTRAINT::OPTIONS::TIME_DOMAIN );
-                    }
-                }
-            };
+                c.SetOption( DRC_CONSTRAINT::OPTIONS::TIME_DOMAIN );
+                c.ClearOption( DRC_CONSTRAINT::OPTIONS::SPACE_DOMAIN );
+            }
+            else
+            {
+                c.SetOption( DRC_CONSTRAINT::OPTIONS::SPACE_DOMAIN );
+                c.ClearOption( DRC_CONSTRAINT::OPTIONS::TIME_DOMAIN );
+            }
+        }
+    };
 
     T token = NextTok();
 
@@ -504,6 +506,7 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
         return;
     }
 
+    // clang-format off: suggestion is less organised
     switch( token )
     {
     case T_assertion:                 c.m_Type = ASSERTION_CONSTRAINT;                 break;
@@ -520,6 +523,10 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
     case T_track_width:               c.m_Type = TRACK_WIDTH_CONSTRAINT;               break;
     case T_track_angle:               c.m_Type = TRACK_ANGLE_CONSTRAINT;               break;
     case T_track_segment_length:      c.m_Type = TRACK_SEGMENT_LENGTH_CONSTRAINT;      break;
+    case T_pad_fanout_ratio:          c.m_Type = PAD_FANOUT_RATIO_CONSTRAINT;          break;
+    case T_pad_fanout_via_distance:   c.m_Type = PAD_FANOUT_VIA_DISTANCE_CONSTRAINT;   break;
+    case T_footprint_fanout_mirror_symmetry: c.m_Type = FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT;  break;
+    case T_footprint_fanout_point_symmetry:  c.m_Type = FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT;   break;
     case T_connection_width:          c.m_Type = CONNECTION_WIDTH_CONSTRAINT;          break;
     case T_annular_width:             c.m_Type = ANNULAR_WIDTH_CONSTRAINT;             break;
     case T_via_diameter:              c.m_Type = VIA_DIAMETER_CONSTRAINT;              break;
@@ -552,9 +559,10 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
                        "min_resolved_spokes, solder_mask_expansion, solder_mask_sliver, "
                        "solder_paste_abs_margin, solder_paste_rel_margin, length, net_chain_length, "
                        "skew, via_count, via_dangling, via_diameter, diff_pair_gap, "
-                       "diff_pair_uncoupled or bridged_mask" ) );
+                       "diff_pair_uncoupled, bridged_mask or pad_fanout_ratio" ) );
         return;
     }
+    // clang-format on: suggestion is less organised
 
     if( aRule->FindConstraint( c.m_Type ) )
     {
@@ -562,15 +570,70 @@ void DRC_RULES_PARSER::parseConstraint( DRC_RULE* aRule )
         reportError( msg );
     }
 
-    bool unitless = c.m_Type == VIA_COUNT_CONSTRAINT
-                    || c.m_Type == MIN_RESOLVED_SPOKES_CONSTRAINT
-                    || c.m_Type == TRACK_ANGLE_CONSTRAINT
-                    || c.m_Type == VIA_DANGLING_CONSTRAINT
-                    || c.m_Type == BRIDGED_MASK_CONSTRAINT;
+    switch( c.m_Type )
+    {
+    case LENGTH_CONSTRAINT:
+    case NET_CHAIN_LENGTH_CONSTRAINT:
+    case NET_CHAIN_STUB_LENGTH_CONSTRAINT:
+    case SKEW_CONSTRAINT:
+        allowedUnits.emplace( EDA_DATA_TYPE::DISTANCE );
+        allowedUnits.emplace( EDA_DATA_TYPE::TIME );
+        break;
 
-    allowsTimeDomain = c.m_Type == LENGTH_CONSTRAINT || c.m_Type == NET_CHAIN_LENGTH_CONSTRAINT
-                       || c.m_Type == NET_CHAIN_STUB_LENGTH_CONSTRAINT
-                       || c.m_Type == SKEW_CONSTRAINT;
+    case CLEARANCE_CONSTRAINT:
+    case CREEPAGE_CONSTRAINT:
+    case HOLE_CLEARANCE_CONSTRAINT:
+    case HOLE_TO_HOLE_CONSTRAINT:
+    case EDGE_CLEARANCE_CONSTRAINT:
+    case HOLE_SIZE_CONSTRAINT:
+    case COURTYARD_CLEARANCE_CONSTRAINT:
+    case SILK_CLEARANCE_CONSTRAINT:
+    case TEXT_HEIGHT_CONSTRAINT:
+    case TEXT_THICKNESS_CONSTRAINT:
+    case TRACK_WIDTH_CONSTRAINT:
+    case TRACK_SEGMENT_LENGTH_CONSTRAINT:
+    case ANNULAR_WIDTH_CONSTRAINT:
+    case THERMAL_RELIEF_GAP_CONSTRAINT:
+    case THERMAL_SPOKE_WIDTH_CONSTRAINT:
+    case SOLDER_MASK_EXPANSION_CONSTRAINT:
+    case SOLDER_PASTE_ABS_MARGIN_CONSTRAINT:
+    case SOLDER_PASTE_REL_MARGIN_CONSTRAINT:
+    case VIA_DIAMETER_CONSTRAINT:
+    case PAD_FANOUT_VIA_DISTANCE_CONSTRAINT:
+    case PHYSICAL_CLEARANCE_CONSTRAINT:
+    case PHYSICAL_HOLE_CLEARANCE_CONSTRAINT:
+    case CONNECTION_WIDTH_CONSTRAINT:
+    case DIFF_PAIR_GAP_CONSTRAINT:
+    case MAX_UNCOUPLED_CONSTRAINT:
+    case SOLDER_MASK_SLIVER_CONSTRAINT:
+        allowedUnits.emplace( EDA_DATA_TYPE::DISTANCE );
+        break;
+
+    case TRACK_ANGLE_CONSTRAINT:
+        allowedUnits.emplace( EDA_DATA_TYPE::ANGLE );
+        break;
+
+    case PAD_FANOUT_RATIO_CONSTRAINT:
+        allowedUnits.emplace( EDA_DATA_TYPE::UNITLESS );
+        break;
+
+    case DIFF_PAIR_INTRA_SKEW_CONSTRAINT:
+    case NET_CHAIN_RETURN_PATH_CONSTRAINT:
+    case ASSERTION_CONSTRAINT:
+    case ZONE_CONNECTION_CONSTRAINT:
+    case DISALLOW_CONSTRAINT:
+    case VIA_COUNT_CONSTRAINT:
+    case MIN_RESOLVED_SPOKES_CONSTRAINT:
+    case BRIDGED_MASK_CONSTRAINT:
+    case VIA_DANGLING_CONSTRAINT:
+    case FOOTPRINT_FANOUT_MIRROR_SYMMETRY_CONSTRAINT:
+    case FOOTPRINT_FANOUT_POINT_SYMMETRY_CONSTRAINT:
+    case NULL_CONSTRAINT:
+    default:
+        break;
+    }
+
+    bool unitless = allowedUnits.empty();
 
     if( c.m_Type == DISALLOW_CONSTRAINT )
     {

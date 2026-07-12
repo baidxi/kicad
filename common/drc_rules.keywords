@@ -63,6 +63,10 @@ thermal_spoke_width
 through_via
 track
 track_angle
+pad_fanout_ratio
+pad_fanout_via_distance
+footprint_fanout_mirror_symmetry
+footprint_fanout_point_symmetry
 track_width
 track_segment_length
 version

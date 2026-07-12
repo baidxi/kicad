@@ -124,6 +124,22 @@ DRC_ITEM DRC_ITEM::trackSegmentLength( DRCE_TRACK_SEGMENT_LENGTH,
         _HKI( "Track segment length" ),
         wxT( "track_segment_length" ) );
 
+DRC_ITEM DRC_ITEM::padFanoutRatio( DRCE_PAD_FANOUT_RATIO,
+        _( "Pad fanout ratio" ),
+        wxT( "pad_fanout_ratio" ) );
+
+DRC_ITEM DRC_ITEM::padFanoutViaDistance( DRCE_PAD_FANOUT_VIA_DISTANCE,
+        _( "Pad fanout via distance" ),
+        wxT( "pad_fanout_via_distance" ) );
+
+DRC_ITEM DRC_ITEM::footprintFanoutMirrorSymmetry( DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY,
+        _( "Footprint fanout mirror symmetry" ),
+        wxT( "footprint_fanout_mirror_symmetry" ) );
+
+DRC_ITEM DRC_ITEM::footprintFanoutPointSymmetry( DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY,
+        _( "Footprint fanout point symmetry" ),
+        wxT( "footprint_fanout_point_symmetry" ) );
+
 DRC_ITEM DRC_ITEM::annularWidth( DRCE_ANNULAR_WIDTH,
         _HKI( "Annular width" ),
         wxT( "annular_width" ) );
@@ -343,6 +359,10 @@ std::vector<std::reference_wrapper<RC_ITEM>> DRC_ITEM::allItemTypes( {
         DRC_ITEM::trackWidth,
         DRC_ITEM::trackAngle,
         DRC_ITEM::trackSegmentLength,
+        DRC_ITEM::padFanoutRatio,
+        DRC_ITEM::padFanoutViaDistance,
+        DRC_ITEM::footprintFanoutMirrorSymmetry,
+        DRC_ITEM::footprintFanoutPointSymmetry,
         DRC_ITEM::annularWidth,
         DRC_ITEM::drillTooSmall,
         DRC_ITEM::microviaDrillTooSmall,
@@ -438,6 +458,10 @@ std::shared_ptr<DRC_ITEM> DRC_ITEM::Create( int aErrorCode )
     case DRCE_TRACK_WIDTH:              return std::make_shared<DRC_ITEM>( trackWidth );
     case DRCE_TRACK_ANGLE:              return std::make_shared<DRC_ITEM>( trackAngle );
     case DRCE_TRACK_SEGMENT_LENGTH:     return std::make_shared<DRC_ITEM>( trackSegmentLength );
+    case DRCE_PAD_FANOUT_RATIO:         return std::make_shared<DRC_ITEM>( padFanoutRatio );
+    case DRCE_PAD_FANOUT_VIA_DISTANCE:  return std::make_shared<DRC_ITEM>( padFanoutViaDistance );
+    case DRCE_FOOTPRINT_FANOUT_MIRROR_SYMMETRY:   return std::make_shared<DRC_ITEM>( footprintFanoutMirrorSymmetry );
+    case DRCE_FOOTPRINT_FANOUT_POINT_SYMMETRY:  return std::make_shared<DRC_ITEM>( footprintFanoutPointSymmetry );
     case DRCE_ANNULAR_WIDTH:            return std::make_shared<DRC_ITEM>( annularWidth );
     case DRCE_DRILL_OUT_OF_RANGE:       return std::make_shared<DRC_ITEM>( drillTooSmall );
     case DRCE_VIA_DIAMETER:             return std::make_shared<DRC_ITEM>( viaDiameter );

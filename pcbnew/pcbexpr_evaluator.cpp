@@ -21,6 +21,7 @@
 
 #include <inspectable_impl.h>
 
+#include "eda_units.h"
 #include <cstdio>
 #include <memory>
 #include <mutex>
@@ -765,8 +766,8 @@ BOARD* PCBEXPR_CONTEXT::GetBoard() const
 const std::vector<wxString>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnits() const
 {
     static const std::vector<wxString> pcbUnits = { wxT( "mil" ), wxT( "mm" ), wxT( "in" ),
-                                                    wxT( "deg" ), wxT( "fs" ), wxT( "ps" ) };
-
+                                                    wxT( "fs" ), wxT( "ps" ),
+                                                    wxT( "deg" ), wxT( "%" ) };
 
     return pcbUnits;
 }
@@ -774,14 +775,15 @@ const std::vector<wxString>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnits() const
 
 wxString PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsMessage() const
 {
-    return _( "must be mm, in, mil, deg, fs, or ps" );
+    return _( "must be mm, in, mil, fs, ps, deg or %" );
 }
 
 
 const std::vector<EDA_UNITS>& PCBEXPR_UNIT_RESOLVER::GetSupportedUnitsTypes() const
 {
-    static const std::vector<EDA_UNITS> pcbUnits = { EDA_UNITS::MILS,    EDA_UNITS::MM, EDA_UNITS::INCH,
-                                                     EDA_UNITS::DEGREES, EDA_UNITS::FS, EDA_UNITS::PS };
+    static const std::vector<EDA_UNITS> pcbUnits = { EDA_UNITS::MILS,     EDA_UNITS::MM,     EDA_UNITS::INCH,
+                                                     EDA_UNITS::FS,       EDA_UNITS::PS,     EDA_UNITS::DEGREES,
+                                                     EDA_UNITS::PERCENT };
 
     return pcbUnits;
 }
@@ -796,9 +798,10 @@ double PCBEXPR_UNIT_RESOLVER::Convert( const wxString& aString, int unitId ) con
     case 0: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::MILS, aString );
     case 1: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::MM, aString );
     case 2: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::INCH, aString );
-    case 3: return v;
-    case 4: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::FS, aString );
-    case 5: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PS, aString );
+    case 3: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::FS, aString );
+    case 4: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PS, aString );
+    case 5: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::DEGREES, aString );
+    case 6: return EDA_UNIT_UTILS::UI::DoubleValueFromString( pcbIUScale, EDA_UNITS::PERCENT, aString );
     default: return v;
     }
 };
