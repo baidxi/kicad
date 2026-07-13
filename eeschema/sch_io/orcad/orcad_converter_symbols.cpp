@@ -848,7 +848,10 @@ LIB_SYMBOL* ORCAD_CONVERTER::kicadSymbolFor( const std::string& aLibName )
         valField.SetTextPos( VECTOR2I( 0, topY - schMm( 2.54 ) ) );
     }
 
-    symbol->GetFootprintField().SetText( FromOrcadString( entry.footprint ) );
+    // OrCAD footprint names are not valid KiCad footprint library IDs; the source
+    // name is preserved as a user field on each placed instance instead.  Leaving
+    // the Footprint field empty lets imported symbols link to imported board
+    // footprints via "Update PCB from Schematic -> re-link by reference".
     symbol->GetFootprintField().SetVisible( false );
     symbol->GetDatasheetField().SetVisible( false );
 
@@ -1489,7 +1492,22 @@ void ORCAD_CONVERTER::placeSymbolFields( SCH_SYMBOL* aSymbol, const ORCAD_PLACED
         valField->SetVisible( showVal );
     }
 
-    aSymbol->SetFootprintFieldText( FromOrcadString( aFootprint ) );
+    // Keep the source (OrCAD) footprint name as metadata in a user field, but leave
+    // the KiCad Footprint field empty: OrCAD names are not valid KiCad footprint
+    // library IDs, and a non-matching Footprint field blocks linking the symbol to
+    // an imported board footprint via "Update PCB -> re-link by reference".
+    aSymbol->SetFootprintFieldText( wxEmptyString );
+
+    wxString fpName = FromOrcadString( aFootprint );
+
+    if( !fpName.IsEmpty() )
+    {
+        SCH_FIELD fpMeta( aSymbol, FIELD_T::USER, wxS( "OrCAD Footprint" ) );
+        fpMeta.SetText( fpName );
+        fpMeta.SetPosition( aSymbol->GetPosition() );
+        fpMeta.SetVisible( false );
+        aSymbol->AddField( fpMeta );
+    }
 
     SCH_FIELD* fpField = aSymbol->GetField( FIELD_T::FOOTPRINT );
     fpField->SetPosition( aSymbol->GetPosition() );
