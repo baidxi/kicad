@@ -1285,6 +1285,12 @@ void ORCAD_CONVERTER::placeInstance( ORCAD_RAW_PAGE& aPage, const ORCAD_PLACED_I
     symbol->SetRef( &aSheetPath, reference );
     symbol->SetUnitSelection( &aSheetPath, unit );
 
+    // Parts without any pins (fiducial markers, logos, labels, mounting hardware) have no
+    // electrical presence: keep them out of the board update so they are not proposed as
+    // missing footprints.  They stay in the BOM -- sockets and screws are real line items.
+    if( def.pins.empty() && aInst.pins.empty() )
+        symbol->SetExcludedFromBoard( true );
+
     aScreen->Append( symbol );
     placeDefinitionImages( def, aInst.x, aInst.y, ori, aScreen );
 
