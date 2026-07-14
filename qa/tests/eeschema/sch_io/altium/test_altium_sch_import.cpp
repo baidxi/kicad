@@ -263,6 +263,38 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
     BOOST_CHECK_EQUAL( channelPaths.at( wxT( "CH2" ) ).GetPageNumber(), wxT( "3" ) );
     BOOST_CHECK_EQUAL( channelPaths.at( wxT( "CH3" ) ).GetPageNumber(), wxT( "4" ) );
 
+    // All repeated channels reference the same document and so must share a single SCH_SCREEN.
+    // Separate per-channel screens would each keep only their own annotation, so the shared
+    // .kicad_sch file would lose every channel but the last one written on save.
+    std::set<SCH_SCREEN*> channelScreens;
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+        channelScreens.insert( sheetPath.LastScreen() );
+
+    BOOST_REQUIRE_EQUAL( channelScreens.size(), 1 );
+
+    // That one shared screen must carry the per-instance annotation for every channel path.
+    SCH_SCREEN* sharedScreen = *channelScreens.begin();
+    BOOST_REQUIRE( sharedScreen );
+
+    SCH_SYMBOL* ledSymbol = nullptr;
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+    {
+        std::set<wxString> refsOnPath;
+
+        for( SCH_ITEM* item : sharedScreen->Items().OfType( SCH_SYMBOL_T ) )
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+            refsOnPath.insert( symbol->GetRef( &sheetPath ) );
+        }
+
+        BOOST_CHECK_MESSAGE( refsOnPath.count( wxT( "LED1_" ) + channelName ),
+                             "Shared screen missing LED1 annotation for " << channelName );
+        BOOST_CHECK_MESSAGE( refsOnPath.count( wxT( "R1_" ) + channelName ),
+                             "Shared screen missing R1 annotation for " << channelName );
+    }
+
     std::set<wxString> ledReferences;
     std::set<wxString> resistorReferences;
 
@@ -274,7 +306,10 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
             wxString    ref = symbol->GetRef( &sheetPath );
 
             if( ref.StartsWith( wxT( "LED" ) ) )
+            {
+                ledSymbol = symbol;
                 ledReferences.insert( ref );
+            }
             else if( ref.StartsWith( wxT( "R" ) ) )
                 resistorReferences.insert( ref );
         }
@@ -284,6 +319,26 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
                                                         wxT( "LED1_CH3" ) } ) );
     BOOST_CHECK( resistorReferences == std::set<wxString>( { wxT( "R1_CH1" ), wxT( "R1_CH2" ),
                                                              wxT( "R1_CH3" ) } ) );
+
+    BOOST_REQUIRE( ledSymbol );
+    BOOST_REQUIRE_EQUAL( ledSymbol->GetInstances().size(), 3 );
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+    {
+        std::optional<SCH_SYMBOL_VARIANT> variant = ledSymbol->GetVariant( sheetPath, wxT( "CH2 only" ) );
+
+        if( channelName == wxT( "CH2" ) )
+        {
+            BOOST_REQUIRE( variant );
+            BOOST_CHECK( variant->m_DNP );
+            BOOST_CHECK( variant->m_ExcludedFromBOM );
+            BOOST_CHECK( variant->m_ExcludedFromPosFiles );
+        }
+        else
+        {
+            BOOST_CHECK( !variant );
+        }
+    }
 }
 
 

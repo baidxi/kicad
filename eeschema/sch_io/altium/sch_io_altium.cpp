@@ -445,51 +445,29 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicProject( SCHEMATIC* aSchematic, const std
 
         wxFileName fn( filestring );
 
-        // Check if this file was already loaded as a subsheet of another sheet.
-        // This can happen when the project file lists sheets in an order where a parent
-        // sheet is processed before its subsheets. We need to handle potential case
-        // differences in filenames (e.g., LVDS.SCHDOC vs LVDS.SchDoc).
-        SCH_SCREEN* existingScreen = nullptr;
-        m_rootSheet->SearchHierarchy( fn.GetFullPath(), &existingScreen );
+        // Resolve the KiCad document path so it can be matched against documents already loaded
+        // (as a top-level entry or as a subsheet during another sheet's hierarchy descent).
+        wxFileName kicad_fn( fn );
+        kicad_fn.SetExt( FILEEXT::KiCadSchematicFileExtension );
+        kicad_fn.SetPath( aSchematic->Project().GetProjectPath() );
 
-        // If not found, try case-insensitive search by checking all loaded screens.
-        // Compare base names only (without extension) since Altium uses .SchDoc/.SCHDOC
-        // while KiCad uses .kicad_sch
-        if( !existingScreen )
-        {
-            SCH_SCREENS allScreens( m_rootSheet );
-
-            for( SCH_SCREEN* screen = allScreens.GetFirst(); screen; screen = allScreens.GetNext() )
-            {
-                wxFileName screenFn( screen->GetFileName() );
-                wxFileName checkFn( fn.GetFullPath() );
-
-                if( screenFn.GetName().IsSameAs( checkFn.GetName(), false ) )
-                {
-                    existingScreen = screen;
-                    break;
-                }
-            }
-        }
-
-        if( existingScreen )
+        // A document listed here may already have been loaded while descending another sheet's
+        // hierarchy (project files can list a parent before its subsheets).  Sharing the existing
+        // screen keeps a single source of truth per document.
+        if( m_altiumSheetScreens.count( kicad_fn.GetFullPath().Lower() ) )
             continue;
 
         VECTOR2I pos    = VECTOR2I( x * schIUScale.MilsToIU( 1000 ),
                                     y * schIUScale.MilsToIU( 1000 ) );
 
-        wxFileName                 kicad_fn( fn );
         std::unique_ptr<SCH_SHEET> sheet = std::make_unique<SCH_SHEET>( m_rootSheet, pos );
         SCH_SCREEN* screen = new SCH_SCREEN( m_schematic );
         sheet->SetScreen( screen );
 
-        // Convert to KiCad project-relative path with .kicad_sch extension
-        kicad_fn.SetExt( FILEEXT::KiCadSchematicFileExtension );
-        kicad_fn.SetPath( aSchematic->Project().GetProjectPath() );
-
         // Sheet uses relative filename, screen uses full path
         sheet->SetFileName( kicad_fn.GetFullName() );
         screen->SetFileName( kicad_fn.GetFullPath() );
+        m_altiumSheetScreens[kicad_fn.GetFullPath().Lower()] = screen;
 
         wxCHECK2( sheet && screen, continue );
 
@@ -557,6 +535,7 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicFile( const wxString& aFileName, SCHEMATI
     wxFileName fileName( aFileName );
     fileName.SetExt( FILEEXT::KiCadSchematicFileExtension );
     m_schematic = aSchematic;
+    m_altiumSheetScreens.clear();
 
     // Importer may be reused so reset per-import state or freed pointers leak into the new hierarchy
     m_parsingFiles.clear();
@@ -614,6 +593,33 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicFile( const wxString& aFileName, SCHEMATI
 
     SCH_SCREEN* rootScreen = m_rootSheet->GetScreen();
     wxCHECK( rootScreen, nullptr );
+
+    if( aAppendToMe )
+    {
+        // Preserve sharing with documents that are already present in the target hierarchy.
+        SCH_SCREENS existingScreens( m_rootSheet );
+
+        for( SCH_SCREEN* screen = existingScreens.GetFirst(); screen; screen = existingScreens.GetNext() )
+        {
+            wxFileName screenFileName( screen->GetFileName() );
+
+            if( screenFileName.GetFullName().IsEmpty() )
+                continue;
+
+            if( !screenFileName.IsAbsolute() )
+                screenFileName.MakeAbsolute( aSchematic->Project().GetProjectPath() );
+
+            m_altiumSheetScreens[screenFileName.GetFullPath().Lower()] = screen;
+        }
+    }
+    if( !aFileName.empty() )
+    {
+        // Register the root before parsing so a recursive reference to it is not reloaded.
+        wxFileName projectFileName( aFileName );
+        projectFileName.SetPath( aSchematic->Project().GetProjectPath() );
+        projectFileName.SetExt( FILEEXT::KiCadSchematicFileExtension );
+        m_altiumSheetScreens[projectFileName.GetFullPath().Lower()] = rootScreen;
+    }
 
     SCH_SHEET_INSTANCE sheetInstance;
 
@@ -752,26 +758,24 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicFile( const wxString& aFileName, SCHEMATI
                             uidEntries = &varIt->second;
                     }
 
-                    if( uidEntries && uidEntries->size() == 1 )
-                    {
-                        applicable = *uidEntries;
-                    }
-                    else if( uidEntries )
-                    {
-                        // A unique id shared by several variations (repeated channels) is
-                        // ambiguous; disambiguate with the per-channel designator.
-                        wxString ref = symbol->GetRef( &path );
+                    wxString ref = symbol->GetRef( &path );
 
+                    if( uidEntries )
+                    {
                         for( const auto& namedEntry : *uidEntries )
                         {
                             if( namedEntry.second->designator == ref )
                                 applicable.push_back( namedEntry );
                         }
+
+                        // A repeated channel shares one symbol and component unique id across
+                        // several paths, so a UID-only match is ambiguous in that case.
+                        if( applicable.empty() && symbol->GetInstances().size() <= 1 )
+                            applicable = *uidEntries;
                     }
                     else
                     {
-                        wxString ref = symbol->GetRef( &path );
-                        auto     varIt = variantsByDesignator.find( ref );
+                        auto varIt = variantsByDesignator.find( ref );
 
                         if( varIt != variantsByDesignator.end() )
                             applicable = varIt->second;
@@ -1442,16 +1446,22 @@ void SCH_IO_ALTIUM::ParseAltiumSch( const wxString& aFileName )
             continue;
         }
 
-        // Single-file case may reuse a screen already loaded. Keyed on raw token count not member
-        // count so a multi-file symbol with dropped members still parses fresh into one screen
+        // Single-file repeated sheets / channels must share one screen so per-instance annotation
+        // is preserved.  Multi-file symbols always parse fresh into their merged screen.
         SCH_SCREEN* loadedScreen = nullptr;
-
-        if( tokens.size() == 1 )
-            m_rootSheet->SearchHierarchy( members[0].GetFullPath(), &loadedScreen );
-
         wxFileName projectFileName = members[0];
         projectFileName.SetPath( m_schematic->Project().GetProjectPath() );
         projectFileName.SetExt( FILEEXT::KiCadSchematicFileExtension );
+
+        const wxString screenKey = projectFileName.GetFullPath().Lower();
+
+        if( tokens.size() == 1 )
+        {
+            if( auto screenIt = m_altiumSheetScreens.find( screenKey ); screenIt != m_altiumSheetScreens.end() )
+            {
+                loadedScreen = screenIt->second;
+            }
+        }
 
         if( loadedScreen )
         {
@@ -1476,6 +1486,12 @@ void SCH_IO_ALTIUM::ParseAltiumSch( const wxString& aFileName )
 
             sheet->SetName( AltiumDeriveSheetName( members[0].GetFullName(), sheetNames ) );
         }
+
+        sheet->SetFileName( projectFileName.GetFullName() );
+        screen->SetFileName( projectFileName.GetFullPath() );
+
+        if( tokens.size() == 1 )
+            m_altiumSheetScreens[screenKey] = screen;
 
         // Hold every block member on the parse stack so a page cross-referencing a sibling or
         // itself reads as recursion below

@@ -246,6 +246,13 @@ private:
     std::map<int, SCH_SHEET*>          m_sheets;
     std::map<int, LIB_SYMBOL*>         m_libSymbols;        // every symbol has its unique lib_symbol
 
+    // Every Altium schematic document is loaded into a single SCH_SCREEN, keyed by its resolved
+    // KiCad document path (lower-cased).  Repeated sheets / channels reference the same document
+    // from several sheet symbols; they must share that one screen so per-instance annotation
+    // (e.g. R1_D1 vs R1_D2) is preserved.  Persists for the whole import because the currently
+    // parsed subtree is not yet attached to the root, so hierarchy traversal cannot find it.
+    std::map<wxString, SCH_SCREEN*> m_altiumSheetScreens;
+
     std::map<wxString, LIB_SYMBOL*>    m_powerSymbols;
     std::vector<ASCH_STORAGE_FILE>     m_altiumStorage;
     std::vector<ASCH_ADDITIONAL_FILE>  m_altiumAdditional;
