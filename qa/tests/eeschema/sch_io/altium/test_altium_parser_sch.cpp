@@ -59,6 +59,25 @@ struct ALTIUM_PARSER_SCH_FIXTURE
  */
 BOOST_FIXTURE_TEST_SUITE( AltiumParserSch, ALTIUM_PARSER_SCH_FIXTURE )
 
+
+BOOST_AUTO_TEST_CASE( ParameterSetProperties )
+{
+    std::map<wxString, wxString> properties = {
+        { wxT( "RECORD" ), wxT( "43" ) },      { wxT( "INDEXINSHEET" ), wxT( "71" ) },
+        { wxT( "LOCATION.X" ), wxT( "960" ) }, { wxT( "LOCATION.X_FRAC" ), wxT( "10000" ) },
+        { wxT( "LOCATION.Y" ), wxT( "440" ) }, { wxT( "ORIENTATION" ), wxT( "2" ) },
+        { wxT( "NAME" ), wxT( "DIFFPAIR" ) },
+    };
+
+    ASCH_PARAMETER_SET parameterSet( properties );
+
+    BOOST_CHECK_EQUAL( parameterSet.indexinsheet, 71 );
+    BOOST_CHECK_EQUAL( parameterSet.location.x, 2438650 );
+    BOOST_CHECK_EQUAL( parameterSet.location.y, -1117600 );
+    BOOST_CHECK( parameterSet.orientation == ASCH_RECORD_ORIENTATION::LEFTWARDS );
+    BOOST_CHECK_EQUAL( parameterSet.name, wxT( "DIFFPAIR" ) );
+}
+
 struct ALTIUM_TO_KICAD_UNIT_FRAC_CASE
 {
     wxString input;

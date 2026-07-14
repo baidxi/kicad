@@ -914,4 +914,14 @@ struct ASCH_PARAMETER : ASCH_OWNER_INTERFACE
     explicit ASCH_PARAMETER( const std::map<wxString, wxString>& aProps );
 };
 
+
+struct ASCH_PARAMETER_SET : ASCH_OWNER_INTERFACE
+{
+    VECTOR2I                location;
+    ASCH_RECORD_ORIENTATION orientation;
+    wxString                name;
+
+    explicit ASCH_PARAMETER_SET( const std::map<wxString, wxString>& aProps );
+};
+
 #endif //ALTIUM_PARSER_SCH_H

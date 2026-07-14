@@ -1654,6 +1654,10 @@ void SCH_IO_ALTIUM::ParseAdditional( const ALTIUM_COMPOUND_FILE& aAltiumSchFile 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( "stream is not fully parsed" );
 
+    FinalizeParameters();
+    m_altiumParameterSets.clear();
+    m_altiumOwnedParameters.clear();
+
     m_altiumHarnesses.clear();
     m_altiumHarnessPortsCurrentSheet.clear();
 }
@@ -1704,6 +1708,8 @@ void SCH_IO_ALTIUM::ParseFileHeader( const ALTIUM_COMPOUND_FILE& aAltiumSchFile 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( "stream is not fully parsed" );
 
+    FinalizeParameters();
+
     // assign LIB_SYMBOL -> COMPONENT
     for( std::pair<const int, SCH_SYMBOL*>& symbol : m_symbols )
     {
@@ -1739,6 +1745,8 @@ void SCH_IO_ALTIUM::ParseFileHeader( const ALTIUM_COMPOUND_FILE& aAltiumSchFile 
     m_altiumComponents.clear();
     m_altiumTemplates.clear();
     m_altiumImplementationList.clear();
+    m_altiumParameterSets.clear();
+    m_altiumOwnedParameters.clear();
 
     m_symbols.clear();
     m_libSymbols.clear();
@@ -1801,6 +1809,9 @@ void SCH_IO_ALTIUM::ParseASCIISchematic( const wxString& aFileName )
         // Reset index at headers
         if( properties.find( wxS( "HEADER" ) ) != properties.end() )
         {
+            FinalizeParameters();
+            m_altiumParameterSets.clear();
+            m_altiumOwnedParameters.clear();
             index = 0;
             continue;
         }
@@ -1816,6 +1827,8 @@ void SCH_IO_ALTIUM::ParseASCIISchematic( const wxString& aFileName )
 
     if( reader.CanRead() )
         THROW_IO_ERROR( "stream is not fully parsed" );
+
+    FinalizeParameters();
 
     // assign LIB_SYMBOL -> COMPONENT
     for( std::pair<const int, SCH_SYMBOL*>& symbol : m_symbols )
@@ -1860,6 +1873,8 @@ void SCH_IO_ALTIUM::ParseASCIISchematic( const wxString& aFileName )
     m_altiumComponents.clear();
     m_altiumTemplates.clear();
     m_altiumImplementationList.clear();
+    m_altiumParameterSets.clear();
+    m_altiumOwnedParameters.clear();
 
     m_symbols.clear();
     m_libSymbols.clear();
@@ -2014,9 +2029,7 @@ void SCH_IO_ALTIUM::ParseRecord( int index, std::map<wxString, wxString>& proper
         ParseParameter( properties );
         break;
 
-    case ALTIUM_SCH_RECORD::PARAMETER_SET:
-        m_errorMessages.emplace( _( "Parameter Set not currently supported." ), RPT_SEVERITY_ERROR );
-        break;
+    case ALTIUM_SCH_RECORD::PARAMETER_SET: ParseParameterSet( index, properties ); break;
 
     case ALTIUM_SCH_RECORD::IMPLEMENTATION_LIST:
         ParseImplementationList( index, properties );
@@ -5300,12 +5313,6 @@ void SCH_IO_ALTIUM::ParseParameter( const std::map<wxString, wxString>& aPropert
 {
     ASCH_PARAMETER elem( aProperties );
 
-    // TODO: fill in replacements from variant, sheet and project
-    static const std::map<wxString, wxString> variableMap = {
-        { "COMMENT", "VALUE"        },
-        { "VALUE",   "ALTIUM_VALUE" },
-    };
-
     if( elem.ownerindex <= 0 )
     {
         // This is some sheet parameter
@@ -5340,59 +5347,155 @@ void SCH_IO_ALTIUM::ParseParameter( const std::map<wxString, wxString>& aPropert
         }
     }
     else
+        m_altiumOwnedParameters.emplace( elem.ownerindex, std::move( elem ) );
+}
+
+
+void SCH_IO_ALTIUM::ParseParameterSet( int aIndex, const std::map<wxString, wxString>& aProperties )
+{
+    ASCH_PARAMETER_SET elem( aProperties );
+
+    SCH_SCREEN* screen = getCurrentScreen();
+    wxCHECK( screen, /* void */ );
+
+    SCH_DIRECTIVE_LABEL* label = new SCH_DIRECTIVE_LABEL( elem.location + m_sheetOffset );
+    label->SetFlags( IS_NEW );
+    SetTextPositioning( label, ASCH_LABEL_JUSTIFICATION::BOTTOM_LEFT, elem.orientation );
+
+    if( !elem.name.IsEmpty() )
     {
-        const auto& libSymbolIt = m_libSymbols.find( elem.ownerindex );
+        SCH_FIELD nameField( label, FIELD_T::USER, wxT( "Altium Parameter Set" ) );
+        nameField.SetText( elem.name );
+        nameField.SetPosition( label->GetPosition() );
+        nameField.SetVisible( false );
+        label->AddField( nameField );
+    }
 
-        if( libSymbolIt == m_libSymbols.end() )
+    screen->Append( label );
+    m_altiumParameterSets.emplace( aIndex, label );
+}
+
+
+void SCH_IO_ALTIUM::FinalizeParameters()
+{
+    for( const auto& [ownerIndex, parameter] : m_altiumOwnedParameters )
+    {
+        const auto parameterSetIt = m_altiumParameterSets.find( ownerIndex );
+
+        if( parameterSetIt != m_altiumParameterSets.end() )
         {
-            // TODO: e.g. can depend on Template (RECORD=39
-            return;
+            AddParameterSetField( parameterSetIt->second, parameter );
         }
-
-        SCH_SYMBOL* symbol = m_symbols.at( libSymbolIt->first );
-        SCH_FIELD*  field = nullptr;
-        wxString    upperName = elem.name.Upper();
-
-        if( upperName == "COMMENT" )
+        else if( m_libSymbols.find( ownerIndex ) != m_libSymbols.end() )
         {
-            field = symbol->GetField( FIELD_T::VALUE );
+            AddComponentParameter( parameter );
         }
         else
         {
-            wxString fieldName = elem.name.Upper();
+            m_errorMessages.emplace( _( "One or more parameters had an unknown owner and were not imported." ),
+                                     RPT_SEVERITY_DEBUG );
+        }
+    }
+}
 
-            if( fieldName.IsEmpty() )
-            {
-                int disambiguate = 1;
 
-                while( 1 )
-                {
-                    fieldName = wxString::Format( "ALTIUM_UNNAMED_%d", disambiguate++ );
+void SCH_IO_ALTIUM::AddParameterSetField( SCH_DIRECTIVE_LABEL* aLabel, const ASCH_PARAMETER& aParameter )
+{
+    wxString fieldName = aParameter.name;
 
-                    if( !symbol->GetField( fieldName ) )
-                        break;
-                }
-            }
-            else if( fieldName == "VALUE" )
-            {
-                fieldName = "ALTIUM_VALUE";
-            }
+    if( SCH_FIELD::IsNetclassLabelFieldName( fieldName ) || fieldName.IsSameAs( wxT( "Net Class" ), false )
+        || fieldName.IsSameAs( wxT( "NetClass" ), false ) )
+    {
+        fieldName = wxT( "Netclass" );
+    }
 
-            field = symbol->AddField( SCH_FIELD( symbol, FIELD_T::USER, fieldName ) );
+    auto fieldNameExists = [&]( const wxString& aName )
+    {
+        return std::any_of( aLabel->GetFields().begin(), aLabel->GetFields().end(),
+                            [&]( const SCH_FIELD& aField )
+                            {
+                                return aField.GetCanonicalName() == aName;
+                            } );
+    };
+
+    if( fieldName.IsEmpty() )
+        fieldName = wxT( "ALTIUM_UNNAMED" );
+
+    if( fieldNameExists( fieldName ) )
+    {
+        const wxString baseName = fieldName;
+
+        for( int suffix = 2; fieldNameExists( fieldName ); ++suffix )
+            fieldName = wxString::Format( wxT( "%s_%d" ), baseName, suffix );
+    }
+
+    SCH_FIELD field( aLabel, FIELD_T::USER, fieldName );
+    field.SetText( aParameter.text );
+    field.SetPosition( aParameter.location + m_sheetOffset );
+    field.SetVisible( !aParameter.isHidden );
+    field.SetNameShown( aParameter.isShowName );
+    SetTextPositioning( &field, aParameter.justification, aParameter.orientation );
+    aLabel->AddField( field );
+
+    if( fieldName != wxT( "Netclass" ) )
+    {
+        m_errorMessages.emplace( wxString::Format( _( "Altium Parameter Set directive '%s' was preserved as a field, "
+                                                      "but its behavior was not converted." ),
+                                                   aParameter.name ),
+                                 RPT_SEVERITY_WARNING );
+    }
+}
+
+
+void SCH_IO_ALTIUM::AddComponentParameter( const ASCH_PARAMETER& aParameter )
+{
+    static const std::map<wxString, wxString> variableMap = {
+        { "COMMENT", "VALUE" },
+        { "VALUE", "ALTIUM_VALUE" },
+    };
+
+    const auto& libSymbolIt = m_libSymbols.find( aParameter.ownerindex );
+    wxCHECK( libSymbolIt != m_libSymbols.end(), /* void */ );
+
+    SCH_SYMBOL* symbol = m_symbols.at( libSymbolIt->first );
+    SCH_FIELD*  field = nullptr;
+    wxString    upperName = aParameter.name.Upper();
+
+    if( upperName == "COMMENT" )
+    {
+        field = symbol->GetField( FIELD_T::VALUE );
+    }
+    else
+    {
+        wxString fieldName = upperName;
+
+        if( fieldName.IsEmpty() )
+        {
+            int disambiguate = 1;
+
+            do
+                fieldName = wxString::Format( "ALTIUM_UNNAMED_%d", disambiguate++ );
+            while( symbol->GetField( fieldName ) );
+        }
+        else if( fieldName == "VALUE" )
+        {
+            fieldName = "ALTIUM_VALUE";
         }
 
-        wxString kicadText = AltiumSchSpecialStringsToKiCadVariables( elem.text, variableMap );
-        field->SetText( kicadText );
-        field->SetPosition( elem.location + m_sheetOffset );
-        field->SetVisible( !elem.isHidden );
-        field->SetNameShown( elem.isShowName );
-        SetTextPositioning( field, elem.justification, elem.orientation );
-
-        const auto& altiumSymIt = m_altiumComponents.find( elem.ownerindex );
-
-        if( altiumSymIt != m_altiumComponents.end() )
-            AdjustFieldForSymbolOrientation( field, altiumSymIt->second );
+        field = symbol->AddField( SCH_FIELD( symbol, FIELD_T::USER, fieldName ) );
     }
+
+    wxString kicadText = AltiumSchSpecialStringsToKiCadVariables( aParameter.text, variableMap );
+    field->SetText( kicadText );
+    field->SetPosition( aParameter.location + m_sheetOffset );
+    field->SetVisible( !aParameter.isHidden );
+    field->SetNameShown( aParameter.isShowName );
+    SetTextPositioning( field, aParameter.justification, aParameter.orientation );
+
+    const auto& altiumSymIt = m_altiumComponents.find( aParameter.ownerindex );
+
+    if( altiumSymIt != m_altiumComponents.end() )
+        AdjustFieldForSymbolOrientation( field, altiumSymIt->second );
 }
 
 

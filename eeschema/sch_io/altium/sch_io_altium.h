@@ -35,6 +35,7 @@
 class SYMBOL;
 class SCH_SYMBOL;
 class SCH_SHEET;
+class SCH_DIRECTIVE_LABEL;
 class TITLE_BLOCK;
 
 class ALTIUM_COMPOUND_FILE;
@@ -203,6 +204,10 @@ private:
     void ParseLibDesignator( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym, std::vector<int>& aFontSize = nullint );
     void ParseBusEntry( const std::map<wxString, wxString>& aProperties );
     void ParseParameter( const std::map<wxString, wxString>& aProperties );
+    void ParseParameterSet( int aIndex, const std::map<wxString, wxString>& aProperties );
+    void FinalizeParameters();
+    void AddParameterSetField( SCH_DIRECTIVE_LABEL* aLabel, const ASCH_PARAMETER& aParameter );
+    void AddComponentParameter( const ASCH_PARAMETER& aParameter );
     void ParseLibParameter( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym, std::vector<int>& aFontSize = nullint );
     void ParseImplementationList( int aIndex, const std::map<wxString, wxString>& aProperties );
     void ParseImplementation( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym );
@@ -248,6 +253,8 @@ private:
     std::map<int, ASCH_SYMBOL>         m_altiumComponents;
     std::map<int, ASCH_TEMPLATE>       m_altiumTemplates;
     std::map<int, int>                 m_altiumImplementationList;
+    std::map<int, SCH_DIRECTIVE_LABEL*> m_altiumParameterSets;
+    std::multimap<int, ASCH_PARAMETER>  m_altiumOwnedParameters;
     std::vector<ASCH_PORT>             m_altiumPortsCurrentSheet; // we require all connections first
 
     // parse harness ports after "FileHeader" was parsed, in 2nd run.

@@ -31,6 +31,7 @@
 #include <sch_symbol.h>
 #include <settings/settings_manager.h>
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <set>
@@ -79,6 +80,11 @@ struct ALTIUM_SCH_IMPORT_FIXTURE
                + aName;
     }
 
+    wxString parameterSetDataFile( const wxString& aName ) const
+    {
+        return wxString::FromUTF8( KI_TEST::GetEeschemaTestDataDir() + "/plugins/altium/parameter_set/" ) + aName;
+    }
+
     SETTINGS_MANAGER m_settingsManager;
     SCHEMATIC        m_schematic;
 };
@@ -87,6 +93,93 @@ struct ALTIUM_SCH_IMPORT_FIXTURE
 
 
 BOOST_FIXTURE_TEST_SUITE( AltiumSchImport, ALTIUM_SCH_IMPORT_FIXTURE )
+
+
+BOOST_AUTO_TEST_CASE( ParameterSetsBecomeDirectiveLabels )
+{
+    SCH_IO_ALTIUM plugin;
+
+    SCH_SHEET* rootSheet = plugin.LoadSchematicFile( parameterSetDataFile( "parameter_set.SchDoc" ), &m_schematic );
+    BOOST_REQUIRE( rootSheet );
+    BOOST_REQUIRE( rootSheet->GetScreen() );
+
+    std::vector<SCH_DIRECTIVE_LABEL*> labels;
+
+    for( SCH_ITEM* item : rootSheet->GetScreen()->Items().OfType( SCH_DIRECTIVE_LABEL_T ) )
+        labels.push_back( static_cast<SCH_DIRECTIVE_LABEL*>( item ) );
+
+    BOOST_REQUIRE_EQUAL( labels.size(), 2 );
+
+    auto findField = []( const SCH_DIRECTIVE_LABEL* aLabel, const wxString& aName )
+    {
+        for( const SCH_FIELD& field : aLabel->GetFields() )
+        {
+            if( field.GetCanonicalName() == aName )
+                return &field;
+        }
+
+        return static_cast<const SCH_FIELD*>( nullptr );
+    };
+
+    auto findLabel = [&]( const wxString& aSetName )
+    {
+        for( SCH_DIRECTIVE_LABEL* label : labels )
+        {
+            const SCH_FIELD* field = findField( label, wxT( "Altium Parameter Set" ) );
+
+            if( field && field->GetText() == aSetName )
+                return label;
+        }
+
+        return static_cast<SCH_DIRECTIVE_LABEL*>( nullptr );
+    };
+
+    auto isOnWire = [&]( const SCH_DIRECTIVE_LABEL* aLabel )
+    {
+        const VECTOR2I position = aLabel->GetPosition();
+
+        for( SCH_ITEM* item : rootSheet->GetScreen()->Items().OfType( SCH_LINE_T ) )
+        {
+            const SCH_LINE* line = static_cast<const SCH_LINE*>( item );
+            const VECTOR2I  start = line->GetStartPoint();
+            const VECTOR2I  end = line->GetEndPoint();
+
+            if( start.y == position.y && end.y == position.y && position.x >= std::min( start.x, end.x )
+                && position.x <= std::max( start.x, end.x ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    SCH_DIRECTIVE_LABEL* differentialPair = findLabel( wxT( "DIFFPAIR" ) );
+    BOOST_REQUIRE( differentialPair );
+    BOOST_CHECK( isOnWire( differentialPair ) );
+
+    const SCH_FIELD* setName = findField( differentialPair, wxT( "Altium Parameter Set" ) );
+    BOOST_REQUIRE( setName );
+    BOOST_CHECK_EQUAL( setName->GetText(), wxT( "DIFFPAIR" ) );
+    BOOST_CHECK( !setName->IsVisible() );
+
+    const SCH_FIELD* differentialPairField = findField( differentialPair, wxT( "DifferentialPair" ) );
+    BOOST_REQUIRE( differentialPairField );
+    BOOST_CHECK_EQUAL( differentialPairField->GetText(), wxT( "True" ) );
+    BOOST_CHECK( !differentialPairField->IsVisible() );
+    BOOST_CHECK_EQUAL( differentialPairField->GetPosition(), differentialPair->GetPosition() );
+
+    SCH_DIRECTIVE_LABEL* netclass = findLabel( wxT( "NETCLASS" ) );
+    BOOST_REQUIRE( netclass );
+    BOOST_CHECK( isOnWire( netclass ) );
+    BOOST_CHECK( netclass->GetSpinStyle() == SPIN_STYLE::LEFT );
+
+    const SCH_FIELD* netclassField = findField( netclass, wxT( "Netclass" ) );
+    BOOST_REQUIRE( netclassField );
+    BOOST_CHECK_EQUAL( netclassField->GetText(), wxT( "HighSpeed" ) );
+    BOOST_CHECK( netclassField->IsVisible() );
+    BOOST_CHECK_NE( netclassField->GetPosition(), netclass->GetPosition() );
+}
 
 
 // https://gitlab.com/kicad/code/kicad/-/issues/22943
