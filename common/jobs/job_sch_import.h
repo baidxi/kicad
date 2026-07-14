@@ -21,6 +21,7 @@
 #define JOB_SCH_IMPORT_H
 
 #include <kicommon.h>
+#include <vector>
 #include "job.h"
 #include "job_import_utils.h"
 
@@ -57,6 +58,13 @@ public:
     FORMAT               m_format = FORMAT::AUTO;
     IMPORT_REPORT_FORMAT m_reportFormat = IMPORT_REPORT_FORMAT::NONE;
     wxString             m_reportFile;
+
+    /// Optional project-level import.  When m_projectFile is set the importer is driven through
+    /// the plugin's project path (LoadSchematicFile with an empty filename + property map) so that
+    /// design-wide data such as assembly variants and repeated-sheet channels are applied.  The
+    /// child schematic documents are supplied, in order, via m_schematicFiles.
+    wxString              m_projectFile;
+    std::vector<wxString> m_schematicFiles;
 };
 
 #endif

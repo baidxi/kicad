@@ -23,8 +23,86 @@
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include <wx/fileconf.h>
 #include <wx/log.h>
+#include <wx/textfile.h>
+
+#include <map>
+#include <utility>
+#include <vector>
+
+
+namespace
+{
+/**
+ * Read an Altium INI-style file (.PrjPcb) into ordered sections.
+ *
+ * wxFileConfig proved unreliable on real-world project files (UTF-8 BOM, tens of thousands of
+ * entries), silently yielding no groups.  A direct line scan is robust and sufficient because
+ * the project format is a flat [Section]/key=value layout.
+ *
+ * @return a vector of { sectionName, { key -> value } } preserving section order.
+ */
+std::vector<std::pair<wxString, std::map<wxString, wxString>>> ReadAltiumIniSections( const wxString& aPath )
+{
+    std::vector<std::pair<wxString, std::map<wxString, wxString>>> sections;
+
+    wxTextFile file( aPath );
+
+    if( !file.Open() )
+        return sections;
+
+    std::map<wxString, wxString>* current = nullptr;
+
+    for( size_t i = 0; i < file.GetLineCount(); ++i )
+    {
+        wxString line = file[i];
+
+        // Strip a leading BOM that may cling to the first line.
+        while( !line.empty() && ( line[0] == wxUniChar( 0xFEFF ) || line[0] == wxUniChar( 0xFFFE ) ) )
+            line.Remove( 0, 1 );
+
+        line.Trim( false );
+
+        if( line.empty() )
+            continue;
+
+        if( line[0] == wxUniChar( '[' ) )
+        {
+            int close = line.Find( wxUniChar( ']' ) );
+
+            if( close == wxNOT_FOUND )
+                continue;
+
+            wxString name = line.Mid( 1, close - 1 );
+            sections.emplace_back( name, std::map<wxString, wxString>() );
+            current = &sections.back().second;
+            continue;
+        }
+
+        if( !current )
+            continue;
+
+        int eqPos = line.Find( wxUniChar( '=' ) );
+
+        if( eqPos == wxNOT_FOUND )
+            continue;
+
+        wxString key = line.Left( eqPos );
+        wxString value = line.Mid( eqPos + 1 );
+
+        key.Trim( true ).Trim( false );
+
+        // Values may legitimately contain '=' (e.g. Variation lines); only the first is the
+        // key/value separator, so the remainder is kept verbatim (trailing CR already stripped
+        // by wxTextFile).
+        ( *current )[key] = value;
+    }
+
+    file.Close();
+
+    return sections;
+}
+} // namespace
 
 
 KIID AltiumUniqueIdToKiid( const wxString& aUniqueId )
@@ -129,14 +207,7 @@ std::map<wxString, wxString> ParseAltiumProjectParameters( const wxString& aPrjP
 {
     std::map<wxString, wxString> parameters;
 
-    wxFileConfig config( wxEmptyString, wxEmptyString, wxEmptyString, aPrjPcbPath,
-                         wxCONFIG_USE_NO_ESCAPE_CHARACTERS );
-
-    wxString groupname;
-    long     groupid;
-
-    for( bool more = config.GetFirstGroup( groupname, groupid ); more;
-         more = config.GetNextGroup( groupname, groupid ) )
+    for( const auto& [groupname, keys] : ReadAltiumIniSections( aPrjPcbPath ) )
     {
         if( !groupname.StartsWith( wxS( "Parameter" ) ) )
             continue;
@@ -149,12 +220,15 @@ std::map<wxString, wxString> ParseAltiumProjectParameters( const wxString& aPrjP
         if( !numStr.ToLong( &num ) )
             continue;
 
-        wxString name = config.Read( groupname + wxS( "/Name" ), wxEmptyString );
+        auto nameIt = keys.find( wxS( "Name" ) );
 
-        if( name.empty() )
+        if( nameIt == keys.end() || nameIt->second.empty() )
             continue;
 
-        wxString value = config.Read( groupname + wxS( "/Value" ), wxEmptyString );
+        wxString name = nameIt->second;
+
+        auto     valueIt = keys.find( wxS( "Value" ) );
+        wxString value = valueIt != keys.end() ? valueIt->second : wxString();
 
         // KiCad variable references are matched case-insensitively by resolving to upper case,
         // which is what AltiumPcbSpecialStringsToKiCadStrings emits, so key on the upper-cased
@@ -172,14 +246,7 @@ std::vector<ALTIUM_PROJECT_VARIANT> ParseAltiumProjectVariants( const wxString& 
 {
     std::vector<ALTIUM_PROJECT_VARIANT> variants;
 
-    wxFileConfig config( wxEmptyString, wxEmptyString, wxEmptyString, aPrjPcbPath,
-                         wxCONFIG_USE_NO_ESCAPE_CHARACTERS );
-
-    wxString groupname;
-    long     groupid;
-
-    for( bool more = config.GetFirstGroup( groupname, groupid ); more;
-         more = config.GetNextGroup( groupname, groupid ) )
+    for( const auto& [groupname, keys] : ReadAltiumIniSections( aPrjPcbPath ) )
     {
         if( !groupname.StartsWith( wxS( "ProjectVariant" ) ) )
             continue;
@@ -192,24 +259,26 @@ std::vector<ALTIUM_PROJECT_VARIANT> ParseAltiumProjectVariants( const wxString& 
 
         ALTIUM_PROJECT_VARIANT pv;
 
-        pv.description = config.Read( groupname + wxS( "/Description" ), wxEmptyString );
+        auto descIt = keys.find( wxS( "Description" ) );
+        pv.description = descIt != keys.end() ? descIt->second : wxString();
         pv.name = pv.description;
 
         if( pv.name.empty() )
             pv.name = groupname;
 
         long variationCount = 0;
-        config.Read( groupname + wxS( "/VariationCount" ), &variationCount, 0 );
+
+        if( auto countIt = keys.find( wxS( "VariationCount" ) ); countIt != keys.end() )
+            countIt->second.ToLong( &variationCount );
 
         for( long vi = 1; vi <= variationCount; ++vi )
         {
-            wxString key = wxString::Format( wxS( "%s/Variation%ld" ), groupname, vi );
-            wxString value = config.Read( key, wxEmptyString );
+            auto varIt = keys.find( wxString::Format( wxS( "Variation%ld" ), vi ) );
 
-            if( value.empty() )
+            if( varIt == keys.end() || varIt->second.empty() )
                 continue;
 
-            ALTIUM_VARIANT_ENTRY entry = ParseVariationString( value );
+            ALTIUM_VARIANT_ENTRY entry = ParseVariationString( varIt->second );
 
             if( !entry.designator.empty() )
                 pv.variations.push_back( std::move( entry ) );

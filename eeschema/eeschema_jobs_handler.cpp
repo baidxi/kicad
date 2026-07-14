@@ -20,6 +20,7 @@
 
 #include "eeschema_jobs_handler.h"
 #include <common.h>
+#include <core/utf8.h>
 #include <pgm_base.h>
 #include <kiface_base.h>
 #include <kiway_player.h>
@@ -50,7 +51,9 @@
 #include <project/project_file.h>
 #include <wx/dir.h>
 #include <wx/file.h>
+#include <map>
 #include <memory>
+#include <string>
 #include <connection_graph.h>
 #include "eeschema_helpers.h"
 #include <filename_resolver.h>
@@ -1590,7 +1593,24 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
                                               inputFn.GetFullPath(), formatName ),
                             RPT_SEVERITY_INFO );
 
-        loadedSheet = pi->LoadSchematicFile( inputFn.GetFullPath(), schematic.get() );
+        if( !job->m_projectFile.IsEmpty() )
+        {
+            // Project-level import: drive the plugin through its project path so design-wide
+            // data (assembly variants, repeated-sheet channels) is applied.
+            std::map<std::string, UTF8> properties;
+            properties.emplace( "project_file", UTF8( job->m_projectFile ) );
+
+            int schIdx = 0;
+
+            for( const wxString& schFile : job->m_schematicFiles )
+                properties.emplace( "sch" + std::to_string( schIdx++ ), UTF8( schFile ) );
+
+            loadedSheet = pi->LoadSchematicFile( wxEmptyString, schematic.get(), nullptr, &properties );
+        }
+        else
+        {
+            loadedSheet = pi->LoadSchematicFile( inputFn.GetFullPath(), schematic.get() );
+        }
 
         if( !loadedSheet )
         {
