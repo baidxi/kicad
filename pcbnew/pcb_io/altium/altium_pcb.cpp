@@ -23,7 +23,7 @@
 #include <altium_pcb_compound_file.h>
 #include <io/altium/altium_binary_parser.h>
 #include <io/altium/altium_parser_utils.h>
-#include <io/altium/altium_project_variants.h>
+#include <io/altium/altium_project.h>
 
 #include <board.h>
 #include <board_design_settings.h>

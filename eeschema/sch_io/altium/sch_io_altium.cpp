@@ -29,7 +29,7 @@
 #include <io/altium/altium_binary_parser.h>
 #include <io/altium/altium_ascii_parser.h>
 #include <io/altium/altium_parser_utils.h>
-#include <io/altium/altium_project_variants.h>
+#include <io/altium/altium_project.h>
 #include <sch_io/altium/sch_io_altium.h>
 
 #include <progress_reporter.h>
@@ -805,6 +805,30 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicFile( const wxString& aFileName, SCHEMATI
                                     variant.m_Fields[wxS( "Description" )] = value;
                                 else if( key.CmpNoCase( wxS( "Footprint" ) ) == 0 )
                                     variant.m_Fields[wxS( "Footprint" )] = value;
+                            }
+                        }
+
+                        // Parameter overrides only change values on a component that stays
+                        // fitted, so they are applied outside the Kind switch above.
+                        for( const auto& [rawName, value] : entry->parameterOverrides )
+                        {
+                            const wxString fieldName = AltiumParameterNameToKiCadField( rawName );
+
+                            variant.m_Fields[fieldName] = value;
+
+                            // As in the board importer: Altium's own Value parameter is imported
+                            // into ALTIUM_VALUE while KiCad's Value field comes from the Comment,
+                            // so an override follows into Value only when the two already agree.
+                            if( fieldName == wxS( "ALTIUM_VALUE" ) )
+                            {
+                                SCH_FIELD* altiumValue = symbol->GetField( wxS( "ALTIUM_VALUE" ) );
+                                SCH_FIELD* valueField = symbol->GetField( FIELD_T::VALUE );
+
+                                if( altiumValue && valueField
+                                    && altiumValue->GetText() == valueField->GetText() )
+                                {
+                                    variant.m_Fields[wxS( "Value" )] = value;
+                                }
                             }
                         }
 

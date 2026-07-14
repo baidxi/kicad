@@ -17,16 +17,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <io/altium/altium_project_variants.h>
+#include <io/altium/altium_project.h>
 
 #include <boost/uuid/name_generator_sha1.hpp>
 #include <boost/uuid/string_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
-#include <wx/log.h>
+#include <wx/filename.h>
 #include <wx/textfile.h>
 
 #include <map>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -105,6 +106,58 @@ std::vector<std::pair<wxString, std::map<wxString, wxString>>> ReadAltiumIniSect
 } // namespace
 
 
+ALTIUM_PROJECT_FILES ParseAltiumProjectFiles( const wxString& aPrjPcbPath )
+{
+    ALTIUM_PROJECT_FILES files;
+    std::set<wxString>   schematicFiles;
+    wxFileName           projectFileName( aPrjPcbPath );
+
+    for( const auto& [groupName, keys] : ReadAltiumIniSections( aPrjPcbPath ) )
+    {
+        if( !groupName.StartsWith( wxS( "Document" ) ) )
+            continue;
+
+        wxString documentNumber = groupName.Mid( 8 );
+        long     parsedDocumentNumber;
+
+        if( !documentNumber.ToLong( &parsedDocumentNumber ) )
+            continue;
+
+        auto pathIt = keys.find( wxS( "DocumentPath" ) );
+
+        if( pathIt == keys.end() )
+            continue;
+
+        wxString path = pathIt->second;
+        path.Trim( true ).Trim( false );
+
+        if( path.empty() )
+            continue;
+
+        wxFileName fileName( path, wxPATH_WIN );
+
+        if( !fileName.IsAbsolute() )
+            fileName.MakeAbsolute( projectFileName.GetPath() );
+
+        if( fileName.GetExt().IsSameAs( wxS( "SchDoc" ), false ) )
+        {
+            schematicFiles.insert( fileName.GetFullPath() );
+        }
+        else if( files.pcbFile.empty()
+                 && ( fileName.GetExt().IsSameAs( wxS( "PcbDoc" ), false )
+                      || fileName.GetExt().IsSameAs( wxS( "CSPcbDoc" ), false )
+                      || fileName.GetExt().IsSameAs( wxS( "CMPcbDoc" ), false )
+                      || fileName.GetExt().IsSameAs( wxS( "SWPcbDoc" ), false ) ) )
+        {
+            files.pcbFile = fileName.GetFullPath();
+        }
+    }
+
+    files.schematicFiles.assign( schematicFiles.begin(), schematicFiles.end() );
+    return files;
+}
+
+
 KIID AltiumUniqueIdToKiid( const wxString& aUniqueId )
 {
     // Fixed namespace so a given id always maps to the same KIID. Must never change or
@@ -119,11 +172,13 @@ KIID AltiumUniqueIdToKiid( const wxString& aUniqueId )
 }
 
 
-static ALTIUM_VARIANT_ENTRY ParseVariationString( const wxString& aValue )
+ALTIUM_VARIANT_ENTRY ParseVariationString( const wxString& aValue )
 {
     ALTIUM_VARIANT_ENTRY entry;
 
-    for( const wxString& token : wxSplit( aValue, '|' ) )
+    // Altium delimits fields with '|'.  Backslashes are literal (UniqueId targets are
+    // backslash-delimited paths), so disable wxSplit's default '\' escape character.
+    for( const wxString& token : wxSplit( aValue, '|', '\0' ) )
     {
         int eqPos = token.Find( '=' );
 
@@ -154,17 +209,8 @@ static ALTIUM_VARIANT_ENTRY ParseVariationString( const wxString& aValue )
             val.ToLong( &k );
             entry.kind = static_cast<int>( k );
         }
-        else if( key.CmpNoCase( wxS( "AlternatePart" ) ) == 0 )
-        {
-            if( val.empty() )
-                continue;
 
-            // AlternatePart contains sub-fields in the same pipe-delimited format, but since
-            // it appears at the end of the line, the remaining tokens are its sub-fields.
-            // We've already split on '|', so we just keep accumulating from here.
-            // However, wxSplit already split everything. The AlternatePart sub-fields are the
-            // remaining tokens after this one. We handle this below after the loop.
-        }
+        // AlternatePart and its trailing sub-fields are collected in the second pass below.
     }
 
     // Parse AlternatePart sub-fields. In the raw line, AlternatePart= is followed by
@@ -173,7 +219,7 @@ static ALTIUM_VARIANT_ENTRY ParseVariationString( const wxString& aValue )
     // after it as sub-fields.
     bool inAlternatePart = false;
 
-    for( const wxString& token : wxSplit( aValue, '|' ) )
+    for( const wxString& token : wxSplit( aValue, '|', '\0' ) )
     {
         int eqPos = token.Find( '=' );
 
@@ -200,6 +246,44 @@ static ALTIUM_VARIANT_ENTRY ParseVariationString( const wxString& aValue )
     }
 
     return entry;
+}
+
+
+ALTIUM_PARAM_VARIATION ParseParamVariationString( const wxString& aValue )
+{
+    ALTIUM_PARAM_VARIATION variation;
+
+    for( const wxString& token : wxSplit( aValue, '|', '\0' ) )
+    {
+        int eqPos = token.Find( '=' );
+
+        if( eqPos == wxNOT_FOUND )
+            continue;
+
+        wxString key = token.Left( eqPos ).Trim().Trim( false );
+        wxString val = token.Mid( eqPos + 1 ).Trim().Trim( false );
+
+        if( key.CmpNoCase( wxS( "ParameterName" ) ) == 0 )
+            variation.parameterName = val;
+        else if( key.CmpNoCase( wxS( "VariantValue" ) ) == 0 )
+            variation.variantValue = val;
+    }
+
+    return variation;
+}
+
+
+wxString AltiumParameterNameToKiCadField( const wxString& aName )
+{
+    wxString name = aName.Upper();
+
+    if( name == wxS( "COMMENT" ) )
+        return wxS( "Value" );
+
+    if( name == wxS( "VALUE" ) )
+        return wxS( "ALTIUM_VALUE" );
+
+    return name;
 }
 
 
@@ -282,6 +366,58 @@ std::vector<ALTIUM_PROJECT_VARIANT> ParseAltiumProjectVariants( const wxString& 
 
             if( !entry.designator.empty() )
                 pv.variations.push_back( std::move( entry ) );
+        }
+
+        long paramVariationCount = 0;
+
+        if( auto countIt = keys.find( wxS( "ParamVariationCount" ) ); countIt != keys.end() )
+            countIt->second.ToLong( &paramVariationCount );
+
+        // ParamVariation entries are numbered independently of the Variation entries they sit
+        // between, and name their component through the ParamDesignator key of the same index,
+        // so the two are paired on that index rather than on a variation.
+        std::map<wxString, std::map<wxString, wxString>> overridesByDesignator;
+
+        for( long pi = 1; pi <= paramVariationCount; ++pi )
+        {
+            auto paramIt = keys.find( wxString::Format( wxS( "ParamVariation%ld" ), pi ) );
+            auto desigIt = keys.find( wxString::Format( wxS( "ParamDesignator%ld" ), pi ) );
+
+            if( paramIt == keys.end() || desigIt == keys.end() )
+                continue;
+
+            wxString designator = desigIt->second;
+            designator.Trim( true ).Trim( false );
+
+            ALTIUM_PARAM_VARIATION paramVar = ParseParamVariationString( paramIt->second );
+
+            if( designator.empty() || paramVar.parameterName.empty() )
+                continue;
+
+            overridesByDesignator[designator][paramVar.parameterName] = paramVar.variantValue;
+        }
+
+        for( ALTIUM_VARIANT_ENTRY& entry : pv.variations )
+        {
+            if( auto it = overridesByDesignator.find( entry.designator );
+                it != overridesByDesignator.end() )
+            {
+                entry.parameterOverrides = std::move( it->second );
+                overridesByDesignator.erase( it );
+            }
+        }
+
+        // Altium normally writes a Kind=0 Variation alongside every override, but an override
+        // without one would otherwise be dropped, so carry it on a synthesised fitted entry.
+        for( auto& [designator, overrides] : overridesByDesignator )
+        {
+            ALTIUM_VARIANT_ENTRY entry;
+
+            entry.designator = designator;
+            entry.kind = 0;
+            entry.parameterOverrides = std::move( overrides );
+
+            pv.variations.push_back( std::move( entry ) );
         }
 
         if( !pv.variations.empty() )

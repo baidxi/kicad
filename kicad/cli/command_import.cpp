@@ -22,6 +22,7 @@
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_sch_import.h>
 #include <jobs/job_import_utils.h>
+#include <io/altium/altium_project.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <project.h>
@@ -33,79 +34,14 @@
 #include <wildcards_and_files_ext.h>
 #include <wx/crt.h>
 #include <wx/filename.h>
-#include <wx/textfile.h>
 
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
 
 #define ARG_LAYER_MAP "--layer-map"
-
-
-namespace
-{
-/**
- * Parse an Altium .PrjPcb project file, collecting the child schematic documents (in a stable
- * order) and the first board document.  Mirrors the GUI's IMPORT_PROJ_HELPER::AltiumProjectHandler
- * so that CLI project import applies the same design-wide data (variants, repeated channels).
- */
-bool parseAltiumProject( const wxString& aProjectFile, std::vector<wxString>& aSchFiles, wxString& aPcbFile )
-{
-    // The .PrjPcb is an INI-style text file (often with a UTF-8 BOM and thousands of entries).
-    // A plain line scan collecting DocumentPath= values, filtered by extension, is more robust
-    // than wxFileConfig on these large real-world files.
-    wxFileName projectFn( aProjectFile );
-
-    wxTextFile file( aProjectFile );
-
-    if( !file.Open() )
-        return false;
-
-    // std::set gives a deterministic order matching the GUI importer's sch0..schN assignment.
-    std::set<wxString> schFiles;
-
-    const wxString prefix = wxS( "DocumentPath=" );
-
-    for( size_t i = 0; i < file.GetLineCount(); ++i )
-    {
-        wxString line = file[i];
-
-        // Strip a leading UTF-8/UTF-16 BOM that may cling to the first line.
-        while( !line.empty() && ( line[0] == wxUniChar( 0xFEFF ) || line[0] == wxUniChar( 0xFFFE ) ) )
-            line.Remove( 0, 1 );
-
-        line.Trim( false );
-
-        if( !line.StartsWith( prefix ) )
-            continue;
-
-        wxString path = line.Mid( prefix.length() );
-        path.Trim( true ).Trim( false );
-
-        if( path.empty() )
-            continue;
-
-        wxFileName fname( path, wxPATH_WIN );
-
-        if( !fname.IsAbsolute() )
-            fname.MakeAbsolute( projectFn.GetPath() );
-
-        if( !fname.GetExt().CmpNoCase( wxS( "SchDoc" ) ) )
-            schFiles.insert( fname.GetFullPath() );
-        else if( aPcbFile.empty() && !fname.GetExt().CmpNoCase( wxS( "PcbDoc" ) ) )
-            aPcbFile = fname.GetFullPath();
-    }
-
-    file.Close();
-
-    aSchFiles.assign( schFiles.begin(), schFiles.end() );
-
-    return !aSchFiles.empty() || !aPcbFile.empty();
-}
-} // namespace
 
 
 CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
@@ -219,10 +155,9 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
         // project path (applying variants and repeated-sheet channels) instead of a bare file.
         if( wxFileName( input ).GetExt().IsSameAs( wxS( "PrjPcb" ), false ) )
         {
-            std::vector<wxString> schFiles;
-            wxString              pcbFile;
+            ALTIUM_PROJECT_FILES projectFiles = ParseAltiumProjectFiles( input );
 
-            if( !parseAltiumProject( input, schFiles, pcbFile ) )
+            if( projectFiles.schematicFiles.empty() && projectFiles.pcbFile.empty() )
             {
                 reporter.Report( wxString::Format( _( "No importable documents found in project: %s\n" ), input ),
                                  RPT_SEVERITY_ERROR );
@@ -230,13 +165,13 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
                 break;
             }
 
-            if( !haveSch && !schFiles.empty() )
+            if( !haveSch && !projectFiles.schematicFiles.empty() )
             {
                 std::unique_ptr<JOB_SCH_IMPORT> schJob = std::make_unique<JOB_SCH_IMPORT>();
                 schJob->m_inputFile = input;
                 schJob->m_format = JOB_SCH_IMPORT::FORMAT::ALTIUM;
                 schJob->m_projectFile = input;
-                schJob->m_schematicFiles = schFiles;
+                schJob->m_schematicFiles = projectFiles.schematicFiles;
                 schJob->SetConfiguredOutputPath( schFn.GetFullPath() );
 
                 int schResult = aKiway.ProcessJob( KIWAY::FACE_SCH, schJob.get(), &reporter );
@@ -250,10 +185,10 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
                 }
             }
 
-            if( !haveBoard && !pcbFile.empty() )
+            if( !haveBoard && !projectFiles.pcbFile.empty() )
             {
                 std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
-                pcbJob->m_inputFile = pcbFile;
+                pcbJob->m_inputFile = projectFiles.pcbFile;
                 pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
                 pcbJob->m_layerMap = layerMap;
                 pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
