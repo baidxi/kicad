@@ -25,6 +25,7 @@
 #include <pcbnew_utils/board_test_utils.h>
 #include <settings/settings_manager.h>
 
+#include <api/api_utils.h>
 #include <api/board/board_types.pb.h>
 
 #include <board.h>
@@ -164,6 +165,25 @@ BOOST_FIXTURE_TEST_CASE( Padstacks, PROTO_TEST_FIXTURE )
     for( FOOTPRINT* footprint : m_board->Footprints() )
         testProtoFromKiCadObject<kiapi::board::types::FootprintInstance>( footprint, m_board.get() );
 }
+
+BOOST_AUTO_TEST_CASE( PolyLineRoundTrip )
+{
+    SHAPE_LINE_CHAIN input( { VECTOR2I( 0, 0 ), VECTOR2I( 1000, 0 ), VECTOR2I( 1000, 1000 ) },
+                            false );
+    kiapi::common::types::PolyLine packed;
+
+    kiapi::common::PackPolyLine( packed, input );
+
+    BOOST_REQUIRE_EQUAL( packed.nodes_size(), input.PointCount() );
+
+    SHAPE_LINE_CHAIN output = kiapi::common::UnpackPolyLine( packed );
+    BOOST_REQUIRE_EQUAL( output.PointCount(), input.PointCount() );
+    BOOST_CHECK_EQUAL( output.IsClosed(), input.IsClosed() );
+
+    for( int i = 0; i < input.PointCount(); ++i )
+        BOOST_CHECK_EQUAL( output.CPoint( i ), input.CPoint( i ) );
+}
+
 
 /**
  * Round-trip a copper-thieving zone through the protobuf API.  The shared
