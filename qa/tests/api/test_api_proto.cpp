@@ -168,8 +168,7 @@ BOOST_FIXTURE_TEST_CASE( Padstacks, PROTO_TEST_FIXTURE )
 
 BOOST_AUTO_TEST_CASE( PolyLineRoundTrip )
 {
-    SHAPE_LINE_CHAIN input( { VECTOR2I( 0, 0 ), VECTOR2I( 1000, 0 ), VECTOR2I( 1000, 1000 ) },
-                            false );
+    SHAPE_LINE_CHAIN               input( { VECTOR2I( 0, 0 ), VECTOR2I( 1000, 0 ), VECTOR2I( 1000, 1000 ) }, false );
     kiapi::common::types::PolyLine packed;
 
     kiapi::common::PackPolyLine( packed, input );
