@@ -831,11 +831,12 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
 
     name     = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "NAME" ), wxT( "" ) );
     priority = ALTIUM_PROPS_UTILS::ReadInt( props, wxT( "PRIORITY" ), 1 );
+    enabled = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "ENABLED" ), true );
 
     scope1expr = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SCOPE1EXPRESSION" ), wxT( "" ) );
     scope2expr = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SCOPE2EXPRESSION" ), wxT( "" ) );
 
-    wxString rulekind = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "RULEKIND" ), wxT( "" ) );
+    rulekind = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "RULEKIND" ), wxT( "" ) );
     if( rulekind == wxT( "Clearance" ) )
     {
         kind         = ALTIUM_RULE_KIND::CLEARANCE;
@@ -875,7 +876,9 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
         kind = ALTIUM_RULE_KIND::WIDTH;
         minLimit       = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "MINLIMIT" ), wxT( "6mil" ) );
         maxLimit       = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "MAXLIMIT" ), wxT( "40mil" ) );
-        preferredWidth = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "PREFERREDWIDTH" ), wxT( "6mil" ) );
+        preferredWidth = ALTIUM_PROPS_UTILS::ReadKicadUnit(
+                props, wxT( "PREFEREDWIDTH" ),
+                ALTIUM_PROPS_UTILS::ReadString( props, wxT( "PREFERREDWIDTH" ), wxT( "6mil" ) ) );
 }
     else if( rulekind == wxT( "PasteMaskExpansion" ) )
     {

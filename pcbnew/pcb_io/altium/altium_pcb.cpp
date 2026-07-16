@@ -81,6 +81,21 @@ bool IsAltiumLayerAPlane( ALTIUM_LAYER aLayer )
     return aLayer >= ALTIUM_LAYER::INTERNAL_PLANE_1 && aLayer <= ALTIUM_LAYER::INTERNAL_PLANE_16;
 }
 
+
+bool GetAltiumNetclassScopeName( const ARULE6& aRule, wxString* aNetclassName )
+{
+    static const wxString prefix = wxT( "InNetClass('" );
+
+    if( aRule.scope2expr != wxT( "All" ) || !aRule.scope1expr.StartsWith( prefix )
+        || !aRule.scope1expr.EndsWith( wxT( "')" ) ) )
+    {
+        return false;
+    }
+
+    *aNetclassName = aRule.scope1expr.Mid( prefix.Length(), aRule.scope1expr.Length() - prefix.Length() - 2 );
+    return !aNetclassName->IsEmpty();
+}
+
 FOOTPRINT* ALTIUM_PCB::HelperGetFootprint( uint16_t aComponent ) const
 {
     if( aComponent == ALTIUM_COMPONENT_NONE || m_components.size() <= aComponent )
@@ -906,7 +921,7 @@ const ARULE6* ALTIUM_PCB::GetRule( ALTIUM_RULE_KIND aKind, const wxString& aName
 
     for( const ARULE6& rule : rules->second )
     {
-        if( rule.name == aName )
+        if( rule.enabled && rule.name == aName )
             return &rule;
     }
 
@@ -922,7 +937,7 @@ const ARULE6* ALTIUM_PCB::GetRuleDefault( ALTIUM_RULE_KIND aKind ) const
 
     for( const ARULE6& rule : rules->second )
     {
-        if( rule.scope1expr == wxT( "All" ) && rule.scope2expr == wxT( "All" ) )
+        if( rule.enabled && rule.scope1expr == wxT( "All" ) && rule.scope2expr == wxT( "All" ) )
             return &rule;
     }
 
@@ -1450,7 +1465,7 @@ void ALTIUM_PCB::ParseClasses6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumP
 
         if( elem.kind == ALTIUM_CLASS_KIND::NET_CLASS )
         {
-            std::shared_ptr<NETCLASS> nc = std::make_shared<NETCLASS>( elem.name );
+            std::shared_ptr<NETCLASS> nc = std::make_shared<NETCLASS>( elem.name, false );
 
             for( const wxString& name : elem.names )
             {
@@ -2600,6 +2615,61 @@ void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcb
 
     if( pastemaskRule )
         m_board->GetDesignSettings().m_SolderPasteMargin = pastemaskRule->pastemaskExpansion;
+
+    std::shared_ptr<NET_SETTINGS> netSettings = m_board->GetDesignSettings().m_NetSettings;
+    std::shared_ptr<NETCLASS>     defaultNetclass = netSettings->GetDefaultNetclass();
+
+    if( clearanceRule )
+        defaultNetclass->SetClearance( clearanceRule->clearanceGap );
+
+    if( trackWidthRule )
+        defaultNetclass->SetTrackWidth( trackWidthRule->preferredWidth );
+
+    if( routingViasRule )
+    {
+        defaultNetclass->SetViaDiameter( routingViasRule->width );
+        defaultNetclass->SetViaDrill( routingViasRule->holeWidth );
+    }
+
+    for( const auto& [kind, rules] : m_rules )
+    {
+        for( const ARULE6& rule : rules )
+        {
+            wxString netclassName;
+
+            if( !rule.enabled || !GetAltiumNetclassScopeName( rule, &netclassName ) )
+                continue;
+
+            std::shared_ptr<NETCLASS> netclass = netSettings->GetNetClassByName( netclassName );
+
+            if( !netclass || netclass->GetName() != netclassName )
+                continue;
+
+            switch( kind )
+            {
+            case ALTIUM_RULE_KIND::CLEARANCE: netclass->SetClearance( rule.clearanceGap ); break;
+
+            case ALTIUM_RULE_KIND::WIDTH: netclass->SetTrackWidth( rule.preferredWidth ); break;
+
+            case ALTIUM_RULE_KIND::ROUTING_VIAS:
+                netclass->SetViaDiameter( rule.width );
+                netclass->SetViaDrill( rule.holeWidth );
+                break;
+
+            default: break;
+            }
+        }
+    }
+
+    netSettings->RecomputeEffectiveNetclasses();
+
+    for( NETINFO_ITEM* net : m_board->GetNetInfo() )
+    {
+        if( net->GetNetCode() > 0 )
+            net->SetNetClass( netSettings->GetEffectiveNetClass( net->GetNetname() ) );
+    }
+
+    m_board->m_LegacyDesignSettingsLoaded = true;
 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( wxT( "Rules6 stream is not fully parsed" ) );

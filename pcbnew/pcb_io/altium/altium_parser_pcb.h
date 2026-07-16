@@ -616,7 +616,9 @@ struct APOLYGON6
 struct ARULE6
 {
     wxString name;
+    wxString rulekind;
     int      priority = 0;
+    bool     enabled = true;
 
     ALTIUM_RULE_KIND kind = ALTIUM_RULE_KIND::UNKNOWN;
 
