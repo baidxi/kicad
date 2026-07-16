@@ -2476,11 +2476,30 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
         if( clearance > 0 )
             zone->SetLocalClearance( clearance );
 
-        const ARULE6* polygonConnectRule = GetRuleForPolygon( ALTIUM_RULE_KIND::POLYGON_CONNECT );
+        const bool    isPlane = IsAltiumLayerAPlane( elem.layer );
+        const ARULE6* connectRule =
+                GetRuleForPolygon( isPlane ? ALTIUM_RULE_KIND::PLANE_CONNECT : ALTIUM_RULE_KIND::POLYGON_CONNECT );
 
-        if( polygonConnectRule != nullptr )
+        // Older files can omit PlaneConnect while still defining PolygonConnect.
+        if( isPlane && !connectRule )
+            connectRule = GetRuleForPolygon( ALTIUM_RULE_KIND::POLYGON_CONNECT );
+
+        if( connectRule != nullptr )
         {
-            switch( polygonConnectRule->polygonconnectStyle )
+            ALTIUM_CONNECT_STYLE style = isPlane ? connectRule->planeconnectStyle : connectRule->polygonconnectStyle;
+            int                  spokeWidth = isPlane ? connectRule->planeconnectReliefconductorwidth
+                                                      : connectRule->polygonconnectReliefconductorwidth;
+            int airGap = isPlane ? connectRule->planeconnectAirgapwidth : connectRule->polygonconnectAirgapwidth;
+
+            // The PolygonConnect fallback uses its own fields.
+            if( isPlane && connectRule->kind == ALTIUM_RULE_KIND::POLYGON_CONNECT )
+            {
+                style = connectRule->polygonconnectStyle;
+                spokeWidth = connectRule->polygonconnectReliefconductorwidth;
+                airGap = connectRule->polygonconnectAirgapwidth;
+            }
+
+            switch( style )
             {
             case ALTIUM_CONNECT_STYLE::DIRECT:
                 zone->SetPadConnection( ZONE_CONNECTION::FULL );
@@ -2496,13 +2515,11 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
                 break;
             }
 
-            // TODO: correct variables?
-            zone->SetThermalReliefSpokeWidth(
-                    polygonConnectRule->polygonconnectReliefconductorwidth );
-            zone->SetThermalReliefGap( polygonConnectRule->polygonconnectAirgapwidth );
+            zone->SetThermalReliefSpokeWidth( spokeWidth );
+            zone->SetThermalReliefGap( airGap );
 
-            if( polygonConnectRule->polygonconnectReliefconductorwidth < zone->GetMinThickness() )
-                zone->SetMinThickness( polygonConnectRule->polygonconnectReliefconductorwidth );
+            if( spokeWidth < zone->GetMinThickness() )
+                zone->SetMinThickness( spokeWidth );
         }
 
         if( IsAltiumLayerAPlane( elem.layer ) )

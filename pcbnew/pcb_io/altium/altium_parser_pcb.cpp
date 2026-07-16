@@ -909,6 +909,25 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
         else if( style == wxT( "NoConnect" ) ) polygonconnectStyle = ALTIUM_CONNECT_STYLE::NONE;
         else                                   polygonconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
     }
+    else if( rulekind == wxT( "PlaneConnect" ) )
+    {
+        kind = ALTIUM_RULE_KIND::PLANE_CONNECT;
+        planeconnectAirgapwidth = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "RELIEFAIRGAP" ), wxT( "10mil" ) );
+        planeconnectReliefconductorwidth =
+                ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "RELIEFCONDUCTORWIDTH" ), wxT( "10mil" ) );
+        planeconnectReliefentries = ALTIUM_PROPS_UTILS::ReadInt( props, wxT( "RELIEFENTRIES" ), 4 );
+
+        wxString style = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "PLANECONNECTSTYLE" ), wxT( "" ) );
+
+        if( style == wxT( "Direct" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::DIRECT;
+        else if( style == wxT( "Relief" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::RELIEF;
+        else if( style == wxT( "NoConnect" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::NONE;
+        else
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
+    }
     else
     {
         kind = ALTIUM_RULE_KIND::UNKNOWN;

@@ -104,17 +104,18 @@ enum class ALTIUM_RULE_KIND
 {
     UNKNOWN = 0,
 
-    CLEARANCE              = 1,
-    DIFF_PAIR_ROUTINGS     = 2,
-    HEIGHT                 = 3,
-    HOLE_SIZE              = 4,
+    CLEARANCE = 1,
+    DIFF_PAIR_ROUTINGS = 2,
+    HEIGHT = 3,
+    HOLE_SIZE = 4,
     HOLE_TO_HOLE_CLEARANCE = 5,
-    WIDTH                  = 6,
-    PASTE_MASK_EXPANSION   = 7,
-    SOLDER_MASK_EXPANSION  = 8,
-    PLANE_CLEARANCE        = 9,
-    POLYGON_CONNECT        = 10,
-    ROUTING_VIAS           = 11
+    WIDTH = 6,
+    PASTE_MASK_EXPANSION = 7,
+    SOLDER_MASK_EXPANSION = 8,
+    PLANE_CLEARANCE = 9,
+    POLYGON_CONNECT = 10,
+    ROUTING_VIAS = 11,
+    PLANE_CONNECT = 12
 };
 
 enum class ALTIUM_CONNECT_STYLE
@@ -659,6 +660,12 @@ struct ARULE6
     int32_t              polygonconnectReliefconductorwidth = 0;
     int                  polygonconnectReliefentries        = 0;
     ALTIUM_CONNECT_STYLE polygonconnectStyle                = ALTIUM_CONNECT_STYLE::UNKNOWN;
+
+    // ALTIUM_RULE_KIND::PLANE_CONNECT
+    int32_t              planeconnectAirgapwidth = 0;
+    int32_t              planeconnectReliefconductorwidth = 0;
+    int                  planeconnectReliefentries = 0;
+    ALTIUM_CONNECT_STYLE planeconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
 
     // TODO: implement different types of rules we need to parse
 
