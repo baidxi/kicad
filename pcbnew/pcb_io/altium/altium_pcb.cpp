@@ -886,7 +886,7 @@ int ALTIUM_PCB::GetNetCode( uint16_t aId ) const
     {
         return NETINFO_LIST::UNCONNECTED;
     }
-    else if( m_altiumToKicadNetcodes.size() < aId )
+    else if( aId >= m_altiumToKicadNetcodes.size() )
     {
         THROW_IO_ERRORF( wxT( "Netcode with id %d does not exist. Only %d nets are known" ),
                          aId, m_altiumToKicadNetcodes.size() );
@@ -2344,7 +2344,21 @@ void ALTIUM_PCB::ParseNets6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
         checkpoint();
         ANET6 elem( reader );
 
-        NETINFO_ITEM* netInfo = new NETINFO_ITEM( m_board, elem.name, -1 );
+        wxString netName = elem.name;
+
+        if( netName.IsEmpty() )
+        {
+            netName = wxString::Format( "__ALTIUM_UNNAMED_NET_%zu", m_altiumToKicadNetcodes.size() );
+
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( _( "Altium net %zu has no name; imported as '%s'." ),
+                                                      m_altiumToKicadNetcodes.size(), netName ),
+                                    RPT_SEVERITY_WARNING );
+            }
+        }
+
+        NETINFO_ITEM* netInfo = new NETINFO_ITEM( m_board, netName, -1 );
         m_board->Add( netInfo, ADD_MODE::APPEND );
 
         // needs to be called after m_board->Add() as assign us the NetCode
@@ -3057,6 +3071,9 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItemOnLayer( FOOTPRINT*    
         pad->SetAnchorPadShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE );
         pad->SetSize( PADSTACK::ALL_LAYERS, { anchorSize, anchorSize } );
         pad->SetPosition( anchorPos );
+
+        if( aElem.net != ALTIUM_NET_UNCONNECTED )
+            pad->SetNetCode( GetNetCode( aElem.net ) );
 
         SHAPE_POLY_SET shapePolys = polySet;
         shapePolys.Move( -anchorPos );
