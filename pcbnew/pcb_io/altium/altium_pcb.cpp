@@ -1226,15 +1226,11 @@ void ALTIUM_PCB::remapUnsureLayers( std::vector<ABOARD6_LAYER_STACKUP>& aStackup
         layer_num = static_cast<ALTIUM_LAYER>( curLayer.layerId );
 
         // Skip UI-only layers and pseudo-layers that have no physical representation
-        if( layer_num == ALTIUM_LAYER::MULTI_LAYER
-            || layer_num == ALTIUM_LAYER::CONNECTIONS
-            || layer_num == ALTIUM_LAYER::BACKGROUND
-            || layer_num == ALTIUM_LAYER::DRC_ERROR_MARKERS
-            || layer_num == ALTIUM_LAYER::SELECTIONS
-            || layer_num == ALTIUM_LAYER::VISIBLE_GRID_1
-            || layer_num == ALTIUM_LAYER::VISIBLE_GRID_2
-            || layer_num == ALTIUM_LAYER::PAD_HOLES
-            || layer_num == ALTIUM_LAYER::VIA_HOLES )
+        if( layer_num == ALTIUM_LAYER::MULTI_LAYER || layer_num == ALTIUM_LAYER::CONNECTIONS
+            || layer_num == ALTIUM_LAYER::BACKGROUND || layer_num == ALTIUM_LAYER::DRC_ERROR_MARKERS
+            || layer_num == ALTIUM_LAYER::SELECTIONS || layer_num == ALTIUM_LAYER::VISIBLE_GRID_1
+            || layer_num == ALTIUM_LAYER::VISIBLE_GRID_2 || layer_num == ALTIUM_LAYER::PAD_HOLES
+            || layer_num == ALTIUM_LAYER::VIA_HOLES || layer_num == ALTIUM_LAYER::V7_ROUTE_GUIDE )
         {
             continue;
         }
