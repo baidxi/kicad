@@ -68,6 +68,10 @@
 
 constexpr double BOLD_FACTOR = 1.75;    // CSS font-weight-normal is 400; bold is 700
 
+// Imported coordinates are rounded to a 10 nm grid.  Allow up to two grid steps when reconciling
+// independently reconstructed endpoints.
+constexpr int ALTIUM_ENDPOINT_TOLERANCE = pcbIUScale.mmToIU( 0.000020 );
+
 
 bool IsAltiumLayerCopper( ALTIUM_LAYER aLayer )
 {
@@ -164,7 +168,7 @@ void HelperShapeLineChainFromAltiumVertices( SHAPE_LINE_CHAIN& aLine, const std:
             // are explicit coordinates.  Keep a nearly identical outline vertex from becoming a
             // degenerate Edge.Cuts connector after the two conversions round differently.
             if( aMergeNearlyCoincident && aLine.PointCount() > 0
-                && aLine.CLastPoint().Distance( vertex.position ) <= 20 )
+                && aLine.CLastPoint().Distance( vertex.position ) <= ALTIUM_ENDPOINT_TOLERANCE )
             {
                 continue;
             }
@@ -4621,6 +4625,32 @@ void ALTIUM_PCB::ConvertTracks6ToBoardItemOnLayer( const ATRACK6& aElem, PCB_LAY
 {
     if( IsCopperLayer( aLayer ) && aElem.net != ALTIUM_NET_UNCONNECTED )
     {
+        if( aElem.start.Distance( aElem.end ) <= ALTIUM_ENDPOINT_TOLERANCE )
+        {
+            SHAPE_T                    shapeType = aElem.start == aElem.end ? SHAPE_T::CIRCLE : SHAPE_T::SEGMENT;
+            std::unique_ptr<PCB_SHAPE> copper = std::make_unique<PCB_SHAPE>( m_board, shapeType );
+
+            copper->SetStart( aElem.start );
+
+            if( shapeType == SHAPE_T::CIRCLE )
+            {
+                copper->SetEnd( aElem.start + VECTOR2I( std::max<uint32_t>( 1, aElem.width / 2 ), 0 ) );
+                copper->SetFilled( true );
+                copper->SetStroke( STROKE_PARAMS( 0 ) );
+            }
+            else
+            {
+                copper->SetEnd( aElem.end );
+                copper->SetStroke( STROKE_PARAMS( aElem.width, LINE_STYLE::SOLID ) );
+            }
+
+            copper->SetLayer( aLayer );
+            copper->SetNetCode( GetNetCode( aElem.net ) );
+
+            m_board->Add( copper.release(), ADD_MODE::APPEND );
+            return;
+        }
+
         std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
 
         track->SetStart( aElem.start );

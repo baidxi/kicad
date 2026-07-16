@@ -38,6 +38,7 @@
 #include <eda_text.h>
 #include <netinfo.h>
 #include <netclass.h>
+#include <pcb_shape.h>
 #include <pcb_track.h>
 #include <pcb_shape.h>
 #include <pcb_generator.h>
@@ -189,6 +190,60 @@ BOOST_AUTO_TEST_CASE( NoInertRuleAreas )
     }
 
     BOOST_CHECK_EQUAL( inertRuleAreaCount, 0 );
+}
+
+
+/**
+ * Traces at or below the endpoint canonicalization tolerance still represent copper, but are too
+ * short to be useful routing objects.  The importer preserves their geometry as copper graphics
+ * rather than creating zero-length or nanometre-scale tracks.
+ */
+BOOST_AUTO_TEST_CASE( DegenerateTracksBecomeCopperGraphics )
+{
+    constexpr int endpointTolerance = pcbIUScale.mmToIU( 0.000020 );
+
+    std::vector<std::string> dataFiles = { "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc",
+                                           "plugins/altium/HiFive/HiFive1.B01.PcbDoc",
+                                           "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc",
+                                           "plugins/altium/issue24654/PCB1.PcbDoc" };
+    int                      degenerateCopperGraphicCount = 0;
+
+    for( const std::string& dataFile : dataFiles )
+    {
+        std::string            dataPath = KI_TEST::GetPcbnewTestDataDir() + dataFile;
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+        BOOST_REQUIRE( board );
+
+        int degenerateTrackCount = 0;
+
+        for( const PCB_TRACK* track : board->Tracks() )
+        {
+            if( track->Type() == PCB_TRACE_T && track->GetLength() <= endpointTolerance )
+                degenerateTrackCount++;
+        }
+
+        BOOST_CHECK_MESSAGE( degenerateTrackCount == 0,
+                             dataFile << " imported " << degenerateTrackCount << " degenerate routed tracks" );
+
+        for( const BOARD_ITEM* item : board->Drawings() )
+        {
+            const PCB_SHAPE* shape = dynamic_cast<const PCB_SHAPE*>( item );
+
+            if( !shape || !IsCopperLayer( shape->GetLayer() ) || shape->GetNetCode() <= 0 )
+                continue;
+
+            bool isCopperDot = shape->GetShape() == SHAPE_T::CIRCLE && shape->GetStroke().GetWidth() == 0;
+            bool isShortCopperSegment = shape->GetShape() == SHAPE_T::SEGMENT
+                                        && shape->GetStart().Distance( shape->GetEnd() ) <= endpointTolerance;
+
+            if( isCopperDot || isShortCopperSegment )
+                degenerateCopperGraphicCount++;
+        }
+    }
+
+    BOOST_CHECK_GT( degenerateCopperGraphicCount, 0 );
 }
 
 
