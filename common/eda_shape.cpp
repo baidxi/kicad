@@ -1320,6 +1320,18 @@ void EDA_SHAPE::CalcArcAngles( EDA_ANGLE& aStartAngle, EDA_ANGLE& aEndAngle ) co
         aEndAngle += ANGLE_360;
 }
 
+void EDA_SHAPE::CalcArcAnglesScreenspace( EDA_ANGLE& aStartAngle, EDA_ANGLE& aEndAngle ) const
+{
+    EDA_ANGLE startAngle;
+    EDA_ANGLE endAngle;
+    CalcArcAngles( startAngle, endAngle );
+
+    //Turn into correct screenspace orientation
+    aStartAngle = ( -startAngle ).Normalized();
+    aEndAngle   = ( -endAngle ).Normalized();
+
+}
+
 
 int EDA_SHAPE::GetRadius() const
 {
@@ -1436,6 +1448,48 @@ void EDA_SHAPE::SetArcAngleAndEnd( const EDA_ANGLE& aAngle, bool aCheckNegativeA
         std::swap( m_start, m_end );
         m_endsSwapped = true;
     }
+}
+
+void EDA_SHAPE::SetArcStartAngleAndStart( const EDA_ANGLE& aAngle )
+{
+    EDA_ANGLE angle( aAngle );
+
+    m_start = m_arcCenter + VECTOR2I( GetRadius(),0 );
+    RotatePoint( m_start, m_arcCenter, angle.Normalize720() );
+
+}
+
+void EDA_SHAPE::SetArcEndAngleAndEnd( const EDA_ANGLE& aAngle )
+{
+    EDA_ANGLE angle( aAngle );
+
+    m_end = m_arcCenter + VECTOR2I( GetRadius(),0 );
+    RotatePoint( m_end, m_arcCenter, angle.Normalize720() );
+}
+
+void EDA_SHAPE::SetArcGeometryCRSE( const VECTOR2I& aCenter, const int& aRad, const EDA_ANGLE& aStartAngle,
+                                    const EDA_ANGLE& aEndAngle )
+{
+    EDA_ANGLE startAngle = aStartAngle;
+    EDA_ANGLE endAngle = aEndAngle;
+
+    startAngle = startAngle.Normalize();
+    endAngle = endAngle.Normalize();
+
+    m_arcMidData = {};
+
+    m_arcCenter = aCenter;
+    SetArcStartAngleAndStart( startAngle );
+    SetArcEndAngleAndEnd( endAngle );
+    SetRadius( aRad );
+
+    VECTOR2I new_mid = GetArcMid();
+
+    m_endsSwapped = false;
+
+    // Watch the ordering here.  GetArcMid above needs to be called prior to initializing the
+    // m_arcMidData structure in order to ensure we get the calculated variant, not the cached
+    SetCachedArcData( GetStart(), new_mid, GetEnd(), aCenter );
 }
 
 

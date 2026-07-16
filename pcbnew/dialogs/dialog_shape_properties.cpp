@@ -426,12 +426,12 @@ public:
         SME_END_X,
         SME_END_Y,
 
-        //CSAE
-        CSAE_CENTER_X,
-        CSAE_CENTER_Y,
-        CSAE_RADIUS,
-        CSAE_START_ANGLE,
-        CSAE_END_ANGLE,
+        //CRSE
+        CRSE_CENTER_X,
+        CRSE_CENTER_Y,
+        CRSE_RADIUS,
+        CRSE_START_ANGLE,
+        CRSE_END_ANGLE,
 
         NUM_CTRLS
     };
@@ -454,10 +454,10 @@ public:
                        OnSMEChange();
                    } );
 
-        BindCtrls( CSAE_CENTER_X, CSAE_END_ANGLE,
+        BindCtrls( CRSE_CENTER_X, CRSE_END_ANGLE,
                    [this]()
                    {
-                       OnCSAEChange();
+                       OnCRSEChange();
                    } );
     }
 
@@ -466,17 +466,9 @@ public:
         const EDA_ANGLE angle = GetAngleValue( CSA_ANGLE );
 
 
-        if( GetIntValue( CSAE_RADIUS ) == 0 )
+        if( GetShape().GetRadius() == 0 )
         {
-            // Can be negative, result is a mirrored arc around the center
-            // Negative radius value is upon confirmation stored as positive value
-            // and the angles are changed accordingly
             aErrs.push_back( _( "Radius must be non-zero." ) );
-            return false;
-        }
-        else if( GetAngleValue( CSAE_START_ANGLE ).Normalized() == GetAngleValue( CSAE_END_ANGLE ).Normalized() )
-        {
-            aErrs.push_back( _( "Start angle must not equal end angle." ) );
             return false;
         }
 
@@ -519,7 +511,7 @@ public:
     {
         updateCSA();
         updateSME();
-        updateCSAE();
+        updateCRSE();
     }
 
     void OnCSAChange()
@@ -533,7 +525,7 @@ public:
         GetShape().SetArcAngleAndEnd( angle );
 
         updateSME();
-        updateCSAE();
+        updateCRSE();
     }
 
     void updateCSA()
@@ -557,7 +549,7 @@ public:
         GetShape().SetArcGeometry( p0, p1, p2 );
 
         updateCSA();
-        updateCSAE();
+        updateCRSE();
     }
 
     void updateSME()
@@ -574,48 +566,33 @@ public:
         ChangeValue( SME_END_Y, p2.y );
     }
 
-    void OnCSAEChange()
+    void OnCRSEChange()
     {
-        const VECTOR2I  center{ GetIntValue( CSAE_CENTER_X ), GetIntValue( CSAE_CENTER_Y ) };
-        const int       radius{ GetIntValue( CSAE_RADIUS ) };
-        const EDA_ANGLE start_angle{ GetAngleValue( CSAE_START_ANGLE ) };
-        const EDA_ANGLE end_angle{ GetAngleValue( CSAE_END_ANGLE ) };
+        const VECTOR2I  center{ GetIntValue( CRSE_CENTER_X ), GetIntValue( CRSE_CENTER_Y ) };
+        const int       radius{ GetIntValue( CRSE_RADIUS ) };
+        const EDA_ANGLE start_angle{ GetAngleValue( CRSE_START_ANGLE ) };
+        const EDA_ANGLE end_angle{ GetAngleValue( CRSE_END_ANGLE ) };
 
-        VECTOR2I start( KiROUND( center.x + radius * cos( start_angle.AsRadians() ) ),
-                        KiROUND( center.y - radius * sin( start_angle.AsRadians() ) ) );
-
-        EDA_ANGLE inc_angle = ( start_angle - end_angle ).Normalized();
-
-        GetShape().SetCenter( center );
-        GetShape().SetStart( start );
-        GetShape().SetArcAngleAndEnd( inc_angle );
+        GetShape().SetArcGeometryCRSE( center, radius, start_angle, end_angle );
 
         updateCSA();
         updateSME();
     }
 
-    void updateCSAE()
+    void updateCRSE()
     {
         const VECTOR2I  center = GetShape().GetCenter();
-        const VECTOR2I  start = GetShape().GetStart();
-        const EDA_ANGLE inc_angle = GetShape().GetArcAngle();
-        double          radius = GetShape().GetRadius();
+        const int       radius = GetShape().GetRadius();
+        EDA_ANGLE       start_angle;
+        EDA_ANGLE       end_angle;
 
-        VECTOR2D startVec = VECTOR2D( start ) - VECTOR2D( center );
+        GetShape().CalcArcAnglesScreenspace( start_angle, end_angle );
 
-        // Convert KiCad screen coordinates (+Y down)
-        // into conventional polar coordinates (+Y up).
-        EDA_ANGLE start_angle( atan2( -startVec.y, startVec.x ), RADIANS_T );
-        start_angle.Normalize();
-
-        // KiCad stores positive arc angles as clockwise rotation.
-        EDA_ANGLE end_angle = ( start_angle - inc_angle ).Normalized();
-
-        ChangeValue( CSAE_CENTER_X, center.x );
-        ChangeValue( CSAE_CENTER_Y, center.y );
-        ChangeValue( CSAE_RADIUS, radius );
-        ChangeAngleValue( CSAE_START_ANGLE, start_angle );
-        ChangeAngleValue( CSAE_END_ANGLE, end_angle );
+        ChangeValue( CRSE_CENTER_X, center.x );
+        ChangeValue( CRSE_CENTER_Y, center.y );
+        ChangeValue( CRSE_RADIUS, radius );
+        ChangeAngleValue( CRSE_START_ANGLE, start_angle );
+        ChangeAngleValue( CRSE_END_ANGLE, end_angle );
     }
 };
 
@@ -1165,19 +1142,19 @@ DIALOG_SHAPE_PROPERTIES::DIALOG_SHAPE_PROPERTIES( PCB_BASE_EDIT_FRAME* aParent, 
         AddXYPointToSizer( *aParent, *m_gbsArcBySME, 0, 3, _( "Mid Point" ), false, m_boundCtrls );
         AddXYPointToSizer( *aParent, *m_gbsArcBySME, 3, 0, _( "End Point" ), false, m_boundCtrls );
 
-        AddXYPointToSizer( *aParent, *m_gbsArcByCSAE, 0, 0, _( "Center" ), false, m_boundCtrls );
-        AddFieldToSizer( *aParent, *m_gbsArcByCSAE, 1, 3, _( "Radius" ), ORIGIN_TRANSFORMS::NOT_A_COORD, false,
+        AddXYPointToSizer( *aParent, *m_gbsArcByCRSE, 0, 0, _( "Center" ), false, m_boundCtrls );
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 1, 3, _( "Radius" ), ORIGIN_TRANSFORMS::NOT_A_COORD, false,
                          m_boundCtrls );
-        AddFieldToSizer( *aParent, *m_gbsArcByCSAE, 2, 3, _( "Start Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 2, 3, _( "Start Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
                          m_boundCtrls );
-        AddFieldToSizer( *aParent, *m_gbsArcByCSAE, 3, 3, _( "End Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 3, 3, _( "End Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
                          m_boundCtrls );
 
         m_geomSync = std::make_unique<ARC_GEOM_SYNCER>( m_workingCopy, m_boundCtrls );
 
         showPage( *m_gbsArcByCSA, true );
         showPage( *m_gbsArcBySME );
-        showPage( *m_gbsArcByCSAE );
+        showPage( *m_gbsArcByCRSE );
 
         m_cbRoundRect->Show( false );
         m_cornerRadius.Show( false );
