@@ -159,6 +159,40 @@ BOOST_AUTO_TEST_CASE( UnusedInternalPlanesNotMapped )
 
 
 /**
+ * Rule-area primitives on Altium's keepout and negative-plane layers can carry a zero restriction
+ * mask because the layer itself defines their behavior.  The importer must apply those implicit
+ * restrictions rather than producing rule areas which allow every item.
+ */
+BOOST_AUTO_TEST_CASE( NoInertRuleAreas )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int inertRuleAreaCount = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( !zone->GetIsRuleArea() )
+            continue;
+
+        bool hasRestriction = zone->GetDoNotAllowTracks() || zone->GetDoNotAllowVias() || zone->GetDoNotAllowPads()
+                              || zone->GetDoNotAllowZoneFills() || zone->GetDoNotAllowFootprints()
+                              || zone->GetPlacementAreaEnabled();
+
+        if( !hasRestriction )
+            inertRuleAreaCount++;
+    }
+
+    BOOST_CHECK_EQUAL( inertRuleAreaCount, 0 );
+}
+
+
+/**
  * Test that netclass pattern assignments result in direct netclass assignments on nets.
  * This is a regression test for https://gitlab.com/kicad/code/kicad/-/issues/15584
  *

@@ -1582,7 +1582,7 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     is_teardrop    = ( flags1 & 0x10 ) != 0;
 
     uint8_t flags2 = aReader.Read<uint8_t>();
-    is_keepout     = flags2 == 2;
+    bool    binaryIsKeepout = flags2 == 2;
 
     net = aReader.Read<uint16_t>();
     polygon = aReader.Read<uint16_t>();
@@ -1602,8 +1602,11 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     bool is_cutout = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISBOARDCUTOUT" ), false );
 
     is_shapebased = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISSHAPEBASED" ), false );
+    is_keepout = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "KEEPOUT" ), binaryIsKeepout );
+
+    int legacyKeepoutRestrictions = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRIC" ), 0x1F );
     keepoutrestrictions = static_cast<uint8_t>(
-            ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRIC" ), 0x1F ) );
+            ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRICTIONS" ), legacyKeepoutRestrictions ) );
 
     // TODO: this can differ from the other subpolyindex?!
     // Note: "the other subpolyindex" is "polygon"

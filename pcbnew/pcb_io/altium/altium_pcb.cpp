@@ -2774,17 +2774,21 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToBoardItem( const AREGION6& aElem, co
 
         zone->SetIsRuleArea( true );
 
-        if( aElem.is_keepout )
-        {
-            HelperSetZoneKeepoutRestrictions( *zone, aElem.keepoutrestrictions );
-        }
-        else if( aElem.kind == ALTIUM_REGION_KIND::POLYGON_CUTOUT )
+        if( aElem.kind == ALTIUM_REGION_KIND::POLYGON_CUTOUT )
         {
             zone->SetDoNotAllowZoneFills( true );
             zone->SetDoNotAllowVias( false );
             zone->SetDoNotAllowTracks( false );
             zone->SetDoNotAllowPads( false );
             zone->SetDoNotAllowFootprints( false );
+        }
+        else if( aElem.keepoutrestrictions != 0 )
+        {
+            HelperSetZoneKeepoutRestrictions( *zone, aElem.keepoutrestrictions );
+        }
+        else
+        {
+            return;
         }
 
         zone->SetPosition( aElem.outline.at( 0 ).position );
@@ -2910,17 +2914,21 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
 
         zone->SetIsRuleArea( true );
 
-        if( aElem.is_keepout )
-        {
-            HelperSetZoneKeepoutRestrictions( *zone, aElem.keepoutrestrictions );
-        }
-        else if( aElem.kind == ALTIUM_REGION_KIND::POLYGON_CUTOUT )
+        if( aElem.kind == ALTIUM_REGION_KIND::POLYGON_CUTOUT )
         {
             zone->SetDoNotAllowZoneFills( true );
             zone->SetDoNotAllowVias( false );
             zone->SetDoNotAllowTracks( false );
             zone->SetDoNotAllowPads( false );
             zone->SetDoNotAllowFootprints( false );
+        }
+        else if( aElem.keepoutrestrictions != 0 )
+        {
+            HelperSetZoneKeepoutRestrictions( *zone, aElem.keepoutrestrictions );
+        }
+        else
+        {
+            return;
         }
 
         zone->SetPosition( aElem.outline.at( 0 ).position );
@@ -5492,12 +5500,24 @@ void ALTIUM_PCB::HelperPcpShapeAsBoardKeepoutRegion( const PCB_SHAPE&   aShape,
                                                      const ALTIUM_LAYER aAltiumLayer,
                                                      const uint8_t      aKeepoutRestrictions )
 {
+    uint8_t restrictions = aKeepoutRestrictions;
+
+    if( restrictions == 0 )
+    {
+        if( IsAltiumLayerAPlane( aAltiumLayer ) )
+            restrictions = 0x04;
+        else if( aAltiumLayer == ALTIUM_LAYER::KEEP_OUT_LAYER )
+            restrictions = 0x1F;
+        else
+            return;
+    }
+
     std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( m_board );
 
     zone->SetIsRuleArea( true );
 
     HelperSetZoneLayers( *zone, aAltiumLayer );
-    HelperSetZoneKeepoutRestrictions( *zone, aKeepoutRestrictions );
+    HelperSetZoneKeepoutRestrictions( *zone, restrictions );
 
     aShape.EDA_SHAPE::TransformShapeToPolygon( *zone->Outline(), 0, ARC_HIGH_DEF, ERROR_INSIDE );
 
@@ -5513,12 +5533,24 @@ void ALTIUM_PCB::HelperPcpShapeAsFootprintKeepoutRegion( FOOTPRINT*         aFoo
                                                          const ALTIUM_LAYER aAltiumLayer,
                                                          const uint8_t      aKeepoutRestrictions )
 {
+    uint8_t restrictions = aKeepoutRestrictions;
+
+    if( restrictions == 0 )
+    {
+        if( IsAltiumLayerAPlane( aAltiumLayer ) )
+            restrictions = 0x04;
+        else if( aAltiumLayer == ALTIUM_LAYER::KEEP_OUT_LAYER )
+            restrictions = 0x1F;
+        else
+            return;
+    }
+
     std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( aFootprint );
 
     zone->SetIsRuleArea( true );
 
     HelperSetZoneLayers( *zone, aAltiumLayer );
-    HelperSetZoneKeepoutRestrictions( *zone, aKeepoutRestrictions );
+    HelperSetZoneKeepoutRestrictions( *zone, restrictions );
 
     aShape.EDA_SHAPE::TransformShapeToPolygon( *zone->Outline(), 0, ARC_HIGH_DEF, ERROR_INSIDE );
 
