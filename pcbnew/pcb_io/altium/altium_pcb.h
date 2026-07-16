@@ -85,6 +85,7 @@ class BOARD_ITEM;
 class EDA_TEXT;
 class FP_SHAPE;
 class PCB_SHAPE;
+class PCB_ARC;
 class PCB_TEXTBOX;
 class FOOTPRINT;
 class ZONE;
@@ -199,6 +200,7 @@ private:
                                                PCB_LAYER_ID aLayer );
     void ParseSmartUnions6Data( const ALTIUM_PCB_COMPOUND_FILE&  aAltiumPcbFile,
                                 const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void HelperCanonicalizeArcEndpoints();
     void HelperCreateTuningPatterns();
     void ParseTexts6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                           const CFB::COMPOUND_FILE_ENTRY* aEntry );
@@ -289,6 +291,7 @@ private:
 
     std::vector<ASMARTUNION6>                  m_tuningUnions;
     std::map<int, std::vector<BOARD_ITEM*>>    m_unionToBoardItems;
+    std::vector<PCB_ARC*>                      m_importedArcs;
 
     std::map<ALTIUM_LAYER, ZONE*>        m_outer_plane;
 

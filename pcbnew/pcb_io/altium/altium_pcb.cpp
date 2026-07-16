@@ -367,6 +367,8 @@ void ALTIUM_PCB::checkpoint()
 void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumPcbFile,
                         const std::map<ALTIUM_PCB_DIR, std::string>& aFileMapping )
 {
+    m_importedArcs.clear();
+
     // this vector simply declares in which order which functions to call.
     const std::vector<std::tuple<bool, ALTIUM_PCB_DIR, PARSE_FUNCTION_POINTER_fp>> parserOrder = {
         { true, ALTIUM_PCB_DIR::FILE_HEADER,
@@ -593,6 +595,8 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
             }
         }
     }
+
+    HelperCanonicalizeArcEndpoints();
 
     // Rebuild interactive length-tuning meanders from the SmartUnions definitions now that all
     // copper that the unions reference has been created and added to the board.
@@ -3520,6 +3524,7 @@ void ALTIUM_PCB::ConvertArcs6ToBoardItemOnLayer( const AARC6& aElem, PCB_LAYER_I
 
             PCB_ARC* added = arc.release();
             m_board->Add( added, ADD_MODE::APPEND );
+            m_importedArcs.push_back( added );
 
             if( aElem.unionindex != 0 )
                 m_unionToBoardItems[static_cast<int>( aElem.unionindex )].push_back( added );
@@ -4723,6 +4728,98 @@ void ALTIUM_PCB::ParseSmartUnions6Data( const ALTIUM_PCB_COMPOUND_FILE&  aAltium
 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( wxT( "SmartUnions6 stream is not fully parsed" ) );
+}
+
+
+void ALTIUM_PCB::HelperCanonicalizeArcEndpoints()
+{
+    using ENDPOINTS_BY_X = std::multimap<int, VECTOR2I>;
+
+    std::map<std::pair<int, PCB_LAYER_ID>, ENDPOINTS_BY_X> endpoints;
+
+    auto addEndpoint = [&]( int aNetCode, PCB_LAYER_ID aLayer, const VECTOR2I& aPosition )
+    {
+        endpoints[{ aNetCode, aLayer }].emplace( aPosition.x, aPosition );
+    };
+
+    auto findEndpoint = [&]( int aNetCode, PCB_LAYER_ID aLayer, const VECTOR2I& aPosition ) -> std::optional<VECTOR2I>
+    {
+        auto endpointIt = endpoints.find( { aNetCode, aLayer } );
+
+        if( endpointIt == endpoints.end() )
+            return std::nullopt;
+
+        std::optional<VECTOR2I> nearest;
+        int64_t                 nearestDistanceSquared = ALTIUM_ENDPOINT_TOLERANCE * ALTIUM_ENDPOINT_TOLERANCE + 1;
+
+        ENDPOINTS_BY_X& layerEndpoints = endpointIt->second;
+        auto            candidateIt = layerEndpoints.lower_bound( aPosition.x - ALTIUM_ENDPOINT_TOLERANCE );
+        auto            lastCandidate = layerEndpoints.upper_bound( aPosition.x + ALTIUM_ENDPOINT_TOLERANCE );
+
+        for( ; candidateIt != lastCandidate; ++candidateIt )
+        {
+            const VECTOR2I& candidate = candidateIt->second;
+            int64_t         xDistance = candidate.x - aPosition.x;
+            int64_t         yDistance = candidate.y - aPosition.y;
+            int64_t         distanceSquared = xDistance * xDistance + yDistance * yDistance;
+
+            if( distanceSquared < nearestDistanceSquared )
+            {
+                nearest = candidate;
+                nearestDistanceSquared = distanceSquared;
+            }
+        }
+
+        return nearest;
+    };
+
+    for( PCB_TRACK* track : m_board->Tracks() )
+    {
+        if( track->GetNetCode() <= 0 )
+            continue;
+
+        if( track->Type() == PCB_TRACE_T )
+        {
+            addEndpoint( track->GetNetCode(), track->GetLayer(), track->GetStart() );
+            addEndpoint( track->GetNetCode(), track->GetLayer(), track->GetEnd() );
+        }
+        else if( track->Type() == PCB_VIA_T )
+        {
+            for( PCB_LAYER_ID layer : track->GetLayerSet().Seq() )
+            {
+                if( IsCopperLayer( layer ) )
+                    addEndpoint( track->GetNetCode(), layer, track->GetPosition() );
+            }
+        }
+    }
+
+    for( FOOTPRINT* footprint : m_board->Footprints() )
+    {
+        for( PAD* pad : footprint->Pads() )
+        {
+            if( pad->GetNetCode() <= 0 )
+                continue;
+
+            for( PCB_LAYER_ID layer : pad->GetLayerSet().Seq() )
+            {
+                if( IsCopperLayer( layer ) )
+                    addEndpoint( pad->GetNetCode(), layer, pad->GetPosition() );
+            }
+        }
+    }
+
+    for( PCB_ARC* arc : m_importedArcs )
+    {
+        VECTOR2I start =
+                findEndpoint( arc->GetNetCode(), arc->GetLayer(), arc->GetStart() ).value_or( arc->GetStart() );
+        VECTOR2I end = findEndpoint( arc->GetNetCode(), arc->GetLayer(), arc->GetEnd() ).value_or( arc->GetEnd() );
+
+        arc->SetStart( start );
+        arc->SetEnd( end );
+
+        addEndpoint( arc->GetNetCode(), arc->GetLayer(), start );
+        addEndpoint( arc->GetNetCode(), arc->GetLayer(), end );
+    }
 }
 
 
