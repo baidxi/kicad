@@ -108,8 +108,8 @@ FOOTPRINT* ALTIUM_PCB::HelperGetFootprint( uint16_t aComponent ) const
 }
 
 
-void HelperShapeLineChainFromAltiumVertices( SHAPE_LINE_CHAIN& aLine,
-                                             const std::vector<ALTIUM_VERTICE>& aVertices )
+void HelperShapeLineChainFromAltiumVertices( SHAPE_LINE_CHAIN& aLine, const std::vector<ALTIUM_VERTICE>& aVertices,
+                                             bool aMergeNearlyCoincident = false )
 {
     for( const ALTIUM_VERTICE& vertex : aVertices )
     {
@@ -160,6 +160,15 @@ void HelperShapeLineChainFromAltiumVertices( SHAPE_LINE_CHAIN& aLine,
         }
         else
         {
+            // Arc endpoints are reconstructed from center/radius/angle while adjacent vertices
+            // are explicit coordinates.  Keep a nearly identical outline vertex from becoming a
+            // degenerate Edge.Cuts connector after the two conversions round differently.
+            if( aMergeNearlyCoincident && aLine.PointCount() > 0
+                && aLine.CLastPoint().Distance( vertex.position ) <= 20 )
+            {
+                continue;
+            }
+
             aLine.Append( vertex.position );
         }
     }
@@ -1414,7 +1423,7 @@ void ALTIUM_PCB::HelperFillMechanicalLayerAssignments( const std::vector<ABOARD6
 void ALTIUM_PCB::HelperCreateBoardOutline( const std::vector<ALTIUM_VERTICE>& aVertices )
 {
     SHAPE_LINE_CHAIN lineChain;
-    HelperShapeLineChainFromAltiumVertices( lineChain, aVertices );
+    HelperShapeLineChainFromAltiumVertices( lineChain, aVertices, true );
 
     STROKE_PARAMS stroke( m_board->GetDesignSettings().GetLineThickness( Edge_Cuts ),
                           LINE_STYLE::SOLID );
@@ -3501,6 +3510,40 @@ void ALTIUM_PCB::ConvertArcs6ToBoardItemOnLayer( const AARC6& aElem, PCB_LAYER_I
             arc->SetNetCode( GetNetCode( aElem.net ) );
 
             PCB_ARC* added = arc.release();
+            m_board->Add( added, ADD_MODE::APPEND );
+
+            if( aElem.unionindex != 0 )
+                m_unionToBoardItems[static_cast<int>( aElem.unionindex )].push_back( added );
+        }
+        else
+        {
+            PCB_SHAPE shape( nullptr, SHAPE_T::ARC );
+            shape.SetCenter( aElem.center );
+            shape.SetStart( aElem.center + startOffset );
+            shape.SetArcAngleAndEnd( includedAngle, true );
+
+            if( shape.GetStart() == shape.GetEnd() )
+            {
+                std::unique_ptr<PCB_SHAPE> dot = std::make_unique<PCB_SHAPE>( m_board, SHAPE_T::CIRCLE );
+                dot->SetStart( shape.GetStart() );
+                dot->SetEnd( shape.GetStart() + VECTOR2I( std::max<uint32_t>( 1, aElem.width / 2 ), 0 ) );
+                dot->SetFilled( true );
+                dot->SetStroke( STROKE_PARAMS( 0 ) );
+                dot->SetLayer( aLayer );
+                dot->SetNetCode( GetNetCode( aElem.net ) );
+
+                m_board->Add( dot.release(), ADD_MODE::APPEND );
+                return;
+            }
+
+            std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
+            track->SetStart( shape.GetStart() );
+            track->SetEnd( shape.GetEnd() );
+            track->SetWidth( aElem.width );
+            track->SetLayer( aLayer );
+            track->SetNetCode( GetNetCode( aElem.net ) );
+
+            PCB_TRACK* added = track.release();
             m_board->Add( added, ADD_MODE::APPEND );
 
             if( aElem.unionindex != 0 )
