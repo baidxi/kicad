@@ -229,6 +229,42 @@ BOOST_AUTO_TEST_CASE( PolygonIslandRemovalSettings )
 
 
 /**
+ * Altium split-plane regions are explicit user-routed copper and do not carry polygon dead-copper
+ * settings.  Preserve their standalone fills when KiCad refills the converted plane.
+ */
+BOOST_AUTO_TEST_CASE( SplitPlaneIslandsPreserved )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int splitPlaneZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetIsRuleArea() )
+            continue;
+
+        for( PCB_LAYER_ID layer : zone->GetLayerSet() )
+        {
+            if( board->GetLayerType( layer ) != LT_POWER )
+                continue;
+
+            splitPlaneZones++;
+            BOOST_CHECK( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::NEVER );
+            break;
+        }
+    }
+
+    BOOST_CHECK_EQUAL( splitPlaneZones, 4 );
+}
+
+
+/**
  * Altium's remove-necks threshold is the closest equivalent to KiCad's zone minimum thickness.
  */
 BOOST_AUTO_TEST_CASE( PolygonNeckWidthSettings )

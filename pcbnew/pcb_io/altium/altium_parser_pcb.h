@@ -597,6 +597,7 @@ struct APOLYGON6
     ALTIUM_LAYER layer_v7 = ALTIUM_LAYER::UNKNOWN;
     ALTIUM_LAYER layer = ALTIUM_LAYER::UNKNOWN;
     uint16_t     net;
+    bool         isSplitPlane;
     bool         locked;
 
     ALTIUM_POLYGON_HATCHSTYLE hatchstyle;

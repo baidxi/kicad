@@ -2478,6 +2478,9 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
             zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
         }
 
+        if( elem.isSplitPlane )
+            zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+
         if( elem.pourindex > m_highest_pour_index )
             m_highest_pour_index = elem.pourindex;
 

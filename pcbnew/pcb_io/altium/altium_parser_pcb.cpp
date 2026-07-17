@@ -795,7 +795,8 @@ APOLYGON6::APOLYGON6( ALTIUM_BINARY_PARSER& aReader )
     net    = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "NET" ), ALTIUM_NET_UNCONNECTED );
     locked = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "LOCKED" ), false );
 
-    // TODO: kind
+    isSplitPlane =
+            ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "POLYGONTYPE" ), wxT( "" ) ) == wxT( "Split Plane" );
 
     gridsize      = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "GRIDSIZE" ), wxT( "0mil" ) );
     trackwidth    = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "TRACKWIDTH" ), wxT( "0mil" ) );
