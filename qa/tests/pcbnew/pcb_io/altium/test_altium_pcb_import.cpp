@@ -194,6 +194,39 @@ BOOST_AUTO_TEST_CASE( NoInertRuleAreas )
 
 
 /**
+ * Altium polygons can preserve dead copper while still removing islands below an area threshold.
+ * Importing every polygon with KiCad's default "always remove" mode drops copper on refill.
+ */
+BOOST_AUTO_TEST_CASE( PolygonIslandRemovalSettings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int alwaysRemovedZones = 0;
+    int areaLimitedZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::ALWAYS )
+            alwaysRemovedZones++;
+
+        if( zone->GetIslandRemovalMode() != ISLAND_REMOVAL_MODE::AREA )
+            continue;
+
+        areaLimitedZones++;
+        BOOST_CHECK_EQUAL( zone->GetMinIslandArea(), 1612900000000LL );
+    }
+
+    BOOST_CHECK_GT( alwaysRemovedZones, 0 );
+    BOOST_CHECK_EQUAL( areaLimitedZones, 1 );
+}
+
+
+/**
  * Traces at or below the endpoint canonicalization tolerance still represent copper, but are too
  * short to be useful routing objects.  The importer preserves their geometry as copper graphics
  * rather than creating zero-length or nanometre-scale tracks.

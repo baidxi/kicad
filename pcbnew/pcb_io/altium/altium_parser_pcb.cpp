@@ -19,6 +19,7 @@
  */
 
 #include <cmath>
+#include <limits>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -800,6 +801,15 @@ APOLYGON6::APOLYGON6( ALTIUM_BINARY_PARSER& aReader )
     trackwidth    = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "TRACKWIDTH" ), wxT( "0mil" ) );
     minprimlength = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MINPRIMLENGTH" ), wxT( "0mil" ) );
     useoctagons   = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "USEOCTAGONS" ), false );
+
+    removeDead = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEDEAD" ), true );
+    removeIslandsByArea = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEISLANDSBYAREA" ), false );
+    constexpr double areaScale = 2.54 * 2.54;
+    double sourceArea = std::max( 0.0, ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "AREATHRESHOLD" ), 0.0 ) );
+
+    // Altium areas are square 0.1 microinch units; KiCad areas are square nanometres.
+    sourceArea = std::min( sourceArea, static_cast<double>( std::numeric_limits<int64_t>::max() ) / areaScale );
+    areaThreshold = static_cast<int64_t>( std::llround( sourceArea * areaScale ) );
 
     pourindex = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "POURINDEX" ), 0 );
 

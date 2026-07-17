@@ -2461,6 +2461,20 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
         zone->SetAssignedPriority( elem.pourindex > 0 ? elem.pourindex : 0 );
         zone->Outline()->AddOutline( outline.Outline( 0 ) );
 
+        if( elem.removeDead )
+        {
+            zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::ALWAYS );
+        }
+        else if( elem.removeIslandsByArea )
+        {
+            zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::AREA );
+            zone->SetMinIslandArea( elem.areaThreshold );
+        }
+        else
+        {
+            zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
+        }
+
         if( elem.pourindex > m_highest_pour_index )
             m_highest_pour_index = elem.pourindex;
 

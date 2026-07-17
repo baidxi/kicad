@@ -606,6 +606,10 @@ struct APOLYGON6
     int32_t minprimlength;
     bool    useoctagons;
 
+    bool    removeDead;
+    bool    removeIslandsByArea;
+    int64_t areaThreshold;
+
     // Note: Altium pour index is the opposite of KiCad zone priority!
     int32_t pourindex;
 
