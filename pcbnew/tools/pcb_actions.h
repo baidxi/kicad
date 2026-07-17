@@ -433,6 +433,7 @@ public:
     static TOOL_ACTION boardSetup;
 
     static TOOL_ACTION importNetlist;
+    static TOOL_ACTION relinkFootprints;
 
     static TOOL_ACTION importSpecctraSession;
     static TOOL_ACTION exportSpecctraDSN;

@@ -402,6 +402,7 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     ACTION_MENU* toolsMenu = new ACTION_MENU( false, selTool );
 
     toolsMenu->Add( ACTIONS::updatePcbFromSchematic )->Enable( !Kiface().IsSingle() );
+    toolsMenu->Add( PCB_ACTIONS::relinkFootprints )->Enable( !Kiface().IsSingle() );
     toolsMenu->Add( PCB_ACTIONS::showEeschema );
 
     if( !Kiface().IsSingle() )

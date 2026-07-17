@@ -259,7 +259,8 @@ message NetClassForNetsResponse
  * Netlist import
  */
 
-// How schematic components are matched to board footprints during netlist import.
+// Deprecated: ignored by the server. Footprints are always matched by UUID first,
+// falling back to the reference designator if there is no match.
 enum NetlistMatchMode
 {
   NMM_UNKNOWN = 0;
@@ -279,7 +280,8 @@ message ImportNetlist
   // If true, report planned changes without modifying the board.
   bool dry_run = 3;
 
-  NetlistMatchMode match_mode = 4;
+  // Deprecated and ignored. See NetlistMatchMode. Kept for wire compatibility only.
+  NetlistMatchMode match_mode = 4 [deprecated = true];
 
   bool delete_extra_footprints = 5;
   bool update_footprints = 6;

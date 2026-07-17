@@ -42,7 +42,6 @@ private:
     void onImportNetlist( wxCommandEvent& event ) override;
     void onUpdatePCB( wxCommandEvent& event ) override;
     void OnFilenameKillFocus( wxFocusEvent& event ) override;
-    void OnMatchChanged( wxCommandEvent& event ) override;
     void OnOptionChanged( wxCommandEvent& event ) override;
 
 private:

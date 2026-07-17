@@ -112,8 +112,6 @@ public:
 
     void SetDeleteUnusedFootprints( bool aEnabled ) { m_deleteUnusedFootprints = aEnabled; }
 
-    void SetLookupByTimestamp( bool aEnabled ) { m_lookupByTimestamp = aEnabled; }
-
     void SetUpdateFields( bool aEnabled ) { m_updateFields = aEnabled; }
 
     void SetRemoveExtraFields( bool aEnabled ) { m_removeExtraFields = aEnabled; }
@@ -195,7 +193,6 @@ private:
     bool m_replaceFootprints = true;
     bool m_transferGroups = false; // copy component group associations from schematic to PCB
     bool m_applyDesignBlockLayouts = false;
-    bool m_lookupByTimestamp = false;
     bool m_overrideLocks = false;
     bool m_updateFields = false;
     bool m_removeExtraFields = false;

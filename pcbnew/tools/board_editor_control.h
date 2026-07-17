@@ -87,6 +87,7 @@ public:
 
     int UpdatePCBFromSchematic( const TOOL_EVENT& aEvent );
     int UpdateSchematicFromPCB( const TOOL_EVENT& aEvent );
+    int RelinkFootprints( const TOOL_EVENT& aEvent );
     int ShowEeschema( const TOOL_EVENT& aEvent );
     int ToggleLayersManager( const TOOL_EVENT& aEvent );
     int ToggleProperties( const TOOL_EVENT& aEvent );

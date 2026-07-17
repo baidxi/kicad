@@ -182,13 +182,6 @@ void DIALOG_IMPORT_NETLIST::onFilenameChanged( bool aLoadNetlist )
 }
 
 
-void DIALOG_IMPORT_NETLIST::OnMatchChanged( wxCommandEvent& event )
-{
-    if( m_initialized )
-        loadNetlist( true );
-}
-
-
 void DIALOG_IMPORT_NETLIST::OnOptionChanged( wxCommandEvent& event )
 {
     if( m_initialized )
@@ -213,18 +206,11 @@ void DIALOG_IMPORT_NETLIST::loadNetlist( bool aDryRun )
     msg.Printf( _( "Reading netlist file '%s'.\n" ), netlistFileName  );
     reporter.ReportHead( msg, RPT_SEVERITY_INFO );
 
-    if( m_matchByTimestamp->GetSelection() == 1 )
-        msg = _( "Using reference designators to match symbols and footprints.\n" );
-    else
-        msg = _( "Using tstamps (unique IDs) to match symbols and footprints.\n" );
-
-    reporter.ReportHead( msg, RPT_SEVERITY_INFO );
     m_MessageWindow->SetLazyUpdate( true ); // Use lazy update to speed the creation of the report
                                             // (the window is not updated for each message)
 
     NETLIST netlist;
 
-    netlist.SetFindByTimeStamp( m_matchByTimestamp->GetSelection() == 0 );
     netlist.SetReplaceFootprints( m_cbUpdateFootprints->GetValue() );
 
     if( !m_parent->ReadNetlistFromFile( netlistFileName, netlist, reporter ) )
@@ -233,7 +219,6 @@ void DIALOG_IMPORT_NETLIST::loadNetlist( bool aDryRun )
     BOARD_NETLIST_UPDATER updater( m_parent, m_parent->GetBoard() );
     updater.SetReporter ( &reporter );
     updater.SetIsDryRun( aDryRun );
-    updater.SetLookupByTimestamp( m_matchByTimestamp->GetSelection() == 0 );
     updater.SetDeleteUnusedFootprints( m_cbDeleteExtraFootprints->GetValue());
     updater.SetReplaceFootprints( m_cbUpdateFootprints->GetValue() );
     updater.SetTransferGroups( m_cbTransferGroups->GetValue() );

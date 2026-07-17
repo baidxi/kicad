@@ -2148,24 +2148,22 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
         {
             bool match = false;
 
-            if( m_lookupByTimestamp )
+            // First try to match by UUID/path
+            for( const KIID& uuid : component->GetKIIDs() )
             {
-                for( const KIID& uuid : component->GetKIIDs() )
-                {
-                    KIID_PATH base = component->GetPath();
-                    base.push_back( uuid );
+                KIID_PATH base = component->GetPath();
+                base.push_back( uuid );
 
-                    if( footprint->GetPath() == base )
-                    {
-                        match = true;
-                        break;
-                    }
+                if( footprint->GetPath() == base )
+                {
+                    match = true;
+                    break;
                 }
             }
-            else
-            {
+
+            // If no UUID match, fall back to matching by reference designator
+            if( !match )
                 match = footprint->GetReference().CmpNoCase( component->GetReference() ) == 0;
-            }
 
             if( match )
                 matchingFootprints.push_back( footprint );
@@ -2352,17 +2350,19 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
 
         bool isStaleVariantFootprint = false;
 
+        // First try to match by UUID/path, then fall back to reference
+        component = aNetlist.GetComponentByPath( footprint->GetPath() );
+        bool pathMatch = component != nullptr;
+
+        if( !component )
+            component = aNetlist.GetComponentByReference( footprint->GetReference() );
+
         if( usedFootprints.count( footprint ) )
         {
             matched = true;
         }
         else
         {
-            if( m_lookupByTimestamp )
-                component = aNetlist.GetComponentByPath( footprint->GetPath() );
-            else
-                component = aNetlist.GetComponentByReference( footprint->GetReference() );
-
             if( component && component->GetProperties().count( wxT( "exclude_from_board" ) ) == 0 )
             {
                 // When replace footprints is enabled and a component has variant footprints,
@@ -2373,8 +2373,11 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
                     matched = false;
                     isStaleVariantFootprint = true;
                 }
-                else
+                else if( pathMatch )
                 {
+                    // A reference-only match here means some other footprint already claimed
+                    // this component in the loop above; this one is a leftover duplicate and
+                    // must remain eligible for deletion rather than being grandfathered in.
                     matched = true;
                 }
             }

@@ -634,7 +634,6 @@ void PCB_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
             FetchNetlistFromSchematic( netlist, wxEmptyString );
 
             BOARD_NETLIST_UPDATER updater( this, GetBoard() );
-            updater.SetLookupByTimestamp( false );
             updater.SetDeleteUnusedFootprints( false );
             updater.SetReplaceFootprints( false );
             updater.SetTransferGroups( false );

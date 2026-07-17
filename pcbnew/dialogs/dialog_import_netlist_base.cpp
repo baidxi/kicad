@@ -39,14 +39,6 @@ DIALOG_IMPORT_NETLIST_BASE::DIALOG_IMPORT_NETLIST_BASE( wxWindow* parent, wxWind
 	wxBoxSizer* bUpperSizer;
 	bUpperSizer = new wxBoxSizer( wxHORIZONTAL );
 
-	wxString m_matchByTimestampChoices[] = { _("Link footprints using component tstamps (unique ids)"), _("Link footprints using reference designators") };
-	int m_matchByTimestampNChoices = sizeof( m_matchByTimestampChoices ) / sizeof( wxString );
-	m_matchByTimestamp = new wxRadioBox( this, wxID_ANY, _("Link Method"), wxDefaultPosition, wxDefaultSize, m_matchByTimestampNChoices, m_matchByTimestampChoices, 1, wxRA_SPECIFY_COLS );
-	m_matchByTimestamp->SetSelection( 0 );
-	m_matchByTimestamp->SetToolTip( _("Select whether to update footprint references to match their currently-assigned symbols, or to re-assign footprints to symbols which match their current references.") );
-
-	bUpperSizer->Add( m_matchByTimestamp, 1, wxALIGN_TOP|wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 5 );
-
 	wxStaticBoxSizer* sbSizer1;
 	sbSizer1 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("Options") ), wxVERTICAL );
 
@@ -107,7 +99,6 @@ DIALOG_IMPORT_NETLIST_BASE::DIALOG_IMPORT_NETLIST_BASE( wxWindow* parent, wxWind
 	// Connect Events
 	m_NetlistFilenameCtrl->Connect( wxEVT_KILL_FOCUS, wxFocusEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnFilenameKillFocus ), NULL, this );
 	m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::onBrowseNetlistFiles ), NULL, this );
-	m_matchByTimestamp->Connect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnMatchChanged ), NULL, this );
 	m_cbDeleteExtraFootprints->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );
 	m_cbUpdateFootprints->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );
 	m_cbTransferGroups->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );
@@ -122,7 +113,6 @@ DIALOG_IMPORT_NETLIST_BASE::~DIALOG_IMPORT_NETLIST_BASE()
 	// Disconnect Events
 	m_NetlistFilenameCtrl->Disconnect( wxEVT_KILL_FOCUS, wxFocusEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnFilenameKillFocus ), NULL, this );
 	m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::onBrowseNetlistFiles ), NULL, this );
-	m_matchByTimestamp->Disconnect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnMatchChanged ), NULL, this );
 	m_cbDeleteExtraFootprints->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );
 	m_cbUpdateFootprints->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );
 	m_cbTransferGroups->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_NETLIST_BASE::OnOptionChanged ), NULL, this );

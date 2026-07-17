@@ -1640,10 +1640,9 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
     PCB_CONTEXT*       ctx = pcbContext();
     WX_STRING_REPORTER reporter;
 
-    const bool lookupByTimestamp = aCtx.Request.match_mode() != NetlistMatchMode::NMM_REFERENCE;
-
+    // match_mode is deprecated and ignored; footprints are always matched by UUID first,
+    // falling back to reference designator if there is no match.
     NETLIST netlist;
-    netlist.SetFindByTimeStamp( lookupByTimestamp );
     netlist.SetReplaceFootprints( aCtx.Request.update_footprints() );
 
     if( !ctx->ReadNetlistFromFile( netlistPath.GetFullPath(), netlist, reporter ) )
@@ -1660,7 +1659,6 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
 
     updater->SetReporter( &reporter );
     updater->SetIsDryRun( aCtx.Request.dry_run() );
-    updater->SetLookupByTimestamp( lookupByTimestamp );
     updater->SetDeleteUnusedFootprints( aCtx.Request.delete_extra_footprints() );
     updater->SetReplaceFootprints( aCtx.Request.update_footprints() );
     updater->SetTransferGroups( aCtx.Request.transfer_groups() );

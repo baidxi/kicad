@@ -85,21 +85,21 @@ void LoadNetlistFootprints( BOARD* aBoard, NETLIST& aNetlist, REPORTER& aReporte
             continue;
         }
 
-        if( aNetlist.IsFindByTimeStamp() )
-        {
-            for( const KIID& uuid : component->GetKIIDs() )
-            {
-                KIID_PATH path = component->GetPath();
-                path.push_back( uuid );
+        // First try to match by UUID/path, then fall back to reference designator, mirroring
+        // BOARD_NETLIST_UPDATER's own matching so mismatch detection here agrees with it.
+        fpOnBoard = nullptr;
 
-                if( ( fpOnBoard = aBoard->FindFootprintByPath( path ) ) != nullptr )
-                    break;
-            }
-        }
-        else
+        for( const KIID& uuid : component->GetKIIDs() )
         {
-            fpOnBoard = aBoard->FindFootprintByReference( component->GetReference() );
+            KIID_PATH path = component->GetPath();
+            path.push_back( uuid );
+
+            if( ( fpOnBoard = aBoard->FindFootprintByPath( path ) ) != nullptr )
+                break;
         }
+
+        if( !fpOnBoard )
+            fpOnBoard = aBoard->FindFootprintByReference( component->GetReference() );
 
         bool footprintMisMatch = false;
 

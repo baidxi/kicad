@@ -1288,6 +1288,13 @@ TOOL_ACTION PCB_ACTIONS::importNetlist( TOOL_ACTION_ARGS()
         .Tooltip( _( "Read netlist and update board connectivity" ) )
         .Icon( BITMAPS::netlist ) );
 
+TOOL_ACTION PCB_ACTIONS::relinkFootprints( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.EditorControl.relinkFootprints" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Relink Symbols to Footprints..." ) )
+        .Tooltip( _( "Re-establish links between footprints and schematic symbols by matching reference designators" ) )
+        .Icon( BITMAPS::netlist ) );
+
 TOOL_ACTION PCB_ACTIONS::importSpecctraSession( TOOL_ACTION_ARGS()
         .Name( "pcbnew.EditorControl.importSpecctraSession" )
         .Scope( AS_GLOBAL )
