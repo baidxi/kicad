@@ -36,8 +36,10 @@
 #include <common.h>
 #include <core/utf8.h>
 #include <eda_text.h>
+#include <footprint.h>
 #include <netinfo.h>
 #include <netclass.h>
+#include <pad.h>
 #include <pcb_shape.h>
 #include <pcb_track.h>
 #include <pcb_shape.h>
@@ -960,6 +962,50 @@ BOOST_AUTO_TEST_CASE( RegionSolderMaskExpansion )
     }
 
     BOOST_CHECK_MESSAGE( exactMatches == 1, "F_Mask relief aperture must exactly match exactly one copper region" );
+}
+
+
+/**
+ * Component-scoped copper regions do not carry a pad number in Altium.  When their net maps to
+ * one pad number in the component, preserve that logical connection, including disjoint lands
+ * connected internally by the part.
+ */
+BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    int regionCount = 0;
+
+    for( FOOTPRINT* footprint : board->Footprints() )
+    {
+        if( footprint->GetReference() != wxT( "A102" ) && footprint->GetReference() != wxT( "A103" ) )
+        {
+            continue;
+        }
+
+        for( PAD* regionPad : footprint->Pads() )
+        {
+            PCB_LAYER_ID copperLayer = regionPad->IsOnLayer( F_Cu ) ? F_Cu : B_Cu;
+
+            if( !regionPad->IsOnLayer( copperLayer ) || regionPad->GetShape( copperLayer ) != PAD_SHAPE::CUSTOM )
+                continue;
+
+            regionCount++;
+            BOOST_CHECK( !regionPad->GetNumber().IsEmpty() );
+
+            if( regionPad->GetNetname() == wxT( "P12V0" ) )
+                BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "2" ) );
+            else
+                BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "1" ) );
+        }
+
+        BOOST_CHECK( !footprint->GetDuplicatePadNumbersAreJumpers() );
+    }
+
+    BOOST_CHECK_EQUAL( regionCount, 4 );
 }
 
 

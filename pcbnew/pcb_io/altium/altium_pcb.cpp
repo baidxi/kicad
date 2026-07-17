@@ -3228,6 +3228,53 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItemOnLayer( FOOTPRINT*    
 
         pad->SetLayerSet( padLayers );
 
+        if( pad->GetNetCode() > 0 )
+        {
+            std::map<wxString, std::vector<PAD*>> sameNetPads;
+
+            for( PAD* candidate : aFootprint->Pads() )
+            {
+                if( candidate->GetNetCode() == pad->GetNetCode() && !candidate->GetNumber().IsEmpty()
+                    && ( candidate->GetLayerSet() & padLayers & LSET::AllCuMask() ).any() )
+                {
+                    sameNetPads[candidate->GetNumber()].push_back( candidate );
+                }
+            }
+
+            // Component copper regions do not carry their parent pad number.  A unique same-net
+            // number is unambiguous; disjoint regions represent lands connected inside the part.
+            if( sameNetPads.size() == 1 )
+            {
+                pad->SetNumber( sameNetPads.begin()->first );
+                bool physicallyConnected = false;
+
+                for( PAD* candidate : sameNetPads.begin()->second )
+                {
+                    LSET commonLayers = candidate->GetLayerSet() & padLayers & LSET::AllCuMask();
+
+                    for( PCB_LAYER_ID layer : commonLayers )
+                    {
+                        if( pad->GetEffectiveShape( layer )->Collide( candidate->GetEffectiveShape( layer ).get() ) )
+                        {
+                            physicallyConnected = true;
+                            break;
+                        }
+                    }
+
+                    if( physicallyConnected )
+                        break;
+                }
+
+                if( !physicallyConnected )
+                {
+                    const wxString& padNumber = sameNetPads.begin()->first;
+
+                    if( !aFootprint->GetJumperPadGroup( padNumber ) )
+                        aFootprint->JumperPadGroups().push_back( { padNumber } );
+                }
+            }
+        }
+
         aFootprint->Add( pad.release(), ADD_MODE::APPEND );
     }
     else
