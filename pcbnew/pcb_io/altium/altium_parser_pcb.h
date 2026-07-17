@@ -606,6 +606,8 @@ struct APOLYGON6
     int32_t minprimlength;
     bool    useoctagons;
 
+    bool    removeNecks;
+    int32_t neckWidthThreshold;
     bool    removeDead;
     bool    removeIslandsByArea;
     int64_t areaThreshold;

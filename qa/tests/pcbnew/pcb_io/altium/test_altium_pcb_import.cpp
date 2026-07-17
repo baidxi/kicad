@@ -229,6 +229,34 @@ BOOST_AUTO_TEST_CASE( PolygonIslandRemovalSettings )
 
 
 /**
+ * Altium's remove-necks threshold is the closest equivalent to KiCad's zone minimum thickness.
+ */
+BOOST_AUTO_TEST_CASE( PolygonNeckWidthSettings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int fiveMilZones = 0;
+    int tenMilZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetMinThickness() == pcbIUScale.mmToIU( 0.127 ) )
+            fiveMilZones++;
+        else if( zone->GetMinThickness() == pcbIUScale.mmToIU( 0.254 ) )
+            tenMilZones++;
+    }
+
+    BOOST_CHECK_EQUAL( fiveMilZones, 19 );
+    BOOST_CHECK_EQUAL( tenMilZones, 2 );
+}
+
+
+/**
  * Traces at or below the endpoint canonicalization tolerance still represent copper, but are too
  * short to be useful routing objects.  The importer preserves their geometry as copper graphics
  * rather than creating zero-length or nanometre-scale tracks.

@@ -802,6 +802,8 @@ APOLYGON6::APOLYGON6( ALTIUM_BINARY_PARSER& aReader )
     minprimlength = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MINPRIMLENGTH" ), wxT( "0mil" ) );
     useoctagons   = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "USEOCTAGONS" ), false );
 
+    removeNecks = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVENECKS" ), false );
+    neckWidthThreshold = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "NECKWIDTHTHRESHOLD" ), wxT( "0mil" ) );
     removeDead = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEDEAD" ), true );
     removeIslandsByArea = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEISLANDSBYAREA" ), false );
     constexpr double areaScale = 2.54 * 2.54;

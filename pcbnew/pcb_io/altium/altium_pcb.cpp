@@ -2461,6 +2461,9 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
         zone->SetAssignedPriority( elem.pourindex > 0 ? elem.pourindex : 0 );
         zone->Outline()->AddOutline( outline.Outline( 0 ) );
 
+        if( elem.removeNecks && elem.neckWidthThreshold > 0 )
+            zone->SetMinThickness( elem.neckWidthThreshold );
+
         if( elem.removeDead )
         {
             zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::ALWAYS );
