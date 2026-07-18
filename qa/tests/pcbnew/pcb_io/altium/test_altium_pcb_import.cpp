@@ -476,7 +476,8 @@ BOOST_AUTO_TEST_CASE( ZoneClearances_HiFive )
 
 /**
  * Altium negative planes create antipads around unconnected via holes without retaining unused
- * annular rings.  Conditional via flashing preserves that geometry while keeping connected rings.
+ * annular rings.  Conditional via flashing preserves the source via diameters while reproducing
+ * those hole-based antipads.
  */
 BOOST_AUTO_TEST_CASE( NegativePlaneViasRemoveUnusedAnnularRings )
 {
@@ -495,17 +496,23 @@ BOOST_AUTO_TEST_CASE( NegativePlaneViasRemoveUnusedAnnularRings )
             continue;
 
         PCB_VIA* via = static_cast<PCB_VIA*>( track );
+        int      endLayerWidth = via->GetWidth( via->TopLayer() );
+        bool     spansPowerPlane = false;
 
         for( PCB_LAYER_ID layer : via->GetLayerSet() )
         {
-            if( board->GetLayerType( layer ) != LT_POWER )
-                continue;
+            if( board->GetLayerType( layer ) == LT_POWER )
+                spansPowerPlane = true;
 
-            planeSpanningViaCount++;
-            BOOST_CHECK( via->Padstack().UnconnectedLayerMode()
-                         == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END );
-            break;
+            BOOST_CHECK_EQUAL( via->GetWidth( layer ), endLayerWidth );
         }
+
+        if( !spansPowerPlane )
+            continue;
+
+        planeSpanningViaCount++;
+        BOOST_CHECK( via->Padstack().UnconnectedLayerMode() == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END );
+        BOOST_CHECK( via->Padstack().Mode() == PADSTACK::MODE::NORMAL );
     }
 
     BOOST_CHECK_GT( planeSpanningViaCount, 0 );
