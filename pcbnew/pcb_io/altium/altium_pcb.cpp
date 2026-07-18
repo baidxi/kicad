@@ -3202,6 +3202,8 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItemOnLayer( FOOTPRINT*    
         pad->SetAnchorPadShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE );
         pad->SetSize( PADSTACK::ALL_LAYERS, { anchorSize, anchorSize } );
         pad->SetPosition( anchorPos );
+        // Region vertices are board-absolute; do not apply the footprint rotation again.
+        pad->SetOrientation( ANGLE_0 );
 
         if( aElem.net != ALTIUM_NET_UNCONNECTED )
             pad->SetNetCode( GetNetCode( aElem.net ) );

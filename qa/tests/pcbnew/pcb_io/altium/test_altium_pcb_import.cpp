@@ -1078,7 +1078,8 @@ BOOST_AUTO_TEST_CASE( RegionSolderMaskExpansion )
 /**
  * Component-scoped copper regions do not carry a pad number in Altium.  When their net maps to
  * one pad number in the component, preserve that logical connection, including disjoint lands
- * connected internally by the part.
+ * connected internally by the part.  Region vertices use board coordinates and must not inherit
+ * the parent footprint's rotation.
  */
 BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
 {
@@ -1087,6 +1088,7 @@ BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
     std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
     m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
 
+    int footprintCount = 0;
     int regionCount = 0;
 
     for( FOOTPRINT* footprint : board->Footprints() )
@@ -1096,6 +1098,11 @@ BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
             continue;
         }
 
+        footprintCount++;
+        BOOST_CHECK( !footprint->GetOrientation().IsZero() );
+
+        int footprintRegionCount = 0;
+
         for( PAD* regionPad : footprint->Pads() )
         {
             PCB_LAYER_ID copperLayer = regionPad->IsOnLayer( F_Cu ) ? F_Cu : B_Cu;
@@ -1104,17 +1111,33 @@ BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
                 continue;
 
             regionCount++;
+            footprintRegionCount++;
             BOOST_CHECK( !regionPad->GetNumber().IsEmpty() );
+            BOOST_CHECK( !regionPad->GetFPRelativeOrientation().IsZero() );
 
             if( regionPad->GetNetname() == wxT( "P12V0" ) )
                 BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "2" ) );
             else
                 BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "1" ) );
+
+            for( PAD* candidate : footprint->Pads() )
+            {
+                if( candidate == regionPad || candidate->GetNetCode() == regionPad->GetNetCode()
+                    || !candidate->IsOnLayer( copperLayer ) )
+                {
+                    continue;
+                }
+
+                BOOST_CHECK( !regionPad->GetEffectiveShape( copperLayer )
+                                      ->Collide( candidate->GetEffectiveShape( copperLayer ).get() ) );
+            }
         }
 
+        BOOST_CHECK_EQUAL( footprintRegionCount, 2 );
         BOOST_CHECK( !footprint->GetDuplicatePadNumbersAreJumpers() );
     }
 
+    BOOST_CHECK_EQUAL( footprintCount, 2 );
     BOOST_CHECK_EQUAL( regionCount, 4 );
 }
 
