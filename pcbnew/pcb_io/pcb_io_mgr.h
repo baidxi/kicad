@@ -50,9 +50,9 @@ public:
      */
     enum PCB_FILE_T
     {
-        PCB_FILE_UNKNOWN = 0,   ///< 0 is not a legal menu id on Mac
-        KICAD_SEXP,             ///< S-expression Pcbnew file format.
-        LEGACY,                 ///< Legacy Pcbnew file formats prior to s-expression.
+        PCB_FILE_UNKNOWN = 0, ///< 0 is not a legal menu id on Mac
+        KICAD_SEXP,           ///< S-expression Pcbnew file format.
+        LEGACY,               ///< Legacy Pcbnew file formats prior to s-expression.
         ALLEGRO,
         ALTIUM_CIRCUIT_MAKER,
         ALTIUM_CIRCUIT_STUDIO,
@@ -61,6 +61,7 @@ public:
         EAGLE,
         EASYEDA,
         EASYEDAPRO,
+        EASYEDAPRO_V3,
         FABMASTER,
         GEDA_PCB, ///< Geda PCB file formats.
         PCAD,

@@ -67,7 +67,7 @@ public:
     template <typename T>
     static T ScaleSize( T aValue )
     {
-        return KiROUND( schIUScale.MilsToIU( aValue * 10 ) );
+        return schIUScale.MilsToIU( KiROUND( aValue * 10 ) );
     }
 
     template <typename T>
@@ -101,9 +101,6 @@ public:
 
 protected:
     SCHEMATIC* m_schematic;
-
-    wxString ResolveFieldVariables( const wxString                      aInput,
-                                    const std::map<wxString, wxString>& aDeviceAttributes );
 
     template <typename T>
     void ApplyFontStyle( const std::map<wxString, nlohmann::json>& fontStyles, T& text,
