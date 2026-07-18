@@ -256,6 +256,7 @@ BOOST_AUTO_TEST_CASE( SplitPlaneIslandsPreserved )
 
             splitPlaneZones++;
             BOOST_CHECK( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::NEVER );
+            BOOST_CHECK_EQUAL( zone->GetMinThickness(), pcbIUScale.mmToIU( ZONE_THICKNESS_MIN_VALUE_MM ) );
             break;
         }
     }

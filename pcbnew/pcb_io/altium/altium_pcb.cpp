@@ -2463,6 +2463,8 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
 
         if( elem.removeNecks && elem.neckWidthThreshold > 0 )
             zone->SetMinThickness( elem.neckWidthThreshold );
+        else if( elem.isSplitPlane )
+            zone->SetMinThickness( pcbIUScale.mmToIU( ZONE_THICKNESS_MIN_VALUE_MM ) );
 
         if( elem.removeDead )
         {
