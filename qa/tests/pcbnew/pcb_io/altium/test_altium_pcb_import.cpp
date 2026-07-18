@@ -475,6 +475,44 @@ BOOST_AUTO_TEST_CASE( ZoneClearances_HiFive )
 
 
 /**
+ * Altium negative planes create antipads around unconnected via holes without retaining unused
+ * annular rings.  Conditional via flashing preserves that geometry while keeping connected rings.
+ */
+BOOST_AUTO_TEST_CASE( NegativePlaneViasRemoveUnusedAnnularRings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24654/PCB1.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int planeSpanningViaCount = 0;
+
+    for( PCB_TRACK* track : board->Tracks() )
+    {
+        if( track->Type() != PCB_VIA_T )
+            continue;
+
+        PCB_VIA* via = static_cast<PCB_VIA*>( track );
+
+        for( PCB_LAYER_ID layer : via->GetLayerSet() )
+        {
+            if( board->GetLayerType( layer ) != LT_POWER )
+                continue;
+
+            planeSpanningViaCount++;
+            BOOST_CHECK( via->Padstack().UnconnectedLayerMode()
+                         == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END );
+            break;
+        }
+    }
+
+    BOOST_CHECK_GT( planeSpanningViaCount, 0 );
+}
+
+
+/**
  * Test altiumScopeExprMatchesPolygon utility function.
  * Regression test for https://gitlab.com/kicad/code/kicad/-/issues/18408
  *

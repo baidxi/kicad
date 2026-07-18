@@ -4461,6 +4461,18 @@ void ALTIUM_PCB::ParseVias6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
         // we need VIATYPE set!
         via->SetLayerPair( start_klayer, end_klayer );
 
+        for( PCB_LAYER_ID layer : via->GetLayerSet() )
+        {
+            if( m_board->GetLayerType( layer ) == LT_POWER )
+            {
+                // Negative planes clear unconnected vias from the drill edge, not from an unused
+                // annular ring.  KiCad's conditional flashing reproduces that behavior while
+                // retaining the annular rings on the via's start and end layers.
+                via->Padstack().SetUnconnectedLayerMode( UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END );
+                break;
+            }
+        }
+
         switch( elem.viamode )
         {
         default:
