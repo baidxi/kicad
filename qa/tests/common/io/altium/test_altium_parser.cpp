@@ -196,6 +196,29 @@ BOOST_DATA_TEST_CASE( PropertiesReadKicadUnit,
 }
 
 
+BOOST_AUTO_TEST_CASE( MalformedTypedPropertiesUseDefaults )
+{
+    std::map<wxString, wxString> properties = { { "INVALID", "not-a-number" }, { "TRAILING", "12garbage" },
+                                                { "INTEGER", "-12" },          { "DOUBLE", "1.25e2" },
+                                                { "FALSE", "FALSE" },          { "TRUE", "true" },
+                                                { "UNIT", "broken" } };
+
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "INVALID", 42 ), 42 );
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "TRAILING", 42 ), 42 );
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "INTEGER", 42 ), -12 );
+
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "INVALID", 3.5 ), 3.5, 1e-9 );
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "TRAILING", 3.5 ), 3.5, 1e-9 );
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "DOUBLE", 3.5 ), 125.0, 1e-9 );
+
+    BOOST_CHECK( !ALTIUM_PROPS_UTILS::ReadBool( properties, "FALSE", true ) );
+    BOOST_CHECK( ALTIUM_PROPS_UTILS::ReadBool( properties, "TRUE", false ) );
+    BOOST_CHECK( ALTIUM_PROPS_UTILS::ReadBool( properties, "INVALID", true ) );
+
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, "UNIT", "5mil" ), 127000 );
+}
+
+
 /**
  * A list of valid test strings and the expected result map
  */

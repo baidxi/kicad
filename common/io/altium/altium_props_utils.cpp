@@ -20,6 +20,7 @@
 
 #include "altium_props_utils.h"
 
+#include <cmath>
 #include <limits>
 #include <sstream>
 #include <math/util.h>
@@ -46,7 +47,19 @@ int ALTIUM_PROPS_UTILS::ReadInt( const std::map<wxString, wxString>& aProps, con
                             int aDefault )
 {
     const std::map<wxString, wxString>::const_iterator& value = aProps.find( aKey );
-    return value == aProps.end() ? aDefault : wxAtoi( value->second );
+
+    if( value == aProps.end() )
+        return aDefault;
+
+    long parsed;
+
+    if( !value->second.ToLong( &parsed ) || parsed < std::numeric_limits<int>::min()
+        || parsed > std::numeric_limits<int>::max() )
+    {
+        return aDefault;
+    }
+
+    return static_cast<int>( parsed );
 }
 
 
@@ -62,8 +75,17 @@ double ALTIUM_PROPS_UTILS::ReadDouble( const std::map<wxString, wxString>& aProp
     std::istringstream istr( (const char*) value->second.mb_str() );
     istr.imbue( std::locale::classic() );
 
-    double doubleValue;
+    double doubleValue = aDefault;
     istr >> doubleValue;
+
+    if( istr.fail() || !std::isfinite( doubleValue ) )
+        return aDefault;
+
+    istr >> std::ws;
+
+    if( istr.peek() != std::char_traits<char>::eof() )
+        return aDefault;
+
     return doubleValue;
 }
 
@@ -75,32 +97,42 @@ bool ALTIUM_PROPS_UTILS::ReadBool( const std::map<wxString, wxString>& aProps, c
 
     if( value == aProps.end() )
         return aDefault;
-    else
-        return value->second == "T" || value->second == "TRUE";
+    if( value->second.IsSameAs( wxS( "T" ), false ) || value->second.IsSameAs( wxS( "TRUE" ), false ) )
+    {
+        return true;
+    }
+
+    if( value->second.IsSameAs( wxS( "F" ), false ) || value->second.IsSameAs( wxS( "FALSE" ), false ) )
+    {
+        return false;
+    }
+
+    return aDefault;
 }
 
 
 int32_t ALTIUM_PROPS_UTILS::ReadKicadUnit( const std::map<wxString, wxString>& aProps,
                                            const wxString& aKey, const wxString& aDefault )
 {
-    const wxString& value = ReadString( aProps, aKey, aDefault );
-
+    wxString value = ReadString( aProps, aKey, aDefault );
     wxString prefix;
+    double   mils;
 
-    if( !value.EndsWith( "mil", &prefix ) )
+    auto parse = [&]( const wxString& aValue )
     {
-        wxLogTrace( "ALTIUM", wxT( "Unit '%s' does not end with 'mil'." ), value );
-        return 0;
-    }
+        if( !aValue.EndsWith( "mil", &prefix ) )
+            return false;
 
-    prefix.StartsWith( "+", &prefix );
+        prefix.StartsWith( "+", &prefix );
+        return prefix.ToCDouble( &mils ) && std::isfinite( mils );
+    };
 
-    double mils;
-
-    if( !prefix.ToCDouble( &mils ) )
+    if( !parse( value ) )
     {
-        wxLogTrace( "ALTIUM", wxT( "Cannot convert '%s' to double." ), prefix );
-        return 0;
+        wxLogTrace( "ALTIUM", wxT( "Cannot convert '%s' to a distance." ), value );
+
+        if( !parse( aDefault ) )
+            return 0;
     }
 
     return ConvertToKicadUnit( mils * 10000 );
