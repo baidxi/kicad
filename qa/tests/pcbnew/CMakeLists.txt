@@ -227,6 +227,7 @@ set( QA_PCBNEW_SRCS
     drc/test_drc_rule_editor.cpp
     drc/test_drc_violation_layers_issue24941.cpp
     drc/test_drc_net_chain_tuning_profiles.cpp
+    drc/test_drc_zone_zone_clearance_epsilon.cpp
 
     pcb_io/altium/test_altium_rule_transformer.cpp
     pcb_io/altium/test_altium_pcblib_import.cpp
