@@ -1669,6 +1669,11 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     subpolyindex = static_cast<uint16_t>(
             ALTIUM_PROPS_UTILS::ReadInt( properties, "SUBPOLYINDEX", ALTIUM_POLYGON_NONE ) );
 
+    // Rigid-flex / cavity semantics carried by BoardRegions records (absent/zero for ordinary
+    // rigid board regions).
+    bendinglinecount = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BENDINGLINECOUNT" ), 0 );
+    cavityheight = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "CAVITYHEIGHT" ), wxT( "0mil" ) );
+
     switch( pkind )
     {
     case 0:
@@ -1750,4 +1755,10 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
 
     if( aReader.HasParsingError() )
         THROW_IO_ERROR( wxT( "Regions6 stream was not parsed correctly" ) );
+}
+
+
+bool AltiumBoardRegionIsSpecial( int aBendingLineCount, int64_t aCavityHeight, ALTIUM_REGION_KIND aKind )
+{
+    return aBendingLineCount > 0 || aCavityHeight > 0 || aKind == ALTIUM_REGION_KIND::CAVITY_DEFINITION;
 }

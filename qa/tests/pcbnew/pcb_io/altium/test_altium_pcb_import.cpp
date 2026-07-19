@@ -213,6 +213,53 @@ BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
 }
 
 
+// The classifier distinguishes an ordinary rigid board region (which merely restates the board
+// outline and default stackup) from one carrying rigid-flex bend lines or a cavity.
+BOOST_AUTO_TEST_CASE( BoardRegionSpecialSemanticsClassification )
+{
+    // Ordinary rigid board region: no bends, no cavity, plain board-cutout envelope.
+    BOOST_CHECK( !AltiumBoardRegionIsSpecial( 0, 0, ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // Rigid-flex bend lines.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 2, 0, ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // A cavity depth.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 0, pcbIUScale.mmToIU( 0.5 ), ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // A dedicated cavity-definition region.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 0, 0, ALTIUM_REGION_KIND::CAVITY_DEFINITION ) );
+}
+
+
+// A plain rigid board has exactly one ordinary board region.  The importer must not claim that
+// rigid-flex, bend, or cavity data was lost for such a board; that warning is a false positive.
+BOOST_AUTO_TEST_CASE( PlainRigidBoardRegionNotReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool boardRegionWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "Altium board region(s) were not imported" ) ) )
+        {
+            boardRegionWarning = true;
+        }
+    }
+
+    BOOST_CHECK( !boardRegionWarning );
+}
+
+
 BOOST_AUTO_TEST_CASE( ConnectedFullCircleArcPreservesRingGeometry )
 {
     constexpr uint32_t      subrecordSize = 57;

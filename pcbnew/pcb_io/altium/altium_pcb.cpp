@@ -2825,17 +2825,35 @@ void ALTIUM_PCB::ParseBoardRegionsData( const ALTIUM_PCB_COMPOUND_FILE&     aAlt
         m_progressReporter->Report( _( "Loading board regions..." ) );
 
     ALTIUM_BINARY_PARSER reader( aAltiumPcbFile, aEntry );
+    int                  regionCount = 0;
+    int                  specialRegionCount = 0;
 
     while( reader.GetRemainingBytes() >= 4 /* TODO: use Header section of file */ )
     {
         checkpoint();
         AREGION6 elem( reader, false );
+        regionCount++;
 
-        // TODO: implement?
+        if( AltiumBoardRegionIsSpecial( elem.bendinglinecount, elem.cavityheight, elem.kind ) )
+            specialRegionCount++;
     }
 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( wxT( "BoardRegions stream is not fully parsed" ) );
+
+    // A plain rigid board carries exactly one board region that merely restates the board outline
+    // and default stackup, so importing nothing from it loses no design data.  Only report when a
+    // region carries rigid-flex/cavity semantics, or when several regions imply per-region (local)
+    // stackups.
+    bool onlyDefaultRegion = regionCount <= 1 && specialRegionCount == 0;
+
+    if( regionCount > 0 && !onlyDefaultRegion && m_reporter )
+    {
+        m_reporter->Report( wxString::Format( _( "%d Altium board region(s) were not imported. Rigid-flex, "
+                                                 "local stackup, bend, or cavity data may be incomplete." ),
+                                              regionCount ),
+                            RPT_SEVERITY_WARNING );
+    }
 }
 
 void ALTIUM_PCB::ParseShapeBasedRegions6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,

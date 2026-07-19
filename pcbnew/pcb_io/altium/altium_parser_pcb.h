@@ -711,11 +711,22 @@ struct AREGION6
 
     ALTIUM_REGION_KIND kind; // I assume this means if normal or keepout?
 
+    int     bendinglinecount = 0; ///< Rigid-flex bend lines crossing a board region (0 if rigid).
+    int64_t cavityheight = 0;     ///< Cavity depth of a board region (0 if none).
+
     std::vector<ALTIUM_VERTICE>              outline;
     std::vector<std::vector<ALTIUM_VERTICE>> holes;
 
     explicit AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices );
 };
+
+
+/**
+ * Return true when an Altium BoardRegions record carries semantics that KiCad cannot represent
+ * (rigid-flex bends or a cavity), as opposed to an ordinary rigid board region that merely
+ * restates the board outline and default stackup.
+ */
+bool AltiumBoardRegionIsSpecial( int aBendingLineCount, int64_t aCavityHeight, ALTIUM_REGION_KIND aKind );
 
 struct AARC6
 {
