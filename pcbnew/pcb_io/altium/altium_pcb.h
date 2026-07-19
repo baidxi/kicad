@@ -188,6 +188,13 @@ private:
     void ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                               FOOTPRINT* aFootprint,
                                               const ACOMPONENTBODY6& aElem );
+
+    /**
+     * Reconstruct an Altium-generated (non-file) 3D body — extruded, cylinder or sphere — as STEP
+     * bytes.  Identical geometries are generated once and shared through m_generatedBodyCache.
+     * Returns true and fills @p aStepOut on success.
+     */
+    bool HelperGenerateBodyStep( const ACOMPONENTBODY6& aElem, std::vector<char>& aStepOut );
     void ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                          const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ConvertPads6ToBoardItem( const APAD6& aElem );
@@ -289,6 +296,10 @@ private:
     BOARD*                               m_board;
     std::vector<FOOTPRINT*>              m_components;
     std::map<wxString, FOOTPRINT*>       m_componentsByUniqueId;
+
+    /// Cache of reconstructed 3D-body STEP payloads, keyed by a hash of the body geometry, so
+    /// identical Altium-generated bodies are only built once.
+    std::map<std::size_t, std::vector<char>> m_generatedBodyCache;
     std::vector<ZONE*>                   m_polygons;
     std::vector<PCB_DIM_RADIAL*>         m_radialDimensions;
     std::map<uint32_t, wxString>         m_unicodeStrings;

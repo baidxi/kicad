@@ -176,6 +176,59 @@ BOOST_AUTO_TEST_CASE( PrimitiveParametersBecomeFootprintFields )
 }
 
 
+// Altium auto-generates simple 3D bodies (extruded outlines, cylinders, spheres) for parts without
+// a real model.  The importer reconstructs these with OpenCASCADE and embeds them as STEP so the
+// components are no longer invisible in the 3D viewer.
+BOOST_AUTO_TEST_CASE( GeneratedBodiesBecomeEmbeddedStep )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    static const std::string stepHeader = "ISO-10303-21;";
+    int                      generatedModels = 0;
+    int                      footprintsWithModel = 0;
+
+    for( FOOTPRINT* footprint : board->Footprints() )
+    {
+        bool hasGenerated = false;
+
+        for( const auto& [name, file] : footprint->GetEmbeddedFiles()->EmbeddedFileMap() )
+        {
+            if( file->type != EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL )
+                continue;
+
+            if( !name.EndsWith( wxT( ".step" ) ) )
+                continue;
+
+            // The embedded payload must be a real STEP file.
+            BOOST_REQUIRE_GT( file->decompressedData.size(), stepHeader.size() );
+            BOOST_CHECK(
+                    std::string( file->decompressedData.begin(), file->decompressedData.begin() + stepHeader.size() )
+                    == stepHeader );
+
+            generatedModels++;
+            hasGenerated = true;
+        }
+
+        if( hasGenerated )
+        {
+            footprintsWithModel++;
+
+            // A generated body must be referenced by the footprint's 3D model list.
+            BOOST_CHECK( !footprint->Models().empty() );
+        }
+    }
+
+    // HiFive is full of parts with Altium-generated extruded bodies; at least some must convert.
+    BOOST_CHECK_GT( generatedModels, 0 );
+    BOOST_CHECK_GT( footprintsWithModel, 0 );
+}
+
+
 // Altium stores the board's TrueType fonts, zlib-compressed, in the EmbeddedFonts6 stream.  The
 // importer must decompress them into the board's embedded files so imported text keeps its face on
 // systems that lack the font.

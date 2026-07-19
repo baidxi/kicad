@@ -64,6 +64,7 @@
 #include <progress_reporter.h>
 #include <magic_enum.hpp>
 #include <thread_pool.h>
+#include <exporters/step/step_solid_export.h>
 
 
 constexpr double BOLD_FACTOR = 1.75;    // CSS font-weight-normal is 400; bold is 700
@@ -1799,6 +1800,97 @@ double normalizeAngleDegrees( double Angle, double aMin, double aMax )
 }
 
 
+bool ALTIUM_PCB::HelperGenerateBodyStep( const ACOMPONENTBODY6& aElem, std::vector<char>& aStepOut )
+{
+    // Build a stable geometry key so identical bodies across components are only reconstructed once.
+    std::size_t key = std::hash<int>{}( static_cast<int>( aElem.modelType ) );
+
+    auto combine = [&key]( long long aValue )
+    {
+        key ^= std::hash<long long>{}( aValue ) + 0x9e3779b9 + ( key << 6 ) + ( key >> 2 );
+    };
+
+    combine( aElem.body_color_3d );
+
+    switch( aElem.modelType )
+    {
+    case ALTIUM_MODEL_TYPE::EXTRUDED:
+        combine( aElem.modelExtrudedMinZ );
+        combine( aElem.modelExtrudedMaxZ );
+
+        for( const VECTOR2I& pt : aElem.modelOutline )
+        {
+            combine( pt.x - KiROUND( aElem.modelPosition.x ) );
+            combine( pt.y - KiROUND( aElem.modelPosition.y ) );
+        }
+
+        break;
+
+    case ALTIUM_MODEL_TYPE::CYLINDER:
+        combine( aElem.modelCylinderRadius );
+        combine( aElem.modelCylinderHeight );
+        break;
+
+    case ALTIUM_MODEL_TYPE::SPHERE: combine( aElem.modelSphereRadius ); break;
+
+    default: return false;
+    }
+
+    if( auto it = m_generatedBodyCache.find( key ); it != m_generatedBodyCache.end() )
+    {
+        aStepOut = it->second;
+        return !aStepOut.empty();
+    }
+
+    std::vector<char> step;
+    bool              ok = false;
+    const uint32_t    color = static_cast<uint32_t>( aElem.body_color_3d );
+
+    switch( aElem.modelType )
+    {
+    case ALTIUM_MODEL_TYPE::EXTRUDED:
+    {
+        // Build the outline in the body-local frame (origin at the model position) so the standard
+        // FP_3DMODEL offset places it correctly.  Altium's Y axis is flipped relative to KiCad.
+        std::vector<VECTOR2D> outlineMM;
+        outlineMM.reserve( aElem.modelOutline.size() );
+
+        for( const VECTOR2I& pt : aElem.modelOutline )
+        {
+            outlineMM.emplace_back( pcbIUScale.IUTomm( pt.x - KiROUND( aElem.modelPosition.x ) ),
+                                    pcbIUScale.IUTomm( -( pt.y - KiROUND( aElem.modelPosition.y ) ) ) );
+        }
+
+        ok = STEP_SOLID_EXPORT::ExtrudedPolygonToStep( outlineMM, pcbIUScale.IUTomm( aElem.modelExtrudedMinZ ),
+                                                       pcbIUScale.IUTomm( aElem.modelExtrudedMaxZ ), color, step,
+                                                       m_reporter );
+        break;
+    }
+
+    case ALTIUM_MODEL_TYPE::CYLINDER:
+        ok = STEP_SOLID_EXPORT::CylinderToStep( pcbIUScale.IUTomm( aElem.modelCylinderRadius ),
+                                                pcbIUScale.IUTomm( aElem.modelCylinderHeight ), color, step,
+                                                m_reporter );
+        break;
+
+    case ALTIUM_MODEL_TYPE::SPHERE:
+        ok = STEP_SOLID_EXPORT::SphereToStep( pcbIUScale.IUTomm( aElem.modelSphereRadius ), color, step, m_reporter );
+        break;
+
+    default: return false;
+    }
+
+    // Cache the result (including a failure, stored as empty, so it is not retried).
+    m_generatedBodyCache[key] = ok ? step : std::vector<char>{};
+
+    if( !ok )
+        return false;
+
+    aStepOut = std::move( step );
+    return true;
+}
+
+
 void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                                        FOOTPRINT* aFootprint,
                                                        const ACOMPONENTBODY6& aElem )
@@ -1806,64 +1898,97 @@ void ALTIUM_PCB::ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND
     if( m_progressReporter )
         m_progressReporter->Report( _( "Loading component 3D models..." ) );
 
-    if( !aElem.modelIsEmbedded )
-        return;
+    EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
 
-    auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
-
-    if( !model )
+    if( aElem.modelType == ALTIUM_MODEL_TYPE::GENERIC )
     {
-        if( m_reporter )
+        if( !aElem.modelIsEmbedded )
         {
-            m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ),
-                                                  aElem.modelId, aFootprint->GetReference() ),
-                                RPT_SEVERITY_ERROR );
+            delete file;
+            return;
         }
 
-        return;
+        auto model = aAltiumPcbFile.GetLibModel( aElem.modelId );
+
+        if( !model )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( wxT( "Model %s not found for footprint %s" ), aElem.modelId,
+                                                      aFootprint->GetReference() ),
+                                    RPT_SEVERITY_ERROR );
+            }
+
+            delete file;
+            return;
+        }
+
+        file->name = aElem.modelName;
+
+        if( file->name.IsEmpty() )
+            file->name = model->first.name;
+
+        // Decompress the model data before assigning
+        std::vector<char>   decompressedData;
+        wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
+        wxZlibInputStream   zlibStream( compressedStream );
+
+        // Reserve some space, assuming decompressed data is larger -- STEP file
+        // compression is typically 5:1 using zlib like Altium does
+        decompressedData.resize( model->second.size() * 6 );
+        size_t offset = 0;
+
+        while( !zlibStream.Eof() )
+        {
+            zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
+            size_t bytesRead = zlibStream.LastRead();
+
+            if( !bytesRead )
+                break;
+
+            offset += bytesRead;
+
+            if( offset >= decompressedData.size() )
+                decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
+        }
+
+        decompressedData.resize( offset );
+
+        file->decompressedData = std::move( decompressedData );
     }
-
-    EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
-    file->name = aElem.modelName;
-
-    if( file->name.IsEmpty() )
-        file->name = model->first.name;
-
-    // Decompress the model data before assigning
-    std::vector<char>   decompressedData;
-    wxMemoryInputStream compressedStream( model->second.data(), model->second.size() );
-    wxZlibInputStream   zlibStream( compressedStream );
-
-    // Reserve some space, assuming decompressed data is larger -- STEP file
-    // compression is typically 5:1 using zlib like Altium does
-    decompressedData.resize( model->second.size() * 6 );
-    size_t offset = 0;
-
-    while( !zlibStream.Eof() )
+    else
     {
-        zlibStream.Read( decompressedData.data() + offset, decompressedData.size() - offset );
-        size_t bytesRead = zlibStream.LastRead();
+        std::vector<char> step;
 
-        if( !bytesRead )
-            break;
+        if( !HelperGenerateBodyStep( aElem, step ) )
+        {
+            delete file;
+            return;
+        }
 
-        offset += bytesRead;
-
-        if( offset >= decompressedData.size() )
-            decompressedData.resize( 2 * decompressedData.size() ); // Resizing is expensive, avoid if we can
+        // Embedded 3D models are matched by extension; generated bodies are STEP.
+        file->name = wxString::Format( wxT( "altium_body_%zu.step" ),
+                                       std::hash<std::string_view>{}( std::string_view( step.data(), step.size() ) ) );
+        file->decompressedData = std::move( step );
     }
 
-    decompressedData.resize( offset );
-
-    file->decompressedData = std::move( decompressedData );
     file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL;
-
-    EMBEDDED_FILES::CompressAndEncode( *file );
-    aFootprint->GetEmbeddedFiles()->AddFile( file );
 
     FP_3DMODEL modelSettings;
 
+    // The link derives from the file name, so it is valid whether or not this exact payload is new.
     modelSettings.m_Filename = aFootprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
+
+    if( aFootprint->GetEmbeddedFiles()->HasFile( file->name ) )
+    {
+        // Identical body already embedded in this footprint; reuse it rather than double-adding.
+        delete file;
+    }
+    else
+    {
+        EMBEDDED_FILES::CompressAndEncode( *file );
+        aFootprint->GetEmbeddedFiles()->AddFile( file );
+    }
 
     modelSettings.m_Offset.x = pcbIUScale.IUTomm( (int) aElem.modelPosition.x );
     modelSettings.m_Offset.y = -pcbIUScale.IUTomm( (int) aElem.modelPosition.y );
@@ -1932,49 +2057,87 @@ void ALTIUM_PCB::ParseComponentsBodies6Data( const ALTIUM_PCB_COMPOUND_FILE&    
                              m_components.size() );
         }
 
-        if( !elem.modelIsEmbedded )
-            continue;
+        FOOTPRINT*                     footprint = m_components.at( elem.component );
+        EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
 
-        auto modelTuple = m_EmbeddedModels.find( elem.modelId );
-
-        if( modelTuple == m_EmbeddedModels.end() )
+        if( elem.modelType == ALTIUM_MODEL_TYPE::GENERIC )
         {
-            if( m_reporter )
+            if( !elem.modelIsEmbedded )
             {
-                wxString msg;
-                msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
-                                 "not exist" ), elem.modelId );
-                m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                delete file;
+                continue;
             }
 
-            continue;
+            auto modelTuple = m_EmbeddedModels.find( elem.modelId );
+
+            if( modelTuple == m_EmbeddedModels.end() )
+            {
+                if( m_reporter )
+                {
+                    wxString msg;
+                    msg.Printf( wxT( "ComponentsBodies6 stream tries to access model id %s which does "
+                                     "not exist" ),
+                                elem.modelId );
+                    m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                }
+
+                delete file;
+                continue;
+            }
+
+            const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
+            file->name = modelData.m_modelname;
+
+            wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
+            wxZlibInputStream    zlibStream( compressedStream );
+            wxMemoryOutputStream decompressedStream;
+
+            zlibStream.Read( decompressedStream );
+            file->decompressedData.resize( decompressedStream.GetSize() );
+            decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
+        }
+        else
+        {
+            // Reconstruct extruded / cylinder / sphere bodies into STEP geometry.
+            std::vector<char> step;
+
+            if( !HelperGenerateBodyStep( elem, step ) )
+            {
+                delete file;
+                continue;
+            }
+
+            file->name =
+                    wxString::Format( wxT( "altium_body_%zu.step" ),
+                                      std::hash<std::string_view>{}( std::string_view( step.data(), step.size() ) ) );
+            file->decompressedData = std::move( step );
         }
 
-        const ALTIUM_EMBEDDED_MODEL_DATA& modelData = modelTuple->second;
-        FOOTPRINT*                        footprint = m_components.at( elem.component );
-
-        EMBEDDED_FILES::EMBEDDED_FILE* file = new EMBEDDED_FILES::EMBEDDED_FILE();
-        file->name = modelData.m_modelname;
-
-        wxMemoryInputStream  compressedStream( modelData.m_data.data(), modelData.m_data.size() );
-        wxZlibInputStream    zlibStream( compressedStream );
-        wxMemoryOutputStream decompressedStream;
-
-        zlibStream.Read( decompressedStream );
-        file->decompressedData.resize( decompressedStream.GetSize() );
-        decompressedStream.CopyTo( file->decompressedData.data(), file->decompressedData.size() );
-
-        footprint->GetEmbeddedFiles()->AddFile( file );
-
-        embeddedFutures.push_back( tp.submit_task(
-                [file]()
-                {
-                    EMBEDDED_FILES::CompressAndEncode( *file );
-                } ) );
+        file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL;
 
         FP_3DMODEL modelSettings;
 
+        // The embedded-file link is derived from the file name, so it is valid whether this exact
+        // payload is newly added or already present.
         modelSettings.m_Filename = footprint->GetEmbeddedFiles()->GetEmbeddedFileLink( *file );
+
+        if( footprint->GetEmbeddedFiles()->HasFile( file->name ) )
+        {
+            // An identical body is already embedded in this footprint; reuse it.  (AddFile would
+            // otherwise silently drop and free this duplicate, dangling the CompressAndEncode task.)
+            delete file;
+        }
+        else
+        {
+            footprint->GetEmbeddedFiles()->AddFile( file );
+
+            embeddedFutures.push_back( tp.submit_task(
+                    [file]()
+                    {
+                        EMBEDDED_FILES::CompressAndEncode( *file );
+                    } ) );
+        }
+
         VECTOR2I fpPosition = footprint->GetPosition();
 
         modelSettings.m_Offset.x =

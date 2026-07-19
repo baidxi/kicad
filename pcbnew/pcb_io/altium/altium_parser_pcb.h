@@ -222,6 +222,14 @@ enum class ALTIUM_BARCODE_TYPE
     CODE128 = 1
 };
 
+enum class ALTIUM_MODEL_TYPE
+{
+    EXTRUDED = 0, ///< 2D outline extruded between MODEL.EXTRUDED.MINZ and MAXZ.
+    GENERIC = 1,  ///< An embedded STEP/model file referenced by MODELID.
+    CYLINDER = 2,
+    SPHERE = 3
+};
+
 struct ALTIUM_VERTICE
 {
     const bool    isRound;
@@ -798,9 +806,19 @@ struct ACOMPONENTBODY6
     wxString             modelChecksum;
     bool                 modelIsEmbedded = false;
     wxString             modelName;
-    int                  modelType       = 0;
+    ALTIUM_MODEL_TYPE    modelType = ALTIUM_MODEL_TYPE::GENERIC;
     int                  modelSource     = 0;
     int                  modelSnapCount  = 0;
+
+    // Geometry of Altium-generated (non-file) bodies, reconstructed into STEP on import.
+    int modelExtrudedMinZ = 0;
+    int modelExtrudedMaxZ = 0;
+    int modelCylinderRadius = 0;
+    int modelCylinderHeight = 0;
+    int modelSphereRadius = 0;
+
+    /// 2D body outline in KiCad IU (used to extrude EXTRUDED bodies).
+    std::vector<VECTOR2I> modelOutline;
 
     VECTOR3D             modelPosition;
     VECTOR3D             modelRotation;
