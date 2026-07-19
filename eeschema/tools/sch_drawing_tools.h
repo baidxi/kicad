@@ -63,6 +63,8 @@ public:
     int SyncAllSheetsPins( const TOOL_EVENT& aEvent );
     int AutoPlaceAllSheetPins( const TOOL_EVENT& aEvent );
 
+    void SetPrefillLabelText( const wxString& aText ) { m_prefillLabelText = aText; }
+
 private:
     SCH_LINE* findWire( const VECTOR2I& aPosition );
 
@@ -114,6 +116,7 @@ private:
     STROKE_PARAMS              m_lastStroke;
     STROKE_PARAMS              m_lastTextboxStroke;
     wxString                   m_mruPath;
+    wxString                   m_prefillLabelText;
     bool                       m_lastAutoLabelRotateOnPlacement;
     bool                       m_drawingRuleArea;
 

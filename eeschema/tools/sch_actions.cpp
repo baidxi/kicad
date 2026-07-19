@@ -976,6 +976,13 @@ TOOL_ACTION SCH_ACTIONS::assignNetclass( TOOL_ACTION_ARGS()
         .Tooltip( _( "Assign a netclass to nets matching a pattern" ) )
         .Icon( BITMAPS::netlist ) );
 
+TOOL_ACTION SCH_ACTIONS::createBusAlias( TOOL_ACTION_ARGS()
+        .Name( "eeschema.InteractiveEdit.createBusAlias" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Create Bus Alias..." ) )
+        .Tooltip( _( "Create a bus alias from the selected net labels" ) )
+        .Icon( BITMAPS::add_bus ) );
+
 TOOL_ACTION SCH_ACTIONS::findNetInInspector( TOOL_ACTION_ARGS()
         .Name( "eeschema.InteractiveEdit.findNetInInspector" )
         .Scope( AS_GLOBAL )

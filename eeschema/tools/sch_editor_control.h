@@ -110,6 +110,7 @@ public:
     int ShowCreateNetChain( const TOOL_EVENT& aEvent );
 
     int AssignNetclass( const TOOL_EVENT& aEvent );
+    int CreateBusAlias( const TOOL_EVENT& aEvent );
     int FindNetInInspector( const TOOL_EVENT& aEvent );
 
     int Undo( const TOOL_EVENT& aEvent );

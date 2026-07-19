@@ -166,6 +166,7 @@ public:
     static TOOL_ACTION updateSymbol;
     static TOOL_ACTION assignFootprints;
     static TOOL_ACTION assignNetclass;
+    static TOOL_ACTION createBusAlias;
     static TOOL_ACTION findNetInInspector;
     static TOOL_ACTION schematicSetup;
     static TOOL_ACTION editPageNumber;

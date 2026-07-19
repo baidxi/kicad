@@ -95,6 +95,7 @@ SCH_DRAWING_TOOLS::SCH_DRAWING_TOOLS() :
         m_lastStroke( 0, LINE_STYLE::DEFAULT, COLOR4D::UNSPECIFIED ),
         m_lastTextboxStroke( 0, LINE_STYLE::DEFAULT, COLOR4D::UNSPECIFIED ),
         m_mruPath( wxEmptyString ),
+        m_prefillLabelText( wxEmptyString ),
         m_lastAutoLabelRotateOnPlacement( false ),
         m_drawingRuleArea( false ),
         m_inDrawingTool( false )
@@ -1944,7 +1945,12 @@ bool SCH_DRAWING_TOOLS::createNewLabel( const VECTOR2I& aPosition, int aType,
     labelItem->SetSpinStyle( m_lastTextOrientation );
     labelItem->SetFlags( IS_NEW | IS_MOVING );
 
-    if( !netName.IsEmpty() )
+    if( !m_prefillLabelText.IsEmpty() )
+    {
+        labelItem->SetText( m_prefillLabelText );
+        m_prefillLabelText.Clear();
+    }
+    else if( !netName.IsEmpty() )
     {
         // Auto-create from attached wire
         labelItem->SetText( netName );
