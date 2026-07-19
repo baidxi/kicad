@@ -1380,6 +1380,8 @@ BOOST_AUTO_TEST_CASE( Issue24847_FootprintKeepoutPlacement )
     BOOST_REQUIRE_GT( board->Footprints().size(), 0 );
 
     BOOST_CHECK_EQUAL( board->GetDesignSettings().m_CopperEdgeClearance, pcbIUScale.mmToIU( 0.4 ) );
+    BOOST_CHECK_EQUAL( board->GetDesignSettings().m_HoleClearance, pcbIUScale.mmToIU( 0.254 ) );
+    BOOST_CHECK_EQUAL( board->GetDesignSettings().m_HoleToHoleMin, pcbIUScale.mmToIU( 0.254 ) );
 
     int keepoutZoneCount = 0;
 

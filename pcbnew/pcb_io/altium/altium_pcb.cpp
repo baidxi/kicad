@@ -2737,7 +2737,10 @@ void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile
     const ARULE6* boardOutlineRule = GetRuleDefault( ALTIUM_RULE_KIND::BOARD_OUTLINE_CLEARANCE );
 
     if( clearanceRule )
+    {
         m_board->GetDesignSettings().m_MinClearance = clearanceRule->clearanceGap;
+        m_board->GetDesignSettings().m_HoleClearance = clearanceRule->clearanceGap;
+    }
 
     if( trackWidthRule )
     {
