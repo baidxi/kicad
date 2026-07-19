@@ -74,6 +74,14 @@ def get_eagle_test_file() -> str:
     return eagle_file if os.path.exists( eagle_file ) else None
 
 
+def get_altium_test_file() -> str:
+    """Get an Altium board with imported netclasses and board rules."""
+    altium_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                                "altium", "HiFive", "HiFive1.B01.PcbDoc" )
+
+    return altium_file if os.path.exists( altium_file ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -151,6 +159,32 @@ class TestImportBoardOnly:
         assert return_code == 0
         assert stem.with_suffix( ".kicad_pro" ).exists()
         assert stem.with_suffix( ".kicad_pcb" ).exists()
+
+
+@pytest.mark.skipif( get_altium_test_file() is None,
+                     reason="Altium test files not available" )
+class TestImportAltiumProjectSettings:
+    """Test preserving project-owned settings from an imported Altium board."""
+
+    def test_import_board_preserves_project_settings( self, kitest: KiTestFixture ):
+        """Imported netclasses and board constraints survive the CLI project save."""
+        stem = get_project_stem( kitest, "altium_project_settings", "hifive" )
+
+        command = [ utils.kicad_cli(), "import", get_altium_test_file(), "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        net_settings = project["net_settings"]
+        assert len( net_settings["classes"] ) > 1
+        assert net_settings["netclass_patterns"]
+
+        rules = project["board"]["design_settings"]["rules"]
+        assert rules["min_clearance"] > 0
+        assert rules["min_track_width"] > 0
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,

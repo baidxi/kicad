@@ -3121,13 +3121,15 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                 wxString::Format( _( "Importing '%s' using %s format...\n" ), job->m_inputFile, formatName ),
                 RPT_SEVERITY_INFO );
 
-        board = pi->LoadBoard( job->m_inputFile, nullptr, nullptr, nullptr );
+        board = pi->LoadBoard( job->m_inputFile, nullptr, nullptr, projectPtr );
 
         if( !board )
         {
             m_reporter->Report( _( "Failed to load board\n" ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
         }
+
+        board->SetProject( projectPtr );
 
         // Extract a project footprint library and re-link FPIDs, as the board editor's import
         // does; without it the saved board references a nickname no library table row resolves.
@@ -3228,6 +3230,16 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             // No report requested, but explicit-mapping problems still need to surface.
             for( const wxString& warning : warnings )
                 m_reporter->Report( warning + wxS( "\n" ), RPT_SEVERITY_WARNING );
+        }
+
+        if( board->GetProject() )
+        {
+            board->GetDesignSettings().SaveToFile( wxEmptyString, true );
+
+            if( board->GetDesignSettings().m_NetSettings )
+                board->GetDesignSettings().m_NetSettings->SaveToFile( wxEmptyString, true );
+
+            board->ClearProject();
         }
 
         delete board;
