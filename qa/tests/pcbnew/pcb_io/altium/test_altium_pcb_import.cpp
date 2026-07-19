@@ -186,6 +186,33 @@ BOOST_AUTO_TEST_CASE( UnsupportedStreamsAreReported )
 }
 
 
+BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool primitiveParametersWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "Unknown Altium stream 'PrimitiveParameters'" ) ) )
+        {
+            primitiveParametersWarning = true;
+        }
+    }
+
+    BOOST_CHECK( primitiveParametersWarning );
+}
+
+
 BOOST_AUTO_TEST_CASE( ConnectedFullCircleArcPreservesRingGeometry )
 {
     constexpr uint32_t      subrecordSize = 57;

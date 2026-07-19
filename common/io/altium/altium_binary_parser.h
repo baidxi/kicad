@@ -113,6 +113,8 @@ public:
 
     std::map<wxString, const CFB::COMPOUND_FILE_ENTRY*> EnumDir( const std::wstring& aDir ) const;
 
+    std::vector<wxString> EnumDirectories() const;
+
     std::map<wxString, ALTIUM_SYMBOL_DATA> GetLibSymbols( const CFB::COMPOUND_FILE_ENTRY* aStart ) const;
 
 private:

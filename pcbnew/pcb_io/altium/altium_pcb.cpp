@@ -519,6 +519,28 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
                                     RPT_SEVERITY_WARNING );
             }
         }
+
+        std::set<wxString> mappedDirectories;
+
+        for( const auto& [directory, mappedDirectory] : aFileMapping )
+            mappedDirectories.insert( wxString::FromUTF8( mappedDirectory.c_str() ) );
+
+        for( const wxString& directory : altiumPcbFile.EnumDirectories() )
+        {
+            if( mappedDirectories.contains( directory ) )
+                continue;
+
+            std::vector<std::string>        mappedFile{ directory.ToStdString(), "Data" };
+            const CFB::COMPOUND_FILE_ENTRY* file = altiumPcbFile.FindStream( mappedFile );
+
+            if( file && file->size > 0 )
+            {
+                m_reporter->Report(
+                        wxString::Format( _( "Unknown Altium stream '%s' is not supported and was not imported." ),
+                                          directory ),
+                        RPT_SEVERITY_WARNING );
+            }
+        }
     }
 
     if( m_progressReporter != nullptr )
