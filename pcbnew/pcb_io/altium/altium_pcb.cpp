@@ -530,6 +530,12 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
             if( mappedDirectories.contains( directory ) )
                 continue;
 
+            // Saved DRC and simulation results are generated caches, not source design intent.
+            if( directory.Contains( wxS( "Violation" ) ) || directory == wxS( "SimbeorCacheSection" ) )
+            {
+                continue;
+            }
+
             std::vector<std::string>        mappedFile{ directory.ToStdString(), "Data" };
             const CFB::COMPOUND_FILE_ENTRY* file = altiumPcbFile.FindStream( mappedFile );
 

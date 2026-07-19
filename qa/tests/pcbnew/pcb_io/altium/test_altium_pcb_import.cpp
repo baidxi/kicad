@@ -199,6 +199,7 @@ BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
     BOOST_REQUIRE( board );
 
     bool primitiveParametersWarning = false;
+    bool generatedCacheWarning = false;
 
     for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
     {
@@ -207,9 +208,16 @@ BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
         {
             primitiveParametersWarning = true;
         }
+
+        if( message.text.Contains( wxS( "TMatchedNetLengthsViolation" ) )
+            || message.text.Contains( wxS( "SimbeorCacheSection" ) ) )
+        {
+            generatedCacheWarning = true;
+        }
     }
 
     BOOST_CHECK( primitiveParametersWarning );
+    BOOST_CHECK( !generatedCacheWarning );
 }
 
 
