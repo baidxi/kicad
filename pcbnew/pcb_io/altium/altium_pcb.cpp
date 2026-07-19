@@ -2667,7 +2667,7 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
         THROW_IO_ERROR( wxT( "Polygons6 stream is not fully parsed" ) );
 }
 
-void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
+void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                   const CFB::COMPOUND_FILE_ENTRY* aEntry )
 {
     if( m_progressReporter )
@@ -2688,10 +2688,39 @@ void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcb
     for( std::pair<const ALTIUM_RULE_KIND, std::vector<ARULE6>>& val : m_rules )
     {
         std::sort( val.second.begin(), val.second.end(),
-                []( const ARULE6& lhs, const ARULE6& rhs )
-                {
-                    return lhs.priority < rhs.priority;
-                } );
+                   []( const ARULE6& lhs, const ARULE6& rhs )
+                   {
+                       return lhs.priority < rhs.priority;
+                   } );
+    }
+
+    int unsupportedScopedRuleCount = 0;
+
+    for( const auto& [kind, rules] : m_rules )
+    {
+        for( const ARULE6& rule : rules )
+        {
+            if( !rule.enabled )
+                continue;
+
+            bool isGlobal =
+                    rule.scope1expr.IsSameAs( wxS( "All" ), false ) && rule.scope2expr.IsSameAs( wxS( "All" ), false );
+            wxString netclassName;
+            bool     isMappedNetclass = GetAltiumNetclassScopeName( rule, &netclassName )
+                                    && ( kind == ALTIUM_RULE_KIND::CLEARANCE || kind == ALTIUM_RULE_KIND::WIDTH
+                                         || kind == ALTIUM_RULE_KIND::ROUTING_VIAS );
+
+            if( !isGlobal && !isMappedNetclass )
+                unsupportedScopedRuleCount++;
+        }
+    }
+
+    if( unsupportedScopedRuleCount > 0 && m_reporter )
+    {
+        m_reporter->Report( wxString::Format( _( "%d enabled Altium scoped rule(s) could not be represented "
+                                                 "exactly. Affected constraints may be broader or missing." ),
+                                              unsupportedScopedRuleCount ),
+                            RPT_SEVERITY_WARNING );
     }
 
     const ARULE6* clearanceRule = GetRuleDefault( ALTIUM_RULE_KIND::CLEARANCE );

@@ -260,6 +260,33 @@ BOOST_AUTO_TEST_CASE( PlainRigidBoardRegionNotReported )
 }
 
 
+BOOST_AUTO_TEST_CASE( ApproximatedRuleScopesAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool ruleScopeWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "enabled Altium scoped rule(s)" ) ) )
+        {
+            ruleScopeWarning = true;
+        }
+    }
+
+    BOOST_CHECK( ruleScopeWarning );
+}
+
+
 BOOST_AUTO_TEST_CASE( ConnectedFullCircleArcPreservesRingGeometry )
 {
     constexpr uint32_t      subrecordSize = 57;
