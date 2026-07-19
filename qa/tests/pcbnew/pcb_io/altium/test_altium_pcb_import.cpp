@@ -150,6 +150,42 @@ BOOST_AUTO_TEST_CASE( ArcMaskExpansionUsesArcMetadata )
 }
 
 
+BOOST_AUTO_TEST_CASE( UnsupportedStreamsAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    std::set<wxString> missingWarnings = { wxS( "DifferentialPairs6" ),         wxS( "EmbeddedFonts6" ),
+                                           wxS( "PadViaLibraryCache" ),         wxS( "Pin Swap Options6" ),
+                                           wxS( "ShapeBasedComponentBodies6" ), wxS( "SignalClasses" ) };
+
+    bool fileVersionWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        for( auto it = missingWarnings.begin(); it != missingWarnings.end(); )
+        {
+            if( message.text.Contains( *it ) )
+                it = missingWarnings.erase( it );
+            else
+                ++it;
+        }
+
+        fileVersionWarning |= message.text.Contains( wxS( "FileVersionInfo" ) );
+    }
+
+    BOOST_CHECK_MESSAGE( missingWarnings.empty(), missingWarnings.size() << " unsupported-stream warning(s) missing" );
+    BOOST_CHECK( !fileVersionWarning );
+}
+
+
 BOOST_AUTO_TEST_CASE( ConnectedFullCircleArcPreservesRingGeometry )
 {
     constexpr uint32_t      subrecordSize = 57;

@@ -489,6 +489,38 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
           } }
     };
 
+    if( m_reporter )
+    {
+        std::set<ALTIUM_PCB_DIR> parsedDirectories;
+
+        for( const auto& [required, directory, parser] : parserOrder )
+            parsedDirectories.insert( directory );
+
+        static const std::set<ALTIUM_PCB_DIR> intentionallyIgnoredDirectories = {
+            ALTIUM_PCB_DIR::ADVANCEDPLACEROPTIONS6, ALTIUM_PCB_DIR::CONNECTIONS6, ALTIUM_PCB_DIR::COORDINATES6,
+            ALTIUM_PCB_DIR::FILEVERSIONINFO
+        };
+
+        for( const auto& [directory, mappedDirectory] : aFileMapping )
+        {
+            if( directory == ALTIUM_PCB_DIR::FILE_HEADER || parsedDirectories.contains( directory )
+                || intentionallyIgnoredDirectories.contains( directory ) )
+            {
+                continue;
+            }
+
+            std::vector<std::string>        mappedFile{ mappedDirectory, "Data" };
+            const CFB::COMPOUND_FILE_ENTRY* file = altiumPcbFile.FindStream( mappedFile );
+
+            if( file && file->size > 0 )
+            {
+                m_reporter->Report( wxString::Format( _( "Altium stream '%s' is not supported and was not imported." ),
+                                                      mappedDirectory ),
+                                    RPT_SEVERITY_WARNING );
+            }
+        }
+    }
+
     if( m_progressReporter != nullptr )
     {
         // Count number of records we will read for the progress reporter
