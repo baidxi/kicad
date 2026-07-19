@@ -21,6 +21,8 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
 #include <lib_id.h>
+#include <lib_symbol.h>
+#include <reporter.h>
 #include <schematic.h>
 #include <sch_io/altium/sch_io_altium.h>
 #include <sch_label.h>
@@ -40,6 +42,29 @@
 
 namespace
 {
+
+struct CAPTURING_REPORTER : public REPORTER
+{
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_SEVERITY_UNDEFINED ) override
+    {
+        m_messages.push_back( aText );
+        return REPORTER::Report( aText, aSeverity );
+    }
+
+    bool Contains( const wxString& aSubstring ) const
+    {
+        for( const wxString& message : m_messages )
+        {
+            if( message.Contains( aSubstring ) )
+                return true;
+        }
+
+        return false;
+    }
+
+    std::vector<wxString> m_messages;
+};
+
 
 struct ALTIUM_SCH_IMPORT_FIXTURE
 {
@@ -222,6 +247,57 @@ BOOST_AUTO_TEST_CASE( Issue22943_SourceLibrarySymbolLibId )
                              "Library id '" << libId.Format().wx_str()
                                             << "' does not resolve in mounting_holes.SchLib" );
     }
+}
+
+
+// After importing an Altium schematic that has no accompanying KiCad symbol library, every placed
+// symbol must resolve against the importer-built definition stored in the screen's local cache.
+// The importer used to run an unconditional external SCH_SCREENS::UpdateSymbolLinks() pass, which
+// discards that cache and reloads from the active library table; with no such library it emitted
+// spurious "no library symbol found" errors and, on a nickname collision, could replace imported
+// geometry.  The imported definitions must be kept and the local cache must be self-contained.
+BOOST_AUTO_TEST_CASE( ImportedSymbolsResolveFromLocalCache )
+{
+    SCH_IO_ALTIUM plugin;
+
+    CAPTURING_REPORTER capture;
+    SCH_SHEET*         rootSheet = nullptr;
+
+    {
+        // Redirect the loader's internal reporter so we can see any external-relink errors.
+        LOAD_INFO_REPORTER_SCOPE scope( &capture );
+        rootSheet = plugin.LoadSchematicFile( dataFile( "1_cover.SchDoc" ), &m_schematic );
+    }
+
+    BOOST_REQUIRE( rootSheet );
+
+    // The importer must not attempt an external symbol relink; with no accompanying library that
+    // pass reports "No library symbol found" for every placement.
+    BOOST_CHECK_MESSAGE( !capture.Contains( wxT( "No library symbol found" ) ),
+                         "Importer ran a destructive external symbol relink" );
+
+    SCH_SCREEN* screen = rootSheet->GetScreen();
+    BOOST_REQUIRE( screen );
+
+    const std::map<wxString, LIB_SYMBOL*>& cache = screen->GetLibSymbols();
+
+    int symbolCount = 0;
+
+    for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+    {
+        SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        symbolCount++;
+
+        // The instance keeps the imported definition ...
+        BOOST_CHECK_MESSAGE( symbol->GetLibSymbolRef(), "Imported symbol '" << symbol->GetLibId().Format().wx_str()
+                                                                            << "' lost its library symbol" );
+
+        // ... and that definition is cached locally so the saved schematic is self-contained.
+        BOOST_CHECK_MESSAGE( cache.count( symbol->GetSchSymbolLibraryName() ),
+                             "Screen cache is missing '" << symbol->GetSchSymbolLibraryName().wx_str() << "'" );
+    }
+
+    BOOST_REQUIRE_GT( symbolCount, 0 );
 }
 
 

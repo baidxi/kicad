@@ -696,8 +696,12 @@ SCH_SHEET* SCH_IO_ALTIUM::LoadSchematicFile( const wxString& aFileName, SCHEMATI
 
     m_errorMessages.clear();
 
+    // NB: do not call SCH_SCREENS::UpdateSymbolLinks() here.  Every imported symbol already carries
+    // its embedded definition and each screen's local cache was populated from those definitions
+    // during sheet finalization.  Running the external relink would discard the local cache and
+    // attempt to reload every symbol from the active library table, reporting spurious "no library
+    // symbol found" errors (and, on a nickname collision, replacing the imported geometry).
     SCH_SCREENS allSheets( m_rootSheet );
-    allSheets.UpdateSymbolLinks( &LOAD_INFO_REPORTER::GetInstance() ); // Update all symbol library links for all sheets.
     allSheets.ClearEditFlags();
 
     // Apply Altium project variants to schematic symbols
@@ -1767,6 +1771,12 @@ void SCH_IO_ALTIUM::ParseFileHeader( const ALTIUM_COMPOUND_FILE& aAltiumSchFile 
     SCH_SCREEN* screen = getCurrentScreen();
     wxCHECK( screen, /* void */ );
 
+    // The symbols were appended to the screen before their library symbol was attached, so the
+    // screen's local symbol cache is still empty.  Refresh it now from the imported definitions
+    // so the schematic is self-contained and does not depend on an external library lookup.
+    for( std::pair<const int, SCH_SYMBOL*>& symbol : m_symbols )
+        screen->Update( symbol.second );
+
     // Handle title blocks
     screen->SetTitleBlock( *m_currentTitleBlock );
     m_currentTitleBlock.reset();
@@ -1886,6 +1896,12 @@ void SCH_IO_ALTIUM::ParseASCIISchematic( const wxString& aFileName )
 
     SCH_SCREEN* screen = getCurrentScreen();
     wxCHECK( screen, /* void */ );
+
+    // The symbols were appended to the screen before their library symbol was attached, so the
+    // screen's local symbol cache is still empty.  Refresh it now from the imported definitions
+    // so the schematic is self-contained and does not depend on an external library lookup.
+    for( std::pair<const int, SCH_SYMBOL*>& symbol : m_symbols )
+        screen->Update( symbol.second );
 
     // Handle title blocks
     screen->SetTitleBlock( *m_currentTitleBlock );
