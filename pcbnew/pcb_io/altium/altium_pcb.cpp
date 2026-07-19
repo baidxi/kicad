@@ -4489,13 +4489,14 @@ void ALTIUM_PCB::ParseVias6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbF
             {
                 wxString msg;
                 msg.Printf( _( "Via from layer %d to %d uses a non-copper layer, which is not "
-                               "supported." ),
-                        elem.layer_start,
-                        elem.layer_end );
+                               "supported. Imported as a through-hole via." ),
+                            elem.layer_start, elem.layer_end );
                 m_reporter->Report( msg, RPT_SEVERITY_DEBUG );
             }
 
-            continue; // just assume through-hole instead.
+            via->SetViaType( VIATYPE::THROUGH );
+            start_klayer = F_Cu;
+            end_klayer = B_Cu;
         }
 
         // we need VIATYPE set!

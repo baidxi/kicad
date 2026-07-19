@@ -55,6 +55,7 @@
 #include <settings/settings_manager.h>
 #include <zone.h>
 
+#include <algorithm>
 #include <cstring>
 #include <map>
 #include <set>
@@ -611,6 +612,64 @@ BOOST_AUTO_TEST_CASE( NegativePlaneViasRemoveUnusedAnnularRings )
     }
 
     BOOST_CHECK_GT( planeSpanningViaCount, 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnmappedViaLayersFallBackToThroughVias )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    PCB_IO_ALTIUM_DESIGNER baselinePlugin;
+    std::unique_ptr<BOARD> baselineBoard = std::make_unique<BOARD>();
+    baselinePlugin.LoadBoard( dataPath, baselineBoard.get(), nullptr );
+
+    BOOST_REQUIRE( baselineBoard );
+
+    auto countVias = []( const BOARD& aBoard )
+    {
+        return std::count_if( aBoard.Tracks().begin(), aBoard.Tracks().end(),
+                              []( const PCB_TRACK* aTrack )
+                              {
+                                  return aTrack->Type() == PCB_VIA_T;
+                              } );
+    };
+
+    int baselineViaCount = countVias( *baselineBoard );
+    BOOST_REQUIRE_GT( baselineViaCount, 0 );
+
+    PCB_IO_ALTIUM_DESIGNER remappedPlugin;
+    remappedPlugin.RegisterCallback(
+            []( const std::vector<INPUT_LAYER_DESC>& aLayers )
+            {
+                std::map<wxString, PCB_LAYER_ID> mapping =
+                        PCB_IO_ALTIUM_DESIGNER::DefaultLayerMappingCallback( aLayers );
+
+                for( const INPUT_LAYER_DESC& layer : aLayers )
+                {
+                    if( layer.AutoMapLayer == F_Cu )
+                        mapping[layer.Name] = UNDEFINED_LAYER;
+                }
+
+                return mapping;
+            } );
+
+    std::unique_ptr<BOARD> remappedBoard = std::make_unique<BOARD>();
+    remappedPlugin.LoadBoard( dataPath, remappedBoard.get(), nullptr );
+
+    BOOST_REQUIRE( remappedBoard );
+    BOOST_CHECK_EQUAL( countVias( *remappedBoard ), baselineViaCount );
+
+    for( const PCB_TRACK* track : remappedBoard->Tracks() )
+    {
+        if( track->Type() != PCB_VIA_T )
+            continue;
+
+        const PCB_VIA* via = static_cast<const PCB_VIA*>( track );
+        BOOST_CHECK( via->GetViaType() == VIATYPE::THROUGH );
+        BOOST_CHECK_EQUAL( via->TopLayer(), F_Cu );
+        BOOST_CHECK_EQUAL( via->BottomLayer(), B_Cu );
+    }
 }
 
 
