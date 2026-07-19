@@ -738,6 +738,7 @@ ACOMPONENT6::ACOMPONENT6( ALTIUM_BINARY_PARSER& aReader )
     commenton        = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "COMMENTON" ), false );
     sourcedesignator = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SOURCEDESIGNATOR" ), wxT( "" ) );
 
+    uniqueid = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "UNIQUEID" ), wxT( "" ) );
     sourceUniqueID = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SOURCEUNIQUEID" ), wxT( "" ) );
 
     // Remove leading backslash from sourceUniqueID to match schematic component unique IDs

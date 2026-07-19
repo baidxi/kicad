@@ -401,6 +401,11 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
           {
               this->ParseComponents6Data( aFile, fileHeader );
           } },
+        { false, ALTIUM_PCB_DIR::PRIMITIVEPARAMETERS,
+          [this]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
+          {
+              this->ParsePrimitiveParametersData( aFile, fileHeader );
+          } },
         { false, ALTIUM_PCB_DIR::MODELS,
           [this, aFileMapping]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
           {
@@ -1667,12 +1672,117 @@ void ALTIUM_PCB::ParseComponents6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPc
         footprint->Value().SetVisible( elem.commenton );
         footprint->SetLayer( elem.layer == ALTIUM_LAYER::TOP_LAYER ? F_Cu : B_Cu );
 
+        // Older Altium files key PrimitiveParameters by the component's UNIQUEID rather than by an
+        // explicit component index, so keep a lookup for that fallback.
+        if( !elem.uniqueid.IsEmpty() )
+            m_componentsByUniqueId[elem.uniqueid] = footprint.get();
+
         m_components.emplace_back( footprint.get() );
         m_board->Add( footprint.release(), ADD_MODE::APPEND );
     }
 
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( wxT( "Components6 stream is not fully parsed" ) );
+}
+
+
+void ALTIUM_PCB::ParsePrimitiveParametersData( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                               const CFB::COMPOUND_FILE_ENTRY* aEntry )
+{
+    if( m_progressReporter )
+        m_progressReporter->Report( _( "Loading component parameters..." ) );
+
+    ALTIUM_BINARY_PARSER reader( aAltiumPcbFile, aEntry );
+
+    // Parameter names that already have dedicated mandatory fields (imported elsewhere) must not be
+    // recreated as user fields, or they would clobber the reference/value/etc.
+    static const std::set<wxString> reservedNames = { wxT( "DESIGNATOR" ), wxT( "COMMENT" ),   wxT( "REFERENCE" ),
+                                                      wxT( "NAME" ),       wxT( "FOOTPRINT" ), wxT( "DATASHEET" ) };
+
+    while( reader.GetRemainingBytes() >= 4 )
+    {
+        checkpoint();
+
+        std::map<wxString, wxString> group = reader.ReadProperties();
+
+        wxString variantGuid = ALTIUM_PROPS_UTILS::ReadString( group, wxT( "VARIANTGUID" ), wxT( "" ) );
+        wxString idField = ALTIUM_PROPS_UTILS::ReadString( group, wxT( "ID" ), wxT( "" ) );
+        wxString primitiveId = ALTIUM_PROPS_UTILS::ReadString( group, wxT( "PRIMITIVEID" ), wxT( "" ) );
+        int      count = ALTIUM_PROPS_UTILS::ReadInt( group, wxT( "COUNT" ), 0 );
+
+        // Read the COUNT following parameter records regardless of whether they are applied so the
+        // stream stays aligned.
+        std::vector<std::pair<wxString, wxString>> params;
+
+        for( int i = 0; i < count && reader.GetRemainingBytes() >= 4; i++ )
+        {
+            std::map<wxString, wxString> record = reader.ReadProperties();
+            params.emplace_back( ALTIUM_PROPS_UTILS::ReadString( record, wxT( "NAME" ), wxT( "" ) ),
+                                 ALTIUM_PROPS_UTILS::ReadString( record, wxT( "VALUE" ), wxT( "" ) ) );
+        }
+
+        // Only the default (non-variant) group carries the footprint's own parameters.  Variant-
+        // specific overrides have no lossless KiCad representation and are skipped.
+        if( !variantGuid.IsEmpty() || params.empty() )
+            continue;
+
+        FOOTPRINT* footprint = nullptr;
+
+        if( idField.StartsWith( wxT( "Component#" ) ) )
+        {
+            long index = -1;
+
+            if( idField.Mid( 10 ).ToLong( &index ) && index >= 0 && index < static_cast<long>( m_components.size() ) )
+                footprint = m_components[index];
+        }
+
+        if( !footprint )
+        {
+            if( auto it = m_componentsByUniqueId.find( primitiveId ); it != m_componentsByUniqueId.end() )
+                footprint = it->second;
+        }
+
+        if( !footprint )
+            continue;
+
+        for( const auto& [rawName, value] : params )
+        {
+            if( rawName.IsEmpty() )
+                continue;
+
+            // Altium parameter references are case-insensitive and its PCB text conversion emits
+            // uppercase variable names; canonicalize to match.
+            wxString name = rawName.Upper();
+
+            if( reservedNames.count( name ) )
+                continue;
+
+            // A component's "Value" parameter is exposed as ${ALTIUM_VALUE}, mirroring the special
+            // string mapping used for imported PCB text.
+            if( name == wxT( "VALUE" ) )
+                name = wxT( "ALTIUM_VALUE" );
+
+            if( footprint->HasField( name ) )
+            {
+                footprint->GetField( name )->SetText( value );
+            }
+            else
+            {
+                PCB_FIELD* field = new PCB_FIELD( footprint, FIELD_T::USER );
+                footprint->Add( field );
+
+                field->SetName( name );
+                field->SetText( value );
+                field->SetVisible( false );
+                field->SetLayer( footprint->GetLayer() == F_Cu ? F_Fab : B_Fab );
+                field->SetPosition( footprint->GetPosition() );
+                field->StyleFromSettings( m_board->GetDesignSettings(), true );
+            }
+        }
+    }
+
+    if( reader.GetRemainingBytes() != 0 )
+        THROW_IO_ERROR( wxT( "PrimitiveParameters stream is not fully parsed" ) );
 }
 
 

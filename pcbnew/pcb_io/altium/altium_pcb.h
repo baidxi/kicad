@@ -63,6 +63,7 @@ enum class ALTIUM_PCB_DIR
     PINSWAPOPTIONS6,
     PINPAIRSSECTION,
     POLYGONS6,
+    PRIMITIVEPARAMETERS,
     REGIONS6,
     RULES6,
     SHAPEBASEDCOMPONENTBODIES6,
@@ -279,12 +280,15 @@ private:
     HelperGetSolderAndPasteMaskExpansions( const ALTIUM_RECORD aType, const int aPrimitiveIndex,
                                            const ALTIUM_LAYER aAltiumLayer );
 
+    void       ParsePrimitiveParametersData( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                             const CFB::COMPOUND_FILE_ENTRY* aEntry );
     FOOTPRINT* HelperGetFootprint( uint16_t aComponent ) const;
 
     void remapUnsureLayers( std::vector<ABOARD6_LAYER_STACKUP>& aStackup );
 
     BOARD*                               m_board;
     std::vector<FOOTPRINT*>              m_components;
+    std::map<wxString, FOOTPRINT*>       m_componentsByUniqueId;
     std::vector<ZONE*>                   m_polygons;
     std::vector<PCB_DIM_RADIAL*>         m_radialDimensions;
     std::map<uint32_t, wxString>         m_unicodeStrings;

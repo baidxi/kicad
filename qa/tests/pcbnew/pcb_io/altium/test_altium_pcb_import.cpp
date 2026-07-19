@@ -28,6 +28,7 @@
 
 #include <pcbnew/pcb_io/altium/pcb_io_altium_designer.h>
 #include <pcbnew/pcb_io/altium/altium_pcb.h>
+#include <io/altium/altium_project.h>
 #include <pcbnew/pcb_io/altium/altium_pcb_compound_file.h>
 #include <pcbnew/pcb_io/altium/altium_parser_pcb.h>
 
@@ -117,6 +118,61 @@ BOOST_AUTO_TEST_CASE( DimensionBoldPropertyParsing )
     BOOST_CHECK_EQUAL( dimension.textlinewidth, pcbIUScale.mmToIU( 0.1524 ) );
     BOOST_CHECK( !reader.HasParsingError() );
     BOOST_CHECK_EQUAL( reader.GetRemainingBytes(), 0 );
+}
+
+
+// Altium keeps per-component parameters (manufacturer, part number, value, etc.) in the
+// PrimitiveParameters stream.  The importer must attach the default (non-variant) parameters to the
+// matching footprint as fields so BOM data survives conversion.
+BOOST_AUTO_TEST_CASE( PrimitiveParametersBecomeFootprintFields )
+{
+    auto fieldText = []( BOARD* aBoard, const wxString& aRef, const wxString& aField ) -> wxString
+    {
+        for( FOOTPRINT* footprint : aBoard->Footprints() )
+        {
+            if( footprint->GetReference() != aRef )
+                continue;
+
+            if( !footprint->HasField( aField ) )
+                return wxString( wxS( "<missing>" ) );
+
+            return footprint->GetField( aField )->GetText();
+        }
+
+        return wxString( wxS( "<no footprint>" ) );
+    };
+
+    // Modern file: parameters are keyed by an explicit component index.
+    {
+        std::string dataPath =
+                KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+        BOOST_REQUIRE( board );
+
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "C266" ), wxT( "ALTIUM_VALUE" ) ), wxT( "47n" ) );
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "C266" ), wxT( "APPLICATION" ) ), wxT( "Bypass, Decoupling" ) );
+
+        // The imported parameter fields must be hidden so they do not clutter the board.
+        for( FOOTPRINT* footprint : board->Footprints() )
+        {
+            if( footprint->GetReference() == wxT( "C266" ) && footprint->HasField( wxT( "APPLICATION" ) ) )
+                BOOST_CHECK( !footprint->GetField( wxT( "APPLICATION" ) )->IsVisible() );
+        }
+    }
+
+    // Legacy file: parameters are keyed by the component UNIQUEID (no explicit index).
+    {
+        std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+        BOOST_REQUIRE( board );
+
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "J5" ), wxT( "MANUFACTURER" ) ), wxT( "Amphenol FCI" ) );
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "J5" ), wxT( "PART NUMBER" ) ), wxT( "J0000048" ) );
+    }
 }
 
 
@@ -247,13 +303,19 @@ BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
 
     BOOST_REQUIRE( board );
 
+    bool unknownStreamWarning = false;
     bool primitiveParametersWarning = false;
     bool generatedCacheWarning = false;
 
     for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
     {
         if( message.severity == RPT_SEVERITY_WARNING
-            && message.text.Contains( wxS( "Unknown Altium stream 'PrimitiveParameters'" ) ) )
+            && message.text.Contains( wxS( "Unknown Altium stream 'LayerKindMapping'" ) ) )
+        {
+            unknownStreamWarning = true;
+        }
+
+        if( message.text.Contains( wxS( "PrimitiveParameters" ) ) && message.text.Contains( wxS( "not supported" ) ) )
         {
             primitiveParametersWarning = true;
         }
@@ -265,7 +327,11 @@ BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
         }
     }
 
-    BOOST_CHECK( primitiveParametersWarning );
+    // The unknown-stream diagnostic still fires for genuinely unhandled streams ...
+    BOOST_CHECK( unknownStreamWarning );
+
+    // ... but PrimitiveParameters is now imported, so it is no longer reported as unknown.
+    BOOST_CHECK( !primitiveParametersWarning );
     BOOST_CHECK( !generatedCacheWarning );
 }
 
@@ -1601,6 +1667,73 @@ BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
 
     BOOST_CHECK_EQUAL( footprintCount, 2 );
     BOOST_CHECK_EQUAL( regionCount, 4 );
+}
+
+
+/**
+ * A variant's parameter override targets ALTIUM_VALUE, which is where a component's Altium
+ * "Value" parameter is imported.  KiCad's own Value field is imported from the component's
+ * Comment instead, so the override may only follow into Value when the two agree in the base
+ * design; otherwise the Comment says something else and would be destroyed.
+ */
+BOOST_AUTO_TEST_CASE( VariantParameterOverrideRespectsDivergentComment )
+{
+    BOARD board;
+
+    auto addFootprint = [&]( const wxString& aRef, const wxString& aValue,
+                             const wxString& aAltiumValue ) -> FOOTPRINT*
+    {
+        FOOTPRINT* footprint = new FOOTPRINT( &board );
+
+        footprint->SetReference( aRef );
+        footprint->SetValue( aValue );
+
+        PCB_FIELD* field = new PCB_FIELD( footprint, FIELD_T::USER );
+        field->SetName( wxS( "ALTIUM_VALUE" ) );
+        field->SetText( aAltiumValue );
+        footprint->Add( field );
+
+        board.Add( footprint );
+
+        return footprint;
+    };
+
+    // C1 mirrors the common case: the Comment was tracking the Value parameter.
+    FOOTPRINT* inSync = addFootprint( wxS( "C1" ), wxS( "100nF" ), wxS( "100nF" ) );
+
+    // C2 mirrors a real divergence seen in the wild, where the Value parameter is stale but the
+    // Comment carries the part the designer actually intends.
+    FOOTPRINT* divergent = addFootprint( wxS( "C2" ), wxS( "10uF" ), wxS( "0R" ) );
+
+    ALTIUM_PROJECT_VARIANT projectVariant;
+    projectVariant.name = wxS( "VariantA" );
+
+    for( const wxString& ref : { wxS( "C1" ), wxS( "C2" ) } )
+    {
+        ALTIUM_VARIANT_ENTRY entry;
+
+        entry.designator = ref;
+        entry.kind = 0;
+        entry.parameterOverrides[wxS( "VALUE" )] = wxS( "39pF" );
+
+        projectVariant.variations.push_back( entry );
+    }
+
+    ApplyAltiumProjectVariantsToBoard( &board, { projectVariant } );
+
+    const FOOTPRINT_VARIANT* inSyncVariant = inSync->GetVariant( wxS( "VariantA" ) );
+    BOOST_REQUIRE( inSyncVariant );
+    BOOST_CHECK_EQUAL( inSyncVariant->GetFieldValue( wxS( "ALTIUM_VALUE" ) ), wxS( "39pF" ) );
+
+    // Both fields must move together, otherwise exporters that read Value (BOM, ODB++ PRP) would
+    // still report the base part for this variant.
+    BOOST_CHECK( inSyncVariant->HasFieldValue( wxS( "Value" ) ) );
+    BOOST_CHECK_EQUAL( inSyncVariant->GetFieldValue( wxS( "Value" ) ), wxS( "39pF" ) );
+
+    const FOOTPRINT_VARIANT* divergentVariant = divergent->GetVariant( wxS( "VariantA" ) );
+    BOOST_REQUIRE( divergentVariant );
+    BOOST_CHECK_EQUAL( divergentVariant->GetFieldValue( wxS( "ALTIUM_VALUE" ) ), wxS( "39pF" ) );
+    BOOST_CHECK( !divergentVariant->HasFieldValue( wxS( "Value" ) ) );
 }
 
 

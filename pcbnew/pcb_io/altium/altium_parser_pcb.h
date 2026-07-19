@@ -549,6 +549,7 @@ struct ACOMPONENT6
     bool         locked;
     bool         nameon;
     bool         commenton;
+    wxString     uniqueid;
     wxString     sourceUniqueID;
     wxString     sourceHierachicalPath;
     wxString     sourcedesignator;

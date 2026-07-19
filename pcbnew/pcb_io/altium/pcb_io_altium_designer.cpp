@@ -117,6 +117,29 @@ void ApplyAltiumProjectVariantsToBoard( BOARD* aBoard,
                         fpVariant->SetFieldValue( wxS( "Footprint" ), value );
                 }
             }
+
+            // Parameter overrides only change values on a component that stays fitted, so they
+            // are applied outside the Kind switch above.
+            for( const auto& [rawName, value] : entry.parameterOverrides )
+            {
+                const wxString fieldName = AltiumParameterNameToKiCadField( rawName );
+
+                fpVariant->SetFieldValue( fieldName, value );
+
+                // Altium's own "Value" parameter is imported into ALTIUM_VALUE, while KiCad's
+                // Value field is imported from the component's Comment.  Those are independent
+                // strings that usually, but not always, agree.  Mirror the override into Value
+                // only when the two base values match, because that is the case where the Comment
+                // was tracking the parameter and would have followed it in Altium.  Where they
+                // differ the Comment carries something else and must not be overwritten.
+                if( fieldName == wxS( "ALTIUM_VALUE" ) )
+                {
+                    PCB_FIELD* altiumValue = target->GetField( wxS( "ALTIUM_VALUE" ) );
+
+                    if( altiumValue && altiumValue->GetText() == target->Value().GetText() )
+                        fpVariant->SetFieldValue( wxS( "Value" ), value );
+                }
+            }
         }
     }
 }
@@ -264,6 +287,7 @@ BOARD* PCB_IO_ALTIUM_DESIGNER::LoadBoard( const wxString& aFileName, BOARD* aApp
             { ALTIUM_PCB_DIR::PINSWAPOPTIONS6, "Pin Swap Options6" },
             { ALTIUM_PCB_DIR::PINPAIRSSECTION, "PinPairsSection" },
             { ALTIUM_PCB_DIR::POLYGONS6, "Polygons6" },
+            { ALTIUM_PCB_DIR::PRIMITIVEPARAMETERS, "PrimitiveParameters" },
             { ALTIUM_PCB_DIR::REGIONS6, "Regions6" },
             { ALTIUM_PCB_DIR::RULES6, "Rules6" },
             { ALTIUM_PCB_DIR::SHAPEBASEDCOMPONENTBODIES6, "ShapeBasedComponentBodies6" },
