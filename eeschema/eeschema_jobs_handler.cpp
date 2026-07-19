@@ -1628,6 +1628,10 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
     size_t symbolCount = 0;
     size_t sheetCount = 0;
 
+    // Maps each saved screen to its output path; needed both for saving and, afterwards, for
+    // recording the project's top-level sheet metadata.
+    std::unordered_map<SCH_SCREEN*, wxString> filenameMap;
+
     try
     {
         // Some importers build the top-level sheet set themselves; only collapse to the returned
@@ -1665,7 +1669,7 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
         SCH_SCREENS screens( schematic->Root() );
 
-        std::unordered_map<SCH_SCREEN*, wxString> filenameMap;
+        filenameMap.clear();
         filenameMap[schematic->RootScreen()] = outputFn.GetFullPath();
 
         wxString errorMsg;
@@ -1685,7 +1689,14 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
         for( size_t i = 0; i < screens.GetCount(); i++ )
         {
             SCH_SCREEN* screen = screens.GetScreen( i );
-            wxString    path = filenameMap[screen];
+            SCH_SHEET*  sheet = screens.GetSheet( i );
+
+            // The virtual root is an internal container for multi-top-level hierarchies and has no
+            // file of its own; saving it would emit a stray, empty-named ".kicad_sch".
+            if( sheet && sheet->IsVirtualRootSheet() )
+                continue;
+
+            wxString path = filenameMap[screen];
 
             if( path.IsEmpty() )
                 continue;
@@ -1693,7 +1704,7 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
             wxFileName fn( path );
             fn.SetExt( FILEEXT::KiCadSchematicFileExtension );
 
-            kicadPi->SaveSchematicFile( fn.GetFullPath(), screens.GetSheet( i ), schematic.get() );
+            kicadPi->SaveSchematicFile( fn.GetFullPath(), sheet, schematic.get() );
             sheetCount++;
 
             auto symbols = screen->Items().OfType( SCH_SYMBOL_T );
@@ -1731,6 +1742,28 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
             if( sheet && !sheet->IsVirtualRootSheet() )
                 projectSheets.emplace_back( std::make_pair( sheet->m_Uuid, sheet->GetName() ) );
+        }
+
+        // Record the real top-level sheet(s) so the project opens the imported root rather than the
+        // internal virtual-root container.
+        std::vector<TOP_LEVEL_SHEET_INFO>& topLevelInfo = project.GetProjectFile().GetTopLevelSheets();
+        topLevelInfo.clear();
+
+        for( SCH_SHEET* sheet : schematic->GetTopLevelSheets() )
+        {
+            if( !sheet )
+                continue;
+
+            wxString outPath = filenameMap[sheet->GetScreen()];
+
+            if( outPath.IsEmpty() )
+                outPath = outputFn.GetFullPath();
+
+            wxFileName relFn( outPath );
+            relFn.SetExt( FILEEXT::KiCadSchematicFileExtension );
+            relFn.MakeRelativeTo( project.GetProjectPath() );
+
+            topLevelInfo.emplace_back( sheet->m_Uuid, sheet->GetName(), relFn.GetFullPath() );
         }
     }
 

@@ -90,6 +90,14 @@ def get_altium_project_file() -> str:
     return project_file if os.path.exists( project_file ) else None
 
 
+def get_altium_repeated_schematic_project() -> str:
+    """Get a multi-document Altium schematic project (one root plus a repeated channel)."""
+    project_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "eeschema",
+                                 "plugins", "altium", "issue24861", "Repeated_Schematic.PrjPcb" )
+
+    return project_file if os.path.exists( project_file ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -209,6 +217,44 @@ class TestImportAltiumProjectSettings:
             project = json.load( f )
 
         assert project["text_variables"]["PCB_REVISION"] == "CLI"
+
+
+@pytest.mark.skipif( get_altium_repeated_schematic_project() is None,
+                     reason="Altium repeated-schematic project not available" )
+class TestImportAltiumSchematicProject:
+    """Test importing a multi-document Altium schematic project."""
+
+    def test_import_records_real_top_level_sheet( self, kitest: KiTestFixture ):
+        """The project records the real root sheet and emits no hidden virtual-root file."""
+        stem = get_project_stem( kitest, "altium_sch_project", "repeated" )
+
+        # A prior run may have left the stray hidden file; clear it so the assertion is meaningful.
+        hidden = stem.parent / ".kicad_sch"
+
+        if hidden.exists():
+            hidden.unlink()
+
+        command = [ utils.kicad_cli(), "import", get_altium_repeated_schematic_project(),
+                    "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert stem.with_suffix( ".kicad_sch" ).exists()
+
+        # The internal virtual-root container must not be written out as a stray ".kicad_sch".
+        assert not hidden.exists(), "importer wrote a stray virtual-root .kicad_sch"
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        top_level = project["schematic"]["top_level_sheets"]
+        assert len( top_level ) == 1
+        assert top_level[0]["name"] == "Repeated_Schematic"
+        assert top_level[0]["filename"] == "repeated.kicad_sch"
+        assert top_level[0]["uuid"]
+
+        # The flat sheet list must still be populated.
+        assert project["sheets"]
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,
