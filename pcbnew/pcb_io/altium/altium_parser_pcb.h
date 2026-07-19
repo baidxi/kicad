@@ -514,6 +514,21 @@ struct ADESIGNRULECHECKEROPTIONS6
 };
 
 
+struct AEMBEDDEDFONT6
+{
+    wxString displayName;
+    wxString familyName;
+    wxString styleName;
+    bool     isBold;
+    bool     isItalic;
+
+    /// zlib-compressed TrueType/OpenType font payload as stored in the Altium stream.
+    std::vector<char> compressedData;
+
+    explicit AEMBEDDEDFONT6( ALTIUM_BINARY_PARSER& aReader );
+};
+
+
 struct ACLASS6
 {
     wxString name;

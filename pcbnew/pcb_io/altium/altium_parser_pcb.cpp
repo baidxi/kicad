@@ -660,6 +660,43 @@ ADESIGNRULECHECKEROPTIONS6::ADESIGNRULECHECKEROPTIONS6( ALTIUM_BINARY_PARSER& aR
 }
 
 
+AEMBEDDEDFONT6::AEMBEDDEDFONT6( ALTIUM_BINARY_PARSER& aReader )
+{
+    // Each record is three byte-counted UTF-16LE strings (display / family / style name, each
+    // including the trailing NUL), three flag bytes, and a zlib-compressed font payload.
+    auto readWideString = [&aReader]() -> wxString
+    {
+        uint32_t length = aReader.Read<uint32_t>();
+
+        if( length == 0 || length > aReader.GetRemainingBytes() )
+            return wxString();
+
+        std::vector<char> buffer = aReader.ReadVector( length );
+
+        // The stored length includes the two-byte UTF-16 NUL terminator.
+        return wxString( buffer.data(), wxMBConvUTF16LE(), length >= 2 ? length - 2 : length );
+    };
+
+    displayName = readWideString();
+    familyName = readWideString();
+    styleName = readWideString();
+
+    isBold = aReader.Read<uint8_t>() != 0;
+    isItalic = aReader.Read<uint8_t>() != 0;
+    aReader.Read<uint8_t>(); // Unknown flag; consistently 1 in all inspected files.
+
+    uint32_t compressedLength = aReader.Read<uint32_t>();
+
+    if( compressedLength > aReader.GetRemainingBytes() )
+        THROW_IO_ERROR( wxT( "EmbeddedFonts6 stream has an out-of-range font payload length" ) );
+
+    compressedData = aReader.ReadVector( compressedLength );
+
+    if( aReader.HasParsingError() )
+        THROW_IO_ERROR( wxT( "EmbeddedFonts6 stream was not parsed correctly!" ) );
+}
+
+
 ACLASS6::ACLASS6( ALTIUM_BINARY_PARSER& aReader )
 {
     std::map<wxString, wxString> properties = aReader.ReadProperties();

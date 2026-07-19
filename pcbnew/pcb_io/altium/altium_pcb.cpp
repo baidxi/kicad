@@ -386,6 +386,11 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
           {
               this->ParseDesignRuleCheckerOptions6Data( aFile, fileHeader );
           } },
+        { false, ALTIUM_PCB_DIR::EMBEDDEDFONTS6,
+          [this]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
+          {
+              this->ParseEmbeddedFonts6Data( aFile, fileHeader );
+          } },
         { false, ALTIUM_PCB_DIR::EXTENDPRIMITIVEINFORMATION,
           [this]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
           {
@@ -2861,6 +2866,98 @@ void ALTIUM_PCB::ParseDesignRuleCheckerOptions6Data( const ALTIUM_PCB_COMPOUND_F
         m_reporter->Report( _( "The Altium dead-copper reporting area is not supported and was not "
                                "converted; all poured copper was preserved." ),
                             RPT_SEVERITY_WARNING );
+    }
+}
+
+
+void ALTIUM_PCB::ParseEmbeddedFonts6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                          const CFB::COMPOUND_FILE_ENTRY* aEntry )
+{
+    if( m_progressReporter )
+        m_progressReporter->Report( _( "Loading embedded fonts..." ) );
+
+    ALTIUM_BINARY_PARSER reader( aAltiumPcbFile, aEntry );
+
+    EMBEDDED_FILES*    embeddedFiles = m_board->GetEmbeddedFiles();
+    std::set<wxString> usedNames;
+    int                embedded = 0;
+
+    while( reader.GetRemainingBytes() > 0 )
+    {
+        checkpoint();
+        AEMBEDDEDFONT6 elem( reader );
+
+        // Inflate the zlib payload to recover the raw TrueType/OpenType font bytes.
+        std::vector<char>   fontData;
+        wxMemoryInputStream memStream( elem.compressedData.data(), elem.compressedData.size() );
+        wxZlibInputStream   zlibStream( memStream );
+        char                buffer[8192];
+
+        while( zlibStream.IsOk() )
+        {
+            zlibStream.Read( buffer, sizeof( buffer ) );
+            size_t count = zlibStream.LastRead();
+
+            if( count == 0 )
+                break;
+
+            fontData.insert( fontData.end(), buffer, buffer + count );
+        }
+
+        wxStreamError streamError = zlibStream.GetLastError();
+
+        if( fontData.empty() || ( streamError != wxSTREAM_NO_ERROR && streamError != wxSTREAM_EOF ) )
+        {
+            // A single corrupt font is non-fatal design data; report it and keep importing.
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( _( "Embedded font '%s' could not be "
+                                                         "decompressed and was skipped." ),
+                                                      elem.displayName ),
+                                    RPT_SEVERITY_WARNING );
+            }
+
+            continue;
+        }
+
+        // Build a stable, unique file name for the embedded font.
+        wxString baseName = elem.displayName.IsEmpty() ? wxString( wxS( "font" ) )
+                                                        : elem.displayName;
+        wxString fileName = baseName + wxS( ".ttf" );
+
+        for( int suffix = 1; !usedNames.insert( fileName ).second; suffix++ )
+            fileName = wxString::Format( wxS( "%s_%d.ttf" ), baseName, suffix );
+
+        auto file = std::make_unique<EMBEDDED_FILES::EMBEDDED_FILE>();
+        file->name = fileName;
+        file->type = EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::FONT;
+        file->decompressedData = std::move( fontData );
+
+        if( EMBEDDED_FILES::CompressAndEncode( *file ) != EMBEDDED_FILES::RETURN_CODE::OK )
+        {
+            if( m_reporter )
+            {
+                m_reporter->Report( wxString::Format( _( "Embedded font '%s' could not be stored "
+                                                         "and was skipped." ),
+                                                      elem.displayName ),
+                                    RPT_SEVERITY_WARNING );
+            }
+
+            continue;
+        }
+
+        file->is_valid = true;
+        embeddedFiles->AddFile( file.release() );
+        embedded++;
+    }
+
+    if( reader.GetRemainingBytes() != 0 )
+        THROW_IO_ERROR( wxT( "EmbeddedFonts6 stream is not fully parsed" ) );
+
+    if( embedded > 0 )
+    {
+        embeddedFiles->SetAreFontsEmbedded( true );
+        embeddedFiles->UpdateFontFiles();
     }
 }
 
@@ -5616,7 +5713,11 @@ void ALTIUM_PCB::ConvertTexts6ToEdaTextSettings( const ATEXT6& aElem, EDA_TEXT& 
 
     if( aElem.fonttype == ALTIUM_TEXT_TYPE::TRUETYPE )
     {
-        KIFONT::FONT* font = KIFONT::FONT::GetFont( aElem.fontname, aElem.isBold, aElem.isItalic );
+        // Resolve against any fonts embedded from the source board so imported TrueType text keeps
+        // its intended face even when the host system lacks that font.
+        const std::vector<wxString>* embeddedFonts = m_board->GetEmbeddedFiles()->GetFontFiles();
+
+        KIFONT::FONT* font = KIFONT::FONT::GetFont( aElem.fontname, aElem.isBold, aElem.isItalic, embeddedFonts );
         aEdaText.SetFont( font );
 
         if( font->IsOutline() )

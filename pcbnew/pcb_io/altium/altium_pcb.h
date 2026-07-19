@@ -154,6 +154,8 @@ private:
                           const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ParseDesignRuleCheckerOptions6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                              const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void ParseEmbeddedFonts6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                  const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ParseClasses6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                             const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ParseComponents6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,

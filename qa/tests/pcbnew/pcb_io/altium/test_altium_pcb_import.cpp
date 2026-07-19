@@ -35,6 +35,7 @@
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <embedded_files.h>
 #include <footprint.h>
 #include <board_stackup_manager/board_stackup.h>
 #include <common.h>
@@ -119,6 +120,45 @@ BOOST_AUTO_TEST_CASE( DimensionBoldPropertyParsing )
 }
 
 
+// Altium stores the board's TrueType fonts, zlib-compressed, in the EmbeddedFonts6 stream.  The
+// importer must decompress them into the board's embedded files so imported text keeps its face on
+// systems that lack the font.
+BOOST_AUTO_TEST_CASE( EmbeddedFontsImported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    EMBEDDED_FILES* files = board->GetEmbeddedFiles();
+    BOOST_REQUIRE( files );
+
+    // The board declares embedded fonts, so serialization keeps the imported files.
+    BOOST_CHECK( files->GetAreFontsEmbedded() );
+
+    int fontCount = 0;
+
+    for( const auto& [name, file] : files->EmbeddedFileMap() )
+    {
+        if( file->type != EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::FONT )
+            continue;
+
+        fontCount++;
+
+        // Each imported font is a real, stored payload: valid, re-encoded, and large enough to be
+        // an actual font rather than a truncated blob.
+        BOOST_CHECK( file->is_valid );
+        BOOST_CHECK( !file->compressedEncodedData.empty() );
+        BOOST_CHECK_GT( file->decompressedData.size(), 100000u );
+    }
+
+    // HiFive embeds Arial Regular and Arial Bold.
+    BOOST_CHECK_EQUAL( fontCount, 2 );
+}
+
+
 BOOST_AUTO_TEST_CASE( ArcMaskExpansionUsesArcMetadata )
 {
     std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
@@ -162,11 +202,12 @@ BOOST_AUTO_TEST_CASE( UnsupportedStreamsAreReported )
 
     BOOST_REQUIRE( board );
 
-    std::set<wxString> missingWarnings = { wxS( "DifferentialPairs6" ),         wxS( "EmbeddedFonts6" ),
-                                           wxS( "PadViaLibraryCache" ),         wxS( "Pin Swap Options6" ),
-                                           wxS( "ShapeBasedComponentBodies6" ), wxS( "SignalClasses" ) };
+    std::set<wxString> missingWarnings = { wxS( "DifferentialPairs6" ), wxS( "PadViaLibraryCache" ),
+                                           wxS( "Pin Swap Options6" ), wxS( "ShapeBasedComponentBodies6" ),
+                                           wxS( "SignalClasses" ) };
 
     bool fileVersionWarning = false;
+    bool embeddedFontsWarning = false;
 
     for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
     {
@@ -179,10 +220,18 @@ BOOST_AUTO_TEST_CASE( UnsupportedStreamsAreReported )
         }
 
         fileVersionWarning |= message.text.Contains( wxS( "FileVersionInfo" ) );
+
+        if( message.text.Contains( wxS( "EmbeddedFonts6" ) ) && message.text.Contains( wxS( "not supported" ) ) )
+        {
+            embeddedFontsWarning = true;
+        }
     }
 
     BOOST_CHECK_MESSAGE( missingWarnings.empty(), missingWarnings.size() << " unsupported-stream warning(s) missing" );
     BOOST_CHECK( !fileVersionWarning );
+
+    // EmbeddedFonts6 is now imported, so it must no longer be reported as unsupported.
+    BOOST_CHECK( !embeddedFontsWarning );
 }
 
 
