@@ -111,6 +111,7 @@ class TestImportHelp:
         assert "INPUT_FILES" in stdout
         assert "--format" not in stdout
         assert "--layer-map" in stdout
+        assert "--refill-zones" in stdout
 
 
 class TestImportErrors:
@@ -217,6 +218,32 @@ class TestImportAltiumProjectSettings:
             project = json.load( f )
 
         assert project["text_variables"]["PCB_REVISION"] == "CLI"
+
+    def test_import_refill_zones_changes_fill( self, kitest: KiTestFixture ):
+        """The top-level import propagates --refill-zones, re-pouring imported copper."""
+        plain = get_project_stem( kitest, "altium_refill_plain", "hifive" )
+        refilled = get_project_stem( kitest, "altium_refill", "hifive" )
+
+        base = [ utils.kicad_cli(), "import", get_altium_test_file(), "-o" ]
+
+        _, _, rc_plain = utils.run_and_capture( base + [ str( plain ) ] )
+        _, _, rc_refilled = utils.run_and_capture(
+                [ utils.kicad_cli(), "import", "--refill-zones", get_altium_test_file(),
+                  "-o", str( refilled ) ] )
+
+        assert rc_plain == 0
+        assert rc_refilled == 0
+
+        def count_fills( stem ):
+            with open( stem.with_suffix( ".kicad_pcb" ), "r" ) as f:
+                return f.read().count( "filled_polygon" )
+
+        plain_fills = count_fills( plain )
+        refilled_fills = count_fills( refilled )
+
+        assert plain_fills > 0
+        assert refilled_fills > 0
+        assert refilled_fills != plain_fills
 
 
 @pytest.mark.skipif( get_altium_repeated_schematic_project() is None,

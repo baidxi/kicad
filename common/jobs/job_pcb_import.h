@@ -57,6 +57,10 @@ public:
     IMPORT_REPORT_FORMAT m_reportFormat = IMPORT_REPORT_FORMAT::NONE;
     wxString             m_reportFile;
 
+    /// Refill all copper zones after import.  Imported boards keep their source pour verbatim by
+    /// default; enabling this re-pours every zone with KiCad's filler before saving.
+    bool m_refillZones = false;
+
     /// Explicit overrides from source layer name to KiCad layer name (canonical board-file name,
     /// e.g. "F.Cu").  Source layers absent from the map keep the importer's automatic best-guess.
     /// An empty map means fully automatic layer mapping.

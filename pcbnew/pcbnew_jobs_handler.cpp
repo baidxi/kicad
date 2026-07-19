@@ -125,6 +125,7 @@
 #include <dialogs/dialog_board_stats_job.h>
 #include <paths.h>
 #include <tools/zone_filler_tool.h>
+#include <zone_filler.h>
 
 #include <locale_io.h>
 #include <confirm.h>
@@ -3143,6 +3144,32 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         {
             ReconcileImportedFootprints( *pi, *board, *projectPtr, job->m_inputFile, nullptr,
                                          *m_reporter );
+        }
+
+        // Some formats store power planes as outlines only (e.g. Altium negative/split planes);
+        // generate their copper so the imported board is usable without a manual fill.
+        FillImportedPowerPlaneZones( board, m_progressReporter, m_reporter );
+
+        // Imported boards keep their source pour verbatim; optionally re-pour every zone with
+        // KiCad's filler so downstream DRC and fabrication output reflect KiCad's fill geometry.
+        if( job->m_refillZones )
+        {
+            m_reporter->Report( _( "Refilling copper zones...\n" ), RPT_SEVERITY_INFO );
+
+            // The filler needs valid connectivity to knock out other-net copper, and it invalidates
+            // connectivity afterwards, so rebuild on both sides.
+            board->BuildConnectivity();
+
+            ZONE_FILLER filler( board, nullptr );
+            filler.SetProgressReporter( m_progressReporter );
+
+            if( !filler.Fill( board->Zones() ) )
+            {
+                m_reporter->Report( _( "Failed to refill copper zones\n" ), RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            board->BuildConnectivity();
         }
 
         // Flag explicit map entries that never matched a source layer so typos do not pass silently.

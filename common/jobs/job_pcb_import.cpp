@@ -42,6 +42,7 @@ JOB_PCB_IMPORT::JOB_PCB_IMPORT() :
     m_params.emplace_back( new JOB_PARAM<FORMAT>( "format", &m_format, m_format ) );
     m_params.emplace_back( new JOB_PARAM<IMPORT_REPORT_FORMAT>( "report_format", &m_reportFormat, m_reportFormat ) );
     m_params.emplace_back( new JOB_PARAM<wxString>( "report_file", &m_reportFile, m_reportFile ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "refill_zones", &m_refillZones, m_refillZones ) );
 }
 
 

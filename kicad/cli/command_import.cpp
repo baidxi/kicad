@@ -42,6 +42,7 @@
 
 
 #define ARG_LAYER_MAP "--layer-map"
+#define ARG_REFILL_ZONES "--refill-zones"
 
 
 CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
@@ -67,6 +68,11 @@ CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
             .help( UTF8STDSTR( _( "JSON file mapping source layer names to KiCad layer names for "
                                   "imported boards; unmapped layers use the automatic best-guess" ) ) )
             .metavar( "FILE" );
+
+    m_argParser.add_argument( ARG_REFILL_ZONES )
+            .flag()
+            .help( UTF8STDSTR( _( "Refill all copper zones on imported boards instead of keeping "
+                                  "the source pour" ) ) );
 }
 
 
@@ -85,6 +91,8 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     for( const std::string& raw : rawInputs )
         inputFiles.push_back( From_UTF8( raw.c_str() ) );
+
+    bool refillZones = m_argParser.get<bool>( ARG_REFILL_ZONES );
 
     std::map<wxString, wxString> layerMap;
     wxString layerMapFile = From_UTF8( m_argParser.get<std::string>( ARG_LAYER_MAP ).c_str() );
@@ -192,6 +200,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
                 pcbJob->m_projectFile = input;
                 pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
                 pcbJob->m_layerMap = layerMap;
+                pcbJob->m_refillZones = refillZones;
                 pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
 
                 int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );
@@ -218,6 +227,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
             pcbJob->m_inputFile = input;
             pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
             pcbJob->m_layerMap = layerMap;
+            pcbJob->m_refillZones = refillZones;
             pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
 
             int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );
