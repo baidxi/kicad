@@ -229,13 +229,19 @@ BOOST_AUTO_TEST_CASE( PolygonIslandRemovalSettings )
 
 
 /**
- * Altium split-plane regions are explicit user-routed copper and do not carry polygon dead-copper
- * settings.  Preserve their standalone fills when KiCad refills the converted plane.
+ * Altium's DesignRuleCheckerOptions6 "dead copper" area is a DRC *reporting* threshold, not an
+ * instruction to physically delete poured copper.  Split-plane regions must therefore preserve all
+ * of their copper (island removal NEVER) rather than being refilled with a destructive area-based
+ * island removal, and the unsupported reporting threshold must be reported rather than silently
+ * applied.
  */
-BOOST_AUTO_TEST_CASE( SplitPlaneIslandsPreserved )
+BOOST_AUTO_TEST_CASE( SplitPlaneDeadCopperPreserved )
 {
     std::string dataPath =
             KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
 
     std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
     m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
@@ -255,6 +261,8 @@ BOOST_AUTO_TEST_CASE( SplitPlaneIslandsPreserved )
                 continue;
 
             splitPlaneZones++;
+
+            // All poured copper is preserved; the DRC reporting threshold must not delete islands.
             BOOST_CHECK( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::NEVER );
             BOOST_CHECK_EQUAL( zone->GetMinThickness(), pcbIUScale.mmToIU( ZONE_THICKNESS_MIN_VALUE_MM ) );
             break;
@@ -262,6 +270,18 @@ BOOST_AUTO_TEST_CASE( SplitPlaneIslandsPreserved )
     }
 
     BOOST_CHECK_EQUAL( splitPlaneZones, 4 );
+
+    // This board enables dead-copper reporting with a non-trivial area, which KiCad cannot
+    // represent; the importer must report the approximation.
+    bool reportedDeadCopper = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.text.Contains( wxS( "dead-copper reporting area" ) ) )
+            reportedDeadCopper = true;
+    }
+
+    BOOST_CHECK( reportedDeadCopper );
 }
 
 

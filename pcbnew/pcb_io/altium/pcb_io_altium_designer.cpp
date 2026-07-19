@@ -241,6 +241,7 @@ BOARD* PCB_IO_ALTIUM_DESIGNER::LoadBoard( const wxString& aFileName, BOARD* aApp
             { ALTIUM_PCB_DIR::CLASSES6, "Classes6" },
             { ALTIUM_PCB_DIR::COMPONENTS6, "Components6" },
             { ALTIUM_PCB_DIR::COMPONENTBODIES6, "ComponentBodies6" },
+            { ALTIUM_PCB_DIR::DESIGNRULECHECKEROPTIONS6, "Design Rule Checker Options6" },
             { ALTIUM_PCB_DIR::DIMENSIONS6, "Dimensions6" },
             { ALTIUM_PCB_DIR::EXTENDPRIMITIVEINFORMATION, "ExtendedPrimitiveInformation" },
             { ALTIUM_PCB_DIR::FILLS6, "Fills6" },

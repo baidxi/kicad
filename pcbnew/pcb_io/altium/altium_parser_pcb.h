@@ -503,6 +503,16 @@ struct ABOARD6
     explicit ABOARD6( ALTIUM_BINARY_PARSER& aReader );
 };
 
+
+struct ADESIGNRULECHECKEROPTIONS6
+{
+    bool    reportDeadCopper;
+    int64_t deadCopperMinArea;
+
+    explicit ADESIGNRULECHECKEROPTIONS6( ALTIUM_BINARY_PARSER& aReader );
+};
+
+
 struct ACLASS6
 {
     wxString name;

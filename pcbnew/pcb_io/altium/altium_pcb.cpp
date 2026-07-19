@@ -381,6 +381,11 @@ void ALTIUM_PCB::Parse( const ALTIUM_PCB_COMPOUND_FILE&                  altiumP
           {
               this->ParseBoard6Data( aFile, fileHeader );
           } },
+        { false, ALTIUM_PCB_DIR::DESIGNRULECHECKEROPTIONS6,
+          [this]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
+          {
+              this->ParseDesignRuleCheckerOptions6Data( aFile, fileHeader );
+          } },
         { false, ALTIUM_PCB_DIR::EXTENDPRIMITIVEINFORMATION,
           [this]( const ALTIUM_PCB_COMPOUND_FILE& aFile, auto fileHeader )
           {
@@ -2480,6 +2485,9 @@ void ALTIUM_PCB::ParsePolygons6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltium
             zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
         }
 
+        // Altium negative planes keep every poured region.  The DesignRuleCheckerOptions6
+        // "dead copper" area is a DRC *reporting* threshold, not an instruction to physically
+        // delete islands, so it must not drive KiCad's destructive island-removal fill policy.
         if( elem.isSplitPlane )
             zone->SetIslandRemovalMode( ISLAND_REMOVAL_MODE::NEVER );
 
@@ -2727,6 +2735,33 @@ void ALTIUM_PCB::ParseRules6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcb
     if( reader.GetRemainingBytes() != 0 )
         THROW_IO_ERROR( wxT( "Rules6 stream is not fully parsed" ) );
 }
+
+
+void ALTIUM_PCB::ParseDesignRuleCheckerOptions6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                                     const CFB::COMPOUND_FILE_ENTRY* aEntry )
+{
+    if( m_progressReporter )
+        m_progressReporter->Report( _( "Loading design rule checker options..." ) );
+
+    ALTIUM_BINARY_PARSER reader( aAltiumPcbFile, aEntry );
+
+    checkpoint();
+    ADESIGNRULECHECKEROPTIONS6 elem( reader );
+
+    if( reader.GetRemainingBytes() != 0 )
+        THROW_IO_ERROR( wxT( "DesignRuleCheckerOptions6 stream is not fully parsed" ) );
+
+    // Altium's dead-copper area is a DRC reporting threshold with no KiCad equivalent; it must not
+    // be used to physically remove poured copper.  Report the approximation instead of silently
+    // dropping it, but only when a non-trivial threshold was actually configured.
+    if( elem.reportDeadCopper && elem.deadCopperMinArea > 0 && m_reporter )
+    {
+        m_reporter->Report( _( "The Altium dead-copper reporting area is not supported and was not "
+                               "converted; all poured copper was preserved." ),
+                            RPT_SEVERITY_WARNING );
+    }
+}
+
 
 void ALTIUM_PCB::ParseBoardRegionsData( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                                         const CFB::COMPOUND_FILE_ENTRY* aEntry )

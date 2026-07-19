@@ -46,6 +46,18 @@
 static const wxChar* traceAltiumImport = wxT( "KICAD_ALTIUM_IMPORT" );
 
 
+static int64_t altiumAreaToKicad( double aSourceArea )
+{
+    constexpr double areaScale = 2.54 * 2.54;
+
+    aSourceArea = std::max( 0.0, aSourceArea );
+    aSourceArea = std::min( aSourceArea, static_cast<double>( std::numeric_limits<int64_t>::max() ) / areaScale );
+
+    // Altium areas are square 0.1 microinch units; KiCad areas are square nanometres.
+    return static_cast<int64_t>( std::llround( aSourceArea * areaScale ) );
+}
+
+
 /*
  * Returns an Altium layer id from V6 and V7 file format data, compatible with the rest of the parser.
  */
@@ -612,6 +624,22 @@ ABOARD6::ABOARD6( ALTIUM_BINARY_PARSER& aReader )
         THROW_IO_ERROR( wxT( "Board6 stream was not parsed correctly!" ) );
 }
 
+
+ADESIGNRULECHECKEROPTIONS6::ADESIGNRULECHECKEROPTIONS6( ALTIUM_BINARY_PARSER& aReader )
+{
+    std::map<wxString, wxString> props = aReader.ReadProperties();
+
+    if( props.empty() )
+        THROW_IO_ERROR( wxT( "DesignRuleCheckerOptions6 stream has no properties!" ) );
+
+    reportDeadCopper = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "REPORTDEADCOPPER" ), false );
+    deadCopperMinArea = altiumAreaToKicad( ALTIUM_PROPS_UTILS::ReadDouble( props, wxT( "DEADCOPPERMINAREA" ), 0.0 ) );
+
+    if( aReader.HasParsingError() )
+        THROW_IO_ERROR( wxT( "DesignRuleCheckerOptions6 stream was not parsed correctly!" ) );
+}
+
+
 ACLASS6::ACLASS6( ALTIUM_BINARY_PARSER& aReader )
 {
     std::map<wxString, wxString> properties = aReader.ReadProperties();
@@ -807,12 +835,7 @@ APOLYGON6::APOLYGON6( ALTIUM_BINARY_PARSER& aReader )
     neckWidthThreshold = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "NECKWIDTHTHRESHOLD" ), wxT( "0mil" ) );
     removeDead = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEDEAD" ), true );
     removeIslandsByArea = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEISLANDSBYAREA" ), false );
-    constexpr double areaScale = 2.54 * 2.54;
-    double sourceArea = std::max( 0.0, ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "AREATHRESHOLD" ), 0.0 ) );
-
-    // Altium areas are square 0.1 microinch units; KiCad areas are square nanometres.
-    sourceArea = std::min( sourceArea, static_cast<double>( std::numeric_limits<int64_t>::max() ) / areaScale );
-    areaThreshold = static_cast<int64_t>( std::llround( sourceArea * areaScale ) );
+    areaThreshold = altiumAreaToKicad( ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "AREATHRESHOLD" ), 0.0 ) );
 
     pourindex = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "POURINDEX" ), 0 );
 
