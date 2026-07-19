@@ -1436,29 +1436,29 @@ wxString ZONE::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) 
 {
     LSEQ     layers = m_layerSet.Seq();
     wxString layerDesc;
+    const BOARD* board = GetBoard();
+
+    auto layerName = [&]( PCB_LAYER_ID aLayer )
+    {
+        return board ? board->GetLayerName( aLayer ) : BOARD::GetStandardLayerName( aLayer );
+    };
 
     if( layers.size() == 1 )
     {
-        layerDesc.Printf( _( "on %s" ), GetBoard()->GetLayerName( layers[0] ) );
+        layerDesc.Printf( _( "on %s" ), layerName( layers[0] ) );
     }
     else if (layers.size() == 2 )
     {
-        layerDesc.Printf( _( "on %s and %s" ),
-                          GetBoard()->GetLayerName( layers[0] ),
-                          GetBoard()->GetLayerName( layers[1] ) );
+        layerDesc.Printf( _( "on %s and %s" ), layerName( layers[0] ), layerName( layers[1] ) );
     }
     else if (layers.size() == 3 )
     {
-        layerDesc.Printf( _( "on %s, %s and %s" ),
-                          GetBoard()->GetLayerName( layers[0] ),
-                          GetBoard()->GetLayerName( layers[1] ),
-                          GetBoard()->GetLayerName( layers[2] ) );
+        layerDesc.Printf( _( "on %s, %s and %s" ), layerName( layers[0] ), layerName( layers[1] ),
+                          layerName( layers[2] ) );
     }
     else if( layers.size() > 3 )
     {
-        layerDesc.Printf( _( "on %s, %s and %zu more" ),
-                          GetBoard()->GetLayerName( layers[0] ),
-                          GetBoard()->GetLayerName( layers[1] ),
+        layerDesc.Printf( _( "on %s, %s and %zu more" ), layerName( layers[0] ), layerName( layers[1] ),
                           layers.size() - 2 );
     }
 
