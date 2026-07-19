@@ -21,6 +21,7 @@
 #include "altium_props_utils.h"
 
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <sstream>
 #include <math/util.h>
@@ -139,18 +140,56 @@ int32_t ALTIUM_PROPS_UTILS::ReadKicadUnit( const std::map<wxString, wxString>& a
 }
 
 
+wxString ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( const wxString& aString )
+{
+    if( aString.IsEmpty() )
+        return aString;
+
+    // Only a string whose codepoints all fit in a single byte can be a Latin-1 misreading of raw
+    // UTF-8 bytes; anything outside that range (real Unicode) cannot be Latin-1 encoded and is
+    // therefore already correct.
+    wxScopedCharBuffer latin1 = aString.mb_str( wxConvISO8859_1 );
+
+    if( !latin1 || latin1.length() == 0 )
+        return aString;
+
+    // Re-interpret those bytes as UTF-8.  A failed decode yields an empty string.
+    wxString decoded( latin1.data(), wxConvUTF8, latin1.length() );
+
+    if( decoded.IsEmpty() || decoded == aString )
+        return aString;
+
+    // Only accept the repair when the bytes were *exactly* valid UTF-8, i.e. re-encoding the
+    // decoded text reproduces the original byte sequence.  This rejects lossy/partial decodes and
+    // guarantees correctly-decoded values (e.g. a lone 0xB5 "µ") are never altered.
+    wxScopedCharBuffer roundtrip = decoded.utf8_str();
+
+    if( roundtrip.length() == latin1.length() && std::memcmp( roundtrip.data(), latin1.data(), latin1.length() ) == 0 )
+    {
+        return decoded;
+    }
+
+    return aString;
+}
+
+
 wxString ALTIUM_PROPS_UTILS::ReadString( const std::map<wxString, wxString>& aProps,
                                          const wxString& aKey, const wxString& aDefault )
 {
+    // The double-encoding repair is applied to BOTH the '%UTF8%' twin and the plain value on
+    // purpose: real Altium files corrupt both forms (e.g. a plain ComponentDescription whose bytes
+    // are already UTF-8, and a '%UTF8%' twin that has been UTF-8-encoded a second time).  The
+    // repair's exact round-trip guard means a genuine Latin-1 value is only rewritten when its
+    // bytes happen to form valid UTF-8 — a case that is, in practice, itself mojibake.
     const auto& utf8Value = aProps.find( wxString( "%UTF8%" ) + aKey );
 
     if( utf8Value != aProps.end() )
-        return utf8Value->second;
+        return RepairDoubleEncodedUtf8( utf8Value->second );
 
     const auto& value = aProps.find( aKey );
 
     if( value != aProps.end() )
-        return value->second;
+        return RepairDoubleEncodedUtf8( value->second );
 
     return aDefault;
 }
