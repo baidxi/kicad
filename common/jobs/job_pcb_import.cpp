@@ -38,6 +38,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM( JOB_PCB_IMPORT::FORMAT,
 JOB_PCB_IMPORT::JOB_PCB_IMPORT() :
         JOB( "pcb_import", false )
 {
+    m_params.emplace_back( new JOB_PARAM<wxString>( "project_file", &m_projectFile, m_projectFile ) );
     m_params.emplace_back( new JOB_PARAM<FORMAT>( "format", &m_format, m_format ) );
     m_params.emplace_back( new JOB_PARAM<IMPORT_REPORT_FORMAT>( "report_format", &m_reportFormat, m_reportFormat ) );
     m_params.emplace_back( new JOB_PARAM<wxString>( "report_file", &m_reportFile, m_reportFile ) );

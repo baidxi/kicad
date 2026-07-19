@@ -189,6 +189,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
             {
                 std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
                 pcbJob->m_inputFile = projectFiles.pcbFile;
+                pcbJob->m_projectFile = input;
                 pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
                 pcbJob->m_layerMap = layerMap;
                 pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );

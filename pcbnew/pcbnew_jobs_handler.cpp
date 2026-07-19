@@ -3121,7 +3121,13 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                 wxString::Format( _( "Importing '%s' using %s format...\n" ), job->m_inputFile, formatName ),
                 RPT_SEVERITY_INFO );
 
-        board = pi->LoadBoard( job->m_inputFile, nullptr, nullptr, projectPtr );
+        std::map<std::string, UTF8> properties;
+
+        if( !job->m_projectFile.IsEmpty() )
+            properties["project_file"] = job->m_projectFile;
+
+        board = pi->LoadBoard( job->m_inputFile, nullptr,
+                               properties.empty() ? nullptr : &properties, projectPtr );
 
         if( !board )
         {

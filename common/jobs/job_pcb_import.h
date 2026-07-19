@@ -52,6 +52,7 @@ public:
     };
 
     wxString             m_inputFile;
+    wxString             m_projectFile;
     FORMAT               m_format = FORMAT::AUTO;
     IMPORT_REPORT_FORMAT m_reportFormat = IMPORT_REPORT_FORMAT::NONE;
     wxString             m_reportFile;

@@ -82,6 +82,14 @@ def get_altium_test_file() -> str:
     return altium_file if os.path.exists( altium_file ) else None
 
 
+def get_altium_project_file() -> str:
+    """Get a minimal Altium project carrying board-level project parameters."""
+    project_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                                 "altium", "issue24456", "Fastino_Ground_Isolator_CLI.PrjPcb" )
+
+    return project_file if os.path.exists( project_file ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -185,6 +193,22 @@ class TestImportAltiumProjectSettings:
         rules = project["board"]["design_settings"]["rules"]
         assert rules["min_clearance"] > 0
         assert rules["min_track_width"] > 0
+
+    @pytest.mark.skipif( get_altium_project_file() is None,
+                         reason="Altium project test file not available" )
+    def test_import_project_passes_board_metadata( self, kitest: KiTestFixture ):
+        """The board importer receives the source project descriptor and its parameters."""
+        stem = get_project_stem( kitest, "altium_project_metadata", "fastino" )
+
+        command = [ utils.kicad_cli(), "import", get_altium_project_file(), "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        assert project["text_variables"]["PCB_REVISION"] == "CLI"
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,
