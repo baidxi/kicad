@@ -30,7 +30,9 @@
 
 #include <wx/button.h>
 #include <wx/checkbox.h>
+#include <wx/event.h>
 #include <wx/listctrl.h>
+#include <wx/menu.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
@@ -53,6 +55,7 @@ DIALOG_GIT_COMMIT::DIALOG_GIT_COMMIT( wxWindow* parent, git_repository* repo,
 
     // List Control for files to commit
     m_listCtrl = new wxListCtrl( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT );
+    m_listCtrl->SetSingleStyle( wxLC_SINGLE_SEL, false );
 
     // Set up columns
     m_listCtrl->EnableCheckBoxes();
@@ -190,6 +193,7 @@ DIALOG_GIT_COMMIT::DIALOG_GIT_COMMIT( wxWindow* parent, git_repository* repo,
     Bind( wxEVT_TEXT, &DIALOG_GIT_COMMIT::OnTextChanged, this, m_commitMessageTextCtrl->GetId() );
     Bind( wxEVT_LIST_ITEM_CHECKED, &DIALOG_GIT_COMMIT::OnItemChecked, this, m_listCtrl->GetId() );
     Bind( wxEVT_LIST_ITEM_UNCHECKED, &DIALOG_GIT_COMMIT::OnItemUnchecked, this, m_listCtrl->GetId() );
+    m_listCtrl->Bind( wxEVT_CONTEXT_MENU, &DIALOG_GIT_COMMIT::OnListContextMenu, this );
 
     // Set the repository and defaults
     m_repo = repo;
@@ -297,6 +301,9 @@ std::vector<wxString> DIALOG_GIT_COMMIT::GetSelectedFiles() const
 
 void DIALOG_GIT_COMMIT::OnItemChecked( wxListEvent& aEvent )
 {
+    if( m_updatingSelection )
+        return;
+
     long checkedItem = aEvent.GetIndex();
 
     if( m_listCtrl->GetItemState( checkedItem, wxLIST_STATE_SELECTED ) )
@@ -316,6 +323,9 @@ void DIALOG_GIT_COMMIT::OnItemChecked( wxListEvent& aEvent )
 
 void DIALOG_GIT_COMMIT::OnItemUnchecked( wxListEvent& aEvent )
 {
+    if( m_updatingSelection )
+        return;
+
     long uncheckedItem = aEvent.GetIndex();
 
     if( m_listCtrl->GetItemState( uncheckedItem, wxLIST_STATE_SELECTED ) )
@@ -328,6 +338,82 @@ void DIALOG_GIT_COMMIT::OnItemUnchecked( wxListEvent& aEvent )
                 m_listCtrl->CheckItem( item, false );
         }
     }
+
+    updateOkButton();
+}
+
+
+void DIALOG_GIT_COMMIT::OnListContextMenu( wxContextMenuEvent& aEvent )
+{
+    std::vector<long> selectedItems = getSelectedListItems();
+
+    if( selectedItems.empty() )
+        return;
+
+    bool hasChecked = false;
+    bool hasUnchecked = false;
+
+    for( long item : selectedItems )
+    {
+        if( m_listCtrl->IsItemChecked( item ) )
+            hasChecked = true;
+        else
+            hasUnchecked = true;
+    }
+
+    wxMenu menu;
+
+    if( hasUnchecked )
+    {
+        wxMenuItem* checkSelected = menu.Append( wxID_ANY, _( "Check selected" ) );
+        menu.Bind(
+                wxEVT_MENU,
+                [this]( wxCommandEvent& )
+                {
+                    setSelectedItemsChecked( true );
+                },
+                checkSelected->GetId() );
+    }
+
+    if( hasChecked )
+    {
+        wxMenuItem* uncheckSelected = menu.Append( wxID_ANY, _( "Uncheck selected" ) );
+        menu.Bind(
+                wxEVT_MENU,
+                [this]( wxCommandEvent& )
+                {
+                    setSelectedItemsChecked( false );
+                },
+                uncheckSelected->GetId() );
+    }
+
+    m_listCtrl->PopupMenu( &menu );
+}
+
+
+std::vector<long> DIALOG_GIT_COMMIT::getSelectedListItems() const
+{
+    std::vector<long> selectedItems;
+    long              item = -1;
+
+    while( ( item = m_listCtrl->GetNextItem( item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED ) ) != -1 )
+        selectedItems.push_back( item );
+
+    return selectedItems;
+}
+
+
+void DIALOG_GIT_COMMIT::setSelectedItemsChecked( bool aChecked )
+{
+    std::vector<long> selectedItems = getSelectedListItems();
+
+    m_updatingSelection = true;
+    for( long item : selectedItems )
+    {
+        if( m_listCtrl->IsItemChecked( item ) != aChecked )
+            m_listCtrl->CheckItem( item, aChecked );
+    }
+    m_updatingSelection = false;
 
     updateOkButton();
 }
