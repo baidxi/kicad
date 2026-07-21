@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2026 Krishna Swaroop <krishna.swaroop@pixxel.co.in>
  * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -23,15 +24,16 @@
 #include <wildcards_and_files_ext.h>
 #include <wx/filename.h>
 
-NLOHMANN_JSON_SERIALIZE_ENUM( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT, {
-        { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::REPORT, "report" },
-        { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV, "csv" },
-} )
+NLOHMANN_JSON_SERIALIZE_ENUM( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT,
+                              {
+                                      { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::REPORT, "report" },
+                                      { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV, "csv" },
+                              } )
 
 NLOHMANN_JSON_SERIALIZE_ENUM( JOB_EXPORT_PCB_STACKUP::UNITS, {
-        { JOB_EXPORT_PCB_STACKUP::UNITS::INCH, "in" },
-        { JOB_EXPORT_PCB_STACKUP::UNITS::MM, "mm" },
-} )
+                                                                     { JOB_EXPORT_PCB_STACKUP::UNITS::INCH, "in" },
+                                                                     { JOB_EXPORT_PCB_STACKUP::UNITS::MM, "mm" },
+                                                             } )
 
 JOB_EXPORT_PCB_STACKUP::JOB_EXPORT_PCB_STACKUP() :
         JOB( "stackup", false ),
@@ -49,18 +51,13 @@ JOB_EXPORT_PCB_STACKUP::JOB_EXPORT_PCB_STACKUP() :
     m_params.emplace_back( new JOB_PARAM<OUTPUT_FORMAT>( "output_format", &m_format, m_format ) );
     m_params.emplace_back( new JOB_PARAM<UNITS>( "units", &m_units, m_units ) );
     m_params.emplace_back( new JOB_PARAM<bool>( "include_color", &m_includeColor, m_includeColor ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "include_material", &m_includeMaterial, m_includeMaterial ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "include_thickness", &m_includeThickness, m_includeThickness ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "include_epsilon_r", &m_includeEpsilonR, m_includeEpsilonR ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "include_loss_tangent", &m_includeLossTangent, m_includeLossTangent ) );
+    m_params.emplace_back( new JOB_PARAM<bool>( "include_finish", &m_includeFinish, m_includeFinish ) );
     m_params.emplace_back(
-            new JOB_PARAM<bool>( "include_material", &m_includeMaterial, m_includeMaterial ) );
-    m_params.emplace_back(
-            new JOB_PARAM<bool>( "include_thickness", &m_includeThickness, m_includeThickness ) );
-    m_params.emplace_back(
-            new JOB_PARAM<bool>( "include_epsilon_r", &m_includeEpsilonR, m_includeEpsilonR ) );
-    m_params.emplace_back( new JOB_PARAM<bool>( "include_loss_tangent", &m_includeLossTangent,
-                                                m_includeLossTangent ) );
-    m_params.emplace_back(
-            new JOB_PARAM<bool>( "include_finish", &m_includeFinish, m_includeFinish ) );
-    m_params.emplace_back( new JOB_PARAM<bool>( "include_board_options", &m_includeBoardOptions,
-                                                m_includeBoardOptions ) );
+            new JOB_PARAM<bool>( "include_board_options", &m_includeBoardOptions, m_includeBoardOptions ) );
 }
 
 
@@ -91,5 +88,4 @@ void JOB_EXPORT_PCB_STACKUP::SetDefaultOutputPath( const wxString& aReferenceNam
 }
 
 
-REGISTER_JOB( pcb_export_stackup, _( "PCB: Export Stackup Table" ), KIWAY::FACE_PCB,
-              JOB_EXPORT_PCB_STACKUP );
+REGISTER_JOB( pcb_export_stackup, _( "PCB: Export Stackup Table" ), KIWAY::FACE_PCB, JOB_EXPORT_PCB_STACKUP );

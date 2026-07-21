@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2026 Krishna Swaroop <krishna.swaroop@pixxel.co.in>
  * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -37,8 +38,7 @@ static std::map<JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT, wxString> stackupOutputFo
 };
 
 
-DIALOG_BOARD_STACKUP_JOB::DIALOG_BOARD_STACKUP_JOB( wxWindow* aParent,
-                                                    JOB_EXPORT_PCB_STACKUP* aJob ) :
+DIALOG_BOARD_STACKUP_JOB::DIALOG_BOARD_STACKUP_JOB( wxWindow* aParent, JOB_EXPORT_PCB_STACKUP* aJob ) :
         DIALOG_SHIM( aParent, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
                      wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER ),
         m_job( aJob )
@@ -53,17 +53,16 @@ DIALOG_BOARD_STACKUP_JOB::DIALOG_BOARD_STACKUP_JOB( wxWindow* aParent,
         { _( "Board options" ), &m_job->m_includeBoardOptions },
     };
 
-    wxBoxSizer* mainSizer = new wxBoxSizer( wxVERTICAL );
+    wxBoxSizer*      mainSizer = new wxBoxSizer( wxVERTICAL );
     wxFlexGridSizer* grid = new wxFlexGridSizer( 0, 2, 5, 5 );
     grid->AddGrowableCol( 1, 1 );
 
-    grid->Add( new wxStaticText( this, wxID_ANY, _( "Output file:" ) ), 0,
-               wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
+    grid->Add( new wxStaticText( this, wxID_ANY, _( "Output file:" ) ), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
     m_textCtrlOutputPath = new wxTextCtrl( this, wxID_ANY );
+    m_textCtrlOutputPath->SetMinSize( wxSize( 350, -1 ) );
     grid->Add( m_textCtrlOutputPath, 1, wxEXPAND );
 
-    grid->Add( new wxStaticText( this, wxID_ANY, _( "Format:" ) ), 0,
-               wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
+    grid->Add( new wxStaticText( this, wxID_ANY, _( "Format:" ) ), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
     m_choiceFormat = new wxChoice( this, wxID_ANY );
 
     for( const auto& [format, name] : stackupOutputFormatMap )
@@ -71,26 +70,24 @@ DIALOG_BOARD_STACKUP_JOB::DIALOG_BOARD_STACKUP_JOB( wxWindow* aParent,
 
     grid->Add( m_choiceFormat, 1, wxEXPAND );
 
-    grid->Add( new wxStaticText( this, wxID_ANY, _( "Units:" ) ), 0,
-               wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
+    grid->Add( new wxStaticText( this, wxID_ANY, _( "Units:" ) ), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
     m_choiceUnits = new wxChoice( this, wxID_ANY );
     m_choiceUnits->Append( _( "Millimeters" ) );
     m_choiceUnits->Append( _( "Inches" ) );
     grid->Add( m_choiceUnits, 1, wxEXPAND );
 
     mainSizer->Add( grid, 0, wxEXPAND | wxALL, 10 );
-    mainSizer->Add( new wxStaticText( this, wxID_ANY, _( "Include fields:" ) ), 0,
-                    wxLEFT | wxRIGHT | wxTOP, 10 );
 
-    wxBoxSizer* checksSizer = new wxBoxSizer( wxVERTICAL );
+    // Group box labels use header capitalization per the UI policy.
+    wxStaticBoxSizer* fieldsSizer = new wxStaticBoxSizer( wxVERTICAL, this, _( "Include Fields" ) );
 
     for( FIELD_TOGGLE& field : m_fieldToggles )
     {
         field.checkbox = new wxCheckBox( this, wxID_ANY, field.label );
-        checksSizer->Add( field.checkbox, 0, wxBOTTOM, 3 );
+        fieldsSizer->Add( field.checkbox, 0, wxBOTTOM, 3 );
     }
 
-    mainSizer->Add( checksSizer, 0, wxLEFT | wxRIGHT | wxBOTTOM, 10 );
+    mainSizer->Add( fieldsSizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10 );
 
     wxStdDialogButtonSizer* buttons = new wxStdDialogButtonSizer();
     buttons->AddButton( new wxButton( this, wxID_OK ) );

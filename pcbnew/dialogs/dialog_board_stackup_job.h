@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2026 Krishna Swaroop <krishna.swaroop@pixxel.co.in>
  * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -40,12 +41,12 @@ protected:
     void OnFormatChoice( wxCommandEvent& aEvent );
 
     JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT getSelectedFormat();
-    void setSelectedFormat( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT aFormat );
+    void                                  setSelectedFormat( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT aFormat );
 
     struct FIELD_TOGGLE
     {
-        wxString  label;
-        bool*     jobFlag;
+        wxString    label;
+        bool*       jobFlag;
         wxCheckBox* checkbox = nullptr;
     };
 

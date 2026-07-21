@@ -1,6 +1,7 @@
 /*
  * This program source code file is part of KiCad, a free EDA CAD application.
  *
+ * Copyright (C) 2026 Krishna Swaroop <krishna.swaroop@pixxel.co.in>
  * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -49,13 +50,9 @@ CLI::PCB_EXPORT_STACKUP_COMMAND::PCB_EXPORT_STACKUP_COMMAND() :
             .help( UTF8STDSTR( _( "Report units; valid options: in, mm" ) ) )
             .metavar( "UNITS" );
 
-    m_argParser.add_argument( ARG_EXCLUDE_COLOR )
-            .help( UTF8STDSTR( _( "Omit color from the export" ) ) )
-            .flag();
+    m_argParser.add_argument( ARG_EXCLUDE_COLOR ).help( UTF8STDSTR( _( "Omit color from the export" ) ) ).flag();
 
-    m_argParser.add_argument( ARG_EXCLUDE_MATERIAL )
-            .help( UTF8STDSTR( _( "Omit material from the export" ) ) )
-            .flag();
+    m_argParser.add_argument( ARG_EXCLUDE_MATERIAL ).help( UTF8STDSTR( _( "Omit material from the export" ) ) ).flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_THICKNESS )
             .help( UTF8STDSTR( _( "Omit thickness from the export" ) ) )
