@@ -28,6 +28,26 @@
 
 class BOARD_STACKUP;
 
+/**
+ * Options controlling which stackup fields are included in text/CSV exports.
+ */
+struct STACKUP_REPORT_OPTIONS
+{
+    bool includeColor = true;
+    bool includeMaterial = true;
+    bool includeThickness = true;
+    bool includeEpsilonR = true;
+    bool includeLossTangent = true;
+    bool includeFinish = true;
+    bool includeBoardOptions = true;
+};
+
 wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits );
+
+wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits,
+                             const STACKUP_REPORT_OPTIONS& aOptions );
+
+wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits,
+                          const STACKUP_REPORT_OPTIONS& aOptions = STACKUP_REPORT_OPTIONS() );
 
 #endif      // #ifndef BOARD_STACKUP_REPORTER_H
