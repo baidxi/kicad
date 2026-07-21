@@ -2857,6 +2857,122 @@ std::vector<std::unique_ptr<BOARD_ITEM>> BOARD_BUILDER::buildPadItems( const BLK
 }
 
 
+namespace
+{
+/// KiCad documentation / user-defined layers that the Allegro importer routes
+/// non-manufacturing graphics onto.
+bool isAllegroDocLayer( PCB_LAYER_ID aLayer )
+{
+    return aLayer == Dwgs_User || aLayer == Cmts_User || aLayer == Eco1_User || aLayer == Eco2_User
+           || ( aLayer >= User_1 && aLayer <= User_45 );
+}
+
+
+/// Layer-independent geometry signature of a PCB_SHAPE, used to detect a
+/// documentation-layer shape that is an exact copy of an assembly (Fab) shape.
+wxString shapeGeomSignature( const PCB_SHAPE& aShape )
+{
+    auto seg = []( VECTOR2I a, VECTOR2I b )
+    {
+        if( std::tie( b.x, b.y ) < std::tie( a.x, a.y ) )
+            std::swap( a, b );
+
+        return wxString::Format( wxS( "%d,%d,%d,%d" ), a.x, a.y, b.x, b.y );
+    };
+
+    switch( aShape.GetShape() )
+    {
+    case SHAPE_T::SEGMENT: return wxS( "S" ) + seg( aShape.GetStart(), aShape.GetEnd() );
+
+    case SHAPE_T::RECTANGLE:
+    {
+        VECTOR2I a = aShape.GetStart();
+        VECTOR2I b = aShape.GetEnd();
+        return wxString::Format( wxS( "R%d,%d,%d,%d" ), std::min( a.x, b.x ), std::min( a.y, b.y ),
+                                 std::max( a.x, b.x ), std::max( a.y, b.y ) );
+    }
+
+    case SHAPE_T::CIRCLE:
+        return wxString::Format( wxS( "C%d,%d,%d" ), aShape.GetCenter().x, aShape.GetCenter().y, aShape.GetRadius() );
+
+    case SHAPE_T::ARC:
+        return wxString::Format( wxS( "A%d,%d,%d,%d,%d,%d" ), aShape.GetStart().x, aShape.GetStart().y,
+                                 aShape.GetArcMid().x, aShape.GetArcMid().y, aShape.GetEnd().x, aShape.GetEnd().y );
+
+    case SHAPE_T::POLY:
+    {
+        wxString              sig = wxS( "P" );
+        const SHAPE_POLY_SET& poly = aShape.GetPolyShape();
+
+        if( poly.OutlineCount() > 0 )
+        {
+            const SHAPE_LINE_CHAIN& outline = poly.COutline( 0 );
+
+            for( int i = 0; i < outline.PointCount(); ++i )
+                sig += wxString::Format( wxS( "%d,%d;" ), outline.CPoint( i ).x, outline.CPoint( i ).y );
+        }
+
+        return sig;
+    }
+
+    default: return wxEmptyString;
+    }
+}
+
+
+/// Remove documentation-layer graphics inside a footprint that are exact
+/// geometric duplicates of that footprint's assembly (F/B.Fab) graphics.
+///
+/// Allegro emits a component's assembly outline on the assembly subclass
+/// (-> F/B.Fab) and, on some designs, additionally on a documentation subclass
+/// (-> a user layer). The manufacturable board keeps the Fab copy, so the
+/// documentation copy is pure duplication. Only exact duplicates of a Fab shape
+/// are dropped; documentation that is not a Fab duplicate is left untouched.
+int dedupeFootprintFabDuplicates( FOOTPRINT& aFootprint )
+{
+    std::unordered_set<std::string> fabSignatures;
+
+    for( BOARD_ITEM* item : aFootprint.GraphicalItems() )
+    {
+        if( item->Type() != PCB_SHAPE_T )
+            continue;
+
+        if( item->GetLayer() == F_Fab || item->GetLayer() == B_Fab )
+        {
+            wxString sig = shapeGeomSignature( static_cast<const PCB_SHAPE&>( *item ) );
+
+            if( !sig.IsEmpty() )
+                fabSignatures.insert( sig.ToStdString() );
+        }
+    }
+
+    if( fabSignatures.empty() )
+        return 0;
+
+    std::vector<BOARD_ITEM*> toRemove;
+
+    for( BOARD_ITEM* item : aFootprint.GraphicalItems() )
+    {
+        if( item->Type() != PCB_SHAPE_T || !isAllegroDocLayer( item->GetLayer() ) )
+            continue;
+
+        wxString sig = shapeGeomSignature( static_cast<const PCB_SHAPE&>( *item ) );
+
+        if( !sig.IsEmpty() && fabSignatures.count( sig.ToStdString() ) )
+            toRemove.push_back( item );
+    }
+
+    for( BOARD_ITEM* item : toRemove )
+    {
+        aFootprint.Remove( item );
+        delete item;
+    }
+
+    return static_cast<int>( toRemove.size() );
+}
+} // namespace
+
+
 std::unique_ptr<FOOTPRINT> BOARD_BUILDER::buildFootprint( const BLK_0x2D_FOOTPRINT_INST& aFpInstance )
 {
     auto fp = std::make_unique<FOOTPRINT>( &m_board );
@@ -3111,6 +3227,10 @@ std::unique_ptr<FOOTPRINT> BOARD_BUILDER::buildFootprint( const BLK_0x2D_FOOTPRI
             }
         }
     }
+
+    // Drop documentation-layer graphics that merely duplicate this footprint's
+    // assembly (Fab) outline; keep all non-duplicate documentation.
+    m_docDupRemoved += dedupeFootprintFabDuplicates( *fp );
 
     return fp;
 }
@@ -4524,6 +4644,14 @@ bool BOARD_BUILDER::BuildBoard()
 
     wxLogTrace( traceAllegroPerf, wxT( "  FinalizeBulkAdd: %.3f ms" ), buildTimer.msecs( true ) ); //format:allow
     wxLogTrace( traceAllegroBuilder, "Converted %zu footprints", bulkAddedItems.size() );
+
+    if( m_docDupRemoved > 0 )
+    {
+        m_reporter.Report( wxString::Format( _( "Dropped %d duplicate documentation graphic(s) that copied a "
+                                                "footprint's assembly outline." ),
+                                             m_docDupRemoved ),
+                           RPT_SEVERITY_INFO );
+    }
 
     enablePadTeardrops();
     wxLogTrace( traceAllegroPerf, wxT( "  enablePadTeardrops: %.3f ms" ), buildTimer.msecs( true ) ); //format:allow

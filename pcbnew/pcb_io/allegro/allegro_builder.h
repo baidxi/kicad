@@ -260,6 +260,9 @@ private:
     PROGRESS_REPORTER*    m_progressReporter;
     LAYER_MAPPING_HANDLER m_layerMappingHandler;
 
+    // Count of documentation-layer footprint graphics dropped as exact Fab duplicates
+    int m_docDupRemoved = 0;
+
     // Cached list of font defs in the 0x36 node
     std::vector<const BLK_0x36_DEF_TABLE::FontDef_X08*> m_fontDefList;
 
