@@ -19,6 +19,7 @@
  */
 
 #include "eeschema_jobs_handler.h"
+#include <algorithm>
 #include <common.h>
 #include <pgm_base.h>
 #include <kiface_base.h>
@@ -34,6 +35,14 @@
 #include <jobs/job_sch_erc.h>
 #include <jobs/job_sch_import.h>
 #include <jobs/job_sch_upgrade.h>
+#include <jobs/job_sch_downgrade.h>
+#include <downgrade_target.h>
+#include <downgrade/sch_downgrade.h>
+#include <lib_symbol.h>
+#include <sch_io/kicad_sexpr/sch_io_kicad_sexpr.h>
+#include <sch_sheet_path.h>
+#include <set>
+#include <wx/ffile.h>
 #include <jobs/job_import_utils.h>
 #include <jobs/job_sym_export_svg.h>
 #include <jobs/job_sym_upgrade.h>
@@ -58,6 +67,7 @@
 #include <locale_io.h>
 #include <erc/erc.h>
 #include <erc/erc_report.h>
+#include <erc/erc_settings.h>
 #include <wildcards_and_files_ext.h>
 #include <plotters/plotters_pslike.h>
 #include <drawing_sheet/ds_data_model.h>
@@ -182,6 +192,11 @@ EESCHEMA_JOBS_HANDLER::EESCHEMA_JOBS_HANDLER( KIWAY* aKiway ) :
                   return dlg.ShowModal() == wxID_OK;
               } );
     Register( "upgrade", std::bind( &EESCHEMA_JOBS_HANDLER::JobUpgrade, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
+    Register( "downgrade", std::bind( &EESCHEMA_JOBS_HANDLER::JobSchDowngrade, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
                   return true;
@@ -1459,6 +1474,495 @@ int EESCHEMA_JOBS_HANDLER::JobUpgrade( JOB* aJob )
     m_reporter->Report( _( "Successfully saved schematic file using the latest format\n" ), RPT_SEVERITY_INFO );
 
     return CLI::EXIT_CODES::SUCCESS;
+}
+
+
+// Skip editor working state (autosaves, local history, backups).
+static bool isDowngradeWorkingArtifact( const wxString& aPath )
+{
+    wxFileName fn( aPath );
+
+    if( fn.GetFullName().StartsWith( wxT( "_autosave-" ) ) )
+        return true;
+
+    for( const wxString& dir : fn.GetDirs() )
+    {
+        if( dir == wxT( ".history" ) || dir == wxT( ".git" ) || dir.EndsWith( wxT( "-backups" ) ) )
+            return true;
+    }
+
+    return false;
+}
+
+
+// Classify library symbols so their losses appear in the report.
+static void classifySymbolLibraries( const wxString& aDir, const DOWNGRADE_TARGET& aTarget,
+                                     COMPATIBILITY_REPORT& aReport )
+{
+    wxArrayString files;
+    wxDir::GetAllFiles( aDir, &files, wxT( "*.kicad_sym" ) );
+
+    for( const wxString& file : files )
+    {
+        if( isDowngradeWorkingArtifact( file ) )
+            continue;
+
+        try
+        {
+            SCH_IO_KICAD_SEXPR       pi;
+            std::vector<LIB_SYMBOL*> symbols;
+            pi.EnumerateSymbolLib( symbols, file );
+
+            for( const LIB_SYMBOL* symbol : symbols )
+            {
+                aReport.Merge( ClassifyLibSymbolForDowngrade( symbol, aTarget ) );
+            }
+        }
+        catch( const IO_ERROR& )
+        {
+            // A library that fails to load is caught later by the downgrade pass itself.
+        }
+    }
+}
+
+
+// Downgrade every .kicad_sym under the folder in place. Returns the first file the target could
+// not open, or empty when all are safe.
+static wxString downgradeSymbolLibraries( const wxString& aDir, const DOWNGRADE_TARGET& aTarget )
+{
+    wxArrayString files;
+    wxDir::GetAllFiles( aDir, &files, wxT( "*.kicad_sym" ) );
+
+    for( const wxString& file : files )
+    {
+        if( isDowngradeWorkingArtifact( file ) )
+            continue;
+
+        SCH_IO_KICAD_SEXPR       pi;
+        std::vector<LIB_SYMBOL*> symbols;
+        pi.EnumerateSymbolLib( symbols, file );
+
+        // The format wants parents before the symbols that inherit from them, so sort by depth.
+        std::stable_sort( symbols.begin(), symbols.end(),
+                          []( const LIB_SYMBOL* a, const LIB_SYMBOL* b )
+                          {
+                              return a->GetInheritanceDepth() < b->GetInheritanceDepth();
+                          } );
+
+        for( LIB_SYMBOL* symbol : symbols )
+            DowngradeLibSymbolInPlace( symbol, aTarget );
+
+        SaveSymbolLibraryForTarget( symbols, file, aTarget );
+
+        wxString content;
+        wxFFile  read( file, wxT( "rb" ) );
+
+        // An output we cannot read back to verify counts as a failure too.
+        if( !read.IsOpened() || !read.ReadAll( &content ) )
+            return file;
+
+        if( !content.Contains( wxString::Format( wxT( "(version %d)" ), aTarget.m_symLibVersion ) ) )
+            return file;
+
+        if( !FindUnsupportedSchToken( content, aTarget ).IsEmpty() )
+            return file;
+    }
+
+    return wxEmptyString;
+}
+
+
+int EESCHEMA_JOBS_HANDLER::JobSchDowngrade( JOB* aJob )
+{
+    JOB_SCH_DOWNGRADE* job = dynamic_cast<JOB_SCH_DOWNGRADE*>( aJob );
+
+    if( job == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    const std::vector<DOWNGRADE_TARGET>& targets = GetDowngradeTargets();
+    const DOWNGRADE_TARGET*              target = nullptr;
+
+    if( job->m_target.IsEmpty() )
+    {
+        target = &targets.front();
+    }
+    else
+    {
+        for( const DOWNGRADE_TARGET& candidate : targets )
+        {
+            if( candidate.m_name == job->m_target )
+            {
+                target = &candidate;
+                break;
+            }
+        }
+    }
+
+    if( target == nullptr )
+    {
+        m_reporter->Report( wxString::Format( _( "Unknown target version '%s'\n" ), job->m_target ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_ARGS;
+    }
+
+    auto downgradeLibraries = [&]() -> int
+    {
+        if( job->m_dryRun || job->m_libraryDir.IsEmpty() )
+            return CLI::EXIT_CODES::SUCCESS;
+
+        try
+        {
+            wxString badLib = downgradeSymbolLibraries( job->m_libraryDir, *target );
+
+            if( !badLib.IsEmpty() )
+            {
+                m_reporter->Report( wxString::Format( _( "Cannot export: symbol library '%s' uses a feature %s "
+                                                         "cannot open.\n" ),
+                                                      badLib, target->m_name ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            m_reporter->Report(
+                    wxString::Format( _( "Error downgrading symbol libraries.\n%s" ), ioe.What().GetData() ),
+                    RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        return CLI::EXIT_CODES::SUCCESS;
+    };
+
+    // No schematic to process. Do the libraries and stop.
+    if( job->m_filename.IsEmpty() )
+    {
+        if( !job->m_libraryDir.IsEmpty() )
+        {
+            COMPATIBILITY_REPORT report;
+            classifySymbolLibraries( job->m_libraryDir, *target, report );
+            job->m_report = report;
+        }
+
+        if( job->m_dryRun )
+            return CLI::EXIT_CODES::SUCCESS;
+
+        return downgradeLibraries();
+    }
+
+    // Load a private copy, never the live editor schematic. A transient project keeps it apart
+    // from anything open in the GUI.
+    SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
+
+    wxFileName projectFn( job->m_filename );
+    projectFn.SetExt( FILEEXT::ProjectFileExtension );
+
+    PROJECT* projectPtr = mgr.GetProject( projectFn.GetFullPath() );
+    bool     createdTransientProject = false;
+
+    if( !projectPtr )
+    {
+        mgr.LoadProject( projectFn.GetFullPath(), false );
+        projectPtr = mgr.GetProject( projectFn.GetFullPath() );
+        createdTransientProject = ( projectPtr != nullptr );
+    }
+
+    if( !projectPtr )
+    {
+        m_reporter->Report( _( "Could not establish a project for the schematic\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    struct TRANSIENT_PROJECT_GUARD
+    {
+        SETTINGS_MANAGER& m_mgr;
+        PROJECT*          m_project;
+        bool              m_active;
+
+        ~TRANSIENT_PROJECT_GUARD()
+        {
+            if( m_active )
+                m_mgr.UnloadProject( m_project, false );
+        }
+    } transientProjectGuard{ mgr, projectPtr, createdTransientProject };
+
+    LOCALE_IO dummy;
+
+    // Binding a SCHEMATIC to a project reallocates that project's ERC and schematic settings. When
+    // we borrowed a live project, snapshot the pointers so we can put them back. This relies on
+    // ~SCHEMATIC not calling SetProject.
+    PROJECT_FILE&       projectFile = projectPtr->GetProjectFile();
+    ERC_SETTINGS*       savedErc = createdTransientProject ? nullptr : projectFile.m_ErcSettings;
+    SCHEMATIC_SETTINGS* savedSch = createdTransientProject ? nullptr : projectFile.m_SchematicSettings;
+
+    std::unique_ptr<SCHEMATIC> owned = std::make_unique<SCHEMATIC>( projectPtr );
+    owned->CreateDefaultScreens();
+    SCHEMATIC* sch = owned.get();
+
+    struct SCH_PROJECT_GUARD
+    {
+        SCHEMATIC*          m_sch;
+        PROJECT*            m_project;
+        bool                m_created;
+        ERC_SETTINGS*       m_savedErc;
+        SCHEMATIC_SETTINGS* m_savedSch;
+
+        ~SCH_PROJECT_GUARD()
+        {
+            if( m_created )
+            {
+                m_sch->SetProject( nullptr );
+            }
+            else
+            {
+                // Drop the settings this schematic made and put the live project's own back.
+                PROJECT_FILE& pf = m_project->GetProjectFile();
+                delete pf.m_ErcSettings;
+                delete pf.m_SchematicSettings;
+                pf.m_ErcSettings = m_savedErc;
+                pf.m_SchematicSettings = m_savedSch;
+            }
+        }
+    } schProjectGuard{ sch, projectPtr, createdTransientProject, savedErc, savedSch };
+
+    try
+    {
+        IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+        SCH_SHEET*          root = pi->LoadSchematicFile( job->m_filename, sch );
+
+        if( !root )
+        {
+            m_reporter->Report( _( "Failed to load schematic\n" ), RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        }
+
+        // The loader collects sub-sheet errors instead of throwing. An incomplete hierarchy must
+        // not be exported, or missing sheets would be written out empty.
+        if( !pi->GetError().IsEmpty() )
+        {
+            m_reporter->Report( wxString::Format( _( "Cannot export: the schematic did not load "
+                                                     "completely.\n%s" ),
+                                                  pi->GetError() ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        }
+
+        sch->LoadVariants();
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        m_reporter->Report( wxString::Format( _( "Error loading schematic: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+    }
+
+    // A screen can be shared by several sheets, so gather each one once.
+    std::set<SCH_SCREEN*>                           seen;
+    std::vector<std::pair<SCH_SHEET*, SCH_SCREEN*>> screens;
+
+    for( const SCH_SHEET_PATH& path : sch->BuildUnorderedSheetList() )
+    {
+        SCH_SHEET*  sheet = path.Last();
+        SCH_SCREEN* screen = sheet ? sheet->GetScreen() : nullptr;
+
+        if( screen && seen.insert( screen ).second )
+            screens.emplace_back( sheet, screen );
+    }
+
+    COMPATIBILITY_REPORT report;
+
+    for( const auto& [sheet, screen] : screens )
+    {
+        report.Merge( ClassifyScreenForDowngrade( screen, *target ) );
+    }
+
+    // Variants (20250922) are schematic-wide, so report them once for the whole schematic.
+    int variantCount = static_cast<int>( sch->GetVariantNames().size() );
+
+    if( target->m_schVersion < 20250922 && variantCount > 0 )
+        report.Add( DOWNGRADE_BUCKET::DROP, _( "Schematic variants" ), _( "The variant registry is removed." ),
+                    variantCount );
+
+    // Net chains are connectivity-derived and a plain reload drops them. Detect them in the source
+    // so the user is warned.
+    if( target->m_schVersion < 20260512 )
+    {
+        wxString rootContent;
+        wxFFile  rootFile( job->m_filename, wxT( "rb" ) );
+
+        if( rootFile.IsOpened() && rootFile.ReadAll( &rootContent ) && rootContent.Contains( wxT( "(net_chain" ) ) )
+        {
+            report.Add( DOWNGRADE_BUCKET::DROP, _( "Net chains" ),
+                        _( "No equivalent in the target. Net chain grouping is removed." ), 1 );
+        }
+    }
+
+    // Library losses belong in the report the user approves too.
+    if( !job->m_libraryDir.IsEmpty() )
+        classifySymbolLibraries( job->m_libraryDir, *target, report );
+
+    job->m_report = report;
+
+    if( job->m_dryRun )
+        return CLI::EXIT_CODES::SUCCESS;
+
+    for( const COMPAT_ENTRY& entry : report.Entries() )
+    {
+        wxString label;
+
+        switch( entry.m_bucket )
+        {
+        case DOWNGRADE_BUCKET::KEEP: label = _( "keep" ); break;
+        case DOWNGRADE_BUCKET::LOWER: label = _( "approximate" ); break;
+        case DOWNGRADE_BUCKET::DROP: label = _( "drop" ); break;
+        case DOWNGRADE_BUCKET::BLOCK: label = _( "block" ); break;
+        }
+
+        m_reporter->Report( wxString::Format( wxT( "  [%s] %s (%d): %s\n" ), label, entry.m_feature, entry.m_count,
+                                              entry.m_detail ),
+                            RPT_SEVERITY_INFO );
+    }
+
+    if( report.IsBlocked() )
+    {
+        m_reporter->Report( _( "Cannot export: the schematic uses features the target cannot represent.\n" ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    if( report.IsLossy() && !job->m_force )
+    {
+        m_reporter->Report( _( "Export would lose data. Re-run with --force to export anyway.\n" ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    if( target->m_schVersion < 20250922 )
+    {
+        std::vector<wxString> variants( sch->GetVariantNames().begin(), sch->GetVariantNames().end() );
+
+        for( const wxString& name : variants )
+            sch->DeleteVariant( name );
+    }
+
+    // Write each screen to a temp file and check it first. Only when every sheet passes are the
+    // temps moved into place, so a failure never leaves half-downgraded originals.
+    std::vector<std::pair<wxString, wxString>> pendingMoves; // temp path, final path
+    wxString                                   currentTemp;
+
+    auto cleanupTemps = [&]()
+    {
+        for( const auto& [tmp, dest] : pendingMoves )
+            wxRemoveFile( tmp );
+
+        if( !currentTemp.IsEmpty() )
+            wxRemoveFile( currentTemp );
+    };
+
+    try
+    {
+        wxFileName base( job->m_filename );
+        base.MakeAbsolute();
+
+        for( const auto& [sheet, screen] : screens )
+        {
+            DowngradeScreenInPlace( screen, *target );
+
+            wxFileName screenFn( screen->GetFileName() );
+
+            if( !screenFn.IsAbsolute() )
+                screenFn.MakeAbsolute( base.GetPath() );
+
+            // Resolve embedded dot segments, or an absolute path with ../ could sidestep the check.
+            screenFn.Normalize( wxPATH_NORM_DOTS );
+
+            // Never write outside the tree that holds the root schematic. A sheet with an absolute
+            // or ../ path would otherwise overwrite the user's original shared sheet.
+            wxFileName rootDir( base.GetPath(), wxEmptyString );
+
+            if( !screenFn.GetFullPath().StartsWith( rootDir.GetPathWithSep() ) )
+            {
+                cleanupTemps();
+                m_reporter->Report( wxString::Format( _( "Cannot export: sheet '%s' lies outside the project "
+                                                         "folder.\n" ),
+                                                      screenFn.GetFullPath() ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            currentTemp = screenFn.GetFullPath() + wxT( ".downgrade_tmp" );
+            SaveSchematicForTarget( sheet, sch, currentTemp, *target );
+
+            wxString content;
+            wxFFile  file( currentTemp, wxT( "rb" ) );
+
+            // An output we cannot read back to verify counts as a failure too.
+            if( !file.IsOpened() || !file.ReadAll( &content ) )
+            {
+                file.Close();
+                cleanupTemps();
+                m_reporter->Report(
+                        wxString::Format( _( "Cannot export: could not verify '%s'.\n" ), screenFn.GetFullPath() ),
+                        RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            file.Close();
+
+            if( !content.Contains( wxString::Format( wxT( "(version %d)" ), target->m_schVersion ) ) )
+            {
+                file.Close();
+                cleanupTemps();
+                m_reporter->Report(
+                        wxString::Format( _( "Cannot export: could not verify '%s'.\n" ), screenFn.GetFullPath() ),
+                        RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            wxString unsupported = FindUnsupportedSchToken( content, *target );
+
+            if( !unsupported.IsEmpty() )
+            {
+                cleanupTemps();
+                m_reporter->Report( wxString::Format( _( "Cannot export: the result still uses '%s', which %s "
+                                                         "cannot open. This feature has no downgrade rule yet.\n" ),
+                                                      unsupported, target->m_name ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            pendingMoves.emplace_back( currentTemp, screenFn.GetFullPath() );
+            currentTemp.Clear();
+        }
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        cleanupTemps();
+        m_reporter->Report(
+                wxString::Format( _( "Error saving schematic file '%s'.\n%s" ), job->m_filename, ioe.What().GetData() ),
+                RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    // A rename can still fail and renames already done cannot be undone, so surface it instead of
+    // reporting a false success.
+    for( size_t i = 0; i < pendingMoves.size(); i++ )
+    {
+        if( !wxRenameFile( pendingMoves[i].first, pendingMoves[i].second, true ) )
+        {
+            for( size_t j = i; j < pendingMoves.size(); j++ )
+                wxRemoveFile( pendingMoves[j].first );
+
+            m_reporter->Report( wxString::Format( _( "Error finishing export: could not write '%s'. The exported "
+                                                     "project may be incomplete.\n" ),
+                                                  pendingMoves[i].second ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+    }
+
+    m_reporter->Report( _( "Saved downgraded schematic\n" ), RPT_SEVERITY_INFO );
+
+    return downgradeLibraries();
 }
 
 

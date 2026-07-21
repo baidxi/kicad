@@ -40,6 +40,8 @@ set( QA_PCBNEW_SRCS
     test_board_loader.cpp
     test_board_item.cpp
     test_board_commit.cpp
+    test_board_downgrade.cpp
+    test_downgrade_oracle.cpp
     test_text_var_reactive.cpp
     test_clipboard_group.cpp
     test_board_statistics.cpp
