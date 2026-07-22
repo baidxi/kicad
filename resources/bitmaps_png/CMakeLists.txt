@@ -757,6 +757,27 @@ set( BMAPS_CONSTRAINTS
     vias-under-smd
     )
 
+set( BMAPS_CONSTRAINTS_GEOM
+    coincident
+    horizontal
+    vertical
+    parallel
+    perpendicular
+    collinear
+    symmetric
+    equal-length
+    equal-radius
+    point-on-line
+    midpoint
+    fixed-position
+    fixed-length
+    concentric
+    fixed-radius
+    angular-dimension
+    tangent
+    arc-angle
+    )
+
 # Images in this section are generated at whatever resolution is set in the source SVG file
 # Use Inkscape Document Properties > Custom Size to set (make sure units are pixels)
 # These are used for images in the UI that are not-square or very large (infographics, etc)
@@ -1138,6 +1159,14 @@ if( MAINTAIN_PNGS )
 
     # Constraint bitmaps with light/dark theme variants (DRC rule editor panels)
     bitmap_dir_constraints( -1 -1 "${BMAPS_CONSTRAINTS}" )
+
+    # Geometric-constraint badge icons shown in toolbars and context menus, so they need the
+    # standard theme-aware menu/toolbar sizes rather than the native SVG size.
+    bitmap_dir_constraints( 24 24 "${BMAPS_CONSTRAINTS_GEOM}" )  # "primary" size first
+    bitmap_dir_constraints( 16 16 "${BMAPS_CONSTRAINTS_GEOM}" )  # Small toolbar mode
+    bitmap_dir_constraints( 32 32 "${BMAPS_CONSTRAINTS_GEOM}" )  # Large toolbar mode
+    bitmap_dir_constraints( 48 48 "${BMAPS_CONSTRAINTS_GEOM}" )  # HiDPI normal size
+    bitmap_dir_constraints( 64 64 "${BMAPS_CONSTRAINTS_GEOM}" )  # HiDPI large size
 
     configure_file( ${BITMAP_INFO_TEMPLATE} ${BITMAP_INFO_FILE}  NEWLINE_STYLE UNIX )
 

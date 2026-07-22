@@ -39,6 +39,7 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
+#include <tools/constraint_edit_tool.h>
 #include <tools/edit_tool.h>
 #include <tools/pcb_grid_helper.h>
 #include <tools/drc_tool.h>
@@ -745,7 +746,9 @@ int EDIT_TOOL::Move( const TOOL_EVENT& aEvent )
 
     if( BOARD_COMMIT* commit = dynamic_cast<BOARD_COMMIT*>( aEvent.Commit() ) )
     {
-        // Most moves will be synchronous unless they are coming from the API
+        // Most moves will be synchronous unless they are coming from the API.  Do not run the
+        // constraint solver here; this path contributes only the requested move to the
+        // caller-owned commit.
         if( aEvent.SynchronousState() )
             aEvent.SynchronousState()->store( STS_RUNNING );
 
@@ -763,10 +766,33 @@ int EDIT_TOOL::Move( const TOOL_EVENT& aEvent )
     {
         BOARD_COMMIT localCommit( this );
 
-        if( doMoveSelection( aEvent, &localCommit, false ) )
-            localCommit.Push( _( "Move" ) );
+        // doMoveSelection captures these from live selection before it is cleared
+        // so they stay valid even for a hover move whose selection does not survive the drag
+        std::vector<PCB_SHAPE*> constraintShapes;
+
+        if( doMoveSelection( aEvent, &localCommit, false, &constraintShapes ) )
+        {
+            // Moved shape may have broken its geometric constraints drag already solved live each tick
+            // run one final solve into this commit before push so move and neighbor adjustments undo as one action
+            if( !constraintShapes.empty() && BoardHasConstraints( board() ) )
+            {
+                ReSolveShapeClusters( board(), constraintShapes, nullptr,
+                                      [&]( BOARD_ITEM* aItem ) { localCommit.Modify( aItem ); } );
+
+                localCommit.Push( _( "Move" ) );
+
+                if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>() )
+                    constraintTool->DiagnoseAfterMove( constraintShapes );
+            }
+            else
+            {
+                localCommit.Push( _( "Move" ) );
+            }
+        }
         else
+        {
             localCommit.Revert();
+        }
     }
 
     // Notify point editor.  (While doMoveSelection() will re-select the items and post this
@@ -814,7 +840,8 @@ VECTOR2I EDIT_TOOL::getSafeMovement( const VECTOR2I& aMovement, const BOX2I& aSo
 }
 
 
-bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit, bool aAutoStart )
+bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit, bool aAutoStart,
+                                 std::vector<PCB_SHAPE*>* aConstraintShapes )
 {
     const bool moveWithReference = aEvent.IsAction( &PCB_ACTIONS::moveWithReference );
     const bool moveIndividually = aEvent.IsAction( &PCB_ACTIONS::moveIndividually );
@@ -941,6 +968,11 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
             footprint->SetAttributes( footprint->GetAttributes() & ~FP_JUST_ADDED );
         }
     }
+
+    // Selection stays stable for whole drag so gather constrainable shapes once here and reuse them
+    // each tick and for final settle solve hover moves clear selection before returning so capture now
+    if( aConstraintShapes )
+        collectConstraintShapes( selection, *aConstraintShapes );
 
     VECTOR2I pickedReferencePoint;
 
@@ -1203,6 +1235,32 @@ bool EDIT_TOOL::doMoveSelection( const TOOL_EVENT& aEvent, BOARD_COMMIT* aCommit
 
                     if( item->Type() == PCB_FOOTPRINT_T )
                         redraw3D = true;
+                }
+
+                // Constrained neighbors sit unselected with no IS_MOVING flag outside the move overlay
+                // only local commit drag previews them stage touched neighbors so cancel Revert restores them
+                if( aConstraintShapes && !aConstraintShapes->empty() && movement != VECTOR2I()
+                    && BoardHasConstraints( board ) )
+                {
+                    std::vector<PCB_SHAPE*>  solved;
+                    std::vector<BOARD_ITEM*> dimensions;
+
+                    ReSolveShapeClusters( board, *aConstraintShapes, &solved,
+                            [&]( BOARD_ITEM* aItem )
+                            {
+                                aCommit->Modify( aItem );
+
+                                // A remeasured dimension is not returned in solved so refresh it here
+                                // or it looks frozen until the drag ends
+                                if( aItem->Type() != PCB_SHAPE_T )
+                                    dimensions.push_back( aItem );
+                            } );
+
+                    for( PCB_SHAPE* neighbor : solved )
+                        view()->Update( neighbor, KIGFX::GEOMETRY );
+
+                    for( BOARD_ITEM* dimension : dimensions )
+                        view()->Update( dimension, KIGFX::GEOMETRY );
                 }
 
                 if( redraw3D && allowRedraw3D )

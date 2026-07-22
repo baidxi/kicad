@@ -33,6 +33,8 @@
 #include <increment.h>
 #include <pcb_shape.h>
 #include <pcb_group.h>
+#include <constraints/constraint_copy.h>
+#include <constraints/pcb_constraint.h>
 #include <pcb_point.h>
 #include <pcb_target.h>
 #include <pcb_textbox.h>
@@ -49,6 +51,7 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
+#include <tools/constraint_edit_tool.h>
 #include <tools/edit_tool.h>
 #include <tools/item_modification_routine.h>
 #include <tools/pcb_picker_tool.h>
@@ -2166,10 +2169,23 @@ int EDIT_TOOL::BooleanPolygons( const TOOL_EVENT& aEvent )
 int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
 {
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    // A constraint selected by clicking its badge has no board selection, so Edit targets it here
+    // before the normal properties path (mirrors the Delete hook for a badge-selected constraint).
+    if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+        constraintTool && constraintTool->TryEditSelectedConstraint() )
+    {
+        return 0;
+    }
+
     const PCB_SELECTION& selection = m_selectionTool->RequestSelection(
             []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool )
             {
             } );
+
+    // Snapshot undo depth to detect whether dialog actually committed
+    // Cancel leaves it unchanged and must not trigger a constraint resolve
+    const int undoBefore = editFrame->GetUndoCommandCount();
 
     // Tracks & vias are treated in a special way:
     if( ( SELECTION_CONDITIONS::OnlyTypes( { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T } ) )( selection ) )
@@ -2217,6 +2233,18 @@ int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
             m_toolMgr->PostAction( ACTIONS::pageSettings );
         else
             m_toolMgr->RunAction( PCB_ACTIONS::footprintProperties );
+    }
+
+    // Position or geometry edit via these dialogs settles constraints as if item were dragged
+    // holding edited item and moving neighbors gated on real commit so canceled dialog skips the solve
+    if( editFrame->GetUndoCommandCount() > undoBefore )
+    {
+        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>() )
+        {
+            std::vector<PCB_SHAPE*> shapes;
+            collectConstraintShapes( selection, shapes );
+            constraintTool->SolveAfterEdit( shapes );
+        }
     }
 
     if( selection.IsHover() )
@@ -2278,6 +2306,48 @@ int EDIT_TOOL::EditVertices( const TOOL_EVENT& aEvent )
         editFrame->OpenVertexEditor( item );
 
     return 0;
+}
+
+
+void EDIT_TOOL::collectConstraintShapes( const SELECTION& aSelection, std::vector<PCB_SHAPE*>& aShapes )
+{
+    // Recurse so constrained shapes carried inside a transformed footprint or group seed their
+    // clusters too; a top-level-only walk would leave those constraints silently violated.
+    // PCB_GROUP::RunOnChildren only descends into groups and generators, so recurse through every
+    // container ourselves; the visited set guards against overlapping ownership paths.
+    std::unordered_set<BOARD_ITEM*> visited;
+
+    std::function<void( BOARD_ITEM* )> collect =
+            [&]( BOARD_ITEM* aItem )
+            {
+                if( !aItem || !visited.insert( aItem ).second )
+                    return;
+
+                if( aItem->Type() == PCB_SHAPE_T )
+                    aShapes.push_back( static_cast<PCB_SHAPE*>( aItem ) );
+
+                aItem->RunOnChildren( collect, RECURSE_MODE::NO_RECURSE );
+            };
+
+    for( EDA_ITEM* item : aSelection )
+    {
+        if( item->IsBOARD_ITEM() )
+            collect( static_cast<BOARD_ITEM*>( item ) );
+    }
+}
+
+
+void EDIT_TOOL::reSolveConstraintsAfterEdit( const PCB_SELECTION& aSelection )
+{
+    CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+
+    if( !constraintTool )
+        return;
+
+    std::vector<PCB_SHAPE*> shapes;
+    collectConstraintShapes( aSelection, shapes );
+
+    constraintTool->SolveAfterMove( shapes );
 }
 
 
@@ -2422,7 +2492,10 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
         // Don't push a separate undo entry when we're in the middle of a move operation.
         // The parent move will handle the commit.
         if( !localCommit.Empty() && !m_dragging )
+        {
             localCommit.Push( _( "Rotate" ) );
+            reSolveConstraintsAfterEdit( selection );
+        }
 
         if( is_hover && !m_dragging )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -2587,7 +2660,10 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
+    {
         localCommit.Push( _( "Mirror" ) );
+        reSolveConstraintsAfterEdit( selection );
+    }
 
     if( skippedFootprints > 0 && !m_dragging )
     {
@@ -2769,7 +2845,10 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
+    {
         localCommit.Push( _( "Change Side / Flip" ) );
+        reSolveConstraintsAfterEdit( selection );
+    }
 
     if( selection.IsHover() && !m_dragging )
         m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -2975,6 +3054,20 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 {
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
 
+    // A geometric constraint selected by clicking its on-canvas badge has no board selection, so a
+    // plain Delete targets it here before the normal item-removal path.  Cut is excluded: the
+    // constraint is not on the clipboard, so it must not be silently removed (#2329).
+    bool isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
+
+    if( !isCut )
+    {
+        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+            constraintTool && constraintTool->TryDeleteSelectedConstraint() )
+        {
+            return 0;
+        }
+    }
+
     editFrame->PushTool( aEvent );
 
     std::vector<BOARD_ITEM*> lockedItems;
@@ -2982,7 +3075,6 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 
     // get a copy instead of reference (as we're going to clear the selection before removing items)
     PCB_SELECTION selectionCopy;
-    bool          isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
     bool          isAlt = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::ALT;
 
     // If we are in a "Cut" operation, then the copied selection exists already and we want to
@@ -3128,6 +3220,7 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
         }
 
         commit.Push( _( "Move Exactly" ) );
+        reSolveConstraintsAfterEdit( selection );
 
         if( selection.IsHover() )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -3186,6 +3279,10 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
     std::vector<BOARD_ITEM*> new_items;
     new_items.reserve( selection.Size() );
 
+    // Maps each duplicated original KIID to its duplicate so constraints between them
+    // can be repointed at the copies once duplication finishes
+    std::map<KIID, KIID> idMap;
+
     // Each selected item is duplicated and pushed to new_items list
     // Old selection is cleared, and new items are then selected.
     for( EDA_ITEM* item : selection )
@@ -3235,6 +3332,7 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                     dupe_item->SetFlags( IS_NEW );
                 }
 
+                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -3261,6 +3359,7 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 // will not properly select it later on
                 dupe_item->ClearSelected();
 
+                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -3271,7 +3370,10 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
 
             case PCB_GENERATOR_T:
             case PCB_GROUP_T:
-                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit );
+            {
+                // DeepDuplicate maps original to duplicate KIID per descendant while cloning the group
+                // so grouped constraints can be repointed unordered iteration blocks a later pairing
+                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit, &idMap );
 
                 dupe_item->RunOnChildren(
                         [&]( BOARD_ITEM* aItem )
@@ -3286,11 +3388,20 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
+            }
 
             default: UNIMPLEMENTED_FOR( orig_item->GetClass() ); break;
             }
         }
     }
+
+    // Carry constraints whose members were all duplicated repointed at the copies
+    // constraints are not selectable so add them to commit but keep them out of new selection
+    const CONSTRAINTS& sourceConstraints = parentFootprint ? parentFootprint->Constraints()
+                                                           : board()->Constraints();
+
+    for( PCB_CONSTRAINT* clone : CloneFullySelectedConstraints( sourceConstraints, idMap ) )
+        commit.Add( clone );
 
     // Clear the old selection first
     m_toolMgr->RunAction( ACTIONS::selectionClear );
