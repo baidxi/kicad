@@ -45,6 +45,7 @@
 #include <pad.h>
 #include <pcb_group.h>
 #include <pcb_text.h>
+#include <title_block.h>
 #include <pcb_shape.h>
 #include <pcb_track.h>
 #include <priority_thread_pool_task.h>
@@ -3640,6 +3641,46 @@ void BOARD_BUILDER::createBoardShapes()
 }
 
 
+void BOARD_BUILDER::decodeDrawingSheet()
+{
+    // Faithfully decode the Allegro drawing-format title block into KiCad's native
+    // title block. Revision and date come from the unambiguous combined "REV:"/"DATE:"
+    // title-block fields. Imported graphics are left in place - nothing is dropped.
+    wxString revision, date;
+
+    for( BOARD_ITEM* item : m_board.Drawings() )
+    {
+        if( item->Type() != PCB_TEXT_T )
+            continue;
+
+        wxString text = static_cast<PCB_TEXT*>( item )->GetText();
+        text.Trim( true ).Trim( false );
+
+        if( revision.IsEmpty() && text.Upper().StartsWith( wxT( "REV:" ) ) )
+            revision = text.Mid( 4 ).Trim( false ).Trim( true );
+        else if( date.IsEmpty() && text.Upper().StartsWith( wxT( "DATE:" ) ) )
+            date = text.Mid( 5 ).Trim( false ).Trim( true );
+    }
+
+    if( revision.IsEmpty() && date.IsEmpty() )
+        return;
+
+    TITLE_BLOCK titleBlock = m_board.GetTitleBlock();
+
+    if( !revision.IsEmpty() )
+        titleBlock.SetRevision( revision );
+
+    if( !date.IsEmpty() )
+        titleBlock.SetDate( date );
+
+    titleBlock.SetComment( 8, wxT( "Imported from Cadence Allegro" ) );
+    m_board.SetTitleBlock( titleBlock );
+
+    m_reporter.Report( _( "Decoded the Allegro drawing-format title block into the KiCad title block." ),
+                       RPT_SEVERITY_INFO );
+}
+
+
 SHAPE_LINE_CHAIN BOARD_BUILDER::buildSegmentChain( uint32_t aStartKey, const TRANSFORM_TRS& aXform ) const
 {
     const bool cacheable = aXform.IsIdentity();
@@ -4655,6 +4696,9 @@ bool BOARD_BUILDER::BuildBoard()
 
     enablePadTeardrops();
     wxLogTrace( traceAllegroPerf, wxT( "  enablePadTeardrops: %.3f ms" ), buildTimer.msecs( true ) ); //format:allow
+
+    decodeDrawingSheet();
+
     wxLogTrace( traceAllegroPerf, wxT( "  Phase 2 total: %.3f ms" ), buildTimer.msecs() ); //format:allow
 
     wxLogTrace( traceAllegroBuilder, "Board construction completed successfully" );

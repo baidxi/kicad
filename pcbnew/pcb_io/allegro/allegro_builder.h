@@ -232,6 +232,10 @@ private:
     void createNets();
     void createTracks();
     void createBoardShapes();
+
+    /// Decode the Allegro drawing-format title block (revision/date) into KiCad's
+    /// native title block. Imported graphics are left in place.
+    void decodeDrawingSheet();
     void createBoardText();
     void createZones();
     void createTables();
