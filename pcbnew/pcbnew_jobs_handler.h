@@ -62,6 +62,7 @@ public:
     int JobExportIpcD356( JOB* aJob );
     int JobExportStats( JOB* aJob );
     int JobUpgrade( JOB* aJob );
+    int JobDowngrade( JOB* aJob );
     int JobImport( JOB* aJob );
     int JobDiff( JOB* aJob );
     int JobFpDiff( JOB* aJob );

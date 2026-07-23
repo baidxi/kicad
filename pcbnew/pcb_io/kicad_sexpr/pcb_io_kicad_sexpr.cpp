@@ -333,8 +333,7 @@ void PCB_IO_KICAD_SEXPR::FormatBoardToFormatter( OUTPUTFORMATTER* aOut, BOARD* a
 
     m_out = aOut;
 
-    m_out->Print( "(kicad_pcb (version %d) (generator \"pcbnew\") (generator_version %s)",
-                  SEXPR_BOARD_FILE_VERSION,
+    m_out->Print( "(kicad_pcb (version %d) (generator \"pcbnew\") (generator_version %s)", SEXPR_BOARD_FILE_VERSION,
                   m_out->Quotew( GetMajorMinorVersion() ).c_str() );
 
     Format( aBoard );
@@ -1337,8 +1336,7 @@ void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint ) const
 
     if( !( m_ctl & CTL_OMIT_FOOTPRINT_VERSION ) )
     {
-        m_out->Print( "(version %d) (generator \"pcbnew\") (generator_version %s)",
-                      SEXPR_BOARD_FILE_VERSION,
+        m_out->Print( "(version %d) (generator \"pcbnew\") (generator_version %s)", SEXPR_BOARD_FILE_VERSION,
                       m_out->Quotew( GetMajorMinorVersion() ).c_str() );
     }
 
@@ -3411,9 +3409,10 @@ void PCB_IO_KICAD_SEXPR::format( const ZONE_LAYER_PROPERTIES& aZoneLayerProperti
 }
 
 
-PCB_IO_KICAD_SEXPR::PCB_IO_KICAD_SEXPR( int aControlFlags ) : PCB_IO( wxS( "KiCad" ) ),
-    m_cache( nullptr ),
-    m_ctl( aControlFlags )
+PCB_IO_KICAD_SEXPR::PCB_IO_KICAD_SEXPR( int aControlFlags ) :
+        PCB_IO( wxS( "KiCad" ) ),
+        m_cache( nullptr ),
+        m_ctl( aControlFlags )
 {
     init( nullptr );
     m_out = &m_sf;

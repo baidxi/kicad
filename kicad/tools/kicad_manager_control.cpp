@@ -27,6 +27,15 @@
 #include <policy_keys.h>
 #include <kiway.h>
 #include <kicad_manager_frame.h>
+#include <core/json_serializers.h> // must precede any json+wxString use (job.h) in this TU
+#include <downgrade_target.h>
+#include <jobs/job_pcb_downgrade.h>
+#include <jobs/job_sch_downgrade.h>
+#include <filesystem>
+#include <system_error>
+#include <wx/dirdlg.h>
+#include <wx/choicdlg.h>
+#include <wx/msgdlg.h>
 #include <kiplatform/policy.h>
 #include <kiplatform/secrets.h>
 #include <kiplatform/ui.h>
@@ -50,6 +59,7 @@
 #include <gestfich.h>
 #include <paths.h>
 #include <wx/dir.h>
+#include <wx/ffile.h>
 #include <wx/filedlg.h>
 #include "dialog_pcm.h"
 #include <project/project_archiver.h>
@@ -605,6 +615,361 @@ int KICAD_MANAGER_CONTROL::UnarchiveProject( const TOOL_EVENT& aEvent )
 }
 
 
+// Read the (version N) stamp of a KiCad s-expression file. Returns 0 if not found.
+static int readSexprVersion( const wxString& aPath )
+{
+    wxFFile file( aPath, wxT( "rb" ) );
+
+    if( !file.IsOpened() )
+        return 0;
+
+    char   buf[8192];
+    size_t n = file.Read( buf, sizeof( buf ) - 1 );
+    buf[n] = 0;
+
+    wxString head = wxString::FromUTF8( buf, n );
+    int      idx = head.Find( wxT( "(version " ) );
+
+    if( idx == wxNOT_FOUND )
+        return 0;
+
+    long ver = 0;
+    head.Mid( idx + 9, 8 ).ToLong( &ver );
+    return static_cast<int>( ver );
+}
+
+
+// Editor working state holds current-format copies nothing downgrades. Leaving it in would make
+// the fail-closed check refuse every export.
+static void pruneWorkingArtifacts( const wxString& aDestDir, const wxString& aProjectName )
+{
+    std::error_code ec;
+
+    std::filesystem::remove_all(
+            std::filesystem::path( ( aDestDir + wxFileName::GetPathSeparator() + wxT( ".history" ) ).ToStdWstring() ),
+            ec );
+    std::filesystem::remove_all(
+            std::filesystem::path( ( aDestDir + wxFileName::GetPathSeparator() + wxT( ".git" ) ).ToStdWstring() ), ec );
+    std::filesystem::remove_all(
+            std::filesystem::path(
+                    ( aDestDir + wxFileName::GetPathSeparator() + aProjectName + wxT( "-backups" ) ).ToStdWstring() ),
+            ec );
+
+    wxArrayString files;
+    wxDir::GetAllFiles( aDestDir, &files );
+
+    for( const wxString& f : files )
+    {
+        wxFileName fn( f );
+
+        if( fn.GetFullName().StartsWith( wxT( "_autosave-" ) ) || fn.GetExt() == wxT( "lck" ) )
+            wxRemoveFile( f );
+    }
+}
+
+
+static bool isWorkingArtifact( const wxString& aPath )
+{
+    wxFileName fn( aPath );
+
+    if( fn.GetFullName().StartsWith( wxT( "_autosave-" ) ) )
+        return true;
+
+    for( const wxString& dir : fn.GetDirs() )
+    {
+        if( dir == wxT( ".history" ) || dir == wxT( ".git" ) || dir.EndsWith( wxT( "-backups" ) ) )
+            return true;
+    }
+
+    return false;
+}
+
+
+// Final backstop over the exported copy. Anything still stamped newer than the target would not
+// open there. Returns the first such file, or empty if all are safe.
+static wxString firstTooNewFile( const wxString& aDir, const DOWNGRADE_TARGET& aTarget )
+{
+    auto scan = [&]( const wxString& aPattern, int aMaxVersion ) -> wxString
+    {
+        wxArrayString files;
+        wxDir::GetAllFiles( aDir, &files, aPattern );
+
+        for( const wxString& f : files )
+        {
+            if( !isWorkingArtifact( f ) && readSexprVersion( f ) > aMaxVersion )
+                return f;
+        }
+
+        return wxEmptyString;
+    };
+
+    wxString bad = scan( wxT( "*.kicad_sym" ), aTarget.m_symLibVersion );
+
+    if( !bad.IsEmpty() )
+        return bad;
+
+    bad = scan( wxT( "*.kicad_mod" ), aTarget.m_boardVersion );
+
+    if( !bad.IsEmpty() )
+        return bad;
+
+    bad = scan( wxT( "*.kicad_pcb" ), aTarget.m_boardVersion );
+
+    if( !bad.IsEmpty() )
+        return bad;
+
+    return scan( wxT( "*.kicad_sch" ), aTarget.m_schVersion );
+}
+
+
+int KICAD_MANAGER_CONTROL::ExportForOlderVersion( const TOOL_EVENT& aEvent )
+{
+    wxFileName proFn( Prj().GetProjectFullName() );
+    wxString   projectDir = proFn.GetPath();
+    wxString   projectName = proFn.GetName();
+
+    wxFileName boardFn( projectDir, projectName, FILEEXT::KiCadPcbFileExtension );
+    wxFileName schFn( projectDir, projectName, FILEEXT::KiCadSchematicFileExtension );
+
+    if( !boardFn.FileExists() && !schFn.FileExists() )
+    {
+        wxMessageBox( _( "This project has no board or schematic to export." ), _( "Export for Older KiCad Version" ),
+                      wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    const std::vector<DOWNGRADE_TARGET>& targets = GetDowngradeTargets();
+    wxArrayString                        names;
+
+    for( const DOWNGRADE_TARGET& target : targets )
+        names.Add( target.m_name );
+
+    int sel = wxGetSingleChoiceIndex( _( "Target version:" ), _( "Export for Older KiCad Version" ), names, m_frame );
+
+    if( sel < 0 )
+        return 0;
+
+    wxDirDialog dirDlg( m_frame, _( "Save exported copy to folder" ), m_frame->GetMruPath(),
+                        wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST );
+
+    if( dirDlg.ShowModal() != wxID_OK )
+        return 0;
+
+    // A self-contained subfolder so we never write into the folder the user picked directly.
+    wxString destDir = dirDlg.GetPath() + wxFileName::GetPathSeparator() + projectName;
+
+    std::error_code       ec;
+    // Wide-string conversions so paths outside the active code page survive on Windows.
+    std::filesystem::path srcPath = std::filesystem::weakly_canonical( projectDir.ToStdWstring(), ec );
+    std::filesystem::path pickedPath = std::filesystem::weakly_canonical( dirDlg.GetPath().ToStdWstring(), ec );
+    std::filesystem::path destPath = std::filesystem::weakly_canonical( destDir.ToStdWstring(), ec );
+
+    // The destination must not be the project folder or live inside it, or the recursive copy
+    // would feed on its own output.
+    bool destInsideSource = ( destPath == srcPath );
+
+    for( std::filesystem::path p = pickedPath; !p.empty() && p != p.parent_path(); p = p.parent_path() )
+    {
+        if( p == srcPath )
+            destInsideSource = true;
+    }
+
+    if( destInsideSource )
+    {
+        wxMessageBox( _( "Choose a folder outside the current project." ), _( "Export for Older KiCad Version" ),
+                      wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    // Early feedback only. Ownership is re-established when the folder is actually created.
+    if( std::filesystem::exists( destPath, ec ) )
+    {
+        wxMessageBox( wxString::Format( _( "The folder '%s' already exists. Choose a location where it does "
+                                           "not exist yet." ),
+                                        destDir ),
+                      _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    // Classify the live files first, so the report is shown before anything is copied.
+    COMPATIBILITY_REPORT combined;
+
+    {
+        JOB_PCB_DOWNGRADE job;
+        job.m_filename = boardFn.FileExists() ? boardFn.GetFullPath() : wxString();
+        job.m_target = names[sel];
+        job.m_libraryDir = projectDir;
+        job.m_dryRun = true;
+
+        if( m_frame->Kiway().ProcessJob( KIWAY::FACE_PCB, &job ) != 0 )
+        {
+            wxMessageBox( _( "Could not read the board to check compatibility. Nothing was exported." ),
+                          _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+            return 0;
+        }
+
+        combined.Merge( job.m_report );
+    }
+
+    {
+        JOB_SCH_DOWNGRADE job;
+        job.m_filename = schFn.FileExists() ? schFn.GetFullPath() : wxString();
+        job.m_target = names[sel];
+        job.m_libraryDir = projectDir;
+        job.m_dryRun = true;
+
+        if( m_frame->Kiway().ProcessJob( KIWAY::FACE_SCH, &job ) != 0 )
+        {
+            wxMessageBox( _( "Could not read the schematic to check compatibility. Nothing was exported." ),
+                          _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+            return 0;
+        }
+
+        combined.Merge( job.m_report );
+    }
+
+    wxString details;
+
+    for( const COMPAT_ENTRY& entry : combined.Entries() )
+    {
+        wxString label;
+
+        switch( entry.m_bucket )
+        {
+        case DOWNGRADE_BUCKET::KEEP: label = _( "Keep" ); break;
+        case DOWNGRADE_BUCKET::LOWER: label = _( "Approximate" ); break;
+        case DOWNGRADE_BUCKET::DROP: label = _( "Drop" ); break;
+        case DOWNGRADE_BUCKET::BLOCK: label = _( "Cannot export" ); break;
+        }
+
+        details += wxString::Format( wxT( "  %s: %s (%d)" ), label, entry.m_feature, entry.m_count );
+
+        if( !entry.m_detail.IsEmpty() )
+            details += wxT( " - " ) + entry.m_detail;
+
+        details += wxT( "\n" );
+    }
+
+    if( combined.IsBlocked() )
+    {
+        wxMessageBox( _( "This project uses features the target version cannot represent.\n\n" ) + details,
+                      _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    if( combined.IsLossy() )
+    {
+        wxString msg = wxString::Format( _( "Exporting to %s will change some features:\n\n%s\n"
+                                            "Your current project is not modified.\n\nExport anyway?" ),
+                                         names[sel], details );
+
+        if( wxMessageBox( msg, _( "Compatibility Report" ), wxYES_NO | wxICON_WARNING, m_frame ) != wxYES )
+            return 0;
+    }
+
+    // The dialogs above can stay open for a long time, so re-establish ownership at use time.
+    // Creating the folder must actually create it, or the copy could merge into (and the
+    // fail-closed cleanup delete) files that appeared at the destination in the meantime.
+    ec.clear();
+
+    if( !std::filesystem::create_directory( destPath, ec ) || ec )
+    {
+        wxMessageBox( wxString::Format( _( "Could not create the folder '%s'. Choose a location where it "
+                                           "does not exist yet." ),
+                                        destDir ),
+                      _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    try
+    {
+        std::filesystem::copy( projectDir.ToStdWstring(), destDir.ToStdWstring(),
+                               std::filesystem::copy_options::recursive );
+
+        // Working state does not belong in the export.
+        pruneWorkingArtifacts( destDir, projectName );
+    }
+    catch( const std::exception& e )
+    {
+        std::filesystem::remove_all( destPath, ec );
+        wxMessageBox( wxString::Format( _( "Could not copy the project.\n%s" ), e.what() ),
+                      _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+        return 0;
+    }
+
+    bool ok = true;
+
+    // Each job also downgrades its libraries in the copy.
+    {
+        wxFileName destBoard( destDir, boardFn.GetFullName() );
+
+        JOB_PCB_DOWNGRADE job;
+        job.m_filename = boardFn.FileExists() ? destBoard.GetFullPath() : wxString();
+        job.m_outputFile = destBoard.GetFullPath();
+        job.m_target = names[sel];
+        job.m_libraryDir = destDir;
+        job.m_force = true;
+        ok &= ( m_frame->Kiway().ProcessJob( KIWAY::FACE_PCB, &job ) == 0 );
+    }
+
+    if( ok )
+    {
+        wxFileName destSch( destDir, schFn.GetFullName() );
+
+        JOB_SCH_DOWNGRADE job;
+        job.m_filename = schFn.FileExists() ? destSch.GetFullPath() : wxString();
+        job.m_target = names[sel];
+        job.m_libraryDir = destDir;
+        job.m_force = true;
+        ok &= ( m_frame->Kiway().ProcessJob( KIWAY::FACE_SCH, &job ) == 0 );
+    }
+
+    // Final backstop: nothing left in the copy may still be too new for the target to open.
+    wxString tooNew;
+
+    if( ok )
+    {
+        tooNew = firstTooNewFile( destDir, targets[sel] );
+
+        if( !tooNew.IsEmpty() )
+        {
+            ok = false;
+
+            // Show the source path, not the deleted copy, so the user can act on it.
+            wxFileName relative( tooNew );
+            relative.MakeRelativeTo( destDir );
+            tooNew = wxFileName( projectDir, wxEmptyString ).GetPathWithSep() + relative.GetFullPath();
+        }
+    }
+
+    if( ok )
+    {
+        wxMessageBox( wxString::Format( _( "Exported to '%s'." ), destDir ), _( "Export for Older KiCad Version" ),
+                      wxOK | wxICON_INFORMATION, m_frame );
+    }
+    else
+    {
+        // Fail-closed: leave nothing behind that the target could not open.
+        std::filesystem::remove_all( destPath, ec );
+
+        wxString msg = _( "Export failed: the project uses a feature the target version cannot open. "
+                          "Nothing was written." );
+
+        if( !tooNew.IsEmpty() )
+        {
+            msg = wxString::Format( _( "Export failed: '%s' is not handled by the export and %s cannot "
+                                       "open it. Remove or update the file and try again. Nothing was "
+                                       "written." ),
+                                    tooNew, names[sel] );
+        }
+
+        wxMessageBox( msg, _( "Export for Older KiCad Version" ), wxOK | wxICON_ERROR, m_frame );
+    }
+
+    return 0;
+}
+
+
 int KICAD_MANAGER_CONTROL::ExploreProject( const TOOL_EVENT& aEvent )
 {
     // Open project directory in host OS's file explorer
@@ -954,6 +1319,7 @@ void KICAD_MANAGER_CONTROL::setTransitions()
 
     Go( &KICAD_MANAGER_CONTROL::ArchiveProject,     KICAD_MANAGER_ACTIONS::archiveProject.MakeEvent() );
     Go( &KICAD_MANAGER_CONTROL::UnarchiveProject,   KICAD_MANAGER_ACTIONS::unarchiveProject.MakeEvent() );
+    Go( &KICAD_MANAGER_CONTROL::ExportForOlderVersion, KICAD_MANAGER_ACTIONS::exportForOlderVersion.MakeEvent() );
     Go( &KICAD_MANAGER_CONTROL::ExploreProject,     KICAD_MANAGER_ACTIONS::openProjectDirectory.MakeEvent() );
     Go( &KICAD_MANAGER_CONTROL::RestoreLocalHistory, KICAD_MANAGER_ACTIONS::restoreLocalHistory.MakeEvent() );
     Go( &KICAD_MANAGER_CONTROL::ToggleLocalHistory, KICAD_MANAGER_ACTIONS::showLocalHistory.MakeEvent() );

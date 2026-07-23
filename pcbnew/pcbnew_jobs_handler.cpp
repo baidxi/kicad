@@ -68,6 +68,9 @@
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_import_utils.h>
 #include <jobs/job_pcb_upgrade.h>
+#include <jobs/job_pcb_downgrade.h>
+#include <downgrade/board_downgrade.h>
+#include <wx/ffile.h>
 #include <eda_units.h>
 #include <footprint_library_adapter.h>
 #include <lset.h>
@@ -165,6 +168,11 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   return dlg.ShowModal() == wxID_OK;
               } );
     Register( "upgrade", std::bind( &PCBNEW_JOBS_HANDLER::JobUpgrade, this, std::placeholders::_1 ),
+              []( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  return true;
+              } );
+    Register( "downgrade", std::bind( &PCBNEW_JOBS_HANDLER::JobDowngrade, this, std::placeholders::_1 ),
               []( JOB* job, wxWindow* aParent ) -> bool
               {
                   return true;
@@ -2826,6 +2834,259 @@ int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )
 
     return CLI::EXIT_CODES::SUCCESS;
 }
+
+
+// Skip editor working state (autosaves, local history, backups).
+static bool isDowngradeWorkingArtifact( const wxString& aPath )
+{
+    wxFileName fn( aPath );
+
+    if( fn.GetFullName().StartsWith( wxT( "_autosave-" ) ) )
+        return true;
+
+    for( const wxString& dir : fn.GetDirs() )
+    {
+        if( dir == wxT( ".history" ) || dir == wxT( ".git" ) || dir.EndsWith( wxT( "-backups" ) ) )
+            return true;
+    }
+
+    return false;
+}
+
+
+// Classify library footprints so their losses appear in the report. A scratch board reuses the
+// board rule table unchanged.
+static void classifyFootprintLibraries( const wxString& aDir, const DOWNGRADE_TARGET& aTarget,
+                                        COMPATIBILITY_REPORT& aReport )
+{
+    wxArrayString files;
+    wxDir::GetAllFiles( aDir, &files, wxT( "*.kicad_mod" ) );
+
+    for( const wxString& file : files )
+    {
+        if( isDowngradeWorkingArtifact( file ) )
+            continue;
+
+        try
+        {
+            PCB_IO_KICAD_SEXPR loader;
+            wxString           nameOut;
+            FOOTPRINT*         fp = loader.ImportFootprint( file, nameOut );
+
+            if( !fp )
+                continue;
+
+            BOARD scratch;
+            scratch.Add( fp );
+
+            aReport.Merge( ClassifyBoardForDowngrade( &scratch, aTarget ) );
+        }
+        catch( const IO_ERROR& )
+        {
+            // A footprint that fails to load is caught later by the downgrade pass itself.
+        }
+    }
+}
+
+
+// Downgrade every .kicad_mod under the folder in place. Returns the first file the target could
+// not open, or empty when all are safe.
+static wxString downgradeFootprintLibraries( const wxString& aDir, const DOWNGRADE_TARGET& aTarget )
+{
+    wxArrayString files;
+    wxDir::GetAllFiles( aDir, &files, wxT( "*.kicad_mod" ) );
+
+    for( const wxString& file : files )
+    {
+        if( isDowngradeWorkingArtifact( file ) )
+            continue;
+
+        PCB_IO_KICAD_SEXPR         loader;
+        wxString                   nameOut;
+        std::unique_ptr<FOOTPRINT> fp( loader.ImportFootprint( file, nameOut ) );
+
+        if( !fp )
+            continue;
+
+        // The old (at) header captures a footprint's translate and rotate but not scale. A scaled
+        // library footprint would be silently corrupted, so refuse it.
+        const TRANSFORM_TRS& xform = fp->GetTransform();
+
+        if( aTarget.m_boardVersion < FIRST_FP_AFFINE_TRANSFORM
+            && ( xform.GetScaleX() != 1.0 || xform.GetScaleY() != 1.0 ) )
+        {
+            return file;
+        }
+
+        DowngradeFootprintInPlace( fp.get(), aTarget );
+
+        SaveFootprintForTarget( fp.get(), file, aTarget );
+
+        wxString content;
+        wxFFile  read( file, wxT( "rb" ) );
+
+        // An output we cannot read back to verify counts as a failure too.
+        if( !read.IsOpened() || !read.ReadAll( &content ) )
+            return file;
+
+        if( !content.Contains( wxString::Format( wxT( "(version %d)" ), aTarget.m_boardVersion ) ) )
+            return file;
+
+        if( !FindUnsupportedBoardToken( content, aTarget ).IsEmpty() )
+            return file;
+    }
+
+    return wxEmptyString;
+}
+
+
+int PCBNEW_JOBS_HANDLER::JobDowngrade( JOB* aJob )
+{
+    JOB_PCB_DOWNGRADE* job = dynamic_cast<JOB_PCB_DOWNGRADE*>( aJob );
+
+    if( job == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    const std::vector<DOWNGRADE_TARGET>& targets = GetDowngradeTargets();
+    const DOWNGRADE_TARGET*              target = nullptr;
+
+    if( job->m_target.IsEmpty() )
+    {
+        target = &targets.front();
+    }
+    else
+    {
+        for( const DOWNGRADE_TARGET& candidate : targets )
+        {
+            if( candidate.m_name == job->m_target )
+            {
+                target = &candidate;
+                break;
+            }
+        }
+    }
+
+    if( target == nullptr )
+    {
+        m_reporter->Report( wxString::Format( _( "Unknown target version '%s'\n" ), job->m_target ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_ARGS;
+    }
+
+    try
+    {
+        if( !job->m_filename.IsEmpty() )
+        {
+            // Load a private copy, never the live editor board.
+            PCB_IO_KICAD_SEXPR     loader;
+            std::unique_ptr<BOARD> brd( loader.LoadBoard( job->m_filename, nullptr ) );
+
+            if( !brd )
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+
+            COMPATIBILITY_REPORT report = ClassifyBoardForDowngrade( brd.get(), *target );
+
+            // Library losses belong in the report the user approves too.
+            if( !job->m_libraryDir.IsEmpty() )
+                classifyFootprintLibraries( job->m_libraryDir, *target, report );
+
+            job->m_report = report;
+
+            // A dry run classifies only. The caller reads m_report and decides.
+            if( job->m_dryRun )
+                return CLI::EXIT_CODES::SUCCESS;
+
+            for( const COMPAT_ENTRY& entry : report.Entries() )
+            {
+                wxString label;
+
+                switch( entry.m_bucket )
+                {
+                case DOWNGRADE_BUCKET::KEEP: label = _( "keep" ); break;
+                case DOWNGRADE_BUCKET::LOWER: label = _( "approximate" ); break;
+                case DOWNGRADE_BUCKET::DROP: label = _( "drop" ); break;
+                case DOWNGRADE_BUCKET::BLOCK: label = _( "block" ); break;
+                }
+
+                m_reporter->Report( wxString::Format( wxT( "  [%s] %s (%d): %s\n" ), label, entry.m_feature,
+                                                      entry.m_count, entry.m_detail ),
+                                    RPT_SEVERITY_INFO );
+            }
+
+            if( report.IsBlocked() )
+            {
+                m_reporter->Report( _( "Cannot export: the board uses features the target cannot represent.\n" ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            if( report.IsLossy() && !job->m_force )
+            {
+                m_reporter->Report( _( "Export would lose data. Re-run with --force to export anyway.\n" ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            // The real export loads its own fresh copy and fails closed on any uncovered token.
+            wxString badToken;
+
+            if( !ExportBoardToOlderVersion( job->m_filename, job->m_outputFile, *target, report, &badToken ) )
+            {
+                if( !badToken.IsEmpty() )
+                    m_reporter->Report( wxString::Format( _( "Cannot export: the result still uses '%s', which %s "
+                                                             "cannot open. This feature has no downgrade rule yet.\n" ),
+                                                          badToken, target->m_name ),
+                                        RPT_SEVERITY_ERROR );
+                else
+                    m_reporter->Report( _( "Could not export the downgraded board.\n" ), RPT_SEVERITY_ERROR );
+
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            m_reporter->Report( wxString::Format( _( "Saved downgraded board to '%s'\n" ), job->m_outputFile ),
+                                RPT_SEVERITY_INFO );
+        }
+        else if( job->m_dryRun )
+        {
+            COMPATIBILITY_REPORT report;
+
+            if( !job->m_libraryDir.IsEmpty() )
+                classifyFootprintLibraries( job->m_libraryDir, *target, report );
+
+            job->m_report = report;
+            return CLI::EXIT_CODES::SUCCESS;
+        }
+
+        // Fails closed if any library still uses a token the target cannot open.
+        if( !job->m_dryRun && !job->m_libraryDir.IsEmpty() )
+        {
+            wxString badLib = downgradeFootprintLibraries( job->m_libraryDir, *target );
+
+            if( !badLib.IsEmpty() )
+            {
+                m_reporter->Report( wxString::Format( _( "Cannot export: footprint '%s' uses a feature %s cannot "
+                                                         "open.\n" ),
+                                                      badLib, target->m_name ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            if( job->m_filename.IsEmpty() )
+                m_reporter->Report( _( "Downgraded footprint libraries\n" ), RPT_SEVERITY_INFO );
+        }
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        wxString where = job->m_filename.IsEmpty() ? _( "the footprint libraries" ) : job->m_filename;
+
+        m_reporter->Report( wxString::Format( _( "Error exporting '%s'.\n%s" ), where, ioe.What().GetData() ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    return CLI::EXIT_CODES::SUCCESS;
+}
+
 
 // Most job handlers need to align the running job with the board before resolving any
 // output paths with variables in them like ${REVISION}.
