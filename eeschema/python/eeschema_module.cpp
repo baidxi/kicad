@@ -41,12 +41,12 @@ namespace py = pybind11;
 // -----------------------------------------------------------------------
 namespace
 {
-struct HeadlessPgm : PGM_BASE
+struct HEADLESS_PGM : PGM_BASE
 {
     void MacOpenFile( const wxString& ) override {}
 };
 
-HeadlessPgm s_headlessPgm;
+HEADLESS_PGM s_headlessPgm;
 } // namespace
 
 // -----------------------------------------------------------------------
@@ -54,9 +54,9 @@ HeadlessPgm s_headlessPgm;
 // -----------------------------------------------------------------------
 namespace
 {
-struct DummyKiface : KIFACE_BASE
+struct DUMMY_KIFACE : KIFACE_BASE
 {
-    DummyKiface() : KIFACE_BASE( "eeschema", KIWAY::FACE_SCH ) {}
+    DUMMY_KIFACE() : KIFACE_BASE( "eeschema", KIWAY::FACE_SCH ) {}
 
     bool       OnKifaceStart( PGM_BASE*, int, KIWAY* ) override { return true; }
     wxWindow*  CreateKiWindow( wxWindow*, int, KIWAY*, int ) override
@@ -66,7 +66,7 @@ struct DummyKiface : KIFACE_BASE
     void*      IfaceOrAddress( int ) override { return nullptr; }
 };
 
-DummyKiface s_dummyKiface;
+DUMMY_KIFACE s_dummyKiface;
 } // namespace
 
 KIFACE_BASE& Kiface()
@@ -77,14 +77,14 @@ KIFACE_BASE& Kiface()
 using SCH_FILE_T = SCH_IO_MGR::SCH_FILE_T;
 
 // -----------------------------------------------------------------------
-// SchematicContext - manages the lifecycle of SETTINGS_MANAGER and
+// SCHEMATIC_CONTEXT - manages the lifecycle of SETTINGS_MANAGER and
 // SCHEMATIC objects. The Python user must hold a reference to this
 // object as long as any SCH_SHEET obtained from LoadSchematic is in use.
 // -----------------------------------------------------------------------
-class SchematicContext
+class SCHEMATIC_CONTEXT
 {
 public:
-    SchematicContext() :
+    SCHEMATIC_CONTEXT() :
             m_schematic( nullptr )
     {
         m_settingsManager.LoadProject( "" );
@@ -92,7 +92,7 @@ public:
         m_schematic.Reset();
     }
 
-    ~SchematicContext()
+    ~SCHEMATIC_CONTEXT()
     {
         m_schematic.Reset();
     }
@@ -134,7 +134,7 @@ static void convertProperties(
 // -----------------------------------------------------------------------
 static SCH_SHEET* doLoadSchematic( SCH_FILE_T aFileType,
                                    const std::string& aFileName,
-                                   SchematicContext& aContext,
+                                   SCHEMATIC_CONTEXT& aContext,
                                    const std::map<std::string, std::string>& aProperties )
 {
     IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( aFileType ) );
@@ -156,7 +156,7 @@ static SCH_SHEET* doLoadSchematic( SCH_FILE_T aFileType,
 }
 
 static void doSaveSchematic( SCH_FILE_T aFileType, const std::string& aFileName,
-                             SCH_SHEET* aSheet, SchematicContext& aContext,
+                             SCH_SHEET* aSheet, SCHEMATIC_CONTEXT& aContext,
                              const std::map<std::string, std::string>& aProperties )
 {
     IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( aFileType ) );
@@ -197,8 +197,8 @@ PYBIND11_MODULE( _eeschema, m )
 
     m.doc() = "KiCad Eeschema - Schematic editor Python bindings";
 
-    // -- SchematicContext --------------------------------------------------
-    py::class_<SchematicContext>( m, "SchematicContext" )
+    // -- SCHEMATIC_CONTEXT --------------------------------------------------
+    py::class_<SCHEMATIC_CONTEXT>( m, "SCHEMATIC_CONTEXT" )
             .def( py::init<>(),
                   "Create a new schematic context for loading/saving schematics." );
 
