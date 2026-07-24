@@ -33,8 +33,6 @@
 #include <increment.h>
 #include <pcb_shape.h>
 #include <pcb_group.h>
-#include <constraints/constraint_copy.h>
-#include <constraints/pcb_constraint.h>
 #include <pcb_point.h>
 #include <pcb_target.h>
 #include <pcb_textbox.h>
@@ -51,7 +49,6 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
-#include <tools/constraint_edit_tool.h>
 #include <tools/edit_tool.h>
 #include <tools/item_modification_routine.h>
 #include <tools/pcb_picker_tool.h>
@@ -78,6 +75,10 @@ using namespace std::placeholders;
 #include <dialogs/dialog_multi_unit_entry.h>
 #include <dialogs/dialog_unit_entry.h>
 #include <pcb_reference_image.h>
+
+#include <algorithm>   // std::max, std::min
+#include <cmath>       // std::fabs, std::sqrt, std::llround
+#include <vector>      // std::vector
 
 const unsigned int EDIT_TOOL::COORDS_PADDING = pcbIUScale.mmToIU( 20 );
 
@@ -121,6 +122,12 @@ static const std::vector<KICAD_T> footprintTypes = { PCB_FOOTPRINT_T };
 static const std::vector<KICAD_T> groupTypes = { PCB_GROUP_T };
 
 static const std::vector<KICAD_T> trackTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T };
+
+static const std::vector<KICAD_T> matchPropertiesTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T };             // MatchProp command
+
+static const std::vector<KICAD_T> extendTrackTypes = { PCB_TRACE_T };                                       // EXTEND command
+
+static const std::vector<KICAD_T> trimTrackTypes = { PCB_TRACE_T, PCB_ARC_T };                              // TRIM command
 
 static const std::vector<KICAD_T> baseConnectedTypes = { PCB_PAD_T, PCB_VIA_T, PCB_TRACE_T, PCB_ARC_T };
 
@@ -842,6 +849,17 @@ bool EDIT_TOOL::Init()
                                                       && SELECTION_CONDITIONS::OnlyTypes( padTypes ) );
     menu.AddItem( PCB_ACTIONS::swapGateNets,      gateSwapMultipleUnitsOnOneFootprint );
     menu.AddMenu( gateSwapSubMenu.get(),          gateSwapSingleUnitOnOneFootprint );
+
+    menu.AddSeparator();
+
+    menu.AddItem( PCB_ACTIONS::matchProperties,   SELECTION_CONDITIONS::Count( 1 )
+                                                  && SELECTION_CONDITIONS::OnlyTypes( matchPropertiesTypes ) );     // MatchProp command
+    
+    menu.AddItem( PCB_ACTIONS::extendTrack,       SELECTION_CONDITIONS::Count( 1 )
+                                                  && SELECTION_CONDITIONS::OnlyTypes( extendTrackTypes ) );         // EXTEND command
+
+    menu.AddItem( PCB_ACTIONS::trimTrack,         SELECTION_CONDITIONS::Count( 1 )
+                                                  && SELECTION_CONDITIONS::OnlyTypes( trimTrackTypes ) );           // TRIM command
 
     menu.AddSeparator();
 
@@ -2166,26 +2184,1790 @@ int EDIT_TOOL::BooleanPolygons( const TOOL_EVENT& aEvent )
 }
 
 
-int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
+// MATCHPROP command
+int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
 {
-    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+    BOARD_ITEM* source = nullptr;
 
-    // A constraint selected by clicking its badge has no board selection, so Edit targets it here
-    // before the normal properties path (mirrors the Delete hook for a badge-selected constraint).
-    if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
-        constraintTool && constraintTool->TryEditSelectedConstraint() )
+    /*
+     * First check whether the user has already selected a valid source.
+     *
+     * Do not use RequestSelection() here because, when nothing is selected,
+     * it immediately tries to use the item currently under the cursor.
+     * MATCHPROP must instead wait for an explicit source click.
+     */
+    PCB_SELECTION& initialSelection = m_selectionTool->GetSelection();
+
+    if( initialSelection.GetSize() == 1 )
     {
+        BOARD_ITEM* selectedItem = dynamic_cast<BOARD_ITEM*>( initialSelection.Front() );
+
+        if( selectedItem && selectedItem->IsType( { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T } ) )
+        {
+            source = selectedItem;
+        }
+        else
+        {
+            frame()->ShowInfoBarMsg( _( "MATCHPROP: The selected source must be a track or via." ) );
+
+            return 0;
+        }
+    }
+    else if( initialSelection.GetSize() > 1 )
+    {
+        frame()->ShowInfoBarMsg( _( "MATCHPROP: Select exactly one source track or via." ) );
+
         return 0;
     }
 
+    TOOL_EVENT pushedEvent = aEvent;
+
+    frame()->PushTool( pushedEvent );
+    Activate();
+
+    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    if( !editFrame )
+    {
+        frame()->PopTool( pushedEvent );
+        return 0;
+    }
+
+    canvas()->SetCurrentCursor( KICURSOR::PLACE );
+
+    /*
+     * Find a selectable track, arc or via at a clicked point.
+     *
+     * This is used when MATCHPROP is started before selecting a source.
+     */
+    auto findSourceAtPoint = [&]( const VECTOR2I& aPoint ) -> BOARD_ITEM*
+    {
+        int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+
+        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ),
+                         VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+
+        std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
+
+        getView()->Query( searchBox, candidates );
+
+        for( const auto& [viewItem, layer] : candidates )
+        {
+            if( !viewItem->IsBOARD_ITEM() )
+                continue;
+
+            BOARD_ITEM* candidate = static_cast<BOARD_ITEM*>( viewItem );
+
+            if( !candidate->IsType( { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T } ) )
+            {
+                continue;
+            }
+
+            if( !m_selectionTool->Selectable( candidate ) )
+                continue;
+
+            if( !candidate->HitTest( aPoint, hitTolerance ) )
+                continue;
+
+            return candidate;
+        }
+
+        return nullptr;
+    };
+
+    /*
+     * If no source was preselected, wait for the user to click one.
+     */
+    if( !source )
+    {
+        m_statusPopup->SetText( _( "MATCHPROP: Click source track or via - Esc to cancel" ) );
+
+        m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+
+        m_statusPopup->Popup();
+
+        canvas()->SetStatusPopup( m_statusPopup->GetPanel() );
+
+        bool sourceCancelled = false;
+
+        while( TOOL_EVENT* event = Wait() )
+        {
+            if( event->IsCancelInteractive() || event->IsActivate() )
+            {
+                sourceCancelled = true;
+
+                event->SetPassEvent( false );
+                break;
+            }
+            else if( event->IsClick( BUT_LEFT ) || event->IsAction( &ACTIONS::cursorClick ) )
+            {
+                source = findSourceAtPoint( event->Position() );
+
+                if( source )
+                {
+                    event->SetPassEvent( false );
+                    break;
+                }
+
+                frame()->SetStatusText( _( "MATCHPROP: No track or via at the clicked point." ) );
+
+                event->SetPassEvent( false );
+            }
+            else if( event->IsMotion() )
+            {
+                m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+
+                event->SetPassEvent();
+            }
+            else
+            {
+                event->SetPassEvent();
+            }
+        }
+
+        if( sourceCancelled || !source )
+        {
+            canvas()->SetStatusPopup( nullptr );
+            m_statusPopup->Hide();
+            canvas()->SetCurrentCursor( KICURSOR::ARROW );
+
+            frame()->PopTool( pushedEvent );
+
+            frame()->SetStatusText( _( "MATCHPROP cancelled" ) );
+
+            return 0;
+        }
+    }
+
+    /*
+     * Store the source properties before clearing any existing selection.
+     */
+    const KICAD_T sourceType = source->Type();
+
+    int     sourceWidth = 0;
+    int     sourceDrill = 0;
+    VIATYPE sourceViaType = VIATYPE::THROUGH;
+
+    if( sourceType == PCB_TRACE_T || sourceType == PCB_ARC_T )
+    {
+        PCB_TRACK* sourceTrack = static_cast<PCB_TRACK*>( source );
+
+        sourceWidth = sourceTrack->GetWidth();
+    }
+    else if( sourceType == PCB_VIA_T )
+    {
+        PCB_VIA* sourceVia = static_cast<PCB_VIA*>( source );
+
+        sourceWidth = sourceVia->GetWidth( PADSTACK::ALL_LAYERS );
+
+        sourceDrill = sourceVia->GetDrillValue();
+
+        sourceViaType = sourceVia->GetViaType();
+    }
+
+    /*
+     * The source properties are now stored, so clear the source selection
+     * before choosing destination items.
+     */
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+    BOARD_COMMIT commit( this );
+
+    int  matchedCount = 0;
+    bool cancelled = false;
+
+    wxString prompt;
+
+    if( sourceType == PCB_VIA_T )
+    {
+        prompt = _( "MATCHPROP: Click or drag-select destination vias - "
+                    "Esc to finish" );
+    }
+    else
+    {
+        prompt = _( "MATCHPROP: Click or drag-select destination tracks - "
+                    "Esc to finish" );
+    }
+
+    m_statusPopup->SetText( prompt );
+    m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+    m_statusPopup->Popup();
+    canvas()->SetStatusPopup( m_statusPopup->GetPanel() );
+    canvas()->SetCurrentCursor( KICURSOR::PLACE );
+
+    /*
+     * Selection rectangle used for window and crossing selections.
+     *
+     * It is handled inside this tool's event loop so that another
+     * nested Wait() call is not required.
+     */
+    KIGFX::PREVIEW::SELECTION_AREA selectionArea;
+    getView()->Add( &selectionArea );
+    getView()->SetVisible( &selectionArea, false );
+    bool draggingSelection = false;
+
+    /*
+     * Apply the source properties to one compatible destination.
+     *
+     * Returns true only when the destination was actually changed.
+     */
+    auto applyToTarget = [&]( BOARD_ITEM* aTarget ) -> bool
+    {
+        if( !aTarget )
+            return false;
+
+        /*
+                 * Do not apply properties back to the original source.
+                 */
+        if( aTarget == source )
+            return false;
+
+        if( !m_selectionTool->Selectable( aTarget ) )
+            return false;
+
+        bool changed = false;
+
+        /*
+                 * VIA source to VIA destination.
+                 */
+        if( sourceType == PCB_VIA_T && aTarget->Type() == PCB_VIA_T )
+        {
+            PCB_VIA* targetVia = static_cast<PCB_VIA*>( aTarget );
+            int targetWidth = targetVia->GetWidth( PADSTACK::ALL_LAYERS );
+            int targetDrill = targetVia->GetDrillValue();
+            VIATYPE targetViaType = targetVia->GetViaType();
+
+            if( targetWidth != sourceWidth || targetDrill != sourceDrill || targetViaType != sourceViaType )
+            {
+                commit.Modify( targetVia );
+                targetVia->SetWidth( PADSTACK::ALL_LAYERS, sourceWidth );
+                targetVia->SetDrill( sourceDrill );
+                targetVia->SetViaType( sourceViaType );
+                changed = true;
+            }
+        }
+        /*
+                 * Track or track-arc source to track or track-arc
+                 * destination.
+                 */
+        else if( ( sourceType == PCB_TRACE_T || sourceType == PCB_ARC_T )
+                 && ( aTarget->Type() == PCB_TRACE_T || aTarget->Type() == PCB_ARC_T ) )
+        {
+            PCB_TRACK* targetTrack = static_cast<PCB_TRACK*>( aTarget );
+
+            if( targetTrack->GetWidth() != sourceWidth )
+            {
+                commit.Modify( targetTrack );
+                targetTrack->SetWidth( sourceWidth );
+                changed = true;
+            }
+        }
+
+        if( changed )
+        {
+            matchedCount++;
+            getView()->Update( aTarget );
+            m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+        }
+
+        return changed;
+    };
+
+    /*
+     * Find and apply MATCHPROP to one compatible item at a clicked point.
+     */
+    auto applyAtPoint = [&]( const VECTOR2I& aPoint ) -> bool
+    {
+        int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+
+        std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
+        getView()->Query( searchBox, candidates );
+
+        BOARD_ITEM* target = nullptr;
+
+        for( const auto& [viewItem, layer] : candidates )
+        {
+            if( !viewItem->IsBOARD_ITEM() )
+                continue;
+
+            BOARD_ITEM* candidate = static_cast<BOARD_ITEM*>( viewItem );
+
+            if( candidate == source )
+                continue;
+
+            if( !m_selectionTool->Selectable( candidate ) )
+                continue;
+
+            bool compatible = false;
+
+            if( sourceType == PCB_VIA_T )
+            {
+                compatible = candidate->Type() == PCB_VIA_T;
+            }
+            else
+            {
+                compatible = candidate->Type() == PCB_TRACE_T || candidate->Type() == PCB_ARC_T;
+            }
+
+            if( !compatible )
+                continue;
+
+            if( !candidate->HitTest( aPoint, hitTolerance ) )
+            {
+                continue;
+            }
+
+            target = candidate;
+            break;
+        }
+
+        if( !target )
+        {
+            frame()->SetStatusText( _( "MATCHPROP: No compatible item at the clicked point." ) );
+            return false;
+        }
+
+        bool changed = applyToTarget( target );
+
+        if( changed )
+        {
+            frame()->SetStatusText( wxString::Format( _( "MATCHPROP: %d item(s) changed. "
+                                                         "Click or drag-select more targets, "
+                                                         "or press Esc." ),
+                                                      matchedCount ) );
+        }
+        else
+        {
+            frame()->SetStatusText( _( "MATCHPROP: Destination already has "
+                                       "matching properties." ) );
+        }
+
+        return changed;
+    };
+
+    /*
+     * Apply MATCHPROP to all compatible objects currently selected
+     * by a window or crossing selection.
+     */
+    auto applyToCurrentSelection = [&]()
+    {
+        PCB_SELECTION& targets = m_selectionTool->GetSelection();
+
+        /*
+         * Copy the item pointers before clearing the selection.
+         */
+        std::vector<BOARD_ITEM*> selectedTargets;
+        selectedTargets.reserve( targets.GetSize() );
+
+        for( EDA_ITEM* item : targets )
+        {
+            if( !item->IsBOARD_ITEM() )
+                continue;
+
+            selectedTargets.push_back( static_cast<BOARD_ITEM*>( item ) );
+        }
+
+        int changedByWindow = 0;
+
+        for( BOARD_ITEM* target : selectedTargets )
+        {
+            if( applyToTarget( target ) )
+                changedByWindow++;
+        }
+
+        /*
+         * Destination selections are temporary. Clear them so the
+         * user can immediately click or drag-select again.
+         */
+        m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+        if( changedByWindow > 0 )
+        {
+            frame()->SetStatusText( wxString::Format( _( "MATCHPROP: %d item(s) changed; "
+                                                         "%d changed by the last selection. "
+                                                         "Select more targets or press Esc." ),
+                                                      matchedCount, changedByWindow ) );
+        }
+        else
+        {
+            frame()->SetStatusText( _( "MATCHPROP: No compatible items in the selection, "
+                                       "or their properties already matched." ) );
+        }
+    };
+
+    /*
+     * MATCHPROP interactive destination loop.
+     *
+     * The user can alternate between individual clicks and
+     * window/crossing selections until Esc is pressed.
+     */
+    while( TOOL_EVENT* event = Wait() )
+    {
+        if( event->IsCancelInteractive() || event->IsActivate() )
+        {
+            cancelled = true;
+
+            event->SetPassEvent( false );
+            break;
+        }
+        else if( event->IsDrag( BUT_LEFT ) )
+        {
+            draggingSelection = true;
+            const VECTOR2I origin = event->DragOrigin();
+            const VECTOR2I end = event->Position();
+
+            /*
+             * Left-to-right:
+             *     Only objects fully contained by the rectangle.
+             *
+             * Right-to-left:
+             *     Objects touched by the rectangle.
+             */
+            bool crossingSelection = end.x < origin.x;
+
+            if( getView()->IsMirroredX() ) crossingSelection = !crossingSelection;
+
+            selectionArea.SetOrigin( origin );
+            selectionArea.SetEnd( end );
+            selectionArea.SetAdditive( false );
+            selectionArea.SetSubtractive( false );
+            selectionArea.SetExclusiveOr( false );
+            selectionArea.SetMode( crossingSelection ? SELECTION_MODE::TOUCHING_RECTANGLE
+                                                     : SELECTION_MODE::INSIDE_RECTANGLE );
+
+            getView()->SetVisible( &selectionArea, true );
+            getView()->Update( &selectionArea );
+            getViewControls()->SetAutoPan( true );
+            canvas()->SetCurrentCursor( crossingSelection ? KICURSOR::SELECT_LASSO : KICURSOR::SELECT_WINDOW );
+            event->SetPassEvent( false );
+        }
+        else if( event->IsMouseUp( BUT_LEFT ) && draggingSelection )
+        {
+            getViewControls()->SetAutoPan( false );
+            getView()->SetVisible( &selectionArea, false );
+
+            /*
+             * Process the completed rectangle without starting
+             * another Wait() loop.
+             */
+            m_selectionTool->SelectMultiple( selectionArea, false, false );
+            applyToCurrentSelection();
+            draggingSelection = false;
+            canvas()->SetCurrentCursor( KICURSOR::PLACE );
+            event->SetPassEvent( false );
+        }
+        else if( event->IsClick( BUT_LEFT ) || event->IsAction( &ACTIONS::cursorClick ) )
+        {
+            applyAtPoint( event->Position() );
+            event->SetPassEvent( false );
+        }
+        else if( event->IsMotion() )
+        {
+            m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+            event->SetPassEvent();
+        }
+        else
+        {
+            /*
+             * Allow zooming, panning and other navigation events
+             * to continue working.
+             */
+            event->SetPassEvent();
+        }
+    }
+
+    /*
+     * Clear any temporary destination selection.
+     */
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+    /*
+     * Clean up selection rectangle and temporary UI state.
+     */
+    getViewControls()->SetAutoPan( false );
+    getView()->SetVisible( &selectionArea, false );
+    getView()->Remove( &selectionArea );
+    canvas()->SetStatusPopup( nullptr );
+    m_statusPopup->Hide();
+    canvas()->SetCurrentCursor( KICURSOR::ARROW );
+
+    /*
+     * All changes made during this MATCHPROP session are grouped
+     * into one Undo operation.
+     */
+    if( !commit.Empty() )
+        commit.Push( _( "Match Properties" ) );
+
+    frame()->PopTool( pushedEvent );
+
+    if( matchedCount > 0 )
+    {
+        frame()->SetStatusText( wxString::Format( _( "MATCHPROP finished: %d item(s) changed." ), matchedCount ) );
+    }
+    else if( cancelled )
+    {
+        frame()->SetStatusText( _( "MATCHPROP cancelled" ) );
+    }
+    else
+    {
+        frame()->SetStatusText( _( "MATCHPROP finished: No items changed." ) );
+    }
+
+    return 0;
+}
+// End MATCHPROP command
+
+// EXTEND command
+int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
+{
+    TOOL_EVENT pushedEvent = aEvent;
+
+    frame()->PushTool( pushedEvent );
+    Activate();
+
+    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    if( !editFrame )
+    {
+        frame()->PopTool( pushedEvent );
+        return 0;
+    }
+
+    BOARD* board = editFrame->GetBoard();
+
+    if( !board )
+    {
+        frame()->PopTool( pushedEvent );
+        return 0;
+    }
+
+    /*
+     * If EXTEND was invoked from the right-click context menu with
+     * exactly one straight track selected, remember that track.
+     *
+     * It will be extended immediately instead of requiring the user
+     * to click it for a second time.
+     */
+    PCB_TRACK* initiallySelectedTrack = nullptr;
+    PCB_SELECTION& initialSelection = m_selectionTool->GetSelection();
+
+    if( initialSelection.GetSize() == 1 )
+    {
+        EDA_ITEM* selectedItem = initialSelection.Front();
+
+        if( selectedItem && selectedItem->Type() == PCB_TRACE_T )
+        {
+            PCB_TRACK* selectedTrack = static_cast<PCB_TRACK*>( selectedItem );
+
+            if( !selectedTrack->IsLocked() && m_selectionTool->Selectable( selectedTrack ) )
+            {
+                initiallySelectedTrack = selectedTrack;
+            }
+        }
+    }
+
+    /*
+     * Remember the current cursor position before clearing the
+     * selection. This position determines which endpoint of an
+     * initially selected track is extended.
+     */
+    const VECTOR2I initialCursorPosition = VECTOR2I( getViewControls()->GetCursorPosition( false ) );
+
+    /*
+     * Destination selections are not needed while EXTEND is active.
+     *
+     * Any initially selected source track has already been stored
+     * above.
+     */
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+    BOARD_COMMIT commit( this );
+    int  extendedCount = 0;
+    bool cancelled = false;
+
+    m_statusPopup->SetText( _( "EXTEND: Click near the end of a straight track - "
+                               "Esc to finish" ) );
+
+    m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+    m_statusPopup->Popup();
+    canvas()->SetStatusPopup( m_statusPopup->GetPanel() );
+    canvas()->SetCurrentCursor( KICURSOR::PLACE );
+
+    /*
+     * Calculate the intersection between an infinite forward ray
+     * and a finite line segment.
+     *
+     * Ray:
+     *
+     *     aRayOrigin + t * aRayDirection
+     *
+     * where t must be greater than zero.
+     *
+     * Segment:
+     *
+     *     aSegmentStart + u * ( aSegmentEnd - aSegmentStart )
+     *
+     * where u must be between zero and one.
+     */
+    auto findRaySegmentIntersection = []( const VECTOR2I& aRayOrigin, const VECTOR2I& aRayDirection,
+                                          const VECTOR2I& aSegmentStart, const VECTOR2I& aSegmentEnd,
+                                          VECTOR2I& aIntersection, long double& aRayParameter ) -> bool
+    {
+        const long double rayX = static_cast<long double>( aRayDirection.x );
+        const long double rayY = static_cast<long double>( aRayDirection.y );
+
+        const long double segmentX = static_cast<long double>( aSegmentEnd.x ) - static_cast<long double>( aSegmentStart.x );
+
+        const long double segmentY = static_cast<long double>( aSegmentEnd.y ) - static_cast<long double>( aSegmentStart.y );
+
+        /*
+         * Two-dimensional cross product:
+         *
+         *     rayDirection x segmentDirection
+         */
+        const long double denominator = rayX * segmentY - rayY * segmentX;
+
+        /*
+         * Parallel and collinear objects are ignored.
+         */
+        constexpr long double parallelTolerance = 1.0e-18L;
+
+        if( std::fabs( denominator ) < parallelTolerance )
+        {
+            return false;
+        }
+
+        const long double deltaX = static_cast<long double>( aSegmentStart.x ) - static_cast<long double>( aRayOrigin.x );
+
+        const long double deltaY = static_cast<long double>( aSegmentStart.y ) - static_cast<long double>( aRayOrigin.y );
+
+        /*
+         * t is the position along the extension ray.
+         *
+         * u is the position along the target segment.
+         */
+        const long double t = ( deltaX * segmentY - deltaY * segmentX ) / denominator;
+        const long double u = ( deltaX * rayY - deltaY * rayX ) / denominator;
+
+        /*
+         * The intersection must be in front of the selected track
+         * endpoint. A very small tolerance prevents the current
+         * endpoint itself being treated as the extension target.
+         */
+        constexpr long double forwardTolerance = 1.0e-12L;
+        constexpr long double segmentTolerance = 1.0e-12L;
+
+        if( t <= forwardTolerance )
+            return false;
+
+        if( u < -segmentTolerance || u > 1.0L + segmentTolerance )
+        {
+            return false;
+        }
+
+        const long double intersectionX = static_cast<long double>( aRayOrigin.x ) + t * rayX;
+        const long double intersectionY = static_cast<long double>( aRayOrigin.y ) + t * rayY;
+        aIntersection.x = static_cast<int>( std::llround( intersectionX ) );
+        aIntersection.y = static_cast<int>( std::llround( intersectionY ) );
+        aRayParameter = t;
+        return true;
+    };
+
+    /*
+     * Find one straight track at the clicked position.
+     *
+     * The clicked point is also retained because it determines
+     * which endpoint of the track is extended.
+     */
+    auto findTrackAtPoint = [&]( const VECTOR2I& aPoint ) -> PCB_TRACK*
+    {
+        const int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+        std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
+        getView()->Query( searchBox, candidates );
+        PCB_TRACK* selectedTrack = nullptr;
+
+        /*
+         * Prefer the track whose centreline is closest to the click.
+         *
+         * The view query can return several items where tracks
+         * overlap or cross.
+         */
+        long double nearestDistanceSquared = std::numeric_limits<long double>::max();
+
+        for( const auto& [viewItem, layer] : candidates )
+        {
+            if( !viewItem->IsBOARD_ITEM() )
+                continue;
+
+            BOARD_ITEM* candidate = static_cast<BOARD_ITEM*>( viewItem );
+
+            /*
+             * EXTEND currently supports straight tracks only.
+             */
+            if( candidate->Type() != PCB_TRACE_T )
+            {
+                continue;
+            }
+
+            if( !m_selectionTool->Selectable( candidate ) )
+            {
+                continue;
+            }
+
+            if( candidate->IsLocked() )
+                continue;
+
+            if( !candidate->HitTest( aPoint, hitTolerance ) )
+            {
+                continue;
+            }
+
+            PCB_TRACK* candidateTrack = static_cast<PCB_TRACK*>( candidate );
+            const VECTOR2I start = candidateTrack->GetStart();
+            const VECTOR2I end = candidateTrack->GetEnd();
+            const long double segmentX = static_cast<long double>( end.x ) - static_cast<long double>( start.x );
+            const long double segmentY = static_cast<long double>( end.y ) - static_cast<long double>( start.y );
+            const long double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+            if( segmentLengthSquared <= 0.0L )
+                continue;
+
+            const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( start.x );
+            const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( start.y );
+            long double projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
+            projection = std::max( 0.0L, std::min( 1.0L, projection ) );
+            const long double closestX = static_cast<long double>( start.x ) + projection * segmentX;
+            const long double closestY = static_cast<long double>( start.y ) + projection * segmentY;
+            const long double differenceX = static_cast<long double>( aPoint.x ) - closestX;
+            const long double differenceY = static_cast<long double>( aPoint.y ) - closestY;
+            const long double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+
+            if( distanceSquared < nearestDistanceSquared )
+            {
+                nearestDistanceSquared = distanceSquared;
+                selectedTrack = candidateTrack;
+            }
+        }
+
+        return selectedTrack;
+    };
+
+    /*
+     * Extend an already known straight track.
+     *
+     * aPoint determines which endpoint is extended.
+     */
+    auto extendTrack = [&]( PCB_TRACK* sourceTrack, const VECTOR2I& aPoint ) -> bool
+    {
+        if( !sourceTrack )
+            return false;
+
+        if( sourceTrack->Type() != PCB_TRACE_T )
+        {
+            return false;
+        }
+
+        if( sourceTrack->IsLocked() )
+        {
+            frame()->SetStatusText( _( "EXTEND: The selected track is locked." ) );
+
+            return false;
+        }
+
+        const VECTOR2I sourceStart = sourceTrack->GetStart();
+        const VECTOR2I sourceEnd = sourceTrack->GetEnd();
+
+        /*
+         * Determine which endpoint is nearest the cursor.
+         *
+         * That is the endpoint which will be extended.
+         */
+        const long double startDifferenceX = static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceStart.x );
+        const long double startDifferenceY = static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceStart.y );
+        const long double endDifferenceX = static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceEnd.x );
+        const long double endDifferenceY = static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceEnd.y );
+        const long double startDistanceSquared = startDifferenceX * startDifferenceX + startDifferenceY * startDifferenceY;
+        const long double endDistanceSquared = endDifferenceX * endDifferenceX + endDifferenceY * endDifferenceY;
+        const bool extendStart = startDistanceSquared < endDistanceSquared;
+
+        VECTOR2I fixedPoint;
+        VECTOR2I movingPoint;
+
+        if( extendStart )
+        {
+            movingPoint = sourceStart;
+            fixedPoint = sourceEnd;
+        }
+        else
+        {
+            movingPoint = sourceEnd;
+            fixedPoint = sourceStart;
+        }
+
+        /*
+         * The extension continues in the same direction as the
+         * existing source track.
+         */
+        const VECTOR2I rayDirection = movingPoint - fixedPoint;
+
+        if( rayDirection.x == 0 && rayDirection.y == 0 )
+        {
+            frame()->SetStatusText( _( "EXTEND: The selected track has zero length." ) );
+            return false;
+        }
+
+        enum class EXTEND_TARGET_TYPE
+        {
+            NONE,
+            SAME_NET_TRACK,
+            DIFFERENT_NET_TRACK,
+            GRAPHIC_LINE
+        };
+
+        EXTEND_TARGET_TYPE nearestTargetType = EXTEND_TARGET_TYPE::NONE;
+        VECTOR2I nearestIntersection;
+        long double nearestRayParameter = std::numeric_limits<long double>::max();
+
+        /*
+         * Examine every board track and retain the nearest
+         * intersection in front of the selected endpoint.
+         */
+        for( PCB_TRACK* targetTrack : board->Tracks() )
+        {
+            if( !targetTrack )
+                continue;
+
+            if( targetTrack == sourceTrack )
+                continue;
+
+            /*
+             * Straight tracks only.
+             */
+            if( targetTrack->Type() != PCB_TRACE_T )
+            {
+                continue;
+            }
+
+            /*
+             * Tracks on other copper layers are not physically
+             * connected to the source track.
+             */
+            if( targetTrack->GetLayer() != sourceTrack->GetLayer() )
+            {
+                continue;
+            }
+
+            if( !m_selectionTool->Selectable( targetTrack ) )
+            {
+                continue;
+            }
+
+            VECTOR2I intersection;
+
+            long double rayParameter = 0.0L;
+
+            if( !findRaySegmentIntersection( movingPoint, rayDirection, targetTrack->GetStart(), targetTrack->GetEnd(), intersection, rayParameter ) )
+            {
+                continue;
+            }
+
+            if( rayParameter < nearestRayParameter )
+            {
+                nearestRayParameter = rayParameter;
+                nearestIntersection = intersection;
+
+                if( sourceTrack->GetNetCode() == targetTrack->GetNetCode() )
+                {
+                    nearestTargetType = EXTEND_TARGET_TYPE::SAME_NET_TRACK;
+                }
+                else
+                {
+                    nearestTargetType = EXTEND_TARGET_TYPE::DIFFERENT_NET_TRACK;
+                }
+            }
+        }
+
+        /*
+         * Examine straight graphic lines.
+         *
+         * These can be used as temporary AutoCAD-style boundary
+         * lines. The graphic may be on Dwgs.User, Cmts.User,
+         * Eco layers, Edge.Cuts or another drawing layer.
+         */
+        for( BOARD_ITEM* drawingItem : board->Drawings() )
+        {
+            if( !drawingItem )
+                continue;
+
+            if( drawingItem->Type() != PCB_SHAPE_T )
+            {
+                continue;
+            }
+
+            PCB_SHAPE* targetLine = static_cast<PCB_SHAPE*>( drawingItem );
+
+            /*
+             * Straight graphic segments only.
+             */
+            if( targetLine->GetShape() != SHAPE_T::SEGMENT )
+            {
+                continue;
+            }
+
+            /*
+             * Ignore hidden graphic layers.
+             */
+            if( !getView()->IsLayerVisible( targetLine->GetLayer() ) )
+            {
+                continue;
+            }
+
+            VECTOR2I intersection;
+            long double rayParameter = 0.0L;
+
+            if( !findRaySegmentIntersection( movingPoint, rayDirection, targetLine->GetStart(), targetLine->GetEnd(),
+                                             intersection, rayParameter ) )
+            {
+                continue;
+            }
+
+            if( rayParameter < nearestRayParameter )
+            {
+                nearestRayParameter = rayParameter;
+                nearestIntersection = intersection;
+                nearestTargetType = EXTEND_TARGET_TYPE::GRAPHIC_LINE;
+            }
+        }
+
+        if( nearestTargetType == EXTEND_TARGET_TYPE::NONE )
+        {
+            frame()->SetStatusText( _( "EXTEND: No intersecting same-layer track "
+                                       "or graphic line was found in the selected "
+                                       "direction." ) );
+
+            return false;
+        }
+
+        /*
+         * Do not automatically create a short circuit to another
+         * net.
+         *
+         * A graphic boundary line has no net, so extending to it is
+         * always allowed.
+         */
+        if( nearestTargetType == EXTEND_TARGET_TYPE::DIFFERENT_NET_TRACK )
+        {
+            frame()->SetStatusText( _( "EXTEND: The nearest intersecting copper "
+                                       "track belongs to a different net." ) );
+
+            return false;
+        }
+
+        /*
+         * Do not create a zero-length track or replace an endpoint
+         * with its current position.
+         */
+        if( nearestIntersection == movingPoint )
+        {
+            frame()->SetStatusText( _( "EXTEND: The selected endpoint already meets "
+                                       "the target object." ) );
+
+            return false;
+        }
+
+        commit.Modify( sourceTrack );
+
+        if( extendStart )
+        {
+            sourceTrack->SetStart( nearestIntersection );
+        }
+        else
+        {
+            sourceTrack->SetEnd( nearestIntersection );
+        }
+
+        extendedCount++;
+        getView()->Update( sourceTrack );
+        m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+
+        if( nearestTargetType == EXTEND_TARGET_TYPE::GRAPHIC_LINE )
+        {
+            frame()->SetStatusText( wxString::Format( _( "EXTEND: %d track(s) extended to a "
+                                                         "graphic boundary. Click near another "
+                                                         "track endpoint or press Esc." ),
+                                                      extendedCount ) );
+        }
+        else
+        {
+            frame()->SetStatusText( wxString::Format( _( "EXTEND: %d track(s) extended to a "
+                                                         "same-net track. Click near another "
+                                                         "track endpoint or press Esc." ),
+                                                      extendedCount ) );
+        }
+
+        return true;
+    };
+
+    /*
+     * Find a straight track at the clicked point and extend it.
+     */
+    auto extendAtPoint = [&]( const VECTOR2I& aPoint ) -> bool
+    {
+        PCB_TRACK* sourceTrack = findTrackAtPoint( aPoint );
+
+        if( !sourceTrack )
+        {
+            frame()->SetStatusText( _( "EXTEND: No unlocked straight track at the "
+                                       "clicked point." ) );
+
+            return false;
+        }
+
+        return extendTrack( sourceTrack, aPoint );
+    };
+
+    /*
+     * When invoked from the right-click context menu with one
+     * straight track selected, extend it immediately.
+     */
+    if( initiallySelectedTrack )
+    {
+        extendTrack( initiallySelectedTrack, initialCursorPosition );
+    }
+
+    /*
+     * EXTEND interactive loop.
+     *
+     * The command remains active so the user can extend several
+     * additional tracks before pressing Esc.
+     */
+    while( TOOL_EVENT* event = Wait() )
+    {
+        if( event->IsCancelInteractive() || event->IsActivate() )
+        {
+            cancelled = true;
+            event->SetPassEvent( false );
+            break;
+        }
+        else if( event->IsClick( BUT_LEFT ) || event->IsAction( &ACTIONS::cursorClick ) )
+        {
+            extendAtPoint( event->Position() );
+            event->SetPassEvent( false );
+        }
+        else if( event->IsMotion() )
+        {
+            m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+            event->SetPassEvent();
+        }
+        else
+        {
+            /*
+             * Allow zooming, panning and other navigation events
+             * while EXTEND remains active.
+             */
+            event->SetPassEvent();
+        }
+    }
+
+    /*
+     * Clean up temporary user-interface state.
+     */
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+    canvas()->SetStatusPopup( nullptr );
+    m_statusPopup->Hide();
+    canvas()->SetCurrentCursor( KICURSOR::ARROW );
+
+    /*
+     * Group all tracks extended during this command session into
+     * one Undo operation.
+     */
+    if( !commit.Empty() )
+        commit.Push( _( "Extend Track" ) );
+
+    frame()->PopTool( pushedEvent );
+
+    if( extendedCount > 0 )
+    {
+        frame()->SetStatusText( wxString::Format( _( "EXTEND finished: %d track(s) extended." ), extendedCount ) );
+    }
+    else if( cancelled )
+    {
+        frame()->SetStatusText( _( "EXTEND cancelled." ) );
+    }
+    else
+    {
+        frame()->SetStatusText( _( "EXTEND finished: No tracks extended." ) );
+    }
+
+    return 0;
+}
+// End EXTEND command
+
+
+// TRIM command
+int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
+{
+    TOOL_EVENT pushedEvent = aEvent;
+    frame()->PushTool( pushedEvent );
+    Activate();
+
+    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    if( !editFrame )
+    {
+        frame()->PopTool( pushedEvent );
+        return 0;
+    }
+
+    BOARD* board = editFrame->GetBoard();
+
+    if( !board )
+    {
+        frame()->PopTool( pushedEvent );
+        return 0;
+    }
+
+    /*
+     * If TRIM was invoked from the right-click context menu with
+     * exactly one straight track selected, remember that track.
+     *
+     * It will be trimmed immediately without requiring the user
+     * to click it again.
+     */
+    PCB_TRACK* initiallySelectedTrack = nullptr;
+
+    PCB_SELECTION& initialSelection = m_selectionTool->GetSelection();
+
+    if( initialSelection.GetSize() == 1 )
+    {
+        EDA_ITEM* selectedItem = initialSelection.Front();
+
+        if( selectedItem && selectedItem->Type() == PCB_TRACE_T )
+        {
+            PCB_TRACK* selectedTrack = static_cast<PCB_TRACK*>( selectedItem );
+
+            if( !selectedTrack->IsLocked() && m_selectionTool->Selectable( selectedTrack ) )
+            {
+                initiallySelectedTrack = selectedTrack;
+            }
+        }
+    }
+
+    /*
+     * This position determines which portion of an initially
+     * selected track is trimmed.
+     */
+    const VECTOR2I initialCursorPosition = VECTOR2I( getViewControls()->GetCursorPosition( false ) );
+
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+    int  trimmedCount = 0;
+    bool cancelled = false;
+    m_statusPopup->SetText( _( "TRIM: Click the part of a straight track "
+                               "to remove - Esc to finish" ) );
+
+    m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+    m_statusPopup->Popup();
+    canvas()->SetStatusPopup( m_statusPopup->GetPanel() );
+    canvas()->SetCurrentCursor( KICURSOR::PLACE );
+
+    /*
+     * Find the intersection between two finite line segments.
+     *
+     * Source:
+     *
+     *     aSourceStart + t * sourceDirection
+     *
+     * Target:
+     *
+     *     aTargetStart + u * targetDirection
+     *
+     * Both t and u must be between zero and one.
+     *
+     * aSourceParameter is the position along the source segment,
+     * measured from its start:
+     *
+     *     start = 0.0
+     *     end   = 1.0
+     */
+    auto findSegmentIntersection = []( const VECTOR2I& aSourceStart, const VECTOR2I& aSourceEnd,
+                                       const VECTOR2I& aTargetStart, const VECTOR2I& aTargetEnd,
+                                       VECTOR2I& aIntersection, long double& aSourceParameter ) -> bool
+    {
+        const long double sourceX = static_cast<long double>( aSourceEnd.x ) - static_cast<long double>( aSourceStart.x );
+        const long double sourceY = static_cast<long double>( aSourceEnd.y ) - static_cast<long double>( aSourceStart.y );
+        const long double targetX = static_cast<long double>( aTargetEnd.x ) - static_cast<long double>( aTargetStart.x );
+        const long double targetY = static_cast<long double>( aTargetEnd.y ) - static_cast<long double>( aTargetStart.y );
+        const long double denominator = sourceX * targetY - sourceY * targetX;
+        constexpr long double parallelTolerance = 1.0e-18L;
+
+        if( std::fabs( denominator ) < parallelTolerance )
+        {
+            return false;
+        }
+
+        const long double deltaX = static_cast<long double>( aTargetStart.x ) - static_cast<long double>( aSourceStart.x );
+        const long double deltaY = static_cast<long double>( aTargetStart.y ) - static_cast<long double>( aSourceStart.y );
+        const long double t = ( deltaX * targetY - deltaY * targetX ) / denominator;
+        const long double u = ( deltaX * sourceY - deltaY * sourceX ) / denominator;
+
+        /*
+         * Ignore intersections at the existing source endpoints.
+         *
+         * Such intersections would not shorten or split the track.
+         */
+        constexpr long double endpointTolerance = 1.0e-12L;
+        constexpr long double targetTolerance = 1.0e-12L;
+
+        if( t <= endpointTolerance || t >= 1.0L - endpointTolerance )
+        {
+            return false;
+        }
+
+        if( u < -targetTolerance || u > 1.0L + targetTolerance )
+        {
+            return false;
+        }
+
+        const long double intersectionX = static_cast<long double>( aSourceStart.x ) + t * sourceX;
+        const long double intersectionY = static_cast<long double>( aSourceStart.y ) + t * sourceY;
+        aIntersection.x = static_cast<int>( std::llround( intersectionX ) );
+        aIntersection.y = static_cast<int>( std::llround( intersectionY ) );
+        aSourceParameter = t;
+
+        return true;
+    };
+
+    /*
+     * Calculate the position of a point along a finite source track.
+     *
+     * The returned value is clamped between zero and one:
+     *
+     *     start = 0.0
+     *     end   = 1.0
+     */
+    auto pointParameterOnTrack = []( const VECTOR2I& aPoint, const VECTOR2I& aStart,
+                                     const VECTOR2I& aEnd ) -> long double
+    {
+        const long double segmentX = static_cast<long double>( aEnd.x ) - static_cast<long double>( aStart.x );
+        const long double segmentY = static_cast<long double>( aEnd.y ) - static_cast<long double>( aStart.y );
+        const long double lengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+        if( lengthSquared <= 0.0L )
+            return 0.0L;
+
+        const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( aStart.x );
+        const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( aStart.y );
+        long double parameter = ( pointX * segmentX + pointY * segmentY ) / lengthSquared;
+
+        return std::max( 0.0L, std::min( 1.0L, parameter ) );
+    };
+
+    /*
+     * Find the nearest straight track at a clicked position.
+     */
+    auto findTrackAtPoint = [&]( const VECTOR2I& aPoint ) -> PCB_TRACK*
+    {
+        const int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+        std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
+        getView()->Query( searchBox, candidates );
+        PCB_TRACK* selectedTrack = nullptr;
+        long double nearestDistanceSquared = std::numeric_limits<long double>::max();
+
+        for( const auto& [viewItem, layer] : candidates )
+        {
+            if( !viewItem->IsBOARD_ITEM() )
+                continue;
+
+            BOARD_ITEM* candidate = static_cast<BOARD_ITEM*>( viewItem );
+
+            if( candidate->Type() != PCB_TRACE_T )
+                continue;
+
+            if( !m_selectionTool->Selectable( candidate ) )
+            {
+                continue;
+            }
+
+            if( candidate->IsLocked() )
+                continue;
+
+            if( !candidate->HitTest( aPoint, hitTolerance ) )
+            {
+                continue;
+            }
+
+            PCB_TRACK* candidateTrack = static_cast<PCB_TRACK*>( candidate );
+            const VECTOR2I start = candidateTrack->GetStart();
+            const VECTOR2I end = candidateTrack->GetEnd();
+            const long double segmentX = static_cast<long double>( end.x ) - static_cast<long double>( start.x );
+            const long double segmentY = static_cast<long double>( end.y ) - static_cast<long double>( start.y );
+            const long double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+
+            if( segmentLengthSquared <= 0.0L )
+                continue;
+
+            const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( start.x );
+            const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( start.y );
+            long double projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
+            projection = std::max( 0.0L, std::min( 1.0L, projection ) );
+            const long double closestX = static_cast<long double>( start.x ) + projection * segmentX;
+            const long double closestY = static_cast<long double>( start.y ) + projection * segmentY;
+            const long double differenceX = static_cast<long double>( aPoint.x ) - closestX;
+            const long double differenceY = static_cast<long double>( aPoint.y ) - closestY;
+            const long double distanceSquared = differenceX * differenceX + differenceY * differenceY;
+
+            if( distanceSquared < nearestDistanceSquared )
+            {
+                nearestDistanceSquared = distanceSquared;
+                selectedTrack = candidateTrack;
+            }
+        }
+
+        return selectedTrack;
+    };
+
+    enum class TRIM_TARGET_TYPE
+    {
+        SAME_NET_TRACK,
+        GRAPHIC_LINE
+    };
+
+    struct TRIM_INTERSECTION
+    {
+        VECTOR2I         point;
+        long double      parameter;
+        TRIM_TARGET_TYPE type;
+    };
+
+    /*
+     * Trim an already-known straight track.
+     */
+    auto trimTrack = [&]( PCB_TRACK* sourceTrack, const VECTOR2I& aPoint ) -> bool
+    {
+        if( !sourceTrack )
+            return false;
+
+        if( sourceTrack->Type() != PCB_TRACE_T )
+            return false;
+
+        if( sourceTrack->IsLocked() )
+        {
+            frame()->SetStatusText( _( "TRIM: The selected track is locked." ) );
+
+            return false;
+        }
+
+        const VECTOR2I sourceStart = sourceTrack->GetStart();
+
+        const VECTOR2I sourceEnd = sourceTrack->GetEnd();
+
+        if( sourceStart == sourceEnd )
+        {
+            frame()->SetStatusText( _( "TRIM: The selected track has zero length." ) );
+
+            return false;
+        }
+
+        /*
+         * Store every valid intersection along the complete source
+         * track rather than retaining only the nearest one.
+         */
+        std::vector<TRIM_INTERSECTION> intersections;
+
+        /*
+         * Add an intersection while suppressing duplicate points.
+         *
+         * A copper track and graphic boundary may cross the source at
+         * exactly the same point.
+         */
+        auto addIntersection = [&]( const VECTOR2I& aIntersection, long double aParameter, TRIM_TARGET_TYPE aType )
+        {
+            constexpr long double duplicateTolerance = 1.0e-12L;
+
+            for( TRIM_INTERSECTION& existing : intersections )
+            {
+                if( existing.point == aIntersection
+                    || std::fabs( existing.parameter - aParameter ) < duplicateTolerance )
+                {
+                    /*
+                     * Prefer a graphic line for the status message
+                     * when both types exist at the same point.
+                     */
+                    if( aType == TRIM_TARGET_TYPE::GRAPHIC_LINE )
+                    {
+                        existing.type = aType;
+                    }
+
+                    return;
+                }
+            }
+
+            intersections.push_back( { aIntersection, aParameter, aType } );
+        };
+
+        /*
+         * Search same-net straight copper tracks on the same layer.
+         *
+         * Different-net tracks are deliberately ignored as trim
+         * boundaries because trimming onto them would create a short.
+         */
+        for( PCB_TRACK* targetTrack : board->Tracks() )
+        {
+            if( !targetTrack )
+                continue;
+
+            if( targetTrack == sourceTrack )
+                continue;
+
+            if( targetTrack->Type() != PCB_TRACE_T )
+                continue;
+
+            if( targetTrack->GetLayer() != sourceTrack->GetLayer() )
+            {
+                continue;
+            }
+
+            if( sourceTrack->GetNetCode() != targetTrack->GetNetCode() )
+            {
+                continue;
+            }
+
+            if( !m_selectionTool->Selectable( targetTrack ) )
+            {
+                continue;
+            }
+
+            VECTOR2I intersection;
+
+            long double sourceParameter = 0.0L;
+
+            if( !findSegmentIntersection( sourceStart, sourceEnd, targetTrack->GetStart(), targetTrack->GetEnd(), intersection, sourceParameter ) )
+            {
+                continue;
+            }
+
+            addIntersection( intersection, sourceParameter, TRIM_TARGET_TYPE::SAME_NET_TRACK );
+        }
+
+        /*
+         * Search straight graphic lines.
+         *
+         * These are valid AutoCAD-style temporary trim boundaries.
+         */
+        for( BOARD_ITEM* drawingItem : board->Drawings() )
+        {
+            if( !drawingItem )
+                continue;
+
+            PCB_SHAPE* targetLine = dynamic_cast<PCB_SHAPE*>( drawingItem );
+
+            if( !targetLine )
+                continue;
+
+            if( targetLine->GetShape() != SHAPE_T::SEGMENT )
+            {
+                continue;
+            }
+
+            VECTOR2I intersection;
+            long double sourceParameter = 0.0L;
+
+            if( !findSegmentIntersection( sourceStart, sourceEnd, targetLine->GetStart(), targetLine->GetEnd(), intersection, sourceParameter ) )
+            {
+                continue;
+            }
+
+            addIntersection( intersection, sourceParameter, TRIM_TARGET_TYPE::GRAPHIC_LINE );
+        }
+
+        if( intersections.empty() )
+        {
+            frame()->SetStatusText( _( "TRIM: No intersecting same-net track or "
+                                       "graphic line was found on the selected track." ) );
+
+            return false;
+        }
+
+        /*
+         * Sort intersections from the original source start toward
+         * the original source end.
+         */
+        std::sort( intersections.begin(), intersections.end(),
+                   []( const TRIM_INTERSECTION& aLeft, const TRIM_INTERSECTION& aRight )
+                   {
+                       return aLeft.parameter < aRight.parameter;
+                   } );
+
+        const long double clickParameter = pointParameterOnTrack( aPoint, sourceStart, sourceEnd );
+
+        /*
+         * Locate the nearest intersection before and after the click.
+         */
+        const TRIM_INTERSECTION* intersectionBefore = nullptr;
+        const TRIM_INTERSECTION* intersectionAfter = nullptr;
+        constexpr long double clickTolerance = 1.0e-12L;
+
+        for( const TRIM_INTERSECTION& intersection : intersections )
+        {
+            if( intersection.parameter < clickParameter - clickTolerance )
+            {
+                intersectionBefore = &intersection;
+            }
+            else if( intersection.parameter > clickParameter + clickTolerance )
+            {
+                intersectionAfter = &intersection;
+
+                break;
+            }
+        }
+
+        /*
+         * Each successful TRIM click is committed immediately.
+         *
+         * This makes newly-created split segments appear at once and
+         * keeps Undo/Redo synchronized with the board and view.
+         */
+        BOARD_COMMIT commit( this );
+
+        /*
+         * CASE 1:
+         *
+         * The click lies between two boundaries.
+         *
+         * Keep the original start-side section in sourceTrack and
+         * create a duplicate for the end-side section.
+         */
+        if( intersectionBefore && intersectionAfter )
+        {
+            //BOARD_ITEM* duplicateItem = sourceTrack->Duplicate( true, &commit );
+            BOARD_ITEM* duplicateItem = sourceTrack->Duplicate( false );
+
+            PCB_TRACK* secondTrack = dynamic_cast<PCB_TRACK*>( duplicateItem );
+
+            if( !secondTrack )
+            {
+                delete duplicateItem;
+
+                frame()->SetStatusText( _( "TRIM: Unable to create the second "
+                                           "remaining track segment." ) );
+
+                return false;
+            }
+
+            /*
+             * The original track becomes:
+             *
+             *     original start -> boundary before click
+             */
+            commit.Modify( sourceTrack );
+            sourceTrack->SetStart( sourceStart );
+            sourceTrack->SetEnd( intersectionBefore->point );
+
+            /*
+             * The duplicate track becomes:
+             *
+             *     boundary after click -> original end
+             */
+            secondTrack->SetStart( intersectionAfter->point );
+            secondTrack->SetEnd( sourceEnd );
+            secondTrack->ClearSelected();
+            commit.Add( secondTrack );
+            commit.Push( _( "Trim Track" ) );
+            trimmedCount++;
+            m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+
+            frame()->SetStatusText( wxString::Format( _( "TRIM: %d section(s) removed between "
+                                                         "two boundaries. Click another track "
+                                                         "or press Esc." ),
+                                                      trimmedCount ) );
+
+            return true;
+        }
+
+        /*
+         * CASE 2:
+         *
+         * The click lies before the first intersection.
+         *
+         * Remove the start-side portion.
+         */
+        if( !intersectionBefore && intersectionAfter )
+        {
+            if( intersectionAfter->point == sourceEnd )
+            {
+                frame()->SetStatusText( _( "TRIM: The selected track cannot be "
+                                           "shortened at this intersection." ) );
+
+                return false;
+            }
+
+            commit.Modify( sourceTrack );
+            sourceTrack->SetStart( intersectionAfter->point );
+            commit.Push( _( "Trim Track" ) );
+            trimmedCount++;
+            m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+
+            if( intersectionAfter->type == TRIM_TARGET_TYPE::GRAPHIC_LINE )
+            {
+                frame()->SetStatusText( wxString::Format( _( "TRIM: %d track section(s) trimmed "
+                                                             "to a graphic boundary. Click another "
+                                                             "track or press Esc." ),
+                                                          trimmedCount ) );
+            }
+            else
+            {
+                frame()->SetStatusText( wxString::Format( _( "TRIM: %d track section(s) trimmed "
+                                                             "to a same-net track. Click another "
+                                                             "track or press Esc." ),
+                                                          trimmedCount ) );
+            }
+
+            return true;
+        }
+
+        /*
+         * CASE 3:
+         *
+         * The click lies after the final intersection.
+         *
+         * Remove the end-side portion.
+         */
+        if( intersectionBefore && !intersectionAfter )
+        {
+            if( intersectionBefore->point == sourceStart )
+            {
+                frame()->SetStatusText( _( "TRIM: The selected track cannot be "
+                                           "shortened at this intersection." ) );
+
+                return false;
+            }
+
+            commit.Modify( sourceTrack );
+            sourceTrack->SetEnd( intersectionBefore->point );
+            commit.Push( _( "Trim Track" ) );
+            trimmedCount++;
+            m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
+
+            if( intersectionBefore->type == TRIM_TARGET_TYPE::GRAPHIC_LINE )
+            {
+                frame()->SetStatusText( wxString::Format( _( "TRIM: %d track section(s) trimmed "
+                                                             "to a graphic boundary. Click another "
+                                                             "track or press Esc." ),
+                                                          trimmedCount ) );
+            }
+            else
+            {
+                frame()->SetStatusText( wxString::Format( _( "TRIM: %d track section(s) trimmed "
+                                                             "to a same-net track. Click another "
+                                                             "track or press Esc." ),
+                                                          trimmedCount ) );
+            }
+
+            return true;
+        }
+
+        /*
+         * The click was effectively on an intersection point itself.
+         *
+         * There is no unambiguous section to remove.
+         */
+        frame()->SetStatusText( _( "TRIM: Click on the track section to remove, "
+                                   "not directly on the boundary." ) );
+
+        return false;
+    };
+
+    /*
+     * Locate and trim a straight track at a clicked point.
+     */
+    auto trimAtPoint = [&]( const VECTOR2I& aPoint ) -> bool
+    {
+        PCB_TRACK* sourceTrack = findTrackAtPoint( aPoint );
+
+        if( !sourceTrack )
+        {
+            frame()->SetStatusText( _( "TRIM: No unlocked straight track at the "
+                                       "clicked point." ) );
+
+            return false;
+        }
+
+        return trimTrack( sourceTrack, aPoint );
+    };
+
+    /*
+     * Right-click menu invocation with one selected track:
+     * perform the trim immediately.
+     */
+    if( initiallySelectedTrack )
+    {
+        trimTrack( initiallySelectedTrack, initialCursorPosition );
+    }
+
+    /*
+     * TRIM remains active for additional track selections.
+     */
+    while( TOOL_EVENT* event = Wait() )
+    {
+        if( event->IsCancelInteractive() || event->IsActivate() )
+        {
+            cancelled = true;
+            event->SetPassEvent( false );
+            break;
+        }
+        else if( event->IsClick( BUT_LEFT ) || event->IsAction( &ACTIONS::cursorClick ) )
+        {
+            trimAtPoint( event->Position() );
+            event->SetPassEvent( false );
+        }
+        else if( event->IsMotion() )
+        {
+            m_statusPopup->Move( KIPLATFORM::UI::GetMousePosition() + wxPoint( 20, -50 ) );
+            event->SetPassEvent();
+        }
+        else
+        {
+            /*
+             * Allow normal zoom and pan events.
+             */
+            event->SetPassEvent();
+        }
+    }
+
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+    canvas()->SetStatusPopup( nullptr );
+    m_statusPopup->Hide();
+    canvas()->SetCurrentCursor( KICURSOR::ARROW );
+    frame()->PopTool( pushedEvent );
+
+    if( trimmedCount > 0 )
+    {
+        frame()->SetStatusText( wxString::Format( _( "TRIM finished: %d track section(s) removed." ), trimmedCount ) );
+    }
+    else if( cancelled )
+    {
+        frame()->SetStatusText( _( "TRIM cancelled." ) );
+    }
+    else
+    {
+        frame()->SetStatusText( _( "TRIM finished: No track sections removed." ) );
+    }
+
+    return 0;
+}
+// End TRIM command
+
+
+int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
+{
+    PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
     const PCB_SELECTION& selection = m_selectionTool->RequestSelection(
             []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool )
             {
             } );
-
-    // Snapshot undo depth to detect whether dialog actually committed
-    // Cancel leaves it unchanged and must not trigger a constraint resolve
-    const int undoBefore = editFrame->GetUndoCommandCount();
 
     // Tracks & vias are treated in a special way:
     if( ( SELECTION_CONDITIONS::OnlyTypes( { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T } ) )( selection ) )
@@ -2233,18 +4015,6 @@ int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
             m_toolMgr->PostAction( ACTIONS::pageSettings );
         else
             m_toolMgr->RunAction( PCB_ACTIONS::footprintProperties );
-    }
-
-    // Position or geometry edit via these dialogs settles constraints as if item were dragged
-    // holding edited item and moving neighbors gated on real commit so canceled dialog skips the solve
-    if( editFrame->GetUndoCommandCount() > undoBefore )
-    {
-        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>() )
-        {
-            std::vector<PCB_SHAPE*> shapes;
-            collectConstraintShapes( selection, shapes );
-            constraintTool->SolveAfterEdit( shapes );
-        }
     }
 
     if( selection.IsHover() )
@@ -2306,48 +4076,6 @@ int EDIT_TOOL::EditVertices( const TOOL_EVENT& aEvent )
         editFrame->OpenVertexEditor( item );
 
     return 0;
-}
-
-
-void EDIT_TOOL::collectConstraintShapes( const SELECTION& aSelection, std::vector<PCB_SHAPE*>& aShapes )
-{
-    // Recurse so constrained shapes carried inside a transformed footprint or group seed their
-    // clusters too; a top-level-only walk would leave those constraints silently violated.
-    // PCB_GROUP::RunOnChildren only descends into groups and generators, so recurse through every
-    // container ourselves; the visited set guards against overlapping ownership paths.
-    std::unordered_set<BOARD_ITEM*> visited;
-
-    std::function<void( BOARD_ITEM* )> collect =
-            [&]( BOARD_ITEM* aItem )
-            {
-                if( !aItem || !visited.insert( aItem ).second )
-                    return;
-
-                if( aItem->Type() == PCB_SHAPE_T )
-                    aShapes.push_back( static_cast<PCB_SHAPE*>( aItem ) );
-
-                aItem->RunOnChildren( collect, RECURSE_MODE::NO_RECURSE );
-            };
-
-    for( EDA_ITEM* item : aSelection )
-    {
-        if( item->IsBOARD_ITEM() )
-            collect( static_cast<BOARD_ITEM*>( item ) );
-    }
-}
-
-
-void EDIT_TOOL::reSolveConstraintsAfterEdit( const PCB_SELECTION& aSelection )
-{
-    CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
-
-    if( !constraintTool )
-        return;
-
-    std::vector<PCB_SHAPE*> shapes;
-    collectConstraintShapes( aSelection, shapes );
-
-    constraintTool->SolveAfterMove( shapes );
 }
 
 
@@ -2492,10 +4220,7 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
         // Don't push a separate undo entry when we're in the middle of a move operation.
         // The parent move will handle the commit.
         if( !localCommit.Empty() && !m_dragging )
-        {
             localCommit.Push( _( "Rotate" ) );
-            reSolveConstraintsAfterEdit( selection );
-        }
 
         if( is_hover && !m_dragging )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -2660,10 +4385,7 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
-    {
         localCommit.Push( _( "Mirror" ) );
-        reSolveConstraintsAfterEdit( selection );
-    }
 
     if( skippedFootprints > 0 && !m_dragging )
     {
@@ -2845,10 +4567,7 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
-    {
         localCommit.Push( _( "Change Side / Flip" ) );
-        reSolveConstraintsAfterEdit( selection );
-    }
 
     if( selection.IsHover() && !m_dragging )
         m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -3054,20 +4773,6 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 {
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
 
-    // A geometric constraint selected by clicking its on-canvas badge has no board selection, so a
-    // plain Delete targets it here before the normal item-removal path.  Cut is excluded: the
-    // constraint is not on the clipboard, so it must not be silently removed (#2329).
-    bool isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
-
-    if( !isCut )
-    {
-        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
-            constraintTool && constraintTool->TryDeleteSelectedConstraint() )
-        {
-            return 0;
-        }
-    }
-
     editFrame->PushTool( aEvent );
 
     std::vector<BOARD_ITEM*> lockedItems;
@@ -3075,6 +4780,7 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 
     // get a copy instead of reference (as we're going to clear the selection before removing items)
     PCB_SELECTION selectionCopy;
+    bool          isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
     bool          isAlt = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::ALT;
 
     // If we are in a "Cut" operation, then the copied selection exists already and we want to
@@ -3220,7 +4926,6 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
         }
 
         commit.Push( _( "Move Exactly" ) );
-        reSolveConstraintsAfterEdit( selection );
 
         if( selection.IsHover() )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -3279,10 +4984,6 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
     std::vector<BOARD_ITEM*> new_items;
     new_items.reserve( selection.Size() );
 
-    // Maps each duplicated original KIID to its duplicate so constraints between them
-    // can be repointed at the copies once duplication finishes
-    std::map<KIID, KIID> idMap;
-
     // Each selected item is duplicated and pushed to new_items list
     // Old selection is cleared, and new items are then selected.
     for( EDA_ITEM* item : selection )
@@ -3332,7 +5033,6 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                     dupe_item->SetFlags( IS_NEW );
                 }
 
-                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -3359,7 +5059,6 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 // will not properly select it later on
                 dupe_item->ClearSelected();
 
-                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -3370,10 +5069,7 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
 
             case PCB_GENERATOR_T:
             case PCB_GROUP_T:
-            {
-                // DeepDuplicate maps original to duplicate KIID per descendant while cloning the group
-                // so grouped constraints can be repointed unordered iteration blocks a later pairing
-                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit, &idMap );
+                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit );
 
                 dupe_item->RunOnChildren(
                         [&]( BOARD_ITEM* aItem )
@@ -3388,20 +5084,11 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
-            }
 
             default: UNIMPLEMENTED_FOR( orig_item->GetClass() ); break;
             }
         }
     }
-
-    // Carry constraints whose members were all duplicated repointed at the copies
-    // constraints are not selectable so add them to commit but keep them out of new selection
-    const CONSTRAINTS& sourceConstraints = parentFootprint ? parentFootprint->Constraints()
-                                                           : board()->Constraints();
-
-    for( PCB_CONSTRAINT* clone : CloneFullySelectedConstraints( sourceConstraints, idMap ) )
-        commit.Add( clone );
 
     // Clear the old selection first
     m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -3897,6 +5584,11 @@ void EDIT_TOOL::setTransitions()
     Go( &EDIT_TOOL::Remove,                ACTIONS::doDelete.MakeEvent() );
     Go( &EDIT_TOOL::Remove,                PCB_ACTIONS::deleteFull.MakeEvent() );
     Go( &EDIT_TOOL::Properties,            PCB_ACTIONS::properties.MakeEvent() );
+
+    Go( &EDIT_TOOL::MatchProperties,       PCB_ACTIONS::matchProperties.MakeEvent() );  // MatchProp command
+    Go( &EDIT_TOOL::ExtendTrack,           PCB_ACTIONS::extendTrack.MakeEvent() );      // Extend command
+    Go( &EDIT_TOOL::TrimTrack,             PCB_ACTIONS::trimTrack.MakeEvent() );        // Trim command
+
     Go( &EDIT_TOOL::MoveExact,             PCB_ACTIONS::moveExact.MakeEvent() );
     Go( &EDIT_TOOL::Move,                  PCB_ACTIONS::moveWithReference.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             ACTIONS::duplicate.MakeEvent() );
