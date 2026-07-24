@@ -32,6 +32,9 @@
 #include <sch_edit_frame.h>
 #include <sch_shape.h>
 #include <sch_bus_entry.h>
+#include <richio.h>
+
+#include <wx/tokenzr.h>
 
 
 void SCH_IO_LTSPICE_PARSER::Parse( SCH_SHEET_PATH* aSheet,
@@ -73,6 +76,8 @@ void SCH_IO_LTSPICE_PARSER::readIncludes( std::vector<LTSPICE_SCHEMATIC::LT_ASC>
     wxFileName ltSubDir( m_lt_schematic->GetLTspiceDataDir().GetFullPath(), wxEmptyString );
     ltSubDir.AppendDir( wxS( "sub" ) );
 
+    const wxString sourceDir = m_lt_schematic->GetSourceFile().GetPath();
+
     for( const LTSPICE_SCHEMATIC::LT_ASC& asc : outLT_ASCs )
     {
         for( const LTSPICE_SCHEMATIC::TEXT& lt_text : asc.Texts )
@@ -84,17 +89,55 @@ void SCH_IO_LTSPICE_PARSER::readIncludes( std::vector<LTSPICE_SCHEMATIC::LT_ASC>
                 {
                     wxString path = line.AfterFirst( ' ' );
 
+                    path.Trim( true ).Trim( false );
+
+                    if( path.length() >= 2
+                        && ( ( path[0] == '"' && path.Last() == '"' ) || ( path[0] == '\'' && path.Last() == '\'' ) ) )
+                    {
+                        path = path.Mid( 1, path.length() - 2 );
+                    }
+
                     path.Replace( '\\', '/' );
                     wxFileName fileName( path );
 
-                    if( fileName.IsAbsolute() )
+                    if( !fileName.IsAbsolute() )
                     {
-                        m_includes[fileName.GetName()] = fileName.GetFullPath();
+                        wxFileName sourceRelative( fileName );
+                        sourceRelative.MakeAbsolute( sourceDir );
+
+                        if( sourceRelative.FileExists() )
+                            fileName = sourceRelative;
+                        else
+                            fileName.MakeAbsolute( ltSubDir.GetFullPath() );
                     }
-                    else
+
+                    if( !fileName.FileExists() )
+                        continue;
+
+                    const wxString fullPath = fileName.GetFullPath();
+
+                    // Retain the historic filename lookup for libraries named after a model.
+                    m_includes[fileName.GetName().Upper()] = fullPath;
+
+                    // LTspice commonly uses one include file containing many models.  Associate
+                    // every model and subcircuit in that file with the library so the original
+                    // include directive can be represented by Sim.Library fields.
+                    for( wxString libraryLine : wxSplit( SafeReadFile( fullPath, "r" ), '\n' ) )
                     {
-                        fileName.MakeAbsolute( ltSubDir.GetFullPath() );
-                        m_includes[fileName.GetName()] = fileName.GetFullPath();
+                        libraryLine.Trim( true ).Trim( false );
+
+                        wxStringTokenizer tokens( libraryLine, wxS( " \t(" ) );
+
+                        if( !tokens.HasMoreTokens() )
+                            continue;
+
+                        const wxString directive = tokens.GetNextToken().Lower();
+
+                        if( ( directive == wxS( ".model" ) || directive == wxS( ".subckt" ) )
+                            && tokens.HasMoreTokens() )
+                        {
+                            m_includes[tokens.GetNextToken().Upper()] = fullPath;
+                        }
                     }
                 }
             }
@@ -1079,6 +1122,7 @@ void SCH_IO_LTSPICE_PARSER::CreateFields( LTSPICE_SCHEMATIC::LT_SYMBOL& aLTSymbo
     else
     {
         wxString libFile = aLTSymbol.SymAttributes[wxS( "MODELFILE" )];
+        bool     modelFromInclude = false;
 
         if( prefix == wxS( "X" ) )
         {
@@ -1101,12 +1145,16 @@ void SCH_IO_LTSPICE_PARSER::CreateFields( LTSPICE_SCHEMATIC::LT_SYMBOL& aLTSymbo
         }
 
         if( libFile.IsEmpty() )
-            libFile = m_includes[value];
+        {
+            libFile = m_includes[value.Upper()];
+
+            modelFromInclude = !libFile.IsEmpty();
+        }
 
         if( !libFile.IsEmpty() )
         {
             addField( wxS( "Sim.Library" ), libFile );
-            addField( wxS( "Sim.Name" ), symbolName );
+            addField( wxS( "Sim.Name" ), modelFromInclude ? value : symbolName );
         }
 
         wxString spiceLine = aLTSymbol.SymAttributes[wxS( "SPICELINE" )];
@@ -1124,7 +1172,7 @@ void SCH_IO_LTSPICE_PARSER::CreateFields( LTSPICE_SCHEMATIC::LT_SYMBOL& aLTSymbo
 
             if( !spiceLine.IsEmpty() )
                 addField( wxS( "Sim.Params" ), spiceLine );
-            else
+            else if( libFile.IsEmpty() )
                 addField( wxS( "Sim.Params" ), "model=\"" + value + "\"" );
         }
     }
@@ -1411,5 +1459,3 @@ void SCH_IO_LTSPICE_PARSER::CreateCircle( LTSPICE_SCHEMATIC::LT_SYMBOL& aLTSymbo
     aCircle->SetEnd( ToKicadCoords( c ) + VECTOR2I( abs( ToKicadCoords( r ) ), 0 ) );
     aCircle->SetStroke( getStroke( lt_circle.LineWidth, lt_circle.LineStyle ) );
 }
-
-

@@ -66,6 +66,18 @@ def get_eagle_test_file() -> str:
     return None
 
 
+def get_ltspice_model_library_test_file() -> str:
+    """Get the LTspice relative model-library import test file."""
+    test_data_dir = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "eeschema",
+                                  "io", "ltspice", "model_library" )
+    ltspice_file = os.path.join( test_data_dir, "model_library.asc" )
+
+    if os.path.exists( ltspice_file ):
+        return ltspice_file
+
+    return None
+
+
 class TestSchImportHelp:
     """Test help output for sch import command"""
 
@@ -115,6 +127,57 @@ class TestSchImportErrors:
         stdout, stderr, return_code = utils.run_and_capture( command )
 
         assert return_code != 0
+
+
+@pytest.mark.skipif( get_ltspice_model_library_test_file() is None,
+                     reason="LTspice model-library test file not available" )
+class TestSchImportLtspice:
+    """Test LTspice model-library import behavior."""
+
+    def test_import_relative_multi_model_library( self, kitest: KiTestFixture ):
+        """Relative includes map a selected model from a multi-model library."""
+        ltspice_file = get_ltspice_model_library_test_file()
+        output_path = get_output_path( kitest, "ltspice_model_library", "imported.kicad_sch" )
+        netlist_path = get_output_path( kitest, "ltspice_model_library", "imported.cir" )
+
+        command = [
+            utils.kicad_cli(),
+            "sch", "import",
+            "--format", "ltspice",
+            ltspice_file,
+            "-o", str( output_path )
+        ]
+
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert output_path.exists()
+
+        content = output_path.read_text()
+
+        assert '(property "Sim.Library"' in content
+        assert "models/multi.lib" in content.replace( "\\", "/" )
+        assert '(property "Sim.Name" "TEST_NPN"' in content
+        assert 'model=\\"TEST_NPN\\"' not in content
+
+        command = [
+            utils.kicad_cli(),
+            "sch", "export", "netlist",
+            "--format", "spice",
+            "-o", str( netlist_path ),
+            str( output_path )
+        ]
+
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert netlist_path.exists()
+
+        netlist = netlist_path.read_text()
+
+        assert ".include" in netlist
+        assert "multi.lib" in netlist
+        assert "TEST_NPN" in netlist
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,

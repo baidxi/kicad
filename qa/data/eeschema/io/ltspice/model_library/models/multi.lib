@@ -1,0 +1,3 @@
+* Multiple models intentionally share this library.
+.model UNUSED_NPN NPN(BF=10)
+.model test_npn NPN(BF=123 VAF=80)
