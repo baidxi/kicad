@@ -33,6 +33,8 @@
 #include <increment.h>
 #include <pcb_shape.h>
 #include <pcb_group.h>
+#include <constraints/constraint_copy.h>
+#include <constraints/pcb_constraint.h>
 #include <pcb_point.h>
 #include <pcb_target.h>
 #include <pcb_textbox.h>
@@ -49,6 +51,7 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <tools/pcb_selection_tool.h>
+#include <tools/constraint_edit_tool.h>
 #include <tools/edit_tool.h>
 #include <tools/item_modification_routine.h>
 #include <tools/pcb_picker_tool.h>
@@ -75,10 +78,9 @@ using namespace std::placeholders;
 #include <dialogs/dialog_multi_unit_entry.h>
 #include <dialogs/dialog_unit_entry.h>
 #include <pcb_reference_image.h>
-
-#include <algorithm>   // std::max, std::min
-#include <cmath>       // std::fabs, std::sqrt, std::llround
-#include <vector>      // std::vector
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 const unsigned int EDIT_TOOL::COORDS_PADDING = pcbIUScale.mmToIU( 20 );
 
@@ -123,11 +125,11 @@ static const std::vector<KICAD_T> groupTypes = { PCB_GROUP_T };
 
 static const std::vector<KICAD_T> trackTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T };
 
-static const std::vector<KICAD_T> matchPropertiesTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T };             // MatchProp command
+static const std::vector<KICAD_T> matchPropertiesTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T };
 
-static const std::vector<KICAD_T> extendTrackTypes = { PCB_TRACE_T };                                       // EXTEND command
+static const std::vector<KICAD_T> extendTrackTypes = { PCB_TRACE_T };
 
-static const std::vector<KICAD_T> trimTrackTypes = { PCB_TRACE_T, PCB_ARC_T };                              // TRIM command
+static const std::vector<KICAD_T> trimTrackTypes = { PCB_TRACE_T, PCB_ARC_T };
 
 static const std::vector<KICAD_T> baseConnectedTypes = { PCB_PAD_T, PCB_VIA_T, PCB_TRACE_T, PCB_ARC_T };
 
@@ -853,13 +855,13 @@ bool EDIT_TOOL::Init()
     menu.AddSeparator();
 
     menu.AddItem( PCB_ACTIONS::matchProperties,   SELECTION_CONDITIONS::Count( 1 )
-                                                  && SELECTION_CONDITIONS::OnlyTypes( matchPropertiesTypes ) );     // MatchProp command
+                                                  && SELECTION_CONDITIONS::OnlyTypes( matchPropertiesTypes ) );
     
     menu.AddItem( PCB_ACTIONS::extendTrack,       SELECTION_CONDITIONS::Count( 1 )
-                                                  && SELECTION_CONDITIONS::OnlyTypes( extendTrackTypes ) );         // EXTEND command
+                                                  && SELECTION_CONDITIONS::OnlyTypes( extendTrackTypes ) );
 
     menu.AddItem( PCB_ACTIONS::trimTrack,         SELECTION_CONDITIONS::Count( 1 )
-                                                  && SELECTION_CONDITIONS::OnlyTypes( trimTrackTypes ) );           // TRIM command
+                                                  && SELECTION_CONDITIONS::OnlyTypes( trimTrackTypes ) );
 
     menu.AddSeparator();
 
@@ -2184,7 +2186,6 @@ int EDIT_TOOL::BooleanPolygons( const TOOL_EVENT& aEvent )
 }
 
 
-// MATCHPROP command
 int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
 {
     BOARD_ITEM* source = nullptr;
@@ -2433,9 +2434,9 @@ int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
         if( sourceType == PCB_VIA_T && aTarget->Type() == PCB_VIA_T )
         {
             PCB_VIA* targetVia = static_cast<PCB_VIA*>( aTarget );
-            int targetWidth = targetVia->GetWidth( PADSTACK::ALL_LAYERS );
-            int targetDrill = targetVia->GetDrillValue();
-            VIATYPE targetViaType = targetVia->GetViaType();
+            int      targetWidth = targetVia->GetWidth( PADSTACK::ALL_LAYERS );
+            int      targetDrill = targetVia->GetDrillValue();
+            VIATYPE  targetViaType = targetVia->GetViaType();
 
             if( targetWidth != sourceWidth || targetDrill != sourceDrill || targetViaType != sourceViaType )
             {
@@ -2478,8 +2479,9 @@ int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
      */
     auto applyAtPoint = [&]( const VECTOR2I& aPoint ) -> bool
     {
-        int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
-        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+        int   hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ),
+                         VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
 
         std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
         getView()->Query( searchBox, candidates );
@@ -2626,7 +2628,8 @@ int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
              */
             bool crossingSelection = end.x < origin.x;
 
-            if( getView()->IsMirroredX() ) crossingSelection = !crossingSelection;
+            if( getView()->IsMirroredX() )
+                crossingSelection = !crossingSelection;
 
             selectionArea.SetOrigin( origin );
             selectionArea.SetEnd( end );
@@ -2716,9 +2719,8 @@ int EDIT_TOOL::MatchProperties( const TOOL_EVENT& aEvent )
 
     return 0;
 }
-// End MATCHPROP command
 
-// EXTEND command
+
 int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
 {
     TOOL_EVENT pushedEvent = aEvent;
@@ -2749,7 +2751,7 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
      * It will be extended immediately instead of requiring the user
      * to click it for a second time.
      */
-    PCB_TRACK* initiallySelectedTrack = nullptr;
+    PCB_TRACK*     initiallySelectedTrack = nullptr;
     PCB_SELECTION& initialSelection = m_selectionTool->GetSelection();
 
     if( initialSelection.GetSize() == 1 )
@@ -2783,8 +2785,8 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
     m_toolMgr->RunAction( ACTIONS::selectionClear );
 
     BOARD_COMMIT commit( this );
-    int  extendedCount = 0;
-    bool cancelled = false;
+    int          extendedCount = 0;
+    bool         cancelled = false;
 
     m_statusPopup->SetText( _( "EXTEND: Click near the end of a straight track - "
                                "Esc to finish" ) );
@@ -2817,9 +2819,11 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
         const long double rayX = static_cast<long double>( aRayDirection.x );
         const long double rayY = static_cast<long double>( aRayDirection.y );
 
-        const long double segmentX = static_cast<long double>( aSegmentEnd.x ) - static_cast<long double>( aSegmentStart.x );
+        const long double segmentX =
+                static_cast<long double>( aSegmentEnd.x ) - static_cast<long double>( aSegmentStart.x );
 
-        const long double segmentY = static_cast<long double>( aSegmentEnd.y ) - static_cast<long double>( aSegmentStart.y );
+        const long double segmentY =
+                static_cast<long double>( aSegmentEnd.y ) - static_cast<long double>( aSegmentStart.y );
 
         /*
          * Two-dimensional cross product:
@@ -2838,9 +2842,11 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
             return false;
         }
 
-        const long double deltaX = static_cast<long double>( aSegmentStart.x ) - static_cast<long double>( aRayOrigin.x );
+        const long double deltaX =
+                static_cast<long double>( aSegmentStart.x ) - static_cast<long double>( aRayOrigin.x );
 
-        const long double deltaY = static_cast<long double>( aSegmentStart.y ) - static_cast<long double>( aRayOrigin.y );
+        const long double deltaY =
+                static_cast<long double>( aSegmentStart.y ) - static_cast<long double>( aRayOrigin.y );
 
         /*
          * t is the position along the extension ray.
@@ -2882,8 +2888,9 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
      */
     auto findTrackAtPoint = [&]( const VECTOR2I& aPoint ) -> PCB_TRACK*
     {
-        const int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
-        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+        const int                                 hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I                                     searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ),
+                                                             VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
         std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
         getView()->Query( searchBox, candidates );
         PCB_TRACK* selectedTrack = nullptr;
@@ -2924,9 +2931,9 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
                 continue;
             }
 
-            PCB_TRACK* candidateTrack = static_cast<PCB_TRACK*>( candidate );
-            const VECTOR2I start = candidateTrack->GetStart();
-            const VECTOR2I end = candidateTrack->GetEnd();
+            PCB_TRACK*        candidateTrack = static_cast<PCB_TRACK*>( candidate );
+            const VECTOR2I    start = candidateTrack->GetStart();
+            const VECTOR2I    end = candidateTrack->GetEnd();
             const long double segmentX = static_cast<long double>( end.x ) - static_cast<long double>( start.x );
             const long double segmentY = static_cast<long double>( end.y ) - static_cast<long double>( start.y );
             const long double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
@@ -2936,7 +2943,7 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
 
             const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( start.x );
             const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( start.y );
-            long double projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
+            long double       projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
             projection = std::max( 0.0L, std::min( 1.0L, projection ) );
             const long double closestX = static_cast<long double>( start.x ) + projection * segmentX;
             const long double closestY = static_cast<long double>( start.y ) + projection * segmentY;
@@ -2984,13 +2991,18 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
          *
          * That is the endpoint which will be extended.
          */
-        const long double startDifferenceX = static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceStart.x );
-        const long double startDifferenceY = static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceStart.y );
-        const long double endDifferenceX = static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceEnd.x );
-        const long double endDifferenceY = static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceEnd.y );
-        const long double startDistanceSquared = startDifferenceX * startDifferenceX + startDifferenceY * startDifferenceY;
+        const long double startDifferenceX =
+                static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceStart.x );
+        const long double startDifferenceY =
+                static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceStart.y );
+        const long double endDifferenceX =
+                static_cast<long double>( aPoint.x ) - static_cast<long double>( sourceEnd.x );
+        const long double endDifferenceY =
+                static_cast<long double>( aPoint.y ) - static_cast<long double>( sourceEnd.y );
+        const long double startDistanceSquared =
+                startDifferenceX * startDifferenceX + startDifferenceY * startDifferenceY;
         const long double endDistanceSquared = endDifferenceX * endDifferenceX + endDifferenceY * endDifferenceY;
-        const bool extendStart = startDistanceSquared < endDistanceSquared;
+        const bool        extendStart = startDistanceSquared < endDistanceSquared;
 
         VECTOR2I fixedPoint;
         VECTOR2I movingPoint;
@@ -3027,8 +3039,8 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
         };
 
         EXTEND_TARGET_TYPE nearestTargetType = EXTEND_TARGET_TYPE::NONE;
-        VECTOR2I nearestIntersection;
-        long double nearestRayParameter = std::numeric_limits<long double>::max();
+        VECTOR2I           nearestIntersection;
+        long double        nearestRayParameter = std::numeric_limits<long double>::max();
 
         /*
          * Examine every board track and retain the nearest
@@ -3068,7 +3080,8 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
 
             long double rayParameter = 0.0L;
 
-            if( !findRaySegmentIntersection( movingPoint, rayDirection, targetTrack->GetStart(), targetTrack->GetEnd(), intersection, rayParameter ) )
+            if( !findRaySegmentIntersection( movingPoint, rayDirection, targetTrack->GetStart(), targetTrack->GetEnd(),
+                                             intersection, rayParameter ) )
             {
                 continue;
             }
@@ -3124,7 +3137,7 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
                 continue;
             }
 
-            VECTOR2I intersection;
+            VECTOR2I    intersection;
             long double rayParameter = 0.0L;
 
             if( !findRaySegmentIntersection( movingPoint, rayDirection, targetLine->GetStart(), targetLine->GetEnd(),
@@ -3303,10 +3316,8 @@ int EDIT_TOOL::ExtendTrack( const TOOL_EVENT& aEvent )
 
     return 0;
 }
-// End EXTEND command
 
 
-// TRIM command
 int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
 {
     TOOL_EVENT pushedEvent = aEvent;
@@ -3395,11 +3406,15 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
                                        const VECTOR2I& aTargetStart, const VECTOR2I& aTargetEnd,
                                        VECTOR2I& aIntersection, long double& aSourceParameter ) -> bool
     {
-        const long double sourceX = static_cast<long double>( aSourceEnd.x ) - static_cast<long double>( aSourceStart.x );
-        const long double sourceY = static_cast<long double>( aSourceEnd.y ) - static_cast<long double>( aSourceStart.y );
-        const long double targetX = static_cast<long double>( aTargetEnd.x ) - static_cast<long double>( aTargetStart.x );
-        const long double targetY = static_cast<long double>( aTargetEnd.y ) - static_cast<long double>( aTargetStart.y );
-        const long double denominator = sourceX * targetY - sourceY * targetX;
+        const long double sourceX =
+                static_cast<long double>( aSourceEnd.x ) - static_cast<long double>( aSourceStart.x );
+        const long double sourceY =
+                static_cast<long double>( aSourceEnd.y ) - static_cast<long double>( aSourceStart.y );
+        const long double targetX =
+                static_cast<long double>( aTargetEnd.x ) - static_cast<long double>( aTargetStart.x );
+        const long double targetY =
+                static_cast<long double>( aTargetEnd.y ) - static_cast<long double>( aTargetStart.y );
+        const long double     denominator = sourceX * targetY - sourceY * targetX;
         constexpr long double parallelTolerance = 1.0e-18L;
 
         if( std::fabs( denominator ) < parallelTolerance )
@@ -3407,8 +3422,10 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
             return false;
         }
 
-        const long double deltaX = static_cast<long double>( aTargetStart.x ) - static_cast<long double>( aSourceStart.x );
-        const long double deltaY = static_cast<long double>( aTargetStart.y ) - static_cast<long double>( aSourceStart.y );
+        const long double deltaX =
+                static_cast<long double>( aTargetStart.x ) - static_cast<long double>( aSourceStart.x );
+        const long double deltaY =
+                static_cast<long double>( aTargetStart.y ) - static_cast<long double>( aSourceStart.y );
         const long double t = ( deltaX * targetY - deltaY * targetX ) / denominator;
         const long double u = ( deltaX * sourceY - deltaY * sourceX ) / denominator;
 
@@ -3459,7 +3476,7 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
 
         const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( aStart.x );
         const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( aStart.y );
-        long double parameter = ( pointX * segmentX + pointY * segmentY ) / lengthSquared;
+        long double       parameter = ( pointX * segmentX + pointY * segmentY ) / lengthSquared;
 
         return std::max( 0.0L, std::min( 1.0L, parameter ) );
     };
@@ -3469,11 +3486,12 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
      */
     auto findTrackAtPoint = [&]( const VECTOR2I& aPoint ) -> PCB_TRACK*
     {
-        const int hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
-        BOX2I searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ), VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
+        const int                                 hitTolerance = KiROUND( getView()->ToWorld( 8 ) );
+        BOX2I                                     searchBox( aPoint - VECTOR2I( hitTolerance, hitTolerance ),
+                                                             VECTOR2I( hitTolerance * 2, hitTolerance * 2 ) );
         std::vector<KIGFX::VIEW::LAYER_ITEM_PAIR> candidates;
         getView()->Query( searchBox, candidates );
-        PCB_TRACK* selectedTrack = nullptr;
+        PCB_TRACK*  selectedTrack = nullptr;
         long double nearestDistanceSquared = std::numeric_limits<long double>::max();
 
         for( const auto& [viewItem, layer] : candidates )
@@ -3499,9 +3517,9 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
                 continue;
             }
 
-            PCB_TRACK* candidateTrack = static_cast<PCB_TRACK*>( candidate );
-            const VECTOR2I start = candidateTrack->GetStart();
-            const VECTOR2I end = candidateTrack->GetEnd();
+            PCB_TRACK*        candidateTrack = static_cast<PCB_TRACK*>( candidate );
+            const VECTOR2I    start = candidateTrack->GetStart();
+            const VECTOR2I    end = candidateTrack->GetEnd();
             const long double segmentX = static_cast<long double>( end.x ) - static_cast<long double>( start.x );
             const long double segmentY = static_cast<long double>( end.y ) - static_cast<long double>( start.y );
             const long double segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
@@ -3511,7 +3529,7 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
 
             const long double pointX = static_cast<long double>( aPoint.x ) - static_cast<long double>( start.x );
             const long double pointY = static_cast<long double>( aPoint.y ) - static_cast<long double>( start.y );
-            long double projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
+            long double       projection = ( pointX * segmentX + pointY * segmentY ) / segmentLengthSquared;
             projection = std::max( 0.0L, std::min( 1.0L, projection ) );
             const long double closestX = static_cast<long double>( start.x ) + projection * segmentX;
             const long double closestY = static_cast<long double>( start.y ) + projection * segmentY;
@@ -3644,7 +3662,8 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
 
             long double sourceParameter = 0.0L;
 
-            if( !findSegmentIntersection( sourceStart, sourceEnd, targetTrack->GetStart(), targetTrack->GetEnd(), intersection, sourceParameter ) )
+            if( !findSegmentIntersection( sourceStart, sourceEnd, targetTrack->GetStart(), targetTrack->GetEnd(),
+                                          intersection, sourceParameter ) )
             {
                 continue;
             }
@@ -3672,10 +3691,11 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
                 continue;
             }
 
-            VECTOR2I intersection;
+            VECTOR2I    intersection;
             long double sourceParameter = 0.0L;
 
-            if( !findSegmentIntersection( sourceStart, sourceEnd, targetLine->GetStart(), targetLine->GetEnd(), intersection, sourceParameter ) )
+            if( !findSegmentIntersection( sourceStart, sourceEnd, targetLine->GetStart(), targetLine->GetEnd(),
+                                          intersection, sourceParameter ) )
             {
                 continue;
             }
@@ -3708,7 +3728,7 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
          */
         const TRIM_INTERSECTION* intersectionBefore = nullptr;
         const TRIM_INTERSECTION* intersectionAfter = nullptr;
-        constexpr long double clickTolerance = 1.0e-12L;
+        constexpr long double    clickTolerance = 1.0e-12L;
 
         for( const TRIM_INTERSECTION& intersection : intersections )
         {
@@ -3958,16 +3978,28 @@ int EDIT_TOOL::TrimTrack( const TOOL_EVENT& aEvent )
 
     return 0;
 }
-// End TRIM command
 
 
 int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
 {
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
+
+    // A constraint selected by clicking its badge has no board selection, so Edit targets it here
+    // before the normal properties path (mirrors the Delete hook for a badge-selected constraint).
+    if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+        constraintTool && constraintTool->TryEditSelectedConstraint() )
+    {
+        return 0;
+    }
+
     const PCB_SELECTION& selection = m_selectionTool->RequestSelection(
             []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool )
             {
             } );
+
+    // Snapshot undo depth to detect whether dialog actually committed
+    // Cancel leaves it unchanged and must not trigger a constraint resolve
+    const int undoBefore = editFrame->GetUndoCommandCount();
 
     // Tracks & vias are treated in a special way:
     if( ( SELECTION_CONDITIONS::OnlyTypes( { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T } ) )( selection ) )
@@ -4015,6 +4047,18 @@ int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
             m_toolMgr->PostAction( ACTIONS::pageSettings );
         else
             m_toolMgr->RunAction( PCB_ACTIONS::footprintProperties );
+    }
+
+    // Position or geometry edit via these dialogs settles constraints as if item were dragged
+    // holding edited item and moving neighbors gated on real commit so canceled dialog skips the solve
+    if( editFrame->GetUndoCommandCount() > undoBefore )
+    {
+        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>() )
+        {
+            std::vector<PCB_SHAPE*> shapes;
+            collectConstraintShapes( selection, shapes );
+            constraintTool->SolveAfterEdit( shapes );
+        }
     }
 
     if( selection.IsHover() )
@@ -4076,6 +4120,48 @@ int EDIT_TOOL::EditVertices( const TOOL_EVENT& aEvent )
         editFrame->OpenVertexEditor( item );
 
     return 0;
+}
+
+
+void EDIT_TOOL::collectConstraintShapes( const SELECTION& aSelection, std::vector<PCB_SHAPE*>& aShapes )
+{
+    // Recurse so constrained shapes carried inside a transformed footprint or group seed their
+    // clusters too; a top-level-only walk would leave those constraints silently violated.
+    // PCB_GROUP::RunOnChildren only descends into groups and generators, so recurse through every
+    // container ourselves; the visited set guards against overlapping ownership paths.
+    std::unordered_set<BOARD_ITEM*> visited;
+
+    std::function<void( BOARD_ITEM* )> collect =
+            [&]( BOARD_ITEM* aItem )
+            {
+                if( !aItem || !visited.insert( aItem ).second )
+                    return;
+
+                if( aItem->Type() == PCB_SHAPE_T )
+                    aShapes.push_back( static_cast<PCB_SHAPE*>( aItem ) );
+
+                aItem->RunOnChildren( collect, RECURSE_MODE::NO_RECURSE );
+            };
+
+    for( EDA_ITEM* item : aSelection )
+    {
+        if( item->IsBOARD_ITEM() )
+            collect( static_cast<BOARD_ITEM*>( item ) );
+    }
+}
+
+
+void EDIT_TOOL::reSolveConstraintsAfterEdit( const PCB_SELECTION& aSelection )
+{
+    CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+
+    if( !constraintTool )
+        return;
+
+    std::vector<PCB_SHAPE*> shapes;
+    collectConstraintShapes( aSelection, shapes );
+
+    constraintTool->SolveAfterMove( shapes );
 }
 
 
@@ -4220,7 +4306,10 @@ int EDIT_TOOL::Rotate( const TOOL_EVENT& aEvent )
         // Don't push a separate undo entry when we're in the middle of a move operation.
         // The parent move will handle the commit.
         if( !localCommit.Empty() && !m_dragging )
+        {
             localCommit.Push( _( "Rotate" ) );
+            reSolveConstraintsAfterEdit( selection );
+        }
 
         if( is_hover && !m_dragging )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -4385,7 +4474,10 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
+    {
         localCommit.Push( _( "Mirror" ) );
+        reSolveConstraintsAfterEdit( selection );
+    }
 
     if( skippedFootprints > 0 && !m_dragging )
     {
@@ -4567,7 +4659,10 @@ int EDIT_TOOL::Flip( const TOOL_EVENT& aEvent )
     // Don't push a separate undo entry when we're in the middle of a move operation.
     // The parent move will handle the commit.
     if( !localCommit.Empty() && !m_dragging )
+    {
         localCommit.Push( _( "Change Side / Flip" ) );
+        reSolveConstraintsAfterEdit( selection );
+    }
 
     if( selection.IsHover() && !m_dragging )
         m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -4773,6 +4868,20 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 {
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();
 
+    // A geometric constraint selected by clicking its on-canvas badge has no board selection, so a
+    // plain Delete targets it here before the normal item-removal path.  Cut is excluded: the
+    // constraint is not on the clipboard, so it must not be silently removed (#2329).
+    bool isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
+
+    if( !isCut )
+    {
+        if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
+            constraintTool && constraintTool->TryDeleteSelectedConstraint() )
+        {
+            return 0;
+        }
+    }
+
     editFrame->PushTool( aEvent );
 
     std::vector<BOARD_ITEM*> lockedItems;
@@ -4780,7 +4889,6 @@ int EDIT_TOOL::Remove( const TOOL_EVENT& aEvent )
 
     // get a copy instead of reference (as we're going to clear the selection before removing items)
     PCB_SELECTION selectionCopy;
-    bool          isCut = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::CUT;
     bool          isAlt = aEvent.Parameter<PCB_ACTIONS::REMOVE_FLAGS>() == PCB_ACTIONS::REMOVE_FLAGS::ALT;
 
     // If we are in a "Cut" operation, then the copied selection exists already and we want to
@@ -4926,6 +5034,7 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
         }
 
         commit.Push( _( "Move Exactly" ) );
+        reSolveConstraintsAfterEdit( selection );
 
         if( selection.IsHover() )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -4984,6 +5093,10 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
     std::vector<BOARD_ITEM*> new_items;
     new_items.reserve( selection.Size() );
 
+    // Maps each duplicated original KIID to its duplicate so constraints between them
+    // can be repointed at the copies once duplication finishes
+    std::map<KIID, KIID> idMap;
+
     // Each selected item is duplicated and pushed to new_items list
     // Old selection is cleared, and new items are then selected.
     for( EDA_ITEM* item : selection )
@@ -5033,6 +5146,7 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                     dupe_item->SetFlags( IS_NEW );
                 }
 
+                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -5059,6 +5173,7 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 // will not properly select it later on
                 dupe_item->ClearSelected();
 
+                idMap[orig_item->m_Uuid] = dupe_item->m_Uuid;
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
@@ -5069,7 +5184,10 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
 
             case PCB_GENERATOR_T:
             case PCB_GROUP_T:
-                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit );
+            {
+                // DeepDuplicate maps original to duplicate KIID per descendant while cloning the group
+                // so grouped constraints can be repointed unordered iteration blocks a later pairing
+                dupe_item = static_cast<PCB_GROUP*>( orig_item )->DeepDuplicate( true, &commit, &idMap );
 
                 dupe_item->RunOnChildren(
                         [&]( BOARD_ITEM* aItem )
@@ -5084,11 +5202,20 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
                 new_items.push_back( dupe_item );
                 commit.Add( dupe_item );
                 break;
+            }
 
             default: UNIMPLEMENTED_FOR( orig_item->GetClass() ); break;
             }
         }
     }
+
+    // Carry constraints whose members were all duplicated repointed at the copies
+    // constraints are not selectable so add them to commit but keep them out of new selection
+    const CONSTRAINTS& sourceConstraints = parentFootprint ? parentFootprint->Constraints()
+                                                           : board()->Constraints();
+
+    for( PCB_CONSTRAINT* clone : CloneFullySelectedConstraints( sourceConstraints, idMap ) )
+        commit.Add( clone );
 
     // Clear the old selection first
     m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -5584,11 +5711,9 @@ void EDIT_TOOL::setTransitions()
     Go( &EDIT_TOOL::Remove,                ACTIONS::doDelete.MakeEvent() );
     Go( &EDIT_TOOL::Remove,                PCB_ACTIONS::deleteFull.MakeEvent() );
     Go( &EDIT_TOOL::Properties,            PCB_ACTIONS::properties.MakeEvent() );
-
-    Go( &EDIT_TOOL::MatchProperties,       PCB_ACTIONS::matchProperties.MakeEvent() );  // MatchProp command
-    Go( &EDIT_TOOL::ExtendTrack,           PCB_ACTIONS::extendTrack.MakeEvent() );      // Extend command
-    Go( &EDIT_TOOL::TrimTrack,             PCB_ACTIONS::trimTrack.MakeEvent() );        // Trim command
-
+    Go( &EDIT_TOOL::MatchProperties,       PCB_ACTIONS::matchProperties.MakeEvent() );
+    Go( &EDIT_TOOL::ExtendTrack,           PCB_ACTIONS::extendTrack.MakeEvent() );
+    Go( &EDIT_TOOL::TrimTrack,             PCB_ACTIONS::trimTrack.MakeEvent() );
     Go( &EDIT_TOOL::MoveExact,             PCB_ACTIONS::moveExact.MakeEvent() );
     Go( &EDIT_TOOL::Move,                  PCB_ACTIONS::moveWithReference.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             ACTIONS::duplicate.MakeEvent() );

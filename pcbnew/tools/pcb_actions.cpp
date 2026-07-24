@@ -31,6 +31,7 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_picker_tool.h>
 #include <tools/pcb_selection_tool.h>
+#include <constraints/pcb_constraint.h>
 #include <router/pns_router.h>
 #include <router/pns_routing_settings.h>
 #include <geometry/geometry_utils.h>
@@ -59,6 +60,213 @@ TOOL_ACTION PCB_ACTIONS::convertToZone( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Create Zone from Selection..." ) )
         .Tooltip( _( "Creates a copper zone from the selection" ) )
         .Icon( BITMAPS::add_zone ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintParallel( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addParallel" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Parallel" ) )
+        .Tooltip( _( "Constrain the two selected segments to be parallel" ) )
+        .Icon( BITMAPS::constraint_parallel )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::PARALLEL ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintPerpendicular( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addPerpendicular" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Perpendicular" ) )
+        .Tooltip( _( "Constrain the two selected segments to be perpendicular" ) )
+        .Icon( BITMAPS::constraint_perpendicular )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::PERPENDICULAR ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintEqualLength( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addEqualLength" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Equal Length" ) )
+        .Tooltip( _( "Constrain the two selected segments to be of equal length" ) )
+        .Icon( BITMAPS::constraint_equal_length )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::EQUAL_LENGTH ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintCollinear( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addCollinear" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Collinear" ) )
+        .Tooltip( _( "Constrain the two selected segments to be collinear" ) )
+        .Icon( BITMAPS::constraint_collinear )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::COLLINEAR ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintAngular( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addAngular" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Angular Dimension" ) )
+        .Tooltip( _( "Constrain the angle between the two selected segments" ) )
+        .Icon( BITMAPS::constraint_angular_dimension )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::ANGULAR_DIMENSION ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintTangent( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addTangent" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Tangent" ) )
+        .Tooltip( _( "Constrain the selected line and curve, or two curves, to touch tangentially" ) )
+        .Icon( BITMAPS::constraint_tangent )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::TANGENT ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintHorizontal( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addHorizontal" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Horizontal" ) )
+        .Tooltip( _( "Constrain the selected segment to be horizontal" ) )
+        .Icon( BITMAPS::constraint_horizontal )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::HORIZONTAL ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintVertical( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addVertical" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Vertical" ) )
+        .Tooltip( _( "Constrain the selected segment to be vertical" ) )
+        .Icon( BITMAPS::constraint_vertical )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::VERTICAL ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintFixedLength( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addFixedLength" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Fixed Length" ) )
+        .Tooltip( _( "Lock the selected segment to its current length" ) )
+        .Icon( BITMAPS::constraint_fixed_length )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::FIXED_LENGTH ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintConcentric( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addConcentric" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Concentric" ) )
+        .Tooltip( _( "Constrain the two selected circles, arcs or ellipses to share a center" ) )
+        .Icon( BITMAPS::constraint_concentric )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::CONCENTRIC ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintEqualRadius( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addEqualRadius" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Equal Radius" ) )
+        .Tooltip( _( "Constrain the two selected circles or arcs to be of equal radius" ) )
+        .Icon( BITMAPS::constraint_equal_radius )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::EQUAL_RADIUS ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintFixedRadius( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addFixedRadius" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Fixed Radius" ) )
+        .Tooltip( _( "Lock the selected circle or arc to its current radius" ) )
+        .Icon( BITMAPS::constraint_fixed_radius )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::FIXED_RADIUS ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintArcAngle( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addArcAngle" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Arc Angle" ) )
+        .Tooltip( _( "Drive the selected arc's swept angle" ) )
+        .Icon( BITMAPS::constraint_arc_angle )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::ARC_ANGLE ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintCoincident( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addCoincident" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Coincident..." ) )
+        .Tooltip( _( "Click two shape endpoints to make them coincide" ) )
+        .Icon( BITMAPS::constraint_coincident )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::COINCIDENT ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintPointOnLine( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addPointOnLine" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Point on Line..." ) )
+        .Tooltip( _( "Click an endpoint, then a segment or circle, to put the point on it" ) )
+        .Icon( BITMAPS::constraint_point_on_line )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::POINT_ON_LINE ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintMidpoint( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addMidpoint" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Midpoint..." ) )
+        .Tooltip( _( "Click an endpoint, then a segment, to put the point at its midpoint" ) )
+        .Icon( BITMAPS::constraint_midpoint )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::MIDPOINT ) );
+
+TOOL_ACTION PCB_ACTIONS::addConstraintSymmetric( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.addSymmetric" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Symmetric..." ) )
+        .Tooltip( _( "Click two endpoints, then a segment axis, to mirror them across it" ) )
+        .Icon( BITMAPS::constraint_symmetric )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Flags( AF_ACTIVATE )
+        .Parameter( PCB_CONSTRAINT_TYPE::SYMMETRIC ) );
+
+TOOL_ACTION PCB_ACTIONS::showConstraints( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.showConstraints" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Always Show Geometric Constraints" ) )
+        .Tooltip( _( "Always show the geometric-constraint diagnostics overlay" ) )
+        .Flags( AF_NONE )
+        .Icon( BITMAPS::measurement ) );
+
+TOOL_ACTION PCB_ACTIONS::hideConstraints( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.hideConstraints" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Show Geometric Constraints on Hover Only" ) )
+        .Tooltip( _( "Reveal a shape's geometric constraints only while hovering it" ) )
+        .Flags( AF_NONE )
+        .Icon( BITMAPS::measurement ) );
+
+TOOL_ACTION PCB_ACTIONS::manageConstraints( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.manageConstraints" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Geometric Constraints..." ) )
+        .Tooltip( _( "List, locate and delete the board's geometric constraints" ) )
+        .Icon( BITMAPS::measurement ) );
+
+TOOL_ACTION PCB_ACTIONS::removeConstraints( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.ConstraintEditor.removeConstraints" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Remove Geometric Constraints" ) )
+        .Tooltip( _( "Remove geometric constraints referencing the selected items" ) )
+        .Icon( BITMAPS::measurement ) );
+
+TOOL_ACTION PCB_ACTIONS::showConstraintsPanel( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.EditorControl.showConstraintsPanel" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Geometric Constraints" ) )
+        .Tooltip( _( "Show/hide the geometric constraints panel" ) )
+        .Icon( BITMAPS::measurement ) );
 
 TOOL_ACTION PCB_ACTIONS::convertToKeepout( TOOL_ACTION_ARGS()
         .Name( "pcbnew.Convert.convertToKeepout" )
@@ -457,14 +665,6 @@ TOOL_ACTION PCB_ACTIONS::magneticSnapToggle( TOOL_ACTION_ARGS()
         .DefaultHotkey( MD_SHIFT + 'S' )
         .FriendlyName( _( "Toggle Snapping Between Active and All Layers" ) )
         .Tooltip( _( "Toggles between snapping on all visible layers and only the active area" ) ) );
-
-TOOL_ACTION PCB_ACTIONS::deleteLastPoint( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.InteractiveDrawing.deleteLastPoint" )
-        .Scope( AS_CONTEXT )
-        .DefaultHotkey( WXK_BACK )
-        .FriendlyName( _( "Delete Last Point" ) )
-        .Tooltip( _( "Delete the last point added to the current item" ) )
-        .Icon( BITMAPS::undo ) );
 
 TOOL_ACTION PCB_ACTIONS::closeOutline( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveDrawing.closeOutline" )
@@ -877,7 +1077,7 @@ TOOL_ACTION PCB_ACTIONS::properties( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Properties..." ) )
         .Icon( BITMAPS::edit ) );
 
-// Matchprop command
+
 TOOL_ACTION PCB_ACTIONS::matchProperties( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveEdit.matchProperties" )
         .Scope( AS_GLOBAL )
@@ -2982,4 +3182,19 @@ const TOOL_EVENT& PCB_EVENTS::LayerPairPresetChangedByKeyEvent()
                                           "pcbnew.Control.layerPairPresetChangedByKey" );
 
     return event;
+}
+
+
+const std::vector<const TOOL_ACTION*>& PCB_ACTIONS::ConstraintAddActions()
+{
+    static const std::vector<const TOOL_ACTION*> actions = {
+        &addConstraintParallel,      &addConstraintPerpendicular, &addConstraintEqualLength,
+        &addConstraintCollinear,     &addConstraintAngular,       &addConstraintTangent,
+        &addConstraintHorizontal,    &addConstraintVertical,      &addConstraintFixedLength,
+        &addConstraintConcentric,    &addConstraintEqualRadius,   &addConstraintFixedRadius,
+        &addConstraintArcAngle,      &addConstraintCoincident,    &addConstraintPointOnLine,
+        &addConstraintMidpoint,      &addConstraintSymmetric
+    };
+
+    return actions;
 }
