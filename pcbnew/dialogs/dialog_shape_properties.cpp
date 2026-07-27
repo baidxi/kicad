@@ -426,6 +426,13 @@ public:
         SME_END_X,
         SME_END_Y,
 
+        //CRSE
+        CRSE_CENTER_X,
+        CRSE_CENTER_Y,
+        CRSE_RADIUS,
+        CRSE_START_ANGLE,
+        CRSE_END_ANGLE,
+
         NUM_CTRLS
     };
 
@@ -446,11 +453,24 @@ public:
                    {
                        OnSMEChange();
                    } );
+
+        BindCtrls( CRSE_CENTER_X, CRSE_END_ANGLE,
+                   [this]()
+                   {
+                       OnCRSEChange();
+                   } );
     }
 
     bool Validate( wxArrayString& aErrs ) const override
     {
         const EDA_ANGLE angle = GetAngleValue( CSA_ANGLE );
+
+
+        if( GetShape().GetRadius() == 0 )
+        {
+            aErrs.push_back( _( "Radius must be non-zero." ) );
+            return false;
+        }
 
         if( angle == ANGLE_0 )
         {
@@ -471,8 +491,8 @@ public:
         {
             const VECTOR2D center = CalcArcCenter( start, end, angle );
 
-            double radius = ( center - start ).EuclideanNorm();
-            double max_offset = std::max( std::abs( center.x ), std::abs( center.y ) ) + radius;
+            double   radius = GetShape().GetRadius();
+            double   max_offset = std::max( std::abs( center.x ), std::abs( center.y ) ) + radius;
             VECTOR2I center_i = VECTOR2I( center.x, center.y );
 
             if( max_offset >= ( std::numeric_limits<VECTOR2I::coord_type>::max() / 2.0 )
@@ -491,6 +511,7 @@ public:
     {
         updateCSA();
         updateSME();
+        updateCRSE();
     }
 
     void OnCSAChange()
@@ -504,6 +525,7 @@ public:
         GetShape().SetArcAngleAndEnd( angle );
 
         updateSME();
+        updateCRSE();
     }
 
     void updateCSA()
@@ -527,6 +549,7 @@ public:
         GetShape().SetArcGeometry( p0, p1, p2 );
 
         updateCSA();
+        updateCRSE();
     }
 
     void updateSME()
@@ -541,6 +564,35 @@ public:
         ChangeValue( SME_MID_Y, p1.y );
         ChangeValue( SME_END_X, p2.x );
         ChangeValue( SME_END_Y, p2.y );
+    }
+
+    void OnCRSEChange()
+    {
+        const VECTOR2I  center{ GetIntValue( CRSE_CENTER_X ), GetIntValue( CRSE_CENTER_Y ) };
+        const int       radius{ GetIntValue( CRSE_RADIUS ) };
+        const EDA_ANGLE start_angle{ GetAngleValue( CRSE_START_ANGLE ) };
+        const EDA_ANGLE end_angle{ GetAngleValue( CRSE_END_ANGLE ) };
+
+        GetShape().SetArcGeometryCRSE( center, radius, start_angle, end_angle );
+
+        updateCSA();
+        updateSME();
+    }
+
+    void updateCRSE()
+    {
+        const VECTOR2I  center = GetShape().GetCenter();
+        const int       radius = GetShape().GetRadius();
+        EDA_ANGLE       start_angle;
+        EDA_ANGLE       end_angle;
+
+        GetShape().CalcArcAnglesScreenspace( start_angle, end_angle );
+
+        ChangeValue( CRSE_CENTER_X, center.x );
+        ChangeValue( CRSE_CENTER_Y, center.y );
+        ChangeValue( CRSE_RADIUS, radius );
+        ChangeAngleValue( CRSE_START_ANGLE, start_angle );
+        ChangeAngleValue( CRSE_END_ANGLE, end_angle );
     }
 };
 
@@ -1090,10 +1142,19 @@ DIALOG_SHAPE_PROPERTIES::DIALOG_SHAPE_PROPERTIES( PCB_BASE_EDIT_FRAME* aParent, 
         AddXYPointToSizer( *aParent, *m_gbsArcBySME, 0, 3, _( "Mid Point" ), false, m_boundCtrls );
         AddXYPointToSizer( *aParent, *m_gbsArcBySME, 3, 0, _( "End Point" ), false, m_boundCtrls );
 
+        AddXYPointToSizer( *aParent, *m_gbsArcByCRSE, 0, 0, _( "Center" ), false, m_boundCtrls );
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 1, 3, _( "Radius" ), ORIGIN_TRANSFORMS::NOT_A_COORD, false,
+                         m_boundCtrls );
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 2, 3, _( "Start Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
+                         m_boundCtrls );
+        AddFieldToSizer( *aParent, *m_gbsArcByCRSE, 3, 3, _( "End Angle" ), ORIGIN_TRANSFORMS::NOT_A_COORD, true,
+                         m_boundCtrls );
+
         m_geomSync = std::make_unique<ARC_GEOM_SYNCER>( m_workingCopy, m_boundCtrls );
 
         showPage( *m_gbsArcByCSA, true );
         showPage( *m_gbsArcBySME );
+        showPage( *m_gbsArcByCRSE );
 
         m_cbRoundRect->Show( false );
         m_cornerRadius.Show( false );

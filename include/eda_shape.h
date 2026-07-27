@@ -264,8 +264,32 @@ public:
 
     void SetRadius( int aX )
     {
-        SetEnd( m_start + VECTOR2I( aX, 0 ) );
-        m_hatchingDirty = true;
+        switch( m_shape )
+        {
+        case SHAPE_T::CIRCLE:
+        {
+            SetEnd( m_start + VECTOR2I( aX, 0 ) );
+            m_hatchingDirty = true;
+            break;
+        }
+
+        case SHAPE_T::ARC:
+        {
+            VECTOR2I startVec = m_start - m_arcCenter;
+            VECTOR2I endVec = m_end - m_arcCenter;
+
+            startVec = startVec.Resize( aX );
+            endVec = endVec.Resize( aX );
+
+            SetStart( m_arcCenter + startVec );
+            SetEnd( m_arcCenter + endVec );
+
+            m_hatchingDirty = true;
+            break;
+        }
+        default:
+            break;
+        }
     }
 
     virtual VECTOR2I GetTopLeft() const { return GetStart(); }
@@ -352,6 +376,37 @@ public:
      * - counter-clockwise in right-up (libedit) coordinate system.
      */
     void SetArcAngleAndEnd( const EDA_ANGLE& aAngle, bool aCheckNegativeAngle = false );
+    /**
+     * Set the start point from the angle and center.
+     *
+     * aAngle is:
+     * - counter-clockwise in right-down coordinate system
+     * - clockwise in right-up (libedit) coordinate system.
+     *
+     * Angle matches screenspace representation.
+     */
+    void SetArcStartAngleAndStart( const EDA_ANGLE& aAngle );
+    /**
+     * Set the end point from the angle and center.
+     *
+     * aAngle is:
+     * - counter-clockwise in right-down coordinate system
+     * - clockwise in right-up (libedit) coordinate system.
+     *
+     * Angle matches screenspace representation.
+     */
+    void SetArcEndAngleAndEnd( const EDA_ANGLE& aAngle );
+    /**
+     * Set the arc geometry from center point, radius, start angle and end angle.
+     *
+     * aAngle is:
+     * - counter-clockwise in right-down coordinate system
+     * - clockwise in right-up (libedit) coordinate system.
+     *
+     * Angles match screenspace representation.
+     */
+    void SetArcGeometryCRSE( const VECTOR2I& aCenter, const int& aRad, const EDA_ANGLE& aStartAngle,
+                             const EDA_ANGLE& aEndAngle );
 
     EDA_ANGLE GetArcAngle() const;
 
@@ -376,6 +431,11 @@ public:
      * -360.0 and 360.0.
      */
     void CalcArcAngles( EDA_ANGLE& aStartAngle, EDA_ANGLE& aEndAngle ) const;
+    /**
+     * Calc arc start and end angles such that angles match screenspace representation. Each angle may be between
+     * 0 and 360.0.
+     */
+    void CalcArcAnglesScreenspace( EDA_ANGLE& aStartAngle, EDA_ANGLE& aEndAngle ) const;
 
     int GetRadius() const;
 

@@ -175,6 +175,457 @@ BOOST_AUTO_TEST_CASE( SetArcGeometry )
     }
 }
 
+struct SET_RADIUS_CIRCLE
+{
+    std::string m_CaseName;
+    VECTOR2I    m_Start;
+    VECTOR2I    m_End;
+    int         m_TestRadius;
+    int         m_ExpectedRadius;
+    VECTOR2I    m_ExpectedCenter;
+};
+
+static const std::vector<SET_RADIUS_CIRCLE> set_radius_circle_cases = {
+    {
+            "Origin centered, increase radius",
+            { 0, 0 },
+            { 10000000, 0 },
+            30000000,
+            30000000,
+            { 0, 0 }
+    },
+    {
+            "Translated circle, small radius",
+            { 12345678, 87654321 },
+            { 32345678, 87654321 },
+            100,
+            100,
+            { 12345678, 87654321 }
+    }
+};
+
+BOOST_AUTO_TEST_CASE( SetRadiusCircle )
+{
+    for( const auto& c : set_radius_circle_cases )
+    {
+        BOOST_TEST_INFO_SCOPE( c.m_CaseName );
+
+        EDA_SHAPE_MOCK shape( SHAPE_T::CIRCLE );
+        shape.SetStart(c.m_Start);
+        shape.SetEnd(c.m_End);
+
+        shape.SetRadius(c.m_TestRadius);
+
+        const int radius = shape.GetRadius();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithin<int>,
+                (radius) ( c.m_ExpectedRadius ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I center = shape.getCenter();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (center) ( c.m_ExpectedCenter ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+    }
+}
+
+
+struct SET_RADIUS_ARC
+{
+    std::string m_CaseName;
+    VECTOR2I    m_Start;
+    VECTOR2I    m_Mid;
+    VECTOR2I    m_End;
+    int         m_TestRadius;
+    int         m_ExpectedRadius;
+    VECTOR2I    m_ExpectedStart;
+    VECTOR2I    m_ExpectedMid;
+    VECTOR2I    m_ExpectedEnd;
+    VECTOR2I    m_ExpectedCenter;
+    double      m_ExpectedInscribedAngle;
+    double      m_ExpectedStartAngle;
+    double      m_ExpectedEndAngle;
+};
+
+static const std::vector<SET_RADIUS_ARC> set_radius_arc_cases = {
+    {
+            "Quarter circle centered at origin",
+            { 10000000,0 },
+            { 7071068,7071068 },
+            { 0,10000000 },
+            30000000,
+            30000000,
+            { 30000000, 0 },
+            { 21213203,21213203 },
+            { 0, 30000000 },
+            { 0, 0 },
+            90.0,
+            0.0,
+            90.0
+    },
+    {
+            "Translated rotated semicircle",
+            { 35850000,-34140000 },
+            { 37780000,-60500000 },
+            { 64140000,-58570000 },
+            50000000,
+            50000000,
+            { 12152300,-13675700 },
+            { 17315700,-84197700 },
+            { 87837700,-79034300 },
+            { 49995000,-46355000 },
+            180.0,
+            139.2,
+            319.2
+    }
+};
+
+BOOST_AUTO_TEST_CASE( SetRadiusArc )
+{
+    const double angle_tol = 0.1;
+
+    for( const auto& c : set_radius_arc_cases )
+    {
+        BOOST_TEST_INFO_SCOPE( c.m_CaseName );
+
+        EDA_SHAPE_MOCK shape( SHAPE_T::ARC );
+        shape.SetArcGeometry( c.m_Start, c.m_Mid, c.m_End );
+
+        shape.SetRadius( c.m_TestRadius );
+
+        const int radius = shape.GetRadius();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithin<int>,
+                (radius) ( c.m_ExpectedRadius ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_start = shape.GetStart();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_start) ( c.m_ExpectedStart ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_mid = shape.GetArcMid();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_mid) ( c.m_ExpectedMid ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_end = shape.GetEnd();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_end) ( c.m_ExpectedEnd ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I center = shape.getCenter();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (center) ( c.m_ExpectedCenter ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const EDA_ANGLE inscribed_angle = shape.GetArcAngle();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( inscribed_angle.AsDegrees() )( c.m_ExpectedInscribedAngle )( 360.0 )( angle_tol ) );
+
+        EDA_ANGLE start_angle;
+        EDA_ANGLE end_angle;
+
+        shape.CalcArcAngles( start_angle, end_angle );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( start_angle.AsDegrees() )( c.m_ExpectedStartAngle )( 360.0 )( angle_tol ) );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( end_angle.AsDegrees() )( c.m_ExpectedEndAngle )( 360.0 )( angle_tol ) );
+    }
+}
+
+struct SET_ARC_ANGLES
+{
+    std::string m_CaseName;
+    VECTOR2I    m_Start;
+    VECTOR2I    m_Mid;
+    VECTOR2I    m_End;
+    double      m_TestStartAngleScreenspace;
+    double      m_TestEndAngleScreenspace;
+    int         m_ExpectedRadius;
+    VECTOR2I    m_ExpectedStart;
+    VECTOR2I    m_ExpectedMid;
+    VECTOR2I    m_ExpectedEnd;
+    VECTOR2I    m_ExpectedCenter;
+    double      m_ExpectedInscribedAngle;
+    double      m_ExpectedStartAngle;
+    double      m_ExpectedEndAngle;
+    double      m_ExpectedStartAngleScreenspace;
+    double      m_ExpectedEndAngleScreenspace;
+};
+
+static const std::vector<SET_ARC_ANGLES> set_arc_angles_cases = {
+    {
+            "Three Quarter circle",
+            { 10000000, 0 },
+            { 7071068, 7071068 },
+            { 0, 10000000 },
+            0.0,
+            90.0,
+            10000000,
+            { 10000000, 0 },
+            { -7071068, 7071068 },
+            { 0, -10000000 },
+            { 0, 0 },
+            270.0,
+            0.0,
+            270.0,
+            0.0,
+            90.0
+    },
+    {
+            "Translated, Normalized negative and overflow angles",
+            { 35850000,-34140000 },
+            { 37780000,-60500000 },
+            { 64140000,-58570000 },
+            -90.0,
+            450.0,
+            18689200,
+            { 49995000, -27665800 },
+            { 31305800, -46355000 },
+            { 49995000, -65044200 },
+            { 49995000, -46355000 },
+            180.0,
+            90.0,
+            270.0,
+            270.0,
+            90.0
+    }
+};
+
+BOOST_AUTO_TEST_CASE( SetArcAngles )
+{
+    const double angle_tol = 0.1;
+
+    for( const auto& c : set_arc_angles_cases )
+    {
+        BOOST_TEST_INFO_SCOPE( c.m_CaseName );
+
+        EDA_SHAPE_MOCK shape( SHAPE_T::ARC );
+        shape.SetArcGeometry( c.m_Start, c.m_Mid, c.m_End );
+
+        const EDA_ANGLE test_start_angle( c.m_TestStartAngleScreenspace );
+        const EDA_ANGLE test_end_angle( c.m_TestEndAngleScreenspace );
+
+        shape.SetArcStartAngleAndStart(test_start_angle);
+        shape.SetArcEndAngleAndEnd(test_end_angle);
+
+        EDA_ANGLE start_angle_screenspace;
+        EDA_ANGLE end_angle_screenspace;
+
+        shape.CalcArcAnglesScreenspace( start_angle_screenspace, end_angle_screenspace );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( start_angle_screenspace.AsDegrees() )( c.m_ExpectedStartAngleScreenspace )( 360.0 )( angle_tol ) );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( end_angle_screenspace.AsDegrees() )( c.m_ExpectedEndAngleScreenspace )( 360.0 )( angle_tol ) );
+
+        EDA_ANGLE start_angle;
+        EDA_ANGLE end_angle;
+
+        shape.CalcArcAngles( start_angle, end_angle );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( start_angle.AsDegrees() )( c.m_ExpectedStartAngle )( 360.0 )( angle_tol ) );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( end_angle.AsDegrees() )( c.m_ExpectedEndAngle )( 360.0 )( angle_tol ) );
+
+        const EDA_ANGLE inscribed_angle = shape.GetArcAngle();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( inscribed_angle.AsDegrees() )( c.m_ExpectedInscribedAngle )( 360.0 )( angle_tol ) );
+
+        const int radius = shape.GetRadius();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithin<int>,
+                (radius) ( c.m_ExpectedRadius ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_start = shape.GetStart();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_start) ( c.m_ExpectedStart ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_mid = shape.GetArcMid();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_mid) ( c.m_ExpectedMid ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_end = shape.GetEnd();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_end) ( c.m_ExpectedEnd ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I center = shape.getCenter();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (center) ( c.m_ExpectedCenter ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+    }
+}
+
+struct SET_ARC_CRSE
+{
+    std::string m_CaseName;
+    VECTOR2I    m_TestCenter;
+    int         m_TestRadius;
+    double      m_TestStartAngleScreenspace;
+    double      m_TestEndAngleScreenspace;
+    int         m_ExpectedRadius;
+    VECTOR2I    m_ExpectedStart;
+    VECTOR2I    m_ExpectedMid;
+    VECTOR2I    m_ExpectedEnd;
+    VECTOR2I    m_ExpectedCenter;
+    double      m_ExpectedInscribedAngle;
+    double      m_ExpectedStartAngle;
+    double      m_ExpectedEndAngle;
+    double      m_ExpectedStartAngleScreenspace;
+    double      m_ExpectedEndAngleScreenspace;
+};
+
+static const std::vector<SET_ARC_CRSE> set_arc_crse_cases = {
+    {
+            "Three Quarter circle",
+            { 0, 0 },
+            10000000,
+            0.0,
+            90.0,
+            10000000,
+            { 10000000, 0 },
+            { -7071068, 7071068 },
+            { 0, -10000000 },
+            { 0, 0 },
+            270.0,
+            0.0,
+            270.0,
+            0.0,
+            90.0
+    },
+    {
+            "Translated center with normalized angles",
+            { 49995000, -46355000 },
+            18689200,
+            -90.0,
+            450.0,
+            18689200,
+            { 49995000, -27665800 },
+            { 31305800, -46355000 },
+            { 49995000, -65044200 },
+            { 49995000, -46355000 },
+            180.0,
+            90.0,
+            270.0,
+            270.0,
+            90.0
+    }
+};
+
+BOOST_AUTO_TEST_CASE( SetArcCRSE )
+{
+    const double angle_tol = 0.1;
+
+    for( const auto& c : set_arc_crse_cases )
+    {
+        BOOST_TEST_INFO_SCOPE( c.m_CaseName );
+
+        const EDA_ANGLE test_start_angle( c.m_TestStartAngleScreenspace );
+        const EDA_ANGLE test_end_angle( c.m_TestEndAngleScreenspace );
+
+        EDA_SHAPE_MOCK shape( SHAPE_T::ARC );
+        shape.SetArcGeometryCRSE( c.m_TestCenter, c.m_TestRadius, test_start_angle, test_end_angle );
+
+        EDA_ANGLE start_angle_screenspace;
+        EDA_ANGLE end_angle_screenspace;
+
+        shape.CalcArcAnglesScreenspace( start_angle_screenspace, end_angle_screenspace );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( start_angle_screenspace.AsDegrees() )( c.m_ExpectedStartAngleScreenspace )( 360.0 )( angle_tol ) );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( end_angle_screenspace.AsDegrees() )( c.m_ExpectedEndAngleScreenspace )( 360.0 )( angle_tol ) );
+
+        EDA_ANGLE start_angle;
+        EDA_ANGLE end_angle;
+
+        shape.CalcArcAngles( start_angle, end_angle );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( start_angle.AsDegrees() )( c.m_ExpectedStartAngle )( 360.0 )( angle_tol ) );
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( end_angle.AsDegrees() )( c.m_ExpectedEndAngle )( 360.0 )( angle_tol ) );
+
+        const EDA_ANGLE inscribed_angle = shape.GetArcAngle();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithinWrapped<double>,
+                ( inscribed_angle.AsDegrees() )( c.m_ExpectedInscribedAngle )( 360.0 )( angle_tol ) );
+
+        const int radius = shape.GetRadius();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsWithin<int>,
+                (radius) ( c.m_ExpectedRadius ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_start = shape.GetStart();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_start) ( c.m_ExpectedStart ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_mid = shape.GetArcMid();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_mid) ( c.m_ExpectedMid ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I new_end = shape.GetEnd();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (new_end) ( c.m_ExpectedEnd ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+
+        const VECTOR2I center = shape.getCenter();
+
+        BOOST_CHECK_PREDICATE(
+                KI_TEST::IsVecWithinTol<VECTOR2I>,
+                (center) ( c.m_ExpectedCenter ) ( SHAPE_ARC::DefaultAccuracyForPCB() ) );
+    }
+}
+
+/*
+Radius Circle /// Done - Needs testing + Cases
+Radius Arc /// Done - Needs testing + Cases
+Angles Arc /// Done - Needs testing + Cases
+Whole Geometry Set /// Done - Needs testing + Cases
+*/
+
 /**
  * Editing a small eeschema arc must not snap its radius up to the PCB-scale
  * 1 mil minimum.  The edit helpers used to hard-code pcbIUScale, which in

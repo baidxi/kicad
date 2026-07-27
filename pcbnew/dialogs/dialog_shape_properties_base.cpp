@@ -66,7 +66,7 @@ DIALOG_SHAPE_PROPERTIES_BASE::DIALOG_SHAPE_PROPERTIES_BASE( wxWindow* parent, wx
 	m_rectangleByCenterSize->SetSizer( bSizer20 );
 	m_rectangleByCenterSize->Layout();
 	bSizer20->Fit( m_rectangleByCenterSize );
-	m_notebookShapeDefs->AddPage( m_rectangleByCenterSize, _("By Center and Size"), true );
+	m_notebookShapeDefs->AddPage( m_rectangleByCenterSize, _("By Center and Size"), false );
 	m_lineByEnds = new wxPanel( m_notebookShapeDefs, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer6;
 	bSizer6 = new wxBoxSizer( wxVERTICAL );
@@ -147,6 +147,22 @@ DIALOG_SHAPE_PROPERTIES_BASE::DIALOG_SHAPE_PROPERTIES_BASE( wxWindow* parent, wx
 	m_arcBySME->Layout();
 	bSizer9->Fit( m_arcBySME );
 	m_notebookShapeDefs->AddPage( m_arcBySME, _("By Start/Mid/End"), false );
+	m_arcByCRSE = new wxPanel( m_notebookShapeDefs, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
+	wxBoxSizer* bSizer181;
+	bSizer181 = new wxBoxSizer( wxVERTICAL );
+
+	m_gbsArcByCRSE = new wxGridBagSizer( 4, 5 );
+	m_gbsArcByCRSE->SetFlexibleDirection( wxBOTH );
+	m_gbsArcByCRSE->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+
+
+	bSizer181->Add( m_gbsArcByCRSE, 1, wxALL|wxEXPAND, 5 );
+
+
+	m_arcByCRSE->SetSizer( bSizer181 );
+	m_arcByCRSE->Layout();
+	bSizer181->Fit( m_arcByCRSE );
+	m_notebookShapeDefs->AddPage( m_arcByCRSE, _("By Center/Radius/Angles"), false );
 	m_circle = new wxPanel( m_notebookShapeDefs, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizer10;
 	bSizer10 = new wxBoxSizer( wxVERTICAL );
