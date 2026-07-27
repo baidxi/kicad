@@ -27,6 +27,7 @@
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <lset.h>
 #include <project/net_settings.h>
 #include <footprint.h>
 #include <layer_range.h>
@@ -297,9 +298,9 @@ std::vector<PCB_LAYER_ID> ALTIUM_PCB::GetKicadLayersToIterate( ALTIUM_LAYER aAlt
 }
 
 
-ALTIUM_PCB::ALTIUM_PCB( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter,
-                        LAYER_MAPPING_HANDLER& aHandler, REPORTER* aReporter,
-                        const wxString& aLibrary, const wxString& aFootprintName )
+ALTIUM_PCB::ALTIUM_PCB( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter, LAYER_MAPPING_HANDLER& aHandler,
+                        REPORTER* aReporter, const wxString& aLibrary, const wxString& aFootprintName,
+                        const std::map<std::string, UTF8>* aImportProperties )
 {
     m_board = aBoard;
     m_progressReporter = aProgressReporter;
@@ -311,6 +312,54 @@ ALTIUM_PCB::ALTIUM_PCB( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter,
     m_highest_pour_index = 0;
     m_library = aLibrary;
     m_footprintName = aFootprintName;
+    m_importProperties = aImportProperties;
+
+    // Populate layer mapping from import properties (e.g. from --settings JSON)
+    if( m_importProperties )
+    {
+        static const std::map<wxString, ALTIUM_LAYER> altiumLayerNames = {
+            { wxS( "MECHANICAL_1" ), ALTIUM_LAYER::MECHANICAL_1 },
+            { wxS( "MECHANICAL_2" ), ALTIUM_LAYER::MECHANICAL_2 },
+            { wxS( "MECHANICAL_3" ), ALTIUM_LAYER::MECHANICAL_3 },
+            { wxS( "MECHANICAL_4" ), ALTIUM_LAYER::MECHANICAL_4 },
+            { wxS( "MECHANICAL_5" ), ALTIUM_LAYER::MECHANICAL_5 },
+            { wxS( "MECHANICAL_6" ), ALTIUM_LAYER::MECHANICAL_6 },
+            { wxS( "MECHANICAL_7" ), ALTIUM_LAYER::MECHANICAL_7 },
+            { wxS( "MECHANICAL_8" ), ALTIUM_LAYER::MECHANICAL_8 },
+            { wxS( "MECHANICAL_9" ), ALTIUM_LAYER::MECHANICAL_9 },
+            { wxS( "MECHANICAL_10" ), ALTIUM_LAYER::MECHANICAL_10 },
+            { wxS( "MECHANICAL_11" ), ALTIUM_LAYER::MECHANICAL_11 },
+            { wxS( "MECHANICAL_12" ), ALTIUM_LAYER::MECHANICAL_12 },
+            { wxS( "MECHANICAL_13" ), ALTIUM_LAYER::MECHANICAL_13 },
+            { wxS( "MECHANICAL_14" ), ALTIUM_LAYER::MECHANICAL_14 },
+            { wxS( "MECHANICAL_15" ), ALTIUM_LAYER::MECHANICAL_15 },
+            { wxS( "MECHANICAL_16" ), ALTIUM_LAYER::MECHANICAL_16 },
+            { wxS( "DRILL_GUIDE" ), ALTIUM_LAYER::DRILL_GUIDE },
+            { wxS( "DRILL_DRAWING" ), ALTIUM_LAYER::DRILL_DRAWING },
+            { wxS( "KEEP_OUT_LAYER" ), ALTIUM_LAYER::KEEP_OUT_LAYER },
+        };
+
+        const std::string prefix = "altium.layer_mapping.";
+
+        for( const auto& [key, val] : *m_importProperties )
+        {
+            if( key.compare( 0, prefix.size(), prefix ) != 0 )
+                continue;
+
+            wxString altiumName = wxString::FromUTF8( key.substr( prefix.size() ) );
+            wxString kicadName = wxString::FromUTF8( val.c_str() );
+
+            auto altiumIt = altiumLayerNames.find( altiumName );
+
+            if( altiumIt != altiumLayerNames.end() )
+            {
+                int kicadLayerNum = LSET::NameToLayer( kicadName );
+
+                if( kicadLayerNum != UNDEFINED_LAYER )
+                    m_layermap[altiumIt->second] = static_cast<PCB_LAYER_ID>( kicadLayerNum );
+            }
+        }
+    }
 }
 
 ALTIUM_PCB::~ALTIUM_PCB()
@@ -771,7 +820,18 @@ FOOTPRINT* ALTIUM_PCB::ParseFootprint( ALTIUM_PCB_COMPOUND_FILE& altiumLibFile,
     footprint->Value().SetVisible( true );
 
     const VECTOR2I defaultTextSize( pcbIUScale.mmToIU( 1.0 ), pcbIUScale.mmToIU( 1.0 ) );
-    const int      defaultTextThickness( pcbIUScale.mmToIU( 0.15 ) );
+
+    double textThicknessMm = 0.15;
+
+    if( m_importProperties && m_importProperties->count( "altium.default_text_thickness_mm" ) )
+    {
+        // Locale-independent parse; on malformed input textThicknessMm keeps its default.
+        wxString thicknessStr =
+                wxString::FromUTF8( m_importProperties->at( "altium.default_text_thickness_mm" ).c_str() );
+        thicknessStr.ToCDouble( &textThicknessMm );
+    }
+
+    const int defaultTextThickness( pcbIUScale.mmToIU( textThicknessMm ) );
 
     for( PCB_FIELD* field : footprint->GetFields() )
     {
@@ -3580,7 +3640,11 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
 {
     std::unique_ptr<PAD> pad = std::make_unique<PAD>( aFootprint );
 
-    pad->SetNumber( aElem.name );
+    if( m_importProperties && m_importProperties->count( "altium.uppercase_pad_names" ) )
+        pad->SetNumber( aElem.name.Upper() );
+    else
+        pad->SetNumber( aElem.name );
+
     pad->SetNetCode( GetNetCode( aElem.net ) );
 
     pad->SetPosition( aElem.position );

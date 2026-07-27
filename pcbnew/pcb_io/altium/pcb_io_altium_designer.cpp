@@ -440,7 +440,8 @@ FOOTPRINT* PCB_IO_ALTIUM_DESIGNER::FootprintLoad( const wxString& aLibraryPath,
                 continue;
 
             // Parse File
-            ALTIUM_PCB pcb( m_board, nullptr, m_layer_mapping_handler, m_reporter, aLibraryPath, aFootprintName );
+            ALTIUM_PCB pcb( m_board, nullptr, m_layer_mapping_handler, m_reporter, aLibraryPath, aFootprintName,
+                            aProperties );
             return pcb.ParseFootprint( *altiumLibFile, aFootprintName );
         }
     }

@@ -73,6 +73,8 @@
 #include <sch_io/sch_io.h>
 #include <sch_io/kicad_sexpr/sch_io_kicad_sexpr_lib_cache.h>
 
+#include <nlohmann/json.hpp>
+
 #include <netlist.h>
 #include <netlist_exporter_base.h>
 #include <netlist_exporter_orcadpcb2.h>
@@ -1312,7 +1314,47 @@ int EESCHEMA_JOBS_HANDLER::JobSymUpgrade( JOB* aJob )
     }
     else
     {
-        if( !SCH_IO_MGR::ConvertLibrary( nullptr, fn.GetAbsolutePath(), upgradeJob->m_outputLibraryPath ) )
+        std::map<std::string, UTF8> importProps;
+
+        if( !upgradeJob->m_settingsFile.IsEmpty() )
+        {
+            wxFileName settingsFn( upgradeJob->m_settingsFile );
+
+            if( !settingsFn.FileExists() )
+            {
+                m_reporter->Report( _( "Settings file does not exist or is not accessible\n" ), RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+            }
+
+            try
+            {
+                wxFile   file( settingsFn.GetFullPath() );
+                wxString content;
+                file.ReadAll( &content );
+
+                nlohmann::json settings = nlohmann::json::parse( content.ToStdString() );
+
+                if( settings.contains( "schematic" ) )
+                {
+                    const auto& sch = settings["schematic"];
+
+                    if( sch.contains( "pin_name_offset_mil" ) )
+                        importProps["altium.pin_name_offset_mil"] =
+                                std::to_string( sch["pin_name_offset_mil"].get<int>() );
+
+                    if( sch.contains( "uppercase_pin_designators" ) && sch["uppercase_pin_designators"].get<bool>() )
+                        importProps["altium.uppercase_pin_designators"] = "";
+                }
+            }
+            catch( const nlohmann::json::exception& e )
+            {
+                m_reporter->Report( wxString::Format( _( "Error parsing settings file: %s\n" ), e.what() ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+            }
+        }
+
+        if( !SCH_IO_MGR::ConvertLibrary( &importProps, fn.GetAbsolutePath(), upgradeJob->m_outputLibraryPath ) )
         {
             m_reporter->Report( ( "Unable to convert library\n" ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_UNKNOWN;

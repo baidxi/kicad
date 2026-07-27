@@ -2269,7 +2269,55 @@ int PCBNEW_JOBS_HANDLER::JobExportFpUpgrade( JOB* aJob )
     }
     else
     {
-        if( !PCB_IO_MGR::ConvertLibrary( {}, upgradeJob->m_libraryPath, upgradeJob->m_outputLibraryPath,
+        std::map<std::string, UTF8> importProps;
+
+        if( !upgradeJob->m_settingsFile.IsEmpty() )
+        {
+            wxFileName settingsFn( upgradeJob->m_settingsFile );
+
+            if( !settingsFn.FileExists() )
+            {
+                m_reporter->Report( _( "Settings file does not exist or is not accessible\n" ), RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+            }
+
+            try
+            {
+                wxFile   file( settingsFn.GetFullPath() );
+                wxString content;
+                file.ReadAll( &content );
+
+                nlohmann::json settings = nlohmann::json::parse( content.ToStdString() );
+
+                if( settings.contains( "pcb" ) )
+                {
+                    const auto& pcb = settings["pcb"];
+
+                    if( pcb.contains( "default_text_thickness_mm" ) )
+                        importProps["altium.default_text_thickness_mm"] =
+                                wxString::FromCDouble( pcb["default_text_thickness_mm"].get<double>() ).ToStdString();
+
+                    if( pcb.contains( "uppercase_pad_names" ) && pcb["uppercase_pad_names"].get<bool>() )
+                        importProps["altium.uppercase_pad_names"] = "";
+
+                    if( pcb.contains( "layer_mapping" ) )
+                    {
+                        for( const auto& [key, val] : pcb["layer_mapping"].items() )
+                        {
+                            importProps["altium.layer_mapping." + key] = val.get<std::string>();
+                        }
+                    }
+                }
+            }
+            catch( const nlohmann::json::exception& e )
+            {
+                m_reporter->Report( wxString::Format( _( "Error parsing settings file: %s\n" ), e.what() ),
+                                    RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+            }
+        }
+
+        if( !PCB_IO_MGR::ConvertLibrary( importProps, upgradeJob->m_libraryPath, upgradeJob->m_outputLibraryPath,
                                          nullptr /* REPORTER */ ) )
         {
             m_reporter->Report( ( "Unable to convert library\n" ), RPT_SEVERITY_ERROR );

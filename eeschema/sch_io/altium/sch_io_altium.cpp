@@ -297,6 +297,7 @@ SCH_IO_ALTIUM::SCH_IO_ALTIUM() :
     m_schematic    = nullptr;
     m_harnessOwnerIndexOffset = 0;
     m_harnessEntryParent      = 0;
+    m_importProperties = nullptr;
 
     m_reporter     = &WXLOG_REPORTER::GetInstance();
 }
@@ -2161,6 +2162,12 @@ void SCH_IO_ALTIUM::ParseComponent( int aIndex, const std::map<wxString, wxStrin
     // (defaults to 0) or otherwise nonsensical, so clamp to a minimum of 1 unit.
     ksymbol->SetUnitCount( std::max( 1, elem.partcount - 1 ), true );
 
+    if( m_importProperties && m_importProperties->count( "altium.pin_name_offset_mil" ) )
+    {
+        int offset = wxAtoi( m_importProperties->at( "altium.pin_name_offset_mil" ) );
+        ksymbol->SetPinNameOffset( schIUScale.MilsToIU( offset ) );
+    }
+
     if( elem.displaymodecount > 1 )
     {
         std::vector<wxString> bodyStyleNames;
@@ -2299,7 +2306,14 @@ void SCH_IO_ALTIUM::ParsePin( const std::map<wxString, wxString>& aProperties,
     }
 
     pin->SetName( AltiumPinNamesToKiCad( elem.name ) );
-    pin->SetNumber( AltiumPinDesignatorToKiCad( elem.designator ) );
+
+    wxString pinDesignator = AltiumPinDesignatorToKiCad( elem.designator );
+
+    if( m_importProperties && m_importProperties->count( "altium.uppercase_pin_designators" ) )
+        pin->SetNumber( pinDesignator.Upper() );
+    else
+        pin->SetNumber( pinDesignator );
+
     pin->SetLength( elem.pinlength );
 
     if( elem.hidden )
@@ -5574,6 +5588,12 @@ std::vector<LIB_SYMBOL*> SCH_IO_ALTIUM::ParseLibComponent( const std::map<wxStri
     // (defaults to 0) or otherwise nonsensical, so clamp to a minimum of 1 unit.
     symbol->SetUnitCount( std::max( 1, elem.partcount - 1 ), true );
 
+    if( m_importProperties && m_importProperties->count( "altium.pin_name_offset_mil" ) )
+    {
+        int offset = wxAtoi( m_importProperties->at( "altium.pin_name_offset_mil" ) );
+        symbol->SetPinNameOffset( schIUScale.MilsToIU( offset ) );
+    }
+
     if( elem.displaymodecount > 1 )
     {
         std::vector<wxString> bodyStyleNames;
@@ -5804,6 +5824,9 @@ void SCH_IO_ALTIUM::ensureLoadedLibrary( const wxString& aLibraryPath,
 {
     // Suppress font substitution warnings (RAII - automatically restored on scope exit)
     FONTCONFIG_REPORTER_SCOPE fontconfigScope( nullptr );
+
+    // Store import properties so ParseLibComponent/ParsePin can access them
+    m_importProperties = aProperties;
 
     if( m_libCache.count( aLibraryPath ) )
     {
