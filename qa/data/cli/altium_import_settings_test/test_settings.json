@@ -1,0 +1,32 @@
+{
+    "description": "Test settings for Altium import customization",
+
+    "pcb": {
+        "layer_mapping": {
+            "MECHANICAL_1": "Cmts.User",
+            "MECHANICAL_2": "Dwgs.User",
+            "MECHANICAL_3": "Eco1.User",
+            "MECHANICAL_4": "Eco2.User",
+            "MECHANICAL_5": "User.1",
+            "MECHANICAL_6": "User.2",
+            "MECHANICAL_7": "Dwgs.User",
+            "MECHANICAL_8": "Cmts.User",
+            "MECHANICAL_9": "User.3",
+            "MECHANICAL_10": "User.4",
+            "MECHANICAL_11": "User.5",
+            "MECHANICAL_12": "User.6",
+            "MECHANICAL_13": "F.Fab",
+            "MECHANICAL_14": "F.Fab",
+            "MECHANICAL_15": "F.CrtYd",
+            "MECHANICAL_16": "B.CrtYd",
+            "DRILL_DRAWING": "F.Fab"
+        },
+        "default_text_thickness_mm": 0.2032,
+        "uppercase_pad_names": true
+    },
+
+    "schematic": {
+        "pin_name_offset_mil": 50,
+        "uppercase_pin_designators": true
+    }
+}
