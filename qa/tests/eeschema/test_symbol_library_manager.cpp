@@ -159,6 +159,21 @@ BOOST_AUTO_TEST_CASE( LibBuffer )
 
 
 /**
+ * Querying derived names for a symbol that is not in the buffer must not crash.  This previously
+ * dereferenced a null symbol via SharedPtr() in LIB_BUFFER::GetDerivedSymbolNames (e.g. when the
+ * symbol editor's target pointed at an unloadable HTTP/database symbol).
+ */
+BOOST_AUTO_TEST_CASE( GetDerivedSymbolNamesMissingSymbol )
+{
+    LIB_BUFFER    libBuffer( wxS( "TestLibrary" ) );
+    wxArrayString symbolNames;
+
+    BOOST_CHECK_EQUAL( libBuffer.GetDerivedSymbolNames( wxS( "DoesNotExist" ), symbolNames ), 0 );
+    BOOST_CHECK( symbolNames.IsEmpty() );
+}
+
+
+/**
  * Test new symbol creation routines.
  */
 BOOST_AUTO_TEST_CASE( NewSymbolCreation )
