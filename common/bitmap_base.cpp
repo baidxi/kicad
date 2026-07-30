@@ -451,78 +451,24 @@ VECTOR2I BITMAP_BASE::GetSize() const
 }
 
 
-void BITMAP_BASE::mirrorImageInPlace( wxImage& aImage, FLIP_DIRECTION aFlipDirection )
-{
-    const int w = aImage.GetWidth();
-    const int h = aImage.GetHeight();
-
-    if( w == 0 || h == 0 )
-        return;
-
-    unsigned char* rgb = aImage.GetData();
-    unsigned char* alpha = aImage.HasAlpha() ? aImage.GetAlpha() : nullptr;
-    const int      bpp = 3;
-
-    if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
-    {
-        // Swap columns left-to-right within each row
-        for( int y = 0; y < h; ++y )
-        {
-            unsigned char* rowRgb = rgb + y * w * bpp;
-
-            for( int lo = 0, hi = w - 1; lo < hi; ++lo, --hi )
-            {
-                std::swap( rowRgb[lo * bpp + 0], rowRgb[hi * bpp + 0] );
-                std::swap( rowRgb[lo * bpp + 1], rowRgb[hi * bpp + 1] );
-                std::swap( rowRgb[lo * bpp + 2], rowRgb[hi * bpp + 2] );
-            }
-
-            if( alpha )
-            {
-                unsigned char* rowAlpha = alpha + y * w;
-
-                for( int lo = 0, hi = w - 1; lo < hi; ++lo, --hi )
-                    std::swap( rowAlpha[lo], rowAlpha[hi] );
-            }
-        }
-    }
-    else
-    {
-        // Swap entire rows top-to-bottom
-        const size_t rowBytes = w * bpp;
-        std::vector<unsigned char> tmpRgb( rowBytes );
-
-        for( int lo = 0, hi = h - 1; lo < hi; ++lo, --hi )
-        {
-            unsigned char* rowLo = rgb + lo * rowBytes;
-            unsigned char* rowHi = rgb + hi * rowBytes;
-            memcpy( tmpRgb.data(), rowLo, rowBytes );
-            memcpy( rowLo, rowHi, rowBytes );
-            memcpy( rowHi, tmpRgb.data(), rowBytes );
-        }
-
-        if( alpha )
-        {
-            std::vector<unsigned char> tmpAlpha( w );
-
-            for( int lo = 0, hi = h - 1; lo < hi; ++lo, --hi )
-            {
-                unsigned char* aLo = alpha + lo * w;
-                unsigned char* aHi = alpha + hi * w;
-                memcpy( tmpAlpha.data(), aLo, w );
-                memcpy( aLo, aHi, w );
-                memcpy( aHi, tmpAlpha.data(), w );
-            }
-        }
-    }
-}
-
-
 void BITMAP_BASE::Mirror( FLIP_DIRECTION aFlipDirection )
 {
     if( m_image )
     {
-        mirrorImageInPlace( *m_image, aFlipDirection );
+        // wxImage::Mirror() returns a new image (like Rotate90()), which detaches from any
+        // copy-on-write shared buffer. Mirroring in place through the raw pixel pointer would
+        // corrupt every wxImage sharing this refcounted buffer (e.g. sibling symbol instances
+        // that copy-on-write share one embedded image while plotting).
+        // Mirror() clears resolution metadata, so preserve it as Rotate() does.
+        wxString resX = m_image->GetOption( wxIMAGE_OPTION_RESOLUTIONX );
+        wxString resY = m_image->GetOption( wxIMAGE_OPTION_RESOLUTIONY );
+        int      unit = m_image->GetOptionInt( wxIMAGE_OPTION_RESOLUTIONUNIT );
+
+        *m_image = m_image->Mirror( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT );
+
+        m_image->SetOption( wxIMAGE_OPTION_RESOLUTIONUNIT, unit );
+        m_image->SetOption( wxIMAGE_OPTION_RESOLUTIONX, resX );
+        m_image->SetOption( wxIMAGE_OPTION_RESOLUTIONY, resY );
 
         if( aFlipDirection == FLIP_DIRECTION::TOP_BOTTOM )
             m_isMirroredY = !m_isMirroredY;

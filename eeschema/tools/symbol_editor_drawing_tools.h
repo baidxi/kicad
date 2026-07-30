@@ -46,6 +46,7 @@ public:
 
     int TwoClickPlace( const TOOL_EVENT& aEvent );
     int PlaceAnchor( const TOOL_EVENT& aEvent );
+    int PlaceImage( const TOOL_EVENT& aEvent );
 
     int RepeatDrawItem( const TOOL_EVENT& aEvent );
 
@@ -65,6 +66,7 @@ private:
     bool              m_inDrawShape;
     bool              m_inPlaceAnchor;
     bool              m_inTwoClickPlace;
+    bool              m_inPlaceImage;
 
 private:
     static KIID       g_lastPin;

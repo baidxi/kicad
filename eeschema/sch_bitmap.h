@@ -110,6 +110,8 @@ public:
 
     bool operator==( const SCH_ITEM& aOther ) const override;
 
+    int compare( const SCH_ITEM& aOther, int aCompareFlags = 0 ) const override;
+
 #if defined(DEBUG)
     void Show( int nestLevel, std::ostream& os ) const override;
 #endif

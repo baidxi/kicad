@@ -107,6 +107,7 @@ std::optional<TOOLBAR_CONFIGURATION> SYMBOL_EDIT_TOOLBAR_SETTINGS::DefaultToolba
               .AppendAction( SCH_ACTIONS::drawSymbolLines )
               .AppendAction( SCH_ACTIONS::drawSymbolPolygon )
               .AppendAction( SCH_ACTIONS::placeSymbolAnchor )
+              .AppendAction( SCH_ACTIONS::placeSymbolImage )
               .AppendAction( ACTIONS::deleteTool);
         break;
 

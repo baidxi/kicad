@@ -20,12 +20,12 @@
 #include <dialogs/dialog_image_properties.h>
 #include <dialogs/panel_image_editor.h>
 
-#include <sch_edit_frame.h>
+#include <eda_draw_frame.h>
 #include <sch_bitmap.h>
 #include <sch_commit.h>
 
 
-DIALOG_IMAGE_PROPERTIES::DIALOG_IMAGE_PROPERTIES( SCH_EDIT_FRAME* aParent, SCH_BITMAP& aBitmap ) :
+DIALOG_IMAGE_PROPERTIES::DIALOG_IMAGE_PROPERTIES( EDA_DRAW_FRAME* aParent, SCH_BITMAP& aBitmap ) :
         DIALOG_IMAGE_PROPERTIES_BASE( aParent ),
         m_frame( aParent ),
         m_bitmap( aBitmap ),
@@ -62,11 +62,15 @@ bool DIALOG_IMAGE_PROPERTIES::TransferDataFromWindow()
 
     if( m_imageEditor->TransferDataFromWindow() )
     {
+        EDA_ITEM*  undoItem = &m_bitmap;
         SCH_COMMIT commit( m_frame );
+
+        if( m_frame->IsType( FRAME_SCH_SYMBOL_EDITOR ) && m_bitmap.GetParent() )
+            undoItem = m_bitmap.GetParent();
 
         // Save old image in undo list if not already in edit
         if( m_bitmap.GetEditFlags() == 0 )
-            commit.Modify( &m_bitmap, m_frame->GetScreen() );
+            commit.Modify( undoItem, m_frame->GetScreen() );
 
         // Update our bitmap from the editor
         m_imageEditor->TransferToImage( refImage.MutableImage() );

@@ -286,7 +286,9 @@ private:
     SCH_SHEET_PIN* parseSchSheetPin( SCH_SHEET* aSheet );
     SCH_FIELD* parseSchField( SCH_ITEM* aParent );
     SCH_SYMBOL* parseSchematicSymbol();
-    SCH_BITMAP* parseImage();
+
+    SCH_BITMAP* parseImage( bool aInvertY = false );
+
     SCH_SHEET* parseSheet();
     SCH_JUNCTION* parseJunction();
     SCH_NO_CONNECT* parseNoConnect();

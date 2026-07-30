@@ -36,6 +36,7 @@
 #include <dialogs/dialog_shape_properties.h>
 #include <dialogs/dialog_text_properties.h>
 #include <dialogs/dialog_field_properties.h>
+#include <dialogs/dialog_image_properties.h>
 #include <dialogs/dialog_lib_symbol_properties.h>
 #include <dialogs/dialog_lib_edit_pin_table.h>
 #include <dialogs/dialog_update_symbol_fields.h>
@@ -43,6 +44,7 @@
 #include <view/view.h>
 #include <richio.h>
 #include <sch_io/kicad_sexpr/sch_io_kicad_sexpr.h>
+#include <sch_bitmap.h>
 #include <sch_textbox.h>
 #include <lib_symbol_library_manager.h>
 #include <widgets/lib_tree.h>
@@ -368,11 +370,7 @@ SYMBOL_EDITOR_EDIT_TOOL::SYMBOL_EDITOR_EDIT_TOOL() :
 
 const std::vector<KICAD_T> SYMBOL_EDITOR_EDIT_TOOL::SwappableItems = {
     LIB_SYMBOL_T, // Allows swapping the anchor
-    SCH_PIN_T,
-    SCH_SHAPE_T,
-    SCH_TEXT_T,
-    SCH_TEXTBOX_T,
-    SCH_FIELD_T,
+    SCH_PIN_T,    SCH_BITMAP_T, SCH_SHAPE_T, SCH_TEXT_T, SCH_TEXTBOX_T, SCH_FIELD_T,
 };
 
 
@@ -750,13 +748,8 @@ int SYMBOL_EDITOR_EDIT_TOOL::Swap( const TOOL_EVENT& aEvent )
 }
 
 
-static std::vector<KICAD_T> nonFields =
-{
-    LIB_SYMBOL_T,
-    SCH_SHAPE_T,
-    SCH_TEXT_T,
-    SCH_TEXTBOX_T,
-    SCH_PIN_T
+static std::vector<KICAD_T> nonFields = {
+    LIB_SYMBOL_T, SCH_BITMAP_T, SCH_SHAPE_T, SCH_TEXT_T, SCH_TEXTBOX_T, SCH_PIN_T
 };
 
 
@@ -888,8 +881,8 @@ int SYMBOL_EDITOR_EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
     {
         SCH_ITEM* item = static_cast<SCH_ITEM*>( selection.Front() );
 
-        // Save copy for undo if not in edit (edit command already handle the save copy)
-        if( item->GetEditFlags() == 0 )
+        // Bitmap properties use SCH_COMMIT in the dialog, so avoid creating an extra undo entry.
+        if( item->Type() != SCH_BITMAP_T && item->GetEditFlags() == 0 )
             saveCopyInUndoList( item->GetParent(), UNDO_REDO::LIBEDIT );
 
         switch( item->Type() )
@@ -928,6 +921,21 @@ int SYMBOL_EDITOR_EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
         case SCH_FIELD_T:
             editFieldProperties( static_cast<SCH_FIELD*>( item ) );
             break;
+
+        case SCH_BITMAP_T:
+        {
+            SCH_BITMAP&             bitmap = static_cast<SCH_BITMAP&>( *item );
+            DIALOG_IMAGE_PROPERTIES dlg( m_frame, bitmap );
+
+            if( dlg.ShowModal() != wxID_OK )
+                break;
+
+            updateItem( item, true );
+            m_frame->GetCanvas()->Refresh();
+            getView()->RecacheAllItems();
+            m_frame->OnModify();
+            break;
+        }
 
         default:
             wxFAIL_MSG( wxT( "Unhandled item <" ) + item->GetClass() + wxT( ">" ) );

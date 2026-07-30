@@ -2241,7 +2241,7 @@ int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aR
 
     for( auto it = m_drawings.begin(); it != m_drawings.end(); ++it )
     {
-        if( it->Type() == SCH_SHAPE_T )
+        if( it->Type() == SCH_SHAPE_T || it->Type() == SCH_BITMAP_T )
             aShapes.insert( &( *it ) );
         else if( it->Type() == SCH_FIELD_T )
             aFields.insert( static_cast<const SCH_FIELD*>( &( *it ) ) );
@@ -2255,7 +2255,7 @@ int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aR
 
     for( auto it = aRhs.m_drawings.begin(); it != aRhs.m_drawings.end(); ++it )
     {
-        if( it->Type() == SCH_SHAPE_T )
+        if( it->Type() == SCH_SHAPE_T || it->Type() == SCH_BITMAP_T )
             bShapes.insert( &( *it ) );
         else if( it->Type() == SCH_FIELD_T )
             bFields.insert( static_cast<const SCH_FIELD*>( &( *it ) ) );

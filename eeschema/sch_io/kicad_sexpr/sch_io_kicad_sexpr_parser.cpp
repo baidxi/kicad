@@ -561,6 +561,7 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
                 case T_circle:
                 case T_ellipse:
                 case T_ellipse_arc:
+                case T_image:
                 case T_pin:
                 case T_polyline:
                 case T_rectangle:
@@ -575,8 +576,8 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
                     break;
 
                 default:
-                    Expecting( "arc, bezier, circle, ellipse, ellipse_arc, pin, polyline, "
-                               "rectangle, or text" );
+                    Expecting( "arc, bezier, circle, ellipse, ellipse_arc, image, pin, "
+                               "polyline, rectangle, or text" );
                 };
             }
 
@@ -590,6 +591,7 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
         case T_circle:
         case T_ellipse:
         case T_ellipse_arc:
+        case T_image:
         case T_pin:
         case T_polyline:
         case T_rectangle:
@@ -642,7 +644,7 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
 
         default:
             Expecting( "pin_names, pin_numbers, arc, bezier, circle, ellipse, ellipse_arc, "
-                       "pin, polyline, rectangle, or text" );
+                       "image, pin, polyline, rectangle, or text" );
         }
     }
 
@@ -684,13 +686,26 @@ SCH_ITEM* SCH_IO_KICAD_SEXPR_PARSER::ParseSymbolDrawItem()
     case T_circle: return parseSymbolCircle(); break;
     case T_ellipse: return parseSymbolEllipse(); break;
     case T_ellipse_arc: return parseSymbolEllipseArc(); break;
+    case T_image:
+    {
+        SCH_BITMAP* bitmap = parseImage( true );
+
+        if( bitmap )
+        {
+            bitmap->SetUnit( m_unit );
+            bitmap->SetBodyStyle( m_bodyStyle );
+        }
+
+        return bitmap;
+    }
+
     case T_pin: return parseSymbolPin(); break;
     case T_polyline: return parseSymbolPolyLine(); break;
     case T_rectangle: return parseSymbolRectangle(); break;
     case T_text: return parseSymbolText(); break;
     case T_text_box: return parseSymbolTextBox(); break;
     default:
-        Expecting( "arc, bezier, circle, ellipse, ellipse_arc, pin, "
+        Expecting( "arc, bezier, circle, ellipse, ellipse_arc, image, pin, "
                    "polyline, rectangle, or text" );
     }
 
@@ -4098,7 +4113,7 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
 }
 
 
-SCH_BITMAP* SCH_IO_KICAD_SEXPR_PARSER::parseImage()
+SCH_BITMAP* SCH_IO_KICAD_SEXPR_PARSER::parseImage( bool aInvertY )
 {
     wxCHECK_MSG( CurTok() == T_image, nullptr,
                  wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as an image." ) );
@@ -4117,7 +4132,7 @@ SCH_BITMAP* SCH_IO_KICAD_SEXPR_PARSER::parseImage()
         switch( token )
         {
         case T_at:
-            bitmap->SetPosition( parseXY() );
+            bitmap->SetPosition( parseXY( aInvertY ) );
             NeedRIGHT();
             break;
 
