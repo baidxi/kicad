@@ -56,14 +56,14 @@ namespace
 {
 struct DUMMY_KIFACE : KIFACE_BASE
 {
-    DUMMY_KIFACE() : KIFACE_BASE( "eeschema", KIWAY::FACE_SCH ) {}
-
-    bool       OnKifaceStart( PGM_BASE*, int, KIWAY* ) override { return true; }
-    wxWindow*  CreateKiWindow( wxWindow*, int, KIWAY*, int ) override
+    DUMMY_KIFACE() :
+            KIFACE_BASE( "eeschema", KIWAY::FACE_SCH )
     {
-        return nullptr;
     }
-    void*      IfaceOrAddress( int ) override { return nullptr; }
+
+    bool      OnKifaceStart( PGM_BASE*, int, KIWAY* ) override { return true; }
+    wxWindow* CreateKiWindow( wxWindow*, int, KIWAY*, int ) override { return nullptr; }
+    void*     IfaceOrAddress( int ) override { return nullptr; }
 };
 
 DUMMY_KIFACE s_dummyKiface;
@@ -92,10 +92,7 @@ public:
         m_schematic.Reset();
     }
 
-    ~SCHEMATIC_CONTEXT()
-    {
-        m_schematic.Reset();
-    }
+    ~SCHEMATIC_CONTEXT() { m_schematic.Reset(); }
 
     SCHEMATIC& GetSchematic() { return m_schematic; }
 
@@ -121,9 +118,7 @@ static wxString strToWx( const std::string& aStr )
 // Properties conversion: std::map<std::string, std::string> (Python)
 //   → std::map<std::string, UTF8> (KiCad)
 // -----------------------------------------------------------------------
-static void convertProperties(
-        const std::map<std::string, std::string>& aSrc,
-        std::map<std::string, UTF8>&              aDst )
+static void convertProperties( const std::map<std::string, std::string>& aSrc, std::map<std::string, UTF8>& aDst )
 {
     for( const auto& [key, value] : aSrc )
         aDst.emplace( key, UTF8( value ) );
@@ -132,18 +127,14 @@ static void convertProperties(
 // -----------------------------------------------------------------------
 // Schematic I/O wrappers (named functions instead of lambdas)
 // -----------------------------------------------------------------------
-static SCH_SHEET* doLoadSchematic( SCH_FILE_T aFileType,
-                                   const std::string& aFileName,
-                                   SCHEMATIC_CONTEXT& aContext,
+static SCH_SHEET* doLoadSchematic( SCH_FILE_T aFileType, const std::string& aFileName, SCHEMATIC_CONTEXT& aContext,
                                    const std::map<std::string, std::string>& aProperties )
 {
     IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( aFileType ) );
 
     if( !plugin )
     {
-        throw std::runtime_error(
-                "No plugin found for file type "
-                + wxToStr( SCH_IO_MGR::ShowType( aFileType ) ) );
+        throw std::runtime_error( "No plugin found for file type " + wxToStr( SCH_IO_MGR::ShowType( aFileType ) ) );
     }
 
     std::map<std::string, UTF8> props;
@@ -151,21 +142,17 @@ static SCH_SHEET* doLoadSchematic( SCH_FILE_T aFileType,
 
     const std::map<std::string, UTF8>* pProps = aProperties.empty() ? nullptr : &props;
 
-    return plugin->LoadSchematicFile( strToWx( aFileName ), &aContext.GetSchematic(),
-                                      nullptr, pProps );
+    return plugin->LoadSchematicFile( strToWx( aFileName ), &aContext.GetSchematic(), nullptr, pProps );
 }
 
-static void doSaveSchematic( SCH_FILE_T aFileType, const std::string& aFileName,
-                             SCH_SHEET* aSheet, SCHEMATIC_CONTEXT& aContext,
-                             const std::map<std::string, std::string>& aProperties )
+static void doSaveSchematic( SCH_FILE_T aFileType, const std::string& aFileName, SCH_SHEET* aSheet,
+                             SCHEMATIC_CONTEXT& aContext, const std::map<std::string, std::string>& aProperties )
 {
     IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( aFileType ) );
 
     if( !plugin )
     {
-        throw std::runtime_error(
-                "No plugin found for file type "
-                + wxToStr( SCH_IO_MGR::ShowType( aFileType ) ) );
+        throw std::runtime_error( "No plugin found for file type " + wxToStr( SCH_IO_MGR::ShowType( aFileType ) ) );
     }
 
     std::map<std::string, UTF8> props;
@@ -173,8 +160,7 @@ static void doSaveSchematic( SCH_FILE_T aFileType, const std::string& aFileName,
 
     const std::map<std::string, UTF8>* pProps = aProperties.empty() ? nullptr : &props;
 
-    plugin->SaveSchematicFile( strToWx( aFileName ), aSheet, &aContext.GetSchematic(),
-                               pProps );
+    plugin->SaveSchematicFile( strToWx( aFileName ), aSheet, &aContext.GetSchematic(), pProps );
 }
 
 // clang-format off
