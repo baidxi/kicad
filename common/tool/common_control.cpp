@@ -161,6 +161,10 @@ void showFrame( EDA_BASE_FRAME* aFrame )
     if( aFrame->IsIconized() )
         aFrame->Iconize( false );
 
+    // Some players Show() themselves in their constructor; others rely on the caller.
+    if( !aFrame->IsShown() )
+        aFrame->Show( true );
+
     aFrame->Raise();
 
     // Raising the window does not set the focus on Linux.  This should work on

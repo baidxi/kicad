@@ -366,13 +366,7 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
         Pgm().GetApiServer().RegisterHandler( m_apiHandlerCommon.get() );
     }
 
-    GetToolManager()->PostAction( ACTIONS::zoomFitScreen );
-    setupUnits( GetSettings() );
-
     resolveCanvasType();
-
-    // This displays the last footprint loaded, if any, so it must be done after restoreLastFootprint()
-    ActivateGalCanvas();
 
     // Default shutdown reason until a file is loaded
     KIPLATFORM::APP::SetShutdownBlockReason( this, _( "Footprint changes are unsaved" ) );
@@ -386,9 +380,25 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // stream. Binding after the dispatcher runs this handler first so it can consume the event.
     Bind( wxEVT_CHAR_HOOK, &FOOTPRINT_EDIT_FRAME::OnTabCharHook, this );
 
-    // Ensure the window is on top
-    Raise();
+    // Show (and on GTK, realize) the top-level before ActivateGalCanvas().  Starting GAL/OpenGL
+    // on a second editor while another already holds the shared GL context can leave this frame
+    // with a taskbar entry but no compositor surface on Wayland.
     Show( true );
+
+#ifdef __WXGTK__
+    // Show() only queues realization; the GDK/Wayland surface may not exist yet.
+    // Same pattern as OPENGL_GAL::CheckFeatures().
+    wxYield();
+#endif
+
+    // This displays the last footprint loaded, if any, so it must be done after
+    // restoreLastFootprint() and after the top-level is mapped.
+    ActivateGalCanvas();
+
+    GetToolManager()->PostAction( ACTIONS::zoomFitScreen );
+    setupUnits( GetSettings() );
+
+    Raise();
 
     // Register a call to update the toolbar sizes. It can't be done immediately because
     // it seems to require some sizes calculated that aren't yet (at least on GTK).
