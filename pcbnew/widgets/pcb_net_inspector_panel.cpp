@@ -791,14 +791,12 @@ PCB_NET_INSPECTOR_PANEL::calculateNets( const std::vector<NETINFO_ITEM*>& aNetCo
                     new_item->SetLayerWireLengths( *lengthDetails.LayerLengths );
 
                     // Estimated unrouted length: sum of the optimized ratsnest airline edges
-                    // for this net, as maintained by the connectivity engine.
+                    // for this net, as maintained by the connectivity engine.  Uses the
+                    // unsorted accessor to avoid the stable sort in RN_NET::GetEdges().
                     int64_t unroutedLength = 0;
 
                     if( RN_NET* rnNet = m_board->GetConnectivity()->GetRatsnestForNet( netCode ) )
-                    {
-                        for( const CN_EDGE& edge : rnNet->GetEdges() )
-                            unroutedLength += edge.GetLength();
-                    }
+                        unroutedLength = rnNet->GetTotalAirlineLength();
 
                     new_item->SetUnroutedLength( unroutedLength );
 
