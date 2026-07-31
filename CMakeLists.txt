@@ -118,6 +118,10 @@ option( KICAD_BUILD_QA_TESTS
     "Build software Quality assurance unit tests (default ON)"
     ON )
 
+option( KICAD_SCRIPTING_EESCHEMA
+    "Build the eeschema Python module for headless schematic scripting (requires pybind11)"
+    OFF )
+
 option( KICAD_UPDATE_CHECK
     "Build in update check"
     ON )
