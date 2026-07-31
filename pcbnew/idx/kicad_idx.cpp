@@ -37,7 +37,7 @@
 #include <pad.h>
 #include <pcb_track.h>
 
-KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
+KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
                       BOARD* aBoard, BOARD_COMMIT* aCommit ) :
         m_commit( aCommit ),
         m_board( aBoard ),
@@ -144,8 +144,8 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInsta
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> curveset =
-                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET_2D>( z->m_definingShape );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
 
         if( !curveset )
         {
@@ -189,8 +189,8 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstan
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> curveset =
-                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET_2D>( z->m_definingShape );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
 
         if( !curveset )
         {
@@ -231,8 +231,8 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
     for( auto const& y : keep->m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> ptr =
-                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET_2D>( y->m_definingShape );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( y->m_definingShape );
 
         if( ptr )
         {
@@ -249,7 +249,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
             for( auto const& z : ptr->m_modelElement )
             {
-                auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>( z );
+                auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLY_LINE>( z );
 
                 if( polyline )
                 {
@@ -416,10 +416,10 @@ std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
 // SendInformation Response File Generation
 // ============================================================================
 
-std::shared_ptr<idx_foundation::EDMD_DATASET> KICAD_IDX::CreateSendInformationResponse()
+std::shared_ptr<idx_foundation::EDMD_DATA_SET> KICAD_IDX::CreateSendInformationResponse()
 {
     // Create a new dataset for the response
-    auto responseDataset = std::make_shared<idx_foundation::EDMD_DATASET>();
+    auto responseDataset = std::make_shared<idx_foundation::EDMD_DATA_SET>();
 
     return responseDataset;
 }
@@ -643,8 +643,8 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
     m_commit->Add( group );
     for( auto const& elt : aShape.m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> ptr =
-                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET_2D>( elt->m_definingShape );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( elt->m_definingShape );
 
         if( ptr )
         {
@@ -780,8 +780,8 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aIn
 
     for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> curveset =
-                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET_2D>( z->m_definingShape );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
 
         if( curveset )
         {
@@ -802,7 +802,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aIn
 }
 
 
-std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CURVE_SET_2D& aSet )
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CURVE_SET2D& aSet )
 {
     std::vector<BOARD_ITEM*> result;
 
@@ -811,7 +811,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CURVE_SET
         if( !model )
             continue;
 
-        if( auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLYLINE>( model ) )
+        if( auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLY_LINE>( model ) )
         {
             auto items = ConvertElement( *polyline );
             result.insert( result.end(), std::make_move_iterator( items.begin() ),
@@ -835,7 +835,7 @@ std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CURVE_SET
 }
 
 
-std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_POLYLINE& aPolyline )
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_POLY_LINE& aPolyline )
 {
     const auto& points = aPolyline.m_point;
     size_t      num_points = points.size();
@@ -907,7 +907,7 @@ void KICAD_IDX::AddItem( BOARD_ITEM* aItem, LSET aLset )
 }
 
 
-LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVE_SET_2D& aCurveSet )
+LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVE_SET2D& aCurveSet )
 {
     double upper = aCurveSet.m_upperBound.m_value * 1e3;
     double lower = aCurveSet.m_lowerBound.m_value * 1e3;

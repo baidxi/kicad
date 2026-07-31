@@ -66,7 +66,7 @@ private:
     void OnResize( wxSizeEvent& event );
     void AddChange( KICAD_IDX_CHANGE& aChange );
 
-    std::shared_ptr<idx_foundation::EDMD_DATASET> m_loadedDataset;
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET> m_loadedDataset;
 
 
 private:

@@ -166,11 +166,11 @@ public:
 };
 
 
-class EDMD_DATASET_BODY : public IDX_BASE
+class EDMD_DATA_SET_BODY : public IDX_BASE
 {
 public:
-    EDMD_DATASET_BODY( IDX_XML_NODE& aNode );
-    EDMD_DATASET_BODY() :
+    EDMD_DATA_SET_BODY( IDX_XML_NODE& aNode );
+    EDMD_DATA_SET_BODY() :
             IDX_BASE() {};
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
@@ -188,7 +188,7 @@ public:
     std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>             m_units;
     std::vector<std::shared_ptr<idx_geometry::EDMD_POINT>>            m_points;
     std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE>>            m_curves;
-    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D>>     m_curvesets;
+    std::vector<std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D>>     m_curvesets;
     std::vector<std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT>>         m_shapeElements;
     std::vector<std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>> m_functionalItemShapes;
     std::vector<std::shared_ptr<idx_pdm::EDMD_STRATUM>>               m_stratums;
@@ -232,14 +232,14 @@ public:
 };
 
 
-class EDMD_DATASET : public EDMD_OBJECT
+class EDMD_DATA_SET : public EDMD_OBJECT
 {
 public:
-    EDMD_DATASET();
-    EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly = false );
+    EDMD_DATA_SET();
+    EDMD_DATA_SET( IDX_XML_NODE& aNode, bool aHeaderOnly = false );
 
     EDMD_HEADER                                            m_header;
-    EDMD_DATASET_BODY                                      m_body;
+    EDMD_DATA_SET_BODY                                      m_body;
     std::vector<std::shared_ptr<EDMD_PROCESS_INSTRUCTION>> m_processInstruction;
 
     bool         Parse( IDX_XML_NODE& aNode ) override;

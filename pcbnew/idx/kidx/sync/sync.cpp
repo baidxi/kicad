@@ -34,7 +34,7 @@
 KIDX_REGISTRY::KIDX_REGISTRY( const std::string& aFile ) :
         m_file( aFile ),
         m_identifierSet(),
-        m_repository( std::make_shared<idx_foundation::EDMD_DATASET_BODY>() ),
+        m_repository( std::make_shared<idx_foundation::EDMD_DATA_SET_BODY>() ),
         m_itemRepository(),
         m_baselined( false ),
         m_files(),

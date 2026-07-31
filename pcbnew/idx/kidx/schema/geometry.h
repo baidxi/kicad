@@ -90,7 +90,7 @@ public:
     std::shared_ptr<EDMD_POINT> m_vector;
 };
 
-enum class EDMD_BSPLINE_CURVE_FORM
+enum class EDMD_B_SPLINE_CURVE_FORM
 {
     POLYLINE_FORM = 0,
     CIRCULAR_ARC,
@@ -100,14 +100,14 @@ enum class EDMD_BSPLINE_CURVE_FORM
     UNSPECIFIED
 };
 
-class EDMD_BSPLINE_CURVE : public EDMD_CURVE
+class EDMD_B_SPLINE_CURVE : public EDMD_CURVE
 {
 public:
-    EDMD_BSPLINE_CURVE( IDX_XML_NODE& aNode );
+    EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode );
 
     int                                      m_degree;
     std::vector<std::shared_ptr<EDMD_POINT>> m_controlPointsList;
-    EDMD_BSPLINE_CURVE_FORM                  m_curveForm;
+    EDMD_B_SPLINE_CURVE_FORM                  m_curveForm;
     bool                                     m_closedCurve;
     bool                                     m_selfIntersect;
 };
@@ -119,10 +119,10 @@ public:
     std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
 };
 
-class EDMD_POLYLINE : public EDMD_CURVE
+class EDMD_POLY_LINE : public EDMD_CURVE
 {
 public:
-    EDMD_POLYLINE( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_POLY_LINE( IDX_XML_NODE& aNode, bool aTopLevel );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
@@ -133,11 +133,11 @@ private:
     std::vector<std::string> m_pointRef;
 };
 
-class EDMD_CURVE_SET_2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
+class EDMD_CURVE_SET2D : public idx_pdm::EDMD_SHAPE_DESCRIPTION
 {
 public:
-    EDMD_CURVE_SET_2D();
-    EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode );
+    EDMD_CURVE_SET2D();
+    EDMD_CURVE_SET2D( IDX_XML_NODE& aNode );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -195,10 +195,10 @@ public:
     virtual double                      GetRadius() const;
 };
 
-class EDMD_CIRCLE_3_POINTS : public EDMD_CIRCLE
+class EDMD_CIRCLE3_POINT : public EDMD_CIRCLE
 {
 public:
-    EDMD_CIRCLE_3_POINTS( IDX_XML_NODE& aNode );
+    EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode );
     std::shared_ptr<EDMD_POINT> m_p1;
     std::shared_ptr<EDMD_POINT> m_p2;
     std::shared_ptr<EDMD_POINT> m_p3;

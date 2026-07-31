@@ -77,7 +77,7 @@ private:
 class KICAD_IDX
 {
 public:
-    KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATASET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
+    KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
                BOARD* aBoard, BOARD_COMMIT* aCommit );
 
     void                     AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector );
@@ -90,10 +90,10 @@ public:
     std::shared_ptr<KICAD_IDX_CHANGE> ConvertChange( idx_computational::EDMD_CHANGE& aChange );
 
     // Convert IDX shapes to BOARD_ITEM*
-    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVE_SET_2D& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CURVE_SET2D& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_ARC& );
     std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_CIRCLE& );
-    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLYLINE& );
+    std::vector<BOARD_ITEM*> ConvertElement( idx_geometry::EDMD_POLY_LINE& );
 
     // Abstraction
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> Process();
@@ -101,7 +101,7 @@ public:
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> SendInformation();
 
     // Response file generation
-    std::shared_ptr<idx_foundation::EDMD_DATASET> CreateSendInformationResponse();
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET> CreateSendInformationResponse();
     bool                                          SaveSendInformationResponse( const std::string& aFilename );
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
@@ -123,9 +123,9 @@ public:
     PCB_SHAPE ConvertToKiCadShape( idx_geometry::EDMD_ARC& );
 
     void AddItem( BOARD_ITEM*, LSET );
-    LSET GetLayers( idx_geometry::EDMD_CURVE_SET_2D& );
+    LSET GetLayers( idx_geometry::EDMD_CURVE_SET2D& );
 
-    std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET> m_dataset;
 
     BOARD_COMMIT*                             m_commit;
     BOARD*                                    m_board;

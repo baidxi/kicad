@@ -347,16 +347,16 @@ void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
 }
 
 // -----------------------------------------------------
-// EDMD_DATASET_BODY
+// EDMD_DATA_SET_BODY
 // -----------------------------------------------------
 
-EDMD_DATASET_BODY::EDMD_DATASET_BODY( IDX_XML_NODE& aNode ) :
+EDMD_DATA_SET_BODY::EDMD_DATA_SET_BODY( IDX_XML_NODE& aNode ) :
         IDX_BASE()
 {
     ParseChildren( aNode );
 }
 
-bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
+bool EDMD_DATA_SET_BODY::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
@@ -391,7 +391,7 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "foundation:PolyLine" ) )
     {
-        std::shared_ptr<idx_geometry::EDMD_POLYLINE> s = std::make_shared<idx_geometry::EDMD_POLYLINE>( aNode, true );
+        std::shared_ptr<idx_geometry::EDMD_POLY_LINE> s = std::make_shared<idx_geometry::EDMD_POLY_LINE>( aNode, true );
         m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
         m_curves.push_back( s );
     }
@@ -410,7 +410,7 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     }
     else if( IDX_keyword_compare( name, "foundation:CurveSet2d" ) )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET_2D> s = std::make_shared<idx_geometry::EDMD_CURVE_SET_2D>( aNode );
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> s = std::make_shared<idx_geometry::EDMD_CURVE_SET2D>( aNode );
         m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
         m_curvesets.push_back( s );
     }
@@ -510,7 +510,7 @@ bool EDMD_DATASET_BODY::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
-void EDMD_DATASET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
+void EDMD_DATA_SET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
 {
     if( !aNode )
         return;
@@ -519,7 +519,7 @@ void EDMD_DATASET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
 }
 
 
-void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
+void EDMD_DATA_SET_BODY::Write( IDX_XML_NODE& aNode ) const
 {
     // Write systems
     for( const auto& system : m_systems )
@@ -607,7 +607,7 @@ void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
         }
     }
 
-    // Write curves - EDMD_POLYLINE inherits from EDMD_CURVE which inherits from EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
+    // Write curves - EDMD_POLY_LINE inherits from EDMD_CURVE which inherits from EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
     for( const auto& curve : m_curves )
     {
         if( curve )
@@ -690,7 +690,7 @@ void EDMD_DATASET_BODY::Write( IDX_XML_NODE& aNode ) const
 }
 
 
-bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_DATA_SET_BODY::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = true;
 
@@ -740,10 +740,10 @@ bool EDMD_DATASET_BODY::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 // -----------------------------------------------------
-// EDMD_DATASET
+// EDMD_DATA_SET
 // -----------------------------------------------------
 
-EDMD_DATASET::EDMD_DATASET() :
+EDMD_DATA_SET::EDMD_DATA_SET() :
         EDMD_OBJECT()
 {
     // Default constructor - initialize members
@@ -752,7 +752,7 @@ EDMD_DATASET::EDMD_DATASET() :
 }
 
 
-EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
+EDMD_DATA_SET::EDMD_DATA_SET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
         EDMD_OBJECT( aNode, false )
 {
     m_headerOnly = aHeaderOnly;
@@ -760,7 +760,7 @@ EDMD_DATASET::EDMD_DATASET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
 }
 
 
-bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
+bool EDMD_DATA_SET::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
@@ -773,7 +773,7 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
     if( IDX_keyword_compare( name, "foundation:Header" ) )
         m_header = idx_foundation::EDMD_HEADER( aNode, true );
     else if( IDX_keyword_compare( name, "foundation:Body" ) )
-        m_body = idx_foundation::EDMD_DATASET_BODY( aNode );
+        m_body = idx_foundation::EDMD_DATA_SET_BODY( aNode );
     else if( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
     {
         std::string type = aNode.GetAttribute( "xsi:type", "" );
@@ -792,7 +792,7 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
             if( !m_headerOnly )
             {
                 m_processInstruction.push_back(
-                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>( aNode, true ) );
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION>( aNode, true ) );
             }
             m_baseline = true;
         }
@@ -822,7 +822,7 @@ bool EDMD_DATASET::Parse( IDX_XML_NODE& aNode )
 }
 
 
-void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
+void EDMD_DATA_SET::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_OBJECT::Write( aNode );
 
@@ -879,13 +879,13 @@ void EDMD_DATASET::Write( IDX_XML_NODE& aNode ) const
 }
 
 
-bool EDMD_DATASET::ResolveAll()
+bool EDMD_DATA_SET::ResolveAll()
 {
     return m_body.Resolve( m_body.m_registry );
 }
 
 
-void EDMD_DATASET::Prepare()
+void EDMD_DATA_SET::Prepare()
 {
     for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_body.m_items )
     {
@@ -935,12 +935,12 @@ void EDMD_DATASET::Prepare()
 }
 
 
-bool EDMD_DATASET::IsBaseline()
+bool EDMD_DATA_SET::IsBaseline()
 {
     return m_baseline;
 }
 
-double EDMD_DATASET::GetBoardThickness() const
+double EDMD_DATA_SET::GetBoardThickness() const
 {
     double result = 0;
 
@@ -974,7 +974,7 @@ double EDMD_DATASET::GetBoardThickness() const
 }
 
 
-std::shared_ptr<idx_pdm::EDMD_ITEM> EDMD_DATASET::GetItem( const idx_foundation::EDMD_IDENTIFIER& aId ) const
+std::shared_ptr<idx_pdm::EDMD_ITEM> EDMD_DATA_SET::GetItem( const idx_foundation::EDMD_IDENTIFIER& aId ) const
 {
     for( const auto& item : m_body.m_items )
     {

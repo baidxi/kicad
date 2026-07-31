@@ -138,7 +138,7 @@ public:
 protected:
     std::string                                        m_file;
     std::unordered_set<std::string>                    m_identifierSet;
-    std::shared_ptr<idx_foundation::EDMD_DATASET_BODY> m_repository;
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET_BODY> m_repository;
     std::vector<idx_pdm::EDMD_ITEM>                    m_itemRepository;
     bool                                               m_baselined = false;
     std::vector<std::shared_ptr<IDX_FILE_REGISTRY>>    m_files;

@@ -164,8 +164,8 @@ bool IDX_FILE_REGISTRY_KICAD::Load( const std::string& aPath, const std::string&
 
     std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( doc.GetRoot() );
 
-    std::shared_ptr<idx_foundation::EDMD_DATASET> dataset =
-            std::make_shared<idx_foundation::EDMD_DATASET>( *child, true );
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET> dataset =
+            std::make_shared<idx_foundation::EDMD_DATA_SET>( *child, true );
 
 
     if( !dataset )

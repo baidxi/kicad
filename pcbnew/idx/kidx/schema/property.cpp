@@ -212,6 +212,14 @@ EDMD_UNIT_SURFACE::EDMD_UNIT_SURFACE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         ParseChildren( aNode );
 }
 
+
+EDMD_UNIT_VOLTAGE::EDMD_UNIT_VOLTAGE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_UNIT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
 
 EDMD_LENGTH_PROPERTY::EDMD_LENGTH_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -335,16 +343,16 @@ bool EDMD_ANGLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
-// ------------------- EDMD_DATETIME_PROPERTY -------------------
+// ------------------- EDMD_DATE_TIME_PROPERTY -------------------
 
-EDMD_DATETIME_PROPERTY::EDMD_DATETIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_DATE_TIME_PROPERTY::EDMD_DATE_TIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
     if( aTopLevel )
         ParseChildren( aNode );
 }
 
-bool EDMD_DATETIME_PROPERTY::Parse( IDX_XML_NODE& aNode )
+bool EDMD_DATE_TIME_PROPERTY::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
@@ -615,14 +623,14 @@ bool EDMD_BOOLEAN_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
     }
 }
 
-EDMD_CUTOUT_SIDE_PROPERTY_TYPE::EDMD_CUTOUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::EDMD_CUT_OUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
     if( aTopLevel )
         ParseChildren( aNode );
 }
 
-bool EDMD_CUTOUT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
+bool EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();

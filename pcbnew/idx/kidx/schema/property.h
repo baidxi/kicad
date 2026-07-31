@@ -49,7 +49,7 @@ class EDMD_CLEARANCE_STATE_PROPERTY;
 class EDMD_COLOR_PROPERTY;
 class EDMD_CONSTRAINED_PROPERTY;
 class EDMD_CUTOUT_SIDE_PROPERTY;
-class EDMD_DATETIME_PROPERTY;
+class EDMD_DATE_TIME_PROPERTY;
 class EDMD_INTEGER_PROPERTY;
 class EDMD_LENGTH_PROPERTY;
 class EDMD_LOGIC_PROPERTY;
@@ -260,13 +260,13 @@ public:
     std::string m_unit;
 };
 
-// ------------------- EDMD_DATETIME_PROPERTY -------------------
+// ------------------- EDMD_DATE_TIME_PROPERTY -------------------
 
-class EDMD_DATETIME_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
+class EDMD_DATE_TIME_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_DATETIME_PROPERTY() {};
-    EDMD_DATETIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_DATE_TIME_PROPERTY() {};
+    EDMD_DATE_TIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_value; // xs:dateTime
@@ -373,6 +373,13 @@ public:
 
 // ------------------- Missing Unit Classes -------------------
 
+class EDMD_UNIT_VOLTAGE : public EDMD_UNIT
+{
+public:
+    EDMD_UNIT_VOLTAGE() {};
+    EDMD_UNIT_VOLTAGE( IDX_XML_NODE& aNode, bool aTopLevel );
+};
+
 class EDMD_UNIT_VOLUME : public EDMD_UNIT
 {
 public:
@@ -406,11 +413,11 @@ public:
     int m_value = -1; // EDMDBooleanRestrictionType: -1 or 1
 };
 
-class EDMD_CUTOUT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
+class EDMD_CUT_OUT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
 {
 public:
-    EDMD_CUTOUT_SIDE_PROPERTY_TYPE() {};
-    EDMD_CUTOUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
+    EDMD_CUT_OUT_SIDE_PROPERTY_TYPE() {};
+    EDMD_CUT_OUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::string m_value; // Top, Bottom, All

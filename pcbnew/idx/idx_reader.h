@@ -39,7 +39,7 @@ public:
 
     void Read( wxXmlDocument& aDoc, bool aHeaderOnly );
 
-    std::shared_ptr<idx_foundation::EDMD_DATASET> m_dataset;
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET> m_dataset;
 
 private:
 };

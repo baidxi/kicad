@@ -134,13 +134,13 @@ EDMD_LINE::EDMD_LINE( IDX_XML_NODE& aNode ) :
 }
 
 // --------------------------------------------------------------------------
-// EDMD_BSPLINE_CURVE
+// EDMD_B_SPLINE_CURVE
 // --------------------------------------------------------------------------
 
-EDMD_BSPLINE_CURVE::EDMD_BSPLINE_CURVE( IDX_XML_NODE& aNode ) :
+EDMD_B_SPLINE_CURVE::EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode ) :
         EDMD_CURVE( aNode, false )
 {
-    m_curveForm = EDMD_BSPLINE_CURVE_FORM::UNSPECIFIED;
+    m_curveForm = EDMD_B_SPLINE_CURVE_FORM::UNSPECIFIED;
     m_closedCurve = false;
     m_selfIntersect = false;
 }
@@ -157,10 +157,10 @@ EDMD_COMPOSITE_CURVE::EDMD_COMPOSITE_CURVE( IDX_XML_NODE& aNode ) :
 }
 
 // --------------------------------------------------------------------------
-// EDMD_POLYLINE
+// EDMD_POLY_LINE
 // --------------------------------------------------------------------------
 
-EDMD_POLYLINE::EDMD_POLYLINE( IDX_XML_NODE& aNode, bool aTopLevel ) :
+EDMD_POLY_LINE::EDMD_POLY_LINE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CURVE( aNode, false )
 {
     if( aTopLevel )
@@ -168,7 +168,7 @@ EDMD_POLYLINE::EDMD_POLYLINE( IDX_XML_NODE& aNode, bool aTopLevel ) :
 };
 
 
-bool EDMD_POLYLINE::Parse( IDX_XML_NODE& aNode )
+bool EDMD_POLY_LINE::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
@@ -184,7 +184,7 @@ bool EDMD_POLYLINE::Parse( IDX_XML_NODE& aNode )
 }
 
 
-void EDMD_POLYLINE::Write( IDX_XML_NODE& aNode ) const
+void EDMD_POLY_LINE::Write( IDX_XML_NODE& aNode ) const
 {
     // Write points
     for( const auto& point : m_point )
@@ -197,7 +197,7 @@ void EDMD_POLYLINE::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_CURVE::Write( aNode );
 }
 
-bool EDMD_POLYLINE::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_POLY_LINE::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = EDMD_CURVE::Resolve( aRegistry );
     result &= resolve<EDMD_POINT>( m_pointRef, m_point, aRegistry );
@@ -205,16 +205,16 @@ bool EDMD_POLYLINE::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 // --------------------------------------------------------------------------
-// EDMD_CURVE_SET_2D
+// EDMD_CURVE_SET2D
 // --------------------------------------------------------------------------
 
-EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D() :
+EDMD_CURVE_SET2D::EDMD_CURVE_SET2D() :
         idx_pdm::EDMD_SHAPE_DESCRIPTION()
 {
     m_xsiType = "d2:EDMDCurveSet2d";
 }
 
-EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode ) :
+EDMD_CURVE_SET2D::EDMD_CURVE_SET2D( IDX_XML_NODE& aNode ) :
         idx_pdm::EDMD_SHAPE_DESCRIPTION( aNode, false )
 {
     m_xsiType = "d2:EDMDCurveSet2d";
@@ -241,7 +241,7 @@ EDMD_CURVE_SET_2D::EDMD_CURVE_SET_2D( IDX_XML_NODE& aNode ) :
     }
 }
 
-bool EDMD_CURVE_SET_2D::Resolve( IDX_REGISTRY& aRegistry )
+bool EDMD_CURVE_SET2D::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = true;
     result &= resolve<EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( m_modelElementRef, m_modelElement, aRegistry );
@@ -249,7 +249,7 @@ bool EDMD_CURVE_SET_2D::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 
-void EDMD_CURVE_SET_2D::Write( IDX_XML_NODE& aNode ) const
+void EDMD_CURVE_SET2D::Write( IDX_XML_NODE& aNode ) const
 {
     aNode.SetAttribute( "xsi:type", "d2:EDMDCurveSet2d" );
 
@@ -375,10 +375,10 @@ double EDMD_CIRCLE::GetRadius() const
 }
 
 // --------------------------------------------------------------------------
-// EDMD_CIRCLE_3_POINTS
+// EDMD_CIRCLE3_POINT
 // --------------------------------------------------------------------------
 
-EDMD_CIRCLE_3_POINTS::EDMD_CIRCLE_3_POINTS( IDX_XML_NODE& aNode ) :
+EDMD_CIRCLE3_POINT::EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode ) :
         EDMD_CIRCLE( aNode )
 {
 }

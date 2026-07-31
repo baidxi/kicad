@@ -87,7 +87,7 @@ def underscore_to_camel(name: str) -> str:
     
     Examples:
         EDMD_OBJECT -> EDMDObject
-        EDMD_DATASET -> EDMDDataSet
+        EDMD_DATA_SET -> EDMDDataSet
         EDMD_ITEM_INSTANCE -> EDMDItemInstance
         EDMD_3D_MODEL -> EDMD3DModel
     """
@@ -178,6 +178,12 @@ class SchemaCoverageValidator:
     
     def _parse_schema_content(self, content: str, schema_file: str):
         """Parse XSD content to find EDMD_* complexTypes and elements."""
+        # First, collect all simpleType names to exclude them
+        simple_type_pattern = re.compile(r'<xs:simpleType\s+name="(EDMD[^"]+)"')
+        simple_types = set()
+        for match in simple_type_pattern.finditer(content):
+            simple_types.add(match.group(1))
+        
         # Find complexType definitions with name attribute
         # Pattern: <xs:complexType name="EDMD...">
         complex_type_pattern = re.compile(r'<xs:complexType\s+name="(EDMD[^"]+)"')
@@ -202,8 +208,8 @@ class SchemaCoverageValidator:
         element_pattern = re.compile(r'<xs:element\s+[^>]*type="[^"]*:(EDMD[^"]+)"')
         for match in element_pattern.finditer(content):
             class_name = match.group(1)
-            # Only add if not already present from complexType
-            if class_name not in self.schema_classes:
+            # Only add if not already present from complexType and not a simpleType
+            if class_name not in self.schema_classes and class_name not in simple_types:
                 self.schema_classes[class_name] = EDMDClass(
                     name=class_name,
                     schema_file=schema_file

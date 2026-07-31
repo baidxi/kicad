@@ -388,7 +388,7 @@ void DIALOG_IDX_REVIEW::onItemActivated( wxDataViewEvent& event )
 
     std::shared_ptr<IDX_XML_NODE> child = std::make_shared<IDX_XML_NODE_KICAD>( doc.GetRoot() );
 
-    m_loadedDataset = std::make_shared<idx_foundation::EDMD_DATASET>( *child );
+    m_loadedDataset = std::make_shared<idx_foundation::EDMD_DATA_SET>( *child );
     m_loadedDataset->ResolveAll();
     m_loadedDataset->Prepare();
 
@@ -641,7 +641,7 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                 }
 
                 // Create response dataset with accept/reject information from dialog
-                auto responseDataset = std::make_shared<idx_foundation::EDMD_DATASET>();
+                auto responseDataset = std::make_shared<idx_foundation::EDMD_DATA_SET>();
 
                 // Copy header information from original dataset
                 responseDataset->m_header = m_loadedDataset->m_header;
@@ -678,7 +678,7 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                 responseDataset->m_body.m_items = m_loadedDataset->m_body.m_items;
 
                 // Create SendInformation process instruction
-                auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFO>();
+                auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION>();
                 processInstruction->m_processType =
                         idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION;
                 responseDataset->m_processInstruction.push_back( processInstruction );
@@ -741,7 +741,7 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                     responseDataset->m_body.m_items.push_back( responseItem );
                 }
 
-                // Save the response dataset to XML file using EDMD_DATASET::Write
+                // Save the response dataset to XML file using EDMD_DATA_SET::Write
                 wxXmlDocument doc;
                 wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "EDMDDataSet" );
                 doc.SetRoot( root );
