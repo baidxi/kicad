@@ -239,9 +239,16 @@ class EDMD_POINT_ON_CURVE_INTERSECTION : public EDMD_POINT
 {
 public:
     EDMD_POINT_ON_CURVE_INTERSECTION( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_CURVE> m_intersector;
-    bool                        Parse( IDX_XML_NODE& aNode ) override { return false; };
+
+private:
+    std::string m_curveRef;
+    std::string m_intersectorRef;
 };
 
 class EDMD_CARTESIAN_POINT : public EDMD_POINT
@@ -263,10 +270,17 @@ class EDMD_POINT_ON_CURVE_DISTANCE : public EDMD_POINT
 {
 public:
     EDMD_POINT_ON_CURVE_DISTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool                               Parse( IDX_XML_NODE& aNode ) override { return false; };
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
     std::shared_ptr<EDMD_CURVE>        m_curve;
     std::shared_ptr<EDMD_POINT>        m_start;
     idx_property::EDMD_LENGTH_PROPERTY m_distance;
+
+private:
+    std::string m_curveRef;
+    std::string m_startRef;
 };
 
 } // namespace idx_geometry

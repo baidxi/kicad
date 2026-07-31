@@ -129,31 +129,84 @@ public:
      * 
      * Context has to refer to an EDMDOrganisation or an EDMDSystem
      */
-class EDMD_ROLE_IN_ORGANISATION
+class EDMD_ROLE_IN_ORGANISATION : public IDX_BASE
 {
 public:
     EDMD_ROLE_IN_ORGANISATION( std::shared_ptr<EDMD_ORGANISATION> aContext ) :
             m_context( aContext ) {};
 
+    EDMD_ROLE_IN_ORGANISATION( IDX_XML_NODE& aNode ) :
+            IDX_BASE()
+    {
+        auto child = aNode.GetChildren();
+
+        while( child )
+        {
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
+
+            if( IDX_keyword_compare( name, "administration:Actor" ) )
+                m_actor = content;
+            else if( IDX_keyword_compare( name, "administration:RoleName" ) )
+                m_roleName.m_objectName = content;
+            else if( IDX_keyword_compare( name, "administration:Context" ) )
+                m_contextRef = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    std::string                        m_actor;
+    idx_foundation::EDMD_NAME          m_roleName;
+    std::string                        m_contextRef;
     std::shared_ptr<EDMD_ORGANISATION> m_context;
+};
+
+// Enums for role types
+enum class ROLE_ON_ITEM_CATEGORY
+{
+    ORGANISATIONAL = 0,
+    MECHANICAL,
+    ELECTRICAL,
+    GENERIC
+};
+
+enum class ROLE_ON_ITEM_TYPE
+{
+    OWNER = 0,
+    LISTENER,
+    NOOWNER,
+    NOLISTENER
+};
+
+enum class ROLE_ON_ITEM_FUNCTION
+{
+    PROJECT_MANAGEMENT = 0,
+    DESIGN,
+    DIGITAL_MOCKUP,
+    LAYOUT,
+    THERMAL,
+    EMC
 };
 
 /**
      * @brief Abstract super type for Roles
      * 
      */
-class EDMD_ROLE : public IDX_BASE
+class EDMD_ROLE : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_ROLE( std::string aActor = "" ) :
-            IDX_BASE(),
+            idx_foundation::EDMD_COLLABORATION_OBJECT(),
             m_actor( aActor ),
             m_roleName()
     {
     }
 
     EDMD_ROLE( IDX_XML_NODE& aNode ) :
-            IDX_BASE()
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
         auto child = aNode.GetChildren();
 
@@ -197,10 +250,16 @@ public:
             const std::string content = child->GetNodeContent();
             const std::string name = child->GetName();
 
-            if( IDX_keyword_compare( name, "administration:Actor" ) )
-                m_actor = content;
-            else if( IDX_keyword_compare( name, "administration:RoleName" ) )
-                m_roleName.m_objectName = content; // Fixed: assign to m_roleName
+            if( IDX_keyword_compare( name, "administration:RoleType" ) )
+                m_roleType = content;
+            else if( IDX_keyword_compare( name, "administration:Category" ) )
+                m_category = content;
+            else if( IDX_keyword_compare( name, "administration:GenericCategory" ) )
+                m_genericCategory = content;
+            else if( IDX_keyword_compare( name, "administration:Function" ) )
+                m_function = content;
+            else if( IDX_keyword_compare( name, "administration:GenericFunction" ) )
+                m_genericFunction = content;
             else
             {
             }
@@ -208,16 +267,101 @@ public:
         }
     }
 
-    enum class ROLE_ON_ITEM_TYPE
+    std::string m_roleType;
+    std::string m_category;
+    std::string m_genericCategory;
+    std::string m_function;
+    std::string m_genericFunction;
+};
+
+class EDMD_ROLE_ON_ITEM : public EDMD_ROLE_ON_OBJECT
+{
+public:
+    EDMD_ROLE_ON_ITEM() :
+            EDMD_ROLE_ON_OBJECT()
     {
-        OWNER = 0,
-        LISTENER,
-        NOOWNER,
-        NOLISTENER
-    };
+    }
 
+    EDMD_ROLE_ON_ITEM( IDX_XML_NODE& aNode ) :
+            EDMD_ROLE_ON_OBJECT( aNode )
+    {
+        auto child = aNode.GetChildren();
 
-    ROLE_ON_ITEM_TYPE m_roleOnItemType;
+        while( child )
+        {
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
+
+            if( IDX_keyword_compare( name, "administration:Context" ) )
+                m_contextRef = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    std::string m_contextRef;
+};
+
+class EDMD_ROLE_ON_ITEM_INSTANCE : public EDMD_ROLE_ON_OBJECT
+{
+public:
+    EDMD_ROLE_ON_ITEM_INSTANCE() :
+            EDMD_ROLE_ON_OBJECT()
+    {
+    }
+
+    EDMD_ROLE_ON_ITEM_INSTANCE( IDX_XML_NODE& aNode ) :
+            EDMD_ROLE_ON_OBJECT( aNode )
+    {
+        auto child = aNode.GetChildren();
+
+        while( child )
+        {
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
+
+            if( IDX_keyword_compare( name, "administration:Context" ) )
+                m_contextRef = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    std::string m_contextRef;
+};
+
+class EDMD_ROLE_ON_CONSTRAINT : public EDMD_ROLE_ON_OBJECT
+{
+public:
+    EDMD_ROLE_ON_CONSTRAINT() :
+            EDMD_ROLE_ON_OBJECT()
+    {
+    }
+
+    EDMD_ROLE_ON_CONSTRAINT( IDX_XML_NODE& aNode ) :
+            EDMD_ROLE_ON_OBJECT( aNode )
+    {
+        auto child = aNode.GetChildren();
+
+        while( child )
+        {
+            const std::string content = child->GetNodeContent();
+            const std::string name = child->GetName();
+
+            if( IDX_keyword_compare( name, "administration:Context" ) )
+                m_contextRef = content;
+            else
+            {
+            }
+            child = child->GetNext();
+        }
+    }
+
+    std::string m_contextRef;
 };
 
 class ADMINISTRATION : public IDX_BASE

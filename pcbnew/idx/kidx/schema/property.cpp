@@ -561,6 +561,12 @@ EDMD_USER_NON_VALUE_PROPERTY::EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode,
         ParseChildren( aNode );
 }
 
+
+bool EDMD_USER_NON_VALUE_PROPERTY::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_USER_PROPERTY::Parse( aNode );
+}
+
 // ------------------- Missing Unit Classes -------------------
 
 EDMD_UNIT_VOLUME::EDMD_UNIT_VOLUME( IDX_XML_NODE& aNode, bool aTopLevel ) :

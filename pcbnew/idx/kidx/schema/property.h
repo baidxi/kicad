@@ -368,6 +368,7 @@ class EDMD_USER_NON_VALUE_PROPERTY : public EDMD_USER_PROPERTY
 public:
     EDMD_USER_NON_VALUE_PROPERTY() {};
     EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 // ------------------- Missing Unit Classes -------------------

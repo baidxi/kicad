@@ -73,6 +73,19 @@ enum EDMD_ERROR_CATEGORY
 };
 
 
+// Enums for information types
+enum class INFORMATION_TYPE
+{
+    IDENTIFICATION = 0,
+    STRUCTURE,
+    CLASSIFICATION,
+    GEOMETRY,
+    EXTERNAL,
+    OWNERSHIP,
+    ALL
+};
+
+
 // -----------------------------
 // EDMD_SERVICE_RESULT
 // -----------------------------

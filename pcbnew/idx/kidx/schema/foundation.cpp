@@ -1031,6 +1031,9 @@ void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
     if( m_isOriginator.has_value() )
         aNode.SetAttributeBool( "IsOriginator", m_isOriginator );
 
+    if( !m_originatorId.empty() )
+        aNode.SetAttribute( "OriginatorId", m_originatorId );
+
     WriteValueChild( aNode, "foundation:SystemScope", m_systemScopeRef );
 }
 

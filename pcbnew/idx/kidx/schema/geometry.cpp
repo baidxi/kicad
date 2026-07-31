@@ -453,7 +453,66 @@ EDMD_PARABOLA::EDMD_PARABOLA( IDX_XML_NODE& aNode ) :
 EDMD_POINT_ON_CURVE_INTERSECTION::EDMD_POINT_ON_CURVE_INTERSECTION( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_POINT( aNode, false )
 {
+    if( aTopLevel )
+        ParseChildren( aNode );
 }
+
+
+bool EDMD_POINT_ON_CURVE_INTERSECTION::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+
+    if( IDX_keyword_compare( name, "geometry.d2:Curve" ) )
+    {
+        std::string ref = aNode.GetNodeContent();
+        if( !ref.empty() )
+            m_curveRef = ref;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "geometry.d2:Intersector" ) )
+    {
+        std::string ref = aNode.GetNodeContent();
+        if( !ref.empty() )
+            m_intersectorRef = ref;
+        return true;
+    }
+
+    return this->EDMD_POINT::Parse( aNode );
+}
+
+
+bool EDMD_POINT_ON_CURVE_INTERSECTION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !this->EDMD_POINT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_curveRef.empty() )
+    {
+        m_curve = std::dynamic_pointer_cast<EDMD_CURVE>( aRegistry.resolve<EDMD_CURVE>( m_curveRef, true ) );
+        if( !m_curve )
+            return false;
+    }
+
+    if( !m_intersectorRef.empty() )
+    {
+        m_intersector =
+                std::dynamic_pointer_cast<EDMD_CURVE>( aRegistry.resolve<EDMD_CURVE>( m_intersectorRef, true ) );
+        if( !m_intersector )
+            return false;
+    }
+
+    return true;
+}
+
+
+void EDMD_POINT_ON_CURVE_INTERSECTION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_POINT::Write( aNode );
+
+    WriteValueChild( aNode, "geometry.d2:Curve", m_curveRef );
+    WriteValueChild( aNode, "geometry.d2:Intersector", m_intersectorRef );
+}
+
 
 // --------------------------------------------------------------------------
 // EDMD_CARTESIAN_POINT
@@ -532,6 +591,71 @@ EDMD_POINT_ON_CURVE_DISTANCE::EDMD_POINT_ON_CURVE_DISTANCE( IDX_XML_NODE& aNode,
         EDMD_POINT( aNode, false ),
         m_distance( aNode, true )
 {
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_POINT_ON_CURVE_DISTANCE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+
+    if( IDX_keyword_compare( name, "geometry.d2:Curve" ) )
+    {
+        std::string ref = aNode.GetNodeContent();
+        if( !ref.empty() )
+            m_curveRef = ref;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "geometry.d2:Start" ) )
+    {
+        std::string ref = aNode.GetNodeContent();
+        if( !ref.empty() )
+            m_startRef = ref;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "geometry.d2:Distance" ) )
+    {
+        return m_distance.Parse( aNode );
+    }
+
+    return this->EDMD_POINT::Parse( aNode );
+}
+
+
+bool EDMD_POINT_ON_CURVE_DISTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !this->EDMD_POINT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_curveRef.empty() )
+    {
+        m_curve = std::dynamic_pointer_cast<EDMD_CURVE>( aRegistry.resolve<EDMD_CURVE>( m_curveRef, true ) );
+        if( !m_curve )
+            return false;
+    }
+
+    if( !m_startRef.empty() )
+    {
+        m_start = std::dynamic_pointer_cast<EDMD_POINT>( aRegistry.resolve<EDMD_POINT>( m_startRef, true ) );
+        if( !m_start )
+            return false;
+    }
+
+    if( !m_distance.Resolve( aRegistry ) )
+        return false;
+
+    return true;
+}
+
+
+void EDMD_POINT_ON_CURVE_DISTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_POINT::Write( aNode );
+
+    WriteValueChild( aNode, "geometry.d2:Curve", m_curveRef );
+    WriteValueChild( aNode, "geometry.d2:Start", m_startRef );
+    m_distance.Write( *( aNode.AppendChild( "geometry.d2:Distance" ) ) );
 }
 
 } // namespace idx_geometry
