@@ -67,6 +67,7 @@ class EDMD_HYPERBOLA : public EDMD_CURVE
 {
 public:
     EDMD_HYPERBOLA( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::shared_ptr<EDMD_POINT>        m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
@@ -77,6 +78,7 @@ class EDMD_TRIMMED_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_TRIMMED_CURVE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_POINT> m_start;
     std::shared_ptr<EDMD_POINT> m_end;
@@ -86,6 +88,7 @@ class EDMD_LINE : public EDMD_CURVE
 {
 public:
     EDMD_LINE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_CURVE> m_point;
     std::shared_ptr<EDMD_POINT> m_vector;
 };
@@ -104,6 +107,7 @@ class EDMD_B_SPLINE_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
 
     int                                      m_degree;
     std::vector<std::shared_ptr<EDMD_POINT>> m_controlPointsList;
@@ -116,6 +120,7 @@ class EDMD_COMPOSITE_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_COMPOSITE_CURVE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
 };
 
@@ -139,6 +144,7 @@ public:
     EDMD_CURVE_SET2D();
     EDMD_CURVE_SET2D( IDX_XML_NODE& aNode );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     idx_property::EDMD_LENGTH_PROPERTY                                  m_lowerBound;
@@ -154,6 +160,7 @@ class EDMD_ARC : public EDMD_CURVE
 public:
     EDMD_ARC( IDX_XML_NODE& aNode );
     virtual bool                       Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_POINT>        GetStart();
     std::shared_ptr<EDMD_POINT>        GetEnd();
     idx_property::EDMD_ANGLE_PROPERTY& GetIncludeAngle();
@@ -170,6 +177,7 @@ class EDMD_ELLIPSE : public EDMD_CURVE
 {
 public:
     EDMD_ELLIPSE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_POINT>        m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
@@ -183,6 +191,7 @@ public:
     virtual double GetX() const;
     virtual double GetY() const;
     virtual ~EDMD_POINT();
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
@@ -191,6 +200,7 @@ class EDMD_CIRCLE : public EDMD_CURVE
 public:
     EDMD_CIRCLE( IDX_XML_NODE& aNode );
     virtual bool                        Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual bool                        Parse( IDX_XML_NODE& aNode ) override;
     virtual std::shared_ptr<EDMD_POINT> GetCenter() const;
     virtual double                      GetRadius() const;
 };
@@ -199,6 +209,7 @@ class EDMD_CIRCLE3_POINT : public EDMD_CIRCLE
 {
 public:
     EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_POINT> m_p1;
     std::shared_ptr<EDMD_POINT> m_p2;
     std::shared_ptr<EDMD_POINT> m_p3;
@@ -209,6 +220,7 @@ class EDMD_CIRCLE_CENTER : public EDMD_CIRCLE
 public:
     EDMD_CIRCLE_CENTER( IDX_XML_NODE& aNode );
     virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual bool                Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_POINT> GetCenter() const override;
     double                      GetRadius() const override;
 
@@ -222,6 +234,7 @@ class EDMD_OFFSET_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_OFFSET_CURVE( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_CURVE>        m_basisCurve;
     idx_property::EDMD_LENGTH_PROPERTY m_distance;
     bool                               m_selfIntersects;
@@ -231,6 +244,7 @@ class EDMD_PARABOLA : public EDMD_CURVE
 {
 public:
     EDMD_PARABOLA( IDX_XML_NODE& aNode );
+    virtual bool Parse( IDX_XML_NODE& aNode ) override;
     std::shared_ptr<EDMD_POINT> m_focus;
     std::shared_ptr<EDMD_POINT> m_parabola;
 };

@@ -249,6 +249,31 @@ bool EDMD_CURVE_SET2D::Resolve( IDX_REGISTRY& aRegistry )
 }
 
 
+bool EDMD_CURVE_SET2D::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:LowerBound" ) )
+    {
+        m_lowerBound = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:UpperBound" ) )
+    {
+        m_upperBound = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:DetailedGeometricModelElement" ) )
+    {
+        m_modelElementRef.push_back( content );
+        return true;
+    }
+
+    return this->EDMD_SHAPE_DESCRIPTION::Parse( aNode );
+}
+
+
 void EDMD_CURVE_SET2D::Write( IDX_XML_NODE& aNode ) const
 {
     aNode.SetAttribute( "xsi:type", "d2:EDMDCurveSet2d" );
@@ -292,6 +317,31 @@ EDMD_ARC::EDMD_ARC( IDX_XML_NODE& aNode ) :
 
         child = child->GetNext();
     }
+}
+
+
+bool EDMD_ARC::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:StartPoint" ) )
+    {
+        m_startPointRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:EndPoint" ) )
+    {
+        m_endPointRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:IncludeAngle" ) )
+    {
+        m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY( aNode, true );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
 }
 
 bool EDMD_ARC::Resolve( IDX_REGISTRY& aRegistry )

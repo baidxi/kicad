@@ -161,6 +161,7 @@ class EDMD_UNIT_AMPERAGE : public EDMD_UNIT
 public:
     EDMD_UNIT_AMPERAGE() {};
     EDMD_UNIT_AMPERAGE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_ANGLE : public EDMD_UNIT
@@ -168,6 +169,7 @@ class EDMD_UNIT_ANGLE : public EDMD_UNIT
 public:
     EDMD_UNIT_ANGLE() {};
     EDMD_UNIT_ANGLE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
@@ -175,6 +177,7 @@ class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
 public:
     EDMD_UNIT_CAPACITANCE() {};
     EDMD_UNIT_CAPACITANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_LENGTH : public EDMD_UNIT
@@ -182,6 +185,7 @@ class EDMD_UNIT_LENGTH : public EDMD_UNIT
 public:
     EDMD_UNIT_LENGTH() {};
     EDMD_UNIT_LENGTH( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_POWER : public EDMD_UNIT
@@ -189,6 +193,7 @@ class EDMD_UNIT_POWER : public EDMD_UNIT
 public:
     EDMD_UNIT_POWER() {};
     EDMD_UNIT_POWER( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
@@ -196,6 +201,7 @@ class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
 public:
     EDMD_UNIT_RESISTANCE() {};
     EDMD_UNIT_RESISTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_SURFACE : public EDMD_UNIT
@@ -203,6 +209,7 @@ class EDMD_UNIT_SURFACE : public EDMD_UNIT
 public:
     EDMD_UNIT_SURFACE() {};
     EDMD_UNIT_SURFACE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
@@ -378,6 +385,7 @@ class EDMD_UNIT_VOLTAGE : public EDMD_UNIT
 public:
     EDMD_UNIT_VOLTAGE() {};
     EDMD_UNIT_VOLTAGE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_VOLUME : public EDMD_UNIT
@@ -385,6 +393,7 @@ class EDMD_UNIT_VOLUME : public EDMD_UNIT
 public:
     EDMD_UNIT_VOLUME() {};
     EDMD_UNIT_VOLUME( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_WEIGHT : public EDMD_UNIT
@@ -392,6 +401,7 @@ class EDMD_UNIT_WEIGHT : public EDMD_UNIT
 public:
     EDMD_UNIT_WEIGHT() {};
     EDMD_UNIT_WEIGHT( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
 };
 
 class EDMD_UNIT_WORK : public EDMD_UNIT
@@ -399,6 +409,130 @@ class EDMD_UNIT_WORK : public EDMD_UNIT
 public:
     EDMD_UNIT_WORK() {};
     EDMD_UNIT_WORK( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+};
+
+// ------------------- Unit Fundamental Classes -------------------
+
+class EDMD_UNIT_AMPERAGE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_AMPERAGE_FUNDAMENTAL() {};
+    EDMD_UNIT_AMPERAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_ANGLE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_ANGLE_FUNDAMENTAL() {};
+    EDMD_UNIT_ANGLE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_CAPACITANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_CAPACITANCE_FUNDAMENTAL() {};
+    EDMD_UNIT_CAPACITANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_LENGTH_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_LENGTH_FUNDAMENTAL() {};
+    EDMD_UNIT_LENGTH_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_POWER_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_POWER_FUNDAMENTAL() {};
+    EDMD_UNIT_POWER_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_RESISTANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_RESISTANCE_FUNDAMENTAL() {};
+    EDMD_UNIT_RESISTANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_SURFACE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_SURFACE_FUNDAMENTAL() {};
+    EDMD_UNIT_SURFACE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_VOLTAGE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_VOLTAGE_FUNDAMENTAL() {};
+    EDMD_UNIT_VOLTAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_VOLUME_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_VOLUME_FUNDAMENTAL() {};
+    EDMD_UNIT_VOLUME_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_WEIGHT_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_WEIGHT_FUNDAMENTAL() {};
+    EDMD_UNIT_WEIGHT_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
+};
+
+class EDMD_UNIT_WORK_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
+{
+public:
+    EDMD_UNIT_WORK_FUNDAMENTAL() {};
+    EDMD_UNIT_WORK_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string m_value;
 };
 
 // ------------------- Enum Property Types -------------------

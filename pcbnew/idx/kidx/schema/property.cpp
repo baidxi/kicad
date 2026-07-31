@@ -220,6 +220,428 @@ EDMD_UNIT_VOLTAGE::EDMD_UNIT_VOLTAGE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         ParseChildren( aNode );
 }
 
+// Parse methods for UNIT subclasses
+bool EDMD_UNIT_AMPERAGE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_ANGLE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_CAPACITANCE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_LENGTH::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_POWER::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_RESISTANCE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_SURFACE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_VOLTAGE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_VOLUME::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_WEIGHT::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+bool EDMD_UNIT_WORK::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_UNIT::Parse( aNode );
+}
+
+// ------------------- Unit Fundamental Classes -------------------
+
+EDMD_UNIT_AMPERAGE_FUNDAMENTAL::EDMD_UNIT_AMPERAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_AMPERAGE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_AMPERAGE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_ANGLE_FUNDAMENTAL::EDMD_UNIT_ANGLE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_ANGLE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_ANGLE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_CAPACITANCE_FUNDAMENTAL::EDMD_UNIT_CAPACITANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_CAPACITANCE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_CAPACITANCE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_LENGTH_FUNDAMENTAL::EDMD_UNIT_LENGTH_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_LENGTH_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_LENGTH_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_POWER_FUNDAMENTAL::EDMD_UNIT_POWER_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_POWER_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_POWER_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_RESISTANCE_FUNDAMENTAL::EDMD_UNIT_RESISTANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_RESISTANCE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_RESISTANCE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_SURFACE_FUNDAMENTAL::EDMD_UNIT_SURFACE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_SURFACE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_SURFACE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_VOLTAGE_FUNDAMENTAL::EDMD_UNIT_VOLTAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_VOLTAGE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_VOLTAGE_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_VOLUME_FUNDAMENTAL::EDMD_UNIT_VOLUME_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_VOLUME_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_VOLUME_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_WEIGHT_FUNDAMENTAL::EDMD_UNIT_WEIGHT_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_WEIGHT_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_WEIGHT_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+EDMD_UNIT_WORK_FUNDAMENTAL::EDMD_UNIT_WORK_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        idx_foundation::EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+bool EDMD_UNIT_WORK_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+    
+    if( name == "#text" || name == "" )
+    {
+        m_value = content;
+        return true;
+    }
+    
+    return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_UNIT_WORK_FUNDAMENTAL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_value.empty() )
+        aNode.SetText( m_value );
+}
+
+// Resolve methods for Unit Fundamental Classes
+bool EDMD_UNIT_AMPERAGE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_ANGLE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_CAPACITANCE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_LENGTH_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_POWER_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_RESISTANCE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_SURFACE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_VOLTAGE_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_VOLUME_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_WEIGHT_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_UNIT_WORK_FUNDAMENTAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
+}
+
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
 
 EDMD_LENGTH_PROPERTY::EDMD_LENGTH_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
