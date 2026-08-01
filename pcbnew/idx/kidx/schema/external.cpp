@@ -43,12 +43,28 @@ bool EDMD_EXTERNAL_SOURCE::Parse( IDX_XML_NODE& aNode )
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
 
-    if( IDX_keyword_compare( name, "testtesttest" ) )
+    if( IDX_keyword_compare( name, "MimeType" ) )
     {
+        m_mimeType = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "Location" ) )
+    {
+        m_location = content;
+        return true;
     }
     else
         return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
     return true;
+}
+
+
+void EDMD_EXTERNAL_SOURCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, "MimeType", m_mimeType );
+    WriteValueChild( aNode, "Location", m_location );
 }
 // ------------------- EDMD_EXTERNAL_GEOMETRIC_MODEL -------------------
 
@@ -65,12 +81,22 @@ bool EDMD_EXTERNAL_GEOMETRIC_MODEL::Parse( IDX_XML_NODE& aNode )
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
 
-    if( IDX_keyword_compare( name, "testtesttest" ) )
+    if( IDX_keyword_compare( name, "ExternalSource" ) )
     {
+        m_externalSourceRef = content;
+        return true;
     }
     else
         return this->EDMD_SHAPE_DESCRIPTION::Parse( aNode );
     return true;
+}
+
+
+void EDMD_EXTERNAL_GEOMETRIC_MODEL::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_SHAPE_DESCRIPTION::Write( aNode );
+
+    WriteValueChild( aNode, "ExternalSource", m_externalSourceRef );
 }
 
 } // namespace idx_external

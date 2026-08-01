@@ -205,7 +205,9 @@ public:
     EDMD_FUNCTIONAL_ITEM_SHAPE() {};
     EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode );
 
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     TYPE m_type;
 
@@ -249,6 +251,9 @@ class EDMD_STRATUM_TECHNOLOGY : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_STRATUM_TECHNOLOGY() {};
     EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode );
+
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     LAYER_POSITION_TYPE     m_layerPositionType;
     STRATUM_TECHNOLOGY_TYPE m_stratumTechnologyType;
@@ -311,6 +316,7 @@ public:
     EDMD_KEEP_CONSTRAINT() {};
     EDMD_KEEP_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::vector<KEEP_CONSTRAINT_PURPOSE>                                  m_purpose;
     std::vector<std::shared_ptr<idx_property::EDMD_CONSTRAINED_PROPERTY>> m_keepConstraintCondition;
@@ -324,7 +330,8 @@ class EDMD_KEEP_OUT : public EDMD_KEEP_CONSTRAINT
 public:
     EDMD_KEEP_OUT() {};
     EDMD_KEEP_OUT( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    bool         Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 
@@ -334,8 +341,8 @@ public:
     EDMD_KEEP_IN() {};
     EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel );
 
-
-    bool Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    bool         Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 class EDMD_ITEM_INSTANCE : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
@@ -391,24 +398,25 @@ public:
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
 
-    ITEM_TYPE                                        m_itemType;
-    std::vector<idx_foundation::EDMD_IDENTIFIER>     m_identifier;
-    std::vector<idx_foundation::EDMD_NAME>           m_packageName;
-    std::vector<std::shared_ptr<EDMD_ITEM_INSTANCE>> m_itemInstance;
-    std::shared_ptr<EDMD_ITEM_SHAPE>                 m_shape;
-    //ShapeTransformation
-    idx_property::EDMD_LOGIC_PROPERTY m_accept;
-    //ClearanceState
-    idx_property::EDMD_LOGIC_PROPERTY m_baseline;
-    std::string                       m_referenceName;
-    std::string                       m_assembleToName;
-    //PackagePin
+    ITEM_TYPE                                                m_itemType;
+    std::vector<idx_foundation::EDMD_IDENTIFIER>             m_identifier;
+    std::vector<idx_foundation::EDMD_NAME>                   m_packageName;
+    std::vector<std::shared_ptr<EDMD_ITEM_INSTANCE>>         m_itemInstance;
+    std::shared_ptr<EDMD_ITEM_SHAPE>                         m_shape;
+    EDMD_TRANSFORMATION                                        m_shapeTransformation;
+    idx_property::EDMD_LOGIC_PROPERTY                        m_accept;
+    std::vector<idx_property::EDMD_CLEARANCE_STATE_PROPERTY> m_clearanceState;
+    idx_property::EDMD_LOGIC_PROPERTY                        m_baseline;
+    std::string                                              m_referenceName;
+    std::string                                              m_assembleToName;
+    std::vector<std::shared_ptr<EDMD_PACKAGE_PIN>>           m_packagePin;
 
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 private:
-    std::string m_shapeRef;
-    std::string m_3dModelRef;
+    std::string              m_shapeRef;
+    std::string              m_3dModelRef;
+    std::vector<std::string> m_packagePinRef;
 };
 
 enum class ASSEMBLY_COMPONENT_TYPE
@@ -499,6 +507,7 @@ public:
     EDMD_BEND( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string                      m_bendTypeRef;
     int                              m_sequenceNumber = 0;
@@ -517,6 +526,7 @@ public:
     EDMD_BEND_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string                               m_bendLineRef;
     std::shared_ptr<idx_geometry::EDMD_CURVE> m_bendLine;
@@ -532,7 +542,8 @@ class EDMD_CIRCULAR_BEND_TYPE : public EDMD_BEND_TYPE
 public:
     EDMD_CIRCULAR_BEND_TYPE() {};
     EDMD_CIRCULAR_BEND_TYPE( IDX_XML_NODE& aNode );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     EDMDINNER_SIDE m_innerSide = EDMDINNER_SIDE::TOP;
     double         m_innerRadius = 0.0;
@@ -559,6 +570,7 @@ public:
     EDMD_NON_FEATURE_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     NON_FEATURE_ITEM_SHAPE_PURPOSE                m_purpose;
     std::vector<std::string>                      m_relatedItemShapeRef;

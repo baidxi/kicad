@@ -259,6 +259,92 @@ bool EDMD_SYSTEM::Resolve( IDX_REGISTRY& aRegistry )
     return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
 }
 
+bool EDMD_SYSTEM::Parse( IDX_XML_NODE& aNode )
+{
+    auto child = aNode.GetChildren();
+
+    while( child )
+    {
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
+
+        if( IDX_keyword_compare( name, "foundation:SystemType" ) )
+        {
+            if( IDX_keyword_compare( content, "MANUFACTURER" ) )
+                m_systemType = SYSTEM_TYPE::MANUFACTURER;
+            else if( IDX_keyword_compare( content, "PLM" ) )
+                m_systemType = SYSTEM_TYPE::PLM;
+            else if( IDX_keyword_compare( content, "ECAD" ) )
+                m_systemType = SYSTEM_TYPE::ECAD;
+            else if( IDX_keyword_compare( content, "MCAD" ) )
+                m_systemType = SYSTEM_TYPE::MCAD;
+            else if( IDX_keyword_compare( content, "PROXY" ) )
+                m_systemType = SYSTEM_TYPE::PROXY;
+            else if( IDX_keyword_compare( content, "LIBRARY" ) )
+                m_systemType = SYSTEM_TYPE::LIBRARY;
+            else if( IDX_keyword_compare( content, "COMMONSTANDARD" ) )
+                m_systemType = SYSTEM_TYPE::COMMONSTANDARD;
+            else if( IDX_keyword_compare( content, "FACTORYSTANDARD" ) )
+                m_systemType = SYSTEM_TYPE::FACTORYSTANDARD;
+        }
+        else if( IDX_keyword_compare( name, "foundation:GlobalName" ) )
+            m_globalName = content;
+        else if( IDX_keyword_compare( name, "foundation:WebServiceURI" ) )
+            m_webServiceURI = content;
+        else if( IDX_keyword_compare( name, "foundation:Revision" ) )
+            m_revision = content;
+        else if( IDX_keyword_compare( name, "foundation:SystemName" ) )
+            m_systemName = content;
+        else if( IDX_keyword_compare( name, "foundation:InstanceName" ) )
+            m_instanceName = content;
+        else if( IDX_keyword_compare( name, "foundation:systemOwner" ) )
+            m_systemOwner = content;
+        else if( IDX_keyword_compare( name, "foundation:NeedsSelfContainedMessages" ) )
+            m_needsSelfContainedMessages = ( IDX_keyword_compare( content, "true" ) );
+        else
+            return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+        child = child->GetNext();
+    }
+
+    return true;
+}
+
+void EDMD_SYSTEM::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    switch( m_systemType )
+    {
+    case SYSTEM_TYPE::MANUFACTURER: aNode.AppendChild( "foundation:SystemType" )->SetText( "MANUFACTURER" ); break;
+    case SYSTEM_TYPE::PLM: aNode.AppendChild( "foundation:SystemType" )->SetText( "PLM" ); break;
+    case SYSTEM_TYPE::ECAD: aNode.AppendChild( "foundation:SystemType" )->SetText( "ECAD" ); break;
+    case SYSTEM_TYPE::MCAD: aNode.AppendChild( "foundation:SystemType" )->SetText( "MCAD" ); break;
+    case SYSTEM_TYPE::PROXY: aNode.AppendChild( "foundation:SystemType" )->SetText( "PROXY" ); break;
+    case SYSTEM_TYPE::LIBRARY: aNode.AppendChild( "foundation:SystemType" )->SetText( "LIBRARY" ); break;
+    case SYSTEM_TYPE::COMMONSTANDARD: aNode.AppendChild( "foundation:SystemType" )->SetText( "COMMONSTANDARD" ); break;
+    case SYSTEM_TYPE::FACTORYSTANDARD:
+        aNode.AppendChild( "foundation:SystemType" )->SetText( "FACTORYSTANDARD" );
+        break;
+    default: break;
+    }
+
+    if( !m_globalName.empty() )
+        aNode.AppendChild( "foundation:GlobalName" )->SetText( m_globalName );
+    if( !m_webServiceURI.empty() )
+        aNode.AppendChild( "foundation:WebServiceURI" )->SetText( m_webServiceURI );
+    if( !m_revision.empty() )
+        aNode.AppendChild( "foundation:Revision" )->SetText( m_revision );
+    if( !m_systemName.empty() )
+        aNode.AppendChild( "foundation:SystemName" )->SetText( m_systemName );
+    if( !m_instanceName.empty() )
+        aNode.AppendChild( "foundation:InstanceName" )->SetText( m_instanceName );
+    if( !m_systemOwner.empty() )
+        aNode.AppendChild( "foundation:systemOwner" )->SetText( m_systemOwner );
+    aNode.AppendChild( "foundation:NeedsSelfContainedMessages" )
+            ->SetText( m_needsSelfContainedMessages ? "true" : "false" );
+}
+
 // -----------------------------------------------------
 // EDMD_HEADER
 // -----------------------------------------------------
@@ -315,6 +401,12 @@ bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
         m_globalUnitWeightRef = content;
     else if( IDX_keyword_compare( name, "foundation:GlobalUnitWork" ) )
         m_globalUnitWorkRef = content;
+    else if( IDX_keyword_compare( name, "foundation:IsSelfContained" )
+             || IDX_keyword_compare( name, "IsSelfContained" ) )
+    {
+        isSelfContained = ( content == "true" || content == "1" );
+        return true;
+    }
     else
         return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
 
@@ -501,6 +593,238 @@ bool EDMD_DATA_SET_BODY::Parse( IDX_XML_NODE& aNode )
                 std::make_shared<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( aNode );
         m_registry.registerObject<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( s->m_id, s );
         m_circularBendTypes.push_back( s );
+    }
+    // Geometry elements
+    else if( IDX_keyword_compare( name, "d2:Ellipse" ) || IDX_keyword_compare( name, "Ellipse" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_ELLIPSE> s = std::make_shared<idx_geometry::EDMD_ELLIPSE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:BSplineCurve" ) || IDX_keyword_compare( name, "BSplineCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_B_SPLINE_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_B_SPLINE_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Circle3Point" ) || IDX_keyword_compare( name, "Circle3Point" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CIRCLE3_POINT> s =
+                std::make_shared<idx_geometry::EDMD_CIRCLE3_POINT>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Hyperbola" ) || IDX_keyword_compare( name, "Hyperbola" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_HYPERBOLA> s = std::make_shared<idx_geometry::EDMD_HYPERBOLA>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Line" ) || IDX_keyword_compare( name, "Line" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_LINE> s = std::make_shared<idx_geometry::EDMD_LINE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:OffsetCurve" ) || IDX_keyword_compare( name, "OffsetCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_OFFSET_CURVE> s = std::make_shared<idx_geometry::EDMD_OFFSET_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Parabola" ) || IDX_keyword_compare( name, "Parabola" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_PARABOLA> s = std::make_shared<idx_geometry::EDMD_PARABOLA>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:TrimmedCurve" ) || IDX_keyword_compare( name, "TrimmedCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_TRIMMED_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_TRIMMED_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:CompositeCurve" ) || IDX_keyword_compare( name, "CompositeCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_COMPOSITE_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_COMPOSITE_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:CartesianPoint" ) || IDX_keyword_compare( name, "CartesianPoint" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
+                std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    // PDM elements
+    else if( IDX_keyword_compare( name, "NonFeatureItemShape" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_NON_FEATURE_ITEM_SHAPE> s =
+                std::make_shared<idx_pdm::EDMD_NON_FEATURE_ITEM_SHAPE>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        // TODO: add to appropriate vector
+    }
+    else if( IDX_keyword_compare( name, "MasterPart" ) )
+    {
+        // TODO: EDMD_MASTER_PART not yet implemented
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "Material" ) )
+    {
+        // TODO: EDMD_MATERIAL not yet parsed
+        return true;
+    }
+    // Annotation
+    else if( IDX_keyword_compare( name, "Annotation" ) )
+    {
+        std::shared_ptr<idx_annotation::EDMD_ANNOTATION> s = std::make_shared<idx_annotation::EDMD_ANNOTATION>( aNode, false );
+        // TODO: add to appropriate vector
+        return true;
+    }
+    // Grouping
+    else if( IDX_keyword_compare( name, "GeneralClassification" ) )
+    {
+        // TODO: EDMD_GENERAL_CLASSIFICATION not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "ItemConstraint" ) )
+    {
+        // TODO: EDMD_ITEM_CONSTRAINT not yet parsed
+        return true;
+    }
+    // Roles
+    else if( IDX_keyword_compare( name, "RoleInOrganisation" ) )
+    {
+        // TODO: EDMD_ROLE_IN_ORGANISATION not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "RoleOnItem" ) )
+    {
+        // TODO: EDMD_ROLE_ON_ITEM not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "RoleOnItemInstance" ) )
+    {
+        // TODO: EDMD_ROLE_ON_ITEM_INSTANCE not yet parsed
+        return true;
+    }
+    // Text
+    else if( IDX_keyword_compare( name, "SimpleText" ) )
+    {
+        // TODO: EDMD_SIMPLE_TEXT not yet parsed
+        return true;
+    }
+    // Administration
+    else if( IDX_keyword_compare( name, "Organisation" ) )
+    {
+        std::shared_ptr<idx_administration::EDMD_ORGANISATION> s =
+                std::make_shared<idx_administration::EDMD_ORGANISATION>( aNode, true );
+        // TODO: add to appropriate vector
+        return true;
+    }
+    // External
+    else if( IDX_keyword_compare( name, "ExternalGeometricModel" ) )
+    {
+        // TODO: EDMD_EXTERNAL_GEOMETRIC_MODEL not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "ExternalSource" ) )
+    {
+        // TODO: EDMD_EXTERNAL_SOURCE not yet parsed
+        return true;
+    }
+    // Properties
+    else if( IDX_keyword_compare( name, "UnitAmperage" ) || IDX_keyword_compare( name, "foundation:UnitAmperage" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitCapacitance" )
+             || IDX_keyword_compare( name, "foundation:UnitCapacitance" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitPower" ) || IDX_keyword_compare( name, "foundation:UnitPower" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitResistance" ) || IDX_keyword_compare( name, "foundation:UnitResistance" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitSurface" ) || IDX_keyword_compare( name, "foundation:UnitSurface" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitVoltage" ) || IDX_keyword_compare( name, "foundation:UnitVoltage" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitVolume" ) || IDX_keyword_compare( name, "foundation:UnitVolume" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitWeight" ) || IDX_keyword_compare( name, "foundation:UnitWeight" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitWork" ) || IDX_keyword_compare( name, "foundation:UnitWork" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    // Points on curves
+    else if( IDX_keyword_compare( name, "PointOnCurveDistance" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_POINT_ON_CURVE_DISTANCE> s =
+                std::make_shared<idx_geometry::EDMD_POINT_ON_CURVE_DISTANCE>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "PointOnCurveIntersection" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_POINT_ON_CURVE_INTERSECTION> s =
+                std::make_shared<idx_geometry::EDMD_POINT_ON_CURVE_INTERSECTION>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    // HistoryEntry
+    else if( IDX_keyword_compare( name, "HistoryEntry" ) )
+    {
+        // TODO: EDMD_HISTORY_ENTRY not yet parsed
+        return true;
+    }
+    // Model3D
+    else if( IDX_keyword_compare( name, "Model3D" ) || IDX_keyword_compare( name, "foundation:Model3D" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_3D_MODEL> s = std::make_shared<idx_pdm::EDMD_3D_MODEL>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_3D_MODEL>( s->m_id, s );
+        m_3dModels.push_back( s );
+    }
+    // AngleLength
+    else if( IDX_keyword_compare( name, "AngleLength" ) || IDX_keyword_compare( name, "foundation:AngleLength" ) )
+    {
+        // TODO: EDMD_ANGLE_LENGTH not yet implemented, parse as property
+        return true;
+    }
+    // Stratum Technology
+    else if( IDX_keyword_compare( name, "StratumTechnology" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_STRATUM_TECHNOLOGY> s =
+                std::make_shared<idx_pdm::EDMD_STRATUM_TECHNOLOGY>( aNode );
+        // TODO: add to appropriate vector
+        return true;
     }
     else
     {
@@ -1162,6 +1486,37 @@ EDMD_PROCESS_INSTRUCTION::EDMD_PROCESS_INSTRUCTION( IDX_XML_NODE& aNode, bool aT
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
+
+bool EDMD_PROCESS_INSTRUCTION::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "foundation:Subject" ) )
+    {
+        m_subject = std::make_shared<EDMD_OBJECT>( aNode, true );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Object" ) )
+    {
+        m_object = std::make_shared<EDMD_OBJECT>( aNode, true );
+    }
+    else if( IDX_keyword_compare( name, "foundation:TargetSystem" ) )
+    {
+        m_targetSystem = std::make_shared<EDMD_SYSTEM>( aNode );
+    }
+    else if( IDX_keyword_compare( name, "foundation:ProcessType" ) )
+    {
+        if( IDX_keyword_compare( content, "SEND_INFORMATION" ) )
+            m_processType = PROCESS_TYPE::SEND_INFORMATION;
+        else if( IDX_keyword_compare( content, "SEND_CHANGES" ) )
+            m_processType = PROCESS_TYPE::SEND_CHANGES;
+    }
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+
+    return true;
+}
 
 
 void EDMD_PROCESS_INSTRUCTION::Write( IDX_XML_NODE& aNode ) const

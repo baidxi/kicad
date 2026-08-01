@@ -93,7 +93,9 @@ public:
             idx_foundation::EDMD_OBJECT() {};
     EDMD_CONSTRAINED_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::vector<std::shared_ptr<EDMD_UNIT>>                 m_validUnit;
     std::vector<std::string>                                m_validValues;
@@ -114,6 +116,7 @@ public:
     EDMD_USER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_keys;
     std::string                                             m_value;
@@ -161,7 +164,9 @@ class EDMD_UNIT_AMPERAGE : public EDMD_UNIT
 public:
     EDMD_UNIT_AMPERAGE() {};
     EDMD_UNIT_AMPERAGE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_ANGLE : public EDMD_UNIT
@@ -169,7 +174,9 @@ class EDMD_UNIT_ANGLE : public EDMD_UNIT
 public:
     EDMD_UNIT_ANGLE() {};
     EDMD_UNIT_ANGLE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
@@ -177,7 +184,9 @@ class EDMD_UNIT_CAPACITANCE : public EDMD_UNIT
 public:
     EDMD_UNIT_CAPACITANCE() {};
     EDMD_UNIT_CAPACITANCE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_LENGTH : public EDMD_UNIT
@@ -185,7 +194,9 @@ class EDMD_UNIT_LENGTH : public EDMD_UNIT
 public:
     EDMD_UNIT_LENGTH() {};
     EDMD_UNIT_LENGTH( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_POWER : public EDMD_UNIT
@@ -193,7 +204,9 @@ class EDMD_UNIT_POWER : public EDMD_UNIT
 public:
     EDMD_UNIT_POWER() {};
     EDMD_UNIT_POWER( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
@@ -201,7 +214,9 @@ class EDMD_UNIT_RESISTANCE : public EDMD_UNIT
 public:
     EDMD_UNIT_RESISTANCE() {};
     EDMD_UNIT_RESISTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_SURFACE : public EDMD_UNIT
@@ -209,7 +224,9 @@ class EDMD_UNIT_SURFACE : public EDMD_UNIT
 public:
     EDMD_UNIT_SURFACE() {};
     EDMD_UNIT_SURFACE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 // ------------------- EDMD_LENGTH_PROPERTY -------------------
@@ -248,6 +265,8 @@ public:
     EDMD_PROPERTY() {};
     EDMD_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value;
     std::string m_unit;
@@ -261,7 +280,9 @@ class EDMD_ANGLE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_ANGLE_PROPERTY() {};
     EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     double      m_value = 0.0;
     std::string m_unit;
@@ -274,7 +295,9 @@ class EDMD_DATE_TIME_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_DATE_TIME_PROPERTY() {};
     EDMD_DATE_TIME_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value; // xs:dateTime
 };
@@ -286,7 +309,9 @@ class EDMD_INTEGER_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_INTEGER_PROPERTY() {};
     EDMD_INTEGER_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     int         m_value = 0;
     std::string m_unit;
@@ -299,7 +324,9 @@ class EDMD_COLOR_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_COLOR_PROPERTY() {};
     EDMD_COLOR_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     int  m_value = 0;
     bool m_mixed = false;
@@ -312,7 +339,9 @@ class EDMD_CLEARANCE_STATE_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_CLEARANCE_STATE_PROPERTY() {};
     EDMD_CLEARANCE_STATE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::vector<idx_foundation::EDMD_NAME> m_stateName;
     bool                                   m_accept = true;
@@ -325,7 +354,9 @@ class EDMD_USER_SIMPLE_PROPERTY : public EDMD_USER_PROPERTY
 public:
     EDMD_USER_SIMPLE_PROPERTY() {};
     EDMD_USER_SIMPLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_simpleValue;
     std::string m_unit;
@@ -338,7 +369,9 @@ class EDMD_USER_COMPOUND_PROPERTY : public EDMD_USER_PROPERTY
 public:
     EDMD_USER_COMPOUND_PROPERTY() {};
     EDMD_USER_COMPOUND_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::vector<std::shared_ptr<EDMD_USER_PROPERTY>> m_values;
 };
@@ -350,7 +383,9 @@ class EDMD_USER_ANY_PROPERTY_VALUE : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_USER_ANY_PROPERTY_VALUE() {};
     EDMD_USER_ANY_PROPERTY_VALUE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     // Contains any XML data
     std::string m_anyValue;
@@ -363,7 +398,9 @@ class EDMD_USER_ANY_PROPERTY : public EDMD_USER_PROPERTY
 public:
     EDMD_USER_ANY_PROPERTY() {};
     EDMD_USER_ANY_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::shared_ptr<EDMD_USER_ANY_PROPERTY_VALUE> m_value;
 };
@@ -375,7 +412,9 @@ class EDMD_USER_NON_VALUE_PROPERTY : public EDMD_USER_PROPERTY
 public:
     EDMD_USER_NON_VALUE_PROPERTY() {};
     EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 // ------------------- Missing Unit Classes -------------------
@@ -385,7 +424,9 @@ class EDMD_UNIT_VOLTAGE : public EDMD_UNIT
 public:
     EDMD_UNIT_VOLTAGE() {};
     EDMD_UNIT_VOLTAGE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_VOLUME : public EDMD_UNIT
@@ -393,7 +434,9 @@ class EDMD_UNIT_VOLUME : public EDMD_UNIT
 public:
     EDMD_UNIT_VOLUME() {};
     EDMD_UNIT_VOLUME( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_WEIGHT : public EDMD_UNIT
@@ -401,7 +444,9 @@ class EDMD_UNIT_WEIGHT : public EDMD_UNIT
 public:
     EDMD_UNIT_WEIGHT() {};
     EDMD_UNIT_WEIGHT( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 class EDMD_UNIT_WORK : public EDMD_UNIT
@@ -409,7 +454,9 @@ class EDMD_UNIT_WORK : public EDMD_UNIT
 public:
     EDMD_UNIT_WORK() {};
     EDMD_UNIT_WORK( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 // ------------------- Unit Fundamental Classes -------------------
@@ -419,10 +466,10 @@ class EDMD_UNIT_AMPERAGE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_AMPERAGE_FUNDAMENTAL() {};
     EDMD_UNIT_AMPERAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_ANGLE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -430,10 +477,10 @@ class EDMD_UNIT_ANGLE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_ANGLE_FUNDAMENTAL() {};
     EDMD_UNIT_ANGLE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_CAPACITANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -441,10 +488,10 @@ class EDMD_UNIT_CAPACITANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_CAPACITANCE_FUNDAMENTAL() {};
     EDMD_UNIT_CAPACITANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_LENGTH_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -452,10 +499,10 @@ class EDMD_UNIT_LENGTH_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_LENGTH_FUNDAMENTAL() {};
     EDMD_UNIT_LENGTH_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_POWER_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -463,10 +510,10 @@ class EDMD_UNIT_POWER_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_POWER_FUNDAMENTAL() {};
     EDMD_UNIT_POWER_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_RESISTANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -474,10 +521,10 @@ class EDMD_UNIT_RESISTANCE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_RESISTANCE_FUNDAMENTAL() {};
     EDMD_UNIT_RESISTANCE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_SURFACE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -485,10 +532,10 @@ class EDMD_UNIT_SURFACE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_SURFACE_FUNDAMENTAL() {};
     EDMD_UNIT_SURFACE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_VOLTAGE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -496,10 +543,10 @@ class EDMD_UNIT_VOLTAGE_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_VOLTAGE_FUNDAMENTAL() {};
     EDMD_UNIT_VOLTAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_VOLUME_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -507,10 +554,10 @@ class EDMD_UNIT_VOLUME_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_VOLUME_FUNDAMENTAL() {};
     EDMD_UNIT_VOLUME_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_WEIGHT_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -518,10 +565,10 @@ class EDMD_UNIT_WEIGHT_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_WEIGHT_FUNDAMENTAL() {};
     EDMD_UNIT_WEIGHT_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 class EDMD_UNIT_WORK_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
@@ -529,10 +576,10 @@ class EDMD_UNIT_WORK_FUNDAMENTAL : public idx_foundation::EDMD_OBJECT
 public:
     EDMD_UNIT_WORK_FUNDAMENTAL() {};
     EDMD_UNIT_WORK_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
-    bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    std::string m_value;
+    bool         Resolve( IDX_REGISTRY& aRegistry ) override;
+    std::string  m_value;
 };
 
 // ------------------- Enum Property Types -------------------
@@ -542,7 +589,9 @@ class EDMD_BOOLEAN_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_BOOLEAN_PROPERTY_TYPE() {};
     EDMD_BOOLEAN_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     int m_value = -1; // EDMDBooleanRestrictionType: -1 or 1
 };
@@ -552,7 +601,9 @@ class EDMD_CUT_OUT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_CUT_OUT_SIDE_PROPERTY_TYPE() {};
     EDMD_CUT_OUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value; // Top, Bottom, All
 };
@@ -562,7 +613,9 @@ class EDMD_PIN_TYPE_PROPERTY_TYPE : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_PIN_TYPE_PROPERTY_TYPE() {};
     EDMD_PIN_TYPE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value; // I, L, Z, C
 };
@@ -572,7 +625,9 @@ class EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINE
 public:
     EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE() {};
     EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value; // Both, Top, Bottom
 };
@@ -582,7 +637,9 @@ class EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE : public EDMD_CONSTRAINED_
 public:
     EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE() {};
     EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_value; // Both, Top, Bottom, All, Inner
 };
@@ -592,7 +649,9 @@ class EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE : public IDX_BASE
 public:
     EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE() {};
     EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode, bool aTopLevel );
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     int m_i = 0;
     int m_j = 0;

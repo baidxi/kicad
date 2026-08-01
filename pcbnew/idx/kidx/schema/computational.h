@@ -51,6 +51,7 @@ public:
     EDMD_ABSTRACT_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 private:
     std::string                                      m_actorRef;
@@ -93,6 +94,15 @@ class EDMD_SERVICE_RESULT : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
 {
 public:
     EDMD_SERVICE_RESULT();
+    EDMD_SERVICE_RESULT( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
+    bool                m_ok;
+    EDMD_ERROR_CATEGORY m_errorCategory;
+    std::string         m_errorMessageId;
+    std::string         m_errorMessageText;
+    std::string         m_developerDetails;
 };
 
 
@@ -104,6 +114,14 @@ class EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION : public idx_foundation::
 public:
     EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION();
     EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+
+    std::string                   m_actorRef;
+    std::vector<INFORMATION_TYPE> m_informationType;
+
+private:
+    std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
 };
 
 
@@ -117,7 +135,9 @@ public:
     EDMD_TRANSACTION( IDX_XML_NODE& aNode, bool aTopLevel );
     std::vector<std::shared_ptr<EDMD_ABSTRACT_CHANGE>> m_changes;
 
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 
@@ -131,6 +151,7 @@ public:
     EDMD_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::shared_ptr<idx_foundation::EDMD_IDENTIFIER>        m_newItem;
@@ -149,6 +170,7 @@ public:
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::shared_ptr<EDMD_TRANSACTION>                m_transaction;
     std::shared_ptr<idx_administration::EDMD_PERSON> m_actor;
@@ -166,6 +188,8 @@ class EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION : public idx_foundation::EDMD_PR
 public:
     EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION();
     EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 

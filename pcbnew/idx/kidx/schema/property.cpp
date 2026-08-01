@@ -60,7 +60,89 @@ EDMD_CONSTRAINED_PROPERTY::EDMD_CONSTRAINED_PROPERTY( IDX_XML_NODE& aNode, bool 
 
 bool EDMD_CONSTRAINED_PROPERTY::Parse( IDX_XML_NODE& aNode )
 {
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "property:ValidValue" ) )
+    {
+        m_validValues.push_back( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:MaxValue" ) )
+    {
+        m_maxValue.push_back( std::make_shared<EDMD_CONSTRAINED_PROPERTY>( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:MinValue" ) )
+    {
+        m_minValue.push_back( std::make_shared<EDMD_CONSTRAINED_PROPERTY>( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Originator" ) )
+    {
+        // TODO: implement EDMD_PERSON resolution
+        // m_originator = ...
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:ValidUnit" ) )
+    {
+        m_validUnit.push_back( std::make_shared<EDMD_UNIT>( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Unit" ) )
+    {
+        m_unit = content;
+        return true;
+    }
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
+}
+
+void EDMD_CONSTRAINED_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+
+    for( auto validUnit : m_validUnit )
+    {
+        if( validUnit )
+            WriteChild( aNode, "property:ValidUnit", *validUnit );
+    }
+    for( const auto& validValue : m_validValues )
+    {
+        WriteValueChild( aNode, "property:ValidValue", validValue );
+    }
+    for( auto maxValue : m_maxValue )
+    {
+        if( maxValue )
+            WriteChild( aNode, "property:MaxValue", *maxValue );
+    }
+    for( auto minValue : m_minValue )
+    {
+        if( minValue )
+            WriteChild( aNode, "property:MinValue", *minValue );
+    }
+    // Originator TODO: implement when EDMD_PERSON is fully implemented
+    WriteValueChild( aNode, "property:Unit", m_unit );
+}
+
+bool EDMD_CONSTRAINED_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    for( auto& validUnit : m_validUnit )
+    {
+        if( validUnit )
+            validUnit->Resolve( aRegistry );
+    }
+    for( auto& maxValue : m_maxValue )
+    {
+        if( maxValue )
+            maxValue->Resolve( aRegistry );
+    }
+    for( auto& minValue : m_minValue )
+    {
+        if( minValue )
+            minValue->Resolve( aRegistry );
+    }
+    return idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_USER_PROPERTY -------------------
@@ -99,6 +181,19 @@ void EDMD_USER_PROPERTY::Write( IDX_XML_NODE& aNode ) const
             WriteChild( aNode, "property:Key", *key );
     }
     WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_USER_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry ) )
+        return false;
+
+    for( auto& key : m_keys )
+    {
+        if( key && !key->Resolve( aRegistry ) )
+            return false;
+    }
+    return true;
 }
 
 // ------------------- EDMD_UNIT -------------------
@@ -276,6 +371,119 @@ bool EDMD_UNIT_WORK::Parse( IDX_XML_NODE& aNode )
     return this->EDMD_UNIT::Parse( aNode );
 }
 
+
+// Write and Resolve methods for UNIT subclasses
+bool EDMD_UNIT_AMPERAGE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_AMPERAGE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_ANGLE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_ANGLE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_CAPACITANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_CAPACITANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_LENGTH::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_LENGTH::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_POWER::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_POWER::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_RESISTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_RESISTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_SURFACE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_SURFACE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_VOLTAGE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_VOLTAGE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_VOLUME::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_VOLUME::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_WEIGHT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_WEIGHT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+bool EDMD_UNIT_WORK::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return this->EDMD_UNIT::Resolve( aRegistry );
+}
+
+void EDMD_UNIT_WORK::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_UNIT::Write( aNode );
+}
+
+
 // ------------------- Unit Fundamental Classes -------------------
 
 EDMD_UNIT_AMPERAGE_FUNDAMENTAL::EDMD_UNIT_AMPERAGE_FUNDAMENTAL( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -289,13 +497,13 @@ bool EDMD_UNIT_AMPERAGE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -317,13 +525,13 @@ bool EDMD_UNIT_ANGLE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -345,13 +553,13 @@ bool EDMD_UNIT_CAPACITANCE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -373,13 +581,13 @@ bool EDMD_UNIT_LENGTH_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -401,13 +609,13 @@ bool EDMD_UNIT_POWER_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -429,13 +637,13 @@ bool EDMD_UNIT_RESISTANCE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -457,13 +665,13 @@ bool EDMD_UNIT_SURFACE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -485,13 +693,13 @@ bool EDMD_UNIT_VOLTAGE_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -513,13 +721,13 @@ bool EDMD_UNIT_VOLUME_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -541,13 +749,13 @@ bool EDMD_UNIT_WEIGHT_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -569,13 +777,13 @@ bool EDMD_UNIT_WORK_FUNDAMENTAL::Parse( IDX_XML_NODE& aNode )
 {
     const std::string name = aNode.GetName();
     const std::string content = aNode.GetNodeContent();
-    
+
     if( name == "#text" || name == "" )
     {
         m_value = content;
         return true;
     }
-    
+
     return this->idx_foundation::EDMD_OBJECT::Parse( aNode );
 }
 
@@ -735,6 +943,19 @@ bool EDMD_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+    WriteValueChild( aNode, "property:Unit", m_unit );
+}
+
+bool EDMD_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
 // ------------------- EDMD_ANGLE_PROPERTY -------------------
 
 EDMD_ANGLE_PROPERTY::EDMD_ANGLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -759,10 +980,49 @@ bool EDMD_ANGLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
         m_unit = content;
         return true;
     }
+    else if( IDX_keyword_compare( name, "property:ValidValue" ) )
+    {
+        m_validValues.push_back( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:MaxValue" ) )
+    {
+        m_maxValue.push_back( std::make_shared<EDMD_CONSTRAINED_PROPERTY>( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:MinValue" ) )
+    {
+        m_minValue.push_back( std::make_shared<EDMD_CONSTRAINED_PROPERTY>( aNode, true ) );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:Originator" ) )
+    {
+        // TODO: implement EDMD_PERSON resolution
+        // m_originator = ...
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "property:ValidUnit" ) )
+    {
+        m_validUnit.push_back( std::make_shared<EDMD_UNIT>( aNode, true ) );
+        return true;
+    }
     else
     {
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_ANGLE_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    aNode.AppendChild( "property:Value" )->SetText( std::to_string( m_value ) );
+    WriteValueChild( aNode, "property:Unit", m_unit );
+}
+
+bool EDMD_ANGLE_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_DATE_TIME_PROPERTY -------------------
@@ -788,6 +1048,18 @@ bool EDMD_DATE_TIME_PROPERTY::Parse( IDX_XML_NODE& aNode )
     {
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_DATE_TIME_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_DATE_TIME_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_INTEGER_PROPERTY -------------------
@@ -820,6 +1092,19 @@ bool EDMD_INTEGER_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_INTEGER_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", std::to_string( m_value ) );
+    WriteValueChild( aNode, "property:Unit", m_unit );
+}
+
+bool EDMD_INTEGER_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
 // ------------------- EDMD_COLOR_PROPERTY -------------------
 
 EDMD_COLOR_PROPERTY::EDMD_COLOR_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -848,6 +1133,19 @@ bool EDMD_COLOR_PROPERTY::Parse( IDX_XML_NODE& aNode )
     {
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_COLOR_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", std::to_string( m_value ) );
+    aNode.AppendChild( "property:Mixed" )->SetText( m_mixed ? "true" : "false" );
+}
+
+bool EDMD_COLOR_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_CLEARANCE_STATE_PROPERTY -------------------
@@ -880,6 +1178,30 @@ bool EDMD_CLEARANCE_STATE_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_CLEARANCE_STATE_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    for( const auto& stateName : m_stateName )
+    {
+        WriteChild( aNode, "property:StateName", stateName );
+    }
+    aNode.AppendChild( "property:Accept" )->SetText( m_accept ? "true" : "false" );
+}
+
+bool EDMD_CLEARANCE_STATE_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry ) )
+        return false;
+
+    for( auto& stateName : m_stateName )
+    {
+        if( !stateName.Resolve( aRegistry ) )
+            return false;
+    }
+    return true;
+}
+
 // ------------------- EDMD_USER_SIMPLE_PROPERTY -------------------
 
 EDMD_USER_SIMPLE_PROPERTY::EDMD_USER_SIMPLE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -908,6 +1230,19 @@ bool EDMD_USER_SIMPLE_PROPERTY::Parse( IDX_XML_NODE& aNode )
     {
         return this->EDMD_USER_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_USER_SIMPLE_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_USER_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_simpleValue );
+    WriteValueChild( aNode, "property:Unit", m_unit );
+}
+
+bool EDMD_USER_SIMPLE_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_USER_PROPERTY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_USER_COMPOUND_PROPERTY -------------------
@@ -942,6 +1277,34 @@ bool EDMD_USER_COMPOUND_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_USER_COMPOUND_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_USER_PROPERTY::Write( aNode );
+
+    // Write compound property values
+    for( auto value : m_values )
+    {
+        if( value )
+        {
+            auto valueNode = aNode.AppendChild( "property:Value" );
+            value->Write( *valueNode );
+        }
+    }
+}
+
+bool EDMD_USER_COMPOUND_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_USER_PROPERTY::Resolve( aRegistry ) )
+        return false;
+
+    for( auto& value : m_values )
+    {
+        if( value && !value->Resolve( aRegistry ) )
+            return false;
+    }
+    return true;
+}
+
 // ------------------- EDMD_USER_ANY_PROPERTY_VALUE -------------------
 
 EDMD_USER_ANY_PROPERTY_VALUE::EDMD_USER_ANY_PROPERTY_VALUE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -956,6 +1319,18 @@ bool EDMD_USER_ANY_PROPERTY_VALUE::Parse( IDX_XML_NODE& aNode )
     // Capture the entire XML content as a string
     m_anyValue = aNode.GetText();
     return true;
+}
+
+void EDMD_USER_ANY_PROPERTY_VALUE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_OBJECT::Write( aNode );
+    if( !m_anyValue.empty() )
+        aNode.SetText( m_anyValue );
+}
+
+bool EDMD_USER_ANY_PROPERTY_VALUE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_USER_ANY_PROPERTY -------------------
@@ -982,6 +1357,28 @@ bool EDMD_USER_ANY_PROPERTY::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_USER_ANY_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_USER_PROPERTY::Write( aNode );
+
+    if( m_value )
+    {
+        auto valueNode = aNode.AppendChild( "property:Value" );
+        m_value->Write( *valueNode );
+    }
+}
+
+bool EDMD_USER_ANY_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_USER_PROPERTY::Resolve( aRegistry ) )
+        return false;
+
+    if( m_value && !m_value->Resolve( aRegistry ) )
+        return false;
+
+    return true;
+}
+
 // ------------------- EDMD_USER_NON_VALUE_PROPERTY -------------------
 
 EDMD_USER_NON_VALUE_PROPERTY::EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -995,6 +1392,16 @@ EDMD_USER_NON_VALUE_PROPERTY::EDMD_USER_NON_VALUE_PROPERTY( IDX_XML_NODE& aNode,
 bool EDMD_USER_NON_VALUE_PROPERTY::Parse( IDX_XML_NODE& aNode )
 {
     return this->EDMD_USER_PROPERTY::Parse( aNode );
+}
+
+void EDMD_USER_NON_VALUE_PROPERTY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_USER_PROPERTY::Write( aNode );
+}
+
+bool EDMD_USER_NON_VALUE_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_USER_PROPERTY::Resolve( aRegistry );
 }
 
 // ------------------- Missing Unit Classes -------------------
@@ -1045,6 +1452,18 @@ bool EDMD_BOOLEAN_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_BOOLEAN_PROPERTY_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", std::to_string( m_value ) );
+}
+
+bool EDMD_BOOLEAN_PROPERTY_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
 EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::EDMD_CUT_OUT_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
@@ -1068,6 +1487,18 @@ bool EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
     }
 }
 
+void EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_CUT_OUT_SIDE_PROPERTY_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
 EDMD_PIN_TYPE_PROPERTY_TYPE::EDMD_PIN_TYPE_PROPERTY_TYPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
 {
@@ -1089,6 +1520,18 @@ bool EDMD_PIN_TYPE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode )
     {
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_PIN_TYPE_PROPERTY_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_PIN_TYPE_PROPERTY_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE(
@@ -1115,6 +1558,18 @@ bool EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNo
     }
 }
 
+void EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_RESTRICTED_AREA_PLACEMENT_SIDE_PROPERTY_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
 EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE( IDX_XML_NODE& aNode,
                                                                                                   bool aTopLevel ) :
         EDMD_CONSTRAINED_PROPERTY( aNode, false )
@@ -1133,10 +1588,28 @@ bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::Parse( IDX_XML_NODE& aNode
         m_value = content;
         return true;
     }
+    else if( IDX_keyword_compare( name, "property:Range" ) )
+    {
+        // TODO: implement Range parsing
+        // m_range = ...
+        return true;
+    }
     else
     {
         return this->EDMD_CONSTRAINED_PROPERTY::Parse( aNode );
     }
+}
+
+void EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
+
+    WriteValueChild( aNode, "property:Value", m_value );
+}
+
+bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_PROPERTY_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE( IDX_XML_NODE& aNode,
@@ -1171,6 +1644,17 @@ bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::Parse( IDX_XML_NODE& aNode )
         child = child->GetNext();
     }
     return true;
+}
+
+void EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    aNode.AppendChild( "property:i" )->SetText( std::to_string( m_i ) );
+    aNode.AppendChild( "property:j" )->SetText( std::to_string( m_j ) );
+}
+
+bool EDMD_RESTRICTED_AREA_ROUTING_SIDE_RANGE_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return IDX_BASE::Resolve( aRegistry );
 }
 
 } // namespace idx_property

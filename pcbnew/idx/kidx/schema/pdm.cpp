@@ -464,6 +464,12 @@ void EDMD_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
 EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode ) :
         EDMD_ITEM_SHAPE( aNode, false )
 {
+    Parse( aNode );
+}
+
+
+bool EDMD_FUNCTIONAL_ITEM_SHAPE::Parse( IDX_XML_NODE& aNode )
+{
     auto child = aNode.GetChildren();
 
     while( child )
@@ -485,9 +491,33 @@ EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode ) :
                 m_type = TYPE::PLACEMENT_GROUP;
             else if( IDX_keyword_compare( content, "MechanicalItem" ) )
                 m_type = TYPE::MECHANICAL;
+            return true;
         }
         child = child->GetNext();
     }
+
+    return this->EDMD_ITEM_SHAPE::Parse( aNode );
+}
+
+
+void EDMD_FUNCTIONAL_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    // Write FunctionalItemShapeType
+    std::string typeStr;
+    switch( m_type )
+    {
+    case TYPE::RIGID_AREA: typeStr = std::string( "RigidArea" ); break;
+    case TYPE::FLEXIBLE_AREA: typeStr = std::string( "FlexibleArea" ); break;
+    case TYPE::STIFFENER: typeStr = std::string( "Stiffener" ); break;
+    case TYPE::USER_AREA: typeStr = std::string( "UserArea" ); break;
+    case TYPE::PLACEMENT_GROUP: typeStr = std::string( "PlacementGroupArea" ); break;
+    case TYPE::MECHANICAL: typeStr = std::string( "MechanicalItem" ); break;
+    default: typeStr = ""; break;
+    }
+    if( !typeStr.empty() )
+        WriteValueChild( aNode, "pdm:EDMDFunctionalItemShapeType", typeStr );
 }
 
 
@@ -505,6 +535,12 @@ bool EDMD_FUNCTIONAL_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
 
 EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode ) :
         idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
+{
+    Parse( aNode );
+}
+
+
+bool EDMD_STRATUM_TECHNOLOGY::Parse( IDX_XML_NODE& aNode )
 {
     auto child = aNode.GetChildren();
 
@@ -561,9 +597,99 @@ EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode ) :
                 m_layerPositionType = LAYER_POSITION_TYPE::EXTERNAL;
             else if( IDX_keyword_compare( content, "Internal" ) )
                 m_layerPositionType = LAYER_POSITION_TYPE::INTERNAL;
+            return true;
         }
 
         child = child->GetNext();
+    }
+
+    return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+}
+
+
+void EDMD_STRATUM_TECHNOLOGY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    // Write StratumTechnologyType
+    switch( m_stratumTechnologyType )
+    {
+        case STRATUM_TECHNOLOGY_TYPE::DESIGN:
+            aNode.AppendChild( "pdm:StratumTechnologyType" )->SetText( "Design" );
+            break;
+        case STRATUM_TECHNOLOGY_TYPE::DOCUMENTATION:
+            aNode.AppendChild( "pdm:StratumTechnologyType" )->SetText( "Documentation" );
+            break;
+        default:
+            break;
+    }
+
+    // Write LayerPurpose
+    switch( m_layerPurpose )
+    {
+        case LAYER_PURPOSE::SOLDERMASK:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderMask" );
+            break;
+        case LAYER_PURPOSE::SOLDERPASTE:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderPaste" );
+            break;
+        case LAYER_PURPOSE::SILKSCREEN:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SilkScreen" );
+            break;
+        case LAYER_PURPOSE::GENERIC_LAYER:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GenericLayer" );
+            break;
+        case LAYER_PURPOSE::GLUE:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Glue" );
+            break;
+        case LAYER_PURPOSE::GLUEMASK:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GlueMask" );
+            break;
+        case LAYER_PURPOSE::PASTEMASK:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PasteMask" );
+            break;
+        case LAYER_PURPOSE::OTHER_SIGNAL:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "OtherSignal" );
+            break;
+        case LAYER_PURPOSE::LANDS_ONLY:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "LandsOnly" );
+            break;
+        case LAYER_PURPOSE::POWER_OR_GROUND:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PowerOrGround" );
+            break;
+        case LAYER_PURPOSE::EMBEDDED_PASSIVE_CAPACITOR_DIELECTRIC:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveCapacitorDielectric" );
+            break;
+        case LAYER_PURPOSE::DIELECTRIC:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Dielectric" );
+            break;
+        case LAYER_PURPOSE::EMBEDDED_PASSIVE_RESISTOR:
+            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveResistor" );
+            break;
+        default:
+            break;
+    }
+
+    // Write LayerPositionType
+    switch( m_layerPositionType )
+    {
+        case LAYER_POSITION_TYPE::PRIMARY:
+            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Primary" );
+            break;
+        case LAYER_POSITION_TYPE::SECONDARY:
+            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Secondary" );
+            break;
+        case LAYER_POSITION_TYPE::ALL:
+            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "All" );
+            break;
+        case LAYER_POSITION_TYPE::EXTERNAL:
+            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "External" );
+            break;
+        case LAYER_POSITION_TYPE::INTERNAL:
+            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Internal" );
+            break;
+        default:
+            break;
     }
 }
 
@@ -708,6 +834,42 @@ bool EDMD_KEEP_CONSTRAINT::Parse( IDX_XML_NODE& aNode )
 }
 
 
+void EDMD_KEEP_CONSTRAINT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    // Write Purpose elements
+    for( const auto& purpose : m_purpose )
+    {
+        std::string purposeStr;
+        switch( purpose )
+        {
+        case KEEP_CONSTRAINT_PURPOSE::THERMAL: purposeStr = "Thermal"; break;
+        case KEEP_CONSTRAINT_PURPOSE::GENERIC_CLEARANCE: purposeStr = "GenericClearance"; break;
+        case KEEP_CONSTRAINT_PURPOSE::SHOCK: purposeStr = "Shock"; break;
+        case KEEP_CONSTRAINT_PURPOSE::VIBRATION: purposeStr = "Vibration"; break;
+        case KEEP_CONSTRAINT_PURPOSE::EMC: purposeStr = "ElectromagneticCompatibility"; break;
+        case KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT: purposeStr = "ComponentPlacement"; break;
+        case KEEP_CONSTRAINT_PURPOSE::ROUTE: purposeStr = "Route"; break;
+        case KEEP_CONSTRAINT_PURPOSE::VIA: purposeStr = "Via"; break;
+        case KEEP_CONSTRAINT_PURPOSE::TESTPOINT: purposeStr = "TestPoint"; break;
+        case KEEP_CONSTRAINT_PURPOSE::VALUELIMIT: purposeStr = "ValueLimit"; break;
+        case KEEP_CONSTRAINT_PURPOSE::PLANE: purposeStr = "Plane"; break;
+        case KEEP_CONSTRAINT_PURPOSE::OTHER: purposeStr = "Other"; break;
+        default: purposeStr = ""; break;
+        }
+        if( !purposeStr.empty() )
+            aNode.AppendChild( "pdm:Purpose" )->SetText( purposeStr );
+    }
+
+    // Write KeepConstraintCondition elements
+    for( const auto& condition : m_keepConstraintCondition )
+    {
+        WriteChild( aNode, "pdm:KeepConstraintCondition", *condition );
+    }
+}
+
+
 // -----------------------------------------------------
 // EDMD_KEEP_OUT
 // -----------------------------------------------------
@@ -721,6 +883,12 @@ EDMD_KEEP_OUT::EDMD_KEEP_OUT( IDX_XML_NODE& aNode, bool aTopLevel ) :
 };
 
 
+void EDMD_KEEP_OUT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_KEEP_CONSTRAINT::Write( aNode );
+}
+
+
 // -----------------------------------------------------
 // EDMD_KEEP_IN
 // -----------------------------------------------------
@@ -732,6 +900,12 @@ EDMD_KEEP_IN::EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel ) :
     if( aTopLevel )
         ParseChildren( aNode );
 };
+
+
+void EDMD_KEEP_IN::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_KEEP_CONSTRAINT::Write( aNode );
+}
 
 
 // -----------------------------------------------------
@@ -1289,6 +1463,17 @@ bool EDMD_BEND::Parse( IDX_XML_NODE& aNode )
 }
 
 
+void EDMD_BEND::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    WriteValueChild( aNode, "pdm:BendType", m_bendTypeRef );
+    if( m_bendType )
+        WriteChild( aNode, "pdm:BendType", *m_bendType );
+    WriteValueChild( aNode, "pdm:SequenceNumber", std::to_string( m_sequenceNumber ) );
+}
+
+
 // -----------------------------------------------------
 // EDMD_BEND_TYPE
 // -----------------------------------------------------
@@ -1315,6 +1500,16 @@ bool EDMD_BEND_TYPE::Parse( IDX_XML_NODE& aNode )
         return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 
     return true;
+}
+
+
+void EDMD_BEND_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, "pdm:BendLine", m_bendLineRef );
+    if( m_bendLine )
+        WriteChild( aNode, "pdm:BendLine", *m_bendLine );
 }
 
 
@@ -1355,6 +1550,26 @@ bool EDMD_CIRCULAR_BEND_TYPE::Parse( IDX_XML_NODE& aNode )
         return this->EDMD_BEND_TYPE::Parse( aNode );
 
     return true;
+}
+
+
+void EDMD_CIRCULAR_BEND_TYPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_BEND_TYPE::Write( aNode );
+
+    // Write InnerSide
+    std::string innerSideStr;
+    switch( m_innerSide )
+    {
+    case EDMDINNER_SIDE::TOP: innerSideStr = std::string( "Top" ); break;
+    case EDMDINNER_SIDE::BOTTOM: innerSideStr = std::string( "Bottom" ); break;
+    default: innerSideStr = ""; break;
+    }
+    if( !innerSideStr.empty() )
+        WriteValueChild( aNode, "pdm:InnerSide", innerSideStr );
+
+    WriteValueChild( aNode, "pdm:InnerRadius", std::to_string( m_innerRadius ) );
+    WriteValueChild( aNode, "pdm:InnerAngle", std::to_string( m_innerAngle ) );
 }
 
 
@@ -1429,6 +1644,34 @@ bool EDMD_NON_FEATURE_ITEM_SHAPE::Parse( IDX_XML_NODE& aNode )
         return this->EDMD_ITEM_SHAPE::Parse( aNode );
 
     return true;
+}
+
+
+void EDMD_NON_FEATURE_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ITEM_SHAPE::Write( aNode );
+
+    // Write NonFeatureItemShapePurposePurpose
+    std::string purposeStr;
+    switch( m_purpose )
+    {
+    case NON_FEATURE_ITEM_SHAPE_PURPOSE::INFO_TEXT: purposeStr = std::string( "InfoText" ); break;
+    case NON_FEATURE_ITEM_SHAPE_PURPOSE::INFO_GEOMETRY: purposeStr = std::string( "InfoGeometry" ); break;
+    case NON_FEATURE_ITEM_SHAPE_PURPOSE::AUXILIARY_GEOMETRY: purposeStr = std::string( "AuxiliaryGeometry" ); break;
+    default: purposeStr = ""; break;
+    }
+    if( !purposeStr.empty() )
+        WriteValueChild( aNode, "pdm:NonFeatureItemShapePurposePurpose", purposeStr );
+
+    // Write RelatedItemShape elements
+    for( const auto& relatedRef : m_relatedItemShapeRef )
+    {
+        WriteValueChild( aNode, "pdm:RelatedItemShape", relatedRef );
+    }
+    for( const auto& related : m_relatedItemShape )
+    {
+        WriteChild( aNode, "pdm:RelatedItemShape", *related );
+    }
 }
 
 

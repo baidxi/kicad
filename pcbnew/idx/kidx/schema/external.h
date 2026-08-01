@@ -39,10 +39,12 @@ namespace idx_external
 class EDMD_EXTERNAL_SOURCE : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
-    EDMD_EXTERNAL_SOURCE() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
+    EDMD_EXTERNAL_SOURCE() :
+            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
     EDMD_EXTERNAL_SOURCE( IDX_XML_NODE& aNode, bool aTopLevel );
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::string m_mimeType;
@@ -53,10 +55,12 @@ public:
 class EDMD_EXTERNAL_GEOMETRIC_MODEL : public idx_pdm::EDMD_SHAPE_DESCRIPTION
 {
 public:
-    EDMD_EXTERNAL_GEOMETRIC_MODEL() : idx_pdm::EDMD_SHAPE_DESCRIPTION() {};
+    EDMD_EXTERNAL_GEOMETRIC_MODEL() :
+            idx_pdm::EDMD_SHAPE_DESCRIPTION() {};
     EDMD_EXTERNAL_GEOMETRIC_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
 
     std::string m_externalSourceRef;

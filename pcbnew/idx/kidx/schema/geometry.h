@@ -68,29 +68,44 @@ class EDMD_HYPERBOLA : public EDMD_CURVE
 public:
     EDMD_HYPERBOLA( IDX_XML_NODE& aNode );
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::shared_ptr<EDMD_POINT>        m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
+
+private:
+    std::string m_centerRef;
 };
 
 class EDMD_TRIMMED_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_TRIMMED_CURVE( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE> m_curve;
     std::shared_ptr<EDMD_POINT> m_start;
     std::shared_ptr<EDMD_POINT> m_end;
+
+private:
+    std::string m_curveRef;
+    std::string m_startRef;
+    std::string m_endRef;
 };
 
 class EDMD_LINE : public EDMD_CURVE
 {
 public:
     EDMD_LINE( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE> m_point;
     std::shared_ptr<EDMD_POINT> m_vector;
+
+private:
+    std::string m_pointRef;
+    std::string m_vectorRef;
 };
 
 enum class EDMD_B_SPLINE_CURVE_FORM
@@ -108,20 +123,28 @@ class EDMD_B_SPLINE_CURVE : public EDMD_CURVE
 public:
     EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode );
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     int                                      m_degree;
     std::vector<std::shared_ptr<EDMD_POINT>> m_controlPointsList;
-    EDMD_B_SPLINE_CURVE_FORM                  m_curveForm;
+    EDMD_B_SPLINE_CURVE_FORM                 m_curveForm;
     bool                                     m_closedCurve;
     bool                                     m_selfIntersect;
+
+private:
+    std::vector<std::string> m_controlPointsRef;
 };
 
 class EDMD_COMPOSITE_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_COMPOSITE_CURVE( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                             Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                             Write( IDX_XML_NODE& aNode ) const override;
     std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
+
+private:
+    std::vector<std::string> m_curveRef;
 };
 
 class EDMD_POLY_LINE : public EDMD_CURVE
@@ -161,6 +184,7 @@ public:
     EDMD_ARC( IDX_XML_NODE& aNode );
     virtual bool                       Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                       Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT>        GetStart();
     std::shared_ptr<EDMD_POINT>        GetEnd();
     idx_property::EDMD_ANGLE_PROPERTY& GetIncludeAngle();
@@ -177,10 +201,14 @@ class EDMD_ELLIPSE : public EDMD_CURVE
 {
 public:
     EDMD_ELLIPSE( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                       Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT>        m_center;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMinor;
     idx_property::EDMD_LENGTH_PROPERTY m_semiMajor;
+
+private:
+    std::string m_centerRef;
 };
 
 class EDMD_POINT : public EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
@@ -201,6 +229,7 @@ public:
     EDMD_CIRCLE( IDX_XML_NODE& aNode );
     virtual bool                        Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                        Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                        Write( IDX_XML_NODE& aNode ) const override;
     virtual std::shared_ptr<EDMD_POINT> GetCenter() const;
     virtual double                      GetRadius() const;
 };
@@ -209,10 +238,16 @@ class EDMD_CIRCLE3_POINT : public EDMD_CIRCLE
 {
 public:
     EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT> m_p1;
     std::shared_ptr<EDMD_POINT> m_p2;
     std::shared_ptr<EDMD_POINT> m_p3;
+
+private:
+    std::string m_p1Ref;
+    std::string m_p2Ref;
+    std::string m_p3Ref;
 };
 
 class EDMD_CIRCLE_CENTER : public EDMD_CIRCLE
@@ -221,6 +256,7 @@ public:
     EDMD_CIRCLE_CENTER( IDX_XML_NODE& aNode );
     virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT> GetCenter() const override;
     double                      GetRadius() const override;
 
@@ -234,19 +270,28 @@ class EDMD_OFFSET_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_OFFSET_CURVE( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                       Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE>        m_basisCurve;
     idx_property::EDMD_LENGTH_PROPERTY m_distance;
     bool                               m_selfIntersects;
+
+private:
+    std::string m_basisCurveRef;
 };
 
 class EDMD_PARABOLA : public EDMD_CURVE
 {
 public:
     EDMD_PARABOLA( IDX_XML_NODE& aNode );
-    virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool                Parse( IDX_XML_NODE& aNode ) override;
+    virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT> m_focus;
-    std::shared_ptr<EDMD_POINT> m_parabola;
+    std::shared_ptr<EDMD_POINT> m_apex;
+
+private:
+    std::string m_apexRef;
+    std::string m_focusRef;
 };
 
 class EDMD_POINT_ON_CURVE_INTERSECTION : public EDMD_POINT

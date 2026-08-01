@@ -324,7 +324,7 @@ class SchemaCoverageValidator:
         
         # Find class declarations: class EDMD_... : public EDMD_...
         class_pattern = re.compile(
-            r'class\s+(EDMD_\w+)\s*:\s*(?:public\s+)?(?:EDMD_(\w+)\s*)?'
+            r'class\s+(EDMD_\w+)\s*:\s*(?:public\s+)?(EDMD_\w+)?'
         )
         
         for match in class_pattern.finditer(content):
@@ -371,13 +371,13 @@ class SchemaCoverageValidator:
         # Also check for virtual declarations in class definition
         # Pattern: virtual bool Parse(IDX_XML_NODE& aNode) override;
         virt_parse_pattern = re.compile(
-            r'virtual\s+bool\s+Parse\s*\(\s*IDX_XML_NODE&'
+            r'(virtual\s+)?bool\s+Parse\s*\(\s*IDX_XML_NODE&'
         )
         virt_write_pattern = re.compile(
-            r'virtual\s+void\s+Write\s*\(\s*IDX_XML_NODE&'
+            r'(virtual\s+)?void\s+Write\s*\(\s*IDX_XML_NODE&'
         )
         virt_resolve_pattern = re.compile(
-            r'virtual\s+bool\s+Resolve\s*\(\s*IDX_REGISTRY&'
+            r'(virtual\s+)?bool\s+Resolve\s*\(\s*IDX_REGISTRY&'
         )
         
         # Also extract parsed members from Parse() methods
@@ -420,17 +420,38 @@ class SchemaCoverageValidator:
                     if current_class in self.impl_classes:
                         self.impl_classes[current_class].has_resolve = True
     
+    def _extract_method_body(self, content: str, start_pos: int) -> Tuple[int, str]:
+        """Extract method body with proper nested brace handling."""
+        depth = 1
+        body_start = start_pos
+        i = start_pos + 1  # Skip opening brace
+        
+        while i < len(content) and depth > 0:
+            if content[i] == '{':
+                depth += 1
+            elif content[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    # Found the matching closing brace
+                    return i + 1, content[body_start+1:i]
+            i += 1
+        
+        return i, content[body_start+1:i]
+
     def _extract_parse_members(self, content: str, file_path: Path):
         """Extract which members are parsed in Parse() methods."""
         # Find all Parse() method implementations
         # Pattern: bool EDMD_ClassName::Parse(IDX_XML_NODE& aNode)
         parse_method_pattern = re.compile(
-            r'bool\s+(EDMD_\w+)\s*::\s*Parse\s*\(\s*IDX_XML_NODE&[^\)]*\)\s*\{([^\}]*)\}'
+            r'bool\s+(EDMD_\w+)\s*::\s*Parse\s*\(\s*IDX_XML_NODE&[^\)]*\)\s*\{'
         )
         
         for match in parse_method_pattern.finditer(content):
             class_name = match.group(1)
-            method_body = match.group(2)
+            brace_pos = match.end() - 1  # Position of opening brace
+            
+            # Extract method body with nested brace handling
+            body_end, method_body = self._extract_method_body(content, brace_pos)
             
             if class_name not in self.impl_classes:
                 self.impl_classes[class_name] = EDMDClass(name=class_name, impl_file=str(file_path.name))
@@ -466,6 +487,67 @@ class SchemaCoverageValidator:
             for m in pattern3.finditer(method_body):
                 member_name = m.group(1)
                 parsed_members.add(member_name)
+            
+            # Pattern 4: this->ParentClass::Parse() calls - extract parent class members
+            parent_parse_pattern = re.compile(r'this->(EDMD_\w+)::Parse\s*\(\s*IDX_XML_NODE')
+            for parent_match in parent_parse_pattern.finditer(method_body):
+                parent_class = parent_match.group(1)
+                # If parent class exists and has parsed members, include them
+                if parent_class in self.impl_classes and hasattr(self.impl_classes[parent_class], 'parsed_members'):
+                    parsed_members.update(self.impl_classes[parent_class].parsed_members)
+            
+            # Store parsed members in the class info
+            if not hasattr(self.impl_classes[class_name], 'parsed_members'):
+                self.impl_classes[class_name].parsed_members = set()
+            self.impl_classes[class_name].parsed_members.update(parsed_members)
+        
+        # Also look for inline Parse() methods in class definitions
+        # Pattern: bool Parse( IDX_XML_NODE& aNode ) override { ... }
+        inline_parse_pattern = re.compile(
+            r'class\s+(EDMD_\w+)\s*:[^{]*\{[^}]*bool\s+Parse\s*\(\s*IDX_XML_NODE&[^\)]*\)\s*\{'
+        )
+        
+        for match in inline_parse_pattern.finditer(content):
+            class_name = match.group(1)
+            brace_pos = match.end() - 1  # Position of opening brace
+            
+            # Extract method body with nested brace handling
+            body_end, method_body = self._extract_method_body(content, brace_pos)
+            
+            if class_name not in self.impl_classes:
+                self.impl_classes[class_name] = EDMDClass(name=class_name, impl_file=str(file_path.name))
+            
+            # Extract all member names being parsed (same as above)
+            parsed_members = set()
+            
+            # Pattern 1: IDX_keyword_compare with prefix
+            pattern1 = re.compile(r'IDX_keyword_compare\s*\(\s*[^,]+\s*,\s*"([^"]+)"\s*\)')
+            for m in pattern1.finditer(method_body):
+                member_name = m.group(1)
+                if ':' in member_name:
+                    member_name = member_name.split(':')[1]
+                parsed_members.add(member_name)
+            
+            # Pattern 2: direct string comparison
+            pattern2 = re.compile(r'if\s*\(\s*[^)]*name\s*[=!]=?\s*"([^"]+)"')
+            for m in pattern2.finditer(method_body):
+                member_name = m.group(1)
+                if ':' in member_name:
+                    member_name = member_name.split(':')[1]
+                parsed_members.add(member_name)
+            
+            # Pattern 3: member assignment (e.g., m_member = ...)
+            pattern3 = re.compile(r'm_(\w+)\s*[=;]')
+            for m in pattern3.finditer(method_body):
+                member_name = m.group(1)
+                parsed_members.add(member_name)
+            
+            # Pattern 4: this->ParentClass::Parse() calls
+            parent_parse_pattern = re.compile(r'this->(EDMD_\w+)::Parse\s*\(\s*IDX_XML_NODE')
+            for parent_match in parent_parse_pattern.finditer(method_body):
+                parent_class = parent_match.group(1)
+                if parent_class in self.impl_classes and hasattr(self.impl_classes[parent_class], 'parsed_members'):
+                    parsed_members.update(self.impl_classes[parent_class].parsed_members)
             
             # Store parsed members in the class info
             if not hasattr(self.impl_classes[class_name], 'parsed_members'):
@@ -506,6 +588,21 @@ class SchemaCoverageValidator:
                 schema_class = self.schema_classes[schema_class_name]
                 if schema_class.members and impl_class.has_parse:
                     # Check which members are missing
+                    # Also consider inherited parsed members from parent classes
+                    all_parsed_members = set(impl_class.parsed_members)
+                    
+                    # Add inherited parsed members from parent classes
+                    current_class = class_name
+                    while current_class and current_class in self.impl_classes:
+                        parent_class = self.impl_classes[current_class].base_class
+                        if parent_class and parent_class in self.impl_classes:
+                            parent_impl = self.impl_classes[parent_class]
+                            if hasattr(parent_impl, 'parsed_members'):
+                                all_parsed_members.update(parent_impl.parsed_members)
+                            current_class = parent_class
+                        else:
+                            break
+                    
                     missing_members = set()
                     for member in schema_class.members:
                         # Member names in schema are in camelCase or with namespaces
@@ -513,9 +610,9 @@ class SchemaCoverageValidator:
                         member_upper = camel_to_underscore(member).upper()
                         member_simple = member.split(':')[-1]  # Remove namespace
                         
-                        # Check if this member is parsed
+                        # Check if this member is parsed (including inherited)
                         found = False
-                        for parsed in impl_class.parsed_members:
+                        for parsed in all_parsed_members:
                             # Try different comparisons
                             if (parsed.upper() == member_upper or 
                                 parsed == member_simple or 

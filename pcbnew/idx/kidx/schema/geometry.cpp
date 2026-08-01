@@ -115,6 +115,41 @@ EDMD_HYPERBOLA::EDMD_HYPERBOLA( IDX_XML_NODE& aNode ) :
 {
 }
 
+
+bool EDMD_HYPERBOLA::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Center" ) )
+    {
+        m_centerRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SemiMajor" ) )
+    {
+        m_semiMajor = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SemiMinor" ) )
+    {
+        m_semiMinor = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_HYPERBOLA::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Center", m_centerRef );
+    WriteChild( aNode, "d2:SemiMajor", m_semiMajor );
+    WriteChild( aNode, "d2:SemiMinor", m_semiMinor );
+}
+
 // --------------------------------------------------------------------------
 // EDMD_TRIMMED_CURVE
 // --------------------------------------------------------------------------
@@ -124,6 +159,41 @@ EDMD_TRIMMED_CURVE::EDMD_TRIMMED_CURVE( IDX_XML_NODE& aNode ) :
 {
 }
 
+
+bool EDMD_TRIMMED_CURVE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Curve" ) )
+    {
+        m_curveRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:Start" ) )
+    {
+        m_startRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:End" ) )
+    {
+        m_endRef = content;
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_TRIMMED_CURVE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Curve", m_curveRef );
+    WriteValueChild( aNode, "d2:Start", m_startRef );
+    WriteValueChild( aNode, "d2:End", m_endRef );
+}
+
 // --------------------------------------------------------------------------
 // EDMD_LINE
 // --------------------------------------------------------------------------
@@ -131,6 +201,35 @@ EDMD_TRIMMED_CURVE::EDMD_TRIMMED_CURVE( IDX_XML_NODE& aNode ) :
 EDMD_LINE::EDMD_LINE( IDX_XML_NODE& aNode ) :
         EDMD_CURVE( aNode, false )
 {
+}
+
+
+bool EDMD_LINE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Point" ) )
+    {
+        m_pointRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:Vector" ) )
+    {
+        m_vectorRef = content;
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_LINE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Point", m_pointRef );
+    WriteValueChild( aNode, "d2:Vector", m_vectorRef );
 }
 
 // --------------------------------------------------------------------------
@@ -145,6 +244,80 @@ EDMD_B_SPLINE_CURVE::EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode ) :
     m_selfIntersect = false;
 }
 
+
+bool EDMD_B_SPLINE_CURVE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Degree" ) )
+    {
+        m_degree = std::stoi( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:ControlPointsList" ) )
+    {
+        m_controlPointsRef.push_back( content );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:CurveForm" ) )
+    {
+        if( content == "PolylineForm" )
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::POLYLINE_FORM;
+        else if( content == "CircularArc" )
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::CIRCULAR_ARC;
+        else if( content == "EllipticArc" )
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::ELLIPTIC_ARC;
+        else if( content == "ParabolicArc" )
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::PARABOLIC_ARC;
+        else if( content == "HyperbolicArc" )
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::HYPERBOLIC_ARC;
+        else
+            m_curveForm = EDMD_B_SPLINE_CURVE_FORM::UNSPECIFIED;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:ClosedCurve" ) )
+    {
+        m_closedCurve = ( content == "true" || content == "1" );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SelfIntersect" ) )
+    {
+        m_selfIntersect = ( content == "true" || content == "1" );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_B_SPLINE_CURVE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Degree", std::to_string( m_degree ) );
+
+    for( const auto& pointRef : m_controlPointsRef )
+    {
+        WriteValueChild( aNode, "d2:ControlPointsList", pointRef );
+    }
+
+    std::string curveFormStr;
+    switch( m_curveForm )
+    {
+    case EDMD_B_SPLINE_CURVE_FORM::POLYLINE_FORM: curveFormStr = "PolylineForm"; break;
+    case EDMD_B_SPLINE_CURVE_FORM::CIRCULAR_ARC: curveFormStr = "CircularArc"; break;
+    case EDMD_B_SPLINE_CURVE_FORM::ELLIPTIC_ARC: curveFormStr = "EllipticArc"; break;
+    case EDMD_B_SPLINE_CURVE_FORM::PARABOLIC_ARC: curveFormStr = "ParabolicArc"; break;
+    case EDMD_B_SPLINE_CURVE_FORM::HYPERBOLIC_ARC: curveFormStr = "HyperbolicArc"; break;
+    default: curveFormStr = "Unspecified"; break;
+    }
+    WriteValueChild( aNode, "d2:CurveForm", curveFormStr );
+
+    WriteValueChild( aNode, "d2:ClosedCurve", std::string( m_closedCurve ? "true" : "false" ) );
+    WriteValueChild( aNode, "d2:SelfIntersect", std::string( m_selfIntersect ? "true" : "false" ) );
+}
+
 // --------------------------------------------------------------------------
 // EDMD_COMPOSITE_CURVE
 // --------------------------------------------------------------------------
@@ -154,6 +327,32 @@ EDMD_COMPOSITE_CURVE::EDMD_COMPOSITE_CURVE( IDX_XML_NODE& aNode ) :
 {
     //IDX_XML_NODE& child = aNode.GetChildren();
     //std::vector<std::string> refnames;
+}
+
+
+bool EDMD_COMPOSITE_CURVE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Curve" ) )
+    {
+        m_curveRef.push_back( content );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_COMPOSITE_CURVE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    for( const auto& curveRef : m_curveRef )
+    {
+        WriteValueChild( aNode, "d2:Curve", curveRef );
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -340,9 +539,46 @@ bool EDMD_ARC::Parse( IDX_XML_NODE& aNode )
         m_includeAngle = idx_property::EDMD_ANGLE_PROPERTY( aNode, true );
         return true;
     }
+    else if( IDX_keyword_compare( name, "d2:Thickness" ) )
+    {
+        m_thickness = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
 
     return this->EDMD_CURVE::Parse( aNode );
 }
+
+
+void EDMD_ARC::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    // Write StartPoint reference or actual point
+    if( m_startPoint )
+    {
+        std::shared_ptr<IDX_XML_NODE> startNode = aNode.AppendChild( "d2:StartPoint" );
+        m_startPoint->Write( *startNode );
+    }
+    else if( !m_startPointRef.empty() )
+    {
+        aNode.AppendChild( "d2:StartPoint" )->SetText( m_startPointRef );
+    }
+
+    // Write EndPoint reference or actual point
+    if( m_endPoint )
+    {
+        std::shared_ptr<IDX_XML_NODE> endNode = aNode.AppendChild( "d2:EndPoint" );
+        m_endPoint->Write( *endNode );
+    }
+    else if( !m_endPointRef.empty() )
+    {
+        aNode.AppendChild( "d2:EndPoint" )->SetText( m_endPointRef );
+    }
+
+    WriteChild( aNode, "d2:IncludeAngle", m_includeAngle );
+    WriteChild( aNode, "d2:Thickness", m_thickness );
+}
+
 
 bool EDMD_ARC::Resolve( IDX_REGISTRY& aRegistry )
 {
@@ -376,6 +612,41 @@ EDMD_ELLIPSE::EDMD_ELLIPSE( IDX_XML_NODE& aNode ) :
 {
 }
 
+
+bool EDMD_ELLIPSE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Center" ) )
+    {
+        m_centerRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SemiMajor" ) )
+    {
+        m_semiMajor = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SemiMinor" ) )
+    {
+        m_semiMinor = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_ELLIPSE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Center", m_centerRef );
+    WriteChild( aNode, "d2:SemiMajor", m_semiMajor );
+    WriteChild( aNode, "d2:SemiMinor", m_semiMinor );
+}
+
 // --------------------------------------------------------------------------
 // EDMD_POINT
 // --------------------------------------------------------------------------
@@ -400,6 +671,13 @@ double EDMD_POINT::GetY() const
 }
 EDMD_POINT::~EDMD_POINT() = default;
 
+
+bool EDMD_POINT::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Parse( aNode );
+}
+
+
 // --------------------------------------------------------------------------
 // EDMD_CIRCLE
 // --------------------------------------------------------------------------
@@ -408,6 +686,21 @@ EDMD_CIRCLE::EDMD_CIRCLE( IDX_XML_NODE& aNode ) :
         EDMD_CURVE( aNode, false )
 {
 }
+
+
+bool EDMD_CIRCLE::Parse( IDX_XML_NODE& aNode )
+{
+    // EDMD_CIRCLE doesn't have additional members beyond EDMD_CURVE
+    // The actual circle-specific members are in subclasses
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_CIRCLE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+}
+
 
 bool EDMD_CIRCLE::Resolve( IDX_REGISTRY& aRegistry )
 {
@@ -431,6 +724,41 @@ double EDMD_CIRCLE::GetRadius() const
 EDMD_CIRCLE3_POINT::EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode ) :
         EDMD_CIRCLE( aNode )
 {
+}
+
+
+bool EDMD_CIRCLE3_POINT::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:P1" ) )
+    {
+        m_p1Ref = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:P2" ) )
+    {
+        m_p2Ref = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:P3" ) )
+    {
+        m_p3Ref = content;
+        return true;
+    }
+
+    return this->EDMD_CIRCLE::Parse( aNode );
+}
+
+
+void EDMD_CIRCLE3_POINT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CIRCLE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:P1", m_p1Ref );
+    WriteValueChild( aNode, "d2:P2", m_p2Ref );
+    WriteValueChild( aNode, "d2:P3", m_p3Ref );
 }
 
 // --------------------------------------------------------------------------
@@ -461,6 +789,35 @@ EDMD_CIRCLE_CENTER::EDMD_CIRCLE_CENTER( IDX_XML_NODE& aNode ) :
     }
 }
 
+
+bool EDMD_CIRCLE_CENTER::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Center" ) )
+    {
+        m_centerRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:Diameter" ) )
+    {
+        m_diameter = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+
+    return this->EDMD_CIRCLE::Parse( aNode );
+}
+
+
+void EDMD_CIRCLE_CENTER::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CIRCLE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Center", m_centerRef );
+    WriteChild( aNode, "d2:Diameter", m_diameter );
+}
+
 bool EDMD_CIRCLE_CENTER::Resolve( IDX_REGISTRY& aRegistry )
 {
     bool result = EDMD_CIRCLE::Resolve( aRegistry );
@@ -487,6 +844,41 @@ EDMD_OFFSET_CURVE::EDMD_OFFSET_CURVE( IDX_XML_NODE& aNode ) :
 {
 }
 
+
+bool EDMD_OFFSET_CURVE::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:BasisCurve" ) )
+    {
+        m_basisCurveRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:Distance" ) )
+    {
+        m_distance = idx_property::EDMD_LENGTH_PROPERTY( aNode, true );
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:SelfIntersect" ) )
+    {
+        m_selfIntersects = ( content == "true" || content == "1" );
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_OFFSET_CURVE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:BasisCurve", m_basisCurveRef );
+    WriteChild( aNode, "d2:Distance", m_distance );
+    WriteValueChild( aNode, "d2:SelfIntersect", std::string( m_selfIntersects ? "true" : "false" ) );
+}
+
 // --------------------------------------------------------------------------
 // EDMD_PARABOLA
 // --------------------------------------------------------------------------
@@ -494,6 +886,35 @@ EDMD_OFFSET_CURVE::EDMD_OFFSET_CURVE( IDX_XML_NODE& aNode ) :
 EDMD_PARABOLA::EDMD_PARABOLA( IDX_XML_NODE& aNode ) :
         EDMD_CURVE( aNode, false )
 {
+}
+
+
+bool EDMD_PARABOLA::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "d2:Apex" ) )
+    {
+        m_apexRef = content;
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "d2:Focus" ) )
+    {
+        m_focusRef = content;
+        return true;
+    }
+
+    return this->EDMD_CURVE::Parse( aNode );
+}
+
+
+void EDMD_PARABOLA::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_CURVE::Write( aNode );
+
+    WriteValueChild( aNode, "d2:Apex", m_apexRef );
+    WriteValueChild( aNode, "d2:Focus", m_focusRef );
 }
 
 // --------------------------------------------------------------------------

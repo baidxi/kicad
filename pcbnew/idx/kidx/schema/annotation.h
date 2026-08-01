@@ -70,6 +70,7 @@ public:
     EDMD_ANNOTATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string              m_subject;           // IDREF to EDMDObject
     std::string              m_creator;           // IDREF to EDMDPerson
@@ -90,6 +91,7 @@ public:
     EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string m_history;          // IDREF to EDMDHistory
     std::string m_creationDateTime; // xs:dateTime
@@ -105,6 +107,8 @@ public:
     EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 /**
@@ -116,6 +120,8 @@ public:
     EDMD_HISTORY_ENTRY_ADD_COMMENT() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 /**
@@ -129,6 +135,7 @@ public:
     EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP( IDX_XML_NODE& aNode, bool aTopLevel );
 
     bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::string m_oldOwner; // IDREF, nillable
 };
@@ -142,6 +149,8 @@ public:
     EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 /**
@@ -153,6 +162,8 @@ public:
     EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
 
 /**

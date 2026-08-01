@@ -108,6 +108,24 @@ bool EDMD_ANNOTATION::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_ANNOTATION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->idx_foundation::EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, std::string( "annotation:Subject" ), m_subject );
+    WriteValueChild( aNode, std::string( "annotation:Creator" ), m_creator );
+
+    for( const auto& related : m_relatedAnnotation )
+        WriteValueChild( aNode, std::string( "annotation:RelatedAnnotation" ), related );
+
+    WriteValueChild( aNode, std::string( "annotation:Caption" ), m_caption );
+    WriteValueChild( aNode, std::string( "annotation:Text" ), m_text );
+
+    for( const auto& ref : m_reference )
+        WriteValueChild( aNode, std::string( "annotation:Reference" ), ref );
+}
+
 // ------------------- EDMD_HISTORY_ENTRY -------------------
 
 EDMD_HISTORY_ENTRY::EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -147,6 +165,16 @@ bool EDMD_HISTORY_ENTRY::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_HISTORY_ENTRY::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_ANNOTATION::Write( aNode );
+
+    WriteValueChild( aNode, std::string( "annotation:History" ), m_history );
+    WriteValueChild( aNode, std::string( "annotation:CreationDateTime" ), m_creationDateTime );
+    WriteValueChild( aNode, std::string( "annotation:SystemScope" ), m_systemScope );
+}
+
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE -------------------
 
 EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode,
@@ -157,6 +185,18 @@ EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE
         ParseChildren( aNode );
 }
 
+bool EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_HISTORY_ENTRY::Parse( aNode );
+}
+
+
+void EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_HISTORY_ENTRY::Write( aNode );
+}
+
+
 // ------------------- EDMD_HISTORY_ENTRY_ADD_COMMENT -------------------
 
 EDMD_HISTORY_ENTRY_ADD_COMMENT::EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -164,6 +204,17 @@ EDMD_HISTORY_ENTRY_ADD_COMMENT::EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aN
 {
     if( aTopLevel )
         ParseChildren( aNode );
+}
+
+bool EDMD_HISTORY_ENTRY_ADD_COMMENT::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_HISTORY_ENTRY::Parse( aNode );
+}
+
+
+void EDMD_HISTORY_ENTRY_ADD_COMMENT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_HISTORY_ENTRY::Write( aNode );
 }
 
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP -------------------
@@ -197,6 +248,14 @@ bool EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+void EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_HISTORY_ENTRY::Write( aNode );
+
+    WriteValueChild( aNode, std::string( "annotation:OldOwner" ), m_oldOwner );
+}
+
 // ------------------- EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE -------------------
 
 EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -206,6 +265,18 @@ EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_
         ParseChildren( aNode );
 }
 
+bool EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_HISTORY_ENTRY::Parse( aNode );
+}
+
+
+void EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_HISTORY_ENTRY::Write( aNode );
+}
+
+
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE -------------------
 
 EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -213,6 +284,17 @@ EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_
 {
     if( aTopLevel )
         ParseChildren( aNode );
+}
+
+bool EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_HISTORY_ENTRY::Parse( aNode );
+}
+
+
+void EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_HISTORY_ENTRY::Write( aNode );
 }
 
 // ------------------- EDMD_HISTORY -------------------
