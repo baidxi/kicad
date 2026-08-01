@@ -44,7 +44,6 @@ class IDX_XML_NODE;
 namespace idx_administration
 {
 class EDMD_PERSON;
-class EDMD_ACTOR;
 } // namespace idx_administration
 
 namespace idx_property

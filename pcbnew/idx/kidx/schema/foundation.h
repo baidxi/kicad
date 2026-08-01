@@ -185,7 +185,7 @@ public:
     IDX_REGISTRY m_registry;
 
     std::vector<std::shared_ptr<idx_annotation::EDMD_HISTORY>>        m_history;
-    std::vector<std::shared_ptr<idx_administration::EDMD_ACTOR>>      m_actors;
+    std::vector<std::shared_ptr<idx_administration::EDMD_PERSON>>     m_actors;
     std::vector<std::shared_ptr<idx_foundation::EDMD_SYSTEM>>         m_systems;
     std::vector<std::shared_ptr<idx_property::EDMD_UNIT>>             m_units;
     std::vector<std::shared_ptr<idx_geometry::EDMD_POINT>>            m_points;

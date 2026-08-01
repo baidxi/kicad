@@ -25,17 +25,6 @@
 namespace idx_administration
 {
 
-bool EDMD_ACTOR::Parse( IDX_XML_NODE& aNode )
-{
-    return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
-}
-
-void EDMD_ACTOR::Write( IDX_XML_NODE& aNode ) const
-{
-    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
-}
-
-
 bool EDMD_PERSON::Parse( IDX_XML_NODE& aNode )
 {
     auto child = aNode.GetChildren();
@@ -58,7 +47,7 @@ bool EDMD_PERSON::Parse( IDX_XML_NODE& aNode )
         else if( IDX_keyword_compare( name, "administration:FaxNumber" ) )
             m_faxNumber = content;
         else
-            return this->EDMD_ACTOR::Parse( aNode );
+            return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 
         child = child->GetNext();
     }
@@ -69,7 +58,7 @@ bool EDMD_PERSON::Parse( IDX_XML_NODE& aNode )
 
 void EDMD_PERSON::Write( IDX_XML_NODE& aNode ) const
 {
-    this->EDMD_ACTOR::Write( aNode );
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
 
     if( !m_surname.empty() )
         aNode.AppendChild( "administration:SurName" )->SetText( m_surname );

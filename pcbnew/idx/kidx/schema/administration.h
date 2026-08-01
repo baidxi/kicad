@@ -33,28 +33,17 @@
 namespace idx_administration
 {
 
-class EDMD_ACTOR : public idx_foundation::EDMD_COLLABORATION_OBJECT
-{
-public:
-    EDMD_ACTOR() :
-            idx_foundation::EDMD_COLLABORATION_OBJECT() {};
-    EDMD_ACTOR( IDX_XML_NODE& aNode ) :
-            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false ) {};
-
-    bool         Parse( IDX_XML_NODE& aNode ) override;
-    virtual void Write( IDX_XML_NODE& aNode ) const override;
-};
 /**
      * @brief Representation of a natural person
      * 
      */
 
-class EDMD_PERSON : public EDMD_ACTOR
+class EDMD_PERSON : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_PERSON( std::string aSurname, std::string aGivenName, std::string aInitials, std::string aEmailAddress,
                  std::string aPhoneNumber, std::string aFaxNumber ) :
-            EDMD_ACTOR(),
+            idx_foundation::EDMD_COLLABORATION_OBJECT(),
             m_surname( aSurname ),
             m_givenName( aGivenName ),
             m_initials( aInitials ),
@@ -63,7 +52,7 @@ public:
             m_faxNumber( aFaxNumber ) {};
 
     EDMD_PERSON( IDX_XML_NODE& aNode ) :
-            EDMD_ACTOR( aNode )
+            idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
         Parse( aNode );
     }
