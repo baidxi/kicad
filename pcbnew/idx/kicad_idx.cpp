@@ -22,6 +22,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include <idx/kicad_idx.h>
 #include <lset.h>
 #include <layer_ids.h>
@@ -37,13 +41,18 @@
 #include <pad.h>
 #include <pcb_track.h>
 
-KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset, std::shared_ptr<KIDX_REGISTRY_KICAD> aReg,
-                      BOARD* aBoard, BOARD_COMMIT* aCommit ) :
+KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset,
+                      std::shared_ptr<KIDX_REGISTRY_KICAD> aReg, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
+        m_dataset( aDataset ),
         m_commit( aCommit ),
         m_board( aBoard ),
-        m_dataset( aDataset ),
         m_reg( aReg )
 {
+    // The EDMD_* classes already handle unit conversion internally
+    // GetX(), GetY(), GetRadius() etc. already return values in KiCad units (nanometers)
+    // So we don't need to do any additional unit conversion in this class.
+
+
     BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
     BOARD_STACKUP          stackup = dsnSettings.GetStackupDescriptor();
     stackup.SynchronizeWithBoard( &dsnSettings );
@@ -71,7 +80,7 @@ KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset, s
     }
 
     m_boardThickness = aDataset->GetBoardThickness();
-};
+}
 
 void KICAD_IDX::Report( wxString aMsg, SEVERITY aSev )
 {
@@ -169,6 +178,9 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInsta
                 npth->SetPosition( center );
                 npth->Add( pad );
 
+                // Add the footprint to the board so it has proper ownership
+                m_board->Add( npth );
+
                 this->ApplyTransformation( npth, aInstance.m_transformation );
 
                 m_result.push_back( npth );
@@ -202,14 +214,16 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstan
         {
             if( auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( model ) )
             {
-                // Assuming GetRadius() returns in internal KiCad units (nanometers)
                 double   diameter = circle->GetRadius() * 2;
-                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX() * 1e6, -circle->GetCenter()->GetY() * 1e6 );
+                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
                 auto     pth = new PCB_VIA( m_board );
                 pth->SetFrontTentingMode( TENTING_MODE::NOT_TENTED );
                 pth->SetBackTentingMode( TENTING_MODE::NOT_TENTED );
                 pth->SetDrill( diameter );
                 pth->SetPosition( center );
+
+                // Add the via to the board so it has proper ownership
+                m_board->Add( pth );
 
                 this->ApplyTransformation( pth, aInstance.m_transformation );
                 m_result.push_back( pth );
@@ -229,6 +243,13 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
     if( !keep )
         return {};
 
+    // Create zone once, we'll add all geometry to it
+    ZONE* zone = new ZONE( m_board );
+    zone->SetZoneName( keep->m_id );
+    zone->SetLayerSet( LSET() ); // Will be set by first valid curveset
+    this->SetKeepRules( *zone, *keep );
+    zone->SetIsRuleArea( true );
+
     for( auto const& y : keep->m_shapeElement )
     {
         std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> ptr =
@@ -236,16 +257,13 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
         if( ptr )
         {
-            LSET layers = GetLayers( *ptr );
-            if( layers.Seq().size() < 1 )
+            // Use the first valid curveset to set the layer
+            if( zone->GetLayerSet().Seq().empty() )
             {
-                continue;
+                LSET layers = GetLayers( *ptr );
+                if( layers.Seq().size() >= 1 )
+                    zone->SetLayerSet( layers );
             }
-
-            ZONE* zone = new ZONE( m_board );
-            zone->SetZoneName( keep->m_id );
-            zone->SetLayerSet( layers );
-            this->SetKeepRules( *zone, *keep );
 
             for( auto const& z : ptr->m_modelElement )
             {
@@ -253,12 +271,11 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
 
                 if( polyline )
                 {
-                    zone->SetIsRuleArea( true );
                     for( std::shared_ptr<idx_geometry::EDMD_POINT> p : polyline->m_point )
                     {
                         if( p )
                         {
-                            zone->AppendCorner( VECTOR2D( p->GetX(), -p->GetY() ), -1 );
+                            zone->AppendCorner( VECTOR2D( VECTOR2I( p->GetX(), -p->GetY() ) ), -1 );
                         }
                     }
                 }
@@ -272,14 +289,16 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
                     VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), -arc->GetEnd()->GetY() );
                     VECTOR2I mid = ArcMidPoint( *arc );
 
-                    SHAPE_ARC* s = new SHAPE_ARC( start, mid, end, 0 );
-
+                    SHAPE_ARC*        s = new SHAPE_ARC( start, mid, end, 0 );
                     SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
 
                     for( const VECTOR2I& p : buffer->CPoints() )
                     {
                         zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
                     }
+
+                    delete buffer;
+                    delete s;
                 }
 
 
@@ -293,19 +312,33 @@ std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst 
                     VECTOR2I start = center + VECTOR2I( 0, radius );
                     VECTOR2I mid = center - VECTOR2I( 0, radius );
 
-                    SHAPE_ARC* s = new SHAPE_ARC( start, mid, start, 0 );
-
+                    SHAPE_ARC*        s = new SHAPE_ARC( start, mid, start, 0 );
                     SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
 
                     for( const VECTOR2I& p : buffer->CPoints() )
                     {
                         zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
                     }
+
+                    delete buffer;
+                    delete s;
                 }
-                m_result.push_back( zone );
             }
         }
     }
+
+    // Add the zone to the board and result only if it has valid layers
+    if( !zone->GetLayerSet().Seq().empty() )
+    {
+        m_board->Add( zone );
+        m_result.push_back( zone );
+    }
+    else
+    {
+        // Zone has no valid layers, clean it up
+        delete zone;
+    }
+
     return m_result;
 }
 
@@ -476,8 +509,6 @@ std::shared_ptr<KICAD_IDX_CHANGE> KICAD_IDX::ConvertChange( idx_computational::E
     }
 
 
-    bool found = false;
-
     if( m_dataset->GetItem( *( aChange.m_newItem ) ) )
     {
         auto item = m_dataset->GetItem( *( aChange.m_newItem ) );
@@ -627,31 +658,51 @@ void KICAD_IDX::Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector )
 
 BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
 {
+    // Create a PCB group to hold the functional item shape
+    PCB_GROUP* group = new PCB_GROUP( m_board );
+    group->SetName( aShape.m_id );
+
+    // Map IDX functional item shape types to KiCad layers
+    PCB_LAYER_ID layer = User_1; // Default layer
+
     switch( aShape.m_type )
     {
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL:
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA: layer = User_1; break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA: layer = User_2; break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER: layer = User_3; break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA: layer = User_4; break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL: layer = Eco1_User; break;
+    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: layer = User_5; break;
+    default: layer = User_1; break;
     }
 
+    // Add the group to the board
+    m_board->Add( group );
 
-    PCB_GROUP* group = new PCB_GROUP( nullptr );
-    group->SetName( aShape.m_id );
-    m_commit->Add( group );
+    // Process each shape element in the functional item
     for( auto const& elt : aShape.m_shapeElement )
     {
-        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> ptr =
+        if( !elt || !elt->m_definingShape )
+            continue;
+
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
                 std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( elt->m_definingShape );
 
-        if( ptr )
+        if( curveset )
         {
-            // TODO
+            // Convert the curve set to KiCad items and add them to the group
+            for( BOARD_ITEM* item : ConvertElement( *curveset ) )
+            {
+                if( item )
+                {
+                    item->SetLayer( layer );
+                    group->AddItem( item );
+                }
+            }
         }
     }
-    return nullptr;
+
+    return group;
 }
 
 PCB_SHAPE KICAD_IDX::ConvertToKiCadShape( idx_geometry::EDMD_ARC& aArc )
@@ -672,9 +723,15 @@ VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
     VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
     VECTOR2I mid = ( start + end ) / 2;
 
-    double theta = aArc.GetIncludeAngle().m_value * 3.1415 / 180;
+    // Convert include angle from degrees to radians
+    double theta = aArc.GetIncludeAngle().m_value * M_PI / 180.0;
 
     double L = start.Distance( end ) / 2;
+
+    // Avoid division by zero for small angles
+    if( fabs( theta ) < 0.001 )
+        return mid;
+
     double R = L / sin( theta / 2 );
     double D = L / tan( theta / 2 );
 
@@ -686,32 +743,43 @@ VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
 
 VECTOR2I GetTransfoTranslation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
 {
-    VECTOR2I moveVector( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
-    return moveVector;
+    // m_tx and m_ty are EDMD_LENGTH_PROPERTY which store mm values
+    // Multiply by 1e6 to convert to KiCad internal units (nanometers)
+    return VECTOR2I( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
 }
 
 
 EDA_ANGLE GetTransfoRotation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
 {
-    double xx = aTransfo.m_xx;
-    double xy = aTransfo.m_xy;
-    double yx = aTransfo.m_yx;
-    double yy = aTransfo.m_yy;
+    // Proper 2D rotation matrix decomposition
+    // R = [cosθ  -sinθ]
+    //     [sinθ   cosθ]
+    //
+    // The IDX transformation matrix is:
+    // [xx  xy]
+    // [yx  yy]
+    //
+    // For a pure rotation matrix: xx = cosθ, xy = -sinθ, yx = sinθ, yy = cosθ
+    // We can extract the angle using atan2(yx, xx) or atan2(xy, yy)
 
-    if( xx == -yy )
+    // Check if this is a valid rotation matrix (orthogonal with determinant = 1)
+    double det = aTransfo.m_xx * aTransfo.m_yy - aTransfo.m_xy * aTransfo.m_yx;
+
+    // If determinant is close to 1 (allowing for floating point precision)
+    if( fabs( det - 1.0 ) < 0.001 )
     {
-        xx = yy;
-        yx = -yx;
+        // Extract angle from the matrix
+        // atan2(sinθ, cosθ) gives us the angle
+        return EDA_ANGLE( atan2( aTransfo.m_yx, aTransfo.m_xx ), RADIANS_T );
+    }
+    else if( fabs( det + 1.0 ) < 0.001 )
+    {
+        // Determinant is -1, this includes a reflection
+        // We still want the rotation component
+        return EDA_ANGLE( atan2( aTransfo.m_yx, aTransfo.m_xx ), RADIANS_T );
     }
 
-    if( ( xx == yy ) && ( xy == -yx ) )
-    {
-        if( xx != 1 || xy != 0 )
-        {
-            return EDA_ANGLE( atan2( yx, xx ), RADIANS_T );
-        }
-    }
-    // Inconsistent rotation matrix
+    // For non-orthogonal matrices or invalid transformations, return 0
     return EDA_ANGLE( 0 );
 }
 
@@ -913,8 +981,7 @@ LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVE_SET2D& aCurveSet )
     double lower = aCurveSet.m_lowerBound.m_value * 1e3;
 
     std::vector<PCB_LAYER_ID> pli;
-
-    LSET result = LSET();
+    LSET                      result = LSET();
 
     for( auto& layer : m_stackup )
     {

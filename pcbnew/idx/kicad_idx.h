@@ -102,7 +102,7 @@ public:
 
     // Response file generation
     std::shared_ptr<idx_foundation::EDMD_DATA_SET> CreateSendInformationResponse();
-    bool                                          SaveSendInformationResponse( const std::string& aFilename );
+    bool                                           SaveSendInformationResponse( const std::string& aFilename );
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
     bool ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const;
@@ -110,7 +110,6 @@ public:
     std::vector<BOARD_ITEM*> AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
     std::vector<BOARD_ITEM*> AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
     std::vector<BOARD_ITEM*> AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInstance );
-
 
     void SetKeepRules( ZONE&, idx_pdm::EDMD_KEEP_CONSTRAINT& );
 
