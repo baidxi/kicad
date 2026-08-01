@@ -124,8 +124,8 @@ public:
     EDMD_TRANSFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    bool Parse( IDX_XML_NODE& aNode ) override;
-    void Write( IDX_XML_NODE& aNode ) const override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
+    void         Write( IDX_XML_NODE& aNode ) const override;
 
 
     double m_xx = 1;
@@ -319,7 +319,7 @@ public:
     EDMD_KEEP_CONSTRAINT() {};
     EDMD_KEEP_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel );
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
-    bool Parse( IDX_XML_NODE& aNode ) override;
+    bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     std::vector<KEEP_CONSTRAINT_PURPOSE>                                  m_purpose;
@@ -409,13 +409,14 @@ public:
     std::vector<idx_foundation::EDMD_NAME>                   m_packageName;
     std::vector<std::shared_ptr<EDMD_ITEM_INSTANCE>>         m_itemInstance;
     std::shared_ptr<EDMD_ITEM_SHAPE>                         m_shape;
-    EDMD_TRANSFORMATION                                        m_shapeTransformation;
+    EDMD_TRANSFORMATION                                      m_shapeTransformation;
     idx_property::EDMD_LOGIC_PROPERTY                        m_accept;
     std::vector<idx_property::EDMD_CLEARANCE_STATE_PROPERTY> m_clearanceState;
     idx_property::EDMD_LOGIC_PROPERTY                        m_baseline;
     std::string                                              m_referenceName;
     std::string                                              m_assembleToName;
     std::vector<std::shared_ptr<EDMD_PACKAGE_PIN>>           m_packagePin;
+    std::shared_ptr<EDMD_3D_MODEL>                           m_3dModel;
 
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

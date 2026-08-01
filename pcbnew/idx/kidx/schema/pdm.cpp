@@ -323,6 +323,11 @@ bool EDMD_SHAPE_ELEMENT::Parse( IDX_XML_NODE& aNode )
         m_definingShapeRef = content;
         return true;
     }
+    else if( IDX_keyword_compare( name, "pdm:ShapeDescriptionTransformation" ) )
+    {
+        m_shapeDescriptionTransformation = EDMD_TRANSFORMATION( aNode, true );
+        return true;
+    }
 
     return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 }
@@ -379,7 +384,7 @@ void EDMD_SHAPE_ELEMENT::Write( IDX_XML_NODE& aNode ) const
         aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ThermalFeature" );
         break;
     case SHAPE_ELEMENT_TYPE::TEST_POINT_PART_FEATURE:
-        aNode.AppendChild( "pdm:ShapeElementTypv EDe" )->SetText( "TestPointPartFeature" );
+        aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "TestPointPartFeature" );
         break;
     case SHAPE_ELEMENT_TYPE::CONNECTION_ZONE:
         aNode.AppendChild( "pdm:ShapeElementType" )->SetText( "ConnectionZone" );
@@ -410,6 +415,10 @@ void EDMD_SHAPE_ELEMENT::Write( IDX_XML_NODE& aNode ) const
     // Write DefiningShape
     if( !m_definingShapeRef.empty() )
         aNode.AppendChild( "pdm:DefiningShape" )->SetText( m_definingShapeRef );
+
+    // Write ShapeDescriptionTransformation
+    auto shapeDescTransNode = aNode.AppendChild( "pdm:ShapeDescriptionTransformation" );
+    m_shapeDescriptionTransformation.Write( *shapeDescTransNode );
 
     return;
 }
@@ -497,7 +506,7 @@ bool EDMD_FUNCTIONAL_ITEM_SHAPE::Parse( IDX_XML_NODE& aNode )
         const std::string content = child->GetNodeContent();
         const std::string name = child->GetName();
 
-        if( IDX_keyword_compare( name, "pdm:EDMDFunctionalItemShapeType" ) )
+        if( IDX_keyword_compare( name, "pdm:FunctionalItemShapeType" ) )
         {
             if( IDX_keyword_compare( content, "RigidArea" ) )
                 m_type = TYPE::RIGID_AREA;
@@ -537,7 +546,7 @@ void EDMD_FUNCTIONAL_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
     default: typeStr = ""; break;
     }
     if( !typeStr.empty() )
-        WriteValueChild( aNode, "pdm:EDMDFunctionalItemShapeType", typeStr );
+        WriteValueChild( aNode, "pdm:FunctionalItemShapeType", typeStr );
 }
 
 
@@ -570,7 +579,7 @@ bool EDMD_STRATUM_TECHNOLOGY::Parse( IDX_XML_NODE& aNode )
         const std::string content = child->GetNodeContent();
         const std::string name = child->GetName();
 
-        if( IDX_keyword_compare( name, "pdm:StratumTechnologyType" ) )
+        if( IDX_keyword_compare( name, "pdm:TechnologyType" ) )
         {
             if( IDX_keyword_compare( content, "Design" ) )
                 m_stratumTechnologyType = STRATUM_TECHNOLOGY_TYPE::DESIGN;
@@ -635,82 +644,45 @@ void EDMD_STRATUM_TECHNOLOGY::Write( IDX_XML_NODE& aNode ) const
     // Write StratumTechnologyType
     switch( m_stratumTechnologyType )
     {
-        case STRATUM_TECHNOLOGY_TYPE::DESIGN:
-            aNode.AppendChild( "pdm:StratumTechnologyType" )->SetText( "Design" );
-            break;
-        case STRATUM_TECHNOLOGY_TYPE::DOCUMENTATION:
-            aNode.AppendChild( "pdm:StratumTechnologyType" )->SetText( "Documentation" );
-            break;
-        default:
-            break;
+    case STRATUM_TECHNOLOGY_TYPE::DESIGN: aNode.AppendChild( "pdm:TechnologyType" )->SetText( "Design" ); break;
+    case STRATUM_TECHNOLOGY_TYPE::DOCUMENTATION:
+        aNode.AppendChild( "pdm:TechnologyType" )->SetText( "Documentation" );
+        break;
+    default: break;
     }
 
     // Write LayerPurpose
     switch( m_layerPurpose )
     {
-        case LAYER_PURPOSE::SOLDERMASK:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderMask" );
-            break;
-        case LAYER_PURPOSE::SOLDERPASTE:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderPaste" );
-            break;
-        case LAYER_PURPOSE::SILKSCREEN:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SilkScreen" );
-            break;
-        case LAYER_PURPOSE::GENERIC_LAYER:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GenericLayer" );
-            break;
-        case LAYER_PURPOSE::GLUE:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Glue" );
-            break;
-        case LAYER_PURPOSE::GLUEMASK:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GlueMask" );
-            break;
-        case LAYER_PURPOSE::PASTEMASK:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PasteMask" );
-            break;
-        case LAYER_PURPOSE::OTHER_SIGNAL:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "OtherSignal" );
-            break;
-        case LAYER_PURPOSE::LANDS_ONLY:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "LandsOnly" );
-            break;
-        case LAYER_PURPOSE::POWER_OR_GROUND:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PowerOrGround" );
-            break;
-        case LAYER_PURPOSE::EMBEDDED_PASSIVE_CAPACITOR_DIELECTRIC:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveCapacitorDielectric" );
-            break;
-        case LAYER_PURPOSE::DIELECTRIC:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Dielectric" );
-            break;
-        case LAYER_PURPOSE::EMBEDDED_PASSIVE_RESISTOR:
-            aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveResistor" );
-            break;
-        default:
-            break;
+    case LAYER_PURPOSE::SOLDERMASK: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderMask" ); break;
+    case LAYER_PURPOSE::SOLDERPASTE: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SolderPaste" ); break;
+    case LAYER_PURPOSE::SILKSCREEN: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "SilkScreen" ); break;
+    case LAYER_PURPOSE::GENERIC_LAYER: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GenericLayer" ); break;
+    case LAYER_PURPOSE::GLUE: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Glue" ); break;
+    case LAYER_PURPOSE::GLUEMASK: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "GlueMask" ); break;
+    case LAYER_PURPOSE::PASTEMASK: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PasteMask" ); break;
+    case LAYER_PURPOSE::OTHER_SIGNAL: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "OtherSignal" ); break;
+    case LAYER_PURPOSE::LANDS_ONLY: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "LandsOnly" ); break;
+    case LAYER_PURPOSE::POWER_OR_GROUND: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "PowerOrGround" ); break;
+    case LAYER_PURPOSE::EMBEDDED_PASSIVE_CAPACITOR_DIELECTRIC:
+        aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveCapacitorDielectric" );
+        break;
+    case LAYER_PURPOSE::DIELECTRIC: aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "Dielectric" ); break;
+    case LAYER_PURPOSE::EMBEDDED_PASSIVE_RESISTOR:
+        aNode.AppendChild( "pdm:LayerPurpose" )->SetText( "EmbeddedPassiveResistor" );
+        break;
+    default: break;
     }
 
     // Write LayerPositionType
     switch( m_layerPositionType )
     {
-        case LAYER_POSITION_TYPE::PRIMARY:
-            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Primary" );
-            break;
-        case LAYER_POSITION_TYPE::SECONDARY:
-            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Secondary" );
-            break;
-        case LAYER_POSITION_TYPE::ALL:
-            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "All" );
-            break;
-        case LAYER_POSITION_TYPE::EXTERNAL:
-            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "External" );
-            break;
-        case LAYER_POSITION_TYPE::INTERNAL:
-            aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Internal" );
-            break;
-        default:
-            break;
+    case LAYER_POSITION_TYPE::PRIMARY: aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Primary" ); break;
+    case LAYER_POSITION_TYPE::SECONDARY: aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Secondary" ); break;
+    case LAYER_POSITION_TYPE::ALL: aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "All" ); break;
+    case LAYER_POSITION_TYPE::EXTERNAL: aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "External" ); break;
+    case LAYER_POSITION_TYPE::INTERNAL: aNode.AppendChild( "pdm:LayerPositionType" )->SetText( "Internal" ); break;
+    default: break;
     }
 }
 
@@ -1116,6 +1088,14 @@ bool EDMD_ITEM::Parse( IDX_XML_NODE& aNode )
         m_referenceName = content;
     else if( IDX_keyword_compare( name, "pdm:AssembleToName" ) )
         m_assembleToName = content;
+    else if( IDX_keyword_compare( name, "pdm:ClearanceState" ) )
+        m_clearanceState.emplace_back( aNode, true );
+    else if( IDX_keyword_compare( name, "pdm:EDMD3DModel" ) )
+        m_3dModelRef = content;
+    else if( IDX_keyword_compare( name, "pdm:PackagePin" ) )
+        m_packagePinRef.push_back( content );
+    else if( IDX_keyword_compare( name, "pdm:ShapeTransformation" ) )
+        m_shapeTransformation = EDMD_TRANSFORMATION( aNode, true );
     else
         return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
 
@@ -1148,6 +1128,24 @@ bool EDMD_ITEM::Resolve( IDX_REGISTRY& aRegistry )
 
     if( m_shape )
         result &= m_shape->Resolve( aRegistry );
+
+    // Resolve PackagePin references
+    for( auto& ppRef : m_packagePinRef )
+    {
+        std::shared_ptr<EDMD_PACKAGE_PIN> pp;
+        result &= resolve<EDMD_ITEM, EDMD_PACKAGE_PIN>( ppRef, &pp, aRegistry );
+        if( pp )
+            m_packagePin.push_back( pp );
+    }
+
+    // Resolve 3DModel reference
+    if( !m_3dModelRef.empty() )
+    {
+        result &= resolve<EDMD_ITEM, EDMD_3D_MODEL>( m_3dModelRef, &m_3dModel, aRegistry );
+    }
+
+    // Resolve ShapeTransformation references
+    result &= m_shapeTransformation.Resolve( aRegistry );
 
     return result;
 }
@@ -1185,6 +1183,24 @@ void EDMD_ITEM::Write( IDX_XML_NODE& aNode ) const
 
     if( m_shape )
         WriteValueChild( aNode, "pdm:Shape", m_shape->m_id );
+
+    // Write ShapeTransformation
+    auto shapeTransNode = aNode.AppendChild( "pdm:ShapeTransformation" );
+    m_shapeTransformation.Write( *shapeTransNode );
+
+    // Write ClearanceState
+    for( auto cs : m_clearanceState )
+        WriteChild( aNode, "pdm:ClearanceState", cs );
+
+    // Write EDMD3DModel
+    if( m_3dModel )
+        WriteValueChild( aNode, "pdm:EDMD3DModel", m_3dModel->m_id );
+    else if( !m_3dModelRef.empty() )
+        WriteValueChild( aNode, "pdm:EDMD3DModel", m_3dModelRef );
+
+    // Write PackagePin
+    for( auto pp : m_packagePin )
+        WriteValueChild( aNode, "pdm:PackagePin", pp->m_id );
 
     // Write Accept property if it has been set
     if( m_accept.m_isChanged.has_value() && m_accept.m_isChanged.value() )
