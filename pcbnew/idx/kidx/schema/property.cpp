@@ -250,6 +250,18 @@ void EDMD_UNIT::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_UNIT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_dependsOnKey.empty() && !m_dependsOn )
+        resolve<EDMD_UNIT, EDMD_UNIT>( m_dependsOnKey, &m_dependsOn, aRegistry );
+
+    return true;
+}
+
+
 // ------------------- EDMD_UNIT Subclasses -------------------
 
 EDMD_UNIT_AMPERAGE::EDMD_UNIT_AMPERAGE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -882,6 +894,12 @@ void EDMD_LENGTH_PROPERTY::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_LENGTH_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
+}
+
+
 // ------------------- EDMD_LOGIC_PROPERTY -------------------
 
 EDMD_LOGIC_PROPERTY::EDMD_LOGIC_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -910,6 +928,12 @@ void EDMD_LOGIC_PROPERTY::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_CONSTRAINED_PROPERTY::Write( aNode );
 
     WriteValueChild( aNode, "property:Value", std::string( m_value ? "true" : "false" ) );
+}
+
+
+bool EDMD_LOGIC_PROPERTY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_CONSTRAINED_PROPERTY::Resolve( aRegistry );
 }
 
 

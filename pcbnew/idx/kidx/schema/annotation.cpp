@@ -57,6 +57,18 @@ bool ARRAY_OF_EDMD_NAME::Parse( IDX_XML_NODE& aNode )
     return true;
 }
 
+
+bool ARRAY_OF_EDMD_NAME::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = true;
+    for( auto& name : m_EDMDName )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            result = false;
+    }
+    return result;
+}
+
 // ------------------- EDMD_ANNOTATION -------------------
 
 EDMD_ANNOTATION::EDMD_ANNOTATION( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -126,6 +138,19 @@ void EDMD_ANNOTATION::Write( IDX_XML_NODE& aNode ) const
         WriteValueChild( aNode, std::string( "annotation:Reference" ), ref );
 }
 
+
+bool EDMD_ANNOTATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // m_subject, m_creator, m_relatedAnnotation are reference strings but we don't have
+    // corresponding member objects to resolve them to in the current class definition
+    // m_reference contains URIs, not object references
+
+    return true;
+}
+
 // ------------------- EDMD_HISTORY_ENTRY -------------------
 
 EDMD_HISTORY_ENTRY::EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -175,6 +200,18 @@ void EDMD_HISTORY_ENTRY::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, std::string( "annotation:SystemScope" ), m_systemScope );
 }
 
+
+bool EDMD_HISTORY_ENTRY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ANNOTATION::Resolve( aRegistry ) )
+        return false;
+
+    // m_history, m_systemScope are reference strings but we don't have
+    // corresponding member objects to resolve them to
+
+    return true;
+}
+
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE -------------------
 
 EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode,
@@ -197,6 +234,12 @@ void EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_HISTORY_ENTRY::Resolve( aRegistry );
+}
+
+
 // ------------------- EDMD_HISTORY_ENTRY_ADD_COMMENT -------------------
 
 EDMD_HISTORY_ENTRY_ADD_COMMENT::EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -215,6 +258,12 @@ bool EDMD_HISTORY_ENTRY_ADD_COMMENT::Parse( IDX_XML_NODE& aNode )
 void EDMD_HISTORY_ENTRY_ADD_COMMENT::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_HISTORY_ENTRY::Write( aNode );
+}
+
+
+bool EDMD_HISTORY_ENTRY_ADD_COMMENT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_HISTORY_ENTRY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP -------------------
@@ -256,6 +305,17 @@ void EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, std::string( "annotation:OldOwner" ), m_oldOwner );
 }
 
+
+bool EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_HISTORY_ENTRY::Resolve( aRegistry ) )
+        return false;
+
+    // m_oldOwner is a reference string but we don't have a corresponding member object
+
+    return true;
+}
+
 // ------------------- EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE -------------------
 
 EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -277,6 +337,12 @@ void EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_HISTORY_ENTRY::Resolve( aRegistry );
+}
+
+
 // ------------------- EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE -------------------
 
 EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -295,6 +361,12 @@ bool EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::Parse( IDX_XML_NODE& aNode )
 void EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_HISTORY_ENTRY::Write( aNode );
+}
+
+
+bool EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_HISTORY_ENTRY::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_HISTORY -------------------
@@ -362,6 +434,21 @@ void EDMD_HISTORY::Write( IDX_XML_NODE& aNode ) const
     // Write Subject
     if( !m_subject.empty() )
         aNode.AppendChild( "annotation:Subject" )->SetText( m_subject );
+}
+
+
+bool EDMD_HISTORY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve HistoryName identifiers
+    if( !m_historyName.Resolve( aRegistry ) )
+        return false;
+
+    // m_subject is a reference string but we don't have a corresponding member object
+
+    return true;
 }
 
 

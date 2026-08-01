@@ -45,6 +45,7 @@ public:
     EDMD_MATERIAL() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
     EDMD_MATERIAL( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

@@ -99,6 +99,7 @@ class EDMD_SHAPE_DESCRIPTION : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_SHAPE_DESCRIPTION() {};
     EDMD_SHAPE_DESCRIPTION( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -122,6 +123,7 @@ public:
     EDMD_TRANSFORMATION() {};
     EDMD_TRANSFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -252,6 +254,7 @@ public:
     EDMD_STRATUM_TECHNOLOGY() {};
     EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode, bool aTopLevel = true );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -315,6 +318,7 @@ class EDMD_KEEP_CONSTRAINT : public EDMD_ITEM_SHAPE
 public:
     EDMD_KEEP_CONSTRAINT() {};
     EDMD_KEEP_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -330,6 +334,7 @@ class EDMD_KEEP_OUT : public EDMD_KEEP_CONSTRAINT
 public:
     EDMD_KEEP_OUT() {};
     EDMD_KEEP_OUT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -341,6 +346,7 @@ public:
     EDMD_KEEP_IN() {};
     EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override { return this->EDMD_KEEP_CONSTRAINT::Parse( aNode ); };
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -476,6 +482,7 @@ class EDMD_3D_MODEL : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_3D_MODEL() {};
     EDMD_3D_MODEL( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -542,6 +549,7 @@ class EDMD_CIRCULAR_BEND_TYPE : public EDMD_BEND_TYPE
 public:
     EDMD_CIRCULAR_BEND_TYPE() {};
     EDMD_CIRCULAR_BEND_TYPE( IDX_XML_NODE& aNode );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

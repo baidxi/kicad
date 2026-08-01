@@ -145,6 +145,7 @@ class EDMD_UNIT : public idx_foundation::EDMD_COLLABORATION_OBJECT
 public:
     EDMD_UNIT() {};
     EDMD_UNIT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -236,6 +237,7 @@ class EDMD_LENGTH_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LENGTH_PROPERTY() {};
     EDMD_LENGTH_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -251,6 +253,7 @@ class EDMD_LOGIC_PROPERTY : public EDMD_CONSTRAINED_PROPERTY
 public:
     EDMD_LOGIC_PROPERTY() {};
     EDMD_LOGIC_PROPERTY( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

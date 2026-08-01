@@ -103,4 +103,11 @@ void EDMD_MATERIAL::Write( IDX_XML_NODE& aNode ) const
     // for when they are needed.
 }
 
+
+bool EDMD_MATERIAL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has primitive values
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+}
+
 } // namespace idx_material

@@ -66,6 +66,13 @@ void EDMD_EXTERNAL_SOURCE::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "MimeType", m_mimeType );
     WriteValueChild( aNode, "Location", m_location );
 }
+
+
+bool EDMD_EXTERNAL_SOURCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has primitive string values
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+}
 // ------------------- EDMD_EXTERNAL_GEOMETRIC_MODEL -------------------
 
 EDMD_EXTERNAL_GEOMETRIC_MODEL::EDMD_EXTERNAL_GEOMETRIC_MODEL( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -97,6 +104,18 @@ void EDMD_EXTERNAL_GEOMETRIC_MODEL::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_SHAPE_DESCRIPTION::Write( aNode );
 
     WriteValueChild( aNode, "ExternalSource", m_externalSourceRef );
+}
+
+
+bool EDMD_EXTERNAL_GEOMETRIC_MODEL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_SHAPE_DESCRIPTION::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_externalSourceRef.empty() )
+        resolve<EDMD_EXTERNAL_GEOMETRIC_MODEL, EDMD_EXTERNAL_SOURCE>( m_externalSourceRef, &m_externalSource, aRegistry );
+
+    return true;
 }
 
 } // namespace idx_external

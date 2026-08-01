@@ -109,6 +109,19 @@ void EDMD_GROUP::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "grouping:Owner", m_owner );
 }
 
+
+bool EDMD_GROUP::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // m_related and m_owner are reference strings, but we don't have corresponding member objects
+    // to resolve them to in the current class definition
+    // If we need to resolve them, we would need to add member objects for them
+
+    return true;
+}
+
 // ------------------- EDMD_ITEM_CONSTRAINT -------------------
 
 EDMD_ITEM_CONSTRAINT::EDMD_ITEM_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel ) :
@@ -148,6 +161,12 @@ void EDMD_ITEM_CONSTRAINT::Write( IDX_XML_NODE& aNode ) const
 
     // Write ItemConstraintType
     writeItemConstraintType( aNode, "grouping:ItemConstraintType", m_itemConstraintType );
+}
+
+
+bool EDMD_ITEM_CONSTRAINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_GROUP::Resolve( aRegistry );
 }
 
 // ------------------- EDMD_GENERAL_CLASSIFICATION -------------------
@@ -191,6 +210,22 @@ void EDMD_GENERAL_CLASSIFICATION::Write( IDX_XML_NODE& aNode ) const
     {
         WriteChild( aNode, "grouping:Identifier", identifier );
     }
+}
+
+
+bool EDMD_GENERAL_CLASSIFICATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_GROUP::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve identifier objects
+    bool result = true;
+    for( auto& identifier : m_identifier )
+    {
+        if( !identifier.Resolve( aRegistry ) )
+            result = false;
+    }
+    return result;
 }
 
 } // namespace idx_grouping

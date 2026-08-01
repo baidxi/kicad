@@ -150,6 +150,18 @@ void EDMD_HYPERBOLA::Write( IDX_XML_NODE& aNode ) const
     WriteChild( aNode, "d2:SemiMinor", m_semiMinor );
 }
 
+
+bool EDMD_HYPERBOLA::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_centerRef.empty() )
+        resolve<EDMD_HYPERBOLA, EDMD_POINT>( m_centerRef, &m_center, aRegistry );
+
+    return true;
+}
+
 // --------------------------------------------------------------------------
 // EDMD_TRIMMED_CURVE
 // --------------------------------------------------------------------------
@@ -194,6 +206,24 @@ void EDMD_TRIMMED_CURVE::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "d2:End", m_endRef );
 }
 
+
+bool EDMD_TRIMMED_CURVE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_curveRef.empty() )
+        resolve<EDMD_TRIMMED_CURVE, EDMD_CURVE>( m_curveRef, &m_curve, aRegistry );
+
+    if( !m_startRef.empty() )
+        resolve<EDMD_TRIMMED_CURVE, EDMD_POINT>( m_startRef, &m_start, aRegistry );
+
+    if( !m_endRef.empty() )
+        resolve<EDMD_TRIMMED_CURVE, EDMD_POINT>( m_endRef, &m_end, aRegistry );
+
+    return true;
+}
+
 // --------------------------------------------------------------------------
 // EDMD_LINE
 // --------------------------------------------------------------------------
@@ -230,6 +260,21 @@ void EDMD_LINE::Write( IDX_XML_NODE& aNode ) const
 
     WriteValueChild( aNode, "d2:Point", m_pointRef );
     WriteValueChild( aNode, "d2:Vector", m_vectorRef );
+}
+
+
+bool EDMD_LINE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_pointRef.empty() )
+        resolve<EDMD_LINE, EDMD_CURVE>( m_pointRef, &m_point, aRegistry );
+
+    if( !m_vectorRef.empty() )
+        resolve<EDMD_LINE, EDMD_POINT>( m_vectorRef, &m_vector, aRegistry );
+
+    return true;
 }
 
 // --------------------------------------------------------------------------
@@ -318,6 +363,17 @@ void EDMD_B_SPLINE_CURVE::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "d2:SelfIntersect", std::string( m_selfIntersect ? "true" : "false" ) );
 }
 
+
+bool EDMD_B_SPLINE_CURVE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    resolve<EDMD_B_SPLINE_CURVE, EDMD_POINT>( m_controlPointsRef, m_controlPointsList, aRegistry );
+
+    return true;
+}
+
 // --------------------------------------------------------------------------
 // EDMD_COMPOSITE_CURVE
 // --------------------------------------------------------------------------
@@ -353,6 +409,17 @@ void EDMD_COMPOSITE_CURVE::Write( IDX_XML_NODE& aNode ) const
     {
         WriteValueChild( aNode, "d2:Curve", curveRef );
     }
+}
+
+
+bool EDMD_COMPOSITE_CURVE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    resolve<EDMD_COMPOSITE_CURVE, EDMD_CURVE>( m_curveRef, m_curve, aRegistry );
+
+    return true;
 }
 
 // --------------------------------------------------------------------------
@@ -647,6 +714,18 @@ void EDMD_ELLIPSE::Write( IDX_XML_NODE& aNode ) const
     WriteChild( aNode, "d2:SemiMinor", m_semiMinor );
 }
 
+
+bool EDMD_ELLIPSE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_centerRef.empty() )
+        resolve<EDMD_ELLIPSE, EDMD_POINT>( m_centerRef, &m_center, aRegistry );
+
+    return true;
+}
+
 // --------------------------------------------------------------------------
 // EDMD_POINT
 // --------------------------------------------------------------------------
@@ -675,6 +754,12 @@ EDMD_POINT::~EDMD_POINT() = default;
 bool EDMD_POINT::Parse( IDX_XML_NODE& aNode )
 {
     return this->EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Parse( aNode );
+}
+
+
+bool EDMD_POINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT::Resolve( aRegistry );
 }
 
 
@@ -759,6 +844,24 @@ void EDMD_CIRCLE3_POINT::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "d2:P1", m_p1Ref );
     WriteValueChild( aNode, "d2:P2", m_p2Ref );
     WriteValueChild( aNode, "d2:P3", m_p3Ref );
+}
+
+
+bool EDMD_CIRCLE3_POINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CIRCLE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_p1Ref.empty() )
+        resolve<EDMD_CIRCLE3_POINT, EDMD_POINT>( m_p1Ref, &m_p1, aRegistry );
+
+    if( !m_p2Ref.empty() )
+        resolve<EDMD_CIRCLE3_POINT, EDMD_POINT>( m_p2Ref, &m_p2, aRegistry );
+
+    if( !m_p3Ref.empty() )
+        resolve<EDMD_CIRCLE3_POINT, EDMD_POINT>( m_p3Ref, &m_p3, aRegistry );
+
+    return true;
 }
 
 // --------------------------------------------------------------------------
@@ -879,6 +982,18 @@ void EDMD_OFFSET_CURVE::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "d2:SelfIntersect", std::string( m_selfIntersects ? "true" : "false" ) );
 }
 
+
+bool EDMD_OFFSET_CURVE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_basisCurveRef.empty() )
+        resolve<EDMD_OFFSET_CURVE, EDMD_CURVE>( m_basisCurveRef, &m_basisCurve, aRegistry );
+
+    return true;
+}
+
 // --------------------------------------------------------------------------
 // EDMD_PARABOLA
 // --------------------------------------------------------------------------
@@ -915,6 +1030,21 @@ void EDMD_PARABOLA::Write( IDX_XML_NODE& aNode ) const
 
     WriteValueChild( aNode, "d2:Apex", m_apexRef );
     WriteValueChild( aNode, "d2:Focus", m_focusRef );
+}
+
+
+bool EDMD_PARABOLA::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_CURVE::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_apexRef.empty() )
+        resolve<EDMD_PARABOLA, EDMD_POINT>( m_apexRef, &m_apex, aRegistry );
+
+    if( !m_focusRef.empty() )
+        resolve<EDMD_PARABOLA, EDMD_POINT>( m_focusRef, &m_focus, aRegistry );
+
+    return true;
 }
 
 // --------------------------------------------------------------------------
@@ -1052,6 +1182,24 @@ double EDMD_CARTESIAN_POINT::GetX() const
 double EDMD_CARTESIAN_POINT::GetY() const
 {
     return m_y.m_value * 1e6;
+}
+
+
+bool EDMD_CARTESIAN_POINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // Resolve parent class first
+    if( !EDMD_POINT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve property members if they have references
+    if( !m_x.Resolve( aRegistry ) )
+        return false;
+    if( !m_y.Resolve( aRegistry ) )
+        return false;
+    if( !m_z.Resolve( aRegistry ) )
+        return false;
+
+    return true;
 }
 
 // --------------------------------------------------------------------------

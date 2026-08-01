@@ -50,6 +50,7 @@ public:
     EDMD_ABSTRACT_CHANGE();
     EDMD_ABSTRACT_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -95,6 +96,7 @@ class EDMD_SERVICE_RESULT : public idx_foundation::EDMD_EXTENSIBLE_OBJECT
 public:
     EDMD_SERVICE_RESULT();
     EDMD_SERVICE_RESULT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -114,6 +116,7 @@ class EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION : public idx_foundation::
 public:
     EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION();
     EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -150,6 +153,7 @@ public:
     EDMD_CHANGE();
     EDMD_CHANGE( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -169,6 +173,7 @@ public:
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES();
     EDMD_PROCESS_INSTRUCTION_SEND_CHANGES( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -188,6 +193,7 @@ class EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION : public idx_foundation::EDMD_PR
 public:
     EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION();
     EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };

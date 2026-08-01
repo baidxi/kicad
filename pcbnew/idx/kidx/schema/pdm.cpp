@@ -22,8 +22,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-#include <idx/kidx/schema/pdm.h>
 #include <idx/kidx/schema/geometry.h>
+#include <idx/kidx/schema/pdm.h>
 #include <iostream>
 
 namespace idx_pdm
@@ -107,6 +107,18 @@ void EDMD_SHAPE_DESCRIPTION::Write( IDX_XML_NODE& aNode ) const
     {
         aNode.AppendChild( "pdm:BoundingBox" )->SetText( m_boundingBoxRef );
     }
+}
+
+
+bool EDMD_SHAPE_DESCRIPTION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_boundingBoxRef.empty() )
+        resolve<EDMD_SHAPE_DESCRIPTION, EDMD_SHAPE_DESCRIPTION>( m_boundingBoxRef, &m_boundingBox, aRegistry );
+
+    return true;
 }
 
 
@@ -219,6 +231,13 @@ void EDMD_TRANSFORMATION::Write( IDX_XML_NODE& aNode ) const
     WriteChild( aNode, "pdm:tx", m_tx );
     WriteChild( aNode, "pdm:ty", m_ty );
     WriteChild( aNode, "pdm:tz", m_tz );
+}
+
+
+bool EDMD_TRANSFORMATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve in this class - it only has primitive values
+    return idx_foundation::EDMD_OBJECT::Resolve( aRegistry );
 }
 
 
@@ -696,6 +715,13 @@ void EDMD_STRATUM_TECHNOLOGY::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_STRATUM_TECHNOLOGY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has enum values
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+}
+
+
 // -----------------------------------------------------
 // EDMD_STRATUM
 // -----------------------------------------------------
@@ -872,6 +898,22 @@ void EDMD_KEEP_CONSTRAINT::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_KEEP_CONSTRAINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ITEM_SHAPE::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve KeepConstraintCondition elements
+    bool result = true;
+    for( auto& condition : m_keepConstraintCondition )
+    {
+        if( condition && !condition->Resolve( aRegistry ) )
+            result = false;
+    }
+    return result;
+}
+
+
 // -----------------------------------------------------
 // EDMD_KEEP_OUT
 // -----------------------------------------------------
@@ -891,6 +933,12 @@ void EDMD_KEEP_OUT::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_KEEP_OUT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_KEEP_CONSTRAINT::Resolve( aRegistry );
+}
+
+
 // -----------------------------------------------------
 // EDMD_KEEP_IN
 // -----------------------------------------------------
@@ -907,6 +955,12 @@ EDMD_KEEP_IN::EDMD_KEEP_IN( IDX_XML_NODE& aNode, bool aTopLevel ) :
 void EDMD_KEEP_IN::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_KEEP_CONSTRAINT::Write( aNode );
+}
+
+
+bool EDMD_KEEP_IN::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_KEEP_CONSTRAINT::Resolve( aRegistry );
 }
 
 
@@ -1575,6 +1629,12 @@ void EDMD_CIRCULAR_BEND_TYPE::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_CIRCULAR_BEND_TYPE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_BEND_TYPE::Resolve( aRegistry );
+}
+
+
 // -----------------------------------------------------
 // Resolve methods for new classes
 // -----------------------------------------------------
@@ -1735,6 +1795,13 @@ void EDMD_3D_MODEL::Write( IDX_XML_NODE& aNode ) const
 
     if( !m_modelLocation.empty() )
         aNode.AppendChild( "pdm:ModelLocation" )->SetText( m_modelLocation );
+}
+
+
+bool EDMD_3D_MODEL::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has string values
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
 }
 
 

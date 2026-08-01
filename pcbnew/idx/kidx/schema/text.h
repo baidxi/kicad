@@ -90,6 +90,7 @@ public:
     EDMD_SIMPLE_TEXT() : idx_foundation::EDMD_COLLABORATION_OBJECT() {};
     EDMD_SIMPLE_TEXT( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

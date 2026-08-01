@@ -58,6 +58,7 @@ public:
             ParseChildren( aNode );
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -113,6 +114,7 @@ public:
             ParseChildren( aNode );
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const;
 
@@ -170,6 +172,7 @@ public:
             ParseChildren( aNode );
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -192,6 +195,7 @@ public:
         // Handled by parent constructor
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -216,6 +220,7 @@ public:
         // Handled by parent constructor
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -236,6 +241,7 @@ public:
         // Handled by parent constructor
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -256,6 +262,7 @@ public:
         // Handled by parent constructor
     }
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

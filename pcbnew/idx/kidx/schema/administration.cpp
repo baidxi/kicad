@@ -75,6 +75,13 @@ void EDMD_PERSON::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_PERSON::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has primitive string values
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+}
+
+
 bool EDMD_ROLE::Parse( IDX_XML_NODE& aNode )
 {
     auto child = aNode.GetChildren();
@@ -105,6 +112,18 @@ void EDMD_ROLE::Write( IDX_XML_NODE& aNode ) const
         aNode.AppendChild( "administration:Actor" )->SetText( m_actor );
     if( !m_roleName.m_objectName.empty() )
         aNode.AppendChild( "administration:RoleName" )->SetText( m_roleName.m_objectName );
+}
+
+
+bool EDMD_ROLE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_roleName.Resolve( aRegistry ) )
+        return false;
+
+    return true;
 }
 
 
@@ -153,6 +172,12 @@ void EDMD_ROLE_ON_OBJECT::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_ROLE_ON_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_ROLE::Resolve( aRegistry );
+}
+
+
 bool EDMD_ROLE_ON_ITEM::Parse( IDX_XML_NODE& aNode )
 {
     auto child = aNode.GetChildren();
@@ -179,6 +204,17 @@ void EDMD_ROLE_ON_ITEM::Write( IDX_XML_NODE& aNode ) const
 
     if( !m_contextRef.empty() )
         aNode.AppendChild( "administration:Context" )->SetText( m_contextRef );
+}
+
+
+bool EDMD_ROLE_ON_ITEM::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ROLE_ON_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // m_contextRef is a reference string but we don't have a corresponding member object
+
+    return true;
 }
 
 
@@ -211,6 +247,17 @@ void EDMD_ROLE_ON_ITEM_INSTANCE::Write( IDX_XML_NODE& aNode ) const
 }
 
 
+bool EDMD_ROLE_ON_ITEM_INSTANCE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ROLE_ON_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // m_contextRef is a reference string but we don't have a corresponding member object
+
+    return true;
+}
+
+
 bool EDMD_ROLE_ON_CONSTRAINT::Parse( IDX_XML_NODE& aNode )
 {
     auto child = aNode.GetChildren();
@@ -237,6 +284,17 @@ void EDMD_ROLE_ON_CONSTRAINT::Write( IDX_XML_NODE& aNode ) const
 
     if( !m_contextRef.empty() )
         aNode.AppendChild( "administration:Context" )->SetText( m_contextRef );
+}
+
+
+bool EDMD_ROLE_ON_CONSTRAINT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ROLE_ON_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // m_contextRef is a reference string but we don't have a corresponding member object
+
+    return true;
 }
 
 
@@ -272,6 +330,18 @@ void EDMD_ROLE_IN_ORGANISATION::Write( IDX_XML_NODE& aNode ) const
         aNode.AppendChild( "administration:RoleName" )->SetText( m_roleName.m_objectName );
     if( !m_contextRef.empty() )
         aNode.AppendChild( "administration:Context" )->SetText( m_contextRef );
+}
+
+
+bool EDMD_ROLE_IN_ORGANISATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // m_contextRef is a reference string but we don't have a corresponding member object
+    // m_roleName needs to be resolved
+
+    if( !m_roleName.Resolve( aRegistry ) )
+        return false;
+
+    return true;
 }
 
 

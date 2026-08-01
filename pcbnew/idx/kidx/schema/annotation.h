@@ -54,6 +54,7 @@ public:
             IDX_BASE() {};
     ARRAY_OF_EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
 
     std::vector<std::shared_ptr<idx_foundation::EDMD_NAME>> m_EDMDName;
@@ -69,6 +70,7 @@ public:
             idx_foundation::EDMD_COLLABORATION_OBJECT() {};
     EDMD_ANNOTATION( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -90,6 +92,7 @@ public:
             EDMD_ANNOTATION() {};
     EDMD_HISTORY_ENTRY( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -107,6 +110,7 @@ public:
     EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -120,6 +124,7 @@ public:
     EDMD_HISTORY_ENTRY_ADD_COMMENT() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_COMMENT( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -134,6 +139,7 @@ public:
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_OWNERSHIP( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -149,6 +155,7 @@ public:
     EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_ADD_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -162,6 +169,7 @@ public:
     EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE() :
             EDMD_HISTORY_ENTRY() {};
     EDMD_HISTORY_ENTRY_CHANGE_ACCEPTANCE( IDX_XML_NODE& aNode, bool aTopLevel );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -176,6 +184,7 @@ public:
     EDMD_HISTORY( IDX_XML_NODE& aNode );
     EDMD_HISTORY( IDX_XML_NODE& aNode, bool aTopLevel );
 
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 

@@ -21,6 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+#include <idx/kidx/schema/geometry.h>
 #include <idx/kidx/schema/text.h>
 #include <iostream>
 
@@ -324,6 +325,21 @@ void EDMD_SIMPLE_TEXT::Write( IDX_XML_NODE& aNode ) const
 
     if( m_horizontalAlignment != EDMD_HORIZONTAL_ALIGNMENT::LEFT )
         writeHorizontalAlignment( aNode, "text:HorizontalAlignment", m_horizontalAlignment );
+}
+
+
+bool EDMD_SIMPLE_TEXT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !idx_foundation::EDMD_COLLABORATION_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_upperLeft.empty() )
+        resolve<EDMD_SIMPLE_TEXT, idx_geometry::EDMD_POINT>( m_upperLeft, &m_upperLeftPoint, aRegistry );
+
+    if( !m_lowerRight.empty() )
+        resolve<EDMD_SIMPLE_TEXT, idx_geometry::EDMD_POINT>( m_lowerRight, &m_lowerRightPoint, aRegistry );
+
+    return true;
 }
 
 } // namespace idx_text

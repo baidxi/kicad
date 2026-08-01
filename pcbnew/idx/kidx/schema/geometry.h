@@ -67,6 +67,7 @@ class EDMD_HYPERBOLA : public EDMD_CURVE
 {
 public:
     EDMD_HYPERBOLA( IDX_XML_NODE& aNode );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -82,6 +83,7 @@ class EDMD_TRIMMED_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_TRIMMED_CURVE( IDX_XML_NODE& aNode );
+    virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                Parse( IDX_XML_NODE& aNode ) override;
     virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE> m_curve;
@@ -98,6 +100,7 @@ class EDMD_LINE : public EDMD_CURVE
 {
 public:
     EDMD_LINE( IDX_XML_NODE& aNode );
+    virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                Parse( IDX_XML_NODE& aNode ) override;
     virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE> m_point;
@@ -122,6 +125,7 @@ class EDMD_B_SPLINE_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_B_SPLINE_CURVE( IDX_XML_NODE& aNode );
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
@@ -139,6 +143,7 @@ class EDMD_COMPOSITE_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_COMPOSITE_CURVE( IDX_XML_NODE& aNode );
+    virtual bool                             Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                             Parse( IDX_XML_NODE& aNode ) override;
     virtual void                             Write( IDX_XML_NODE& aNode ) const override;
     std::vector<std::shared_ptr<EDMD_CURVE>> m_curve;
@@ -201,6 +206,7 @@ class EDMD_ELLIPSE : public EDMD_CURVE
 {
 public:
     EDMD_ELLIPSE( IDX_XML_NODE& aNode );
+    virtual bool                       Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
     virtual void                       Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT>        m_center;
@@ -219,6 +225,7 @@ public:
     virtual double GetX() const;
     virtual double GetY() const;
     virtual ~EDMD_POINT();
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 };
@@ -238,6 +245,7 @@ class EDMD_CIRCLE3_POINT : public EDMD_CIRCLE
 {
 public:
     EDMD_CIRCLE3_POINT( IDX_XML_NODE& aNode );
+    virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                Parse( IDX_XML_NODE& aNode ) override;
     virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT> m_p1;
@@ -270,6 +278,7 @@ class EDMD_OFFSET_CURVE : public EDMD_CURVE
 {
 public:
     EDMD_OFFSET_CURVE( IDX_XML_NODE& aNode );
+    virtual bool                       Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                       Parse( IDX_XML_NODE& aNode ) override;
     virtual void                       Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_CURVE>        m_basisCurve;
@@ -284,6 +293,7 @@ class EDMD_PARABOLA : public EDMD_CURVE
 {
 public:
     EDMD_PARABOLA( IDX_XML_NODE& aNode );
+    virtual bool                Resolve( IDX_REGISTRY& aRegistry ) override;
     virtual bool                Parse( IDX_XML_NODE& aNode ) override;
     virtual void                Write( IDX_XML_NODE& aNode ) const override;
     std::shared_ptr<EDMD_POINT> m_focus;
@@ -315,6 +325,7 @@ class EDMD_CARTESIAN_POINT : public EDMD_POINT
 public:
     EDMD_CARTESIAN_POINT( IDX_XML_NODE& aNode, bool aTOpLevel );
     bool   Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
     double GetX() const override;
     double GetY() const override;
     void   Write( IDX_XML_NODE& aNode ) const override;

@@ -23,6 +23,7 @@
  */
 
 #include "computational.h"
+#include <idx/kidx/schema/administration.h>
 
 namespace idx_computational
 {
@@ -74,6 +75,21 @@ void EDMD_PROCESS_INSTRUCTION_SEND_CHANGES::Write( IDX_XML_NODE& aNode ) const
         std::shared_ptr<IDX_XML_NODE> changesNode = aNode.AppendChild( std::string( "computational:Changes" ) );
         m_transaction->Write( *changesNode );
     }
+}
+
+
+bool EDMD_PROCESS_INSTRUCTION_SEND_CHANGES::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_PROCESS_INSTRUCTION::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_actorRef.empty() )
+        resolve<EDMD_PROCESS_INSTRUCTION_SEND_CHANGES, idx_administration::EDMD_PERSON>( m_actorRef, &m_actor, aRegistry );
+
+    if( m_transaction && !m_transaction->Resolve( aRegistry ) )
+        return false;
+
+    return true;
 }
 
 // -----------------------------
@@ -159,6 +175,18 @@ void EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::Write( IDX_XML_NODE& aNod
 }
 
 
+bool EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_PROCESS_INSTRUCTION::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_actorRef.empty() )
+        resolve<EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION, idx_administration::EDMD_PERSON>( m_actorRef, &m_actor, aRegistry );
+
+    return true;
+}
+
+
 // -----------------------------
 // EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION
 // -----------------------------
@@ -185,6 +213,13 @@ bool EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION::Parse( IDX_XML_NODE& aNode )
 void EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION::Write( IDX_XML_NODE& aNode ) const
 {
     this->EDMD_PROCESS_INSTRUCTION::Write( aNode );
+}
+
+
+bool EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve beyond parent class
+    return EDMD_PROCESS_INSTRUCTION::Resolve( aRegistry );
 }
 
 
@@ -223,6 +258,18 @@ void EDMD_ABSTRACT_CHANGE::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
 
     WriteValueChild( aNode, std::string( "computational:Actor" ), m_actorRef );
+}
+
+
+bool EDMD_ABSTRACT_CHANGE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    if( !m_actorRef.empty() )
+        resolve<EDMD_ABSTRACT_CHANGE, idx_administration::EDMD_PERSON>( m_actorRef, &m_actor, aRegistry );
+
+    return true;
 }
 
 // -----------------------------
@@ -313,6 +360,13 @@ void EDMD_SERVICE_RESULT::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, std::string( "ErrorMessageId" ), m_errorMessageId );
     WriteValueChild( aNode, std::string( "ErrorMessageText" ), m_errorMessageText );
     WriteValueChild( aNode, std::string( "DeveloperDetails" ), m_developerDetails );
+}
+
+
+bool EDMD_SERVICE_RESULT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    // No references to resolve - only has primitive values
+    return EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
 }
 
 
@@ -438,6 +492,28 @@ void EDMD_CHANGE::Write( IDX_XML_NODE& aNode ) const
         std::shared_ptr<IDX_XML_NODE> delNode = aNode.AppendChild( std::string( "computational:DeletedInstanceName" ) );
         name->Write( *delNode );
     }
+}
+
+
+bool EDMD_CHANGE::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_ABSTRACT_CHANGE::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve identifier references
+    if( m_newItem && !m_newItem->Resolve( aRegistry ) )
+        return false;
+
+    if( m_predecessorItem && !m_predecessorItem->Resolve( aRegistry ) )
+        return false;
+
+    for( auto& name : m_deletedInstanceName )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            return false;
+    }
+
+    return true;
 }
 
 
