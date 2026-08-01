@@ -640,125 +640,18 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                     responsePath = responseFilename;
                 }
 
-                // Create response dataset with accept/reject information from dialog
-                auto responseDataset = std::make_shared<idx_foundation::EDMD_DATA_SET>();
-
-                // Copy header information from original dataset
-                responseDataset->m_header = m_loadedDataset->m_header;
-
-                // Update header for response
-                responseDataset->m_header.m_creationDateTime =
-                        wxDateTime::Now().Format( "%Y-%m-%dT%H:%M:%S" ).ToStdString();
-                if( !responseDataset->m_header.m_creatorName.empty() )
-                    responseDataset->m_header.m_creatorName += " (Response)";
-                else
-                    responseDataset->m_header.m_creatorName = "KiCad IDX Response";
-                responseDataset->m_header.m_creatorSystem = "KiCad";
-
-                // Copy geometric elements from original dataset
-                // These are needed for proper IDX round-trip
-                responseDataset->m_body.m_points = m_loadedDataset->m_body.m_points;
-                responseDataset->m_body.m_curves = m_loadedDataset->m_body.m_curves;
-                responseDataset->m_body.m_curvesets = m_loadedDataset->m_body.m_curvesets;
-                responseDataset->m_body.m_shapeElements = m_loadedDataset->m_body.m_shapeElements;
-                responseDataset->m_body.m_assemblies = m_loadedDataset->m_body.m_assemblies;
-                responseDataset->m_body.m_stratums = m_loadedDataset->m_body.m_stratums;
-                responseDataset->m_body.m_interStratums = m_loadedDataset->m_body.m_interStratums;
-                responseDataset->m_body.m_keeps = m_loadedDataset->m_body.m_keeps;
-                responseDataset->m_body.m_functionalItemShapes = m_loadedDataset->m_body.m_functionalItemShapes;
-                responseDataset->m_body.m_packagePins = m_loadedDataset->m_body.m_packagePins;
-                responseDataset->m_body.m_3dModels = m_loadedDataset->m_body.m_3dModels;
-                responseDataset->m_body.m_bends = m_loadedDataset->m_body.m_bends;
-                responseDataset->m_body.m_bendTypes = m_loadedDataset->m_body.m_bendTypes;
-                responseDataset->m_body.m_circularBendTypes = m_loadedDataset->m_body.m_circularBendTypes;
-                responseDataset->m_body.m_systems = m_loadedDataset->m_body.m_systems;
-                responseDataset->m_body.m_history = m_loadedDataset->m_body.m_history;
-                responseDataset->m_body.m_actors = m_loadedDataset->m_body.m_actors;
-                responseDataset->m_body.m_units = m_loadedDataset->m_body.m_units;
-                responseDataset->m_body.m_items = m_loadedDataset->m_body.m_items;
-
-                // Create SendInformation process instruction
-                auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION>();
-                processInstruction->m_processType =
-                        idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION;
-                responseDataset->m_processInstruction.push_back( processInstruction );
-
-                // Create response items with item stubs containing identifier mapping and accept status
-                // According to IDX spec: "the receiver sends a mandatory message of the type SendInformation,
-                // which contains an item stub with at least two identifiers for all new items:
-                // the identifier of the original sender and the identifier of the receiver"
-
-                // We need to match changes with original items from the dataset
-                // Since m_changes and m_loadedDataset->m_body.m_items should be in the same order
-                size_t changeIndex = 0;
-                for( const auto& originalItem : m_loadedDataset->m_body.m_items )
+                // Build accept status vector from m_changes
+                std::vector<bool> acceptStatus;
+                for( const auto& changePair : m_changes )
                 {
-                    if( !originalItem || changeIndex >= m_changes.size() )
-                        continue;
-
-                    const auto& changePair = m_changes[changeIndex];
-                    bool        isAccepted = changePair.first;
-                    changeIndex++;
-
-                    // Create response item as a copy of the original
-                    auto responseItem = std::make_shared<idx_pdm::EDMD_ITEM>( *originalItem );
-
-                    // Update the item ID to indicate it's a response
-                    responseItem->m_id = originalItem->m_id;
-
-                    // Add receiver's (KiCad's) identifiers from registry
-                    auto kicadIdentifier = std::make_shared<idx_foundation::EDMD_IDENTIFIER>();
-                    kicadIdentifier->m_systemScopeRef = "KiCad";
-                    kicadIdentifier->m_originatorId = "KiCad";
-                    kicadIdentifier->m_isOriginator = true;         // KiCad is the originator of this identifier
-                    kicadIdentifier->m_number = originalItem->m_id; // Use same number for mapping
-                    kicadIdentifier->m_version = "1";
-                    kicadIdentifier->m_revision = "0";
-
-                    // Check if this identifier already exists to avoid duplicates
-                    bool identifierExists = false;
-                    for( const auto& existingId : responseItem->m_identifier )
-                    {
-                        if( existingId.m_systemScopeRef == "KiCad" && existingId.m_originatorId == "KiCad"
-                            && existingId.m_number == originalItem->m_id )
-                        {
-                            identifierExists = true;
-                            break;
-                        }
-                    }
-
-                    if( !identifierExists )
-                    {
-                        responseItem->m_identifier.push_back( *kicadIdentifier );
-                    }
-
-                    // Set Accept-Status based on user's decision in the dialog
-                    responseItem->m_accept.m_isChanged = true;
-                    responseItem->m_accept.m_value =
-                            isAccepted ? 1.0 : 0.0; // 1.0 = true/accepted, 0.0 = false/rejected
-
-                    // Add to response body
-                    responseDataset->m_body.m_items.push_back( responseItem );
+                    acceptStatus.push_back( changePair.first );
                 }
 
-                // Save the response dataset to XML file using EDMD_DATA_SET::Write
-                wxXmlDocument doc;
-                wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "EDMDDataSet" );
-                doc.SetRoot( root );
-
-                // Use the Write() function to serialize the entire dataset
-                std::shared_ptr<IDX_XML_NODE_KICAD> datasetIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( root );
-                responseDataset->Write( *datasetIdxNode );
-
-                // Save to file
-                wxFFileOutputStream output( responsePath );
-                if( !output.IsOk() )
+                // Use KICAD_IDX to create and save the response
+                auto responseDataset = m_idx->SaveSendInformationResponse( responsePath.ToStdString(), acceptStatus );
+                if( !responseDataset )
                 {
-                    wxLogError( wxT( "Error: Cannot open file for writing: %s" ), responsePath );
-                }
-                else if( !doc.Save( output ) )
-                {
-                    wxLogError( wxT( "Error: Failed to save XML to %s" ), responsePath );
+                    wxLogError( wxT( "Error: Failed to save SendInformation response to %s" ), responsePath );
                 }
                 else
                 {

@@ -37,10 +37,11 @@
 class LSET;
 enum PCB_LAYER_ID : int;
 
-namespace idx_pdm {
-    class EDMD_FUNCTIONAL_ITEM_SHAPE;
-    class EDMD_ITEM_INSTANCE;
-}
+namespace idx_pdm
+{
+class EDMD_FUNCTIONAL_ITEM_SHAPE;
+class EDMD_ITEM_INSTANCE;
+} // namespace idx_pdm
 
 
 class KICAD_IDX_CHANGE
@@ -107,8 +108,10 @@ public:
     std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> SendInformation();
 
     // Response file generation
-    std::shared_ptr<idx_foundation::EDMD_DATA_SET> CreateSendInformationResponse();
-    bool                                           SaveSendInformationResponse( const std::string& aFilename );
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET>
+    CreateSendInformationResponse( const std::vector<bool>& aAcceptStatus );
+    std::shared_ptr<idx_foundation::EDMD_DATA_SET>
+    SaveSendInformationResponse( const std::string& aFilename, const std::vector<bool>& aAcceptStatus );
 
     bool CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& );
     bool ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const;
