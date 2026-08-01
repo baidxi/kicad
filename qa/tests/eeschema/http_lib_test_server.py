@@ -68,6 +68,8 @@ class PartField(BaseModel):
 class DetailedPart(BaseModel):
     id: str
     name: Optional[str] = None
+    description: Optional[str] = None
+    keywords: Optional[str] = None
     symbolIdStr: str
     exclude_from_bom: str
     exclude_from_board: str
@@ -93,6 +95,8 @@ detailed_parts = {
     "1": DetailedPart(
         id="1",
         name="RC0603FR-0710KL",
+        description="10 kOhms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Moisture Resistant Thick Film",
+        keywords="RES passive smd",
         symbolIdStr="Device:R",
         exclude_from_bom="False",
         exclude_from_board="False",
@@ -108,11 +112,6 @@ detailed_parts = {
             ),
             "value": PartField(value="10k"),
             "reference": PartField(value="R"),
-            "description": PartField(
-                value="10 kOhms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Moisture Resistant Thick Film",
-                visible="False",
-            ),
-            "keywords": PartField(value="RES passive smd", visible="False"),
         },
     )
 }
@@ -694,11 +693,6 @@ async def oauth_revoke():
     return Response(status_code=200)
 
 
-@app.get("/v1/parts/{part_id}")
-async def remote_provider_manifest(request: Request, part_id: str):
-    return manifest_payload(request, part_id)
-
-
 @app.get("/downloads/{asset_name}")
 async def download_asset(asset_name: str):
     if asset_name not in download_payloads:
@@ -732,6 +726,13 @@ async def get_part_details(part_id: str):
         raise HTTPException(status_code=404, detail=f"Part {part_id} not found")
 
     return detailed_parts[part_id]
+
+# Note: this path must come after the /v1/parts/{part_id}.json path above
+# because it will greedily match all requests to /v1/parts/{part_id}, including
+# those intended for /v1/parts/{part_id}.json
+@app.get("/v1/parts/{part_id}")
+async def remote_provider_manifest(request: Request, part_id: str):
+    return manifest_payload(request, part_id)
 
 
 def main():
