@@ -461,10 +461,11 @@ void EDMD_ITEM_SHAPE::Write( IDX_XML_NODE& aNode ) const
 // -----------------------------------------------------
 
 
-EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode ) :
+EDMD_FUNCTIONAL_ITEM_SHAPE::EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel ) :
         EDMD_ITEM_SHAPE( aNode, false )
 {
-    Parse( aNode );
+    if( aTopLevel )
+        ParseChildren( aNode );
 }
 
 
@@ -533,10 +534,11 @@ bool EDMD_FUNCTIONAL_ITEM_SHAPE::Resolve( IDX_REGISTRY& aRegistry )
 // -----------------------------------------------------
 
 
-EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode ) :
+EDMD_STRATUM_TECHNOLOGY::EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode, bool aTopLevel ) :
         idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
 {
-    Parse( aNode );
+    if( aTopLevel )
+        ParseChildren( aNode );
 }
 
 

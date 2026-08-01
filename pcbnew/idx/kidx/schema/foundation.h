@@ -142,6 +142,7 @@ public:
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string m_creatorName;
     std::string m_creatorCompany;
@@ -232,6 +233,7 @@ public:
     PROCESS_TYPE                 m_processType;
 
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 };
 
 
@@ -249,6 +251,7 @@ public:
     bool         ResolveAll();
     void         Prepare();
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     bool IsBaseline();
 
@@ -287,6 +290,7 @@ public:
     virtual void Write( IDX_XML_NODE& aNode ) const override;
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string         m_systemScopeRef;
     std::optional<bool> m_persistant;
@@ -307,6 +311,7 @@ public:
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
     std::string                             m_number;
     std::string                             m_version;
@@ -333,6 +338,7 @@ public:
 
     virtual bool Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;
+    virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
 
 
     std::string m_objectName;

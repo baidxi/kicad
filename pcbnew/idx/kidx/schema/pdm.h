@@ -203,7 +203,7 @@ public:
     };
 
     EDMD_FUNCTIONAL_ITEM_SHAPE() {};
-    EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode );
+    EDMD_FUNCTIONAL_ITEM_SHAPE( IDX_XML_NODE& aNode, bool aTopLevel = true );
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual bool Resolve( IDX_REGISTRY& aRegistry ) override;
@@ -250,7 +250,7 @@ class EDMD_STRATUM_TECHNOLOGY : public idx_foundation::EDMD_COLLABORATION_OBJECT
 {
 public:
     EDMD_STRATUM_TECHNOLOGY() {};
-    EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode );
+    EDMD_STRATUM_TECHNOLOGY( IDX_XML_NODE& aNode, bool aTopLevel = true );
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
     virtual void Write( IDX_XML_NODE& aNode ) const override;

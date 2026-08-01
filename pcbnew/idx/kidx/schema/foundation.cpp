@@ -438,6 +438,18 @@ void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "foundation:GlobalUnitWork", m_globalUnitWorkRef );
 }
 
+bool EDMD_HEADER::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve creator reference
+    if( !m_creatorRef.empty() && !m_creator )
+        resolve<EDMD_HEADER, idx_administration::EDMD_PERSON>( m_creatorRef, &m_creator, aRegistry );
+
+    return true;
+}
+
 // -----------------------------------------------------
 // EDMD_DATA_SET_BODY
 // -----------------------------------------------------
@@ -1208,6 +1220,29 @@ bool EDMD_DATA_SET::ResolveAll()
     return m_body.Resolve( m_body.m_registry );
 }
 
+bool EDMD_DATA_SET::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve header
+    if( !m_header.Resolve( aRegistry ) )
+        return false;
+
+    // Resolve body
+    if( !m_body.Resolve( aRegistry ) )
+        return false;
+
+    // Resolve process instructions
+    for( auto& processInstruction : m_processInstruction )
+    {
+        if( processInstruction && !processInstruction->Resolve( aRegistry ) )
+            return false;
+    }
+
+    return true;
+}
+
 
 void EDMD_DATA_SET::Prepare()
 {
@@ -1361,6 +1396,15 @@ void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "foundation:SystemScope", m_systemScopeRef );
 }
 
+bool EDMD_DESIGNATOR::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_DESIGNATOR doesn't have any object references to resolve
+    return true;
+}
+
 
 // -----------------------------------------------------
 // EDMD_IDENTIFIER
@@ -1418,6 +1462,27 @@ void EDMD_IDENTIFIER::Write( IDX_XML_NODE& aNode ) const
     WriteValueChild( aNode, "foundation:Sequence", m_sequence );
 }
 
+bool EDMD_IDENTIFIER::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_DESIGNATOR::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_IDENTIFIER has name and displayName vectors that need resolving
+    for( auto& name : m_name )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            return false;
+    }
+    
+    for( auto& name : m_displayName )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            return false;
+    }
+
+    return true;
+}
+
 
 // -----------------------------------------------------
 // EDMD_NAME
@@ -1457,6 +1522,15 @@ void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
     this->EDMD_DESIGNATOR::Write( aNode );
 
     WriteValueChild( aNode, "foundation:ObjectName", m_objectName );
+}
+
+bool EDMD_NAME::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_DESIGNATOR::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_NAME doesn't have additional references to resolve
+    return true;
 }
 
 
@@ -1540,6 +1614,24 @@ void EDMD_PROCESS_INSTRUCTION::Write( IDX_XML_NODE& aNode ) const
         std::shared_ptr<IDX_XML_NODE> targetNode = aNode.AppendChild( "foundation:TargetSystem" );
         m_targetSystem->Write( *targetNode );
     }
+}
+
+bool EDMD_PROCESS_INSTRUCTION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve references
+    if( m_subject && !m_subject->Resolve( aRegistry ) )
+        return false;
+    
+    if( m_object && !m_object->Resolve( aRegistry ) )
+        return false;
+    
+    if( m_targetSystem && !m_targetSystem->Resolve( aRegistry ) )
+        return false;
+
+    return true;
 }
 
 

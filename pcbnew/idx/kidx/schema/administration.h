@@ -51,10 +51,11 @@ public:
             m_phoneNumber( aPhoneNumber ),
             m_faxNumber( aFaxNumber ) {};
 
-    EDMD_PERSON( IDX_XML_NODE& aNode ) :
+    EDMD_PERSON( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
             idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
-        Parse( aNode );
+        if( aTopLevel )
+            ParseChildren( aNode );
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -105,10 +106,11 @@ public:
     EDMD_ROLE_IN_ORGANISATION( std::shared_ptr<EDMD_ORGANISATION> aContext ) :
             m_context( aContext ) {};
 
-    EDMD_ROLE_IN_ORGANISATION( IDX_XML_NODE& aNode ) :
+    EDMD_ROLE_IN_ORGANISATION( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
             IDX_BASE()
     {
-        Parse( aNode );
+        if( aTopLevel )
+            ParseChildren( aNode );
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -161,10 +163,11 @@ public:
     {
     }
 
-    EDMD_ROLE( IDX_XML_NODE& aNode ) :
+    EDMD_ROLE( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
             idx_foundation::EDMD_COLLABORATION_OBJECT( aNode, false )
     {
-        Parse( aNode );
+        if( aTopLevel )
+            ParseChildren( aNode );
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -183,10 +186,10 @@ public:
     {
     }
 
-    EDMD_ROLE_ON_OBJECT( IDX_XML_NODE& aNode ) :
-            EDMD_ROLE( aNode )
+    EDMD_ROLE_ON_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
+            EDMD_ROLE( aNode, aTopLevel )
     {
-        Parse( aNode );
+        // Handled by parent constructor
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -207,10 +210,10 @@ public:
     {
     }
 
-    EDMD_ROLE_ON_ITEM( IDX_XML_NODE& aNode ) :
-            EDMD_ROLE_ON_OBJECT( aNode )
+    EDMD_ROLE_ON_ITEM( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
+            EDMD_ROLE_ON_OBJECT( aNode, aTopLevel )
     {
-        Parse( aNode );
+        // Handled by parent constructor
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -227,10 +230,10 @@ public:
     {
     }
 
-    EDMD_ROLE_ON_ITEM_INSTANCE( IDX_XML_NODE& aNode ) :
-            EDMD_ROLE_ON_OBJECT( aNode )
+    EDMD_ROLE_ON_ITEM_INSTANCE( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
+            EDMD_ROLE_ON_OBJECT( aNode, aTopLevel )
     {
-        Parse( aNode );
+        // Handled by parent constructor
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
@@ -247,10 +250,10 @@ public:
     {
     }
 
-    EDMD_ROLE_ON_CONSTRAINT( IDX_XML_NODE& aNode ) :
-            EDMD_ROLE_ON_OBJECT( aNode )
+    EDMD_ROLE_ON_CONSTRAINT( IDX_XML_NODE& aNode, bool aTopLevel = true ) :
+            EDMD_ROLE_ON_OBJECT( aNode, aTopLevel )
     {
-        Parse( aNode );
+        // Handled by parent constructor
     }
 
     bool         Parse( IDX_XML_NODE& aNode ) override;
