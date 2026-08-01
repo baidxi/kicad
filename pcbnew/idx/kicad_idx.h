@@ -32,9 +32,15 @@
 #include <board.h>
 #include <widgets/report_severity.h>
 #include <idx/idx_reader.h>
+#include <unordered_map>
 
 class LSET;
 enum PCB_LAYER_ID : int;
+
+namespace idx_pdm {
+    class EDMD_FUNCTIONAL_ITEM_SHAPE;
+    class EDMD_ITEM_INSTANCE;
+}
 
 
 class KICAD_IDX_CHANGE
@@ -131,6 +137,10 @@ public:
     std::vector<std::pair<PCB_LAYER_ID, int>> m_stackup;
     double                                    m_boardThickness;
     std::shared_ptr<KIDX_REGISTRY_KICAD>      m_reg;
+
+    // Layer mappings for IDX types
+    const std::unordered_map<int, PCB_LAYER_ID> m_idxShapeTypeToLayer;
+    const std::unordered_map<int, PCB_LAYER_ID> m_idxInstanceTypeToLayer;
 };
 
 

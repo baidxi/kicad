@@ -46,7 +46,20 @@ KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset,
         m_dataset( aDataset ),
         m_commit( aCommit ),
         m_board( aBoard ),
-        m_reg( aReg )
+        m_reg( aReg ),
+        m_idxShapeTypeToLayer( {
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA ), User_1 },
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA ), User_2 },
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER ), User_3 },
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA ), User_4 },
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL ), Eco1_User },
+            { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP ), User_5 },
+        } ),
+        m_idxInstanceTypeToLayer( {
+            { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE ), Edge_Cuts },
+            { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT ), User_1 },
+            { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER ), User_2 },
+        } )
 {
     // The EDMD_* classes already handle unit conversion internally
     // GetX(), GetY(), GetRadius() etc. already return values in KiCad units (nanometers)
@@ -363,22 +376,25 @@ KICAD_IDX_CHANGE::ELEMENT_TYPE KICAD_IDX_CHANGE::GetType( idx_pdm::EDMD_ITEM_INS
 
 std::vector<BOARD_ITEM*> KICAD_IDX::ConvertInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInst, bool aPredecessor )
 {
-    switch( aInst.GetType() )
+    idx_pdm::EDMD_ITEM_INSTANCE::TYPE type = aInst.GetType();
+
+    // Handle special cases that don't use layer mapping
+    switch( type )
     {
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE: return AddElement( aInst, Edge_Cuts );
-
     case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_IN:
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_OUT: return AddZone( aInst );
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_OUT:
+        return AddZone( aInst );
 
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT: return AddElement( aInst, User_1 );
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH:
+        return AddNPTH( aInst );
 
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH: return AddNPTH( aInst );
-
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH: return AddNPTH( aInst );
-
-    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER: return AddElement( aInst, User_2 );
-
-    default: return {};
+    default:
+        // Use layer mapping for types that need it
+        auto it = m_idxInstanceTypeToLayer.find( static_cast<int>( type ) );
+        if( it != m_idxInstanceTypeToLayer.end() )
+            return AddElement( aInst, it->second );
+        return {};
     }
 }
 
@@ -662,19 +678,11 @@ BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
     PCB_GROUP* group = new PCB_GROUP( m_board );
     group->SetName( aShape.m_id );
 
-    // Map IDX functional item shape types to KiCad layers
+    // Map IDX functional item shape types to KiCad layers using the mapping
     PCB_LAYER_ID layer = User_1; // Default layer
-
-    switch( aShape.m_type )
-    {
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA: layer = User_1; break;
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA: layer = User_2; break;
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER: layer = User_3; break;
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA: layer = User_4; break;
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL: layer = Eco1_User; break;
-    case idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP: layer = User_5; break;
-    default: layer = User_1; break;
-    }
+    auto        it = m_idxShapeTypeToLayer.find( static_cast<int>( aShape.m_type ) );
+    if( it != m_idxShapeTypeToLayer.end() )
+        layer = it->second;
 
     // Add the group to the board
     m_board->Add( group );
