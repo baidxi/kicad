@@ -164,13 +164,12 @@ void API_HANDLER_SCH::pushCurrentCommit( const std::string& aClientName, const w
 {
     API_HANDLER_EDITOR::pushCurrentCommit( aClientName, aMessage );
 
-    // Mirror the chooser-driven Place Symbol path (SCH_EDIT_FRAME::
-    // SaveSymbolToSchematic ends with GetCurrentSheet().UpdateAllScreenReferences())
-    // so that an IPC create-then-query sequence sees the just-added items in
-    // the same session: refresh the hierarchy cache and re-resolve references
-    // / unit selections on the active sheet. Without this, GetItems and
-    // SCH_SYMBOL::GetField(REFERENCE) return a stale view until the user
-    // saves and reopens the project.
+    // Adding or removing items invalidates the cached hierarchy and the resolved references /
+    // unit selections held by the items on the active sheet.  The interactive editor refreshes
+    // both whenever it lands on a sheet (SCH_EDIT_FRAME::DisplayCurrentSheet) or annotates
+    // (annotate.cpp); an IPC client never goes through either, so do it here.  Without this,
+    // GetItems and SCH_SYMBOL::GetField( REFERENCE ) return a stale view for the rest of the
+    // session.
     if( SCHEMATIC* sch = schematic() )
         sch->RefreshHierarchy();
 
@@ -1021,28 +1020,9 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( createdItem->Type() == SCH_SYMBOL_T )
             {
-                SCH_SYMBOL* sym = static_cast<SCH_SYMBOL*>( createdItem );
-
-                // Register the resolved LIB_SYMBOL in the target screen's
-                // lib_symbols cache. The chooser-driven "Place Symbol" path
-                // does this via SCH_EDIT_FRAME::SaveSymbolToSchematic; the
-                // IPC create path didn't. Without it the placed instance
-                // refers to a symbol the schematic file claims it has never
-                // seen, eeschema treats it as unresolved (empty body, no
-                // pins until the user manually triggers "Update Symbols From
-                // Library"), and PackSymbol below also fails because it
-                // reads the library definition out of the same cache.
-                if( const std::unique_ptr<LIB_SYMBOL>& libRef = sym->GetLibSymbolRef() )
-                {
-                    wxString libIdKey = libRef->GetLibId().Format().wx_str();
-
-                    if( !targetScreen->GetLibSymbols().count( libIdKey ) )
-                        targetScreen->AddLibSymbol( new LIB_SYMBOL( *libRef ) );
-                }
-
                 kiapi::schematic::types::SchematicSymbolInstance symbol;
 
-                if( PackSymbol( &symbol, sym, targetPath ) )
+                if( PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( createdItem ), targetPath ) )
                     newItem.PackFrom( symbol );
             }
             else if( createdItem->Type() == SCH_SHEET_T )

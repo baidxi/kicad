@@ -349,26 +349,42 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     LIB_SYMBOL* libSymbol = nullptr;
     bool loadedFromLibTable = false;
 
-    // "Place a new symbol from a library reference" path: when the proto's
-    // library description is empty (no inline pins/items), the IPC client is
-    // referencing an already-loaded library entry by id. Resolve it through
-    // the project's SYMBOL_LIB_TABLE so the symbol gets its real pins,
+    // "Place a new symbol from a library reference" path: when the proto carries no library
+    // description at all, the client is referencing an already-loaded library entry by id.
+    // Resolve it through the project's SYMBOL_LIB_TABLE so the symbol gets its real pins,
     // graphics, default fields, and unit/body counts. Without this, a freshly
-    // placed-from-library symbol ends up as an empty placeholder that
-    // CreateItems reports as ISC_OK but that never lands in the schematic.
-    if( def.items_size() == 0 && libId.IsValid() )
+    // placed-from-library symbol ends up as an empty placeholder that CreateItems reports as
+    // ISC_OK but that never lands in the schematic.  Serialize() always emits a unit count
+    // along with a real definition, so testing it as well as the draw items keeps a symbol
+    // that legitimately has no non-pin draw items on the round-trip path.
+    if( def.items_size() == 0 && def.unit_count() == 0 && libId.IsValid() )
     {
-        if( SCHEMATIC* sch = Schematic() )
+        SCHEMATIC*              sch = Schematic();
+        SYMBOL_LIBRARY_ADAPTER* adapter =
+                sch ? PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) : nullptr;
+
+        if( adapter )
         {
-            if( SYMBOL_LIBRARY_ADAPTER* adapter =
-                        PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) )
+            try
             {
                 if( LIB_SYMBOL* loaded = adapter->LoadSymbol( libId ) )
                 {
-                    libSymbol = new LIB_SYMBOL( *loaded );
-                    libSymbol->SetLibId( libId );
-                    loadedFromLibTable = true;
+                    // Derived ("extends") entries have to be flattened: SetLibSymbol() below
+                    // rejects anything that isn't a root symbol.
+                    if( std::unique_ptr<LIB_SYMBOL> flattened = loaded->Flatten() )
+                    {
+                        flattened->SetParent();
+                        flattened->SetLibId( libId );
+                        libSymbol = flattened.release();
+                        loadedFromLibTable = true;
+                    }
                 }
+            }
+            catch( const IO_ERROR& )
+            {
+                // Re-parsing a library whose file changed on disk can throw; nothing above
+                // this (the API event handler included) catches it, so fall through to the
+                // unresolved-symbol placeholder instead.
             }
         }
     }
