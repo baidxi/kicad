@@ -43,8 +43,8 @@
  * also record the main item's own sheet.  Violations carrying neither are attributed to the
  * first sheet of \a aSheetList.
  */
-static std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>>
-groupItemsBySheet( const RC_ITEMS_PROVIDER& aProvider, const SCH_SHEET_LIST& aSheetList )
+static std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> groupItemsBySheet( const RC_ITEMS_PROVIDER& aProvider,
+                                                                           const SCH_SHEET_LIST&    aSheetList )
 {
     std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems;
 
@@ -108,8 +108,7 @@ wxString ERC_REPORT::GetTextReport()
 
     ERC_SETTINGS& settings = m_sch->ErcSettings();
 
-    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems =
-            groupItemsBySheet( *m_markersProvider, sheetList );
+    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems = groupItemsBySheet( *m_markersProvider, sheetList );
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
@@ -203,8 +202,7 @@ bool ERC_REPORT::WriteJsonReport( const wxString& aFullFileName )
 
     ERC_SETTINGS& settings = m_sch->ErcSettings();
 
-    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems =
-            groupItemsBySheet( *m_markersProvider, sheetList );
+    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems = groupItemsBySheet( *m_markersProvider, sheetList );
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
