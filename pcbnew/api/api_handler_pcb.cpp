@@ -348,6 +348,9 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_PCB::handleGetItems( const HANDLER_
         return tl::unexpected( e );
     }
 
+    // TODO: header.container is ignored here and the whole board is always scanned, while
+    // API_HANDLER_SCH::handleGetItems narrows the query to the container.  A footprint container
+    // should narrow this query to that footprint's children in the same way.
     GetItemsResponse response;
 
     BOARD* board = this->board();

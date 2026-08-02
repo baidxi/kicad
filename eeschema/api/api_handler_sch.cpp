@@ -404,6 +404,10 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
 
     std::optional<KIID> containerId = *valid;
 
+    // An empty container KIID means the document itself, per the ItemHeader contract
+    if( aCtx.Request.header().container().value().empty() )
+        containerId.reset();
+
     std::set<KICAD_T> typesRequested, typesInserted;
 
     for( KICAD_T type : parseRequestedItemTypes( aCtx.Request.types() ) )
@@ -430,20 +434,35 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
 
     std::map<KICAD_T, std::vector<std::pair<EDA_ITEM*, SCH_SHEET_PATH>>> itemMap;
 
-    // Container-aware path: when the request's header.container resolves to
-    // an SCH_SYMBOL, narrow iteration to that symbol's children (pins,
-    // fields). This is the natural shape for "give me the pins of THIS
-    // symbol" instead of "every pin in the schematic". Without this branch
-    // a SCH_PIN_T request would return every pin on the (filtered) sheet.
+    // Container-aware path: when the request's header.container is given, it must resolve to an
+    // SCH_SYMBOL, and iteration is narrowed to that symbol's children (pins, fields).  This is the
+    // natural shape for "give me the pins of THIS symbol" instead of "every pin in the schematic".
     SCH_SYMBOL*    containerSymbol = nullptr;
     SCH_SHEET_PATH containerPath;
 
     if( containerId.has_value() )
     {
-        if( std::optional<SCH_ITEM*> item = getItemById( *containerId, &containerPath ) )
+        std::optional<SCH_ITEM*> item = getItemById( *containerId, &containerPath );
+
+        if( !item )
         {
-            if( ( *item )->Type() == SCH_SYMBOL_T )
-                containerSymbol = static_cast<SCH_SYMBOL*>( *item );
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( fmt::format( "the requested container {} does not exist in this "
+                                              "document",
+                                              containerId->AsStdString() ) );
+            return tl::unexpected( e );
+        }
+
+        containerSymbol = dynamic_cast<SCH_SYMBOL*>( *item );
+
+        if( !containerSymbol )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( fmt::format( "the requested container {} is not a symbol",
+                                              containerId->AsStdString() ) );
+            return tl::unexpected( e );
         }
     }
 
@@ -1106,7 +1125,10 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
         if( !item )
             continue;
 
-        if( !s_allowedTypes.contains( item->Type() ) )
+        // Pins are in s_allowedTypes so that they can be queried, but they are owned by their
+        // parent symbol rather than by the screen, so they cannot be removed independently: the
+        // commit would take ownership of an item the symbol still holds in a unique_ptr.
+        if( item->Type() == SCH_PIN_T || !s_allowedTypes.contains( item->Type() ) )
         {
             status = ItemDeletionStatus::IDS_IMMUTABLE;
             continue;
