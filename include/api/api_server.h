@@ -35,6 +35,12 @@ class API_HANDLER;
 class KINNG_REQUEST_SERVER;
 class wxEvtHandler;
 
+namespace kiapi::common
+{
+class ApiRequest;
+class ApiResponse;
+}
+
 
 wxDECLARE_EVENT( API_REQUEST_EVENT, wxCommandEvent );
 
@@ -98,6 +104,23 @@ private:
     void handleApiEvent( wxCommandEvent& aEvent );
 
     void handleApiRequestString( std::string& aRequestString );
+
+    /**
+     * Answers a GetOpenDocuments request that leaves the document type unset.
+     *
+     * Every handler is bound to a single editor frame and rejects any document type but its own,
+     * so no handler can answer such a request on its own.  The API contract defines an unset type
+     * as "documents of every type", which can only be resolved here, where all the registered
+     * handlers are known.  The request is re-issued once per document type and the per-type
+     * results are concatenated.
+     *
+     * @param aRequest is the incoming request to inspect
+     * @param aResponse is filled with the aggregated documents, or with the status of the first
+     *                  handler that failed, when true is returned
+     * @return true if aRequest was an untyped GetOpenDocuments and aResponse was filled in
+     */
+    bool aggregateOpenDocuments( const kiapi::common::ApiRequest& aRequest,
+                                 kiapi::common::ApiResponse& aResponse );
 
     void log( const std::string& aOutput );
 

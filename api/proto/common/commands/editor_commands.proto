@@ -45,7 +45,8 @@ message OpenLibraryItem
 // Retrieves a list of open documents of the given type
 message GetOpenDocuments
 {
-  // Which type of documents to query
+  // Which type of documents to query.  If left unset (DOCTYPE_UNKNOWN), the open documents of
+  // every type are returned.
   kiapi.common.types.DocumentType type = 1;
 }
 
