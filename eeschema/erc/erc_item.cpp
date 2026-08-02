@@ -381,18 +381,11 @@ std::shared_ptr<ERC_ITEM> ERC_ITEM::Create( int aErrorCode )
 void ERC_TREE_MODEL::GetValue( wxVariant& aVariant, wxDataViewItem const& aItem,
                                unsigned int aCol ) const
 {
-    // Same guards as the RC_TREE_MODEL::GetValue base implementation: the GTK3
-    // wxDataViewCtrl re-renders visible rows synchronously from inside
-    // ItemsDeleted(), calling back here for nodes DeleteItems() has just
-    // retired (handle->m_Node nulled) or whose RC_ITEM is being freed.
-    // Without them every "Run ERC" with a populated marker tree is a
-    // use-after-free roulette (deterministic SIGSEGV on GTK3).
-    if( !aItem.IsOk() || m_view->IsFrozen() || m_tree.empty() )
-        return;
+    // The rows the view repaints from within ItemsDeleted() may already have been retired
+    // by DeleteItems(), so this override needs the same validation as the base class.
+    const RC_TREE_NODE* node = getRenderableNode( aItem );
 
-    const RC_TREE_NODE* node = ToNode( aItem );
-
-    if( !node || !node->m_RcItem )
+    if( !node )
         return;
 
     SCH_EDIT_FRAME*           schEditFrame = static_cast<SCH_EDIT_FRAME*>( m_editFrame );
