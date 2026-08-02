@@ -791,8 +791,7 @@ HANDLER_RESULT<std::unique_ptr<EDA_ITEM>> API_HANDLER_SCH::createItemForType( KI
 }
 
 
-std::optional<std::string> API_HANDLER_SCH::testSheetRecursion( SCH_SHEET* aSheet,
-                                                                const SCH_SHEET_PATH& aParentPath )
+std::optional<std::string> API_HANDLER_SCH::testSheetRecursion( SCH_SHEET* aSheet, const SCH_SHEET_PATH& aParentPath )
 {
     SCH_SCREEN* destScreen = aParentPath.LastScreen();
 
@@ -812,19 +811,16 @@ std::optional<std::string> API_HANDLER_SCH::testSheetRecursion( SCH_SHEET* aShee
 }
 
 
-std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
-                                                             const SCH_SHEET_PATH& aParentPath )
+std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet, const SCH_SHEET_PATH& aParentPath )
 {
     if( aSheet->GetFileName().IsEmpty() )
     {
-        return fmt::format( "sheet {} has no filename; the Sheetfile field is required",
-                            aSheet->m_Uuid.AsStdString() );
+        return fmt::format( "sheet {} has no filename; the Sheetfile field is required", aSheet->m_Uuid.AsStdString() );
     }
 
     // The sheet properties dialog silently corrects a wrong extension rather than rejecting the
     // name; the field keeps the client's text so that a relative path stays portable.
-    aSheet->SetFileName( EnsureFileExtension( aSheet->GetFileName(),
-                                              FILEEXT::KiCadSchematicFileExtension ) );
+    aSheet->SetFileName( EnsureFileExtension( aSheet->GetFileName(), FILEEXT::KiCadSchematicFileExtension ) );
 
     wxFileName fn( ExpandTextVars( aSheet->GetFileName(), &project() ) );
 
@@ -915,8 +911,7 @@ std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
     {
         // Prior to file version 20221002 the symbol instance data of a hierarchy was stored in
         // its root sheet, so it has to be pushed down into the loaded sheets.
-        if( linkedScreen->GetFileFormatVersionAtLoad() < 20221002
-                && !linkedScreen->GetSymbolInstances().empty() )
+        if( linkedScreen->GetFileFormatVersionAtLoad() < 20221002 && !linkedScreen->GetSymbolInstances().empty() )
         {
             SCH_SHEET_LIST loadedSheets( tmpSheet.get() );
 
@@ -931,8 +926,7 @@ std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
     SCH_SHEET_LIST linkedSheets( aSheet );
 
     linkedSheets.AddNewSymbolInstances( aParentPath, project().GetProjectName() );
-    linkedSheets.AddNewSheetInstances( aParentPath,
-                                       schematic()->Hierarchy().GetLastVirtualPageNumber() );
+    linkedSheets.AddNewSheetInstances( aParentPath, schematic()->Hierarchy().GetLastVirtualPageNumber() );
 
     // The linked content keeps the reference designators of the hierarchy it was annotated in,
     // which would be duplicates of the existing ones here.
