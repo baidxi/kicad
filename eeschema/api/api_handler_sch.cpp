@@ -881,8 +881,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
             unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol,
-                                        &targetPath );
+                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol, &targetPath );
         }
         else if( *type == SCH_SHEET_T )
         {

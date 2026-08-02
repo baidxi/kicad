@@ -347,7 +347,7 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     m_lib_id = libId;
 
     LIB_SYMBOL* libSymbol = nullptr;
-    bool loadedFromLibTable = false;
+    bool        loadedFromLibTable = false;
 
     // "Place a new symbol from a library reference" path: when the proto carries no library
     // description at all, the client is referencing an already-loaded library entry by id.
@@ -360,8 +360,7 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     if( def.items_size() == 0 && def.unit_count() == 0 && libId.IsValid() )
     {
         SCHEMATIC*              sch = Schematic();
-        SYMBOL_LIBRARY_ADAPTER* adapter =
-                sch ? PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) : nullptr;
+        SYMBOL_LIBRARY_ADAPTER* adapter = sch ? PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) : nullptr;
 
         if( adapter )
         {
