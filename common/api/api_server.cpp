@@ -252,8 +252,7 @@ bool KICAD_API_SERVER::aggregateOpenDocuments( const ApiRequest& aRequest, ApiRe
     if( !aRequest.message().UnpackTo( &query ) || query.type() != DocumentType::DOCTYPE_UNKNOWN )
         return false;
 
-    const google::protobuf::EnumDescriptor* docTypes =
-            kiapi::common::types::DocumentType_descriptor();
+    const google::protobuf::EnumDescriptor* docTypes = kiapi::common::types::DocumentType_descriptor();
 
     GetOpenDocumentsResponse aggregated;
 

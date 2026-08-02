@@ -39,7 +39,7 @@ namespace kiapi::common
 {
 class ApiRequest;
 class ApiResponse;
-}
+} // namespace kiapi::common
 
 
 wxDECLARE_EVENT( API_REQUEST_EVENT, wxCommandEvent );
@@ -119,8 +119,7 @@ private:
      *                  handler that failed, when true is returned
      * @return true if aRequest was an untyped GetOpenDocuments and aResponse was filled in
      */
-    bool aggregateOpenDocuments( const kiapi::common::ApiRequest& aRequest,
-                                 kiapi::common::ApiResponse& aResponse );
+    bool aggregateOpenDocuments( const kiapi::common::ApiRequest& aRequest, kiapi::common::ApiResponse& aResponse );
 
     void log( const std::string& aOutput );
 
