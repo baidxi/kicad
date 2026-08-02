@@ -1047,8 +1047,7 @@ HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItems
     catch( const IO_ERROR& ioe )
     {
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( fmt::format( "could not parse contents: {}",
-                                          ioe.What().ToStdString() ) );
+        e.set_error_message( fmt::format( "could not parse contents: {}", ioe.What().ToStdString() ) );
         return tl::unexpected( e );
     }
 
@@ -1084,8 +1083,8 @@ HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItems
         // original's group and net pointers, which the parsed board owns and takes with it.
         // Groups, generators and constraints move too, so that the KIID references between the
         // pasted items still have their container.  The markers left behind die with the board.
-        parsedBoard->RemoveAll( { PCB_GROUP_T, PCB_CONSTRAINT_T, PCB_POINT_T, PCB_ZONE_T,
-                                  PCB_GENERATOR_T, PCB_FOOTPRINT_T, PCB_TRACE_T, PCB_SHAPE_T } );
+        parsedBoard->RemoveAll( { PCB_GROUP_T, PCB_CONSTRAINT_T, PCB_POINT_T, PCB_ZONE_T, PCB_GENERATOR_T,
+                                  PCB_FOOTPRINT_T, PCB_TRACE_T, PCB_SHAPE_T } );
     }
     else
     {
@@ -1101,8 +1100,7 @@ HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItems
         {
             FOOTPRINT* footprint = static_cast<FOOTPRINT*>( item );
 
-            footprint->ResolveComponentClassNames( board,
-                                                   footprint->GetTransientComponentClassNames() );
+            footprint->ResolveComponentClassNames( board, footprint->GetTransientComponentClassNames() );
             footprint->ClearTransientComponentClassNames();
         }
     }
@@ -1132,8 +1130,7 @@ HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItems
     {
         ItemStatus status;
         status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-        status.set_error_message(
-                "attempted to add item with no overlapping layers with the board" );
+        status.set_error_message( "attempted to add item with no overlapping layers with the board" );
 
         ItemCreationResult itemResult;
         itemResult.mutable_status()->CopyFrom( status );

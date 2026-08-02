@@ -1957,19 +1957,18 @@ void PCB_CONTROL::PrepareItemsForBoard( BOARD* aBoard, const std::vector<BOARD_I
     // members); record old -> new so those references can be remapped once every item has its new id.
     // A grouped shape appears both as a top-level item and as a group child, so reset each item only
     // once -- a second reset would record a new->newer entry and corrupt the old->new mapping.
-    std::map<KIID, KIID>     idMap;
-    std::set<BOARD_ITEM*>    resetItems;
+    std::map<KIID, KIID>  idMap;
+    std::set<BOARD_ITEM*> resetItems;
 
-    auto resetUuidOnce =
-            [&]( BOARD_ITEM* aItem )
-            {
-                if( !resetItems.insert( aItem ).second )
-                    return;
+    auto resetUuidOnce = [&]( BOARD_ITEM* aItem )
+    {
+        if( !resetItems.insert( aItem ).second )
+            return;
 
-                KIID oldUuid = aItem->m_Uuid;
-                aItem->ResetUuid();
-                idMap[oldUuid] = aItem->m_Uuid;
-            };
+        KIID oldUuid = aItem->m_Uuid;
+        aItem->ResetUuid();
+        idMap[oldUuid] = aItem->m_Uuid;
+    };
 
     for( BOARD_ITEM* item : aItems )
     {
@@ -2008,11 +2007,12 @@ void PCB_CONTROL::PrepareItemsForBoard( BOARD* aBoard, const std::vector<BOARD_I
         for( BOARD_ITEM* item : aItems )
         {
             item->RemapKIIDs( idMap );
-            item->RunOnChildren( [&]( BOARD_ITEM* aChild )
-                                 {
-                                     aChild->RemapKIIDs( idMap );
-                                 },
-                                 RECURSE_MODE::RECURSE );
+            item->RunOnChildren(
+                    [&]( BOARD_ITEM* aChild )
+                    {
+                        aChild->RemapKIIDs( idMap );
+                    },
+                    RECURSE_MODE::RECURSE );
         }
     }
 }
