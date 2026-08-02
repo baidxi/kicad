@@ -177,6 +177,9 @@ EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
     if( !m_openGLFailureOccured )
         saveCanvasTypeSetting( m_canvasType );
 
+    for( std::vector<int>& buttonIds : m_apiPluginButtonIds | std::views::values )
+        releaseApiPluginButtons( buttonIds );
+
     delete m_actions;
     delete m_toolManager;
     delete m_toolDispatcher;
@@ -1487,14 +1490,11 @@ void EDA_DRAW_FRAME::AddApiPluginTools( ACTION_TOOLBAR* aToolbar )
 {
     API_PLUGIN_MANAGER& mgr = Pgm().GetPluginManager();
 
-    // Don't clear() here -- m_buttonBindings is a process-wide map shared
-    // across every editor frame. When pcbnew and eeschema are both open and
-    // both rebuild their toolbars, the second rebuild used to wipe the
-    // first frame's button -> action_id entries, leaving the earlier
-    // frame's plugin clicks landing on a no-op (OnApiPluginInvoke looks the
-    // wx ID up and finds nothing). wxID_ANY allocates fresh wx IDs each
-    // toolbar build, so accumulating entries is safe -- stale rows never
-    // collide with live ones.
+    // The binding map belongs to the plugin manager and is therefore shared by every open editor
+    // frame; only API_PLUGIN_MANAGER::ReloadPlugins may reset it as a whole.  Retire just the
+    // buttons this frame put on aToolbar the last time it was built.
+    std::vector<int>& buttonIds = m_apiPluginButtonIds[aToolbar];
+    releaseApiPluginButtons( buttonIds );
 
     std::vector<const PLUGIN_ACTION*> actions = GetOrderedPluginActions( PluginActionScope(), config() );
 
@@ -1512,7 +1512,24 @@ void EDA_DRAW_FRAME::AddApiPluginTools( ACTION_TOOLBAR* aToolbar )
                  wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
 
         mgr.ButtonBindings().insert( { button->GetId(), action->identifier } );
+        buttonIds.push_back( button->GetId() );
     }
+}
+
+
+void EDA_DRAW_FRAME::releaseApiPluginButtons( std::vector<int>& aButtonIds )
+{
+    API_PLUGIN_MANAGER& mgr = Pgm().GetPluginManager();
+
+    for( int id : aButtonIds )
+    {
+        Disconnect( id, wxEVT_COMMAND_MENU_SELECTED,
+                    wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
+
+        mgr.ButtonBindings().erase( id );
+    }
+
+    aButtonIds.clear();
 }
 
 
