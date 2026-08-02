@@ -25,6 +25,7 @@
 #include <api/sch_context.h>
 #include <magic_enum.hpp>
 #include <base_screen.h>
+#include <common.h>
 #include <jobs/job_export_bom.h>
 #include <jobs/job_export_sch_netlist.h>
 #include <jobs/job_export_sch_plot.h>
@@ -44,9 +45,9 @@
 #include <sch_sheet_pin.h>
 #include <sch_symbol.h>
 #include <schematic.h>
-#include <common.h>
 #include <tool/actions.h>
 #include <tool/tool_manager.h>
+#include <tools/sch_actions.h>
 #include <tools/sch_selection_tool.h>
 #include <project.h>
 #include <wildcards_and_files_ext.h>
@@ -1651,9 +1652,35 @@ API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aC
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
 
+    SCHEMATIC* sch = schematic();
+
+    if( !sch )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "no schematic is loaded" );
+        return tl::unexpected( e );
+    }
+
     wxFileName fn( m_context->GetCurrentFileName() );
 
-    if( SCH_SCREEN* screen = m_frame->GetScreen() )
+    // The reload only works properly from the root sheet, so navigate there first, exactly as
+    // SCH_EDITOR_CONTROL::Revert does.
+    if( sch->HasHierarchy() )
+    {
+        SCH_SHEET_PATH rootSheetPath = sch->Hierarchy().at( 0 );
+
+        if( m_frame->GetCurrentSheet() != rootSheetPath )
+            toolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet, &rootSheetPath );
+    }
+
+    // OpenProjectFiles() calls AskToSaveChanges(), which walks every screen of the hierarchy and
+    // raises a modal save prompt for each modified one.  That would block the API pipeline on a
+    // dialog, and answering it would persist the very changes the client asked to discard, so
+    // clear the flag everywhere and not just on the displayed screen.
+    SCH_SCREENS screens( sch->Root() );
+
+    for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
         screen->SetContentModified( false );
 
     m_frame->ReleaseFile();
@@ -1678,6 +1705,7 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
     }
 
     GetBoundingBoxResponse response;
+    bool includeText = aCtx.Request.mode() == BoundingBoxMode::BBM_ITEM_AND_CHILD_TEXT;
 
     for( const types::KIID& idMsg : aCtx.Request.items() )
     {
@@ -1687,8 +1715,20 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
         if( !optItem )
             continue;
 
+        SCH_ITEM* item = *optItem;
+        BOX2I     bbox;
+
+        // Symbols and sheets are the schematic item types carrying independently-movable child
+        // text (their fields); everything else has no text to exclude.
+        if( !includeText && item->Type() == SCH_SYMBOL_T )
+            bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox();
+        else if( !includeText && item->Type() == SCH_SHEET_T )
+            bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox();
+        else
+            bbox = item->GetBoundingBox();
+
         response.add_items()->set_value( idMsg.value() );
-        PackBox2( *response.add_boxes(), ( *optItem )->GetBoundingBox(), schIUScale );
+        PackBox2( *response.add_boxes(), bbox, schIUScale );
     }
 
     return response;
@@ -1850,6 +1890,11 @@ API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVari
         return tl::unexpected( e );
     }
 
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
     SCHEMATIC* sch = schematic();
 
     if( !sch )
@@ -1860,9 +1905,18 @@ API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVari
         return tl::unexpected( e );
     }
 
+    // SCHEMATIC::ResolveTextVar dereferences the path (SHEETNAME resolves through Last()), so an
+    // empty one cannot be fabricated as a fallback.
+    if( !sch->HasHierarchy() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "the schematic has no sheets to resolve text variables against" );
+        return tl::unexpected( e );
+    }
+
     SCH_SHEET_LIST hierarchy = sch->Hierarchy();
-    SCH_SHEET_PATH sheetPath = m_context->GetCurrentSheet().value_or(
-            hierarchy.empty() ? SCH_SHEET_PATH() : hierarchy.front() );
+    SCH_SHEET_PATH sheetPath = m_context->GetCurrentSheet().value_or( hierarchy.front() );
 
     std::function<bool( wxString* )> resolver =
             [sch, sheetPath]( wxString* token ) -> bool
