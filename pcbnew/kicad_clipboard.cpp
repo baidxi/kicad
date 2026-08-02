@@ -114,13 +114,24 @@ wxString CLIPBOARD_IO::clipboardReader()
 }
 
 
-void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootprintEditor )
+void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootprintEditor,
+                                  std::vector<KIID>* aSavedIds )
 {
     VECTOR2I refPoint( 0, 0 );
+
+    if( aSavedIds )
+        aSavedIds->clear();
 
     // dont even start if the selection is empty
     if( aSelected.Empty() )
         return;
+
+    auto recordSavedId =
+            [&]( const BOARD_ITEM* aItem )
+            {
+                if( aSavedIds )
+                    aSavedIds->push_back( aItem->m_Uuid );
+            };
 
     if( aSelected.HasReferencePoint() )
         refPoint = aSelected.GetReferencePoint();
@@ -203,6 +214,7 @@ void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootpri
         newFootprint.Move( VECTOR2I( -refPoint.x, -refPoint.y ) );
 
         Format( static_cast<BOARD_ITEM*>( &newFootprint ) );
+        recordSavedId( &newFootprint );
 
         newFootprint.SetParent( nullptr );
         newFootprint.SetParentGroup( nullptr );
@@ -325,6 +337,7 @@ void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootpri
             deleteUnselectedCells( table );
 
         Format( &partialFootprint );
+        recordSavedId( &partialFootprint );
 
         partialFootprint.SetParent( nullptr );
     }
@@ -438,6 +451,7 @@ void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootpri
                 }
 
                 Format( copy );
+                recordSavedId( copy );
 
                 if( copy->Type() == PCB_GROUP_T || copy->Type() == PCB_GENERATOR_T )
                 {
