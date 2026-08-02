@@ -1024,8 +1024,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
             // the netlist and the ERC results reference pins by KIID.
             if( existingItem->Type() == SCH_SYMBOL_T && item->Type() == SCH_SYMBOL_T )
             {
-                static_cast<SCH_SYMBOL*>( item.get() )
-                        ->CopyPinUuidsFrom( *static_cast<SCH_SYMBOL*>( existingItem ) );
+                static_cast<SCH_SYMBOL*>( item.get() )->CopyPinUuidsFrom( *static_cast<SCH_SYMBOL*>( existingItem ) );
             }
 
             existingItem->SwapItemData( static_cast<SCH_ITEM*>( item.get() ) );
