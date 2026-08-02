@@ -1588,8 +1588,8 @@ API_HANDLER_SCH::handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schemat
 }
 
 
-HANDLER_RESULT<google::protobuf::Empty> API_HANDLER_SCH::handleSetActiveSheet(
-        const HANDLER_CONTEXT<kiapi::schematic::types::SetActiveSheet>& aCtx )
+HANDLER_RESULT<google::protobuf::Empty>
+API_HANDLER_SCH::handleSetActiveSheet( const HANDLER_CONTEXT<kiapi::schematic::types::SetActiveSheet>& aCtx )
 {
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "SetActiveSheet" ) )
         return tl::unexpected( *headless );
