@@ -33,12 +33,13 @@
 #include <pad.h>
 #include <pcb_base_edit_frame.h>
 #include <pcb_group.h>
+#include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 #include <pcb_track.h>
 #include <layer_ids.h>
-#include <zone.h>
 #include <project.h>
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
+#include <tools/pcb_control.h>
 #include <tools/pcb_selection_tool.h>
 #include <widgets/appearance_controls.h>
 
@@ -1024,90 +1025,122 @@ HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItems
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
 
-    CreateItemsResponse response;
+    ApiResponseStatus e;
 
     if( aCtx.Request.contents().empty() )
     {
-        response.set_status( ItemRequestStatus::IRS_OK );
-        return response;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "contents is empty; there is nothing to parse" );
+        return tl::unexpected( e );
     }
 
-    // Use the same clipboard-format parser the chooser-driven Edit > Paste
-    // path goes through (CLIPBOARD_IO is a PCB_IO_KICAD_SEXPR specialised for
-    // the clipboard's containing wrapper). Feed the proto's contents string
-    // through SetReader so we don't touch the system clipboard.
-    CLIPBOARD_IO io;
-    io.SetBoard( board() );
-    io.SetReader(
-            [&]() -> wxString
-            {
-                return wxString::FromUTF8( aCtx.Request.contents() );
-            } );
-
-    BOARD_ITEM* clipItem = nullptr;
+    // The contents are the clipboard s-expression SaveSelectionToString writes.  Parsing goes
+    // directly to PCB_IO_KICAD_SEXPR rather than through CLIPBOARD_IO::Parse(), which reads the
+    // system clipboard and swallows the parser's report of what is wrong with the payload.
+    std::unique_ptr<BOARD_ITEM> parsed;
 
     try
     {
-        clipItem = io.Parse();
+        PCB_IO_KICAD_SEXPR parser;
+        parsed.reset( parser.Parse( wxString::FromUTF8( aCtx.Request.contents() ) ) );
     }
-    catch( const IO_ERROR& e )
+    catch( const IO_ERROR& ioe )
     {
-        ApiResponseStatus err;
-        err.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        err.set_error_message( fmt::format( "could not parse clipboard contents: {}",
-                                            e.What().ToStdString() ) );
-        return tl::unexpected( err );
-    }
-
-    if( !clipItem )
-    {
-        ApiResponseStatus err;
-        err.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        err.set_error_message( "contents could not be parsed as KiCad clipboard data" );
-        return tl::unexpected( err );
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "could not parse contents: {}",
+                                          ioe.What().ToStdString() ) );
+        return tl::unexpected( e );
     }
 
-    COMMIT* commit = getCurrentCommit( aCtx.ClientName );
-
-    auto addParsedItem =
-            [&]( BOARD_ITEM* aItem )
-            {
-                // Ensure each pasted item gets a fresh KIID so it doesn't
-                // collide with the source it was clipboard-copied from.
-                aItem->ResetUuid();
-
-                commit->Add( aItem );
-
-                ItemCreationResult itemResult;
-                ItemStatus status;
-                status.set_code( ItemStatusCode::ISC_OK );
-                itemResult.mutable_status()->CopyFrom( status );
-                aItem->Serialize( *itemResult.mutable_item() );
-                response.mutable_created_items()->Add( std::move( itemResult ) );
-            };
-
-    if( clipItem->Type() == PCB_T )
+    if( !parsed )
     {
-        BOARD* clipBoard = static_cast<BOARD*>( clipItem );
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "contents could not be parsed as KiCad board data" );
+        return tl::unexpected( e );
+    }
 
-        for( FOOTPRINT* fp : clipBoard->Footprints() )
-            addParsedItem( static_cast<BOARD_ITEM*>( fp->Clone() ) );
+    BOARD*                   board = this->board();
+    std::unique_ptr<BOARD>   parsedBoard;
+    std::vector<BOARD_ITEM*> items;
 
-        for( PCB_TRACK* tr : clipBoard->Tracks() )
-            addParsedItem( static_cast<BOARD_ITEM*>( tr->Clone() ) );
+    if( parsed->Type() == PCB_T )
+    {
+        parsedBoard.reset( static_cast<BOARD*>( parsed.release() ) );
 
-        for( BOARD_ITEM* dr : clipBoard->Drawings() )
-            addParsedItem( static_cast<BOARD_ITEM*>( dr->Clone() ) );
+        // The parsed items carry pointers to the nets of the board they were parsed into, and
+        // are about to outlive it: repoint them at this board's nets, as Edit > Paste does.
+        parsedBoard->MapNets( board );
 
-        for( ZONE* zo : clipBoard->Zones() )
-            addParsedItem( static_cast<BOARD_ITEM*>( zo->Clone() ) );
+        for( BOARD_ITEM* item : parsedBoard->GetItemSet() )
+        {
+            // Markers are diagnostics of the board the payload came from, not content to paste.
+            if( item->Type() == PCB_MARKER_T )
+                continue;
 
-        delete clipBoard;
+            items.push_back( item );
+        }
+
+        // Move the items out of the parsed board instead of cloning them: a clone keeps the
+        // original's group and net pointers, which the parsed board owns and takes with it.
+        // Groups, generators and constraints move too, so that the KIID references between the
+        // pasted items still have their container.  The markers left behind die with the board.
+        parsedBoard->RemoveAll( { PCB_GROUP_T, PCB_CONSTRAINT_T, PCB_POINT_T, PCB_ZONE_T,
+                                  PCB_GENERATOR_T, PCB_FOOTPRINT_T, PCB_TRACE_T, PCB_SHAPE_T } );
     }
     else
     {
-        addParsedItem( static_cast<BOARD_ITEM*>( clipItem->Clone() ) );
-        delete clipItem;
+        items.push_back( parsed.release() );
+    }
+
+    // Reparent before pruning, as SetLayer can have a dependence on the item's parent board.
+    for( BOARD_ITEM* item : items )
+    {
+        item->SetParent( board );
+
+        if( item->Type() == PCB_FOOTPRINT_T )
+        {
+            FOOTPRINT* footprint = static_cast<FOOTPRINT*>( item );
+
+            footprint->ResolveComponentClassNames( board,
+                                                   footprint->GetTransientComponentClassNames() );
+            footprint->ClearTransientComponentClassNames();
+        }
+    }
+
+    std::vector<BOARD_ITEM*> rejected;
+
+    PCB_CONTROL::PruneItemsToBoardLayers( board, items, &rejected );
+    PCB_CONTROL::PrepareItemsForBoard( board, items );
+
+    COMMIT*             commit = getCurrentCommit( aCtx.ClientName );
+    CreateItemsResponse response;
+
+    for( BOARD_ITEM* item : items )
+    {
+        commit->Add( item );
+
+        ItemStatus status;
+        status.set_code( ItemStatusCode::ISC_OK );
+
+        ItemCreationResult itemResult;
+        itemResult.mutable_status()->CopyFrom( status );
+        item->Serialize( *itemResult.mutable_item() );
+        response.mutable_created_items()->Add( std::move( itemResult ) );
+    }
+
+    for( BOARD_ITEM* item : rejected )
+    {
+        ItemStatus status;
+        status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+        status.set_error_message(
+                "attempted to add item with no overlapping layers with the board" );
+
+        ItemCreationResult itemResult;
+        itemResult.mutable_status()->CopyFrom( status );
+        item->Serialize( *itemResult.mutable_item() );
+        response.mutable_created_items()->Add( std::move( itemResult ) );
+
+        delete item;
     }
 
     if( !m_activeClients.count( aCtx.ClientName ) )

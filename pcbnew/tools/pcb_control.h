@@ -125,6 +125,27 @@ public:
     int DdAddLibrary( const TOOL_EVENT& aEvent );
     int DdImportFootprint( const TOOL_EVENT& aEvent );
 
+    /**
+     * Drop from \a aItems everything \a aBoard has no layer for, and confine the layer set of
+     * each kept item to the board's enabled layers.  A dropped item is removed from its parent
+     * group but not deleted; it is reported through \a aRejected for the caller to dispose of
+     * according to who owns it.
+     *
+     * Static so that callers without a frame (the IPC API) can prune the same way.
+     */
+    static void PruneItemsToBoardLayers( BOARD* aBoard, std::vector<BOARD_ITEM*>& aItems,
+                                         std::vector<BOARD_ITEM*>* aRejected = nullptr );
+
+    /**
+     * Prepare items parsed from clipboard or design block data for insertion into \a aBoard:
+     * reparent them, give each item and its children a fresh KIID (remapping the KIID references
+     * between them so they still resolve to the pasted copies), keep pasted zone names unique,
+     * detach pasted footprints from the schematic and update dimensions to the board's units.
+     *
+     * Static so that callers without a frame (the IPC API) can paste the same way.
+     */
+    static void PrepareItemsForBoard( BOARD* aBoard, const std::vector<BOARD_ITEM*>& aItems );
+
 private:
     ///< Sets up handlers for various events.
     void setTransitions() override;
