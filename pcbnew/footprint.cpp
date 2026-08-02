@@ -95,11 +95,9 @@ static bool isTransformAwareDrawing( KICAD_T aType )
     case PCB_SHAPE_T:
     case PCB_TEXTBOX_T:
     case PCB_BARCODE_T:
-    case PCB_TABLE_T:
-        return true;
+    case PCB_TABLE_T: return true;
 
-    default:
-        return BaseType( aType ) == PCB_DIMENSION_T;
+    default: return BaseType( aType ) == PCB_DIMENSION_T;
     }
 }
 
@@ -700,14 +698,13 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
         BOARD*   brd = GetBoard();
         PROJECT* prj = brd ? brd->GetProject() : nullptr;
 
-        if( FOOTPRINT_LIBRARY_ADAPTER* adapter = prj ? PROJECT_PCB::FootprintLibAdapter( prj )
-                                                     : nullptr )
+        if( FOOTPRINT_LIBRARY_ADAPTER* adapter = prj ? PROJECT_PCB::FootprintLibAdapter( prj ) : nullptr )
         {
             // LoadFootprint() handles its own IO errors and returns nullptr for an FPID that
             // can't be resolved; in that case leave the empty shell rather than failing the
             // whole request.
             std::unique_ptr<FOOTPRINT> loaded( adapter->LoadFootprint( GetFPID(),
-                                                                      /* aKeepUUID */ false ) );
+                                                                       /* aKeepUUID */ false ) );
 
             if( loaded )
                 copyGeometryFromLibraryFootprint( *loaded );
