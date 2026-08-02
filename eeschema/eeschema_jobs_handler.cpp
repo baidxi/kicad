@@ -1351,21 +1351,18 @@ int EESCHEMA_JOBS_HANDLER::JobSchErc( JOB* aJob )
 
         SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
 
-        for( const wxString& rootPath :
-             EESCHEMA_HELPERS::CollectProjectRootCandidates( schFile.GetFullPath() ) )
+        for( const wxString& rootPath : EESCHEMA_HELPERS::CollectProjectRootCandidates( schFile.GetFullPath() ) )
         {
             SCRATCH_DOC<SCHEMATIC> probe = loadScratchSchematic( mgr, rootPath );
 
-            if( !probe.doc
-                || !EESCHEMA_HELPERS::ContainsSheetFile( *probe.doc, schFile.GetFullPath() ) )
+            if( !probe.doc || !EESCHEMA_HELPERS::ContainsSheetFile( *probe.doc, schFile.GetFullPath() ) )
             {
                 continue;
             }
 
             m_reporter->Report( wxString::Format( _( "Input '%s' is a sub-sheet of '%s'; running "
                                                      "ERC against the full project hierarchy.\n" ),
-                                                  schFile.GetFullName(),
-                                                  wxFileName( rootPath ).GetFullName() ),
+                                                  schFile.GetFullName(), wxFileName( rootPath ).GetFullName() ),
                                 RPT_SEVERITY_INFO );
 
             ercPath = rootPath;

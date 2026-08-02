@@ -67,8 +67,7 @@ public:
     /**
      * @return true if \a aFileName is one of the sheet files making up \a aSchematic.
      */
-    static bool              ContainsSheetFile( const SCHEMATIC& aSchematic,
-                                                const wxString& aFileName );
+    static bool ContainsSheetFile( const SCHEMATIC& aSchematic, const wxString& aFileName );
 
 private:
     static SCH_EDIT_FRAME*   s_SchEditFrame;
