@@ -884,8 +884,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
                     if( libId.IsValid() )
                     {
-                        libSymbol = SchGetLibSymbol(
-                                libId, PROJECT_SCH::SymbolLibAdapter( &schematic()->Project() ) );
+                        libSymbol = SchGetLibSymbol( libId, PROJECT_SCH::SymbolLibAdapter( &schematic()->Project() ) );
                     }
 
                     std::unique_ptr<LIB_SYMBOL> flat = libSymbol ? libSymbol->Flatten() : nullptr;
@@ -893,11 +892,11 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                     if( !flat )
                     {
                         status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                        status.set_error_message( fmt::format(
-                                "symbol definition has no items and lib_id '{}' could not be "
-                                "resolved: the id may be malformed, the symbol missing, or its "
-                                "library not loaded yet",
-                                std::string( libId.Format() ) ) );
+                        status.set_error_message(
+                                fmt::format( "symbol definition has no items and lib_id '{}' could not be "
+                                             "resolved: the id may be malformed, the symbol missing, or its "
+                                             "library not loaded yet",
+                                             std::string( libId.Format() ) ) );
                         aItemHandler( status, anyItem );
                         continue;
                     }
