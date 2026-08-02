@@ -1718,14 +1718,40 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
         SCH_ITEM* item = *optItem;
         BOX2I     bbox;
 
-        // Symbols and sheets are the schematic item types carrying independently-movable child
-        // text (their fields); everything else has no text to exclude.
-        if( !includeText && item->Type() == SCH_SYMBOL_T )
-            bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox();
-        else if( !includeText && item->Type() == SCH_SHEET_T )
-            bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox();
-        else
+        // Symbols, sheets and labels own SCH_FIELD children whose text GetBoundingBox() merges
+        // in; those are the types BBM_ITEM_ONLY has to fall back to a body-only box for.
+        if( includeText )
+        {
             bbox = item->GetBoundingBox();
+        }
+        else
+        {
+            switch( item->Type() )
+            {
+            case SCH_SYMBOL_T:
+                bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox();
+                break;
+
+            case SCH_SHEET_T:
+                bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox();
+                break;
+
+            case SCH_LABEL_T:
+            case SCH_GLOBAL_LABEL_T:
+            case SCH_HIER_LABEL_T:
+            case SCH_DIRECTIVE_LABEL_T:
+            case SCH_SHEET_PIN_T:
+                // Intersheet references and netclass values live in the label fields, so the
+                // body box is the one without them; nullptr settings is what SCH_LABEL_BASE
+                // passes itself when it has no render context.
+                bbox = static_cast<SCH_LABEL_BASE*>( item )->GetBodyBoundingBox( nullptr );
+                break;
+
+            default:
+                bbox = item->GetBoundingBox();
+                break;
+            }
+        }
 
         response.add_items()->set_value( idMsg.value() );
         PackBox2( *response.add_boxes(), bbox, schIUScale );
