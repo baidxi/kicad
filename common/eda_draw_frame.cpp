@@ -1523,8 +1523,7 @@ void EDA_DRAW_FRAME::releaseApiPluginButtons( std::vector<int>& aButtonIds )
 
     for( int id : aButtonIds )
     {
-        Disconnect( id, wxEVT_COMMAND_MENU_SELECTED,
-                    wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
+        Disconnect( id, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
 
         mgr.ButtonBindings().erase( id );
     }
