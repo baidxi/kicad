@@ -37,6 +37,7 @@
 #include <kiface_base.h>
 
 #include <wx/app.h>
+#include <wx/dir.h>
 
 
 SCH_EDIT_FRAME*   EESCHEMA_HELPERS::s_SchEditFrame = nullptr;
@@ -235,4 +236,65 @@ SCHEMATIC* EESCHEMA_HELPERS::LoadSchematic( const wxString& aFileName,
         schematic->ConnectionGraph()->Recalculate( sheetList, true );
 
     return schematic.release();
+}
+
+
+std::vector<wxString> EESCHEMA_HELPERS::CollectProjectRootCandidates( const wxString& aFileName )
+{
+    std::vector<wxString> candidates;
+
+    wxFileName schFile( aFileName );
+    schFile.MakeAbsolute();
+
+    if( schFile.GetExt() != FILEEXT::KiCadSchematicFileExtension )
+        return candidates;
+
+    wxFileName siblingPro = schFile;
+    siblingPro.SetExt( FILEEXT::ProjectFileExtension );
+
+    // A schematic with a project file of its own beside it is already a root.
+    if( siblingPro.FileExists() )
+        return candidates;
+
+    wxDir dir( schFile.GetPath() );
+
+    if( !dir.IsOpened() )
+        return candidates;
+
+    wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::ProjectFileExtension );
+    wxString proName;
+    bool     haveProject = dir.GetFirst( &proName, fileSpec, wxDIR_FILES );
+
+    while( haveProject )
+    {
+        wxFileName rootSch = schFile;
+        rootSch.SetName( wxFileName( proName ).GetName() );
+
+        if( rootSch.FileExists() && !rootSch.SameAs( schFile ) )
+            candidates.emplace_back( rootSch.GetFullPath() );
+
+        haveProject = dir.GetNext( &proName );
+    }
+
+    return candidates;
+}
+
+
+bool EESCHEMA_HELPERS::ContainsSheetFile( const SCHEMATIC& aSchematic, const wxString& aFileName )
+{
+    if( !aSchematic.IsValid() )
+        return false;
+
+    wxFileName target( aFileName );
+    target.MakeAbsolute();
+
+    SCH_SCREENS screens( aSchematic.Root() );
+
+    for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
+    {
+        if( wxFileName( screen->GetFileName() ).SameAs( target ) )
+            return true;
+    }
+
+    return false;
 }

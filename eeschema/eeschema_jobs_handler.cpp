@@ -37,6 +37,7 @@
 #include <jobs/job_import_utils.h>
 #include <jobs/job_sym_export_svg.h>
 #include <jobs/job_sym_upgrade.h>
+#include <jobs/scratch_doc.h>
 #include <schematic.h>
 #include <schematic_settings.h>
 #include <sch_screen.h>
@@ -1323,55 +1324,56 @@ int EESCHEMA_JOBS_HANDLER::JobSymUpgrade( JOB* aJob )
 }
 
 
+// Defined with the SCH diff/merge jobs below.  Loads a schematic into a throwaway PROJECT that is
+// unloaded again on scope exit, so a hierarchy can be inspected without disturbing the settings
+// manager or the schematic the job actually runs on.
+static SCRATCH_DOC<SCHEMATIC> loadScratchSchematic( SETTINGS_MANAGER& aMgr, const wxString& aPath );
+
+
 int EESCHEMA_JOBS_HANDLER::JobSchErc( JOB* aJob )
 {
     JOB_SCH_ERC* ercJob = dynamic_cast<JOB_SCH_ERC*>( aJob );
 
     wxCHECK( ercJob, CLI::EXIT_CODES::ERR_UNKNOWN );
 
-    // If the input is a sub-sheet of a hierarchical project (i.e. a .kicad_sch
-    // that has no sibling .kicad_pro of the same basename, but the directory
-    // contains a project file pointing at a different root schematic), swap to
-    // the project's root .kicad_sch so the full hierarchy is loaded and
-    // hierarchical labels are evaluated against their cross-sheet mates rather
-    // than being reported as dangling false positives.
-    if( !ercJob->m_filename.IsEmpty() )
+    wxString ercPath = ercJob->m_filename;
+
+    // A .kicad_sch named on the command line may be a sub-sheet of a hierarchical project, and
+    // checking it on its own reports its hierarchical labels as dangling because the mates that
+    // drive them live in the other sheets.  Run ERC on the root of a project sharing the sheet's
+    // directory instead, but only after confirming that root's hierarchy really pulls the named
+    // file in; a schematic that merely sits beside a project without belonging to it must still
+    // be checked by itself, or its own violations would go unreported.
+    if( !Pgm().IsGUI() && !ercPath.IsEmpty() )
     {
-        wxFileName schFile( ercJob->m_filename );
-        wxFileName siblingPro = schFile;
-        siblingPro.SetExt( FILEEXT::ProjectFileExtension );
+        wxFileName schFile( ercPath );
+        schFile.MakeAbsolute();
 
-        if( schFile.GetExt() == FILEEXT::KiCadSchematicFileExtension
-            && !siblingPro.FileExists() )
+        SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
+
+        for( const wxString& rootPath :
+             EESCHEMA_HELPERS::CollectProjectRootCandidates( schFile.GetFullPath() ) )
         {
-            wxDir   dir( schFile.GetPath() );
-            wxString proName;
+            SCRATCH_DOC<SCHEMATIC> probe = loadScratchSchematic( mgr, rootPath );
 
-            if( dir.IsOpened()
-                && dir.GetFirst( &proName, wxS( "*." ) + FILEEXT::ProjectFileExtension,
-                                 wxDIR_FILES ) )
+            if( !probe.doc
+                || !EESCHEMA_HELPERS::ContainsSheetFile( *probe.doc, schFile.GetFullPath() ) )
             {
-                wxFileName rootSch = schFile;
-                rootSch.SetName( wxFileName( proName ).GetName() );
-
-                if( rootSch.FileExists()
-                    && rootSch.GetFullPath() != schFile.GetFullPath() )
-                {
-                    m_reporter->Report(
-                            wxString::Format(
-                                    _( "Input '%s' is a sub-sheet of project '%s'; "
-                                       "running ERC against the project root '%s' to "
-                                       "evaluate hierarchical labels in context.\n" ),
-                                    schFile.GetFullName(), proName, rootSch.GetFullName() ),
-                            RPT_SEVERITY_INFO );
-
-                    ercJob->m_filename = rootSch.GetFullPath();
-                }
+                continue;
             }
+
+            m_reporter->Report( wxString::Format( _( "Input '%s' is a sub-sheet of '%s'; running "
+                                                     "ERC against the full project hierarchy.\n" ),
+                                                  schFile.GetFullName(),
+                                                  wxFileName( rootPath ).GetFullName() ),
+                                RPT_SEVERITY_INFO );
+
+            ercPath = rootPath;
+            break;
         }
     }
 
-    SCHEMATIC* sch = getSchematic( ercJob->m_filename );
+    SCHEMATIC* sch = getSchematic( ercPath );
 
     if( !sch )
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
@@ -1819,7 +1821,8 @@ DS_PROXY_VIEW_ITEM* EESCHEMA_JOBS_HANDLER::getDrawingSheetProxyView( SCHEMATIC* 
 // PROJECT attached for the document's lifetime. Without a per-document project,
 // a second LoadProject(path, true) destroys the first project and the first
 // schematic's m_project dangles. The destructor severs the link via
-// SetProject( nullptr ). Shared by every SCH diff/merge job.
+// SetProject( nullptr ). Shared by every SCH diff/merge job and by the ERC
+// sub-sheet hierarchy probe.
 static SCRATCH_DOC<SCHEMATIC> loadScratchSchematic( SETTINGS_MANAGER& aMgr, const wxString& aPath )
 {
     return LoadScratchDoc<SCHEMATIC>(
