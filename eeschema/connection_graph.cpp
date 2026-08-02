@@ -185,7 +185,8 @@ void CONNECTION_SUBGRAPH::ExchangeItem( SCH_ITEM* aOldItem, SCH_ITEM* aNewItem )
  *      relies on it to break ties across subgraphs with different primary-driver
  *      priorities.
  *   2. For two bus connections, the superset wins. Without this, a wider bus can be
- *      silently canonicalized to a narrower one and lose members.
+ *      silently canonicalized to a narrower one and lose members. Skipped if either
+ *      connection is null; see the note at the check itself.
  *   3. For two pins, a pin on a global power symbol beats a local power pin beats a
  *      regular pin.
  *   4. For two sheet pins, an OUTPUT shape beats an INPUT shape.
@@ -201,7 +202,10 @@ static int compareDrivers( SCH_ITEM* aA, SCH_CONNECTION* aAConn, const wxString&
     if( pa != pb )
         return pa > pb ? -1 : 1;
 
-    if( aAConn->IsBus() && aBConn->IsBus() )
+    // A driver has no connection cached for a sheet until the connection map covering it has
+    // been built, so either connection may be null here.  Only the bus-subset rule needs them;
+    // the remaining rules work off the items and their driver names.
+    if( aAConn && aBConn && aAConn->IsBus() && aBConn->IsBus() )
     {
         bool a_in_b = aAConn->IsSubsetOf( aBConn );
         bool b_in_a = aBConn->IsSubsetOf( aAConn );
@@ -343,26 +347,27 @@ bool CONNECTION_SUBGRAPH::ResolveDrivers( bool aCheckMultipleDrivers )
         m_drivers.insert( strong_drivers.begin(), strong_drivers.end() );
     }
 
+    SCH_CONNECTION* driver_connection = m_driver ? m_driver->Connection( &m_sheet ) : nullptr;
+
     // Cache driver connection
-    if( m_driver && m_driver->Connection( &m_sheet ) )
+    if( driver_connection )
     {
-        // SCH_ITEM::Connection() can legitimately return nullptr — e.g. the
-        // driver has no connection cached for this sheet yet. That happens
-        // when ResolveDrivers runs against a subgraph during the incremental
-        // recalc kicked off by an IPC EndCommit (ExtractAffectedItems ->
-        // ResolveDrivers, before the connection map for the affected items
-        // is rebuilt). Dereferencing it unconditionally was a SIGSEGV
-        // (ConfigureFromLabel on a null connection). Treat a missing
-        // connection like "no driver" for this pass; the subsequent full
-        // recalculation reconfigures it.
-        m_driver_connection = m_driver->Connection( &m_sheet );
+        m_driver_connection = driver_connection;
         m_driver_connection->ConfigureFromLabel( GetNameForDriver( m_driver ) );
         m_driver_connection->SetDriver( m_driver );
         m_driver_connection->ClearDirty();
     }
-    else if( !m_is_bus_member )
+    else
     {
-        m_driver_connection = nullptr;
+        // The connection map covering the sheet is not necessarily built yet when the subgraph
+        // is re-resolved (an incremental recalculation re-resolves the subgraphs of the changed
+        // items first), so the winning candidate can be left without a connection.  Such an item
+        // cannot drive the subgraph, and callers rely on a true return meaning m_driver_connection
+        // is usable, so drop the driver and let the next pass pick it up again.
+        m_driver = nullptr;
+
+        if( !m_is_bus_member )
+            m_driver_connection = nullptr;
     }
 
     return ( m_driver != nullptr );
