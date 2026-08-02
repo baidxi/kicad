@@ -460,8 +460,8 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
         {
             ApiResponseStatus e;
             e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-            e.set_error_message( fmt::format( "the requested container {} is not a symbol",
-                                              containerId->AsStdString() ) );
+            e.set_error_message(
+                    fmt::format( "the requested container {} is not a symbol", containerId->AsStdString() ) );
             return tl::unexpected( e );
         }
     }
@@ -489,7 +489,7 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
         containerSymbol->RunOnChildren(
                 [&]( SCH_ITEM* aChild )
                 {
-                    itemMap[ aChild->Type() ].emplace_back( aChild, containerPath );
+                    itemMap[aChild->Type()].emplace_back( aChild, containerPath );
                 },
                 RECURSE_MODE::NO_RECURSE );
     }
