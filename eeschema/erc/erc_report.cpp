@@ -156,16 +156,12 @@ bool ERC_REPORT::WriteTextReport( const wxString& aFullFileName )
 
 bool ERC_REPORT::WriteJsonReport( const wxString& aFullFileName )
 {
+    // We need the global LOCALE_IO here in order to write the numbers embedded in the
+    // item descriptions in the c-locale, as the JSON value fields already are.
+    LOCALE_IO     locale;
     std::ofstream jsonFileStream( aFullFileName.fn_str() );
 
-    // Use C locale for the duration of JSON export so that embedded numbers in
-    // item description strings (e.g. "length 650 mils") use '.' as the decimal
-    // separator — the same convention used by the JSON value fields.
-    LOCALE_IO locale;
-
-    // Schematic items are in schematic internal units (1 IU = 100 nm, i.e.
-    // schIUScale), not PCB units. Using pcbIUScale here produced positions
-    // that were 100× smaller than the declared unit.
+    // Schematic items are in schematic internal units, not board ones.
     UNITS_PROVIDER            unitsProvider( schIUScale, m_reportUnits );
     std::map<KIID, EDA_ITEM*> itemMap;
 

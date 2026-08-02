@@ -143,6 +143,9 @@ bool DRC_REPORT::WriteTextReport( const wxString& aFullFileName )
 
 bool DRC_REPORT::WriteJsonReport( const wxString& aFullFileName )
 {
+    // We need the global LOCALE_IO here in order to write the numbers embedded in the
+    // item descriptions in the c-locale, as the JSON value fields already are.
+    LOCALE_IO     locale;
     std::ofstream jsonFileStream( aFullFileName.fn_str() );
 
     UNITS_PROVIDER            unitsProvider( pcbIUScale, m_reportUnits );
