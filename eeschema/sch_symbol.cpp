@@ -46,7 +46,6 @@
 #include <project_sch.h>
 #include <libraries/symbol_library_adapter.h>
 #include <variant_symbol_utils.h>
-#include <schematic.h>
 
 #include <utility>
 #include <validators.h>
@@ -346,136 +345,81 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     LIB_ID libId = UnpackLibId( def.id() );
     m_lib_id = libId;
 
-    LIB_SYMBOL* libSymbol = nullptr;
-    bool loadedFromLibTable = false;
-
-    // "Place a new symbol from a library reference" path: when the proto's
-    // library description carries no inline pins/items, the IPC client is
-    // referencing an already-loaded library entry by id. Resolve it through
-    // the project's SYMBOL_LIB_TABLE and Flatten() the result so derived
-    // (extends "Parent") symbols inherit the parent body. Without this the
-    // placed instance is a phantom: zero pins, no graphics, rendered as the
-    // "?·?" placeholder square in the editor.
-    if( def.items_size() == 0 && libId.IsValid() )
-    {
-        SCHEMATIC* sch = Schematic();
-        SYMBOL_LIBRARY_ADAPTER* adapter =
-                sch ? PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) : nullptr;
-
-        if( adapter )
-        {
-            if( LIB_SYMBOL* loaded = adapter->LoadSymbol( libId ) )
-            {
-                std::unique_ptr<LIB_SYMBOL> flat = loaded->Flatten();
-                flat->SetParent();
-                libSymbol = flat.release();
-                libSymbol->SetLibId( libId );
-                loadedFromLibTable = true;
-            }
-            else
-            {
-                // The lib_id is not resolvable through the project's library
-                // tables. Surface this to the caller (handleCreateItems will
-                // turn the false return into an ISC_INVALID_DATA naming the
-                // missing id) instead of silently building a phantom.
-                return false;
-            }
-        }
-    }
-
-    if( !libSymbol )
-    {
-        // Fallback for the round-trip case (Pack -> Deserialize of a symbol
-        // that arrives with its full library definition inline) and for the
-        // headless case where no adapter is available.
-        libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
-        libSymbol->SetLibId( libId );
-    }
+    LIB_SYMBOL* libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
+    libSymbol->SetLibId( libId );
 
     google::protobuf::Any any;
 
-    // When we loaded from the lib table, the LIB_SYMBOL is already fully
-    // populated (and Flatten() merged the parent body). Deserializing the
-    // proto's empty def.*_field would clobber the loaded library defaults
-    // (e.g., the "R" reference template) with empty strings. Skip the
-    // def-level field/items/count overrides in that case; instance-level
-    // fields below still apply.
-    if( !loadedFromLibTable )
-    {
-        any.PackFrom( def.reference_field() );
-        libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
+    any.PackFrom( def.reference_field() );
+    libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
 
-        any.PackFrom( def.value_field() );
-        libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
+    any.PackFrom( def.value_field() );
+    libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
 
-        any.PackFrom( def.footprint_field() );
-        libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
+    any.PackFrom( def.footprint_field() );
+    libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
 
-        any.PackFrom( def.datasheet_field() );
-        libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
+    any.PackFrom( def.datasheet_field() );
+    libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
 
-        any.PackFrom( def.description_field() );
-        libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
-    }
+    any.PackFrom( def.description_field() );
+    libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
 
     std::unordered_map<::KIID, wxString> pinAltMap;
 
-    if( !loadedFromLibTable )
+    for( const SchematicSymbolChild& child : def.items() )
     {
-        for( const SchematicSymbolChild& child : def.items() )
+        std::optional<KICAD_T> type = TypeNameFromAny( child.item() );
+
+        if( !type )
+            continue;
+
+        std::unique_ptr<EDA_ITEM> item = CreateItemForType( *type, libSymbol );
+
+        if( !item || !item->Deserialize( child.item() ) )
+            continue;
+
+        SCH_ITEM* schItem = static_cast<SCH_ITEM*>( item.release() );
+
+        if( schItem->Type() == SCH_PIN_T )
         {
-            std::optional<KICAD_T> type = TypeNameFromAny( child.item() );
+            SchematicPin pinProto;
 
-            if( !type )
-                continue;
-
-            std::unique_ptr<EDA_ITEM> item = CreateItemForType( *type, libSymbol );
-
-            if( !item || !item->Deserialize( child.item() ) )
-                continue;
-
-            SCH_ITEM* schItem = static_cast<SCH_ITEM*>( item.release() );
-
-            if( schItem->Type() == SCH_PIN_T )
+            if( child.item().UnpackTo( &pinProto ) )
             {
-                SchematicPin pinProto;
-
-                if( child.item().UnpackTo( &pinProto ) )
-                {
-                    if( pinProto.has_active_alternate() )
-                        pinAltMap[schItem->m_Uuid] = wxString::FromUTF8( pinProto.active_alternate() );
-                }
+                if( pinProto.has_active_alternate() )
+                    pinAltMap[schItem->m_Uuid] = wxString::FromUTF8( pinProto.active_alternate() );
             }
-
-            if( child.has_unit() )
-                schItem->SetUnit( child.unit().unit() );
-
-            if( child.has_body_style() )
-                schItem->SetBodyStyle( child.body_style().style() );
-
-            schItem->SetLayer( LAYER_DEVICE );
-            schItem->SetPrivate( child.is_private() );
-            libSymbol->AddDrawItem( schItem );
         }
 
-        if( def.unit_count() > 0 )
-            libSymbol->SetUnitCount( def.unit_count(), false );
+        if( child.has_unit() )
+            schItem->SetUnit( child.unit().unit() );
 
-        if( def.body_style_count() > 0 )
-            libSymbol->SetBodyStyleCount( def.body_style_count(), false, false );
+        if( child.has_body_style() )
+            schItem->SetBodyStyle( child.body_style().style() );
 
-        if( !def.keywords().empty() )
-            libSymbol->SetKeyWords( wxString::FromUTF8( def.keywords() ) );
+        schItem->SetLayer( LAYER_DEVICE );
+        schItem->SetPrivate( child.is_private() );
+        libSymbol->AddDrawItem( schItem );
+    }
 
-        if( def.footprint_filters_size() > 0 )
-        {
-            wxArrayString filters;
+    if( def.unit_count() > 0 )
+        libSymbol->SetUnitCount( def.unit_count(), false );
 
-            for( const std::string& filter : def.footprint_filters() )
-                filters.Add( wxString::FromUTF8( filter ) );
+    if( def.body_style_count() > 0 )
+        libSymbol->SetBodyStyleCount( def.body_style_count(), false, false );
 
-            libSymbol->SetFPFilters( filters );
-        }
+    if( !def.keywords().empty() )
+        libSymbol->SetKeyWords( wxString::FromUTF8( def.keywords() ) );
+
+    if( def.footprint_filters_size() > 0 )
+    {
+        wxArrayString filters;
+
+        for( const std::string& filter : def.footprint_filters() )
+            filters.Add( wxString::FromUTF8( filter ) );
+
+        libSymbol->SetFPFilters( filters );
     }
 
     SetLibSymbol( libSymbol );
@@ -546,18 +490,7 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     {
         m_pins.emplace_back( std::make_unique<SCH_PIN>( *pin ) );
         m_pins.back()->SetParent( this );
-
-        // Round-trip case: def.items carried the instance pins (with their
-        // ids), so GetAllLibPins() returns them and stamping pin->m_Uuid
-        // preserves pin identity across Pack/Deserialize.  Lib-table case:
-        // GetAllLibPins() are the *session-cached library* pins — stamping
-        // their ids would give every placed instance of the same lib symbol
-        // identical pin KIIDs (ghost net membership, two "different" pins
-        // resolving to one id).  Generate a fresh id per instance instead.
-        if( loadedFromLibTable )
-            const_cast<::KIID&>( m_pins.back()->m_Uuid ) = ::KIID();
-        else
-            const_cast<::KIID&>( m_pins.back()->m_Uuid ) = pin->m_Uuid;
+        const_cast<::KIID&>( m_pins.back() ->m_Uuid ) = pin->m_Uuid;
 
         // We also need to reset the lib pin to use relative coordinates
         pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
