@@ -25,6 +25,8 @@
 #include <api/sch_context.h>
 #include <magic_enum.hpp>
 #include <base_screen.h>
+#include <common.h>
+#include <ki_exception.h>
 #include <jobs/job_export_bom.h>
 #include <jobs/job_export_sch_netlist.h>
 #include <jobs/job_export_sch_plot.h>
@@ -34,6 +36,8 @@
 #include <connection_graph.h>
 #include <sch_commit.h>
 #include <sch_edit_frame.h>
+#include <sch_io/sch_io.h>
+#include <sch_io/sch_io_mgr.h>
 #include <sch_label.h>
 #include <sch_screen.h>
 #include <sch_sheet.h>
@@ -787,6 +791,125 @@ HANDLER_RESULT<std::unique_ptr<EDA_ITEM>> API_HANDLER_SCH::createItemForType( KI
 }
 
 
+std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
+                                                             const SCH_SHEET_PATH& aParentPath )
+{
+    if( aSheet->GetFileName().IsEmpty() )
+    {
+        return fmt::format( "sheet {} has no filename; the Sheetfile field is required",
+                            aSheet->m_Uuid.AsStdString() );
+    }
+
+    // The sheet properties dialog silently corrects a wrong extension rather than rejecting the
+    // name; the field keeps the client's text so that a relative path stays portable.
+    aSheet->SetFileName( EnsureFileExtension( aSheet->GetFileName(),
+                                              FILEEXT::KiCadSchematicFileExtension ) );
+
+    wxFileName fn( ExpandTextVars( aSheet->GetFileName(), &project() ) );
+
+    if( !fn.IsAbsolute() )
+    {
+        // A relative sheet file name is relative to the file of the sheet it is placed on, which
+        // is how the schematic loader resolves it when the project is reopened.
+        SCH_SCREEN* parentScreen = aParentPath.LastScreen();
+        wxString    basePath;
+
+        if( parentScreen )
+            basePath = wxFileName( parentScreen->GetFileName() ).GetPath();
+
+        fn.MakeAbsolute( basePath.IsEmpty() ? project().GetProjectPath() : basePath );
+    }
+
+    wxString fullFilename = fn.GetFullPath();
+    fullFilename.Replace( wxT( "\\" ), wxT( "/" ) );
+
+    SCH_SCREEN* sharedScreen = nullptr;
+
+    if( schematic()->Root().SearchHierarchy( fullFilename, &sharedScreen ) )
+    {
+        // The file is already part of this design, so the screen has to be shared with the other
+        // instances of it, the way SCH_EDIT_FRAME::ChangeSheetFile() does.
+        aSheet->SetScreen( sharedScreen );
+    }
+    else if( fn.FileExists() )
+    {
+        IO_RELEASER<SCH_IO>        pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+        std::unique_ptr<SCH_SHEET> tmpSheet = std::make_unique<SCH_SHEET>( schematic() );
+
+        // The sheet paths of the loaded sub-sheets are generated from this UUID, so it has to be
+        // the UUID of the sheet that will end up in the hierarchy.
+        const_cast<KIID&>( tmpSheet->m_Uuid ) = aSheet->m_Uuid;
+        tmpSheet->SetFileName( fullFilename );
+
+        try
+        {
+            pi->LoadSchematicFile( fullFilename, schematic(), tmpSheet.get() );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            return fmt::format( "could not load sheet file '{}': {}", fullFilename.ToStdString(),
+                                ioe.What().ToStdString() );
+        }
+
+        if( !pi->GetError().IsEmpty() )
+        {
+            return fmt::format( "could not load sheet file '{}': {}", fullFilename.ToStdString(),
+                                pi->GetError().ToStdString() );
+        }
+
+        SCH_SCREEN* loadedScreen = tmpSheet->GetScreen();
+
+        if( !loadedScreen )
+            return fmt::format( "no schematic was loaded from '{}'", fullFilename.ToStdString() );
+
+        // Prior to file version 20221002 the symbol instance data of a hierarchy was stored in
+        // its root sheet, so it has to be pushed down into the loaded sheets.
+        if( loadedScreen->GetFileFormatVersionAtLoad() < 20221002
+                && !loadedScreen->GetSymbolInstances().empty() )
+        {
+            SCH_SHEET_LIST loadedSheets( tmpSheet.get() );
+
+            loadedSheets.UpdateSymbolInstanceData( loadedScreen->GetSymbolInstances() );
+        }
+
+        loadedScreen->MigrateSimModels();
+        aSheet->SetScreen( loadedScreen );
+    }
+    else if( m_frame )
+    {
+        m_frame->InitSheet( aSheet, fullFilename );
+        return std::nullopt;
+    }
+    else
+    {
+        SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
+
+        newScreen->SetFileName( fullFilename );
+        newScreen->SetContentModified();
+        aSheet->SetScreen( newScreen );
+        return std::nullopt;
+    }
+
+    SCH_SHEET_LIST linkedSheets( aSheet );
+
+    linkedSheets.AddNewSymbolInstances( aParentPath, project().GetProjectName() );
+    linkedSheets.AddNewSheetInstances( aParentPath,
+                                       schematic()->Hierarchy().GetLastVirtualPageNumber() );
+
+    // The linked content keeps the reference designators of the hierarchy it was annotated in,
+    // which would be duplicates of the existing ones here.
+    for( SCH_SHEET_PATH& path : linkedSheets )
+    {
+        SCH_SHEET_PATH newPath( aParentPath );
+
+        newPath = newPath + path;
+        path.LastScreen()->ClearAnnotation( &newPath, false );
+    }
+
+    return std::nullopt;
+}
+
+
 HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsInternal( bool aCreate,
         const std::string& aClientName,
         const types::ItemHeader &aHeader,
@@ -954,55 +1077,17 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         {
             SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item.get() );
 
+            // A sheet created over the API must end up backed by a file, like one placed in the
+            // GUI.  An anonymous screen here means SaveProject() never writes the sub-sheet file,
+            // silently losing anything later placed on it.
             if( aCreate && !sheet->GetScreen() )
             {
-                // A sheet created over the API must end up backed by a file,
-                // like one placed in the GUI: load the file when it already
-                // exists (its contents join the hierarchy), otherwise attach
-                // a fresh screen that carries the resolved filename.  An
-                // anonymous screen here means SaveProject() never writes the
-                // sub-sheet file, silently losing anything later placed on it.
-                wxString filename = sheet->GetField( FIELD_T::SHEET_FILENAME )->GetText();
-
-                if( filename.IsEmpty() )
+                if( std::optional<std::string> error = initSheetScreen( sheet, targetPath ) )
                 {
                     status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                    status.set_error_message( fmt::format(
-                            "sheet {} has no filename; the Sheetfile field is required",
-                            item->m_Uuid.AsStdString() ) );
+                    status.set_error_message( *error );
                     aItemHandler( status, anyItem );
                     continue;
-                }
-
-                wxFileName fn( filename );
-
-                if( !fn.IsAbsolute() )
-                    fn.MakeAbsolute( m_context->Prj().GetProjectPath() );
-
-                if( m_frame && fn.FileExists() )
-                {
-                    SCH_SHEET_PATH parent( targetPath );
-
-                    if( !m_frame->LoadSheetFromFile( sheet, &parent, fn.GetFullPath() ) )
-                    {
-                        status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                        status.set_error_message( fmt::format(
-                                "could not load sheet file '{}'",
-                                fn.GetFullPath().ToStdString() ) );
-                        aItemHandler( status, anyItem );
-                        continue;
-                    }
-                }
-                else if( m_frame && !fn.FileExists() )
-                {
-                    m_frame->InitSheet( sheet, fn.GetFullPath() );
-                }
-                else
-                {
-                    SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
-                    newScreen->SetFileName( fn.GetFullPath() );
-                    newScreen->SetContentModified();
-                    sheet->SetScreen( newScreen );
                 }
             }
 

@@ -153,6 +153,13 @@ private:
     HANDLER_RESULT<kiapi::schematic::types::SchematicNetlistResponse>
     handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schematic::types::GetSchematicNetlist>& aCtx );
 
+    /// Give a sheet created over the API the file-backed screen its Sheetfile field asks for:
+    /// share the screen when the file is already part of the design, load the file when it
+    /// exists on disk, or create a new screen for it.  This never presents UI so that it can
+    /// also run in a headless session.  Returns an error message on failure.
+    std::optional<std::string> initSheetScreen( SCH_SHEET* aSheet,
+                                                const SCH_SHEET_PATH& aParentPath );
+
     SCHEMATIC* schematic() const;
 
     void filterValidSchTypes( std::set<KICAD_T>& aTypeList );
