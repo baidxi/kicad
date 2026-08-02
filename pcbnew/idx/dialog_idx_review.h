@@ -48,6 +48,7 @@ public:
 
 protected:
     void OnGridCellClick( wxGridEvent& event ) override;
+    void OnGridCellChanging( wxGridEvent& event );
     void OnAcceptAll( wxCommandEvent& event ) override;
     void OnRejectAll( wxCommandEvent& event ) override;
     void onItemActivated( wxDataViewEvent& event ) override;
@@ -65,6 +66,7 @@ private:
     void refreshPreview();
     void OnResize( wxSizeEvent& event );
     void AddChange( KICAD_IDX_CHANGE& aChange );
+    void updateGUIForBaseline();
 
     std::shared_ptr<idx_foundation::EDMD_DATA_SET> m_loadedDataset;
 
@@ -82,6 +84,7 @@ private:
     std::vector<bool>                                               m_historyReady;
     std::shared_ptr<KIDX_REGISTRY_KICAD>                            m_reg;
     std::shared_ptr<IDX_FILE_REGISTRY>                              m_currentFile;
+    bool                                                            m_isBaseline = false;
 };
 
 #endif // DIALOG_IDX_REVIEW_H

@@ -57,7 +57,8 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
         DIALOG__IDX_REVIEW_BASE( aParent ),
         m_parent( aParent ),
         m_board( aParent->GetBoard() ),
-        m_dummyBoard( nullptr )
+        m_dummyBoard( nullptr ),
+        m_isBaseline( false )
 {
     if( !m_changeGrid )
         return;
@@ -75,6 +76,10 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::STATUS, _( "Status" ) );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::COMMENT, _( "Comment" ) );
     m_changeGrid->SetColLabelValue( IDX_REVIEW_COLS::REJECT_COMMENT, _( "Reject Comment" ) );
+    
+    // Connect to cell changing event to prevent value changes for baseline files
+    m_changeGrid->Connect( wxEVT_GRID_CELL_CHANGING, wxGridEventHandler( DIALOG_IDX_REVIEW::OnGridCellChanging ), nullptr, this );
+    
     prepareCanvas();
 
     m_changeGrid->AutoSizeColumns();
@@ -95,6 +100,9 @@ DIALOG_IDX_REVIEW::DIALOG_IDX_REVIEW( PCB_BASE_FRAME* aParent, BOARD_COMMIT* aCo
 
 DIALOG_IDX_REVIEW::~DIALOG_IDX_REVIEW()
 {
+    // Disconnect custom event handlers
+    if( m_changeGrid )
+        m_changeGrid->Disconnect( wxEVT_GRID_CELL_CHANGING, wxGridEventHandler( DIALOG_IDX_REVIEW::OnGridCellChanging ), nullptr, this );
 }
 
 void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange )
@@ -129,7 +137,7 @@ void DIALOG_IDX_REVIEW::AddChange( KICAD_IDX_CHANGE& aChange )
 
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::NAME );
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::TYPE );
-    m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::ACCEPT );
+    // ACCEPT column read-only is handled by updateGUIForBaseline() based on file type
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::STATUS );
     m_changeGrid->SetReadOnly( row, IDX_REVIEW_COLS::COMMENT );
 
@@ -158,6 +166,23 @@ void DIALOG_IDX_REVIEW::prepareCanvas()
     Bind( wxEVT_SIZE, &DIALOG_IDX_REVIEW::OnResize, this );
 }
 
+void DIALOG_IDX_REVIEW::OnGridCellChanging( wxGridEvent& event )
+{
+    // Prevent value changes in ACCEPT column for baseline files
+    int row = event.GetRow();
+    int col = event.GetCol();
+    
+    if( col == IDX_REVIEW_COLS::ACCEPT && m_isBaseline )
+    {
+        // Veto the change - do not allow the cell value to change
+        event.Veto();
+        return;
+    }
+    
+    event.Skip();
+}
+
+
 void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
 {
     // Get the row and column of the clicked cell
@@ -172,13 +197,26 @@ void DIALOG_IDX_REVIEW::OnGridCellClick( wxGridEvent& event )
 
 
     // Only toggle the checkbox when the "ACCEPT" column is clicked
+    // For baseline files, checkboxes are disabled and cannot be toggled
     if( col == IDX_REVIEW_COLS::ACCEPT )
     {
-        wxString currentValue = m_changeGrid->GetCellValue( row, col );
-        wxString newValue = ( currentValue == "1" ) ? "0" : "1";
+        if( m_isBaseline )
+        {
+            // For baseline files: revert any toggle and prevent further processing
+            // The grid may have already toggled the checkbox, so we force it back to checked
+            m_changeGrid->SetCellValue( row, col, "1" );
+            m_changes[row].first = true;
+            event.Skip( false );
+            return;
+        }
+        else
+        {
+            wxString currentValue = m_changeGrid->GetCellValue( row, col );
+            wxString newValue = ( currentValue == "1" ) ? "0" : "1";
 
-        m_changeGrid->SetCellValue( row, col, newValue );
-        m_changes[row].first = ( newValue == "1" );
+            m_changeGrid->SetCellValue( row, col, newValue );
+            m_changes[row].first = ( newValue == "1" );
+        }
     }
 
     if( !m_panelPreview )
@@ -328,7 +366,8 @@ void DIALOG_IDX_REVIEW::OnCancel( wxCommandEvent& event )
 
 void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
 {
-    if( !m_changeGrid )
+    // Baseline files cannot have changes rejected - skip if in baseline mode
+    if( m_isBaseline || !m_changeGrid )
         return;
 
     for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
@@ -341,7 +380,8 @@ void DIALOG_IDX_REVIEW::OnAcceptAll( wxCommandEvent& event )
 
 void DIALOG_IDX_REVIEW::OnRejectAll( wxCommandEvent& event )
 {
-    if( !m_changeGrid )
+    // Baseline files cannot have changes rejected - skip if in baseline mode
+    if( m_isBaseline || !m_changeGrid )
         return;
 
     for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
@@ -439,6 +479,20 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
         return false;
 
     m_idx = aIDX;
+    
+    // Check if this is a baseline (SendInformation) file
+    m_isBaseline = false;
+    if( m_loadedDataset && m_loadedDataset->m_processInstruction.size() > 0 )
+    {
+        auto firstPI = m_loadedDataset->m_processInstruction[0];
+        if( firstPI->m_processType == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION )
+        {
+            m_isBaseline = true;
+        }
+    }
+    
+    updateGUIForBaseline();
+    
     std::unique_ptr<BOX2I> bb;
     int                    i = 0;
     for( std::shared_ptr<KICAD_IDX_CHANGE>& change : m_idx->Process() )
@@ -476,11 +530,62 @@ bool DIALOG_IDX_REVIEW::loadIDX( std::shared_ptr<KICAD_IDX> aIDX )
 }
 
 
+void DIALOG_IDX_REVIEW::updateGUIForBaseline()
+{
+    // For baseline files (SendInformation), disable all accept/reject controls
+    // as per IDX 4.5 specification: baseline must be automatically accepted
+    if( m_isBaseline )
+    {
+        // Disable Accept All and Reject All buttons
+        if( m_acceptAll )
+            m_acceptAll->Disable();
+        if( m_rejectAll )
+            m_rejectAll->Disable();
+        
+        // Disable and grey out all checkboxes in the Accept column
+        if( m_changeGrid && m_changeGrid->GetNumberRows() > 0 )
+        {
+            wxColour greyColor( 192, 192, 192 ); // Light grey
+            for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
+            {
+                m_changeGrid->SetReadOnly( i, IDX_REVIEW_COLS::ACCEPT, true );
+                // Also set them to checked (accepted) by default
+                m_changeGrid->SetCellValue( i, IDX_REVIEW_COLS::ACCEPT, "1" );
+                m_changes[i].first = true;
+                // Visually grey out the cell
+                m_changeGrid->SetCellBackgroundColour( i, IDX_REVIEW_COLS::ACCEPT, greyColor );
+                m_changeGrid->SetCellTextColour( i, IDX_REVIEW_COLS::ACCEPT, *wxLIGHT_GREY );
+            }
+        }
+    }
+    else
+    {
+        // For non-baseline files (SendChanges), enable the controls
+        if( m_acceptAll )
+            m_acceptAll->Enable();
+        if( m_rejectAll )
+            m_rejectAll->Enable();
+        
+        // Enable all checkboxes in the Accept column
+        if( m_changeGrid && m_changeGrid->GetNumberRows() > 0 )
+        {
+            for( int i = 0; i < m_changeGrid->GetNumberRows(); i++ )
+            {
+                m_changeGrid->SetReadOnly( i, IDX_REVIEW_COLS::ACCEPT, false );
+                // Reset to default colors
+                m_changeGrid->SetCellBackgroundColour( i, IDX_REVIEW_COLS::ACCEPT, *wxWHITE );
+                m_changeGrid->SetCellTextColour( i, IDX_REVIEW_COLS::ACCEPT, *wxBLACK );
+            }
+        }
+    }
+}
+
+
 void DIALOG_IDX_REVIEW::clearIDX()
 {
     m_objects.clear();
     m_changes.clear();
-
+    m_isBaseline = false;
 
     if( m_changeGrid )
         m_changeGrid->DeleteRows( 0, m_changeGrid->GetNumberRows() );
@@ -612,14 +717,14 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
         // Apply the accepted changes to the board
         m_idx->Apply( GetAccepted() );
 
-        // Check if the current dataset is a SendInformation message
-        // If so, generate and save a SendInformation response
-        if( m_loadedDataset && m_loadedDataset->m_processInstruction.size() > 0 )
+        // Per IDX 4.5 specification: Do NOT send a response file for baseline (SendInformation) messages
+        // Response files are only for SendChanges messages (proposed changes)
+        if( !m_isBaseline && m_loadedDataset && m_loadedDataset->m_processInstruction.size() > 0 )
         {
             auto firstPI = m_loadedDataset->m_processInstruction[0];
-            if( firstPI->m_processType == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION )
+            if( firstPI->m_processType == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
             {
-                // Generate SendInformation response file
+                // For SendChanges messages, generate and save a response file
                 wxString responseFilename = m_currentFile->GetName() + wxT( ".response.idx" );
 
                 // Use the collaboration folder if set, otherwise use the current file's directory
@@ -647,15 +752,15 @@ void DIALOG_IDX_REVIEW::OnApply( wxCommandEvent& event )
                     acceptStatus.push_back( changePair.first );
                 }
 
-                // Use KICAD_IDX to create and save the response
+                // Use KICAD_IDX to create and save the response for SendChanges
                 auto responseDataset = m_idx->SaveSendInformationResponse( responsePath.ToStdString(), acceptStatus );
                 if( !responseDataset )
                 {
-                    wxLogError( wxT( "Error: Failed to save SendInformation response to %s" ), responsePath );
+                    wxLogError( wxT( "Error: Failed to save SendChanges response to %s" ), responsePath );
                 }
                 else
                 {
-                    wxLogMessage( wxT( "SendInformation response saved to: %s" ), responsePath );
+                    wxLogMessage( wxT( "SendChanges response saved to: %s" ), responsePath );
 
                     // Add the response file to the registry
                     auto responseFile = std::make_shared<IDX_FILE_REGISTRY_KICAD>();
