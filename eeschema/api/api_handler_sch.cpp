@@ -1087,13 +1087,11 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
 
         if( item->Type() == SCH_SHEET_PIN_T )
         {
-            // Sheet pins are children of their sheet, not screen-level
-            // items: COMMIT::Remove() would stage a screen removal that
-            // never applies while still reporting success. Mirror the
-            // GUI delete path instead: modify the parent sheet and
-            // detach the pin.
+            // COMMIT::Stage() remaps a child item to a modify of its parent, so removing a
+            // sheet pin through the commit only stages a no-op modify of the sheet and leaves
+            // the pin in place.  Mirror SCH_EDIT_TOOL::DoDelete instead.
             SCH_SHEET_PIN* pin = static_cast<SCH_SHEET_PIN*>( item );
-            SCH_SHEET*     sheet = static_cast<SCH_SHEET*>( pin->GetParent() );
+            SCH_SHEET*     sheet = pin->GetParent();
 
             if( !sheet )
             {
@@ -1101,8 +1099,13 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
                 continue;
             }
 
-            commit->Modify( sheet, path.LastScreen() );
-            sheet->RemovePin( pin );
+            // A sheet deleted in the same request takes its pins with it; staging the pin
+            // removal too would put both a modify and a remove of the sheet in the commit.
+            if( !aItemsToDelete.contains( sheet->m_Uuid ) )
+            {
+                commit->Modify( sheet, path.LastScreen() );
+                sheet->RemovePin( pin );
+            }
         }
         else
         {
