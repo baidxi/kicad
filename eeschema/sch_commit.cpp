@@ -241,6 +241,12 @@ void SCH_COMMIT::pushSchEdit( const wxString& aMessage, int aCommitFlags )
         wxCHECK2( schItem, continue );
         wxCHECK2( screen, continue );
 
+        // Push() only dirties the frame's current screen (through OnModify()), but a commit
+        // may touch items on any number of sheets, so flag each modified screen here.  The
+        // per-screen dirty flag drives the autosave filters and the save-on-close prompt.
+        if( !( aCommitFlags & SKIP_SET_DIRTY ) )
+            screen->SetContentModified();
+
         if( !schematic )
             schematic = schItem->Schematic();
 
