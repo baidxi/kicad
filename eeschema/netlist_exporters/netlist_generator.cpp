@@ -239,8 +239,11 @@ bool SCH_EDIT_FRAME::CanCreateNetlist()
     Schematic().Hierarchy().AnnotatePowerSymbols();
 
     // Symbols must be annotated
-    if( CheckAnnotate( []( ERCE_T, const wxString&, SCH_REFERENCE*, SCH_REFERENCE* ) {},
-                       ANNOTATE_ALL, true, SYMBOL_FILTER_NON_POWER ) )
+    if( CheckAnnotate(
+                []( ERCE_T, const wxString&, SCH_REFERENCE*, SCH_REFERENCE* )
+                {
+                },
+                ANNOTATE_ALL, true, SYMBOL_FILTER_NON_POWER ) )
     {
         return false;
     }

@@ -1731,8 +1731,7 @@ namespace
 class API_NETLIST_REPORTER : public REPORTER
 {
 public:
-    REPORTER& Report( const wxString& aText,
-                      SEVERITY        aSeverity = RPT_SEVERITY_UNDEFINED ) override
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_SEVERITY_UNDEFINED ) override
     {
         REPORTER::Report( aText, aSeverity );
 
@@ -1749,21 +1748,20 @@ public:
     }
 
     const std::vector<std::pair<SEVERITY, wxString>>& Entries() const { return m_entries; }
-    int Errors() const   { return m_errors; }
-    int Warnings() const { return m_warnings; }
+    int                                               Errors() const { return m_errors; }
+    int                                               Warnings() const { return m_warnings; }
 
 private:
     std::vector<std::pair<SEVERITY, wxString>> m_entries;
-    int m_errors{ 0 };
-    int m_warnings{ 0 };
+    int                                        m_errors{ 0 };
+    int                                        m_warnings{ 0 };
 };
 
 } // anonymous namespace
 
 
 HANDLER_RESULT<UpdatePCBFromSchematicResponse>
-API_HANDLER_PCB::handleUpdatePCBFromSchematic(
-        const HANDLER_CONTEXT<UpdatePCBFromSchematic>& aCtx )
+API_HANDLER_PCB::handleUpdatePCBFromSchematic( const HANDLER_CONTEXT<UpdatePCBFromSchematic>& aCtx )
 {
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
@@ -1821,7 +1819,7 @@ API_HANDLER_PCB::handleUpdatePCBFromSchematic(
     try
     {
         // KICAD_NETLIST_READER takes ownership of the LINE_READER pointer.
-        auto* lineReader = new STRING_LINE_READER( payload, wxS( "Eeschema netlist" ) );
+        auto*                lineReader = new STRING_LINE_READER( payload, wxS( "Eeschema netlist" ) );
         KICAD_NETLIST_READER netlistReader( lineReader, &netlist );
         netlistReader.LoadNetlist();
     }
@@ -1829,8 +1827,7 @@ API_HANDLER_PCB::handleUpdatePCBFromSchematic(
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( fmt::format( "failed to parse schematic netlist: {}",
-                                          ioe.What().ToStdString() ) );
+        e.set_error_message( fmt::format( "failed to parse schematic netlist: {}", ioe.What().ToStdString() ) );
         return tl::unexpected( e );
     }
 
