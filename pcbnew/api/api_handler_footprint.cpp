@@ -76,8 +76,8 @@ tl::expected<bool, ApiResponseStatus> API_HANDLER_FOOTPRINT::validateDocumentInt
     if( aDocument.type() != DocumentType::DOCTYPE_FOOTPRINT )
     {
         ApiResponseStatus e;
-        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( "the requested document is not a footprint" );
+        e.set_status( ApiStatusCode::AS_UNHANDLED );
+        // No error message, this is a flag that the server should try a different handler
         return tl::unexpected( e );
     }
 
