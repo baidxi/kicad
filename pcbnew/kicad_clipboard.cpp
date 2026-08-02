@@ -114,8 +114,7 @@ wxString CLIPBOARD_IO::clipboardReader()
 }
 
 
-void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootprintEditor,
-                                  std::vector<KIID>* aSavedIds )
+void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootprintEditor, std::vector<KIID>* aSavedIds )
 {
     VECTOR2I refPoint( 0, 0 );
 
@@ -126,12 +125,11 @@ void CLIPBOARD_IO::SaveSelection( const PCB_SELECTION& aSelected, bool isFootpri
     if( aSelected.Empty() )
         return;
 
-    auto recordSavedId =
-            [&]( const BOARD_ITEM* aItem )
-            {
-                if( aSavedIds )
-                    aSavedIds->push_back( aItem->m_Uuid );
-            };
+    auto recordSavedId = [&]( const BOARD_ITEM* aItem )
+    {
+        if( aSavedIds )
+            aSavedIds->push_back( aItem->m_Uuid );
+    };
 
     if( aSelected.HasReferencePoint() )
         refPoint = aSelected.GetReferencePoint();

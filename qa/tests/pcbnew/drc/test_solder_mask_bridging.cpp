@@ -117,30 +117,27 @@ BOOST_FIXTURE_TEST_CASE( DRCSolderMaskBridgeDeterminismTest, DRC_SOLDER_MASK_BRI
                     return;
 
                 sig.push_back( wxString::Format( "%d,%d,%d,%s,%s,%s", aLayer, aPos.x, aPos.y,
-                                                 aItem->GetMainItemID().AsString(),
-                                                 aItem->GetAuxItemID().AsString(),
+                                                 aItem->GetMainItemID().AsString(), aItem->GetAuxItemID().AsString(),
                                                  aItem->GetAuxItem2ID().AsString() ) );
 
                 // Mirror of the provider's reporting order: layer, then the UUIDs of the
                 // participating items.  Only the populated ids are sorted, so the unused third slot
                 // of a two-item violation stays trailing exactly as the provider leaves it.
-                std::array<KIID, 3> ids = { aItem->GetMainItemID(), aItem->GetAuxItemID(),
-                                            aItem->GetAuxItem2ID() };
+                std::array<KIID, 3> ids = { aItem->GetMainItemID(), aItem->GetAuxItemID(), aItem->GetAuxItem2ID() };
 
                 std::sort( ids.begin(), ids.end() - ( ids[2] == niluuid ? 1 : 0 ) );
 
                 emissionKeys.push_back( { aLayer, ids } );
             } );
 
-    auto runDrc =
-            [&]() -> std::vector<wxString>
-            {
-                KI_TEST::FillZones( m_board.get() );
-                sig.clear();
-                emissionKeys.clear();
-                bds.m_DRCEngine->RunTests( EDA_UNITS::MM, true, false );
-                return sig;
-            };
+    auto runDrc = [&]() -> std::vector<wxString>
+    {
+        KI_TEST::FillZones( m_board.get() );
+        sig.clear();
+        emissionKeys.clear();
+        bds.m_DRCEngine->RunTests( EDA_UNITS::MM, true, false );
+        return sig;
+    };
 
     std::vector<wxString> ref = runDrc();
 
@@ -160,9 +157,8 @@ BOOST_FIXTURE_TEST_CASE( DRCSolderMaskBridgeDeterminismTest, DRC_SOLDER_MASK_BRI
     {
         std::vector<wxString> cur = runDrc();
 
-        BOOST_CHECK_MESSAGE( cur == ref,
-                             wxString::Format( "solder_mask_bridge report differs on run %d "
-                                               "(%zu vs %zu violations)",
-                                               run, cur.size(), ref.size() ) );
+        BOOST_CHECK_MESSAGE( cur == ref, wxString::Format( "solder_mask_bridge report differs on run %d "
+                                                           "(%zu vs %zu violations)",
+                                                           run, cur.size(), ref.size() ) );
     }
 }

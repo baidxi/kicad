@@ -61,8 +61,7 @@ public:
      * written as dependents of a selected item (group children, carried constraints) are not
      * listed separately.
      */
-    void SaveSelection( const PCB_SELECTION& selected, bool isFootprintEditor,
-                        std::vector<KIID>* savedIds = nullptr );
+    void SaveSelection( const PCB_SELECTION& selected, bool isFootprintEditor, std::vector<KIID>* savedIds = nullptr );
 
     BOARD_ITEM* Parse();
 
