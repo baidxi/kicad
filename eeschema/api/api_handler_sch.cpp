@@ -157,18 +157,14 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<RunAction, RunActionResponse>( &API_HANDLER_SCH::handleRunAction );
     registerHandler<RevertDocument, Empty>( &API_HANDLER_SCH::handleRevertDocument );
 
-    registerHandler<GetBoundingBox, GetBoundingBoxResponse>(
-            &API_HANDLER_SCH::handleGetBoundingBox );
+    registerHandler<GetBoundingBox, GetBoundingBoxResponse>( &API_HANDLER_SCH::handleGetBoundingBox );
 
-    registerHandler<SaveDocumentToString, SavedDocumentResponse>(
-            &API_HANDLER_SCH::handleSaveDocumentToString );
-    registerHandler<SaveSelectionToString, SavedSelectionResponse>(
-            &API_HANDLER_SCH::handleSaveSelectionToString );
+    registerHandler<SaveDocumentToString, SavedDocumentResponse>( &API_HANDLER_SCH::handleSaveDocumentToString );
+    registerHandler<SaveSelectionToString, SavedSelectionResponse>( &API_HANDLER_SCH::handleSaveSelectionToString );
     registerHandler<ParseAndCreateItemsFromString, CreateItemsResponse>(
             &API_HANDLER_SCH::handleParseAndCreateItemsFromString );
 
-    registerHandler<ExpandTextVariables, ExpandTextVariablesResponse>(
-            &API_HANDLER_SCH::handleExpandTextVariables );
+    registerHandler<ExpandTextVariables, ExpandTextVariablesResponse>( &API_HANDLER_SCH::handleExpandTextVariables );
 }
 
 
@@ -1607,8 +1603,7 @@ API_HANDLER_SCH::handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schemat
 }
 
 
-HANDLER_RESULT<RunActionResponse>
-API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
+HANDLER_RESULT<RunActionResponse> API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
 {
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "RunAction" ) )
         return tl::unexpected( *headless );
@@ -1627,8 +1622,7 @@ API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
 }
 
 
-HANDLER_RESULT<Empty>
-API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aCtx )
+HANDLER_RESULT<Empty> API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aCtx )
 {
     // Validate first so a request meant for another editor's document is not captured here
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
@@ -1675,8 +1669,7 @@ API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aC
 
         if( m_frame->GetCurrentSheet() != rootSheetPath )
         {
-            toolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet,
-                                                       &rootSheetPath );
+            toolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet, &rootSheetPath );
         }
     }
 
@@ -1715,7 +1708,7 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
 
     for( const types::KIID& idMsg : aCtx.Request.items() )
     {
-        KIID id( idMsg.value() );
+        KIID                     id( idMsg.value() );
         std::optional<SCH_ITEM*> optItem = getItemById( id );
 
         if( !optItem )
@@ -1796,7 +1789,7 @@ API_HANDLER_SCH::handleSaveDocumentToString( const HANDLER_CONTEXT<SaveDocumentT
     SavedDocumentResponse response;
     response.mutable_document()->CopyFrom( aCtx.Request.document() );
 
-    STRING_FORMATTER formatter;
+    STRING_FORMATTER   formatter;
     SCH_IO_KICAD_SEXPR io;
     io.FormatSchematicToFormatter( &formatter, target, sch );
 
@@ -1842,7 +1835,7 @@ API_HANDLER_SCH::handleSaveSelectionToString( const HANDLER_CONTEXT<SaveSelectio
     SCH_SELECTION& selection = selectionTool->GetSelection();
     SCH_SHEET_PATH currentSheet = *sheetOpt;
 
-    STRING_FORMATTER formatter;
+    STRING_FORMATTER   formatter;
     SCH_IO_KICAD_SEXPR io;
     io.Format( &selection, &currentSheet, *sch, &formatter, /* aForClipboard = */ true );
 
@@ -1861,8 +1854,7 @@ API_HANDLER_SCH::handleSaveSelectionToString( const HANDLER_CONTEXT<SaveSelectio
 
 
 HANDLER_RESULT<CreateItemsResponse>
-API_HANDLER_SCH::handleParseAndCreateItemsFromString(
-        const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
+API_HANDLER_SCH::handleParseAndCreateItemsFromString( const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
 {
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
@@ -1919,7 +1911,7 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
 
     SCH_SCREEN* tempScreen = new SCH_SCREEN( sch );
     SCH_SHEET   tempSheet;
-    tempSheet.SetScreen( tempScreen );        // tempSheet now owns tempScreen
+    tempSheet.SetScreen( tempScreen ); // tempSheet now owns tempScreen
 
     try
     {
@@ -1929,8 +1921,7 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
     {
         ApiResponseStatus err;
         err.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        err.set_error_message( fmt::format( "could not parse clipboard contents: {}",
-                                            e.What().ToStdString() ) );
+        err.set_error_message( fmt::format( "could not parse clipboard contents: {}", e.What().ToStdString() ) );
         return tl::unexpected( err );
     }
 
@@ -1948,14 +1939,12 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
         // TestForRecursion.  A cloned group would carry raw pointers to the members owned by the
         // transient screen, which are freed when this handler returns.  Types outside
         // s_allowedTypes (e.g. tables) have no proto mapping at all.
-        if( item->Type() == SCH_SHEET_T || item->Type() == SCH_GROUP_T
-            || !s_allowedTypes.contains( item->Type() ) )
+        if( item->Type() == SCH_SHEET_T || item->Type() == SCH_GROUP_T || !s_allowedTypes.contains( item->Type() ) )
         {
             status.set_code( ItemStatusCode::ISC_INVALID_TYPE );
-            status.set_error_message(
-                    fmt::format( "type {} cannot be created from a string by the schematic API "
-                                 "handler",
-                                 magic_enum::enum_name( item->Type() ) ) );
+            status.set_error_message( fmt::format( "type {} cannot be created from a string by the schematic API "
+                                                   "handler",
+                                                   magic_enum::enum_name( item->Type() ) ) );
             itemResult.mutable_status()->CopyFrom( status );
             response.mutable_created_items()->Add( std::move( itemResult ) );
             continue;
@@ -2031,8 +2020,7 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
 HANDLER_RESULT<ExpandTextVariablesResponse>
 API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVariables>& aCtx )
 {
-    if( !aCtx.Request.has_document()
-        || aCtx.Request.document().type() != DocumentType::DOCTYPE_SCHEMATIC )
+    if( !aCtx.Request.has_document() || aCtx.Request.document().type() != DocumentType::DOCTYPE_SCHEMATIC )
     {
         // Let the COMMON handler take project-typed requests; this one is schematic-only.
         // No message needed for AS_UNHANDLED; this is an internal flag for the API server
@@ -2057,14 +2045,13 @@ API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVari
     }
 
     SCH_SHEET_LIST hierarchy = sch->Hierarchy();
-    SCH_SHEET_PATH sheetPath = m_context->GetCurrentSheet().value_or(
-            hierarchy.empty() ? SCH_SHEET_PATH() : hierarchy.front() );
+    SCH_SHEET_PATH sheetPath =
+            m_context->GetCurrentSheet().value_or( hierarchy.empty() ? SCH_SHEET_PATH() : hierarchy.front() );
 
-    std::function<bool( wxString* )> resolver =
-            [sch, sheetPath]( wxString* token ) -> bool
-            {
-                return sch->ResolveTextVar( &sheetPath, token, 0 );
-            };
+    std::function<bool( wxString* )> resolver = [sch, sheetPath]( wxString* token ) -> bool
+    {
+        return sch->ResolveTextVar( &sheetPath, token, 0 );
+    };
 
     ExpandTextVariablesResponse reply;
 

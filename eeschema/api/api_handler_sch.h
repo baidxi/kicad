@@ -153,11 +153,9 @@ private:
     HANDLER_RESULT<kiapi::schematic::types::SchematicNetlistResponse>
     handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schematic::types::GetSchematicNetlist>& aCtx );
 
-    HANDLER_RESULT<commands::RunActionResponse>
-    handleRunAction( const HANDLER_CONTEXT<commands::RunAction>& aCtx );
+    HANDLER_RESULT<commands::RunActionResponse> handleRunAction( const HANDLER_CONTEXT<commands::RunAction>& aCtx );
 
-    HANDLER_RESULT<Empty> handleRevertDocument(
-            const HANDLER_CONTEXT<commands::RevertDocument>& aCtx );
+    HANDLER_RESULT<Empty> handleRevertDocument( const HANDLER_CONTEXT<commands::RevertDocument>& aCtx );
 
     HANDLER_RESULT<commands::GetBoundingBoxResponse>
     handleGetBoundingBox( const HANDLER_CONTEXT<commands::GetBoundingBox>& aCtx );
@@ -169,8 +167,7 @@ private:
     handleSaveSelectionToString( const HANDLER_CONTEXT<commands::SaveSelectionToString>& aCtx );
 
     HANDLER_RESULT<commands::CreateItemsResponse>
-    handleParseAndCreateItemsFromString(
-            const HANDLER_CONTEXT<commands::ParseAndCreateItemsFromString>& aCtx );
+    handleParseAndCreateItemsFromString( const HANDLER_CONTEXT<commands::ParseAndCreateItemsFromString>& aCtx );
 
     HANDLER_RESULT<commands::ExpandTextVariablesResponse>
     handleExpandTextVariables( const HANDLER_CONTEXT<commands::ExpandTextVariables>& aCtx );
