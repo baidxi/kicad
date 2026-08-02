@@ -343,8 +343,7 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     // an explicit "mirror off" can land on the canonicalised axis and cancel
     // the rotation+mirror that was just applied.
     {
-        int orientation =
-                FromProtoEnum<SYMBOL_ORIENTATION_PROP>( symbol.transform().orientation() );
+        int orientation = FromProtoEnum<SYMBOL_ORIENTATION_PROP>( symbol.transform().orientation() );
 
         if( symbol.transform().mirror_x() )
             orientation |= SYMBOL_ORIENTATION_T::SYM_MIRROR_X;
