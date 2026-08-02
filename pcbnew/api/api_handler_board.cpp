@@ -372,18 +372,16 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_BOARD::handleCreateUpdateItemsInte
             if( !IsCopperLayer( item->GetLayer() ) )
             {
                 status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                status.set_error_message(
-                        fmt::format( "{} requires a copper layer, got {}",
-                                     item->GetClass().ToStdString(),
-                                     LayerName( item->GetLayer() ).ToStdString() ) );
+                status.set_error_message( fmt::format( "{} requires a copper layer, got {}",
+                                                       item->GetClass().ToStdString(),
+                                                       LayerName( item->GetLayer() ).ToStdString() ) );
                 aItemHandler( status, anyItem );
                 continue;
             }
 
             break;
 
-        default:
-            break;
+        default: break;
         }
 
         status.set_code( ItemStatusCode::ISC_OK );
