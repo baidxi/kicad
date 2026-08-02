@@ -68,7 +68,6 @@
 #include <name_validation.h>
 #include <project_pcb.h>
 #include <footprint_library_adapter.h>
-#include <io/io_mgr.h>
 #include <refdes_utils.h>
 #include <string_utils.h>
 #include <view/view.h>
@@ -81,6 +80,28 @@
 #include <api/api_pcb_utils.h>
 #include <properties/property.h>
 #include <properties/property_mgr.h>
+
+
+/**
+ * Footprint drawings that store their geometry in the parent's library frame and derive board
+ * coordinates through the footprint transform when read.  The rest (reference images) still hold
+ * absolute board coordinates and have to be moved / rotated explicitly when the parent moves.
+ */
+static bool isTransformAwareDrawing( KICAD_T aType )
+{
+    switch( aType )
+    {
+    case PCB_TEXT_T:
+    case PCB_SHAPE_T:
+    case PCB_TEXTBOX_T:
+    case PCB_BARCODE_T:
+    case PCB_TABLE_T:
+        return true;
+
+    default:
+        return BaseType( aType ) == PCB_DIMENSION_T;
+    }
+}
 
 
 FOOTPRINT::FOOTPRINT( BOARD* parent ) :
@@ -668,183 +689,190 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
             Add( item.release(), ADD_MODE::APPEND );
     }
 
-    // "Place a new footprint from a library reference" path: when the proto
-    // carried no inline geometry (the dominant case for IPC clients, who
-    // send only an FPID + position and rely on KiCad already having the
-    // libraries loaded), resolve the FPID through the project's
-    // FP_LIB_TABLE and copy the loaded footprint's pads, graphics,
-    // models, zones, and groups onto this instance. Without this fallback
-    // an IPC CreateItems request reports ISC_OK but lands an unrenderable
-    // empty shell -- no pads to solder to, no silk, no courtyard, no fab
-    // graphics. Mirrors the schematic-side fix in SCH_SYMBOL::Deserialize
-    // (commit 4e43156c35).
+    // "Place a new footprint from a library reference" path: when the proto carried no inline
+    // geometry (the dominant case for IPC clients, who send only an FPID + position and rely on
+    // KiCad already having the libraries loaded), resolve the FPID through the project's
+    // FP_LIB_TABLE and copy the library footprint's geometry onto this instance.  Without this
+    // fallback an IPC CreateItems request reports ISC_OK but lands an unrenderable empty shell --
+    // no pads to solder to, no silk, no courtyard, no fab graphics.
     if( footprint.definition().items_size() == 0 && GetFPID().IsValid() )
     {
-        if( BOARD* brd = GetBoard() )
+        BOARD*   brd = GetBoard();
+        PROJECT* prj = brd ? brd->GetProject() : nullptr;
+
+        if( FOOTPRINT_LIBRARY_ADAPTER* adapter = prj ? PROJECT_PCB::FootprintLibAdapter( prj )
+                                                     : nullptr )
         {
-            if( PROJECT* prj = brd->GetProject() )
-            {
-                if( FOOTPRINT_LIBRARY_ADAPTER* adapter =
-                            PROJECT_PCB::FootprintLibAdapter( prj ) )
-                {
-                    FOOTPRINT* loaded = nullptr;
+            // LoadFootprint() handles its own IO errors and returns nullptr for an FPID that
+            // can't be resolved; in that case leave the empty shell rather than failing the
+            // whole request.
+            std::unique_ptr<FOOTPRINT> loaded( adapter->LoadFootprint( GetFPID(),
+                                                                      /* aKeepUUID */ false ) );
 
-                    try
-                    {
-                        loaded = adapter->LoadFootprint( GetFPID(),
-                                                         /* aKeepUUID */ false );
-                    }
-                    catch( const IO_ERROR& )
-                    {
-                        // Unresolvable FPID -- leave the empty shell as
-                        // before so the request doesn't fail outright,
-                        // but the caller will see no pads / graphics.
-                    }
-
-                    if( loaded )
-                    {
-                        // Footprints carry a TRANSFORM_TRS: pads, shapes,
-                        // text, zones, dimensions, etc. store their geometry
-                        // in the parent footprint's library frame and derive
-                        // board coordinates through the transform at read
-                        // time. A child cloned from the library footprint
-                        // (whose transform is identity, so its library-frame
-                        // data equals its board data) already holds the
-                        // correct library-frame values; re-parenting it onto
-                        // this placed footprint applies the placement
-                        // automatically. Rotating / moving the clone here
-                        // would bake the placement into the library-frame
-                        // data and double-apply it. All that's needed is to
-                        // poke items that cache baked board-frame geometry
-                        // (PCB_SHAPE bakes into EDA_SHAPE, PCB_TEXT bakes
-                        // the draw angle, PAD bakes padstack orientation) so
-                        // they rebake under the new parent transform.
-                        //
-                        // The only footprint children that still store
-                        // absolute board coordinates are the non transform
-                        // aware drawings (reference images -- mirror the
-                        // type test in FOOTPRINT::SetPosition); those get
-                        // rotated / translated into place manually, like a
-                        // fully-loaded footprint's children would have been
-                        // by FOOTPRINT::Move / SetOrientation.
-                        const VECTOR2I  delta     = GetPosition() - loaded->GetPosition();
-                        const EDA_ANGLE rot       = GetOrientation() - loaded->GetOrientation();
-                        const VECTOR2I  rotCentre = loaded->GetPosition();
-
-                        auto isTransformAware =
-                                []( const BOARD_ITEM* aChild )
-                                {
-                                    return aChild->Type() == PCB_TEXT_T
-                                            || aChild->Type() == PCB_SHAPE_T
-                                            || aChild->Type() == PCB_TEXTBOX_T
-                                            || aChild->Type() == PCB_BARCODE_T
-                                            || aChild->Type() == PCB_TABLE_T
-                                            || BaseType( aChild->Type() ) == PCB_DIMENSION_T;
-                                };
-
-                        for( PAD* pad : loaded->Pads() )
-                        {
-                            PAD* cloned = static_cast<PAD*>( pad->Clone() );
-                            Add( cloned, ADD_MODE::APPEND );
-                            cloned->OnFootprintTransformed();
-                        }
-
-                        for( BOARD_ITEM* g : loaded->GraphicalItems() )
-                        {
-                            BOARD_ITEM* cloned = static_cast<BOARD_ITEM*>( g->Clone() );
-
-                            if( isTransformAware( cloned ) )
-                            {
-                                Add( cloned, ADD_MODE::APPEND );
-                                cloned->OnFootprintTransformed();
-                            }
-                            else
-                            {
-                                if( !rot.IsZero() )
-                                    cloned->Rotate( rotCentre, rot );
-
-                                if( delta.x != 0 || delta.y != 0 )
-                                    cloned->Move( delta );
-
-                                Add( cloned, ADD_MODE::APPEND );
-                            }
-                        }
-
-                        for( ZONE* z : loaded->Zones() )
-                        {
-                            ZONE* cloned = static_cast<ZONE*>( z->Clone() );
-                            Add( cloned, ADD_MODE::APPEND );
-                            cloned->OnFootprintTransformed();
-                        }
-
-                        Models() = loaded->Models();
-
-                        // Bug 20: copy the field geometry (position, layer,
-                        // size, angle, visibility) from the library
-                        // footprint, keeping the text content the proto
-                        // already deserialised onto each mandatory field
-                        // above. Without this, an IPC client that placed
-                        // the footprint via lib_id leaves the proto's
-                        // default-constructed (0,0) field positions in
-                        // place; on save the file ends up writing the
-                        // mandatory properties at (at -anchor_x -anchor_y)
-                        // (i.e., field absolute (0,0) minus footprint
-                        // anchor) and the silkscreen designator renders at
-                        // world origin instead of next to the part.
-                        // Non-mandatory library fields are also cloned
-                        // verbatim because items_size()==0 means the
-                        // proto's items loop didn't bring any in.
-                        for( PCB_FIELD* libField : loaded->GetFields() )
-                        {
-                            if( libField->IsMandatory() )
-                            {
-                                if( PCB_FIELD* myField = GetField( libField->GetId() ) )
-                                {
-                                    // Use SetFPRelativePosition so the
-                                    // library-relative offset is reapplied
-                                    // through this footprint's anchor +
-                                    // orientation. Plain SetPosition would
-                                    // treat the value as absolute and end up
-                                    // saving (at lib_x - anchor_x,
-                                    // lib_y - anchor_y) -- shifted by
-                                    // exactly the library offset.
-                                    myField->SetFPRelativePosition(
-                                            libField->GetFPRelativePosition() );
-                                    myField->SetLayer( libField->GetLayer() );
-                                    myField->SetTextAngle( libField->GetTextAngle() );
-                                    myField->SetTextSize( libField->GetTextSize() );
-                                    myField->SetTextThickness( libField->GetTextThickness() );
-                                    myField->SetVisible( libField->IsVisible() );
-                                    myField->SetMirrored( libField->IsMirrored() );
-                                    myField->SetItalic( libField->IsItalic() );
-                                    myField->SetBold( libField->IsBold() );
-                                    myField->SetHorizJustify( libField->GetHorizJustify() );
-                                    myField->SetVertJustify( libField->GetVertJustify() );
-                                }
-                            }
-                            else
-                            {
-                                PCB_FIELD* clonedField =
-                                        static_cast<PCB_FIELD*>( libField->Clone() );
-
-                                // Same coordinate-space issue as the
-                                // mandatory branch above: lift the cloned
-                                // field's library-relative offset onto this
-                                // footprint via SetFPRelativePosition.
-                                VECTOR2I libRel = libField->GetFPRelativePosition();
-                                Add( clonedField, ADD_MODE::APPEND );
-                                clonedField->SetFPRelativePosition( libRel );
-                            }
-                        }
-
-                        delete loaded;
-                    }
-                }
-            }
+            if( loaded )
+                copyGeometryFromLibraryFootprint( *loaded );
         }
     }
 
     return true;
+}
+
+
+void FOOTPRINT::copyGeometryFromLibraryFootprint( const FOOTPRINT& aLibFootprint )
+{
+    // Library footprints are always stored front-side, and FOOTPRINT::SetLayer() (already applied
+    // from the proto by the caller) only records the side: it does not mirror the children.  So
+    // reproduce the placement sequence every other code path uses -- clone the front-side geometry
+    // onto a front-side footprint and let FOOTPRINT::Flip() take the whole part to the back at the
+    // end.  Flip() negates the orientation, so pre-negate it here to land on the orientation the
+    // proto asked for.
+    const bool backSide = ( GetLayer() == B_Cu );
+
+    if( backSide )
+    {
+        SetLayer( F_Cu );
+        SetOrientation( -GetOrientation() );
+    }
+
+    // Footprint children hold their geometry in the parent footprint's library frame and derive
+    // board coordinates through the footprint's TRANSFORM_TRS when read.  A child cloned from a
+    // library footprint (whose transform is identity, so its library-frame data equals its board
+    // data) therefore already holds the right library-frame values, and re-parenting it here
+    // applies this footprint's placement for free; rotating or moving the clone would bake the
+    // placement into the library-frame data and double-apply it.  All that is needed is to poke
+    // the items caching baked board-frame geometry (PCB_SHAPE into EDA_SHAPE, PCB_TEXT the draw
+    // angle, PAD the padstack orientation) through OnFootprintTransformed().  The drawings that
+    // are not transform aware do store absolute board coordinates, so those are rotated and
+    // translated by hand, exactly as FOOTPRINT::SetOrientation() and SetPosition() do for them.
+    const VECTOR2I  delta = GetPosition() - aLibFootprint.GetPosition();
+    const EDA_ANGLE rot = GetOrientation() - aLibFootprint.GetOrientation();
+    const VECTOR2I  rotCentre = aLibFootprint.GetPosition();
+
+    std::map<EDA_ITEM*, EDA_ITEM*> ptrMap;
+
+    for( PCB_FIELD* libField : aLibFootprint.GetFields() )
+    {
+        if( libField->IsMandatory() )
+        {
+            PCB_FIELD* myField = GetField( libField->GetId() );
+            ptrMap[libField] = myField;
+
+            // Keep the text the proto deserialised onto the field; take everything else from the
+            // library.  The geometry has to be copied in the library frame: the board-frame
+            // setters would subtract this footprint's orientation and scale from values that are
+            // already library-relative.
+            myField->SetFPRelativePosition( libField->GetFPRelativePosition() );
+            myField->SetLibTextAngle( libField->GetLibTextAngle() );
+            myField->SetLibTextSize( libField->GetLibTextSize() );
+            myField->SetLibTextThickness( libField->GetLibTextThickness() );
+            myField->SetLayer( libField->GetLayer() );
+            myField->SetVisible( libField->IsVisible() );
+            myField->SetMirrored( libField->IsMirrored() );
+            myField->SetItalic( libField->IsItalic() );
+            myField->SetBold( libField->IsBold() );
+            myField->SetHorizJustify( libField->GetHorizJustify() );
+            myField->SetVertJustify( libField->GetVertJustify() );
+            myField->OnFootprintTransformed();
+        }
+        else
+        {
+            // items_size() == 0 means the proto's items loop brought in no user fields, so the
+            // library ones are cloned verbatim.
+            PCB_FIELD* cloned = static_cast<PCB_FIELD*>( libField->Clone() );
+            ptrMap[libField] = cloned;
+            Add( cloned, ADD_MODE::APPEND );
+            cloned->OnFootprintTransformed();
+        }
+    }
+
+    for( PAD* pad : aLibFootprint.Pads() )
+    {
+        PAD* cloned = static_cast<PAD*>( pad->Clone() );
+        ptrMap[pad] = cloned;
+        Add( cloned, ADD_MODE::APPEND );
+        cloned->OnFootprintTransformed();
+    }
+
+    for( BOARD_ITEM* item : aLibFootprint.GraphicalItems() )
+    {
+        BOARD_ITEM* cloned = static_cast<BOARD_ITEM*>( item->Clone() );
+        ptrMap[item] = cloned;
+
+        if( isTransformAwareDrawing( cloned->Type() ) )
+        {
+            Add( cloned, ADD_MODE::APPEND );
+            cloned->OnFootprintTransformed();
+        }
+        else
+        {
+            if( !rot.IsZero() )
+                cloned->Rotate( rotCentre, rot );
+
+            if( delta.x != 0 || delta.y != 0 )
+                cloned->Move( delta );
+
+            Add( cloned, ADD_MODE::APPEND );
+        }
+    }
+
+    for( ZONE* zone : aLibFootprint.Zones() )
+    {
+        ZONE* cloned = static_cast<ZONE*>( zone->Clone() );
+        ptrMap[zone] = cloned;
+        Add( cloned, ADD_MODE::APPEND );
+
+        // The net info has to come from this board's list, not the library footprint's.  Must be
+        // NETINFO_LIST::ORPHANED_ITEM for a keepout that has no net.
+        cloned->SetNetCode( -1 );
+        cloned->OnFootprintTransformed();
+    }
+
+    for( PCB_POINT* point : aLibFootprint.Points() )
+    {
+        PCB_POINT* cloned = static_cast<PCB_POINT*>( point->Clone() );
+        ptrMap[point] = cloned;
+        Add( cloned, ADD_MODE::APPEND );
+        cloned->OnFootprintTransformed();
+    }
+
+    // Constraints reference their members by KIID, which Clone() preserves, so the copies still
+    // resolve to the matching cloned items.
+    for( PCB_CONSTRAINT* constraint : aLibFootprint.Constraints() )
+    {
+        PCB_CONSTRAINT* cloned = static_cast<PCB_CONSTRAINT*>( constraint->Clone() );
+        ptrMap[constraint] = cloned;
+        Add( cloned, ADD_MODE::APPEND );
+    }
+
+    for( PCB_GROUP* group : aLibFootprint.Groups() )
+    {
+        PCB_GROUP* cloned = static_cast<PCB_GROUP*>( group->Clone() );
+        ptrMap[group] = cloned;
+        Add( cloned, ADD_MODE::APPEND );
+    }
+
+    // Clone() copied the library footprint's membership; re-point it at the cloned members before
+    // the library footprint (and its groups) go away.
+    for( PCB_GROUP* group : aLibFootprint.Groups() )
+    {
+        PCB_GROUP* cloned = static_cast<PCB_GROUP*>( ptrMap[group] );
+
+        cloned->GetItems().clear();
+
+        for( EDA_ITEM* member : group->GetItems() )
+        {
+            if( ptrMap.count( member ) )
+                cloned->AddItem( ptrMap[member] );
+        }
+    }
+
+    Models() = aLibFootprint.Models();
+
+    // Embedded payloads: the cloned texts reference the library footprint's embedded fonts.
+    EMBEDDED_FILES::operator=( aLibFootprint );
+
+    if( backSide )
+        Flip( GetPosition(), FLIP_DIRECTION::TOP_BOTTOM );
 }
 
 
@@ -3275,12 +3303,8 @@ void FOOTPRINT::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
 
     for( BOARD_ITEM* item : m_drawings )
     {
-        if( item->Type() == PCB_TEXT_T || item->Type() == PCB_SHAPE_T || item->Type() == PCB_TEXTBOX_T
-            || item->Type() == PCB_BARCODE_T || item->Type() == PCB_TABLE_T
-            || BaseType( item->Type() ) == PCB_DIMENSION_T )
-        {
+        if( isTransformAwareDrawing( item->Type() ) )
             item->OnFootprintTransformed();
-        }
     }
 
     for( PCB_POINT* point : m_points )
@@ -3393,16 +3417,10 @@ void FOOTPRINT::SetPosition( const VECTOR2I& aPos )
 
     for( BOARD_ITEM* item : m_drawings )
     {
-        if( item->Type() == PCB_TEXT_T || item->Type() == PCB_SHAPE_T || item->Type() == PCB_TEXTBOX_T
-            || item->Type() == PCB_BARCODE_T || item->Type() == PCB_TABLE_T
-            || BaseType( item->Type() ) == PCB_DIMENSION_T )
-        {
+        if( isTransformAwareDrawing( item->Type() ) )
             item->OnFootprintTransformed();
-        }
         else
-        {
             item->Move( delta );
-        }
     }
 
     if( m_geometry_cache )
@@ -3509,16 +3527,10 @@ void FOOTPRINT::SetOrientation( const EDA_ANGLE& aNewAngle )
 
     for( BOARD_ITEM* item : m_drawings )
     {
-        if( item->Type() == PCB_TEXT_T || item->Type() == PCB_SHAPE_T || item->Type() == PCB_TEXTBOX_T
-            || item->Type() == PCB_BARCODE_T || item->Type() == PCB_TABLE_T
-            || BaseType( item->Type() ) == PCB_DIMENSION_T )
-        {
+        if( isTransformAwareDrawing( item->Type() ) )
             item->OnFootprintTransformed();
-        }
         else
-        {
             item->Rotate( rotationCenter, angleChange );
-        }
     }
 
     if( m_geometry_cache )

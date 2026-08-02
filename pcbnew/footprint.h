@@ -1417,6 +1417,16 @@ protected:
     void addMandatoryFields();
 
 private:
+    /**
+     * Copy the geometry of a library footprint (fields, pads, drawings, zones, points, groups,
+     * constraints, 3D models and embedded files) onto this already-placed footprint.
+     *
+     * Used by Deserialize() when an IPC client sends a bare library reference and no inline items.
+     * @a aLibFootprint is expected to be a front-side library footprint; the copied children are
+     * flipped afterwards if this footprint is placed on the back.
+     */
+    void copyGeometryFromLibraryFootprint( const FOOTPRINT& aLibFootprint );
+
     std::deque<PCB_FIELD*>  m_fields;    // Fields, mapped by name, owned by pointer
     std::deque<BOARD_ITEM*> m_drawings;  // Drawings in the footprint, owned by pointer
     std::deque<PAD*>        m_pads;      // Pads, owned by pointer
