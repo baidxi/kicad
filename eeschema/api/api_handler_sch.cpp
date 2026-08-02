@@ -47,6 +47,7 @@
 #include <common.h>
 #include <tool/actions.h>
 #include <tool/tool_manager.h>
+#include <tools/sch_actions.h>
 #include <tools/sch_selection_tool.h>
 #include <project.h>
 #include <wildcards_and_files_ext.h>
@@ -1651,9 +1652,37 @@ API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aC
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
 
+    SCHEMATIC* sch = schematic();
+
+    if( !sch )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_NOT_READY );
+        e.set_error_message( "no schematic is loaded" );
+        return tl::unexpected( e );
+    }
+
     wxFileName fn( m_context->GetCurrentFileName() );
 
-    if( SCH_SCREEN* screen = m_frame->GetScreen() )
+    // Mirror SCH_EDITOR_CONTROL::Revert: the reload has to start from the root sheet, and every
+    // screen (not just the current one) must be marked unmodified, otherwise OpenProjectFiles()
+    // blocks this call on the modal prompt raised by AskToSaveChanges().
+    SCH_SHEET_LIST hierarchy = sch->Hierarchy();
+
+    if( !hierarchy.empty() )
+    {
+        SCH_SHEET_PATH rootSheetPath = hierarchy.at( 0 );
+
+        if( m_frame->GetCurrentSheet() != rootSheetPath )
+        {
+            toolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet,
+                                                       &rootSheetPath );
+        }
+    }
+
+    SCH_SCREENS screens( sch->Root() );
+
+    for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
         screen->SetContentModified( false );
 
     m_frame->ReleaseFile();
@@ -1679,6 +1708,10 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
 
     GetBoundingBoxResponse response;
 
+    // Fields are the schematic equivalent of the independently-movable child text the board
+    // handler excludes for BBM_ITEM_ONLY
+    bool includeFields = aCtx.Request.mode() != BoundingBoxMode::BBM_ITEM_ONLY;
+
     for( const types::KIID& idMsg : aCtx.Request.items() )
     {
         KIID id( idMsg.value() );
@@ -1687,8 +1720,18 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
         if( !optItem )
             continue;
 
+        SCH_ITEM* item = *optItem;
+        BOX2I     bbox;
+
+        if( !includeFields && item->Type() == SCH_SYMBOL_T )
+            bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox();
+        else if( !includeFields && item->Type() == SCH_SHEET_T )
+            bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox();
+        else
+            bbox = item->GetBoundingBox();
+
         response.add_items()->set_value( idMsg.value() );
-        PackBox2( *response.add_boxes(), ( *optItem )->GetBoundingBox(), schIUScale );
+        PackBox2( *response.add_boxes(), bbox, schIUScale );
     }
 
     return response;
@@ -1890,20 +1933,86 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
         return tl::unexpected( err );
     }
 
-    SCH_COMMIT* commit = static_cast<SCH_COMMIT*>( getCurrentCommit( aCtx.ClientName ) );
+    SCH_COMMIT*    commit = static_cast<SCH_COMMIT*>( getCurrentCommit( aCtx.ClientName ) );
+    SCH_SHEET_PATH targetPath = *sheetOpt;
 
     for( SCH_ITEM* item : tempScreen->Items() )
     {
+        ItemCreationResult itemResult;
+        ItemStatus         status;
+
+        // LoadContent parses sheet symbols but never loads the sub-sheets they point at, so a
+        // pasted sheet would enter the hierarchy with a null screen and could make it recursive.
+        // Sheets have to be created through CreateItems, which builds the screen and runs
+        // TestForRecursion.  A cloned group would carry raw pointers to the members owned by the
+        // transient screen, which are freed when this handler returns.  Types outside
+        // s_allowedTypes (e.g. tables) have no proto mapping at all.
+        if( item->Type() == SCH_SHEET_T || item->Type() == SCH_GROUP_T
+            || !s_allowedTypes.contains( item->Type() ) )
+        {
+            status.set_code( ItemStatusCode::ISC_INVALID_TYPE );
+            status.set_error_message(
+                    fmt::format( "type {} cannot be created from a string by the schematic API "
+                                 "handler",
+                                 magic_enum::enum_name( item->Type() ) ) );
+            itemResult.mutable_status()->CopyFrom( status );
+            response.mutable_created_items()->Add( std::move( itemResult ) );
+            continue;
+        }
+
         SCH_ITEM* clone = static_cast<SCH_ITEM*>( item->Clone() );
         const_cast<KIID&>( clone->m_Uuid ) = KIID();
 
+        // The copy constructor carries over the group of the parsed item, which lives on the
+        // transient screen
+        clone->SetParentGroup( nullptr );
+
+        if( clone->Type() == SCH_SYMBOL_T )
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( clone );
+
+            // The parsed instances are keyed to the source hierarchy; carry the first one over to
+            // the destination path so the symbol is annotated there, the way
+            // SCH_EDITOR_CONTROL::updatePastedSymbol does for the GUI paste.
+            SCH_SYMBOL_INSTANCE instance;
+
+            if( !symbol->GetInstances().empty() )
+                instance = symbol->GetInstances().front();
+            else
+                instance.m_Reference = symbol->GetField( FIELD_T::REFERENCE )->GetText();
+
+            instance.m_Path = targetPath.Path();
+            instance.m_ProjectName = m_context->Prj().GetProjectName();
+            symbol->AddHierarchicalReference( instance );
+            symbol->SetUnit( instance.m_Unit );
+
+            // Cloned pins keep the source KIIDs; two symbols sharing pin KIIDs on the same screen
+            // break every KIID-based lookup, so re-UUID them as SCH_EDITOR_CONTROL::Paste does.
+            for( SCH_PIN* pin : symbol->GetPins() )
+            {
+                const_cast<KIID&>( pin->m_Uuid ) = KIID();
+                pin->SetConnectivityDirty();
+            }
+        }
+
         commit->Add( clone, targetScreen );
 
-        ItemCreationResult itemResult;
-        ItemStatus          status;
-        status.set_code( ItemStatusCode::ISC_OK );
+        google::protobuf::Any packed;
+
+        if( packSchItem( packed, clone, targetPath ) )
+        {
+            status.set_code( ItemStatusCode::ISC_OK );
+            itemResult.mutable_item()->CopyFrom( packed );
+        }
+        else
+        {
+            status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+            status.set_error_message( fmt::format( "the created item {} could not be packed for "
+                                                   "the target sheet",
+                                                   clone->m_Uuid.AsStdString() ) );
+        }
+
         itemResult.mutable_status()->CopyFrom( status );
-        clone->Serialize( *itemResult.mutable_item() );
         response.mutable_created_items()->Add( std::move( itemResult ) );
     }
 
@@ -1927,6 +2036,11 @@ API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVari
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
 
     SCHEMATIC* sch = schematic();
 
