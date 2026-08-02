@@ -1709,8 +1709,9 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
     GetBoundingBoxResponse response;
 
     // Fields are the schematic equivalent of the independently-movable child text the board
-    // handler excludes for BBM_ITEM_ONLY
-    bool includeFields = aCtx.Request.mode() != BoundingBoxMode::BBM_ITEM_ONLY;
+    // handler excludes; match its treatment of an unset mode so both editors answer the same
+    // request the same way.
+    bool includeFields = aCtx.Request.mode() == BoundingBoxMode::BBM_ITEM_AND_CHILD_TEXT;
 
     for( const types::KIID& idMsg : aCtx.Request.items() )
     {
@@ -1963,8 +1964,11 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
         SCH_ITEM* clone = static_cast<SCH_ITEM*>( item->Clone() );
         const_cast<KIID&>( clone->m_Uuid ) = KIID();
 
-        // The copy constructor carries over the group of the parsed item, which lives on the
-        // transient screen
+        // The copy constructor carries over the parent and the group of the parsed item, both of
+        // which live on the transient screen.  A staged (not yet pushed) commit outlives this
+        // handler, so re-parent to the destination screen the way createItemForType does;
+        // otherwise SCH_ITEM::Schematic() walks freed memory when the client ends the commit.
+        clone->SetParent( targetScreen );
         clone->SetParentGroup( nullptr );
 
         if( clone->Type() == SCH_SYMBOL_T )
