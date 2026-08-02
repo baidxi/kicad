@@ -1594,25 +1594,43 @@ HANDLER_RESULT<google::protobuf::Empty> API_HANDLER_SCH::handleSetActiveSheet(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "SetActiveSheet" ) )
         return tl::unexpected( *headless );
 
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    if( !schematic()->HasHierarchy() )
+        schematic()->RefreshHierarchy();
+
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
 
     SCH_SHEET_LIST hierarchy = schematic()->Hierarchy();
-    KIID_PATH      kp = UnpackSheetPath( aCtx.Request.path() );
 
-    std::optional<SCH_SHEET_PATH> path = kp.empty()
-                                                 ? std::optional<SCH_SHEET_PATH>{ *hierarchy.begin() }
-                                                 : hierarchy.GetSheetPathByKIIDPath( kp );
-
-    if( !path )
+    if( hierarchy.empty() )
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( fmt::format( "the requested sheet path {} is not valid for this schematic",
-                                          kp.AsString().ToStdString() ) );
+        e.set_error_message( "the schematic hierarchy could not be built" );
         return tl::unexpected( e );
+    }
+
+    // An omitted document.sheet_path means the root sheet
+    std::optional<SCH_SHEET_PATH> path = *hierarchy.begin();
+
+    if( aCtx.Request.document().has_sheet_path() )
+    {
+        KIID_PATH kp = UnpackSheetPath( aCtx.Request.document().sheet_path() );
+        path = hierarchy.GetSheetPathByKIIDPath( kp );
+
+        if( !path )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( fmt::format( "the requested sheet path {} is not valid for this schematic",
+                                              kp.AsString().ToStdString() ) );
+            return tl::unexpected( e );
+        }
     }
 
     SCH_NAVIGATE_TOOL* navTool = m_context->GetToolManager()->GetTool<SCH_NAVIGATE_TOOL>();
