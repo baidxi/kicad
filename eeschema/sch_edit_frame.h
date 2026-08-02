@@ -354,6 +354,16 @@ public:
     bool ReadyToNetlist( const wxString& aAnnotateMessage, bool* aUserCancelled = nullptr );
 
     /**
+     * Run the same checks as ReadyToNetlist() without any user interaction.
+     *
+     * Callers which cannot service a modal dialog (the IPC API, for instance) get a plain
+     * failure instead of the annotation dialog and the duplicate sheet name prompt.
+     *
+     * @return true if all is well (i.e. a netlist can be generated).
+     */
+    bool CanCreateNetlist();
+
+    /**
      * Create a netlist file.
      *
      * @param aFormat is the netlist format (NET_TYPE_PCBNEW ...).

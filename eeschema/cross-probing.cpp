@@ -1054,22 +1054,34 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
     }
 
     case MAIL_SCH_GET_NETLIST:
+    case MAIL_SCH_GET_NETLIST_QUIET:
     {
         if( !payload.empty() )
         {
-            wxString annotationMessage( payload );
-
-            // Ensure schematic is OK for netlist creation (especially that it is fully annotated):
-            bool userCancelled = false;
-
-            if( !ReadyToNetlist( annotationMessage, &userCancelled ) )
+            // Ensure schematic is OK for netlist creation (especially that it is fully
+            // annotated).  The quiet variant leaves the payload untouched instead of asking
+            // the user to fix things, because its caller cannot service a modal dialog.
+            if( mail.Command() == MAIL_SCH_GET_NETLIST_QUIET )
             {
-                // Cancel replies with a sentinel so the caller aborts silently; an unannotated
-                // schematic echoes the annotation message so the caller shows its own error
-                if( userCancelled )
-                    payload = MAIL_SCH_GET_NETLIST_CANCELLED;
+                if( !CanCreateNetlist() )
+                    return;
+            }
+            else
+            {
+                wxString annotationMessage( payload );
 
-                return;
+                bool userCancelled = false;
+
+                if( !ReadyToNetlist( annotationMessage, &userCancelled ) )
+                {
+                    // Cancel replies with a sentinel so the caller aborts silently; an
+                    // unannotated schematic echoes the annotation message so the caller
+                    // shows its own error
+                    if( userCancelled )
+                        payload = MAIL_SCH_GET_NETLIST_CANCELLED;
+
+                    return;
+                }
             }
         }
 
