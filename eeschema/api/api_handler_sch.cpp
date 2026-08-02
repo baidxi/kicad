@@ -157,18 +157,14 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<RunAction, RunActionResponse>( &API_HANDLER_SCH::handleRunAction );
     registerHandler<RevertDocument, Empty>( &API_HANDLER_SCH::handleRevertDocument );
 
-    registerHandler<GetBoundingBox, GetBoundingBoxResponse>(
-            &API_HANDLER_SCH::handleGetBoundingBox );
+    registerHandler<GetBoundingBox, GetBoundingBoxResponse>( &API_HANDLER_SCH::handleGetBoundingBox );
 
-    registerHandler<SaveDocumentToString, SavedDocumentResponse>(
-            &API_HANDLER_SCH::handleSaveDocumentToString );
-    registerHandler<SaveSelectionToString, SavedSelectionResponse>(
-            &API_HANDLER_SCH::handleSaveSelectionToString );
+    registerHandler<SaveDocumentToString, SavedDocumentResponse>( &API_HANDLER_SCH::handleSaveDocumentToString );
+    registerHandler<SaveSelectionToString, SavedSelectionResponse>( &API_HANDLER_SCH::handleSaveSelectionToString );
     registerHandler<ParseAndCreateItemsFromString, CreateItemsResponse>(
             &API_HANDLER_SCH::handleParseAndCreateItemsFromString );
 
-    registerHandler<ExpandTextVariables, ExpandTextVariablesResponse>(
-            &API_HANDLER_SCH::handleExpandTextVariables );
+    registerHandler<ExpandTextVariables, ExpandTextVariablesResponse>( &API_HANDLER_SCH::handleExpandTextVariables );
 }
 
 
@@ -1607,8 +1603,7 @@ API_HANDLER_SCH::handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schemat
 }
 
 
-HANDLER_RESULT<RunActionResponse>
-API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
+HANDLER_RESULT<RunActionResponse> API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
 {
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "RunAction" ) )
         return tl::unexpected( *headless );
@@ -1627,8 +1622,7 @@ API_HANDLER_SCH::handleRunAction( const HANDLER_CONTEXT<RunAction>& aCtx )
 }
 
 
-HANDLER_RESULT<Empty>
-API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aCtx )
+HANDLER_RESULT<Empty> API_HANDLER_SCH::handleRevertDocument( const HANDLER_CONTEXT<RevertDocument>& aCtx )
 {
     // Validate first so a request meant for another editor's document is not captured here
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
@@ -1705,11 +1699,11 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
     }
 
     GetBoundingBoxResponse response;
-    bool includeText = aCtx.Request.mode() == BoundingBoxMode::BBM_ITEM_AND_CHILD_TEXT;
+    bool                   includeText = aCtx.Request.mode() == BoundingBoxMode::BBM_ITEM_AND_CHILD_TEXT;
 
     for( const types::KIID& idMsg : aCtx.Request.items() )
     {
-        KIID id( idMsg.value() );
+        KIID                     id( idMsg.value() );
         std::optional<SCH_ITEM*> optItem = getItemById( id );
 
         if( !optItem )
@@ -1728,13 +1722,9 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
         {
             switch( item->Type() )
             {
-            case SCH_SYMBOL_T:
-                bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox();
-                break;
+            case SCH_SYMBOL_T: bbox = static_cast<SCH_SYMBOL*>( item )->GetBodyAndPinsBoundingBox(); break;
 
-            case SCH_SHEET_T:
-                bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox();
-                break;
+            case SCH_SHEET_T: bbox = static_cast<SCH_SHEET*>( item )->GetBodyBoundingBox(); break;
 
             case SCH_LABEL_T:
             case SCH_GLOBAL_LABEL_T:
@@ -1747,9 +1737,7 @@ API_HANDLER_SCH::handleGetBoundingBox( const HANDLER_CONTEXT<GetBoundingBox>& aC
                 bbox = static_cast<SCH_LABEL_BASE*>( item )->GetBodyBoundingBox( nullptr );
                 break;
 
-            default:
-                bbox = item->GetBoundingBox();
-                break;
+            default: bbox = item->GetBoundingBox(); break;
             }
         }
 
@@ -1818,7 +1806,7 @@ API_HANDLER_SCH::handleSaveDocumentToString( const HANDLER_CONTEXT<SaveDocumentT
     SavedDocumentResponse response;
     response.mutable_document()->CopyFrom( aCtx.Request.document() );
 
-    STRING_FORMATTER formatter;
+    STRING_FORMATTER   formatter;
     SCH_IO_KICAD_SEXPR io;
     io.FormatSchematicToFormatter( &formatter, target, sch );
 
@@ -1864,7 +1852,7 @@ API_HANDLER_SCH::handleSaveSelectionToString( const HANDLER_CONTEXT<SaveSelectio
     SCH_SELECTION& selection = selectionTool->GetSelection();
     SCH_SHEET_PATH currentSheet = *sheetOpt;
 
-    STRING_FORMATTER formatter;
+    STRING_FORMATTER   formatter;
     SCH_IO_KICAD_SEXPR io;
     io.Format( &selection, &currentSheet, *sch, &formatter, /* aForClipboard = */ true );
 
@@ -1883,8 +1871,7 @@ API_HANDLER_SCH::handleSaveSelectionToString( const HANDLER_CONTEXT<SaveSelectio
 
 
 HANDLER_RESULT<CreateItemsResponse>
-API_HANDLER_SCH::handleParseAndCreateItemsFromString(
-        const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
+API_HANDLER_SCH::handleParseAndCreateItemsFromString( const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
 {
     // Parser-side counterpart of SaveSelectionToString. The PCB equivalent is also a stub
     // today (pcbnew/api/api_handler_board.cpp::handleParseAndCreateItemsFromString returns
@@ -1906,8 +1893,7 @@ API_HANDLER_SCH::handleParseAndCreateItemsFromString(
 HANDLER_RESULT<ExpandTextVariablesResponse>
 API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVariables>& aCtx )
 {
-    if( !aCtx.Request.has_document()
-        || aCtx.Request.document().type() != DocumentType::DOCTYPE_SCHEMATIC )
+    if( !aCtx.Request.has_document() || aCtx.Request.document().type() != DocumentType::DOCTYPE_SCHEMATIC )
     {
         // Let the COMMON handler take project-typed requests; this one is schematic-only.
         // No message needed for AS_UNHANDLED; this is an internal flag for the API server
@@ -1944,11 +1930,10 @@ API_HANDLER_SCH::handleExpandTextVariables( const HANDLER_CONTEXT<ExpandTextVari
     SCH_SHEET_LIST hierarchy = sch->Hierarchy();
     SCH_SHEET_PATH sheetPath = m_context->GetCurrentSheet().value_or( hierarchy.front() );
 
-    std::function<bool( wxString* )> resolver =
-            [sch, sheetPath]( wxString* token ) -> bool
-            {
-                return sch->ResolveTextVar( &sheetPath, token, 0 );
-            };
+    std::function<bool( wxString* )> resolver = [sch, sheetPath]( wxString* token ) -> bool
+    {
+        return sch->ResolveTextVar( &sheetPath, token, 0 );
+    };
 
     ExpandTextVariablesResponse reply;
 
