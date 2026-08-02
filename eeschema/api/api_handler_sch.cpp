@@ -791,6 +791,27 @@ HANDLER_RESULT<std::unique_ptr<EDA_ITEM>> API_HANDLER_SCH::createItemForType( KI
 }
 
 
+std::optional<std::string> API_HANDLER_SCH::testSheetRecursion( SCH_SHEET* aSheet,
+                                                                const SCH_SHEET_PATH& aParentPath )
+{
+    SCH_SCREEN* destScreen = aParentPath.LastScreen();
+
+    if( !destScreen || destScreen->GetFileName().IsEmpty() )
+    {
+        // An unsaved destination sheet has no file name to loop back to yet.
+        return std::nullopt;
+    }
+
+    SCH_SHEET_LIST schematicSheets = schematic()->Hierarchy();
+    SCH_SHEET_LIST sheetHierarchy( aSheet );
+
+    if( schematicSheets.TestForRecursion( sheetHierarchy, destScreen->GetFileName() ) )
+        return std::string( "sheet update would create recursive hierarchy" );
+
+    return std::nullopt;
+}
+
+
 std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
                                                              const SCH_SHEET_PATH& aParentPath )
 {
@@ -823,23 +844,25 @@ std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
     wxString fullFilename = fn.GetFullPath();
     fullFilename.Replace( wxT( "\\" ), wxT( "/" ) );
 
-    SCH_SCREEN* sharedScreen = nullptr;
+    // The candidate hierarchy is assembled on a temporary sheet so that a rejected link leaves
+    // nothing behind on the screens of the design, the way ChangeSheetFile() does it.
+    std::unique_ptr<SCH_SHEET> tmpSheet = std::make_unique<SCH_SHEET>( schematic() );
+    SCH_SCREEN*                sharedScreen = nullptr;
+
+    // The sheet paths of the linked sub-sheets are generated from this UUID, so it has to be the
+    // UUID of the sheet that will end up in the hierarchy.
+    const_cast<KIID&>( tmpSheet->m_Uuid ) = aSheet->m_Uuid;
+    tmpSheet->SetFileName( fullFilename );
 
     if( schematic()->Root().SearchHierarchy( fullFilename, &sharedScreen ) )
     {
         // The file is already part of this design, so the screen has to be shared with the other
         // instances of it, the way SCH_EDIT_FRAME::ChangeSheetFile() does.
-        aSheet->SetScreen( sharedScreen );
+        tmpSheet->SetScreen( sharedScreen );
     }
     else if( fn.FileExists() )
     {
-        IO_RELEASER<SCH_IO>        pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
-        std::unique_ptr<SCH_SHEET> tmpSheet = std::make_unique<SCH_SHEET>( schematic() );
-
-        // The sheet paths of the loaded sub-sheets are generated from this UUID, so it has to be
-        // the UUID of the sheet that will end up in the hierarchy.
-        const_cast<KIID&>( tmpSheet->m_Uuid ) = aSheet->m_Uuid;
-        tmpSheet->SetFileName( fullFilename );
+        IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
 
         try
         {
@@ -857,38 +880,53 @@ std::optional<std::string> API_HANDLER_SCH::initSheetScreen( SCH_SHEET* aSheet,
                                 pi->GetError().ToStdString() );
         }
 
-        SCH_SCREEN* loadedScreen = tmpSheet->GetScreen();
-
-        if( !loadedScreen )
+        if( !tmpSheet->GetScreen() )
             return fmt::format( "no schematic was loaded from '{}'", fullFilename.ToStdString() );
+    }
 
+    // Linking adds instance data to screens that are part of the design, which the commit cannot
+    // roll back, so the candidate hierarchy has to be rejected before it is attached to anything.
+    if( std::optional<std::string> error = testSheetRecursion( tmpSheet.get(), aParentPath ) )
+        return error;
+
+    SCH_SCREEN* linkedScreen = tmpSheet->GetScreen();
+
+    if( !linkedScreen )
+    {
+        // A file that neither the design nor the disk knows about: the sheet starts out empty and
+        // is written when the project is saved.
+        if( m_frame )
+        {
+            m_frame->InitSheet( aSheet, fullFilename );
+        }
+        else
+        {
+            SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
+
+            newScreen->SetFileName( fullFilename );
+            newScreen->SetContentModified();
+            aSheet->SetScreen( newScreen );
+        }
+
+        return std::nullopt;
+    }
+
+    if( !sharedScreen )
+    {
         // Prior to file version 20221002 the symbol instance data of a hierarchy was stored in
         // its root sheet, so it has to be pushed down into the loaded sheets.
-        if( loadedScreen->GetFileFormatVersionAtLoad() < 20221002
-                && !loadedScreen->GetSymbolInstances().empty() )
+        if( linkedScreen->GetFileFormatVersionAtLoad() < 20221002
+                && !linkedScreen->GetSymbolInstances().empty() )
         {
             SCH_SHEET_LIST loadedSheets( tmpSheet.get() );
 
-            loadedSheets.UpdateSymbolInstanceData( loadedScreen->GetSymbolInstances() );
+            loadedSheets.UpdateSymbolInstanceData( linkedScreen->GetSymbolInstances() );
         }
 
-        loadedScreen->MigrateSimModels();
-        aSheet->SetScreen( loadedScreen );
+        linkedScreen->MigrateSimModels();
     }
-    else if( m_frame )
-    {
-        m_frame->InitSheet( aSheet, fullFilename );
-        return std::nullopt;
-    }
-    else
-    {
-        SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
 
-        newScreen->SetFileName( fullFilename );
-        newScreen->SetContentModified();
-        aSheet->SetScreen( newScreen );
-        return std::nullopt;
-    }
+    aSheet->SetScreen( linkedScreen );
 
     SCH_SHEET_LIST linkedSheets( aSheet );
 
@@ -1075,43 +1113,26 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
         if( *type == SCH_SHEET_T )
         {
-            SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item.get() );
+            SCH_SHEET*     sheet = static_cast<SCH_SHEET*>( item.get() );
+            SCH_SHEET_PATH parentPath = aCreate ? targetPath : existingPath;
 
             // A sheet created over the API must end up backed by a file, like one placed in the
             // GUI.  An anonymous screen here means SaveProject() never writes the sub-sheet file,
-            // silently losing anything later placed on it.
+            // silently losing anything later placed on it.  initSheetScreen() runs the recursion
+            // test itself, on the hierarchy it is about to link and before it links it.
+            std::optional<std::string> error;
+
             if( aCreate && !sheet->GetScreen() )
-            {
-                if( std::optional<std::string> error = initSheetScreen( sheet, targetPath ) )
-                {
-                    status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                    status.set_error_message( *error );
-                    aItemHandler( status, anyItem );
-                    continue;
-                }
-            }
-
-            SCH_SHEET_PATH parentPath;
-
-            if( aCreate )
-                parentPath = targetPath;
+                error = initSheetScreen( sheet, parentPath );
             else
-                parentPath = existingPath;
+                error = testSheetRecursion( sheet, parentPath );
 
-            wxString destFilePath = parentPath.LastScreen()->GetFileName();
-
-            if( !destFilePath.IsEmpty() )
+            if( error )
             {
-                SCH_SHEET_LIST schematicSheets = schematic()->Hierarchy();
-                SCH_SHEET_LIST loadedSheets( sheet );
-
-                if( schematicSheets.TestForRecursion( loadedSheets, destFilePath ) )
-                {
-                    status.set_code( ItemStatusCode::ISC_INVALID_DATA );
-                    status.set_error_message( "sheet update would create recursive hierarchy" );
-                    aItemHandler( status, anyItem );
-                    continue;
-                }
+                status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                status.set_error_message( *error );
+                aItemHandler( status, anyItem );
+                continue;
             }
         }
 
