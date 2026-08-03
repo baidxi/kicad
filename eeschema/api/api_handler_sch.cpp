@@ -74,6 +74,7 @@ std::set<KICAD_T> API_HANDLER_SCH::s_allowedTypes = {
     SCH_HIER_LABEL_T,
     SCH_DIRECTIVE_LABEL_T,
     SCH_SYMBOL_T,
+    SCH_PIN_T,
     SCH_SHEET_T,
 };
 
@@ -396,11 +397,16 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
 
-    if( HANDLER_RESULT<std::optional<KIID>> valid = validateItemHeaderDocument( aCtx.Request.header() );
-        !valid.has_value() )
-    {
+    HANDLER_RESULT<std::optional<KIID>> valid = validateItemHeaderDocument( aCtx.Request.header() );
+
+    if( !valid.has_value() )
         return tl::unexpected( valid.error() );
-    }
+
+    std::optional<KIID> containerId = *valid;
+
+    // An empty container KIID means the document itself, per the ItemHeader contract
+    if( aCtx.Request.header().container().value().empty() )
+        containerId.reset();
 
     std::set<KICAD_T> typesRequested, typesInserted;
 
@@ -428,6 +434,38 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
 
     std::map<KICAD_T, std::vector<std::pair<EDA_ITEM*, SCH_SHEET_PATH>>> itemMap;
 
+    // Container-aware path: when the request's header.container is given, it must resolve to an
+    // SCH_SYMBOL, and iteration is narrowed to that symbol's children (pins, fields).  This is the
+    // natural shape for "give me the pins of THIS symbol" instead of "every pin in the schematic".
+    SCH_SYMBOL*    containerSymbol = nullptr;
+    SCH_SHEET_PATH containerPath;
+
+    if( containerId.has_value() )
+    {
+        std::optional<SCH_ITEM*> item = getItemById( *containerId, &containerPath );
+
+        if( !item )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( fmt::format( "the requested container {} does not exist in this "
+                                              "document",
+                                              containerId->AsStdString() ) );
+            return tl::unexpected( e );
+        }
+
+        containerSymbol = dynamic_cast<SCH_SYMBOL*>( *item );
+
+        if( !containerSymbol )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message(
+                    fmt::format( "the requested container {} is not a symbol", containerId->AsStdString() ) );
+            return tl::unexpected( e );
+        }
+    }
+
     auto processScreen =
         [&]( const SCH_SHEET_PATH& aPath )
         {
@@ -446,7 +484,16 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItems( const HANDLER_
             }
         };
 
-    if( pathFilter )
+    if( containerSymbol )
+    {
+        containerSymbol->RunOnChildren(
+                [&]( SCH_ITEM* aChild )
+                {
+                    itemMap[aChild->Type()].emplace_back( aChild, containerPath );
+                },
+                RECURSE_MODE::NO_RECURSE );
+    }
+    else if( pathFilter )
     {
         processScreen( *pathFilter );
     }
@@ -1078,7 +1125,10 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
         if( !item )
             continue;
 
-        if( !s_allowedTypes.contains( item->Type() ) )
+        // Pins are in s_allowedTypes so that they can be queried, but they are owned by their
+        // parent symbol rather than by the screen, so they cannot be removed independently: the
+        // commit would take ownership of an item the symbol still holds in a unique_ptr.
+        if( item->Type() == SCH_PIN_T || !s_allowedTypes.contains( item->Type() ) )
         {
             status = ItemDeletionStatus::IDS_IMMUTABLE;
             continue;
