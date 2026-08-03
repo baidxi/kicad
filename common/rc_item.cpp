@@ -494,12 +494,9 @@ unsigned int RC_TREE_MODEL::GetChildren( wxDataViewItem const& aItem,
 void RC_TREE_MODEL::GetValue( wxVariant& aVariant, wxDataViewItem const& aItem,
                               unsigned int aCol ) const
 {
-    if( !aItem.IsOk() || m_view->IsFrozen() || m_tree.empty() )
-        return;
+    const RC_TREE_NODE* node = getRenderableNode( aItem );
 
-    const RC_TREE_NODE*            node = ToNode( aItem );
-
-    if( !node || !node->m_RcItem )
+    if( !node )
         return;
 
     const std::shared_ptr<RC_ITEM> rcItem = node->m_RcItem;
@@ -573,12 +570,9 @@ bool RC_TREE_MODEL::GetAttr( wxDataViewItem const&   aItem,
                              unsigned int            aCol,
                              wxDataViewItemAttr&     aAttr ) const
 {
-    if( !aItem.IsOk() || m_view->IsFrozen() || m_tree.empty() )
-        return false;
+    const RC_TREE_NODE* node = getRenderableNode( aItem );
 
-    const RC_TREE_NODE* node = ToNode( aItem );
-
-    if( !node || !node->m_RcItem )
+    if( !node )
         return false;
 
     bool ret = false;

@@ -348,6 +348,27 @@ public:
     void DeleteItems( bool aCurrentOnly, bool aIncludeExclusions, bool aDeep );
 
 protected:
+    /**
+     * Return the node \a aItem refers to, or nullptr if it cannot be safely rendered.
+     *
+     * The GTK3 wxDataViewCtrl re-renders visible rows synchronously from within
+     * ItemsDeleted(), which means the model is queried for nodes that DeleteItems() has
+     * just retired (their handle no longer points at a node) or whose RC_ITEM has already
+     * been released.
+     */
+    const RC_TREE_NODE* getRenderableNode( const wxDataViewItem& aItem ) const
+    {
+        if( !aItem.IsOk() || m_view->IsFrozen() || m_tree.empty() )
+            return nullptr;
+
+        const RC_TREE_NODE* node = ToNode( aItem );
+
+        if( !node || !node->m_RcItem )
+            return nullptr;
+
+        return node;
+    }
+
     RC_TREE_NODE* createNode( RC_TREE_NODE* aParent, const std::shared_ptr<RC_ITEM>& aRcItem,
                               RC_TREE_NODE::NODE_TYPE aType );
     void          retireNodeTree( RC_TREE_NODE* aNode );

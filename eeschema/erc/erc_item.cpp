@@ -381,8 +381,14 @@ std::shared_ptr<ERC_ITEM> ERC_ITEM::Create( int aErrorCode )
 void ERC_TREE_MODEL::GetValue( wxVariant& aVariant, wxDataViewItem const& aItem,
                                unsigned int aCol ) const
 {
+    // The rows the view repaints from within ItemsDeleted() may already have been retired
+    // by DeleteItems(), so this override needs the same validation as the base class.
+    const RC_TREE_NODE* node = getRenderableNode( aItem );
+
+    if( !node )
+        return;
+
     SCH_EDIT_FRAME*           schEditFrame = static_cast<SCH_EDIT_FRAME*>( m_editFrame );
-    const RC_TREE_NODE*       node = ToNode( aItem );
     std::shared_ptr<ERC_ITEM> ercItem = std::static_pointer_cast<ERC_ITEM>( node->m_RcItem );
     MARKER_BASE*              marker = ercItem->GetParent();
     wxString                  msg;
