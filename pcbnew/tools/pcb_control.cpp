@@ -1016,17 +1016,11 @@ static void pasteFootprintItemsToFootprintEditor( FOOTPRINT* aClipFootprint, BOA
 }
 
 
-void PCB_CONTROL::pruneItemLayers( std::vector<BOARD_ITEM*>& aItems )
+void PCB_CONTROL::PruneItemsToBoardLayers( BOARD* aBoard, std::vector<BOARD_ITEM*>& aItems,
+                                           std::vector<BOARD_ITEM*>* aRejected )
 {
-    // Do not prune items or layers when copying to the FP editor, because all
-    // layers are accepted, even if they are not enabled in the dummy board
-    // This is mainly true for internal copper layers: all are allowed but only one
-    // (In1.cu) is enabled for the GUI.
-    if( m_isFootprintEditor || m_frame->IsType( FRAME_FOOTPRINT_EDITOR ) )
-        return;
-
-    LSET                     enabledLayers = board()->GetEnabledLayers();
-    const int                copperLayers = board()->GetCopperLayerCount();
+    LSET                     enabledLayers = aBoard->GetEnabledLayers();
+    const int                copperLayers = aBoard->GetCopperLayerCount();
     std::vector<BOARD_ITEM*> returnItems;
 
     for( BOARD_ITEM* item : aItems )
@@ -1035,6 +1029,9 @@ void PCB_CONTROL::pruneItemLayers( std::vector<BOARD_ITEM*>& aItems )
         {
             if( EDA_GROUP* parentGroup = item->GetParentGroup() )
                 parentGroup->RemoveItem( item );
+
+            if( aRejected )
+                aRejected->push_back( item );
 
             continue;
         }
@@ -1046,14 +1043,29 @@ void PCB_CONTROL::pruneItemLayers( std::vector<BOARD_ITEM*>& aItems )
         returnItems.push_back( item );
     }
 
-    if( returnItems.size() < aItems.size() )
+    aItems = returnItems;
+}
+
+
+void PCB_CONTROL::pruneItemLayers( std::vector<BOARD_ITEM*>& aItems )
+{
+    // Do not prune items or layers when copying to the FP editor, because all
+    // layers are accepted, even if they are not enabled in the dummy board
+    // This is mainly true for internal copper layers: all are allowed but only one
+    // (In1.cu) is enabled for the GUI.
+    if( m_isFootprintEditor || m_frame->IsType( FRAME_FOOTPRINT_EDITOR ) )
+        return;
+
+    std::vector<BOARD_ITEM*> rejected;
+
+    PruneItemsToBoardLayers( board(), aItems, &rejected );
+
+    if( !rejected.empty() )
     {
         DisplayError( m_frame, _( "Warning: some pasted items were on layers which are not "
                                   "present in the current board.\n"
                                   "These items could not be pasted.\n" ) );
     }
-
-    aItems = returnItems;
 }
 
 
@@ -1922,6 +1934,91 @@ int PCB_CONTROL::SaveToLinkedDesignBlock( const TOOL_EVENT& aEvent )
 }
 
 
+/// Bring the dimensions of an item that just joined a board in line with that board's settings.
+static void updateItemUnits( BOARD_ITEM* aItem )
+{
+    if( BaseType( aItem->Type() ) == PCB_DIMENSION_T )
+    {
+        static_cast<PCB_DIMENSION_BASE*>( aItem )->UpdateUnits();
+    }
+    else if( aItem->Type() == PCB_FOOTPRINT_T )
+    {
+        for( BOARD_ITEM* dwg : static_cast<FOOTPRINT*>( aItem )->GraphicalItems() )
+        {
+            if( BaseType( dwg->Type() ) == PCB_DIMENSION_T )
+                static_cast<PCB_DIMENSION_BASE*>( dwg )->UpdateUnits();
+        }
+    }
+}
+
+
+void PCB_CONTROL::PrepareItemsForBoard( BOARD* aBoard, const std::vector<BOARD_ITEM*>& aItems )
+{
+    // Re-UUIDing pasted items breaks any item that references another by KIID (e.g. a constraint's
+    // members); record old -> new so those references can be remapped once every item has its new id.
+    // A grouped shape appears both as a top-level item and as a group child, so reset each item only
+    // once -- a second reset would record a new->newer entry and corrupt the old->new mapping.
+    std::map<KIID, KIID>  idMap;
+    std::set<BOARD_ITEM*> resetItems;
+
+    auto resetUuidOnce = [&]( BOARD_ITEM* aItem )
+    {
+        if( !resetItems.insert( aItem ).second )
+            return;
+
+        KIID oldUuid = aItem->m_Uuid;
+        aItem->ResetUuid();
+        idMap[oldUuid] = aItem->m_Uuid;
+    };
+
+    for( BOARD_ITEM* item : aItems )
+    {
+        resetUuidOnce( item );
+
+        item->RunOnChildren(
+                [&]( BOARD_ITEM* aChild )
+                {
+                    resetUuidOnce( aChild );
+                },
+                RECURSE_MODE::RECURSE );
+
+        item->SetParent( aBoard );
+
+        // A pasted zone must not reuse a name already on the board (issue 23131)
+        if( item->Type() == PCB_ZONE_T )
+        {
+            ZONE* zone = static_cast<ZONE*>( item );
+
+            if( !zone->GetZoneName().IsEmpty() )
+                zone->SetZoneName( aBoard->GetUniqueZoneName( zone->GetZoneName() ) );
+        }
+        else if( item->Type() == PCB_FOOTPRINT_T )
+        {
+            // The pasted copy is not the one the schematic knows about
+            static_cast<FOOTPRINT*>( item )->SetPath( KIID_PATH() );
+        }
+
+        updateItemUnits( item );
+    }
+
+    // Now that every pasted item has its new UUID, remap KIID references (e.g. constraint members)
+    // from the old ids to the new ones so they still resolve to the pasted copies.
+    if( !idMap.empty() )
+    {
+        for( BOARD_ITEM* item : aItems )
+        {
+            item->RemapKIIDs( idMap );
+            item->RunOnChildren(
+                    [&]( BOARD_ITEM* aChild )
+                    {
+                        aChild->RemapKIIDs( idMap );
+                    },
+                    RECURSE_MODE::RECURSE );
+        }
+    }
+}
+
+
 bool PCB_CONTROL::placeBoardItems( BOARD_COMMIT* aCommit, BOARD* aBoard, bool aAnchorAtOrigin,
                                    bool aReannotateDuplicates, bool aSkipMove )
 {
@@ -1971,37 +2068,13 @@ bool PCB_CONTROL::placeBoardItems( BOARD_COMMIT* aCommit, std::vector<BOARD_ITEM
     std::vector<BOARD_ITEM*> itemsToSel;
     itemsToSel.reserve( aItems.size() );
 
-    // Re-UUIDing pasted items breaks any item that references another by KIID (e.g. a constraint's
-    // members); record old -> new so those references can be remapped once every item has its new id.
-    // A grouped shape appears both as a top-level item and as a group child, so reset each item only
-    // once -- a second reset would record a new->newer entry and corrupt the old->new mapping.
-    std::map<KIID, KIID>     idMap;
-    std::set<BOARD_ITEM*>    resetItems;
-
-    auto resetUuidOnce =
-            [&]( BOARD_ITEM* aItem )
-            {
-                if( !resetItems.insert( aItem ).second )
-                    return;
-
-                KIID oldUuid = aItem->m_Uuid;
-                aItem->ResetUuid();
-                idMap[oldUuid] = aItem->m_Uuid;
-            };
+    if( aIsNew )
+        PrepareItemsForBoard( board(), aItems );
 
     for( BOARD_ITEM* item : aItems )
     {
         if( aIsNew )
         {
-            resetUuidOnce( item );
-
-            item->RunOnChildren(
-                    [&]( BOARD_ITEM* aChild )
-                    {
-                        resetUuidOnce( aChild );
-                    },
-                    RECURSE_MODE::RECURSE );
-
             // While BOARD_COMMIT::Push() will add any new items to the entered group,
             // we need to do it earlier so that the previews while moving are correct.
             if( PCB_GROUP* enteredGroup = selectionTool->GetEnteredGroup() )
@@ -2012,37 +2085,10 @@ bool PCB_CONTROL::placeBoardItems( BOARD_COMMIT* aCommit, std::vector<BOARD_ITEM
                     enteredGroup->AddItem( item );
                 }
             }
-
-            item->SetParent( board() );
-
-            // A pasted zone must not reuse a name already on the board (issue 23131)
-            if( item->Type() == PCB_ZONE_T )
-            {
-                ZONE* zone = static_cast<ZONE*>( item );
-
-                if( !zone->GetZoneName().IsEmpty() )
-                    zone->SetZoneName( board()->GetUniqueZoneName( zone->GetZoneName() ) );
-            }
         }
-
-        // Update item attributes if needed
-        if( BaseType( item->Type() ) == PCB_DIMENSION_T )
+        else
         {
-            static_cast<PCB_DIMENSION_BASE*>( item )->UpdateUnits();
-        }
-        else if( item->Type() == PCB_FOOTPRINT_T )
-        {
-            FOOTPRINT* footprint = static_cast<FOOTPRINT*>( item );
-
-            // Update the footprint path with the new KIID path if the footprint is new
-            if( aIsNew )
-                footprint->SetPath( KIID_PATH() );
-
-            for( BOARD_ITEM* dwg : footprint->GraphicalItems() )
-            {
-                if( BaseType( dwg->Type() ) == PCB_DIMENSION_T )
-                    static_cast<PCB_DIMENSION_BASE*>( dwg )->UpdateUnits();
-            }
+            updateItemUnits( item );
         }
 
         // We only need to add the items that aren't inside a group currently selected
@@ -2050,21 +2096,6 @@ bool PCB_CONTROL::placeBoardItems( BOARD_COMMIT* aCommit, std::vector<BOARD_ITEM
         // then the selection tool will select it for us.
         if( !item->GetParentGroup() || !alg::contains( aItems, item->GetParentGroup()->AsEdaItem() ) )
             itemsToSel.push_back( item );
-    }
-
-    // Now that every pasted item has its new UUID, remap KIID references (e.g. constraint members)
-    // from the old ids to the new ones so they still resolve to the pasted copies.
-    if( aIsNew && !idMap.empty() )
-    {
-        for( BOARD_ITEM* item : aItems )
-        {
-            item->RemapKIIDs( idMap );
-            item->RunOnChildren( [&]( BOARD_ITEM* aChild )
-                                 {
-                                     aChild->RemapKIIDs( idMap );
-                                 },
-                                 RECURSE_MODE::RECURSE );
-        }
     }
 
     // Select the items that should be selected
