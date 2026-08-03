@@ -367,11 +367,25 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_BOARD::handleCreateUpdateItemsInte
             if( item->Type() == PCB_FOOTPRINT_T )
             {
                 // Ensure children have unique identifiers; in case the API client created this new
-                // footprint by cloning an existing one and only changing the parent UUID.
+                // footprint by cloning an existing one and only changing the parent UUID.  Record
+                // the old -> new mapping: children that reference their siblings by KIID (the
+                // constraint members a library footprint brings in, for instance) have to follow
+                // the re-UUID or they end up pointing at ids that no longer exist.
+                std::map<KIID, KIID> idMap;
+
                 item->RunOnChildren(
-                        []( BOARD_ITEM* aChild )
+                        [&]( BOARD_ITEM* aChild )
                         {
+                            KIID oldId = aChild->m_Uuid;
                             aChild->ResetUuid();
+                            idMap[oldId] = aChild->m_Uuid;
+                        },
+                        RECURSE );
+
+                item->RunOnChildren(
+                        [&]( BOARD_ITEM* aChild )
+                        {
+                            aChild->RemapKIIDs( idMap );
                         },
                         RECURSE );
             }
