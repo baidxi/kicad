@@ -1351,6 +1351,10 @@ void TRACK_CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
     if( !m_visible )
         return;
 
+    // a Smith chart is drawn from the chart geometry, its X axis carries no readable value
+    if( m_view->IsSmithChart() )
+        return;
+
     wxCoord leftPx = aWindow.GetMarginLeft();
     wxCoord rightPx = aWindow.GetScrX() - aWindow.GetMarginRight();
     wxCoord topPx = aWindow.GetMarginTop();
