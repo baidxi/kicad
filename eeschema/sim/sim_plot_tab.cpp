@@ -2466,26 +2466,23 @@ bool SIM_PLOT_TAB::RemoveView( SIM_VIEW* aView )
     if( it == m_views.end() )
         return false;
 
-    // Un-plot (but don't delete from the grid) any traces still routed to this view.
-    for( auto& [name, trace] : m_traces )
+    // The traces routed to this view lose their axes along with it, so drop them rather than
+    // leaving them behind holding a destroyed view (and its destroyed axis layers).  Their
+    // signals stay in the Signals grid, simply no longer plotted, and can be assigned to one
+    // of the remaining views.
+    std::vector<TRACE*> plottedHere;
+
+    for( const auto& [name, trace] : m_traces )
     {
         trace->ClearYScaleViewIf( aView );
 
-        if( trace->GetView() != aView )
-            continue;
-
-        for( auto& [cursorId, cursor] : trace->GetCursors() )
-        {
-            if( cursor )
-            {
-                aView->DelLayer( cursor, true );
-                cursor = nullptr;
-            }
-        }
-
-        aView->DelLayer( trace, false );
-        trace->SetView( nullptr );
+        if( trace->GetView() == aView )
+            plottedHere.push_back( trace );
     }
+
+    // DeleteTrace() erases from m_traces, so it cannot run while iterating it
+    for( TRACE* trace : plottedHere )
+        DeleteTrace( trace );
 
     m_sizer->Detach( aView );
     m_views.erase( it );
