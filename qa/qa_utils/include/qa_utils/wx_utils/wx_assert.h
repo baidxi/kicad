@@ -69,9 +69,8 @@ public:
  * unrelated assertion raised while the process was already coming apart.  Reporting from the
  * faulting thread keeps the assertion and its stack together.
  */
-[[noreturn]] void ReportAssertOffMainThread( const wxString& aFile, int aLine,
-                                             const wxString& aFunc, const wxString& aCond,
-                                             const wxString& aMsg );
+[[noreturn]] void ReportAssertOffMainThread( const wxString& aFile, int aLine, const wxString& aFunc,
+                                             const wxString& aCond, const wxString& aMsg );
 
 /*
  * Simple function to handle a WX assertion and throw a real exception.

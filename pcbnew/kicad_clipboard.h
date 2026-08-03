@@ -27,10 +27,12 @@
 #define KICAD_CLIPBOARD_H
 
 #include <board_item.h>
+#include <kiid.h>
 #include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 #include <pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.h>
 #include <memory.h>
 #include <tools/pcb_selection.h>
+#include <vector>
 
 
 class CLIPBOARD_IO : public PCB_IO_KICAD_SEXPR
@@ -51,8 +53,15 @@ public:
     /*
      * Write all the settings of the BOARD* set by setBoard() and then adds all the
      * BOARD_ITEMs found in selection formatted by PCB_IO_KICAD_SEXPR to clipboard as sexpr text
+     *
+     * If savedIds is given, it receives the KIID each selected item was written under, in output
+     * order.  These are not always the KIIDs of the selected items: a selected field is written as
+     * a text inside a synthesized footprint, selected table cells are written as their promoted
+     * parent table (once per table), and items that are not serialized at all are omitted.  Items
+     * written as dependents of a selected item (group children, carried constraints) are not
+     * listed separately.
      */
-    void SaveSelection( const PCB_SELECTION& selected, bool isFootprintEditor );
+    void SaveSelection( const PCB_SELECTION& selected, bool isFootprintEditor, std::vector<KIID>* savedIds = nullptr );
 
     BOARD_ITEM* Parse();
 

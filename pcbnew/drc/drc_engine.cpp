@@ -2284,7 +2284,7 @@ int DRC_ENGINE::GetErrorLimit( int error_code )
 {
     assert( error_code >= 0 && error_code <= DRCE_LAST );
     std::lock_guard<std::mutex> lock( m_errorLimitsMutex );
-    return std::max( 0, m_errorLimits[ error_code ] );
+    return std::max( 0, m_errorLimits[error_code] );
 }
 
 

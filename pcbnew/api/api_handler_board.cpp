@@ -1006,7 +1006,15 @@ HANDLER_RESULT<SavedSelectionResponse> API_HANDLER_BOARD::handleSaveSelectionToS
         } );
 
     io.SetBoard( board() );
-    io.SaveSelection( selection, false );
+
+    // The KIIDs come from SaveSelection rather than from the selection itself: some items are
+    // rewritten on the way out (fields become text in a synthesized footprint, table cells are
+    // saved as their parent table), so only SaveSelection knows what actually landed in contents.
+    std::vector<KIID> savedIds;
+    io.SaveSelection( selection, false, &savedIds );
+
+    for( const KIID& id : savedIds )
+        response.add_ids()->set_value( id.AsStdString() );
 
     return response;
 }

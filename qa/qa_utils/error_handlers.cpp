@@ -56,7 +56,8 @@ static void signal_handler( int signum )
     // Associate the signal number with a name
     ::signal( signum, SIG_DFL ); // Re-register the default handler
 
-    std::cerr << std::endl << "Signal caught: " << get_signal_string( signum ) << " (" << signum << ")"
+    std::cerr << std::endl
+              << "Signal caught: " << get_signal_string( signum ) << " (" << signum << ")"
               << ( wxThread::IsMain() ? "" : " on a worker thread" ) << std::endl;
     std::cerr << "Stack trace:" << std::endl;
 

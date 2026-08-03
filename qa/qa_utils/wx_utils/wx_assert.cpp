@@ -56,8 +56,8 @@ const char* WX_ASSERT_ERROR::what() const noexcept
 }
 
 
-void ReportAssertOffMainThread( const wxString& aFile, int aLine, const wxString& aFunc,
-                                const wxString& aCond, const wxString& aMsg )
+void ReportAssertOffMainThread( const wxString& aFile, int aLine, const wxString& aFunc, const wxString& aCond,
+                                const wxString& aMsg )
 {
     WX_ASSERT_ERROR error( aFile, aLine, aFunc, aCond, aMsg );
 

@@ -50,7 +50,7 @@
 class DRC_TEST_PROVIDER_SOLDER_MASK : public ::DRC_TEST_PROVIDER
 {
 public:
-    DRC_TEST_PROVIDER_SOLDER_MASK ():
+    DRC_TEST_PROVIDER_SOLDER_MASK() :
             m_board( nullptr ),
             m_webWidth( 0 ),
             m_maxError( 0 ),
@@ -78,17 +78,16 @@ private:
     void testMaskItemAgainstZones( BOARD_ITEM* item, const BOX2I& itemBBox,
                                    PCB_LAYER_ID refLayer, PCB_LAYER_ID targetLayer );
 
-    void recordMaskAperture( BOARD_ITEM* aMaskItem, BOARD_ITEM* aTestItem, PCB_LAYER_ID aTestLayer,
-                             int aTestNet, const VECTOR2I& aPos );
+    void recordMaskAperture( BOARD_ITEM* aMaskItem, BOARD_ITEM* aTestItem, PCB_LAYER_ID aTestLayer, int aTestNet,
+                             const VECTOR2I& aPos );
 
-    bool maskApertureBridgeExcluded( FOOTPRINT* aApertureFootprint,
-                                     const std::map<wxString, int>& aNetTieGroups,
+    bool maskApertureBridgeExcluded( FOOTPRINT* aApertureFootprint, const std::map<wxString, int>& aNetTieGroups,
                                      BOARD_ITEM* aRefItem, BOARD_ITEM* aTestItem );
 
     void reportMaskApertureBridges();
 
-    void collectBridge( BOARD_ITEM* aItemA, BOARD_ITEM* aItemB, BOARD_ITEM* aItemC,
-                        const VECTOR2I& aPos, PCB_LAYER_ID aLayer );
+    void collectBridge( BOARD_ITEM* aItemA, BOARD_ITEM* aItemB, BOARD_ITEM* aItemC, const VECTOR2I& aPos,
+                        PCB_LAYER_ID aLayer );
 
     void flushBridgeViolations();
 
@@ -143,8 +142,8 @@ private:
 
             for( size_t ii = 0; ii < ids.size(); ++ii )
             {
-                if( ids[ ii ] != aRhs.ids[ ii ] )
-                    return ids[ ii ] < aRhs.ids[ ii ];
+                if( ids[ii] != aRhs.ids[ii] )
+                    return ids[ii] < aRhs.ids[ii];
             }
 
             if( pos.x != aRhs.pos.x )
@@ -374,8 +373,7 @@ bool isMaskAperture( BOARD_ITEM* aItem )
 
 
 void DRC_TEST_PROVIDER_SOLDER_MASK::recordMaskAperture( BOARD_ITEM* aMaskItem, BOARD_ITEM* aTestItem,
-                                                        PCB_LAYER_ID aTestLayer, int aTestNet,
-                                                        const VECTOR2I& aPos )
+                                                        PCB_LAYER_ID aTestLayer, int aTestNet, const VECTOR2I& aPos )
 {
     // Only positive nets can bridge, and the pairing below is quadratic in what is recorded here.
     if( aTestNet <= 0 )
@@ -395,16 +393,16 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::recordMaskAperture( BOARD_ITEM* aMaskItem, B
     PTR_LAYER_CACHE_KEY key = { aMaskItem, maskLayer };
 
     std::lock_guard<std::mutex> lock( m_apertureMutex );
-    m_maskApertureItems[ key ].push_back( { aTestItem, aTestNet, aPos } );
+    m_maskApertureItems[key].push_back( { aTestItem, aTestNet, aPos } );
 }
 
 
 // Items belonging to the same net-tie group (or the same logical pad) may legitimately share a
 // mask aperture, so a pairing between them is not a bridge.
 
-bool DRC_TEST_PROVIDER_SOLDER_MASK::maskApertureBridgeExcluded(
-        FOOTPRINT* aApertureFootprint, const std::map<wxString, int>& aNetTieGroups,
-        BOARD_ITEM* aRefItem, BOARD_ITEM* aTestItem )
+bool DRC_TEST_PROVIDER_SOLDER_MASK::maskApertureBridgeExcluded( FOOTPRINT*                     aApertureFootprint,
+                                                                const std::map<wxString, int>& aNetTieGroups,
+                                                                BOARD_ITEM* aRefItem, BOARD_ITEM* aTestItem )
 {
     if( !aApertureFootprint || aTestItem->GetParentFootprint() != aApertureFootprint )
         return false;
@@ -772,9 +770,8 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::testMaskBridges()
 }
 
 
-void DRC_TEST_PROVIDER_SOLDER_MASK::collectBridge( BOARD_ITEM* aItemA, BOARD_ITEM* aItemB,
-                                                   BOARD_ITEM* aItemC, const VECTOR2I& aPos,
-                                                   PCB_LAYER_ID aLayer )
+void DRC_TEST_PROVIDER_SOLDER_MASK::collectBridge( BOARD_ITEM* aItemA, BOARD_ITEM* aItemB, BOARD_ITEM* aItemC,
+                                                   const VECTOR2I& aPos, PCB_LAYER_ID aLayer )
 {
     // Canonicalize the item order so the reported violation is identical no matter which worker
     // observed the collision.  The aperture (when present) stays first; the copper items are
@@ -791,9 +788,8 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::collectBridge( BOARD_ITEM* aItemA, BOARD_ITE
 
     // Only the third item is ever absent, and the swaps above already ordered the copper items, so
     // the key needs at most the aperture inserted.  The unused slot stays trailing.
-    PENDING_BRIDGE bridge = { aItemA, aItemB, aItemC, aPos, aLayer,
-                              { aItemA->m_Uuid, aItemB->m_Uuid,
-                                aItemC ? aItemC->m_Uuid : niluuid } };
+    PENDING_BRIDGE bridge = { aItemA, aItemB, aItemC,
+                              aPos,   aLayer, { aItemA->m_Uuid, aItemB->m_Uuid, aItemC ? aItemC->m_Uuid : niluuid } };
 
     std::sort( bridge.ids.begin(), bridge.ids.end() - ( aItemC ? 0 : 1 ) );
 
@@ -866,13 +862,13 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::reportMaskApertureBridges()
         apertureKeys.push_back( key );
 
     std::sort( apertureKeys.begin(), apertureKeys.end(),
-            []( const PTR_LAYER_CACHE_KEY& a, const PTR_LAYER_CACHE_KEY& b ) -> bool
-            {
-                if( a.A->m_Uuid != b.A->m_Uuid )
-                    return a.A->m_Uuid < b.A->m_Uuid;
+               []( const PTR_LAYER_CACHE_KEY& a, const PTR_LAYER_CACHE_KEY& b ) -> bool
+               {
+                   if( a.A->m_Uuid != b.A->m_Uuid )
+                       return a.A->m_Uuid < b.A->m_Uuid;
 
-                return a.Layer < b.Layer;
-            } );
+                   return a.Layer < b.Layer;
+               } );
 
     for( const PTR_LAYER_CACHE_KEY& key : apertureKeys )
     {
@@ -894,13 +890,13 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::reportMaskApertureBridges()
         std::vector<MASK_APERTURE_ITEM>& items = m_maskApertureItems.at( key );
 
         std::sort( items.begin(), items.end(),
-                []( const MASK_APERTURE_ITEM& a, const MASK_APERTURE_ITEM& b ) -> bool
-                {
-                    if( a.item->m_Uuid != b.item->m_Uuid )
-                        return a.item->m_Uuid < b.item->m_Uuid;
+                   []( const MASK_APERTURE_ITEM& a, const MASK_APERTURE_ITEM& b ) -> bool
+                   {
+                       if( a.item->m_Uuid != b.item->m_Uuid )
+                           return a.item->m_Uuid < b.item->m_Uuid;
 
-                    return a.net < b.net;
-                } );
+                       return a.net < b.net;
+                   } );
 
         // The first positive net exposed by the aperture is the reference net; any item on a
         // different positive net bridges it.
@@ -934,12 +930,10 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::reportMaskApertureBridges()
 
             // Footprint-local exclusions need the colliding item inside the aperture's footprint,
             // which is invariant across the inner loop.
-            bool collisionInFootprint = apertureFootprint
-                                        && collision.item->GetParentFootprint() == apertureFootprint;
+            bool collisionInFootprint = apertureFootprint && collision.item->GetParentFootprint() == apertureFootprint;
 
             if( collisionInFootprint
-                    && maskApertureBridgeExcluded( apertureFootprint, netTieGroups, refItem,
-                                                   collision.item ) )
+                && maskApertureBridgeExcluded( apertureFootprint, netTieGroups, refItem, collision.item ) )
             {
                 continue;
             }
@@ -952,8 +946,7 @@ void DRC_TEST_PROVIDER_SOLDER_MASK::reportMaskApertureBridges()
                     continue;
 
                 if( collisionInFootprint
-                        && maskApertureBridgeExcluded( apertureFootprint, netTieGroups, entry.item,
-                                                       collision.item ) )
+                    && maskApertureBridgeExcluded( apertureFootprint, netTieGroups, entry.item, collision.item ) )
                 {
                     continue;
                 }
@@ -1066,7 +1059,7 @@ bool DRC_TEST_PROVIDER_SOLDER_MASK::Run()
     if( m_bridgeLimit > 0 )
     {
         if( !reportPhase( _( "Checking solder mask web integrity..." ) ) )
-            return false;   // DRC cancelled
+            return false; // DRC cancelled
 
         testMaskBridges();
     }
