@@ -251,6 +251,11 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
         dc.SetBrush( m_brush );
         dc.SetFont( m_font );
 
+        // Layers are plotted in list order and some of them (plot cursors) leave their own
+        // text colour on the DC.  Grabbing an overlay moves it to the end of that list, so
+        // the legend cannot rely on the colour OnPaint() set before the first layer.
+        dc.SetTextForeground( w.GetForegroundColour() );
+
         const int baseWidth = mpLEGEND_MARGIN * 2 + mpLEGEND_LINEWIDTH;
         int       textX = baseWidth, textY = mpLEGEND_MARGIN;
         int       plotCount = 0;
