@@ -786,6 +786,12 @@ void SIMULATOR_FRAME::setupUIConditions()
         return plotTab && plotTab->IsTrackCursorEnabled();
     };
 
+    auto statisticsCondition = [this]( const SELECTION& aSel )
+    {
+        SIM_PLOT_TAB* plotTab = dynamic_cast<SIM_PLOT_TAB*>( GetCurrentSimTab() );
+        return plotTab && plotTab->IsStatisticsShown();
+    };
+
     auto simRunning =
             [this]( const SELECTION& aSel )
             {
@@ -872,6 +878,7 @@ void SIMULATOR_FRAME::setupUIConditions()
                         ACTION_CONDITIONS().Check( smithChartCondition ).Enable( haveSPPlot ) );
     mgr->SetConditions( SCH_ACTIONS::toggleDarkModePlots,   CHECK( darkModePlotCondition ) );
     mgr->SetConditions( SCH_ACTIONS::toggleTrackCursor,     CHECK( trackCursorCondition ) );
+    mgr->SetConditions( SCH_ACTIONS::toggleStatistics,      CHECK( statisticsCondition ) );
 
     mgr->SetConditions( SCH_ACTIONS::newAnalysisTab,        ENABLE( SELECTION_CONDITIONS::ShowAlways ) );
     mgr->SetConditions( SCH_ACTIONS::simAnalysisProperties, ENABLE( haveSim ) );

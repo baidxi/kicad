@@ -140,6 +140,7 @@ void SIMULATOR_FRAME::doReCreateMenuBar()
     viewMenu->Add( SCH_ACTIONS::toggleSmithChart,      ACTION_MENU::CHECK );
     viewMenu->Add( SCH_ACTIONS::toggleDarkModePlots,   ACTION_MENU::CHECK );
     viewMenu->Add( SCH_ACTIONS::toggleTrackCursor, ACTION_MENU::CHECK );
+    viewMenu->Add( SCH_ACTIONS::toggleStatistics, ACTION_MENU::CHECK );
 
 
     //-- Simulation menu -----------------------------------------------------------

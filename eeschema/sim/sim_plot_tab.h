@@ -186,6 +186,17 @@ public:
     const std::vector<double>& GetDataY() const { return m_ys; }
 
     /**
+     * Y range of this trace's data, ignoring non-finite values (a magnitude of zero plots as
+     * NaN, and would otherwise poison the range).
+     *
+     * For multi-run (swept) traces, only the most recent run is considered, matching what
+     * GetValueAtX() reads out.
+     *
+     * @return false if the trace holds no finite data.
+     */
+    bool GetYRange( double* aMin, double* aMax ) const;
+
+    /**
      * Linearly interpolate this trace's value at a given X (in the trace's own data space).
      *
      * For multi-run (swept) traces, only the most recent run is considered.
@@ -353,6 +364,33 @@ struct SMITH_STASHED_CURSOR
     int      baseType;
     int      subType; // the SP subtype bit the cursor lived on before Smith mode
     double   frequency;
+};
+
+
+///< A floating, draggable panel listing per-signal statistics (min, max, peak-to-peak) for the
+///< traces of one view.  Like the legend, every SIM_VIEW of a tab carries one.
+class STATS_PANEL : public mpInfoLayer
+{
+public:
+    STATS_PANEL( SIM_PLOT_TAB* aPlotTab, SIM_VIEW* aView ) :
+            mpInfoLayer( wxRect( 0, 0, 200, 40 ), wxTRANSPARENT_BRUSH ),
+            m_plotTab( aPlotTab ),
+            m_view( aView ),
+            m_placed( false )
+    {
+        m_visible = false;
+    }
+
+    void Plot( wxDC& aDC, mpWindow& aWindow ) override;
+
+    ///< Only grabbable while it is actually on screen (mpWindow's hit test doesn't check
+    ///< visibility, and the panel draws nothing on a Smith chart).
+    bool Inside( const wxPoint& aPoint ) const override;
+
+private:
+    SIM_PLOT_TAB* m_plotTab;
+    SIM_VIEW*     m_view;
+    bool          m_placed; // false until it has been given its default (top-right) position
 };
 
 
@@ -565,6 +603,16 @@ public:
     ///< traces and their cursors.
     void RaiseTrackCursor();
 
+    // ---- Statistics panel ---------------------------------------------------------------
+
+    void ShowStatistics( bool aEnable )
+    {
+        m_statsPanel->SetVisible( aEnable );
+        UpdateAll();
+    }
+
+    bool IsStatisticsShown() const { return m_statsPanel && m_statsPanel->IsVisible(); }
+
 public:
     wxPoint m_lastLegendPosition;
 
@@ -598,6 +646,7 @@ private:
     SIM_PLOT_TAB* m_plotTab;
 
     TRACK_CURSOR* m_trackCursor;
+    STATS_PANEL*  m_statsPanel;
 
     SMITH_GRID* m_smithGrid;
 
@@ -720,6 +769,10 @@ public:
     ///< Traces and cursors set aside while in Smith mode, restored when leaving it.
     std::vector<SMITH_STASHED_TRACE>&  SmithStashedTraces() { return m_smithStashedTraces; }
     std::vector<SMITH_STASHED_CURSOR>& SmithStashedCursors() { return m_smithStashedCursors; }
+
+    ///< Show/hide the floating per-signal statistics panel on every view of the tab.
+    void ShowStatistics( bool aEnable );
+    bool IsStatisticsShown() const;
 
     ///< Turn on/off the crosshair that follows the mouse and reads out every trace's value.
     ///< It is a tab-wide mode: the crosshair shows on every stacked view at the same X.

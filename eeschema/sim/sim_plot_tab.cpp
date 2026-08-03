@@ -1151,6 +1151,48 @@ wxString CURSOR::getID()
 }
 
 
+bool TRACE::GetYRange( double* aMin, double* aMax ) const
+{
+    size_t startIdx = 0;
+    size_t endIdx = m_ys.size();
+
+    if( m_isMultiRun && GetSweepCount() > 1 && GetSweepSize() != std::numeric_limits<size_t>::max()
+        && GetSweepSize() > 0 )
+    {
+        // Runs are concatenated one after another; only consider the most recent one.
+        size_t available = std::min( m_ys.size(), static_cast<size_t>( GetSweepCount() ) * GetSweepSize() );
+        endIdx = available;
+        startIdx = available - GetSweepSize();
+    }
+
+    if( startIdx >= endIdx )
+        return false;
+
+    bool found = false;
+
+    for( size_t ii = startIdx; ii < endIdx; ++ii )
+    {
+        // a magnitude of zero plots as NaN, it is not a data point
+        if( !std::isfinite( m_ys[ii] ) )
+            continue;
+
+        if( found )
+        {
+            *aMin = std::min( *aMin, m_ys[ii] );
+            *aMax = std::max( *aMax, m_ys[ii] );
+        }
+        else
+        {
+            *aMin = m_ys[ii];
+            *aMax = m_ys[ii];
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+
 bool TRACE::GetValueAtX( double aX, double* aY ) const
 {
     if( m_xs.size() <= 1 )
@@ -1346,6 +1388,131 @@ void CURSOR::UpdateReference()
 }
 
 
+bool STATS_PANEL::Inside( const wxPoint& aPoint ) const
+{
+    if( !m_visible || m_view->IsSmithChart() )
+        return false;
+
+    return mpInfoLayer::Inside( aPoint );
+}
+
+
+void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
+{
+    if( !m_visible )
+        return;
+
+    // a Smith chart plots through the chart geometry, its Y values are not a signal range
+    if( m_view->IsSmithChart() )
+        return;
+
+    struct ROW
+    {
+        wxString label;
+        wxString min;
+        wxString max;
+        wxString peak;
+        wxColour colour;
+    };
+
+    wxColour fg = aWindow.GetForegroundColour();
+    wxColour bg = aWindow.GetBackgroundColour();
+
+    std::vector<ROW> rows;
+
+    rows.push_back( { wxEmptyString, _( "Min" ), _( "Max" ), _( "P-P" ), fg } );
+
+    for( const auto& [name, trace] : m_plotTab->GetTraces() )
+    {
+        if( !trace || trace->GetView() != m_view || !trace->IsVisible() )
+            continue;
+
+        double min = 0.0;
+        double max = 0.0;
+
+        if( !trace->GetYRange( &min, &max ) )
+            continue;
+
+        SPICE_VALUE_FORMAT fmt{ 4, wxS( "~" ) + m_view->GetUnitsForTrace( trace ) };
+
+        rows.push_back( { trace->GetDisplayName(), SPICE_VALUE( min ).ToString( fmt ),
+                          SPICE_VALUE( max ).ToString( fmt ), SPICE_VALUE( max - min ).ToString( fmt ),
+                          trace->GetTraceColour() } );
+    }
+
+    if( rows.size() <= 1 ) // nothing but the header
+        return;
+
+    aDC.SetFont( m_font );
+
+    int labelWidth = 0;
+    int minWidth = 0;
+    int maxWidth = 0;
+    int peakWidth = 0;
+    int rowHeight = 0;
+
+    auto measure = [&]( const wxString& aText, int& aWidth )
+    {
+        wxSize size = aDC.GetTextExtent( aText );
+
+        aWidth = std::max( aWidth, size.x );
+        rowHeight = std::max( rowHeight, size.y );
+    };
+
+    for( const ROW& row : rows )
+    {
+        measure( row.label, labelWidth );
+        measure( row.min, minWidth );
+        measure( row.max, maxWidth );
+        measure( row.peak, peakWidth );
+    }
+
+    const int margin = 5;
+    const int columnGap = 10;
+
+    int lineHeight = rowHeight + 2;
+    int boxWidth = margin * 2 + labelWidth + minWidth + maxWidth + peakWidth + columnGap * 3;
+    int boxHeight = margin * 2 + lineHeight * (int) rows.size();
+
+    m_dim.width = boxWidth;
+    m_dim.height = boxHeight;
+
+    // Default to the top-right corner, out of the legend's way.  Once dragged, the panel keeps
+    // wherever the user put it.
+    if( !m_placed )
+    {
+        m_dim.x = std::max( 0, aWindow.GetScrX() - aWindow.GetMarginRight() - boxWidth - 8 );
+        m_dim.y = aWindow.GetMarginTop() + 8;
+        UpdateReference();
+        m_placed = true;
+    }
+
+    aDC.SetPen( wxPen( fg ) );
+    aDC.SetBrush( wxBrush( bg ) );
+    aDC.DrawRectangle( m_dim.x, m_dim.y, boxWidth, boxHeight );
+
+    int textY = m_dim.y + margin;
+    int labelX = m_dim.x + margin;
+    int minRight = labelX + labelWidth + columnGap + minWidth;
+    int maxRight = minRight + columnGap + maxWidth;
+    int peakRight = maxRight + columnGap + peakWidth;
+
+    for( const ROW& row : rows )
+    {
+        // set explicitly: layers are plotted in list order and the plot cursors leave their own
+        // text colour on the DC
+        aDC.SetTextForeground( row.colour );
+
+        aDC.DrawText( row.label, labelX, textY );
+        aDC.DrawText( row.min, minRight - aDC.GetTextExtent( row.min ).x, textY );
+        aDC.DrawText( row.max, maxRight - aDC.GetTextExtent( row.max ).x, textY );
+        aDC.DrawText( row.peak, peakRight - aDC.GetTextExtent( row.peak ).x, textY );
+
+        textY += lineHeight;
+    }
+}
+
+
 void TRACK_CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 {
     if( !m_visible )
@@ -1495,6 +1662,7 @@ SIM_VIEW::SIM_VIEW( SIM_PLOT_TAB* aPlotTab, wxWindow* aParent ) :
         m_legend( nullptr ),
         m_plotTab( aPlotTab ),
         m_trackCursor( nullptr ),
+        m_statsPanel( nullptr ),
         m_smithGrid( nullptr ),
         m_smithChart( false ),
         m_smithZoom( 1.0 ),
@@ -1515,6 +1683,9 @@ SIM_VIEW::SIM_VIEW( SIM_PLOT_TAB* aPlotTab, wxWindow* aParent ) :
     // route the context-menu zoom commands to the Smith view
     for( int id : { mpID_ZOOM_IN, mpID_ZOOM_OUT, mpID_FIT, mpID_CENTER } )
         Bind( wxEVT_MENU, &SIM_VIEW::onSmithMenuCommand, this, id );
+
+    m_statsPanel = new STATS_PANEL( aPlotTab, this );
+    AddLayer( m_statsPanel );
 
     m_trackCursor = new TRACK_CURSOR( aPlotTab, this );
     AddLayer( m_trackCursor );
@@ -2439,6 +2610,13 @@ SIM_VIEW* SIM_PLOT_TAB::AddView()
     view->EnableDoubleBuffer( true );
     view->SetSmithChart( m_smithMode );
 
+    // a chart added later matches the overlays the tab is already showing
+    if( !m_views.empty() )
+    {
+        view->ShowLegend( m_views[0]->IsLegendShown() );
+        view->ShowStatistics( m_views[0]->IsStatisticsShown() );
+    }
+
     m_views.push_back( view );
     m_sizer->Add( view, 1, wxALL | wxEXPAND, 1 );
 
@@ -2580,6 +2758,20 @@ void SIM_PLOT_TAB::ShowLegend( bool aEnable )
 {
     for( SIM_VIEW* view : m_views )
         view->ShowLegend( aEnable );
+}
+
+
+void SIM_PLOT_TAB::ShowStatistics( bool aEnable )
+{
+    for( SIM_VIEW* view : m_views )
+        view->ShowStatistics( aEnable );
+}
+
+
+bool SIM_PLOT_TAB::IsStatisticsShown() const
+{
+    SIM_VIEW* view = GetDefaultView();
+    return view && view->IsStatisticsShown();
 }
 
 

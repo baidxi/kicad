@@ -2879,6 +2879,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
 
                 plotTab->SetDottedSecondary( tab_js.value( "dottedSecondary", false ) );
                 plotTab->ShowGrid( tab_js.value( "showGrid", true ) );
+                plotTab->ShowStatistics( tab_js.value( "showStatistics", false ) );
 
                 if( tab_js.value( "smithMode", false ) )
                 {
@@ -3305,6 +3306,7 @@ bool SIMULATOR_FRAME_UI::SaveWorkbook( const wxString& aPath )
             }
 
             tab_js["viewCount"] = plotTab->GetViewCount();
+            tab_js["showStatistics"] = plotTab->IsStatisticsShown();
 
             double min, max;
 

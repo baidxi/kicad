@@ -70,6 +70,7 @@ public:
     int ToggleSmithChart( const TOOL_EVENT& aEvent );
     int ToggleDarkModePlots( const TOOL_EVENT& aEvent );
     int ToggleTrackCursor( const TOOL_EVENT& aEvent );
+    int ToggleStatistics( const TOOL_EVENT& aEvent );
 
     int EditAnalysisTab( const TOOL_EVENT& aEvent );
     int RunSimulation( const TOOL_EVENT& aEvent );
