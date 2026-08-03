@@ -20,6 +20,8 @@
 #ifndef EESCHEMA_HELPERS_H_
 #define EESCHEMA_HELPERS_H_
 
+#include <vector>
+
 #include <wx/string.h>
 #include <sch_io/sch_io_mgr.h>
 
@@ -47,6 +49,25 @@ public:
                                             bool aSetActive, bool aForceDefaultProject,
                                             PROJECT* aProject = nullptr,
                                             bool aCalculateConnectivity = true );
+
+    /**
+     * Collect the schematics that could be the hierarchical root owning \a aFileName.
+     *
+     * A schematic handed to a headless job may be a sub-sheet, in which case loading it on its
+     * own leaves its hierarchical labels without the cross-sheet mates that drive them.  Every
+     * project file sitting next to \a aFileName contributes the root sheet named after it as a
+     * candidate.  Candidates are only possible owners: the caller must load one and confirm with
+     * ContainsSheetFile() that its hierarchy really pulls \a aFileName in.
+     *
+     * @return absolute root schematic paths, empty when \a aFileName is a project root itself or
+     *         has no project file beside it.
+     */
+    static std::vector<wxString> CollectProjectRootCandidates( const wxString& aFileName );
+
+    /**
+     * @return true if \a aFileName is one of the sheet files making up \a aSchematic.
+     */
+    static bool ContainsSheetFile( const SCHEMATIC& aSchematic, const wxString& aFileName );
 
 private:
     static SCH_EDIT_FRAME*   s_SchEditFrame;
