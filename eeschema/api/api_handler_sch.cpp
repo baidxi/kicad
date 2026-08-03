@@ -29,9 +29,11 @@
 #include <jobs/job_export_sch_netlist.h>
 #include <jobs/job_export_sch_plot.h>
 #include <kiway.h>
+#include <lib_symbol.h>
 #include <sch_field.h>
 #include <sch_group.h>
 #include <connection_graph.h>
+#include <sch_base_frame.h>
 #include <sch_commit.h>
 #include <sch_edit_frame.h>
 #include <sch_label.h>
@@ -45,6 +47,7 @@
 #include <tool/tool_manager.h>
 #include <tools/sch_selection_tool.h>
 #include <project.h>
+#include <project_sch.h>
 #include <wildcards_and_files_ext.h>
 #include <wx/filename.h>
 
@@ -859,8 +862,51 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         if( *type == SCH_SYMBOL_T )
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
-            unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+
+            if( anyItem.UnpackTo( &symbol ) )
+            {
+                // A definition carrying no inline items is an id-only reference: the client
+                // wants a library symbol placed.  SCH_SYMBOL::Deserialize can only fabricate
+                // an empty definition from such a proto (no pins, no body, drawn as the "??"
+                // placeholder), so resolve the id here, where the project context lives.
+                bool   idOnly = symbol.definition().items_size() == 0;
+                LIB_ID libId = UnpackLibId( symbol.definition().id() );
+
+                unpacked = UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+
+                if( unpacked && idOnly )
+                {
+                    // SchGetLibSymbol() is the resolution the GUI place-symbol path uses; it
+                    // catches the IO_ERROR an unreadable library throws.  Flatten() returns
+                    // null when a derived symbol's parent is missing, so a broken "extends"
+                    // symbol reports the same per-item error rather than crashing.
+                    LIB_SYMBOL* libSymbol = nullptr;
+
+                    if( libId.IsValid() )
+                    {
+                        libSymbol = SchGetLibSymbol( libId, PROJECT_SCH::SymbolLibAdapter( &schematic()->Project() ) );
+                    }
+
+                    std::unique_ptr<LIB_SYMBOL> flat = libSymbol ? libSymbol->Flatten() : nullptr;
+
+                    if( !flat )
+                    {
+                        status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                        status.set_error_message(
+                                fmt::format( "symbol definition has no items and lib_id '{}' could not be "
+                                             "resolved: the id may be malformed, the symbol missing, or its "
+                                             "library not loaded yet",
+                                             std::string( libId.Format() ) ) );
+                        aItemHandler( status, anyItem );
+                        continue;
+                    }
+
+                    // Flattening merges an "extends" symbol with its parent body; the
+                    // schematic owns a self-contained copy, as it does for GUI placement.
+                    flat->SetParent();
+                    static_cast<SCH_SYMBOL*>( item.get() )->SetLibSymbol( flat.release() );
+                }
+            }
         }
         else if( *type == SCH_SHEET_T )
         {
@@ -1018,6 +1064,19 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         else
         {
             commit->Modify( existingItem, targetScreen );
+
+            // Updating a symbol swaps in the pins of the freshly deserialized temp item,
+            // whose KIIDs are newly generated.  Pin identity has to survive an update:
+            // the netlist, ERC exclusions and client-held references are all keyed on it.
+            // Capture the existing pins' ids by number before the swap, restore after.
+            std::multimap<wxString, ::KIID> existingPinIds;
+
+            if( existingItem->Type() == SCH_SYMBOL_T )
+            {
+                for( SCH_PIN* pin : static_cast<SCH_SYMBOL*>( existingItem )->GetPins() )
+                    existingPinIds.insert( { pin->GetNumber(), pin->m_Uuid } );
+            }
+
             existingItem->SwapItemData( static_cast<SCH_ITEM*>( item.get() ) );
 
             if( existingItem->IsConnectable() )
@@ -1028,6 +1087,17 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( existingItem->Type() == SCH_SYMBOL_T )
             {
+                for( SCH_PIN* pin : static_cast<SCH_SYMBOL*>( existingItem )->GetPins() )
+                {
+                    auto it = existingPinIds.find( pin->GetNumber() );
+
+                    if( it != existingPinIds.end() )
+                    {
+                        const_cast<::KIID&>( pin->m_Uuid ) = it->second;
+                        existingPinIds.erase( it );
+                    }
+                }
+
                 SCH_SHEET_PATH path = existingPath;
                 kiapi::schematic::types::SchematicSymbolInstance symbol;
 
