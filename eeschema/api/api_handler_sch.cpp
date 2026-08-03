@@ -75,6 +75,7 @@ std::set<KICAD_T> API_HANDLER_SCH::s_allowedTypes = {
     SCH_DIRECTIVE_LABEL_T,
     SCH_SYMBOL_T,
     SCH_SHEET_T,
+    SCH_SHEET_PIN_T,
 };
 
 
@@ -1084,7 +1085,33 @@ void API_HANDLER_SCH::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>& a
             continue;
         }
 
-        commit->Remove( item, path.LastScreen() );
+        if( item->Type() == SCH_SHEET_PIN_T )
+        {
+            // COMMIT::Stage() remaps a child item to a modify of its parent, so removing a
+            // sheet pin through the commit only stages a no-op modify of the sheet and leaves
+            // the pin in place.  Mirror SCH_EDIT_TOOL::DoDelete instead.
+            SCH_SHEET_PIN* pin = static_cast<SCH_SHEET_PIN*>( item );
+            SCH_SHEET*     sheet = pin->GetParent();
+
+            if( !sheet )
+            {
+                status = ItemDeletionStatus::IDS_NONEXISTENT;
+                continue;
+            }
+
+            // A sheet deleted in the same request takes its pins with it; staging the pin
+            // removal too would put both a modify and a remove of the sheet in the commit.
+            if( !aItemsToDelete.contains( sheet->m_Uuid ) )
+            {
+                commit->Modify( sheet, path.LastScreen() );
+                sheet->RemovePin( pin );
+            }
+        }
+        else
+        {
+            commit->Remove( item, path.LastScreen() );
+        }
+
         status = ItemDeletionStatus::IDS_OK;
     }
 
