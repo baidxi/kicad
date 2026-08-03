@@ -47,6 +47,7 @@
 #include <project_sch.h>
 #include <libraries/symbol_library_adapter.h>
 #include <variant_symbol_utils.h>
+#include <schematic.h>
 
 #include <utility>
 #include <validators.h>
@@ -346,25 +347,82 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     LIB_ID libId = UnpackLibId( def.id() );
     m_lib_id = libId;
 
-    LIB_SYMBOL* libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
-    libSymbol->SetLibId( libId );
+    LIB_SYMBOL* libSymbol = nullptr;
+    bool        loadedFromLibTable = false;
+
+    // "Place a new symbol from a library reference" path: when the proto carries no library
+    // description at all, the client is referencing an already-loaded library entry by id.
+    // Resolve it through the project's SYMBOL_LIB_TABLE so the symbol gets its real pins,
+    // graphics, default fields, and unit/body counts. Without this, a freshly
+    // placed-from-library symbol ends up as an empty placeholder that CreateItems reports as
+    // ISC_OK but that never lands in the schematic.  Serialize() always emits a unit count
+    // along with a real definition, so testing it as well as the draw items keeps a symbol
+    // that legitimately has no non-pin draw items on the round-trip path.
+    if( def.items_size() == 0 && def.unit_count() == 0 && libId.IsValid() )
+    {
+        SCHEMATIC*              sch = Schematic();
+        SYMBOL_LIBRARY_ADAPTER* adapter = sch ? PROJECT_SCH::SymbolLibAdapter( &sch->Project() ) : nullptr;
+
+        if( adapter )
+        {
+            try
+            {
+                if( LIB_SYMBOL* loaded = adapter->LoadSymbol( libId ) )
+                {
+                    // Derived ("extends") entries have to be flattened: SetLibSymbol() below
+                    // rejects anything that isn't a root symbol.
+                    if( std::unique_ptr<LIB_SYMBOL> flattened = loaded->Flatten() )
+                    {
+                        flattened->SetParent();
+                        flattened->SetLibId( libId );
+                        libSymbol = flattened.release();
+                        loadedFromLibTable = true;
+                    }
+                }
+            }
+            catch( const IO_ERROR& )
+            {
+                // Re-parsing a library whose file changed on disk can throw; nothing above
+                // this (the API event handler included) catches it, so fall through to the
+                // unresolved-symbol placeholder instead.
+            }
+        }
+    }
+
+    if( !libSymbol )
+    {
+        // Fallback for round-trip (Pack -> Deserialize of an already-loaded
+        // symbol that arrives with its full library definition inline) and
+        // for the case where the lib_id can't be resolved against the
+        // current project's library tables.
+        libSymbol = new LIB_SYMBOL( libId.GetLibItemName() );
+        libSymbol->SetLibId( libId );
+    }
 
     google::protobuf::Any any;
 
-    any.PackFrom( def.reference_field() );
-    libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
+    // When we loaded from the library table, the LIB_SYMBOL is already fully
+    // populated; deserializing the proto's empty def.*_field would clobber
+    // the loaded defaults (e.g., the library's "R" reference template) with
+    // empty strings. Skip the def-level field/items/count overrides in that
+    // case and only keep the instance-level overrides applied below.
+    if( !loadedFromLibTable )
+    {
+        any.PackFrom( def.reference_field() );
+        libSymbol->GetField( FIELD_T::REFERENCE )->Deserialize( any );
 
-    any.PackFrom( def.value_field() );
-    libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
+        any.PackFrom( def.value_field() );
+        libSymbol->GetField( FIELD_T::VALUE )->Deserialize( any );
 
-    any.PackFrom( def.footprint_field() );
-    libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
+        any.PackFrom( def.footprint_field() );
+        libSymbol->GetField( FIELD_T::FOOTPRINT )->Deserialize( any );
 
-    any.PackFrom( def.datasheet_field() );
-    libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
+        any.PackFrom( def.datasheet_field() );
+        libSymbol->GetField( FIELD_T::DATASHEET )->Deserialize( any );
 
-    any.PackFrom( def.description_field() );
-    libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
+        any.PackFrom( def.description_field() );
+        libSymbol->GetField( FIELD_T::DESCRIPTION )->Deserialize( any );
+    }
 
     std::unordered_map<::KIID, wxString> pinAltMap;
 
@@ -424,6 +482,22 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
     }
 
     SetLibSymbol( libSymbol );
+
+    // The constructor that builds a SCH_SYMBOL from a LIB_SYMBOL resyncs
+    // m_prefix off the lib's REFERENCE template (e.g. "BT" for Battery,
+    // "R" for Resistor) so that SetRef / GetInstance fall-throughs at
+    // save time produce a sensible default. The Init()-then-Deserialize
+    // path didn't, so m_prefix stayed at "U" and any save-time path that
+    // ran ordinalInstance.m_Reference = aSymbol->GetPrefix() before the
+    // m_instances lookup wrote "U" to disk regardless of what the IPC
+    // client supplied.
+    if( m_part )
+    {
+        m_prefix = UTIL::GetRefDesPrefix( m_part->GetReferenceField().GetText() );
+
+        if( m_prefix.IsEmpty() )
+            m_prefix = wxT( "U" );
+    }
 
     if( symbol.has_body_style() )
         SetBodyStyle( symbol.body_style().style() );
@@ -493,8 +567,18 @@ bool SCH_SYMBOL::Deserialize( const google::protobuf::Any& aContainer )
         m_pins.back()->SetParent( this );
         const_cast<::KIID&>( m_pins.back() ->m_Uuid ) = pin->m_Uuid;
 
-        // We also need to reset the lib pin to use relative coordinates
-        pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
+        // The "reset to relative" only applies to the round-trip case where
+        // PackSymbol serialised pins against the placed instance and the
+        // proto therefore carries absolute coords -- on Deserialize we have
+        // to back the placement offset out of m_part's lib pins. When we
+        // just deep-copied m_part from the project's SYMBOL_LIB_TABLE
+        // (loadedFromLibTable above), the lib pin is already at its
+        // library-relative position, and subtracting m_pos here would
+        // displace it by (-symbol_x, +symbol_y) -- corrupting the cached
+        // (lib_symbols ...) block on the next save and stranding pins ~10cm
+        // off the symbol body in eeschema.
+        if( !loadedFromLibTable )
+            pin->SetPosition( t.TransformCoordinate( pin->GetLocalPosition() - m_pos ) );
     }
 
     UpdatePins();

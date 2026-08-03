@@ -160,6 +160,27 @@ std::unique_ptr<COMMIT> API_HANDLER_SCH::createCommit()
 }
 
 
+void API_HANDLER_SCH::pushCurrentCommit( const std::string& aClientName, const wxString& aMessage )
+{
+    API_HANDLER_EDITOR::pushCurrentCommit( aClientName, aMessage );
+
+    // Adding or removing items invalidates the cached hierarchy and the resolved references /
+    // unit selections held by the items on the active sheet.  The interactive editor refreshes
+    // both whenever it lands on a sheet (SCH_EDIT_FRAME::DisplayCurrentSheet) or annotates
+    // (annotate.cpp); an IPC client never goes through either, so do it here.  Without this,
+    // GetItems and SCH_SYMBOL::GetField( REFERENCE ) return a stale view for the rest of the
+    // session.
+    if( SCHEMATIC* sch = schematic() )
+        sch->RefreshHierarchy();
+
+    if( std::optional<SCH_SHEET_PATH> sheet = m_context->GetCurrentSheet() )
+        sheet->UpdateAllScreenReferences();
+
+    if( m_frame )
+        m_frame->Refresh();
+}
+
+
 SCHEMATIC* API_HANDLER_SCH::schematic() const
 {
     wxCHECK( m_context, nullptr );
@@ -860,7 +881,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
             unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol, &targetPath );
         }
         else if( *type == SCH_SHEET_T )
         {
