@@ -19,6 +19,7 @@
  */
 
 #include <fmt/format.h>
+#include <google/protobuf/descriptor.h>
 #include <wx/app.h>
 #include <wx/datetime.h>
 #include <wx/event.h>
@@ -28,6 +29,8 @@
 #include <api/api_handler.h>
 #include <api/api_utils.h> // traceApi
 #include <api/api_server.h>
+#include <api/common/commands/editor_commands.pb.h>
+#include <api/common/types/base_types.pb.h>
 #include <kiid.h>
 #include <kinng.h>
 #include <paths.h>
@@ -230,6 +233,85 @@ void KICAD_API_SERVER::handleApiEvent( wxCommandEvent& aEvent )
 }
 
 
+bool KICAD_API_SERVER::aggregateOpenDocuments( const ApiRequest& aRequest, ApiResponse& aResponse )
+{
+    using kiapi::common::commands::GetOpenDocuments;
+    using kiapi::common::commands::GetOpenDocumentsResponse;
+    using kiapi::common::types::DocumentType;
+
+    std::string typeName;
+
+    if( !google::protobuf::Any::ParseAnyTypeUrl( aRequest.message().type_url(), &typeName )
+        || typeName != GetOpenDocuments::GetDescriptor()->full_name() )
+    {
+        return false;
+    }
+
+    GetOpenDocuments query;
+
+    if( !aRequest.message().UnpackTo( &query ) || query.type() != DocumentType::DOCTYPE_UNKNOWN )
+        return false;
+
+    const google::protobuf::EnumDescriptor* docTypes = kiapi::common::types::DocumentType_descriptor();
+
+    GetOpenDocumentsResponse aggregated;
+
+    for( int ii = 0; ii < docTypes->value_count(); ++ii )
+    {
+        int docType = docTypes->value( ii )->number();
+
+        if( docType == DocumentType::DOCTYPE_UNKNOWN )
+            continue;
+
+        query.set_type( static_cast<DocumentType>( docType ) );
+
+        ApiRequest typedRequest = aRequest;
+        typedRequest.mutable_message()->PackFrom( query );
+
+        for( API_HANDLER* handler : m_handlers )
+        {
+            API_RESULT typedResult = handler->Handle( typedRequest );
+
+            if( !typedResult.has_value() )
+            {
+                if( typedResult.error().status() == ApiStatusCode::AS_UNHANDLED )
+                    continue;
+
+                // A handler that claimed the request but failed leaves the aggregate incomplete;
+                // report that failure rather than a silently truncated document list.
+                aResponse.mutable_status()->CopyFrom( typedResult.error() );
+                return true;
+            }
+
+            // Handlers can also report failure in-band, e.g. when the request could not be
+            // unpacked into the command type they registered for.
+            if( typedResult->status().status() != ApiStatusCode::AS_OK )
+            {
+                aResponse.mutable_status()->CopyFrom( typedResult->status() );
+                return true;
+            }
+
+            GetOpenDocumentsResponse partial;
+
+            if( !typedResult->message().UnpackTo( &partial ) )
+            {
+                aResponse.mutable_status()->set_status( ApiStatusCode::AS_BAD_REQUEST );
+                aResponse.mutable_status()->set_error_message(
+                        "handler returned an unexpected response to GetOpenDocuments" );
+                return true;
+            }
+
+            aggregated.mutable_documents()->MergeFrom( partial.documents() );
+            break;
+        }
+    }
+
+    aResponse.mutable_status()->set_status( ApiStatusCode::AS_OK );
+    aResponse.mutable_message()->PackFrom( aggregated );
+    return true;
+}
+
+
 void KICAD_API_SERVER::handleApiRequestString( std::string& aRequestString )
 {
     ApiRequest request;
@@ -268,15 +350,23 @@ void KICAD_API_SERVER::handleApiRequestString( std::string& aRequestString )
     }
 
     API_RESULT result;
+    ApiResponse aggregate;
 
-    for( API_HANDLER* handler : m_handlers )
+    if( aggregateOpenDocuments( request, aggregate ) )
     {
-        result = handler->Handle( request );
+        result = std::move( aggregate );
+    }
+    else
+    {
+        for( API_HANDLER* handler : m_handlers )
+        {
+            result = handler->Handle( request );
 
-        if( result.has_value() )
-            break;
-        else if( result.error().status() != ApiStatusCode::AS_UNHANDLED )
-            break;
+            if( result.has_value() )
+                break;
+            else if( result.error().status() != ApiStatusCode::AS_UNHANDLED )
+                break;
+        }
     }
 
     // Note: at the point we call Reply(), we no longer own requestString.
