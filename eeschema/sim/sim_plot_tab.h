@@ -599,9 +599,10 @@ public:
 
     void HideTrackCursor();
 
-    ///< Move the track cursor layer to the end of the layer stack so it draws on top of the
-    ///< traces and their cursors.
-    void RaiseTrackCursor();
+    ///< Move the floating overlays (legend, statistics, track cursor) to the end of the layer
+    ///< stack so they draw on top of the traces and their cursors, rather than being painted
+    ///< over by them.
+    void RaiseOverlays();
 
     // ---- Statistics panel ---------------------------------------------------------------
 

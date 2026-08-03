@@ -1709,15 +1709,19 @@ void SIM_VIEW::HideTrackCursor()
 }
 
 
-void SIM_VIEW::RaiseTrackCursor()
+void SIM_VIEW::RaiseOverlays()
 {
-    if( !m_trackCursor )
-        return;
-
-    // Layers are drawn in the order they were added, so re-adding the track cursor last
-    // ensures it is always drawn on top of (newly added) trace and cursor layers.
-    DelLayer( m_trackCursor, false, false );
-    AddLayer( m_trackCursor, false );
+    // Layers are drawn in the order they were added, so re-adding the overlays last ensures
+    // they stay on top of (newly added) trace and cursor layers.  Their order here is their
+    // stacking order, with the track cursor -- the transient one -- on top.
+    for( mpLayer* overlay : { (mpLayer*) m_legend, (mpLayer*) m_statsPanel, (mpLayer*) m_trackCursor } )
+    {
+        if( overlay )
+        {
+            DelLayer( overlay, false, false );
+            AddLayer( overlay, false );
+        }
+    }
 }
 
 
@@ -2274,6 +2278,9 @@ void SIM_VIEW::SetSmithChart( bool aEnable )
         m_smithGrid->SetFont( KIUI::GetStatusFont( this ) );
         m_smithGrid->SetPen( wxPen( m_plotTab->GetPlotColor( SIM_PLOT_COLORS::COLOR_SET::AXIS ), 1 ) );
         AddLayer( m_smithGrid );
+
+        // the chart is a backdrop; keep the floating overlays above it
+        RaiseOverlays();
     }
 
     if( m_smithGrid )
@@ -2608,6 +2615,7 @@ SIM_VIEW* SIM_PLOT_TAB::AddView()
     view->m_lastLegendPosition = legend->GetPosition();
 
     view->EnableDoubleBuffer( true );
+    view->RaiseOverlays();
     view->SetSmithChart( m_smithMode );
 
     // a chart added later matches the overlays the tab is already showing
@@ -3075,7 +3083,7 @@ TRACE* SIM_PLOT_TAB::GetOrAddTrace( const wxString& aVectorName, int aType, SIM_
 
         trace->SetView( aView );
         aView->AddLayer( (mpLayer*) trace );
-        aView->RaiseTrackCursor();
+        aView->RaiseOverlays();
     }
 
     return trace;
@@ -3226,7 +3234,7 @@ void SIM_PLOT_TAB::EnableCursor( TRACE* aTrace, int aCursorId, const wxString& a
 
     aTrace->SetCursor( aCursorId, cursor );
     view->AddLayer( cursor );
-    view->RaiseTrackCursor();
+    view->RaiseOverlays();
 
     // Notify the parent window about the changes
     wxQueueEvent( this, new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );

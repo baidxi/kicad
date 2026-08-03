@@ -248,7 +248,11 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
             m_winY  = scry;
         }
 
-        dc.SetBrush( m_brush );
+        // Opaque, so the traces and the grid it overlaps cannot show through and make the
+        // labels hard to read.  It follows the plot's own background, dark mode included.
+        wxBrush background( w.GetBackgroundColour() );
+
+        dc.SetBrush( background );
         dc.SetFont( m_font );
 
         // Layers are plotted in list order and some of them (plot cursors) leave their own
@@ -280,7 +284,7 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
         }
 
         dc.SetPen( m_pen );
-        dc.SetBrush( m_brush );
+        dc.SetBrush( background );
         m_dim.width = textX;
 
         if( textY != mpLEGEND_MARGIN )    // Don't draw any thing if there are no visible layers
