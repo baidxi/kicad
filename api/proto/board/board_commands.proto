@@ -325,6 +325,68 @@ message RefillZones
   repeated kiapi.common.types.KIID zones = 2;
 }
 
+// Headless equivalent of the "Update PCB from Schematic" dialog
+// (BOARD_EDITOR_CONTROL::UpdatePCBFromSchematic).  Fetches the current
+// netlist from the open schematic editor, then drives BOARD_NETLIST_UPDATER
+// directly without showing DIALOG_UPDATE_PCB.  Both editors must be open
+// in the same project; otherwise AS_BAD_REQUEST is returned.
+message UpdatePCBFromSchematic
+{
+  kiapi.common.types.DocumentSpecifier board = 1;
+
+  // Replace footprints on the board with the ones assigned in the schematic
+  // (DIALOG_UPDATE_PCB "Replace footprints with those specified by symbols").
+  bool replace_footprints = 2;
+
+  // Delete footprints that no longer have a matching schematic symbol.
+  bool delete_footprints_with_no_symbols = 3;
+
+  // Update locked footprints even though they would normally be skipped.
+  bool override_locks = 4;
+
+  // Copy schematic field values onto the corresponding PCB footprints.
+  bool update_footprint_fields = 5;
+
+  // Remove footprint fields that are not present in the schematic symbol.
+  bool remove_footprint_fields_not_in_symbols = 6;
+
+  // Match footprints to symbols by reference designator instead of by KIID
+  // (DIALOG_UPDATE_PCB "Re-link footprints to schematic symbols based on
+  // their reference designators").  When false, the per-symbol KIID is used.
+  bool relink_by_reference = 7;
+
+  // Mirror the dialog's "Group footprints based on symbol group" checkbox:
+  // copy SCH group membership onto the matched PCB footprints.
+  bool transfer_groups = 8;
+
+  // Run as a dry run: report what would change without modifying the PCB.
+  bool dry_run = 9;
+}
+
+message NetlistUpdateLogEntry
+{
+  // Lets the caller filter the audit log by severity without re-parsing strings.
+  kiapi.common.types.RuleSeverity severity = 1;
+
+  string message = 2;
+}
+
+message UpdatePCBFromSchematicResponse
+{
+  // Number of footprints newly placed on the board.
+  int32 placed_count = 1;
+
+  // Number of log entries reported with error severity.
+  int32 error_count = 2;
+
+  // Number of log entries reported with warning severity.
+  int32 warning_count = 3;
+
+  // Per-action audit log; same content as the dialog's "Changes to Be
+  // Applied" pane.
+  repeated NetlistUpdateLogEntry log = 4;
+}
+
 /*
  * Utilities
  */

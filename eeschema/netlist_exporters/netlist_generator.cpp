@@ -233,6 +233,27 @@ bool SCH_EDIT_FRAME::ReadyToNetlist( const wxString& aAnnotateMessage, bool* aUs
 }
 
 
+bool SCH_EDIT_FRAME::CanCreateNetlist()
+{
+    // Ensure all power symbols have a valid reference
+    Schematic().Hierarchy().AnnotatePowerSymbols();
+
+    // Symbols must be annotated
+    if( CheckAnnotate(
+                []( ERCE_T, const wxString&, SCH_REFERENCE*, SCH_REFERENCE* )
+                {
+                },
+                ANNOTATE_ALL, true, SYMBOL_FILTER_NON_POWER ) )
+    {
+        return false;
+    }
+
+    ERC_TESTER erc( &Schematic() );
+
+    return erc.TestDuplicateSheetNames( false ) == 0;
+}
+
+
 void SCH_EDIT_FRAME::sendNetlistToCvpcb()
 {
     std::string packet;
