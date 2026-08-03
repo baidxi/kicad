@@ -36,6 +36,35 @@
 #include <widgets/report_severity.h>
 
 
+/**
+ * Group the ERC items held by \a aProvider under the sheet each violation belongs to.
+ *
+ * Most checkers only bind a violation to its sheet through SetSheetSpecificPath(); only a few
+ * also record the main item's own sheet.  Violations carrying neither are attributed to the
+ * first sheet of \a aSheetList.
+ */
+static std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> groupItemsBySheet( const RC_ITEMS_PROVIDER& aProvider,
+                                                                           const SCH_SHEET_LIST&    aSheetList )
+{
+    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems;
+
+    for( int i = 0; i < aProvider.GetCount(); ++i )
+    {
+        if( ERC_ITEM* item = dynamic_cast<ERC_ITEM*>( aProvider.GetItem( i ).get() ) )
+        {
+            if( item->MainItemHasSheetPath() )
+                orderedItems[item->GetMainItemSheetPath()].emplace_back( item );
+            else if( item->IsSheetSpecific() )
+                orderedItems[item->GetSpecificSheetPath()].emplace_back( item );
+            else
+                orderedItems[aSheetList[0]].emplace_back( item );
+        }
+    }
+
+    return orderedItems;
+}
+
+
 ERC_REPORT::ERC_REPORT( SCHEMATIC* aSchematic, EDA_UNITS aReportUnits,
                         std::shared_ptr<RC_ITEMS_PROVIDER> aMarkersProvider ) :
         m_sch( aSchematic ),
@@ -79,18 +108,7 @@ wxString ERC_REPORT::GetTextReport()
 
     ERC_SETTINGS& settings = m_sch->ErcSettings();
 
-    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems;
-
-    for( int i = 0; i < m_markersProvider->GetCount(); ++i )
-    {
-        if( auto item = dynamic_cast<ERC_ITEM*>( m_markersProvider->GetItem( i ).get() ) )
-        {
-            if( item->MainItemHasSheetPath() )
-                orderedItems[item->GetMainItemSheetPath()].emplace_back( item );
-            else
-                orderedItems[sheetList[0]].emplace_back( item );
-        }
-    }
+    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems = groupItemsBySheet( *m_markersProvider, sheetList );
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
@@ -184,18 +202,7 @@ bool ERC_REPORT::WriteJsonReport( const wxString& aFullFileName )
 
     ERC_SETTINGS& settings = m_sch->ErcSettings();
 
-    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems;
-
-    for( int i = 0; i < m_markersProvider->GetCount(); ++i )
-    {
-        if( auto item = dynamic_cast<ERC_ITEM*>( m_markersProvider->GetItem( i ).get() ) )
-        {
-            if( item->MainItemHasSheetPath() )
-                orderedItems[item->GetMainItemSheetPath()].emplace_back( item );
-            else
-                orderedItems[sheetList[0]].emplace_back( item );
-        }
-    }
+    std::map<SCH_SHEET_PATH, std::vector<ERC_ITEM*>> orderedItems = groupItemsBySheet( *m_markersProvider, sheetList );
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
