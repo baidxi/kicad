@@ -1151,16 +1151,16 @@ wxString CURSOR::getID()
 }
 
 
-bool TRACE::GetYRange( double* aMin, double* aMax ) const
+bool TRACE::GetStatistics( TRACE_STATS& aStats ) const
 {
     size_t startIdx = 0;
-    size_t endIdx = m_ys.size();
+    size_t endIdx = std::min( m_ys.size(), m_xs.size() );
 
     if( m_isMultiRun && GetSweepCount() > 1 && GetSweepSize() != std::numeric_limits<size_t>::max()
         && GetSweepSize() > 0 )
     {
         // Runs are concatenated one after another; only consider the most recent one.
-        size_t available = std::min( m_ys.size(), static_cast<size_t>( GetSweepCount() ) * GetSweepSize() );
+        size_t available = std::min( endIdx, static_cast<size_t>( GetSweepCount() ) * GetSweepSize() );
         endIdx = available;
         startIdx = available - GetSweepSize();
     }
@@ -1168,28 +1168,75 @@ bool TRACE::GetYRange( double* aMin, double* aMax ) const
     if( startIdx >= endIdx )
         return false;
 
-    bool found = false;
+    bool   found = false;
+    size_t count = 0;
+    double sum = 0.0; // plain sample sums, the fallback when X carries no span
+    double sumSq = 0.0;
+    double span = 0.0; // integrated over X
+    double integral = 0.0;
+    double integralSq = 0.0;
+    bool   havePrev = false;
+    double prevX = 0.0;
+    double prevY = 0.0;
 
     for( size_t ii = startIdx; ii < endIdx; ++ii )
     {
+        const double x = m_xs[ii];
+        const double y = m_ys[ii];
+
         // a magnitude of zero plots as NaN, it is not a data point
-        if( !std::isfinite( m_ys[ii] ) )
+        if( !std::isfinite( y ) )
             continue;
 
         if( found )
         {
-            *aMin = std::min( *aMin, m_ys[ii] );
-            *aMax = std::max( *aMax, m_ys[ii] );
+            aStats.min = std::min( aStats.min, y );
+            aStats.max = std::max( aStats.max, y );
         }
         else
         {
-            *aMin = m_ys[ii];
-            *aMax = m_ys[ii];
+            aStats.min = y;
+            aStats.max = y;
             found = true;
+        }
+
+        sum += y;
+        sumSq += y * y;
+        count++;
+
+        if( std::isfinite( x ) )
+        {
+            if( havePrev && x > prevX )
+            {
+                // trapezoid over the interval, so unevenly spaced samples weigh correctly
+                const double dx = x - prevX;
+
+                integral += ( prevY + y ) * 0.5 * dx;
+                integralSq += ( prevY * prevY + y * y ) * 0.5 * dx;
+                span += dx;
+            }
+
+            havePrev = true;
+            prevX = x;
+            prevY = y;
         }
     }
 
-    return found;
+    if( !found )
+        return false;
+
+    if( span > 0.0 )
+    {
+        aStats.average = integral / span;
+        aStats.rms = std::sqrt( std::max( 0.0, integralSq / span ) );
+    }
+    else
+    {
+        aStats.average = sum / count;
+        aStats.rms = std::sqrt( std::max( 0.0, sumSq / count ) );
+    }
+
+    return true;
 }
 
 
@@ -1408,11 +1455,9 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
 
     struct ROW
     {
-        wxString label;
-        wxString min;
-        wxString max;
-        wxString peak;
-        wxColour colour;
+        wxString              label;
+        std::vector<wxString> values;
+        wxColour              colour;
     };
 
     wxColour fg = aWindow.GetForegroundColour();
@@ -1420,23 +1465,28 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
 
     std::vector<ROW> rows;
 
-    rows.push_back( { wxEmptyString, _( "Min" ), _( "Max" ), _( "P-P" ), fg } );
+    rows.push_back( { wxEmptyString, { _( "Min" ), _( "Max" ), _( "P-P" ), _( "Avg" ), _( "RMS" ) }, fg } );
 
     for( const auto& [name, trace] : m_plotTab->GetTraces() )
     {
         if( !trace || trace->GetView() != m_view || !trace->IsVisible() )
             continue;
 
-        double min = 0.0;
-        double max = 0.0;
+        TRACE_STATS stats;
 
-        if( !trace->GetYRange( &min, &max ) )
+        if( !trace->GetStatistics( stats ) )
             continue;
 
         SPICE_VALUE_FORMAT fmt{ 4, wxS( "~" ) + m_view->GetUnitsForTrace( trace ) };
 
-        rows.push_back( { trace->GetDisplayName(), SPICE_VALUE( min ).ToString( fmt ),
-                          SPICE_VALUE( max ).ToString( fmt ), SPICE_VALUE( max - min ).ToString( fmt ),
+        auto format = [&fmt]( double aValue )
+        {
+            return SPICE_VALUE( aValue ).ToString( fmt );
+        };
+
+        rows.push_back( { trace->GetDisplayName(),
+                          { format( stats.min ), format( stats.max ), format( stats.max - stats.min ),
+                            format( stats.average ), format( stats.rms ) },
                           trace->GetTraceColour() } );
     }
 
@@ -1445,11 +1495,10 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
 
     aDC.SetFont( m_font );
 
-    int labelWidth = 0;
-    int minWidth = 0;
-    int maxWidth = 0;
-    int peakWidth = 0;
-    int rowHeight = 0;
+    const size_t     columnCount = rows[0].values.size();
+    int              labelWidth = 0;
+    std::vector<int> columnWidths( columnCount, 0 );
+    int              rowHeight = 0;
 
     auto measure = [&]( const wxString& aText, int& aWidth )
     {
@@ -1462,17 +1511,20 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
     for( const ROW& row : rows )
     {
         measure( row.label, labelWidth );
-        measure( row.min, minWidth );
-        measure( row.max, maxWidth );
-        measure( row.peak, peakWidth );
+
+        for( size_t col = 0; col < columnCount; ++col )
+            measure( row.values[col], columnWidths[col] );
     }
 
     const int margin = 5;
     const int columnGap = 10;
 
     int lineHeight = rowHeight + 2;
-    int boxWidth = margin * 2 + labelWidth + minWidth + maxWidth + peakWidth + columnGap * 3;
+    int boxWidth = margin * 2 + labelWidth;
     int boxHeight = margin * 2 + lineHeight * (int) rows.size();
+
+    for( int width : columnWidths )
+        boxWidth += columnGap + width;
 
     m_dim.width = boxWidth;
     m_dim.height = boxHeight;
@@ -1492,21 +1544,21 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
     aDC.DrawRectangle( m_dim.x, m_dim.y, boxWidth, boxHeight );
 
     int textY = m_dim.y + margin;
-    int labelX = m_dim.x + margin;
-    int minRight = labelX + labelWidth + columnGap + minWidth;
-    int maxRight = minRight + columnGap + maxWidth;
-    int peakRight = maxRight + columnGap + peakWidth;
 
     for( const ROW& row : rows )
     {
         // set explicitly: layers are plotted in list order and the plot cursors leave their own
         // text colour on the DC
         aDC.SetTextForeground( row.colour );
+        aDC.DrawText( row.label, m_dim.x + margin, textY );
 
-        aDC.DrawText( row.label, labelX, textY );
-        aDC.DrawText( row.min, minRight - aDC.GetTextExtent( row.min ).x, textY );
-        aDC.DrawText( row.max, maxRight - aDC.GetTextExtent( row.max ).x, textY );
-        aDC.DrawText( row.peak, peakRight - aDC.GetTextExtent( row.peak ).x, textY );
+        int columnRight = m_dim.x + margin + labelWidth;
+
+        for( size_t col = 0; col < columnCount; ++col )
+        {
+            columnRight += columnGap + columnWidths[col];
+            aDC.DrawText( row.values[col], columnRight - aDC.GetTextExtent( row.values[col] ).x, textY );
+        }
 
         textY += lineHeight;
     }

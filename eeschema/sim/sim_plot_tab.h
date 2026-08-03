@@ -64,6 +64,16 @@ class TRACE;
  */
 
 
+///< Summary of a trace's Y values over the run it is currently showing.
+struct TRACE_STATS
+{
+    double min;
+    double max;
+    double average;
+    double rms;
+};
+
+
 ///< Cursor attached to a trace to follow its values:
 class CURSOR : public mpInfoLayer
 {
@@ -186,15 +196,20 @@ public:
     const std::vector<double>& GetDataY() const { return m_ys; }
 
     /**
-     * Y range of this trace's data, ignoring non-finite values (a magnitude of zero plots as
-     * NaN, and would otherwise poison the range).
+     * Min/max/average/RMS of this trace's data, ignoring non-finite values (a magnitude of
+     * zero plots as NaN, and would otherwise poison the result).
+     *
+     * The average and RMS are integrated over X (trapezoidal), so a transient run's variable
+     * timestep doesn't bias them towards the densely-sampled stretches.  Where the X data
+     * can't carry that -- a zero span, or samples that don't advance -- they fall back to the
+     * plain sample mean.
      *
      * For multi-run (swept) traces, only the most recent run is considered, matching what
      * GetValueAtX() reads out.
      *
      * @return false if the trace holds no finite data.
      */
-    bool GetYRange( double* aMin, double* aMax ) const;
+    bool GetStatistics( TRACE_STATS& aStats ) const;
 
     /**
      * Linearly interpolate this trace's value at a given X (in the trace's own data space).
