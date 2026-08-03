@@ -177,16 +177,9 @@ void API_HANDLER_EDITOR::pushCurrentCommit( const std::string& aClientName,
 
 HANDLER_RESULT<bool> API_HANDLER_EDITOR::validateDocument( const DocumentSpecifier& aDocument )
 {
-    if( !validateDocumentInternal( aDocument ) )
-    {
-        ApiResponseStatus e;
-        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
-        e.set_error_message( fmt::format( "the requested document {} is not open",
-                                          aDocument.board_filename() ) );
-        return tl::unexpected( e );
-    }
-
-    return true;
+    // The frame-specific check knows which part of the specifier is wrong, so its error is
+    // propagated verbatim rather than replaced by a generic message here.
+    return validateDocumentInternal( aDocument );
 }
 
 
@@ -205,9 +198,6 @@ HANDLER_RESULT<std::optional<KIID>> API_HANDLER_EDITOR::validateItemHeaderDocume
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
-
-    if( tl::expected<bool, ApiResponseStatus> result = validateDocumentInternal( aHeader.document() ); !result )
-        return tl::unexpected( result.error() );
 
     if( aHeader.has_container() )
     {
