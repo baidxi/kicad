@@ -672,6 +672,19 @@ public:
     std::vector<std::unique_ptr<SCH_PIN>>& GetRawPins() { return m_pins; }
 
     /**
+     * Copy the pin KIIDs of \a aOther onto this symbol's pins, matching pins by number.
+     *
+     * A symbol built from scratch (deserialized, or rebuilt from the library) carries freshly
+     * generated pin KIIDs, but the pins of a placed symbol are referenced by KIID from the
+     * netlist and the ERC results, so that identity has to be carried over when such a copy
+     * takes the place of a placed symbol.  Pins of this symbol without a counterpart in
+     * \a aOther keep their own KIID.  Pins of all units and body styles are considered.
+     *
+     * @param aOther is the symbol to take the pin KIIDs from.
+     */
+    void CopyPinUuidsFrom( const SCH_SYMBOL& aOther );
+
+    /**
      * Set the reference for the given sheet path for this symbol.
      *
      * @param aSheet is the hierarchical path of the reference.

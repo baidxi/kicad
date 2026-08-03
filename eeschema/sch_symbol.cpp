@@ -2219,6 +2219,28 @@ std::vector<SCH_PIN*> SCH_SYMBOL::GetPins() const
 }
 
 
+void SCH_SYMBOL::CopyPinUuidsFrom( const SCH_SYMBOL& aOther )
+{
+    // A multimap because symbols may intentionally have several pins with the same number; each
+    // KIID is consumed once so that such pins don't all end up with the same identity.
+    std::multimap<wxString, KIID> uuids;
+
+    for( const std::unique_ptr<SCH_PIN>& pin : aOther.m_pins )
+        uuids.emplace( pin->GetNumber(), pin->m_Uuid );
+
+    for( std::unique_ptr<SCH_PIN>& pin : m_pins )
+    {
+        auto it = uuids.find( pin->GetNumber() );
+
+        if( it != uuids.end() )
+        {
+            const_cast<KIID&>( pin->m_Uuid ) = it->second;
+            uuids.erase( it );
+        }
+    }
+}
+
+
 void SCH_SYMBOL::swapData( SCH_ITEM* aItem )
 {
     wxCHECK_RET( aItem != nullptr && aItem->Type() == SCH_SYMBOL_T, wxT( "Cannot swap data with invalid symbol." ) );

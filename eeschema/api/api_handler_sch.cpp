@@ -1018,6 +1018,15 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         else
         {
             commit->Modify( existingItem, targetScreen );
+
+            // Updating a symbol swaps in the pins of the deserialized item, whose pin KIIDs are
+            // not the placed symbol's.  Pin identity has to be stable across an update because
+            // the netlist and the ERC results reference pins by KIID.
+            if( existingItem->Type() == SCH_SYMBOL_T && item->Type() == SCH_SYMBOL_T )
+            {
+                static_cast<SCH_SYMBOL*>( item.get() )->CopyPinUuidsFrom( *static_cast<SCH_SYMBOL*>( existingItem ) );
+            }
+
             existingItem->SwapItemData( static_cast<SCH_ITEM*>( item.get() ) );
 
             if( existingItem->IsConnectable() )
