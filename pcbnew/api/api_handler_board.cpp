@@ -359,6 +359,31 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_BOARD::handleCreateUpdateItemsInte
             continue;
         }
 
+        // BOARD::Add() refuses (and leaks) tracks and arcs that are not on a copper layer, and a
+        // via's drill has to start on a copper layer.  Reject the combination here so that the
+        // client gets a per-item error instead of a success status for an item that either never
+        // lands on the board, or that is dropped the next time the file is loaded.  This has to
+        // run on the update path too: nothing downstream of CopyFrom() re-checks the layer.
+        switch( item->Type() )
+        {
+        case PCB_TRACE_T:
+        case PCB_ARC_T:
+        case PCB_VIA_T:
+            if( !IsCopperLayer( item->GetLayer() ) )
+            {
+                status.set_code( ItemStatusCode::ISC_INVALID_DATA );
+                status.set_error_message( fmt::format( "{} requires a copper layer, got {}",
+                                                       item->GetClass().ToStdString(),
+                                                       LayerName( item->GetLayer() ).ToStdString() ) );
+                aItemHandler( status, anyItem );
+                continue;
+            }
+
+            break;
+
+        default: break;
+        }
+
         status.set_code( ItemStatusCode::ISC_OK );
         google::protobuf::Any newItem;
 
