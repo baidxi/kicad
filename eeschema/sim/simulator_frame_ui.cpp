@@ -2131,7 +2131,8 @@ void SIMULATOR_FRAME_UI::AddTrace( const wxString& aName, SIM_TRACE_TYPE aType )
             updateTrace( aName, aType, plotTab );
         }
 
-        plotTab->GetPlotWin()->UpdateAll();
+        for( SIM_VIEW* view : plotTab->GetViews() )
+            view->UpdateAll();
     }
 
     updateSignalsGrid();
@@ -3493,9 +3494,10 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
     // keyed by vector name since user-defined traces are renamed to their display text
     struct SHOWN_VECTOR
     {
-        wxString vectorName;
-        wxString displayName;
-        int      baseType;
+        wxString  vectorName;
+        wxString  displayName;
+        int       baseType;
+        SIM_VIEW* view; // the view it was plotted on, so the rebuild stays where it was
     };
 
     std::vector<SHOWN_VECTOR> shownVectors;
@@ -3525,7 +3527,7 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
             seen |= sv.vectorName == vectorName;
 
         if( !seen )
-            shownVectors.push_back( { vectorName, trace->GetName(), baseType } );
+            shownVectors.push_back( { vectorName, trace->GetName(), baseType, trace->GetView() } );
 
         for( const auto& [cursorId, cursor] : trace->GetCursors() )
         {
@@ -3574,7 +3576,10 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
                 seen |= sv.vectorName == stashed.vectorName;
 
             if( !seen )
-                shownVectors.push_back( { stashed.vectorName, stashed.displayName, stashed.baseType } );
+            {
+                shownVectors.push_back(
+                        { stashed.vectorName, stashed.displayName, stashed.baseType, plotTab->GetDefaultView() } );
+            }
         }
     }
 
@@ -3604,7 +3609,7 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
 
         for( int subType : subTypes )
         {
-            updateTrace( sv.vectorName, sv.baseType | subType, plotTab );
+            updateTrace( sv.vectorName, sv.baseType | subType, plotTab, nullptr, false, sv.view );
 
             if( TRACE* trace = plotTab->GetTrace( sv.vectorName, sv.baseType | subType ) )
                 trace->SetName( sv.displayName );
@@ -3698,7 +3703,8 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
         stashedCursors.clear();
     }
 
-    plotTab->GetPlotWin()->UpdateAll();
+    for( SIM_VIEW* view : plotTab->GetViews() )
+        view->UpdateAll();
 
     rebuildSignalsList();
     rebuildSignalsGrid( m_filter->GetValue() );
