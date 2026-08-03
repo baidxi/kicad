@@ -1517,9 +1517,9 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
     }
 
     const int margin = 5;
-    const int columnGap = 10;
+    const int columnGap = 14; // room for a rule with clear air either side
 
-    int lineHeight = rowHeight + 2;
+    int lineHeight = rowHeight + 3;
     int boxWidth = margin * 2 + labelWidth;
     int boxHeight = margin * 2 + lineHeight * (int) rows.size();
 
@@ -1543,6 +1543,34 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
     aDC.SetBrush( wxBrush( bg ) );
     aDC.DrawRectangle( m_dim.x, m_dim.y, boxWidth, boxHeight );
 
+    // Right edge of each column; the values are right-aligned against these.
+    std::vector<int> columnRights;
+    int              columnRight = m_dim.x + margin + labelWidth;
+
+    for( size_t col = 0; col < columnCount; ++col )
+    {
+        columnRight += columnGap + columnWidths[col];
+        columnRights.push_back( columnRight );
+    }
+
+    // Rules, in a colour that reads as structure rather than as data: the values carry unit
+    // suffixes of differing widths, so the eye needs a fixed edge to scan down.
+    wxColour ruleColour = COLOR4D( fg ).Mix( COLOR4D( bg ), 0.35 ).ToColour();
+
+    aDC.SetPen( wxPen( ruleColour, 1 ) );
+
+    for( size_t col = 0; col < columnCount; ++col )
+    {
+        // one rule before each value column, so the labels are fenced off from the data too
+        int ruleX = ( col == 0 ? m_dim.x + margin + labelWidth : columnRights[col - 1] ) + columnGap / 2;
+
+        aDC.DrawLine( ruleX, m_dim.y + 2, ruleX, m_dim.y + boxHeight - 2 );
+    }
+
+    int headerBottom = m_dim.y + margin + lineHeight - 1;
+
+    aDC.DrawLine( m_dim.x + 2, headerBottom, m_dim.x + boxWidth - 2, headerBottom );
+
     int textY = m_dim.y + margin;
 
     for( const ROW& row : rows )
@@ -1552,13 +1580,8 @@ void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
         aDC.SetTextForeground( row.colour );
         aDC.DrawText( row.label, m_dim.x + margin, textY );
 
-        int columnRight = m_dim.x + margin + labelWidth;
-
         for( size_t col = 0; col < columnCount; ++col )
-        {
-            columnRight += columnGap + columnWidths[col];
-            aDC.DrawText( row.values[col], columnRight - aDC.GetTextExtent( row.values[col] ).x, textY );
-        }
+            aDC.DrawText( row.values[col], columnRights[col] - aDC.GetTextExtent( row.values[col] ).x, textY );
 
         textY += lineHeight;
     }
