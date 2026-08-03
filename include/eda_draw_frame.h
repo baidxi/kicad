@@ -550,6 +550,16 @@ protected:
     std::vector<wxWindow*> findDialogs();
 
     /**
+     * Unbind and forget API plugin toolbar buttons previously created by this frame.
+     *
+     * The plugin manager's binding map is shared by every open frame, so a frame must retire
+     * only the entries it owns.
+     *
+     * @param aButtonIds are the button IDs to release; the list is emptied on return.
+     */
+    void releaseApiPluginButtons( std::vector<int>& aButtonIds );
+
+    /**
      * Determine the canvas type to load (with prompt if required) and initializes #m_canvasType.
      */
     virtual void resolveCanvasType();
@@ -592,6 +602,9 @@ protected:
     wxChoice*            m_zoomSelectBox;
     int                  m_zoomCustomEntry; // index of the non-preset zoom entry, or wxNOT_FOUND
     wxCheckBox*          m_overrideLocksCb;
+
+    /// API plugin toolbar button IDs created by this frame, keyed by the toolbar holding them.
+    std::map<ACTION_TOOLBAR*, std::vector<int>> m_apiPluginButtonIds;
 
     std::unique_ptr<EDA_SEARCH_DATA> m_findReplaceData;
     wxArrayString        m_findStringHistoryList;

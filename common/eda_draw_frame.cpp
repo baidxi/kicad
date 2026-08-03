@@ -177,6 +177,9 @@ EDA_DRAW_FRAME::~EDA_DRAW_FRAME()
     if( !m_openGLFailureOccured )
         saveCanvasTypeSetting( m_canvasType );
 
+    for( std::vector<int>& buttonIds : m_apiPluginButtonIds | std::views::values )
+        releaseApiPluginButtons( buttonIds );
+
     delete m_actions;
     delete m_toolManager;
     delete m_toolDispatcher;
@@ -1489,7 +1492,11 @@ void EDA_DRAW_FRAME::AddApiPluginTools( ACTION_TOOLBAR* aToolbar )
 {
     API_PLUGIN_MANAGER& mgr = Pgm().GetPluginManager();
 
-    mgr.ButtonBindings().clear();
+    // The binding map belongs to the plugin manager and is therefore shared by every open editor
+    // frame; only API_PLUGIN_MANAGER::ReloadPlugins may reset it as a whole.  Retire just the
+    // buttons this frame put on aToolbar the last time it was built.
+    std::vector<int>& buttonIds = m_apiPluginButtonIds[aToolbar];
+    releaseApiPluginButtons( buttonIds );
 
     std::vector<const PLUGIN_ACTION*> actions = GetOrderedPluginActions( PluginActionScope(), config() );
 
@@ -1507,7 +1514,23 @@ void EDA_DRAW_FRAME::AddApiPluginTools( ACTION_TOOLBAR* aToolbar )
                  wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
 
         mgr.ButtonBindings().insert( { button->GetId(), action->identifier } );
+        buttonIds.push_back( button->GetId() );
     }
+}
+
+
+void EDA_DRAW_FRAME::releaseApiPluginButtons( std::vector<int>& aButtonIds )
+{
+    API_PLUGIN_MANAGER& mgr = Pgm().GetPluginManager();
+
+    for( int id : aButtonIds )
+    {
+        Disconnect( id, wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( EDA_DRAW_FRAME::OnApiPluginInvoke ) );
+
+        mgr.ButtonBindings().erase( id );
+    }
+
+    aButtonIds.clear();
 }
 
 
