@@ -46,6 +46,8 @@ public:
 
     ///< Enter sheet provided in aEvent
     int ChangeSheet( const TOOL_EVENT& aEvent );
+    ///< Enter the given sheet path (programmatic entry point used by IPC).
+    void ChangeSheet( const SCH_SHEET_PATH& aPath );
     ///< Enter selected sheet
     int EnterSheet( const TOOL_EVENT& aEvent );
     ///< Return to parent sheet. Synonymous with Up

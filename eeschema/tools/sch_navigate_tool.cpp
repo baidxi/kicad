@@ -241,6 +241,12 @@ int SCH_NAVIGATE_TOOL::ChangeSheet( const TOOL_EVENT& aEvent )
 }
 
 
+void SCH_NAVIGATE_TOOL::ChangeSheet( const SCH_SHEET_PATH& aPath )
+{
+    changeSheet( aPath );
+}
+
+
 int SCH_NAVIGATE_TOOL::EnterSheet( const TOOL_EVENT& aEvent )
 {
     SCH_SELECTION_TOOL*  selTool = m_toolMgr->GetTool<SCH_SELECTION_TOOL>();

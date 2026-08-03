@@ -57,3 +57,19 @@ message SchematicNetlistResponse
 
   repeated SchematicNet nets = 2;
 }
+
+// Set the eeschema editor's active sheet to document.sheet_path.
+// Returns google.protobuf.Empty on success.
+//
+// document.sheet_path must be valid for the loaded schematic (same validation as
+// in CreateItems' header.document.sheet_path).  If it is not set, the root sheet
+// is selected -- equivalent to LeaveSheet repeated until the top.
+//
+// This is a UI command -- it changes which sheet the user sees in
+// eeschema and which sheet RefreshScreen / Save target. It does NOT
+// scope subsequent CreateItems / GetItems / etc.; those still take
+// their own header.document.sheet_path.
+message SetActiveSheet
+{
+  kiapi.common.types.DocumentSpecifier document = 1;
+}

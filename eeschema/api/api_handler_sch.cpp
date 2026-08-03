@@ -43,6 +43,7 @@
 #include <schematic.h>
 #include <tool/actions.h>
 #include <tool/tool_manager.h>
+#include <tools/sch_navigate_tool.h>
 #include <tools/sch_selection_tool.h>
 #include <project.h>
 #include <wildcards_and_files_ext.h>
@@ -148,6 +149,7 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<GetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleGetPageSettings );
     registerHandler<SetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleSetPageSettings );
     registerHandler<GetSchematicNetlist, SchematicNetlistResponse>( &API_HANDLER_SCH::handleGetSchematicNetlist );
+    registerHandler<SetActiveSheet, google::protobuf::Empty>( &API_HANDLER_SCH::handleSetActiveSheet );
 }
 
 
@@ -1583,4 +1585,65 @@ API_HANDLER_SCH::handleGetSchematicNetlist( const HANDLER_CONTEXT<kiapi::schemat
     }
 
     return response;
+}
+
+
+HANDLER_RESULT<google::protobuf::Empty>
+API_HANDLER_SCH::handleSetActiveSheet( const HANDLER_CONTEXT<kiapi::schematic::types::SetActiveSheet>& aCtx )
+{
+    if( std::optional<ApiResponseStatus> headless = checkForHeadless( "SetActiveSheet" ) )
+        return tl::unexpected( *headless );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    if( !schematic()->HasHierarchy() )
+        schematic()->RefreshHierarchy();
+
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    SCH_SHEET_LIST hierarchy = schematic()->Hierarchy();
+
+    if( hierarchy.empty() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "the schematic hierarchy could not be built" );
+        return tl::unexpected( e );
+    }
+
+    // An omitted document.sheet_path means the root sheet
+    std::optional<SCH_SHEET_PATH> path = *hierarchy.begin();
+
+    if( aCtx.Request.document().has_sheet_path() )
+    {
+        KIID_PATH kp = UnpackSheetPath( aCtx.Request.document().sheet_path() );
+        path = hierarchy.GetSheetPathByKIIDPath( kp );
+
+        if( !path )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( fmt::format( "the requested sheet path {} is not valid for this schematic",
+                                              kp.AsString().ToStdString() ) );
+            return tl::unexpected( e );
+        }
+    }
+
+    SCH_NAVIGATE_TOOL* navTool = m_context->GetToolManager()->GetTool<SCH_NAVIGATE_TOOL>();
+
+    if( !navTool )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "schematic navigate tool not available" );
+        return tl::unexpected( e );
+    }
+
+    navTool->ChangeSheet( *path );
+
+    return google::protobuf::Empty();
 }
