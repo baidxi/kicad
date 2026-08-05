@@ -469,6 +469,35 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::SaveSymbol( LIB_SYMBOL* aSymbol, OUTPUTFORMAT
             aFormatter.Print( ")" );
         }
 
+        const auto& groupDescs = aSymbol->PinFunctionGroupDescriptions();
+
+        if( !groupDescs.empty() )
+        {
+            aFormatter.Print( "(pin_function_group_descriptions" );
+
+            for( const auto& [groupName, groupDesc] : groupDescs )
+            {
+                aFormatter.Print( "(group %s %s",
+                                  aFormatter.Quotew( groupName ).c_str(),
+                                  aFormatter.Quotew( groupDesc.description ).c_str() );
+
+                if( !groupDesc.bus.IsEmpty() )
+                    aFormatter.Print( "(bus %s)", aFormatter.Quotew( groupDesc.bus ).c_str() );
+
+                // Only explicitly declared rules live in the map, so writing every entry back
+                // round-trips exactly; an undeclared subgroup keeps the implicit min-1 default.
+                for( const auto& [subgroupName, rule] : groupDesc.subgroups )
+                {
+                    aFormatter.Print( "(subgroup %s (min %d))",
+                                      aFormatter.Quotew( subgroupName ).c_str(), rule.min );
+                }
+
+                aFormatter.Print( ")" );
+            }
+
+            aFormatter.Print( ")" );
+        }
+
         // TODO: add atomic token here.
 
         // TODO: add required token here."
@@ -797,10 +826,30 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::savePin( SCH_PIN* aPin, OUTPUTFORMATTER& aFor
         if( alt.second.m_Name.IsEmpty() )
             continue;
 
-        aFormatter.Print( "(alternate %s %s %s)",
+        // Build the optional (group ...) clause rather than branching over its four shapes.
+        std::string groupClause;
+
+        if( !alt.second.m_FunctionGroup.IsEmpty() )
+        {
+            groupClause = " (group " + aFormatter.Quotew( alt.second.m_FunctionGroup );
+
+            if( alt.second.m_FunctionGroupOptional )
+                groupClause += " optional";
+
+            if( !alt.second.m_FunctionGroupSubgroup.IsEmpty() )
+            {
+                groupClause += " (subgroup "
+                               + aFormatter.Quotew( alt.second.m_FunctionGroupSubgroup ) + ")";
+            }
+
+            groupClause += ")";
+        }
+
+        aFormatter.Print( "(alternate %s %s %s%s)",
                           aFormatter.Quotew( alt.second.m_Name ).c_str(),
                           getPinElectricalTypeToken( alt.second.m_Type ),
-                          getPinShapeToken( alt.second.m_Shape ) );
+                          getPinShapeToken( alt.second.m_Shape ),
+                          groupClause.c_str() );
     }
 
     aFormatter.Print( ")" );

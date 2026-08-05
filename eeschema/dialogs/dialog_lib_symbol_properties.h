@@ -109,6 +109,18 @@ public:
     PANEL_EMBEDDED_FILES* m_embeddedFiles;
     PANEL_SYMBOL_PIN_MAP* m_pinMapPanel;
 
+    /// Pin function group annotations: descriptions, bus exclusivity, and subgroup minimums.
+    /// Built programmatically (like the schematic-side group grid) rather than in the .fbp,
+    /// since its rows are derived from the symbol's pins rather than authored directly.
+    WX_GRID*           m_functionGroupsGrid;
+    wxStaticText*      m_functionGroupsLabel;
+
+    /// Populate m_functionGroupsGrid from the symbol's grouped alternates + descriptions.
+    void buildFunctionGroupsGrid();
+
+    /// Write the grid back into LIB_SYMBOL::PinFunctionGroupDescriptions().
+    bool applyFunctionGroupsGrid();
+
 private:
     static int m_lastOpenedPage;    // To remember the last notebook selection
 

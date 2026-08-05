@@ -280,6 +280,7 @@ LIB_SYMBOL::LIB_SYMBOL( const LIB_SYMBOL& aSymbol, LEGACY_SYMBOL_LIB* aLibrary, 
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();
+    m_pinFunctionGroupDescriptions = aSymbol.m_pinFunctionGroupDescriptions;
 
     ClearSelected();
 
@@ -335,6 +336,7 @@ const LIB_SYMBOL& LIB_SYMBOL::operator=( const LIB_SYMBOL& aSymbol )
 
     m_unitDisplayNames = aSymbol.GetUnitDisplayNames();
     m_bodyStyleNames = aSymbol.GetBodyStyleNames();
+    m_pinFunctionGroupDescriptions = aSymbol.m_pinFunctionGroupDescriptions;
 
     m_drawings.clear();
 
@@ -555,6 +557,34 @@ wxString LIB_SYMBOL::GetFootprint()
 }
 
 
+/**
+ * Merge pin function group descriptions from @p aSrc onto @p aDest for symbol inheritance.
+ *
+ * Merges field-by-field rather than overwriting the whole value: a derived symbol that sets only
+ * a description must not silently drop the subgroup cardinality rules it inherited.  Description
+ * and bus therefore follow "override if non-empty", matching how m_keyWords and m_fpFilters
+ * already behave -- which means a derived symbol cannot clear an inherited description by
+ * declaring an empty one.
+ */
+static void mergePinFunctionGroupDescs( std::map<wxString, PIN_FUNCTION_GROUP_DESC>& aDest,
+                                        const std::map<wxString, PIN_FUNCTION_GROUP_DESC>& aSrc )
+{
+    for( const auto& [groupName, srcDesc] : aSrc )
+    {
+        PIN_FUNCTION_GROUP_DESC& destDesc = aDest[groupName];
+
+        if( !srcDesc.description.IsEmpty() )
+            destDesc.description = srcDesc.description;
+
+        if( !srcDesc.bus.IsEmpty() )
+            destDesc.bus = srcDesc.bus;
+
+        for( const auto& [subgroupName, rule] : srcDesc.subgroups )
+            destDesc.subgroups[subgroupName] = rule;
+    }
+}
+
+
 std::unique_ptr<LIB_SYMBOL> LIB_SYMBOL::Flatten() const
 {
     std::unique_ptr<LIB_SYMBOL> retv;
@@ -632,6 +662,10 @@ std::unique_ptr<LIB_SYMBOL> LIB_SYMBOL::Flatten() const
 
                 if( !derived->m_fpFilters.IsEmpty() )
                     retv->SetFPFilters( derived->m_fpFilters );
+
+                // Inherit/override pin function group descriptions from this derived level.
+                mergePinFunctionGroupDescs( retv->m_pinFunctionGroupDescriptions,
+                                            derived->m_pinFunctionGroupDescriptions );
             }
         }
         else
@@ -684,6 +718,10 @@ std::unique_ptr<LIB_SYMBOL> LIB_SYMBOL::Flatten() const
 
         if( !m_fpFilters.IsEmpty() )
             retv->SetFPFilters( m_fpFilters );
+
+        // Inherit/override pin function group descriptions from this symbol.
+        mergePinFunctionGroupDescs( retv->m_pinFunctionGroupDescriptions,
+                                    m_pinFunctionGroupDescriptions );
 
         for( const auto& file : EmbeddedFileMap() )
         {
@@ -1306,6 +1344,245 @@ const SCH_PIN* LIB_SYMBOL::GetPin( const wxString& aNumber, int aUnit, int aBody
     }
 
     return nullptr;
+}
+
+
+namespace
+{
+
+/// One (pin, alternate) membership of a pin function group.
+struct FUNCTION_GROUP_MEMBER
+{
+    wxString pinNumber;
+    wxString subgroup;
+    bool     individuallyRequired;
+    bool     assigned;
+};
+
+
+/// Collect every grouped alternate on the considered pins, bucketed by group name.
+std::map<wxString, std::vector<FUNCTION_GROUP_MEMBER>>
+collectFunctionGroupMembers( const LIB_SYMBOL& aSymbol,
+                             const std::map<wxString, wxString>& aAssignedAlts, int aUnit,
+                             int aBodyStyle )
+{
+    std::map<wxString, std::vector<FUNCTION_GROUP_MEMBER>> members;
+
+    for( const SCH_PIN* pin : aSymbol.GetGraphicalPins( aUnit, aBodyStyle ) )
+    {
+        auto     it = aAssignedAlts.find( pin->GetNumber() );
+        wxString assignedAlt = ( it != aAssignedAlts.end() ) ? it->second : wxString();
+
+        for( const auto& [altName, alt] : pin->GetAlternates() )
+        {
+            if( alt.m_FunctionGroup.IsEmpty() )
+                continue;
+
+            members[alt.m_FunctionGroup].push_back(
+                    { pin->GetNumber(), alt.m_FunctionGroupSubgroup, !alt.IsOptionalGroupMember(),
+                      !assignedAlt.IsEmpty() && altName == assignedAlt } );
+        }
+    }
+
+    return members;
+}
+
+
+wxString formatGroupStatusMessage( const PIN_FUNCTION_GROUP_STATUS& aStatus )
+{
+    wxString msg;
+
+    for( const auto& [subgroupName, counts] : aStatus.unmetSubgroups )
+    {
+        if( !msg.IsEmpty() )
+            msg += wxS( "; " );
+
+        msg += wxString::Format( _( "%s: %d of %d %s assigned" ), aStatus.groupName,
+                                 counts.first, counts.second, subgroupName );
+    }
+
+    if( !aStatus.missingRequiredPins.empty() )
+    {
+        wxString pins;
+
+        for( const wxString& pin : aStatus.missingRequiredPins )
+        {
+            if( !pins.IsEmpty() )
+                pins += wxS( ", " );
+
+            pins += pin;
+        }
+
+        if( !msg.IsEmpty() )
+            msg += wxS( "; " );
+
+        msg += wxString::Format( _( "%s: unassigned required pins %s" ), aStatus.groupName, pins );
+    }
+
+    return msg;
+}
+
+} // anonymous namespace
+
+
+std::map<wxString, PIN_FUNCTION_GROUP_STATUS>
+LIB_SYMBOL::ValidatePinFunctionGroups( const std::map<wxString, wxString>& aAssignedAlts,
+                                       int aUnit, int aBodyStyle ) const
+{
+    std::map<wxString, PIN_FUNCTION_GROUP_STATUS> result;
+
+    for( const auto& [groupName, groupMembers] :
+         collectFunctionGroupMembers( *this, aAssignedAlts, aUnit, aBodyStyle ) )
+    {
+        PIN_FUNCTION_GROUP_STATUS status;
+        status.groupName = groupName;
+
+        // A pin counts as satisfied when ANY of its alternates in this group is assigned.
+        std::map<wxString, bool>                pinSatisfied;
+        std::map<wxString, std::pair<int, int>> subgroupCounts;   // name -> { assigned, total }
+        bool                                    anyAssigned = false;
+
+        for( const FUNCTION_GROUP_MEMBER& member : groupMembers )
+        {
+            bool& satisfied = pinSatisfied[member.pinNumber];
+            satisfied = satisfied || member.assigned;
+            anyAssigned = anyAssigned || member.assigned;
+
+            if( !member.subgroup.IsEmpty() )
+            {
+                auto& [assigned, total] = subgroupCounts[member.subgroup];
+                total++;
+
+                if( member.assigned )
+                    assigned++;
+            }
+        }
+
+        if( !anyAssigned )
+        {
+            status.state = PIN_FUNCTION_GROUP_STATE::INACTIVE;
+            result[groupName] = std::move( status );
+            continue;
+        }
+
+        for( const FUNCTION_GROUP_MEMBER& member : groupMembers )
+        {
+            if( member.individuallyRequired && !pinSatisfied[member.pinNumber] )
+                status.missingRequiredPins.insert( member.pinNumber );
+        }
+
+        auto descIt = m_pinFunctionGroupDescriptions.find( groupName );
+
+        // Walk the subgroups that actually have members, so an undeclared subgroup still gets the
+        // default minimum and a rule for a nonexistent subgroup is a no-op.
+        for( const auto& [subgroupName, counts] : subgroupCounts )
+        {
+            PIN_FUNCTION_SUBGROUP_RULE rule;
+
+            if( descIt != m_pinFunctionGroupDescriptions.end() )
+            {
+                auto ruleIt = descIt->second.subgroups.find( subgroupName );
+
+                if( ruleIt != descIt->second.subgroups.end() )
+                    rule = ruleIt->second;
+            }
+
+            if( counts.first < rule.min )
+                status.unmetSubgroups[subgroupName] = { counts.first, rule.min };
+        }
+
+        status.state = ( status.missingRequiredPins.empty() && status.unmetSubgroups.empty() )
+                               ? PIN_FUNCTION_GROUP_STATE::COMPLETE
+                               : PIN_FUNCTION_GROUP_STATE::INCOMPLETE;
+
+        if( status.state == PIN_FUNCTION_GROUP_STATE::INCOMPLETE )
+            status.message = formatGroupStatusMessage( status );
+
+        result[groupName] = std::move( status );
+    }
+
+    return result;
+}
+
+
+std::map<wxString, std::map<wxString, std::set<wxString>>>
+LIB_SYMBOL::GetConflictingPinFunctionGroups( const std::set<wxString>& aActiveGroups,
+                                             const std::map<wxString, wxString>& aAssignedAlts,
+                                             int aUnit, int aBodyStyle ) const
+{
+    const std::map<wxString, std::vector<FUNCTION_GROUP_MEMBER>> members =
+            collectFunctionGroupMembers( *this, aAssignedAlts, aUnit, aBodyStyle );
+
+    // Pins an active group is holding: its required members, plus the optional/subgroup members
+    // it actually has assigned.  Counting only required members is what let collisions through
+    // an optional member go undetected.
+    std::map<wxString, std::set<wxString>> claimedPins;
+
+    for( const auto& [groupName, groupMembers] : members )
+    {
+        if( !aActiveGroups.count( groupName ) )
+            continue;
+
+        for( const FUNCTION_GROUP_MEMBER& member : groupMembers )
+        {
+            if( member.individuallyRequired || member.assigned )
+                claimedPins[groupName].insert( member.pinNumber );
+        }
+    }
+
+    // group -> ( conflicting group -> the pins they contend for; empty means a bus conflict )
+    std::map<wxString, std::map<wxString, std::set<wxString>>> conflicts;
+
+    for( const auto& [groupName, groupMembers] : members )
+    {
+        // What this group would need if it were enabled: its required members.  (Its optional
+        // members are the user's choice, so they cannot be predicted here.)
+        std::set<wxString> wantedPins;
+
+        for( const FUNCTION_GROUP_MEMBER& member : groupMembers )
+        {
+            if( member.individuallyRequired || ( aActiveGroups.count( groupName )
+                                                 && member.assigned ) )
+            {
+                wantedPins.insert( member.pinNumber );
+            }
+        }
+
+        for( const auto& [otherName, otherPins] : claimedPins )
+        {
+            if( otherName == groupName )
+                continue;
+
+            for( const wxString& pin : wantedPins )
+            {
+                if( otherPins.count( pin ) )
+                    conflicts[groupName][otherName].insert( pin );
+            }
+        }
+
+        // Bus-level mutual exclusivity: groups sharing a bus name cannot coexist.
+        auto descIt = m_pinFunctionGroupDescriptions.find( groupName );
+
+        if( descIt == m_pinFunctionGroupDescriptions.end() || descIt->second.bus.IsEmpty() )
+            continue;
+
+        for( const wxString& activeName : aActiveGroups )
+        {
+            if( activeName == groupName )
+                continue;
+
+            auto activeDescIt = m_pinFunctionGroupDescriptions.find( activeName );
+
+            if( activeDescIt != m_pinFunctionGroupDescriptions.end()
+                    && activeDescIt->second.bus == descIt->second.bus )
+            {
+                // Reached via the shared bus name rather than a specific pin, so no pin list.
+                conflicts[groupName][activeName];
+            }
+        }
+    }
+
+    return conflicts;
 }
 
 
@@ -2172,6 +2449,52 @@ std::vector<LIB_SYMBOL_UNIT> LIB_SYMBOL::GetUnitDrawItems()
     }
 #define ITEM_DESC( item ) ( item )->GetItemDescription( &unitsProvider, false )
 
+/**
+ * Order two pins by their alternate definitions.
+ *
+ * LIB_SYMBOL::Compare() diffs pins through the base SCH_ITEM::compare(), which knows nothing
+ * about SCH_PIN::m_alternates, so without this an alternate's name, type, shape, function group,
+ * optional flag or subgroup could all change without a library-vs-schematic diff noticing.
+ */
+static int compareAlternates( const SCH_PIN& aLhs, const SCH_PIN& aRhs )
+{
+    const std::map<wxString, SCH_PIN::ALT>& lhsAlts = aLhs.GetAlternates();
+    const std::map<wxString, SCH_PIN::ALT>& rhsAlts = aRhs.GetAlternates();
+
+    if( lhsAlts.size() != rhsAlts.size() )
+        return lhsAlts.size() < rhsAlts.size() ? -1 : 1;
+
+    auto lhsIt = lhsAlts.begin();
+    auto rhsIt = rhsAlts.begin();
+
+    for( ; lhsIt != lhsAlts.end(); ++lhsIt, ++rhsIt )
+    {
+        const SCH_PIN::ALT& lhsAlt = lhsIt->second;
+        const SCH_PIN::ALT& rhsAlt = rhsIt->second;
+
+        if( int retv = lhsAlt.m_Name.Cmp( rhsAlt.m_Name ) )
+            return retv;
+
+        if( lhsAlt.m_Type != rhsAlt.m_Type )
+            return static_cast<int>( lhsAlt.m_Type ) - static_cast<int>( rhsAlt.m_Type );
+
+        if( lhsAlt.m_Shape != rhsAlt.m_Shape )
+            return static_cast<int>( lhsAlt.m_Shape ) - static_cast<int>( rhsAlt.m_Shape );
+
+        if( int retv = lhsAlt.m_FunctionGroup.Cmp( rhsAlt.m_FunctionGroup ) )
+            return retv;
+
+        if( lhsAlt.m_FunctionGroupOptional != rhsAlt.m_FunctionGroupOptional )
+            return lhsAlt.m_FunctionGroupOptional ? 1 : -1;
+
+        if( int retv = lhsAlt.m_FunctionGroupSubgroup.Cmp( rhsAlt.m_FunctionGroupSubgroup ) )
+            return retv;
+    }
+
+    return 0;
+}
+
+
 int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aReporter ) const
 {
     UNITS_PROVIDER unitsProvider( schIUScale, EDA_UNITS::MM );
@@ -2285,6 +2608,22 @@ int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aR
         {
             retv = tmp;
             REPORT( wxString::Format( _( "Pin %s differs: %s; %s" ),
+                                      aPin->GetNumber(),
+                                      ITEM_DESC( aPin ),
+                                      ITEM_DESC( bPin ) ) );
+
+            if( !aReporter )
+                return retv;
+        }
+        else if( int tmp2 = compareAlternates( *aPin, *bPin ) )
+        {
+            // The call above is deliberately the *base* SCH_ITEM::compare(), which cannot see
+            // SCH_PIN::m_alternates, so alternates would otherwise not participate in a
+            // library-vs-schematic diff at all.  Compare them explicitly rather than switching
+            // that call to virtual dispatch, which would also start diffing pin geometry and
+            // text sizes and would report mismatches on designs that match today.
+            retv = tmp2;
+            REPORT( wxString::Format( _( "Pin %s alternates differ: %s; %s" ),
                                       aPin->GetNumber(),
                                       ITEM_DESC( aPin ),
                                       ITEM_DESC( bPin ) ) );
@@ -2453,6 +2792,15 @@ int LIB_SYMBOL::Compare( const LIB_SYMBOL& aRhs, int aCompareFlags, REPORTER* aR
     {
         retv = tmp;
         REPORT( _( "Symbol pin name offsets differ." ) );
+
+        if( !aReporter )
+            return retv;
+    }
+
+    if( m_pinFunctionGroupDescriptions != aRhs.m_pinFunctionGroupDescriptions )
+    {
+        retv = ( m_pinFunctionGroupDescriptions < aRhs.m_pinFunctionGroupDescriptions ) ? -1 : 1;
+        REPORT( _( "Pin function group descriptions differ." ) );
 
         if( !aReporter )
             return retv;

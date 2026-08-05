@@ -460,6 +460,78 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLi
             break;
         }
 
+        case T_pin_function_group_descriptions:
+        {
+            auto& descs = symbol->PinFunctionGroupDescriptions();
+
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                if( token != T_LEFT )
+                    Expecting( T_LEFT );
+
+                NeedSYMBOL();   // "group"
+
+                if( CurTok() != T_group )
+                    Expecting( "group" );
+
+                NeedSYMBOL();
+                wxString groupName = FromUTF8();
+
+                NeedSYMBOL();
+                wxString desc = FromUTF8();
+
+                PIN_FUNCTION_GROUP_DESC groupDesc;
+                groupDesc.description = desc;
+
+                // Optional (bus "...") and (subgroup "..." (min N)) sub-elements, in any order.
+                for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                {
+                    if( token != T_LEFT )
+                        Expecting( T_LEFT );
+
+                    token = NextTok();
+
+                    switch( token )
+                    {
+                    case T_bus:
+                        NeedSYMBOL();
+                        groupDesc.bus = FromUTF8();
+                        NeedRIGHT();    // close (bus ...)
+                        break;
+
+                    case T_subgroup:
+                    {
+                        NeedSYMBOL();
+                        wxString                   subgroupName = FromUTF8();
+                        PIN_FUNCTION_SUBGROUP_RULE rule;
+
+                        for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                        {
+                            if( token != T_LEFT )
+                                Expecting( T_LEFT );
+
+                            if( NextTok() != T_min )
+                                Expecting( "min" );
+
+                            rule.min = parseInt( "min" );
+                            NeedRIGHT();    // close (min ...)
+                        }
+
+                        groupDesc.subgroups[subgroupName] = rule;
+                        break;
+                    }
+
+                    default:
+                        Expecting( "bus or subgroup" );
+                    }
+                }
+
+                descs[groupName] = groupDesc;
+            }
+
+            break;
+        }
+
         case T_property:
             parseProperty( symbol );
             break;
@@ -2106,9 +2178,57 @@ SCH_PIN* SCH_IO_KICAD_SEXPR_PARSER::parseSymbolPin()
             token = NextTok();
             alt.m_Shape = parseShape( token );
 
+            // Parse optional (group "...") token
+            token = NextTok();
+
+            if( token == T_LEFT )
+            {
+                token = NextTok();
+
+                if( token == T_group )
+                {
+                    NeedSYMBOL();
+                    alt.m_FunctionGroup = FromUTF8();
+
+                    // Optional trailing markers: a bare 'optional' flags a non-mandatory group
+                    // member, and (subgroup "...") places the alternate in a subgroup whose
+                    // cardinality rule is declared on the group description.
+                    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                    {
+                        switch( token )
+                        {
+                        case T_optional:
+                            alt.m_FunctionGroupOptional = true;
+                            break;
+
+                        case T_LEFT:
+                            if( NextTok() != T_subgroup )
+                                Expecting( "subgroup" );
+
+                            NeedSYMBOL();
+                            alt.m_FunctionGroupSubgroup = FromUTF8();
+                            NeedRIGHT();    // close (subgroup ...)
+                            break;
+
+                        default:
+                            Expecting( "optional, subgroup or )" );
+                        }
+                    }
+                }
+                else
+                {
+                    Expecting( "group" );
+                }
+
+                NeedRIGHT();  // close (alternate ...)
+            }
+            else if( token != T_RIGHT )
+            {
+                Expecting( "group or )" );
+            }
+
             pin->GetAlternates()[ alt.m_Name ] = alt;
 
-            NeedRIGHT();
             break;
         }
 
@@ -3911,6 +4031,17 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
             delete field;
             break;
 
+        case T_pin_function_groups:
+            // Legacy no-op: early versions of this feature stored the active pin function groups
+            // explicitly here.  Active groups are now derived from the alternates the pins are
+            // assigned to (which these older files also wrote out), so consume and ignore.
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                /* skip group names */
+            }
+
+            break;
+
         case T_pin:
         {
             // Read an alternate pin designation
@@ -3959,7 +4090,7 @@ SCH_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::parseSchematicSymbol()
 
         default:
             Expecting( "lib_id, lib_name, at, mirror, uuid, exclude_from_sim, on_board, in_bom, dnp, passthrough, "
-                       "default_instance, property, pin, or instances" );
+                       "default_instance, property, pin, pin_function_groups, or instances" );
         }
     }
 

@@ -61,7 +61,8 @@
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION 20251024 // Updated properties formatting (do_not_autoplace, show_name)
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260508 // Native ellipse primitive
 //#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260622 // Escaped special chars in stacked pin notation
-#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260629 // Pin-to-pad maps (issue #2282)
+//#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260629 // Pin-to-pad maps (issue #2282)
+#define SEXPR_SYMBOL_LIB_FILE_VERSION 20260805 // Pin function groups
 
 /**
  * Schematic file version.

@@ -100,8 +100,9 @@ enum ERCE_T
     ERCE_EMPTY_LABEL_NAME,                  ///< Label has an empty or whitespace-only name.
     ERCE_VARIANT_SYMBOL_INVALID,            ///< Variant symbol override LIB_ID cannot be resolved.
     ERCE_VARIANT_SYMBOL_INCOMPATIBLE,       ///< Variant symbol override fails pin compatibility.
+    ERCE_PIN_FUNCTION_GROUP_INCOMPLETE,     ///< A pin function group is missing a required member.
 
-    ERCE_LAST = ERCE_VARIANT_SYMBOL_INCOMPATIBLE,
+    ERCE_LAST = ERCE_PIN_FUNCTION_GROUP_INCOMPLETE,
 
     ERCE_DUPLICATE_PIN_ERROR,
     ERCE_PIN_TO_PIN_WARNING, // pin connected to an other pin: warning level

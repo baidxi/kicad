@@ -260,6 +260,7 @@ private:
     static ERC_ITEM unconnectedWireEndpoint;
     static ERC_ITEM variantSymbolInvalid;
     static ERC_ITEM variantSymbolIncompatible;
+    static ERC_ITEM pinFunctionGroupIncomplete;
 
     /// True if this item is specific to a sheet instance (as opposed to applying to all instances)
     std::optional<SCH_SHEET_PATH> m_sheetSpecificPath;

@@ -48,6 +48,29 @@ public:
         wxString            m_Name;
         GRAPHIC_PINSHAPE    m_Shape;         // Shape drawn around pin
         ELECTRICAL_PINTYPE  m_Type;          // Electrical type of the pin.
+        wxString            m_FunctionGroup; // Pin function group tag (empty = ungrouped)
+
+        // True if this alternate is an optional member of m_FunctionGroup (e.g. an extra SPI
+        // chip-select or the MISO line in output-only mode).  Optional members are not assigned
+        // when a group is enabled in bulk, leaving the pin free for other uses.
+        bool                m_FunctionGroupOptional = false;
+
+        // Subgroup within m_FunctionGroup that this alternate belongs to (empty = none).  The
+        // pair (m_FunctionGroup, m_FunctionGroupSubgroup) identifies the subgroup; the cardinality
+        // rule governing it (e.g. "at least one chip-select") lives on the group description, not
+        // here, so the rule cannot be stated inconsistently by two members.  Meaningless when
+        // m_FunctionGroup is empty.
+        wxString            m_FunctionGroupSubgroup;
+
+        /**
+         * True when this alternate need not be individually assigned for its group to be
+         * complete: either it is explicitly optional, or it is governed by a subgroup cardinality
+         * rule (which constrains the subgroup as a whole rather than this one member).
+         */
+        bool IsOptionalGroupMember() const
+        {
+            return m_FunctionGroupOptional || !m_FunctionGroupSubgroup.IsEmpty();
+        }
     };
 
     SCH_PIN( LIB_SYMBOL* aParentSymbol );

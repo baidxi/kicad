@@ -30,6 +30,7 @@
 #include <lib_id.h>
 
 #include <memory>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -40,6 +41,7 @@
 #include <schematic.h>
 #include <symbol.h>
 #include <sch_field.h>
+#include <pin_function_group.h>
 #include <sch_pin.h>
 #include <sch_sheet_path.h>    // SCH_SYMBOL_INSTANCE
 #include <transform.h>
@@ -670,6 +672,27 @@ public:
 
 
     std::vector<std::unique_ptr<SCH_PIN>>& GetRawPins() { return m_pins; }
+
+    /**
+     * Return the set of pin function groups that are currently active, derived from which
+     * alternates the pins are presently assigned to.  A group is active when at least one of
+     * its member alternates is the selected alternate on its pin.  There is no separately
+     * stored active-group state: the per-pin alternate assignment is the single source of truth.
+     */
+    std::set<wxString> GetActivePinFunctionGroups() const;
+
+    /**
+     * Return this instance's per-pin alternate assignments as pin number -> alternate name,
+     * the form the LIB_SYMBOL pin function group queries take.
+     */
+    std::map<wxString, wxString> GetPinAlternateAssignments() const;
+
+    /**
+     * Evaluate the pin function group constraints against this instance's current alternate
+     * assignments.  @see LIB_SYMBOL::ValidatePinFunctionGroups().
+     */
+    std::map<wxString, PIN_FUNCTION_GROUP_STATUS>
+    ValidatePinFunctionGroups( const SCH_SHEET_PATH* aSheet = nullptr ) const;
 
     /**
      * Set the reference for the given sheet path for this symbol.

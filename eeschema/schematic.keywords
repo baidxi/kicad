@@ -111,6 +111,7 @@ map
 margins
 members
 mid
+min
 minor_radius
 mirror
 mode
@@ -127,6 +128,7 @@ offset
 on_board
 open_collector
 open_emitter
+optional
 outline
 output_low
 unconnected
@@ -138,6 +140,8 @@ passthrough
 path
 pin
 pin_del
+pin_function_group_descriptions
+pin_function_groups
 pin_map
 pin_map_override
 pin_maps
@@ -182,6 +186,7 @@ span
 start
 start_angle
 stroke
+subgroup
 symbol
 symbol_instances
 symbol_override

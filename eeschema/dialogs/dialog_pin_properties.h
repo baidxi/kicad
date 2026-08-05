@@ -38,6 +38,9 @@ enum COL_ORDER
     COL_NAME,
     COL_TYPE,
     COL_SHAPE,
+    COL_GROUP,
+    COL_GROUP_OPTIONAL,
+    COL_GROUP_SUBGROUP,
 
     COL_COUNT       // keep as last
 };
@@ -66,6 +69,12 @@ public:
 protected:
     void adjustGridColumns();
     wxString getSyncPinsMessage();
+
+    /// Re-seed the Function Group column's dropdown from the group names already used anywhere
+    /// in the parent symbol, so an author picks an existing group instead of retyping it.
+    void rebuildFunctionGroupChoices();
+
+    void OnAlternatesCellChanged( wxGridEvent& aEvent );
 
 private:
     SYMBOL_EDIT_FRAME*     m_frame;

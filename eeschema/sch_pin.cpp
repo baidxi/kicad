@@ -22,6 +22,7 @@
  */
 
 #include "sch_pin.h"
+#include "sch_symbol.h"
 
 #include <lib_id.h>
 #include <lib_symbol.h>
@@ -295,6 +296,9 @@ void SCH_PIN::Serialize( google::protobuf::Any& aContainer ) const
         altProto->set_name( alt.m_Name.ToUTF8() );
         altProto->set_shape( ToProtoEnum<GRAPHIC_PINSHAPE, SchematicPinShape>( alt.m_Shape ) );
         altProto->set_electrical_type( ToProtoEnum<ELECTRICAL_PINTYPE, types::ElectricalPinType>( alt.m_Type ) );
+        altProto->set_function_group( alt.m_FunctionGroup.ToUTF8() );
+        altProto->set_function_group_optional( alt.m_FunctionGroupOptional );
+        altProto->set_function_group_subgroup( alt.m_FunctionGroupSubgroup.ToUTF8() );
     }
 
     if( !m_alt.IsEmpty() && m_alt != GetBaseName() )
@@ -337,6 +341,9 @@ bool SCH_PIN::Deserialize( const google::protobuf::Any& aContainer )
         alt.m_Name = wxString::FromUTF8( altProto.name() );
         alt.m_Shape = FromProtoEnum<GRAPHIC_PINSHAPE>( altProto.shape() );
         alt.m_Type = FromProtoEnum<ELECTRICAL_PINTYPE>( altProto.electrical_type() );
+        alt.m_FunctionGroup = wxString::FromUTF8( altProto.function_group() );
+        alt.m_FunctionGroupOptional = altProto.function_group_optional();
+        alt.m_FunctionGroupSubgroup = wxString::FromUTF8( altProto.function_group_subgroup() );
         alts.emplace( alt.m_Name, alt );
     }
 
@@ -556,6 +563,7 @@ void SCH_PIN::SetAlt( const wxString& aAlt )
 
     m_alt = aAlt;
 }
+
 
 bool SCH_PIN::IsDangling() const
 {
@@ -2057,6 +2065,19 @@ int SCH_PIN::compare( const SCH_ITEM& aOther, int aCompareFlags ) const
 
             if( lhsAlt.m_Shape != rhsAlt.m_Shape )
                 return static_cast<int>( lhsAlt.m_Shape ) - static_cast<int>( rhsAlt.m_Shape );
+
+            retv = lhsAlt.m_FunctionGroup.Cmp( rhsAlt.m_FunctionGroup );
+
+            if( retv )
+                return retv;
+
+            if( lhsAlt.m_FunctionGroupOptional != rhsAlt.m_FunctionGroupOptional )
+                return lhsAlt.m_FunctionGroupOptional ? 1 : -1;
+
+            retv = lhsAlt.m_FunctionGroupSubgroup.Cmp( rhsAlt.m_FunctionGroupSubgroup );
+
+            if( retv )
+                return retv;
 
             ++lhsItem;
             ++rhsItem;
