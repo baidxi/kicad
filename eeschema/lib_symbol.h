@@ -989,6 +989,21 @@ private:
     void cacheShownDescription();
     void cacheChooserFields();
 
+    /**
+     * Rebuild the caches invalidated by adding or removing a draw item.
+     *
+     * Both of them summarize the whole symbol, so rebuilding them for every item added would
+     * make loading a symbol quadratic in its item count.  AddDrawItem() and RemoveDrawItem()
+     * therefore just set m_drawItemCachesDirty and the readers call this on demand.
+     *
+     * Note that this makes GetPinCount() and GetChooserFields() write to the symbol.  Symbols
+     * reach the shared library caches clean, because SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbol()
+     * calls RefreshLibraryTreeCaches() before publishing them, so only the thread that owns a
+     * symbol can find it dirty.  Keep it that way: two threads refreshing the same dirty symbol
+     * would race on m_chooserFieldsCache.
+     */
+    void refreshDrawItemCaches();
+
 private:
     std::shared_ptr<LIB_SYMBOL> m_me;
     std::weak_ptr<LIB_SYMBOL>   m_parent;   ///< Use for inherited symbols.
@@ -1042,4 +1057,7 @@ private:
     int m_pinCountCache;
     wxString m_shownDescriptionCache;
     std::map<wxString, wxString> m_chooserFieldsCache;
+
+    /// Set when a draw item was added or removed; @see refreshDrawItemCaches().
+    bool m_drawItemCachesDirty = false;
 };
