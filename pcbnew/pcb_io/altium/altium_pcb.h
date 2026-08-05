@@ -23,8 +23,11 @@
 
 #include <functional>
 #include <layer_ids.h>
+#include <map>
+#include <string>
 #include <vector>
 #include <pcb_io/common/plugin_common_layer_mapping.h>
+#include <richio.h>
 
 
 #include <altium_parser_pcb.h>
@@ -120,10 +123,9 @@ class ALTIUM_PCB
 {
 public:
     explicit ALTIUM_PCB( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter,
-                         LAYER_MAPPING_HANDLER& aLayerMappingHandler,
-                         REPORTER* aReporter = nullptr,
-                         const wxString& aLibrary = wxEmptyString,
-                         const wxString& aFootprintName = wxEmptyString);
+                         LAYER_MAPPING_HANDLER& aLayerMappingHandler, REPORTER* aReporter = nullptr,
+                         const wxString& aLibrary = wxEmptyString, const wxString& aFootprintName = wxEmptyString,
+                         const std::map<std::string, UTF8>* aImportProperties = nullptr );
     ~ALTIUM_PCB();
 
     void Parse( const ALTIUM_PCB_COMPOUND_FILE&                  aAltiumPcbFile,
@@ -302,6 +304,8 @@ private:
 
     wxString           m_library;            ///< for footprint library loading error reporting
     wxString           m_footprintName;      ///< for footprint library loading error reporting
+
+    const std::map<std::string, UTF8>* m_importProperties; ///< import settings (e.g. from --settings)
 
     /// Altium stores pour order across all layers
     int m_highest_pour_index;

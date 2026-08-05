@@ -31,6 +31,7 @@ public:
 
     wxString m_libraryPath;
     wxString m_outputLibraryPath;
+    wxString m_settingsFile;
 
     bool m_force;
 };

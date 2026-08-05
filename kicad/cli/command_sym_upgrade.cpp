@@ -23,6 +23,7 @@
 #include "jobs/job_sym_upgrade.h"
 #include <kiface_base.h>
 #include <layer_ids.h>
+#include <string_utils.h>
 #include <wx/crt.h>
 #include <wx/dir.h>
 
@@ -30,6 +31,7 @@
 
 
 #define ARG_FORCE "--force"
+#define ARG_SETTINGS "--settings"
 
 
 CLI::SYM_UPGRADE_COMMAND::SYM_UPGRADE_COMMAND() : COMMAND( "upgrade" )
@@ -43,6 +45,11 @@ CLI::SYM_UPGRADE_COMMAND::SYM_UPGRADE_COMMAND() : COMMAND( "upgrade" )
             .help( UTF8STDSTR(
                     _( "Forces the symbol library to be resaved regardless of versioning" ) ) )
             .flag();
+
+    m_argParser.add_argument( ARG_SETTINGS )
+            .default_value( std::string( "" ) )
+            .help( UTF8STDSTR( _( "Path to a JSON settings file for import customization" ) ) )
+            .metavar( "FILE" );
 }
 
 
@@ -53,6 +60,7 @@ int CLI::SYM_UPGRADE_COMMAND::doPerform( KIWAY& aKiway )
     symJob->m_libraryPath = m_argInput;
     symJob->m_outputLibraryPath = m_argOutput;
     symJob->m_force = m_argParser.get<bool>( ARG_FORCE );
+    symJob->m_settingsFile = From_UTF8( m_argParser.get<std::string>( ARG_SETTINGS ).c_str() );
 
     const wxFileName inputLibFn( symJob->m_libraryPath );
 

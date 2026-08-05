@@ -223,10 +223,19 @@ void PCB_IO_MGR::Save( PCB_FILE_T aFileType, const wxString& aFileName, BOARD* a
 bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProps, const wxString& aOldFilePath,
                                  const wxString& aNewFilePath, REPORTER* aReporter )
 {
+    auto report = [&]( const wxString& aMessage, SEVERITY aSeverity )
+    {
+        if( aReporter )
+            aReporter->Report( aMessage, aSeverity );
+    };
+
     PCB_IO_MGR::PCB_FILE_T oldFileType = PCB_IO_MGR::GuessPluginTypeFromLibPath( aOldFilePath );
 
     if( oldFileType == PCB_IO_MGR::FILE_TYPE_NONE )
+    {
+        report( _( "Unrecognized library type" ), RPT_SEVERITY_ERROR );
         return false;
+    }
 
     // A nested library table has no plugin to enumerate it; reject it before dereferencing
     // the null plugin below.
@@ -251,36 +260,19 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
     }
 
     if( !newFileName.DirExists() && !wxFileName::Mkdir( aNewFilePath, wxS_DIR_DEFAULT ) )
+    {
+        report( wxString::Format( _( "Could not create the output directory %s" ), newFileName.GetAbsolutePath() ),
+                RPT_SEVERITY_ERROR );
+
         return false;
+    }
+
+    report( wxString::Format( _( "Loading footprint library '%s'" ), aOldFilePath ), RPT_SEVERITY_ACTION );
 
     try
     {
         bool bestEfforts = false; // throw on first error
         oldFilePI->FootprintEnumerate( fpNames, aOldFilePath, bestEfforts, &aOldFileProps );
-        std::map<std::string, UTF8> props { { "skip_cache_validation", "" } };
-
-        for ( const wxString& fpName : fpNames )
-        {
-            std::unique_ptr<const FOOTPRINT> fp( oldFilePI->GetEnumeratedFootprint( aOldFilePath, fpName,
-                                                                                    &aOldFileProps ) );
-
-            try
-            {
-                kicadPI->FootprintSave( aNewFilePath, fp.get(), &props );
-            }
-            catch( ... )
-            {
-                // Footprints that cannot be saved are just skipped. This is not see
-                // as a fatal error.
-                // this can be just a illegal filename used for the footprint
-                if( aReporter )
-                {
-                    aReporter->Report( wxString::Format( "Footprint \"%s\" can't be saved. Skipped",
-                                                         fpName ),
-                                       SEVERITY::RPT_SEVERITY_WARNING );
-                }
-            }
-        }
     }
     catch( IO_ERROR& io_err )
     {
@@ -296,10 +288,32 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
     }
     catch( ... )
     {
+        report( wxString::Format( _( "Error loading library '%s'" ), aOldFilePath ), RPT_SEVERITY_ERROR );
         return false;
     }
 
-    return true;
+    const std::map<std::string, UTF8> props{ { "skip_cache_validation", "" } };
+    bool                              ok = true;
+
+    for( const wxString& fpName : fpNames )
+    {
+        report( wxString::Format( _( "Loading footprint '%s'" ), fpName ), RPT_SEVERITY_ACTION );
+
+        try
+        {
+            std::unique_ptr<const FOOTPRINT> fp(
+                    oldFilePI->GetEnumeratedFootprint( aOldFilePath, fpName, &aOldFileProps ) );
+            kicadPI->FootprintSave( aNewFilePath, fp.get(), &props );
+        }
+        catch( const IO_ERROR& io_err )
+        {
+            report( wxString::Format( _( "Error saving footprint '%s': %s" ), fpName, io_err.What() ),
+                    RPT_SEVERITY_ERROR );
+            ok = false;
+        }
+    }
+
+    return ok;
 }
 
 

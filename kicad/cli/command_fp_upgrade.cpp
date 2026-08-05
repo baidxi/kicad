@@ -23,12 +23,14 @@
 #include "jobs/job_fp_upgrade.h"
 #include <kiface_base.h>
 #include <layer_ids.h>
+#include <string_utils.h>
 #include <wx/crt.h>
 #include <wx/dir.h>
 
 #include <macros.h>
 
 #define ARG_FORCE "--force"
+#define ARG_SETTINGS "--settings"
 
 CLI::FP_UPGRADE_COMMAND::FP_UPGRADE_COMMAND() :
         PCB_EXPORT_BASE_COMMAND( "upgrade", IO_TYPE::FILE_OR_DIRECTORY, IO_TYPE::DIRECTORY )
@@ -40,6 +42,11 @@ CLI::FP_UPGRADE_COMMAND::FP_UPGRADE_COMMAND() :
             .help( UTF8STDSTR(
                     _( "Forces the footprint library to be resaved regardless of versioning" ) ) )
             .flag();
+
+    m_argParser.add_argument( ARG_SETTINGS )
+            .default_value( std::string( "" ) )
+            .help( UTF8STDSTR( _( "Path to a JSON settings file for import customization" ) ) )
+            .metavar( "FILE" );
 }
 
 
@@ -50,6 +57,7 @@ int CLI::FP_UPGRADE_COMMAND::doPerform( KIWAY& aKiway )
     fpJob->m_libraryPath = m_argInput;
     fpJob->m_outputLibraryPath = m_argOutput;
     fpJob->m_force = m_argParser.get<bool>( ARG_FORCE );
+    fpJob->m_settingsFile = From_UTF8( m_argParser.get<std::string>( ARG_SETTINGS ).c_str() );
 
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, fpJob.get() );
 

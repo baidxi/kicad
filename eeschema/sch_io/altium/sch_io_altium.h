@@ -275,6 +275,9 @@ private:
     std::map<wxString, int> m_parsingFiles;
 
     friend struct PARSE_FILE_GUARD;
+
+    // Import settings properties (e.g. from --settings JSON file)
+    const std::map<std::string, UTF8>* m_importProperties;
 };
 
 #endif // _SCH_IO_ALTIUM_H_
