@@ -38,6 +38,8 @@ DRC_RULES_PARSER::DRC_RULES_PARSER( const wxString& aSource, const wxString& aSo
         m_tooRecent( false ),
         m_reporter( nullptr )
 {
+    // parseExpression() rebuilds the source text from the tokens, so it needs the separators.
+    SetWantSeparator();
 }
 
 
