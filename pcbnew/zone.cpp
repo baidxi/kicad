@@ -146,6 +146,8 @@ void ZONE::InitDataFromSrcInCopyCtor( const ZONE& aZone, PCB_LAYER_ID aLayer )
     m_placementAreaSourceType = aZone.m_placementAreaSourceType;
     m_placementAreaSource     = aZone.m_placementAreaSource;
 
+    m_fillMode = aZone.m_fillMode; // solid vs. hatched
+
     if( aLayer == UNDEFINED_LAYER )
         SetLayerSet( aZone.GetLayerSet() );
     else
@@ -171,7 +173,6 @@ void ZONE::InitDataFromSrcInCopyCtor( const ZONE& aZone, PCB_LAYER_ID aLayer )
     m_thermalReliefGap        = aZone.m_thermalReliefGap;
     m_thermalReliefSpokeWidth = aZone.m_thermalReliefSpokeWidth;
 
-    m_fillMode                = aZone.m_fillMode;         // solid vs. hatched
     m_hatchThickness          = aZone.m_hatchThickness;
     m_hatchGap                = aZone.m_hatchGap;
     m_hatchOrientation        = aZone.m_hatchOrientation;
