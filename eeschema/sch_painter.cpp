@@ -1979,7 +1979,6 @@ void SCH_PAINTER::draw( const SCH_LINE* aLine, int aLayer )
         boxText( *m_gal, aLine->GetOperatingPoint(), pos, attrs, aLine->GetFontMetrics() );
         attrs.m_Color = m_schSettings.GetLayerColor( LAYER_SCHEMATIC_BACKGROUND );
         strokeText( *m_gal, aLine->GetOperatingPoint(), pos, attrs, aLine->GetFontMetrics() );
-
     }
 
     if( drawingOP )
