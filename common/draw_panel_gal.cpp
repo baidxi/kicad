@@ -51,7 +51,6 @@
 #include <core/profile.h>
 
 #include <wx/display.h>
-#include <wx/utils.h>
 
 #include <pgm_base.h>
 #include <confirm.h>
@@ -75,7 +74,6 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
         m_drawing( false ),
         m_drawingEnabled( false ),
         m_needIdleRefresh( false ),
-        // Keep the cursor hidden until canvas containment is known.
         m_cursorInCanvas( false ),
         m_gal( nullptr ),
         m_view( nullptr ),
@@ -163,14 +161,6 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
     Connect( m_refreshTimer.GetId(), wxEVT_TIMER, wxTimerEventHandler( EDA_DRAW_PANEL_GAL::onRefreshTimer ),
              nullptr, this );
 
-#ifdef __WXMSW__
-    // Poll for leave events missed when switching between top-level windows.
-    m_cursorPollTimer.SetOwner( this );
-    Connect( m_cursorPollTimer.GetId(), wxEVT_TIMER,
-             wxTimerEventHandler( EDA_DRAW_PANEL_GAL::onCursorPollTimer ), nullptr, this );
-    m_cursorPollTimer.Start( 100 );
-#endif
-
     Connect( wxEVT_SHOW, wxShowEventHandler( EDA_DRAW_PANEL_GAL::onShowEvent ), nullptr, this );
 }
 
@@ -182,7 +172,6 @@ EDA_DRAW_PANEL_GAL::~EDA_DRAW_PANEL_GAL()
     // Ensure EDA_DRAW_PANEL_GAL::onShowEvent is not fired during Dtor process
     Disconnect( wxEVT_SHOW, wxShowEventHandler( EDA_DRAW_PANEL_GAL::onShowEvent ) );
     StopDrawing();
-    m_cursorPollTimer.Stop();
 
     wxASSERT( !m_drawing );
 
@@ -207,7 +196,9 @@ void EDA_DRAW_PANEL_GAL::SetCursorInCanvas( bool aCursorInCanvas )
         return;
 
     m_cursorInCanvas = aCursorInCanvas;
-    m_gal->SetCursorInCanvas( m_cursorInCanvas );
+
+    if( m_gal )
+        m_gal->SetCursorInCanvas( m_cursorInCanvas );
 
     ForceRefresh();
 }
@@ -877,35 +868,16 @@ void EDA_DRAW_PANEL_GAL::onRefreshTimer( wxTimerEvent& aEvent )
 }
 
 
-void EDA_DRAW_PANEL_GAL::onCursorPollTimer( wxTimerEvent& aEvent )
-{
-#ifdef __WXMSW__
-    syncCursorInCanvas();
-#endif
-}
-
-
 void EDA_DRAW_PANEL_GAL::onShowEvent( wxShowEvent& aEvent )
 {
-    syncCursorInCanvas();
+    // A hidden canvas gets no leave event.  Only an enter event sets the state again.
+    if( !IsShownOnScreen() )
+        SetCursorInCanvas( false );
 
     if( m_gal && m_gal->IsInitialized() && m_gal->IsVisible() )
     {
         OnShow();
     }
-}
-
-
-void EDA_DRAW_PANEL_GAL::syncCursorInCanvas()
-{
-    if( !IsShownOnScreen() )
-    {
-        SetCursorInCanvas( false );
-        return;
-    }
-
-    wxPoint mousePos = ScreenToClient( wxGetMousePosition() );
-    SetCursorInCanvas( GetClientRect().Contains( mousePos ) );
 }
 
 
