@@ -35,6 +35,7 @@
 #include "thread"
 #include "widgets/wx_grid.h"
 
+#include <algorithm>
 #include <fstream>
 #include <kiplatform/ui.h>
 #include <launch_ext.h>
@@ -196,6 +197,8 @@ DIALOG_PCM::DIALOG_PCM( EDA_BASE_FRAME* parent, std::shared_ptr<PLUGIN_CONTENT_M
 
 DIALOG_PCM::~DIALOG_PCM()
 {
+    cancelRepositoryFetch();
+
     Unbind( wxEVT_CLOSE_WINDOW, &DIALOG_PCM::OnCloseWindow, this );
     m_sdbSizer1Cancel->Unbind( wxEVT_UPDATE_UI, &DIALOG_PCM::OnUpdateEventButtons, this );
     m_sdbSizer1Apply->Unbind( wxEVT_UPDATE_UI, &DIALOG_PCM::OnUpdateEventButtons, this );
@@ -250,6 +253,11 @@ void DIALOG_PCM::OnCloseWindow( wxCloseEvent& aEvent )
 
 void DIALOG_PCM::OnManageRepositoriesClicked( wxCommandEvent& event )
 {
+    // The repository management dialog can modify the repository list and fetch
+    // repositories on the main thread. Make sure no background fetch is running
+    // while it is open.
+    cancelRepositoryFetch();
+
     DIALOG_MANAGE_REPOSITORIES* dialog = new DIALOG_MANAGE_REPOSITORIES( this, m_pcm );
 
     std::vector<std::pair<wxString, wxString>>            dialog_data;
@@ -269,6 +277,12 @@ void DIALOG_PCM::OnManageRepositoriesClicked( wxCommandEvent& event )
             cfg->m_PcmRepositories = std::move( dialog_data );
 
         setRepositoryListFromPcm();
+    }
+    else if( !m_selectedRepositoryId.IsEmpty() )
+    {
+        // A fetch of the selected repository may have been cancelled above. Restart it
+        // so the repository tab is not left in the loading state.
+        setRepositoryData( m_selectedRepositoryId );
     }
 
     dialog->Destroy();
@@ -332,6 +346,11 @@ void DIALOG_PCM::OnInstallFromFileClicked( wxCommandEvent& event )
     if( open_file_dialog.ShowModal() == wxID_CANCEL )
         return;
 
+    // The task manager runs worker threads that modify the installed package list.
+    // The fetch completion handler must not run in parallel with them (an event
+    // yield could dispatch it), so make sure no background fetch is in flight.
+    cancelRepositoryFetch();
+
     PCM_TASK_MANAGER task_manager( m_pcm );
     task_manager.InstallFromFile( this, open_file_dialog.GetPath() );
 
@@ -360,85 +379,258 @@ void DIALOG_PCM::OnRepositoryChoice( wxCommandEvent& event )
 
 void DIALOG_PCM::setRepositoryData( const wxString& aRepositoryId )
 {
+    // If the repository is not cached yet, fetch it in a background thread so the
+    // dialog stays responsive. This method is called again once the fetch finishes.
+    if( !m_pcm->IsRepositoryCached( aRepositoryId ) )
+    {
+        startRepositoryFetch( aRepositoryId, true );
+        return;
+    }
+
     m_dialogNotebook->Freeze();
 
-    if( m_pcm->CacheRepository( aRepositoryId ) )
+    for( const auto& [ packageType, packagesView ] : m_repositoryContentPanels )
+        packagesView->ClearData();
+
+    m_packageBitmaps = m_pcm->GetRepositoryPackageBitmaps( aRepositoryId );
+
+    const std::vector<PCM_PACKAGE> packages = m_pcm->GetRepositoryPackages( aRepositoryId );
+
+    std::unordered_map<PCM_PACKAGE_TYPE, std::vector<PACKAGE_VIEW_DATA>> data;
+
+    for( const PCM_PACKAGE& pkg : packages )
     {
-        for( const auto& [ packageType, packagesView ] : m_repositoryContentPanels )
-            packagesView->ClearData();
+        if( pkg.type == PT_INVALID )
+            continue;
 
-        m_packageBitmaps = m_pcm->GetRepositoryPackageBitmaps( aRepositoryId );
+        PACKAGE_VIEW_DATA package_data( pkg );
 
-        const std::vector<PCM_PACKAGE> packages = m_pcm->GetRepositoryPackages( aRepositoryId );
+        if( m_packageBitmaps.count( package_data.package.identifier ) > 0 )
+            package_data.bitmap = &m_packageBitmaps.at( package_data.package.identifier );
+        else
+            package_data.bitmap = &m_defaultBitmap;
 
-        std::unordered_map<PCM_PACKAGE_TYPE, std::vector<PACKAGE_VIEW_DATA>> data;
+        package_data.state = m_pcm->GetPackageState( aRepositoryId, pkg.identifier );
 
-        for( const PCM_PACKAGE& pkg : packages )
+        if( package_data.state == PPS_INSTALLED || package_data.state == PPS_UPDATE_AVAILABLE )
         {
-            if( pkg.type == PT_INVALID )
+            package_data.current_version = m_pcm->GetInstalledPackageVersion( pkg.identifier );
+            package_data.pinned = m_pcm->IsPackagePinned( pkg.identifier );
+            package_data.swig_warning = m_pcm->UsesSWIGRuntime( pkg, package_data.current_version );
+        }
+        else if( !pkg.versions.empty() )
+        {
+            package_data.swig_warning = m_pcm->UsesSWIGRuntime( pkg, pkg.versions[0].version );
+        }
+
+        if( package_data.state == PPS_UPDATE_AVAILABLE )
+            package_data.update_version = m_pcm->GetPackageUpdateVersion( pkg );
+
+        for( const PENDING_ACTION& action : m_pendingActions )
+        {
+            if( action.package.identifier != pkg.identifier )
                 continue;
 
-            PACKAGE_VIEW_DATA package_data( pkg );
-
-            if( m_packageBitmaps.count( package_data.package.identifier ) > 0 )
-                package_data.bitmap = &m_packageBitmaps.at( package_data.package.identifier );
-            else
-                package_data.bitmap = &m_defaultBitmap;
-
-            package_data.state = m_pcm->GetPackageState( aRepositoryId, pkg.identifier );
-
-            if( package_data.state == PPS_INSTALLED || package_data.state == PPS_UPDATE_AVAILABLE )
+            switch( action.action )
             {
-                package_data.current_version = m_pcm->GetInstalledPackageVersion( pkg.identifier );
-                package_data.pinned = m_pcm->IsPackagePinned( pkg.identifier );
-                package_data.swig_warning = m_pcm->UsesSWIGRuntime( pkg, package_data.current_version );
-            }
-            else if( !pkg.versions.empty() )
-            {
-                package_data.swig_warning = m_pcm->UsesSWIGRuntime( pkg, pkg.versions[0].version );
+            case PPA_INSTALL: package_data.state = PPS_PENDING_INSTALL; break;
+            case PPA_UPDATE: package_data.state = PPS_PENDING_UPDATE; break;
+            case PPA_UNINSTALL: package_data.state = PPS_PENDING_UNINSTALL; break;
             }
 
-            if( package_data.state == PPS_UPDATE_AVAILABLE )
-                package_data.update_version = m_pcm->GetPackageUpdateVersion( pkg );
-
-            for( const PENDING_ACTION& action : m_pendingActions )
-            {
-                if( action.package.identifier != pkg.identifier )
-                    continue;
-
-                switch( action.action )
-                {
-                case PPA_INSTALL: package_data.state = PPS_PENDING_INSTALL; break;
-                case PPA_UPDATE: package_data.state = PPS_PENDING_UPDATE; break;
-                case PPA_UNINSTALL: package_data.state = PPS_PENDING_UNINSTALL; break;
-                }
-
-                break;
-            }
-
-            package_data.repository_id = aRepositoryId;
-            package_data.repository_name = m_choiceRepository->GetStringSelection();
-
-            // Fabrication plugins are displayed in a different tab although they are still plugins
-            PCM_PACKAGE_TYPE type = pkg.category == PC_FAB ? PT_FAB : pkg.type;
-
-            data[type].emplace_back( package_data );
+            break;
         }
+
+        package_data.repository_id = aRepositoryId;
+        package_data.repository_name = m_choiceRepository->GetStringSelection();
+
+        // Fabrication plugins are displayed in a different tab although they are still plugins
+        PCM_PACKAGE_TYPE type = pkg.category == PC_FAB ? PT_FAB : pkg.type;
+
+        data[type].emplace_back( package_data );
+    }
+
+    for( size_t i = 0; i < PACKAGE_TYPE_LIST.size(); i++ )
+    {
+        PCM_PACKAGE_TYPE type = PACKAGE_TYPE_LIST[i].first;
+        const wxString&  label = PACKAGE_TYPE_LIST[i].second;
+        m_repositoryContentPanels[type]->SetData( data[type] );
+        m_contentNotebook->SetPageText( i, wxString::Format( wxGetTranslation( label ),
+                                                             (int) data[type].size() ) );
+    }
+
+    m_dialogNotebook->SetPageText( 0, wxString::Format( _( "Repository (%d)" ),
+                                                        (int) packages.size() ) );
+
+    m_dialogNotebook->Thaw();
+
+    // Continue prefetching remaining repositories in the background, if any.
+    startNextBackgroundFetch();
+}
+
+
+void DIALOG_PCM::startRepositoryFetch( const wxString& aRepositoryId, bool aForDisplay )
+{
+    cancelRepositoryFetch();
+
+    if( aForDisplay )
+    {
+        // Clear the previously displayed repository's packages right away and show a
+        // loading message so the stale list is not mistaken for the new repository.
+        for( const auto& [ packageType, packagesView ] : m_repositoryContentPanels )
+            packagesView->ShowMessage( _( "Loading repository..." ) );
 
         for( size_t i = 0; i < PACKAGE_TYPE_LIST.size(); i++ )
         {
-            PCM_PACKAGE_TYPE type = PACKAGE_TYPE_LIST[i].first;
-            const wxString&  label = PACKAGE_TYPE_LIST[i].second;
-            m_repositoryContentPanels[type]->SetData( data[type] );
-            m_contentNotebook->SetPageText( i, wxString::Format( wxGetTranslation( label ),
-                                                                 (int) data[type].size() ) );
+            m_contentNotebook->SetPageText(
+                    i, wxString::Format( wxGetTranslation( PACKAGE_TYPE_LIST[i].second ), 0 ) );
         }
 
-        m_dialogNotebook->SetPageText( 0, wxString::Format( _( "Repository (%d)" ),
-                                                            (int) packages.size() ) );
+        // The repository choice stays enabled so the user can switch away from a slow
+        // repository without waiting for it to finish. Selecting another repository
+        // cancels this fetch and starts a new one. Refresh would just restart the same
+        // fetch, so it stays disabled until this one completes.
+        m_refreshButton->Disable();
+        m_dialogNotebook->SetPageText( 0, _( "Repository (loading...)" ) );
     }
 
-    m_dialogNotebook->Thaw();
+    m_fetchInProgress = true;
+    m_attemptedFetches.insert( aRepositoryId );
+    m_fetchReporter = std::make_shared<PCM_FETCH_REPORTER>();
+
+    m_fetchThread = std::thread(
+            [this, aRepositoryId, reporter = m_fetchReporter]()
+            {
+                auto repository = std::make_shared<PCM_REPOSITORY>();
+                bool success = m_pcm->DownloadRepository( aRepositoryId, *repository, reporter );
+
+                // If the fetch was cancelled the dialog may be shutting down. Do not
+                // touch it from here.
+                if( reporter->IsCancelled() )
+                    return;
+
+                CallAfter(
+                        [this, aRepositoryId, success, repository, reporter]()
+                        {
+                            // Re-check: the fetch may have been cancelled (and possibly
+                            // superseded by another one) after the event was queued.
+                            if( reporter->IsCancelled() )
+                                return;
+
+                            onRepositoryFetchCompleted( aRepositoryId, success,
+                                                        std::move( *repository ) );
+                        } );
+            } );
+}
+
+
+void DIALOG_PCM::onRepositoryFetchCompleted( const wxString& aRepositoryId, bool aSuccess,
+                                             PCM_REPOSITORY&& aRepository )
+{
+    m_fetchInProgress = false;
+    m_choiceRepository->Enable();
+    m_refreshButton->Enable();
+
+    if( aSuccess )
+    {
+        m_pcm->StoreRepositoryCache( aRepositoryId, std::move( aRepository ) );
+
+        // Refresh the states of installed packages now that this repository's metadata
+        // is known, e.g. to show available updates, then re-apply the states of
+        // packages with queued actions which the rebuild does not know about.
+        setInstalledPackages();
+
+        for( const PENDING_ACTION& action : m_pendingActions )
+        {
+            PCM_PACKAGE_STATE state = PPS_PENDING_INSTALL;
+
+            switch( action.action )
+            {
+            case PPA_INSTALL: state = PPS_PENDING_INSTALL; break;
+            case PPA_UPDATE: state = PPS_PENDING_UPDATE; break;
+            case PPA_UNINSTALL: state = PPS_PENDING_UNINSTALL; break;
+            }
+
+            updatePackageState( action.package.identifier, state );
+        }
+
+        if( aRepositoryId == m_selectedRepositoryId )
+        {
+            setRepositoryData( aRepositoryId );
+            return; // setRepositoryData() already continues the background fetches
+        }
+    }
+    else if( aRepositoryId == m_selectedRepositoryId )
+    {
+        // Don't leave the previously displayed repository's packages on screen for
+        // the failed one.
+        for( const auto& [ packageType, packagesView ] : m_repositoryContentPanels )
+            packagesView->ClearData();
+
+        for( size_t i = 0; i < PACKAGE_TYPE_LIST.size(); i++ )
+        {
+            m_contentNotebook->SetPageText(
+                    i, wxString::Format( wxGetTranslation( PACKAGE_TYPE_LIST[i].second ), 0 ) );
+        }
+
+        m_dialogNotebook->SetPageText( 0, wxString::Format( _( "Repository (%d)" ), 0 ) );
+    }
+
+    startNextBackgroundFetch();
+}
+
+
+void DIALOG_PCM::startNextBackgroundFetch()
+{
+    if( m_fetchInProgress )
+        return;
+
+    const std::vector<std::tuple<wxString, wxString, wxString>>& repositories =
+            m_pcm->GetRepositoryList();
+
+    for( const PCM_INSTALLATION_ENTRY& entry : m_pcm->GetInstalledPackages() )
+    {
+        const wxString& repoId = entry.repository_id;
+
+        if( repoId.IsEmpty() || m_pcm->IsRepositoryCached( repoId )
+            || m_attemptedFetches.count( repoId ) )
+        {
+            continue;
+        }
+
+        // Only fetch repositories that are still configured
+        bool known = std::any_of( repositories.begin(), repositories.end(),
+                                  [&repoId]( const auto& repo )
+                                  {
+                                      return std::get<0>( repo ) == repoId;
+                                  } );
+
+        if( !known )
+        {
+            m_attemptedFetches.insert( repoId );
+            continue;
+        }
+
+        startRepositoryFetch( repoId, false );
+        return;
+    }
+}
+
+
+void DIALOG_PCM::cancelRepositoryFetch()
+{
+    if( m_fetchReporter )
+        m_fetchReporter->Cancel();
+
+    if( m_fetchThread.joinable() )
+        m_fetchThread.join();
+
+    m_fetchInProgress = false;
+
+    // The completion handler of a cancelled fetch never runs, so re-enable the
+    // controls it would have re-enabled.
+    m_choiceRepository->Enable();
+    m_refreshButton->Enable();
 }
 
 
@@ -502,6 +694,11 @@ void DIALOG_PCM::OnApplyChangesClicked( wxCommandEvent& event )
 {
     if( m_pendingActions.size() == 0 )
         return;
+
+    // The task manager runs worker threads that modify the installed package list.
+    // The fetch completion handler must not run in parallel with them (an event
+    // yield could dispatch it), so make sure no background fetch is in flight.
+    cancelRepositoryFetch();
 
     m_sdbSizer1OK->Disable();
     m_sdbSizer1Apply->Disable();

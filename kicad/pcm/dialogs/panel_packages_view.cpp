@@ -128,6 +128,17 @@ void PANEL_PACKAGES_VIEW::ClearData()
 }
 
 
+void PANEL_PACKAGES_VIEW::ShowMessage( const wxString& aText )
+{
+    ClearData();
+
+    wxStaticText* label = new wxStaticText( m_packageListWindow, wxID_ANY, aText );
+    m_packageListWindow->GetSizer()->Add( label, 0, wxALL, FromDIP( 10 ) );
+    m_packageListWindow->GetSizer()->FitInside( m_packageListWindow );
+    m_packageListWindow->Layout();
+}
+
+
 void PANEL_PACKAGES_VIEW::SetData( const std::vector<PACKAGE_VIEW_DATA>& aPackageData )
 {
     ClearData();

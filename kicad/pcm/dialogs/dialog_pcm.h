@@ -28,9 +28,31 @@
 #include "pcm.h"
 #include "pcm_data.h"
 
+#include <widgets/progress_reporter_base.h>
+
+#include <memory>
+#include <thread>
 #include <vector>
 
 class EDA_BASE_FRAME;
+
+
+/**
+ * Progress reporter used for repository fetches running in a background thread.
+ *
+ * It has no UI of its own and only provides thread-safe cancellation, so the
+ * fetch can be aborted when the user switches repositories or closes the dialog.
+ */
+class PCM_FETCH_REPORTER : public PROGRESS_REPORTER_BASE
+{
+public:
+    PCM_FETCH_REPORTER() : PROGRESS_REPORTER_BASE( 1 ) {}
+
+    void Cancel() { m_cancelled.store( true ); }
+
+private:
+    bool updateUI() override { return !m_cancelled.load(); }
+};
 
 
 /** Implementing pcm main dialog. */
@@ -89,9 +111,40 @@ private:
     /**
      * @brief Gets package data from PCM and displays it on repository tab
      *
+     * If the repository is not cached yet, starts a background fetch and returns.
+     * The repository tab is populated when the fetch finishes.
+     *
      * @param aRepositoryId id of the repository
      */
     void setRepositoryData( const wxString& aRepositoryId );
+
+    /**
+     * @brief Fetches repository data in a background thread
+     *
+     * @param aRepositoryId id of the repository to fetch
+     * @param aForDisplay true if the fetch was triggered to display the repository
+     *        on the repository tab: the repository choice and refresh button are
+     *        disabled and the tab shows a loading indication while it runs. False
+     *        for opportunistic background fetches of repositories that installed
+     *        packages come from.
+     */
+    void startRepositoryFetch( const wxString& aRepositoryId, bool aForDisplay );
+
+    ///< Cancels the ongoing repository fetch (if any) and joins the fetch thread
+    void cancelRepositoryFetch();
+
+    ///< Handles a finished repository fetch on the main thread
+    void onRepositoryFetchCompleted( const wxString& aRepositoryId, bool aSuccess,
+                                     PCM_REPOSITORY&& aRepository );
+
+    /**
+     * @brief Starts a background fetch of the next uncached repository that installed
+     * packages come from, so that available updates show up on the Installed tab
+     *
+     * Fetches one repository at a time. Each is attempted at most once per dialog
+     * lifetime. Does nothing if a fetch is already running.
+     */
+    void startNextBackgroundFetch();
 
     ///< Sets repository choice list values
     void setRepositoryListFromPcm();
@@ -120,6 +173,10 @@ private:
     std::unordered_map<wxString, wxBitmap>                     m_installedBitmaps;
     wxBitmap                                                   m_defaultBitmap;
     std::unordered_set<PCM_PACKAGE_TYPE>                       m_changed_package_types;
+    std::thread                                                m_fetchThread;
+    std::shared_ptr<PCM_FETCH_REPORTER>                        m_fetchReporter;
+    bool                                                       m_fetchInProgress = false;
+    std::unordered_set<wxString>                               m_attemptedFetches;
 
     struct PENDING_ACTION
     {

@@ -254,10 +254,15 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
     {
         if( m_dialog )
         {
+            // wxLogError is thread safe (entries from worker threads are queued and
+            // shown on the main thread). A message box would not be.
             if( code == CURLE_ABORTED_BY_CALLBACK && size_exceeded )
-                wxMessageBox( _( "Download is too large." ) );
+                wxLogError( _( "Failed to download '%s': download is too large." ), aUrl );
             else if( code != CURLE_ABORTED_BY_CALLBACK )
-                wxLogError( wxString( curl.GetErrorText( code ) ) );
+            {
+                wxLogError( _( "Failed to download '%s': %s" ), aUrl,
+                            wxString( curl.GetErrorText( code ) ) );
+            }
         }
 
         return false;
@@ -418,9 +423,31 @@ PLUGIN_CONTENT_MANAGER::getCachedRepository( const wxString& aRepositoryId ) con
 
 bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
 {
-    if( m_repository_cache.find( aRepositoryId ) != m_repository_cache.end() )
+    if( IsRepositoryCached( aRepositoryId ) )
         return true;
 
+    std::shared_ptr<PROGRESS_REPORTER> reporter;
+
+    if( m_dialog )
+        reporter = std::make_shared<WX_PROGRESS_REPORTER>( m_dialog, wxT( "" ), 1, PR_CAN_ABORT );
+    else
+        reporter = m_updateBackgroundJob->m_reporter;
+
+    PCM_REPOSITORY repository;
+
+    if( !DownloadRepository( aRepositoryId, repository, reporter ) )
+        return false;
+
+    StoreRepositoryCache( aRepositoryId, std::move( repository ) );
+
+    return true;
+}
+
+
+bool PLUGIN_CONTENT_MANAGER::DownloadRepository( const wxString& aRepositoryId,
+                                                 PCM_REPOSITORY& aRepository,
+                                                 std::shared_ptr<PROGRESS_REPORTER> aReporter )
+{
     const auto repository_tuple =
             std::find_if( m_repository_list.begin(), m_repository_list.end(),
                           [&aRepositoryId]( const std::tuple<wxString, wxString, wxString>& t )
@@ -433,17 +460,15 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
 
     wxString url = std::get<2>( *repository_tuple );
 
-    nlohmann::json  js;
-    PCM_REPOSITORY  current_repo;
-    PCM_REPOSITORY& current_repo_ref = current_repo;
+    nlohmann::json js;
+    PCM_REPOSITORY current_repo;
 
-    std::shared_ptr<PROGRESS_REPORTER> reporter;
+    std::shared_ptr<PROGRESS_REPORTER> reporter = std::move( aReporter );
 
-    if( m_dialog )
-        reporter = std::make_shared<WX_PROGRESS_REPORTER>( m_dialog, wxT( "" ), 1, PR_CAN_ABORT );
-    else
-        reporter = m_updateBackgroundJob->m_reporter;
+    wxCHECK_MSG( reporter, false, wxS( "DownloadRepository requires a progress reporter" ) );
 
+    // FetchRepository reports the specific error (download failure with URL, or a
+    // parse error), so no additional message is logged here.
     if( !FetchRepository( url, current_repo, reporter.get() ) )
         return false;
 
@@ -487,7 +512,7 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
                     saved_repo.package_map[saved_repo.package_list[i].identifier] = i;
                 }
 
-                m_repository_cache[aRepositoryId] = std::move( saved_repo );
+                aRepository = std::move( saved_repo );
 
                 packages_cache_exists = true;
             }
@@ -528,14 +553,13 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
         js["packages"] = nlohmann::json( current_repo.package_list );
         packages_cache_stream << std::setw( 4 ) << js << std::endl;
 
-        m_repository_cache[aRepositoryId] = std::move( current_repo );
-        current_repo_ref = m_repository_cache[aRepositoryId];
+        aRepository = current_repo;
     }
 
-    if( current_repo_ref.resources )
+    if( current_repo.resources )
     {
         // Check resources file date, redownload if needed
-        PCM_RESOURCE_REFERENCE& resources = *current_repo_ref.resources;
+        PCM_RESOURCE_REFERENCE& resources = *current_repo.resources;
 
         wxFileName resource_file( repo_cache.GetPath(), wxT( "resources.zip" ) );
 
@@ -584,9 +608,16 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
         }
     }
 
-    updateInstalledPackagesMetadata( aRepositoryId );
-
     return true;
+}
+
+
+void PLUGIN_CONTENT_MANAGER::StoreRepositoryCache( const wxString& aRepositoryId,
+                                                   PCM_REPOSITORY&& aRepository )
+{
+    m_repository_cache[aRepositoryId] = std::move( aRepository );
+
+    updateInstalledPackagesMetadata( aRepositoryId );
 }
 
 
@@ -868,7 +899,9 @@ PCM_PACKAGE_STATE PLUGIN_CONTENT_MANAGER::GetPackageState( const wxString& aRepo
 {
     bool installed = m_installed.find( aPackageId ) != m_installed.end();
 
-    if( aRepositoryId.IsEmpty() || !CacheRepository( aRepositoryId ) )
+    // This is called from UI code paths such as the PCM dialog constructor, so it
+    // must not block on a network fetch. Only the in-memory cache is consulted.
+    if( aRepositoryId.IsEmpty() || !IsRepositoryCached( aRepositoryId ) )
         return installed ? PPS_INSTALLED : PPS_UNAVAILABLE;
 
     const PCM_REPOSITORY* repo;
