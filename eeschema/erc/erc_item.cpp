@@ -270,6 +270,10 @@ ERC_ITEM ERC_ITEM::variantSymbolIncompatible( ERCE_VARIANT_SYMBOL_INCOMPATIBLE,
         _HKI( "Variant symbol is not pin-compatible" ),
         wxT( "variant_symbol_incompatible" ) );
 
+ERC_ITEM ERC_ITEM::pinFunctionGroupIncomplete( ERCE_PIN_FUNCTION_GROUP_INCOMPLETE,
+        _HKI( "Pin function group incompletely configured" ),
+        wxT( "pin_function_group_incomplete" ) );
+
 std::vector<std::reference_wrapper<RC_ITEM>> ERC_ITEM::allItemTypes(
         { ERC_ITEM::heading_connections, ERC_ITEM::pinNotConnected, ERC_ITEM::pinNotDriven, ERC_ITEM::powerpinNotDriven,
           ERC_ITEM::noConnectConnected, ERC_ITEM::noConnectDangling, ERC_ITEM::labelDangling,
@@ -295,6 +299,7 @@ std::vector<std::reference_wrapper<RC_ITEM>> ERC_ITEM::allItemTypes(
           ERC_ITEM::footprintFilters, ERC_ITEM::extraUnits, ERC_ITEM::missingUnits, ERC_ITEM::missingInputPin,
           ERC_ITEM::missingBidiPin, ERC_ITEM::missingPowerInputPin,
           ERC_ITEM::variantSymbolInvalid, ERC_ITEM::variantSymbolIncompatible,
+          ERC_ITEM::pinFunctionGroupIncomplete,
 
           // ERC_ITEM types with no user-editable severities
           // NOTE: this MUST be the last grouping in the list!
@@ -364,6 +369,7 @@ std::shared_ptr<ERC_ITEM> ERC_ITEM::Create( int aErrorCode )
     case ERCE_PIN_MAP_STALE_PIN: return std::make_shared<ERC_ITEM>( pinMapStalePin );
     case ERCE_VARIANT_SYMBOL_INVALID:  return std::make_shared<ERC_ITEM>( variantSymbolInvalid );
     case ERCE_VARIANT_SYMBOL_INCOMPATIBLE: return std::make_shared<ERC_ITEM>( variantSymbolIncompatible );
+    case ERCE_PIN_FUNCTION_GROUP_INCOMPLETE: return std::make_shared<ERC_ITEM>( pinFunctionGroupIncomplete );
     case ERCE_UNSPECIFIED:
     default:
         wxFAIL_MSG( wxS( "Unknown ERC error code" ) );

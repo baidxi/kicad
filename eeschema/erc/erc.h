@@ -141,6 +141,13 @@ public:
     int TestStackedPinNotation();
 
     /**
+     * Report symbols where a pin function group is active but incompletely configured -- a
+     * required member left unassigned, or a subgroup below its minimum (e.g. an SPI bus with no
+     * chip select).  @see LIB_SYMBOL::ValidatePinFunctionGroups().
+     */
+    int TestPinFunctionGroups();
+
+    /**
      * Checks for global and local labels with the same name
      * @return the error count
      */

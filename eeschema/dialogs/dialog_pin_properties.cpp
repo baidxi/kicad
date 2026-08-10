@@ -30,6 +30,7 @@
 #include <widgets/wx_grid.h>
 #include <grid_tricks.h>
 #include <widgets/grid_icon_text_helpers.h>
+#include <widgets/grid_combobox.h>
 #include <widgets/std_bitmap_button.h>
 #include <wx/hyperlink.h>
 #include <symbol_preview_widget.h>
@@ -48,10 +49,13 @@ public:
     {
         switch( aCol )
         {
-        case COL_NAME:  return _( "Alternate Pin Name" );
-        case COL_TYPE:  return _( "Electrical Type" );
-        case COL_SHAPE: return _( "Graphic Style" );
-        default:        wxFAIL; return wxEmptyString;
+        case COL_NAME:            return _( "Alternate Pin Name" );
+        case COL_TYPE:            return _( "Electrical Type" );
+        case COL_SHAPE:           return _( "Graphic Style" );
+        case COL_GROUP:           return _( "Function Group" );
+        case COL_GROUP_OPTIONAL:  return _( "Optional" );
+        case COL_GROUP_SUBGROUP:  return _( "Subgroup" );
+        default:                  wxFAIL; return wxEmptyString;
         }
     }
 
@@ -67,6 +71,14 @@ public:
         case COL_NAME:  return at( aRow ).m_Name;
         case COL_TYPE:  return PinTypeNames()[static_cast<int>( at( aRow ).m_Type )];
         case COL_SHAPE: return PinShapeNames()[static_cast<int>( at( aRow ).m_Shape )];
+        case COL_GROUP: return at( aRow ).m_FunctionGroup;
+
+        // String form is still needed for the clipboard/paste path even though the cell renders
+        // as a checkbox.
+        case COL_GROUP_OPTIONAL:
+            return at( aRow ).m_FunctionGroupOptional ? wxS( "1" ) : wxEmptyString;
+
+        case COL_GROUP_SUBGROUP: return at( aRow ).m_FunctionGroupSubgroup;
         default:        wxFAIL; return wxEmptyString;
         }
     }
@@ -91,10 +103,83 @@ public:
 
             break;
 
+        case COL_GROUP:
+            at( aRow ).m_FunctionGroup = aValue;
+
+            // Group membership carries the optional flag and the subgroup, so clearing the group
+            // must not leave them behind as orphaned state that would round-trip to disk.
+            if( aValue.IsEmpty() )
+            {
+                at( aRow ).m_FunctionGroupOptional = false;
+                at( aRow ).m_FunctionGroupSubgroup.Clear();
+            }
+
+            break;
+
+        case COL_GROUP_OPTIONAL:
+            at( aRow ).m_FunctionGroupOptional = !aValue.IsEmpty() && aValue != wxS( "0" );
+            break;
+
+        case COL_GROUP_SUBGROUP:
+            at( aRow ).m_FunctionGroupSubgroup = aValue;
+            break;
+
         default:
             wxFAIL;
             break;
         }
+    }
+
+    bool CanGetValueAs( int aRow, int aCol, const wxString& aTypeName ) override
+    {
+        if( aCol == COL_GROUP_OPTIONAL )
+            return aTypeName == wxGRID_VALUE_BOOL;
+
+        return aTypeName == wxGRID_VALUE_STRING;
+    }
+
+    bool CanSetValueAs( int aRow, int aCol, const wxString& aTypeName ) override
+    {
+        return CanGetValueAs( aRow, aCol, aTypeName );
+    }
+
+    bool GetValueAsBool( int aRow, int aCol ) override
+    {
+        return aCol == COL_GROUP_OPTIONAL && at( aRow ).m_FunctionGroupOptional;
+    }
+
+    void SetValueAsBool( int aRow, int aCol, bool aValue ) override
+    {
+        // Optional is meaningless without a group, and redundant inside a subgroup (whose
+        // cardinality rule already governs its members).
+        if( aCol == COL_GROUP_OPTIONAL && !at( aRow ).m_FunctionGroup.IsEmpty()
+                && at( aRow ).m_FunctionGroupSubgroup.IsEmpty() )
+        {
+            at( aRow ).m_FunctionGroupOptional = aValue;
+        }
+    }
+
+    wxGridCellAttr* GetAttr( int aRow, int aCol, wxGridCellAttr::wxAttrKind aKind ) override
+    {
+        wxGridCellAttr* attr = WX_GRID_TABLE_BASE::GetAttr( aRow, aCol, aKind );
+
+        // Grey out Optional when it cannot apply: no group, or the member is already governed
+        // by a subgroup rule.  This teaches the precedence rule instead of leaving it folklore.
+        if( aCol == COL_GROUP_OPTIONAL
+                && ( at( aRow ).m_FunctionGroup.IsEmpty()
+                     || !at( aRow ).m_FunctionGroupSubgroup.IsEmpty() ) )
+        {
+            wxGridCellAttr* disabled = attr ? attr->Clone() : new wxGridCellAttr;
+
+            if( attr )
+                attr->DecRef();
+
+            disabled->SetReadOnly( true );
+            disabled->SetTextColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+            return disabled;
+        }
+
+        return attr;
     }
 
     void AppendRow( const SCH_PIN::ALT& aAlt )
@@ -236,6 +321,21 @@ DIALOG_PIN_PROPERTIES::DIALOG_PIN_PROPERTIES( SYMBOL_EDIT_FRAME* parent, SCH_PIN
     attr->SetEditor( new GRID_CELL_ICON_TEXT_POPUP( PinShapeIcons(), PinShapeNames() ) );
     m_alternatesGrid->SetColAttr( COL_SHAPE, attr );
 
+    attr = new wxGridCellAttr;
+    attr->SetRenderer( new wxGridCellBoolRenderer() );
+    attr->SetEditor( new wxGridCellBoolEditor() );
+    attr->SetAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
+    m_alternatesGrid->SetColAttr( COL_GROUP_OPTIONAL, attr );
+
+    // A dropdown of the groups already used in this symbol, but still free-text so a new group
+    // can be introduced by typing it.
+    rebuildFunctionGroupChoices();
+
+    // Keep the dropdown current as groups are named.  Must be _CHANGED, not _CHANGING: swapping
+    // a column attribute out from under a live editor crashes.
+    m_alternatesGrid->Bind( wxEVT_GRID_CELL_CHANGED,
+                            &DIALOG_PIN_PROPERTIES::OnAlternatesCellChanged, this );
+
     m_addAlternate->SetBitmap( KiBitmapBundle( BITMAPS::small_plus ) );
     m_deleteAlternate->SetBitmap( KiBitmapBundle( BITMAPS::small_trash ) );
     m_addAlternate->GetParent()->Layout();
@@ -339,6 +439,23 @@ bool DIALOG_PIN_PROPERTIES::TransferDataFromWindow()
 {
     if( !m_alternatesGrid->CommitPendingChanges() )
         return false;
+
+    // The optional flag and the subgroup only mean anything as part of a group.  The grid greys
+    // those cells out when there is no group, but a clipboard paste bypasses the greying, so
+    // normalize here rather than writing contradictory state to the .kicad_sym.
+    for( SCH_PIN::ALT& alt : *m_alternatesDataModel )
+    {
+        if( alt.m_FunctionGroup.IsEmpty() )
+        {
+            alt.m_FunctionGroupOptional = false;
+            alt.m_FunctionGroupSubgroup.Clear();
+        }
+        else if( !alt.m_FunctionGroupSubgroup.IsEmpty() )
+        {
+            // Redundant: a subgroup member is already not individually required.
+            alt.m_FunctionGroupOptional = false;
+        }
+    }
 
     // Check for missing alternate names.
     for( size_t i = 0;  i < m_alternatesDataModel->size(); ++i )
@@ -470,8 +587,67 @@ void DIALOG_PIN_PROPERTIES::adjustGridColumns()
 
     m_alternatesGrid->SetColSize( COL_TYPE, m_originalColWidths[COL_TYPE] );
     m_alternatesGrid->SetColSize( COL_SHAPE, m_originalColWidths[COL_SHAPE] );
+    m_alternatesGrid->SetColSize( COL_GROUP, m_originalColWidths[COL_GROUP] );
+    m_alternatesGrid->SetColSize( COL_GROUP_OPTIONAL, m_originalColWidths[COL_GROUP_OPTIONAL] );
+    m_alternatesGrid->SetColSize( COL_GROUP_SUBGROUP, m_originalColWidths[COL_GROUP_SUBGROUP] );
 
-    m_alternatesGrid->SetColSize( COL_NAME, width - m_originalColWidths[COL_TYPE] - m_originalColWidths[COL_SHAPE] );
+    // COL_NAME is the flex column: it absorbs whatever the fixed columns leave over.
+    m_alternatesGrid->SetColSize( COL_NAME, width - m_originalColWidths[COL_TYPE]
+                                                   - m_originalColWidths[COL_SHAPE]
+                                                   - m_originalColWidths[COL_GROUP]
+                                                   - m_originalColWidths[COL_GROUP_OPTIONAL]
+                                                   - m_originalColWidths[COL_GROUP_SUBGROUP] );
+}
+
+
+void DIALOG_PIN_PROPERTIES::rebuildFunctionGroupChoices()
+{
+    std::set<wxString> names;
+
+    if( LIB_SYMBOL* parent = static_cast<LIB_SYMBOL*>( m_pin->GetParentSymbol() ) )
+    {
+        // Unit 0 / body style 0 means "every pin", since a function group is a symbol-wide idea.
+        for( const SCH_PIN* pin : parent->GetGraphicalPins( 0, 0 ) )
+        {
+            for( const auto& [altName, alt] : pin->GetAlternates() )
+            {
+                if( !alt.m_FunctionGroup.IsEmpty() )
+                    names.insert( alt.m_FunctionGroup );
+            }
+        }
+
+        for( const auto& [name, desc] : parent->PinFunctionGroupDescriptions() )
+            names.insert( name );
+    }
+
+    // Groups named in rows the user is still editing, not yet committed to the pin.
+    if( m_alternatesDataModel )
+    {
+        for( const SCH_PIN::ALT& alt : *m_alternatesDataModel )
+        {
+            if( !alt.m_FunctionGroup.IsEmpty() )
+                names.insert( alt.m_FunctionGroup );
+        }
+    }
+
+    wxArrayString choices;
+    choices.push_back( wxEmptyString );   // lets the author clear the group
+
+    for( const wxString& name : names )
+        choices.push_back( name );
+
+    wxGridCellAttr* attr = new wxGridCellAttr;
+    attr->SetEditor( new GRID_CELL_COMBOBOX( choices ) );
+    m_alternatesGrid->SetColAttr( COL_GROUP, attr );
+}
+
+
+void DIALOG_PIN_PROPERTIES::OnAlternatesCellChanged( wxGridEvent& aEvent )
+{
+    if( aEvent.GetCol() == COL_GROUP )
+        rebuildFunctionGroupChoices();
+
+    aEvent.Skip();
 }
 
 

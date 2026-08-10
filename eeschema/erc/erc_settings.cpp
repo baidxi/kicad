@@ -130,6 +130,10 @@ ERC_SETTINGS::ERC_SETTINGS( JSON_SETTINGS* aParent, const std::string& aPath ) :
     m_ERCSeverities[ERCE_VARIANT_SYMBOL_INVALID]  = RPT_SEVERITY_ERROR;
     m_ERCSeverities[ERCE_VARIANT_SYMBOL_INCOMPATIBLE] = RPT_SEVERITY_WARNING;
 
+    // A warning, not an error: the library author's minimum is advice, and a designer may
+    // legitimately drive a peripheral's line from somewhere else.
+    m_ERCSeverities[ERCE_PIN_FUNCTION_GROUP_INCOMPLETE] = RPT_SEVERITY_WARNING;
+
     m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "rule_severities",
             [&]() -> nlohmann::json
             {

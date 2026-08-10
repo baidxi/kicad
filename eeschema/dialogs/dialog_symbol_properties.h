@@ -28,6 +28,7 @@
 
 class LIB_SYMBOL;
 class SCH_PIN_TABLE_DATA_MODEL;
+class PIN_FUNCTION_GROUP_DATA_MODEL;
 class SCH_EDIT_FRAME;
 class PANEL_EMBEDDED_FILES;
 class PANEL_SYMBOL_PIN_MAP;
@@ -100,23 +101,47 @@ private:
     void HandleDelayedFocus( wxCommandEvent& event );
     void HandleDelayedSelection( wxCommandEvent& event );
 
+    void OnGroupGridCellClicked( wxGridEvent& aEvent );
+    void RebuildGroupGrid( int aUnit );
+    /// Apply the group grid's active flags to the pin assignments.  MUTATING: assigns required
+    /// members, tops each subgroup up to its minimum, and clears alternates of deactivated
+    /// groups.  Call only in response to a user toggle, never from a refresh.
+    void ApplyGroupActivation();
+
+    /// Assign additional subgroup members until each active group's subgroups meet their
+    /// minimum, without disturbing choices the user already made.
+    void TopUpSubgroups( const std::set<wxString>& aActiveGroups );
+
+    /// Recompute which pins active groups hold, and rebuild the pin grid attributes.
+    /// NON-MUTATING: safe to call on every refresh.
+    void RefreshGroupStatus();
+
+    /// Assign or free a single group member from its child row in the group grid.
+    void ToggleGroupMember( const struct PIN_FUNCTION_GROUP_ROW& aGroup,
+                            const struct PIN_FUNCTION_GROUP_MEMBER& aMember );
+
+    /// Re-fit the group grid's fixed height after its visible row count changes.
+    void sizeGroupGrid();
+
     virtual void onUpdateEditSymbol( wxUpdateUIEvent& event ) override;
     virtual void onUpdateEditLibrarySymbol( wxUpdateUIEvent& event ) override;
 
 private:
-    SCH_SYMBOL*               m_symbol;
-    LIB_SYMBOL*               m_part;
+    SCH_SYMBOL*                        m_symbol;
+    LIB_SYMBOL*                        m_part;
 
-    wxSize                    m_pinsSize;
-    wxSize                    m_lastRequestedPinsSize;
-    bool                      m_editorShown;
-    std::bitset<64>           m_shownColumns;
+    wxSize                             m_pinsSize;
+    wxSize                             m_lastRequestedPinsSize;
+    bool                               m_editorShown;
+    std::bitset<64>                    m_shownColumns;
 
-    FIELDS_GRID_TABLE*        m_fields;
-    SCH_PIN_TABLE_DATA_MODEL* m_dataModel;
-    PANEL_EMBEDDED_FILES*     m_embeddedFiles;
-    PANEL_SYMBOL_PIN_MAP*     m_pinMapPanel;
-    bool                      m_forcePinMapPage = false;
+    FIELDS_GRID_TABLE*             m_fields;
+    SCH_PIN_TABLE_DATA_MODEL*      m_dataModel;
+    WX_GRID*                       m_groupGrid;
+    PIN_FUNCTION_GROUP_DATA_MODEL* m_groupDataModel;
+    PANEL_EMBEDDED_FILES*          m_embeddedFiles;
+    PANEL_SYMBOL_PIN_MAP*          m_pinMapPanel;
+    bool                           m_forcePinMapPage = false;
 };
 
 #endif // DIALOG_SYMBOL_PROPERTIES_H

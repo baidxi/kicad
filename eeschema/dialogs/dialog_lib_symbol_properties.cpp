@@ -50,6 +50,26 @@
 #include <wx/msgdlg.h>
 
 
+/**
+ * Columns of the pin function groups grid.
+ *
+ * The table is flat rather than nested: one row per group carries its description and bus, and
+ * one row per (group, subgroup) carries that subgroup's minimum.  Groups and subgroups both come
+ * from the alternates' tags, so the group/subgroup cells are read-only here -- membership is
+ * authored in the pin dialog.
+ */
+enum FUNCTION_GROUP_COL_ORDER
+{
+    FG_COL_GROUP,
+    FG_COL_SUBGROUP,
+    FG_COL_DESC,
+    FG_COL_BUS,
+    FG_COL_MIN,
+
+    FG_COL_COUNT    // keep as last
+};
+
+
 int DIALOG_LIB_SYMBOL_PROPERTIES::m_lastOpenedPage = 0;
 DIALOG_LIB_SYMBOL_PROPERTIES::LAST_LAYOUT DIALOG_LIB_SYMBOL_PROPERTIES::m_lastLayout =
         DIALOG_LIB_SYMBOL_PROPERTIES::LAST_LAYOUT::NONE;
@@ -127,6 +147,34 @@ DIALOG_LIB_SYMBOL_PROPERTIES::DIALOG_LIB_SYMBOL_PROPERTIES( SYMBOL_EDIT_FRAME* a
                                                            {
                                                                OnAddJumperGroup( aEvent );
                                                            } ) );
+
+    // Pin function group annotations, below the jumper groups on the same page.  Rows are
+    // derived from the alternates' group tags -- a group is created by tagging an alternate in
+    // the pin dialog, and only annotated here, so the two surfaces cannot drift apart.
+    m_functionGroupsLabel = new wxStaticText( m_PanelPinConnections, wxID_ANY,
+                                              _( "Pin function groups:" ) );
+    m_functionGroupsGrid = new WX_GRID( m_PanelPinConnections, wxID_ANY );
+    m_functionGroupsGrid->CreateGrid( 0, FG_COL_COUNT );
+    m_functionGroupsGrid->EnableEditing( true );
+    m_functionGroupsGrid->HideRowLabels();
+    m_functionGroupsGrid->SetColLabelValue( FG_COL_GROUP, _( "Function Group" ) );
+    m_functionGroupsGrid->SetColLabelValue( FG_COL_SUBGROUP, _( "Subgroup" ) );
+    m_functionGroupsGrid->SetColLabelValue( FG_COL_DESC, _( "Description" ) );
+    m_functionGroupsGrid->SetColLabelValue( FG_COL_BUS, _( "Bus" ) );
+    m_functionGroupsGrid->SetColLabelValue( FG_COL_MIN, _( "Min" ) );
+    m_functionGroupsGrid->SetColSize( FG_COL_GROUP, 120 );
+    m_functionGroupsGrid->SetColSize( FG_COL_SUBGROUP, 100 );
+    m_functionGroupsGrid->SetColSize( FG_COL_DESC, 220 );
+    m_functionGroupsGrid->SetColSize( FG_COL_BUS, 100 );
+    m_functionGroupsGrid->SetColSize( FG_COL_MIN, 60 );
+    m_functionGroupsGrid->SetSelectionMode( wxGrid::wxGridSelectRows );
+
+    if( wxSizer* pinPanelSizer = m_PanelPinConnections->GetSizer() )
+    {
+        pinPanelSizer->Add( m_functionGroupsLabel, 0, wxTOP | wxRIGHT | wxLEFT, 5 );
+        pinPanelSizer->Add( m_functionGroupsGrid, 1, wxEXPAND | wxALL, 5 );
+        m_PanelPinConnections->Layout();
+    }
 
     // Configure button logos
     m_bpAdd->SetBitmap( KiBitmapBundle( BITMAPS::small_plus ) );
@@ -228,6 +276,149 @@ DIALOG_LIB_SYMBOL_PROPERTIES::~DIALOG_LIB_SYMBOL_PROPERTIES()
     m_unitNamesGrid->PopEventHandler( true );
     m_bodyStyleNamesGrid->PopEventHandler( true );
     m_jumperGroupsGrid->PopEventHandler( true );
+}
+
+
+void DIALOG_LIB_SYMBOL_PROPERTIES::buildFunctionGroupsGrid()
+{
+    if( !m_functionGroupsGrid )
+        return;
+
+    if( m_functionGroupsGrid->GetNumberRows() > 0 )
+        m_functionGroupsGrid->DeleteRows( 0, m_functionGroupsGrid->GetNumberRows() );
+
+    // group name -> subgroup names actually used by its member alternates
+    std::map<wxString, std::set<wxString>> groups;
+
+    for( const SCH_PIN* pin : m_libEntry->GetGraphicalPins( 0, 0 ) )
+    {
+        for( const auto& [altName, alt] : pin->GetAlternates() )
+        {
+            if( alt.m_FunctionGroup.IsEmpty() )
+                continue;
+
+            std::set<wxString>& subgroups = groups[alt.m_FunctionGroup];
+
+            if( !alt.m_FunctionGroupSubgroup.IsEmpty() )
+                subgroups.insert( alt.m_FunctionGroupSubgroup );
+        }
+    }
+
+    // Keep descriptions for groups no pin references any more, rather than silently pruning a
+    // hand-edited .kicad_sym; the empty group column makes them visible for cleanup.
+    for( const auto& [name, desc] : m_libEntry->PinFunctionGroupDescriptions() )
+        groups.emplace( name, std::set<wxString>() );
+
+    const auto& descs = m_libEntry->PinFunctionGroupDescriptions();
+
+    for( const auto& [name, subgroups] : groups )
+    {
+        auto descIt = descs.find( name );
+
+        m_functionGroupsGrid->AppendRows( 1 );
+        int row = m_functionGroupsGrid->GetNumberRows() - 1;
+
+        m_functionGroupsGrid->SetCellValue( row, FG_COL_GROUP, name );
+        m_functionGroupsGrid->SetReadOnly( row, FG_COL_GROUP );
+        m_functionGroupsGrid->SetReadOnly( row, FG_COL_SUBGROUP );
+        m_functionGroupsGrid->SetReadOnly( row, FG_COL_MIN );
+
+        if( descIt != descs.end() )
+        {
+            m_functionGroupsGrid->SetCellValue( row, FG_COL_DESC, descIt->second.description );
+            m_functionGroupsGrid->SetCellValue( row, FG_COL_BUS, descIt->second.bus );
+        }
+
+        // One row per subgroup, carrying only its minimum.
+        for( const wxString& subgroup : subgroups )
+        {
+            m_functionGroupsGrid->AppendRows( 1 );
+            int subRow = m_functionGroupsGrid->GetNumberRows() - 1;
+
+            int minimum = PIN_FUNCTION_SUBGROUP_RULE{}.min;
+
+            if( descIt != descs.end() )
+            {
+                auto ruleIt = descIt->second.subgroups.find( subgroup );
+
+                if( ruleIt != descIt->second.subgroups.end() )
+                    minimum = ruleIt->second.min;
+            }
+
+            m_functionGroupsGrid->SetCellValue( subRow, FG_COL_GROUP, name );
+            m_functionGroupsGrid->SetCellValue( subRow, FG_COL_SUBGROUP, subgroup );
+            m_functionGroupsGrid->SetCellValue( subRow, FG_COL_MIN,
+                                                wxString::Format( wxS( "%d" ), minimum ) );
+            m_functionGroupsGrid->SetCellEditor( subRow, FG_COL_MIN,
+                                                 new wxGridCellNumberEditor( 0, 99 ) );
+            m_functionGroupsGrid->SetReadOnly( subRow, FG_COL_GROUP );
+            m_functionGroupsGrid->SetReadOnly( subRow, FG_COL_SUBGROUP );
+            m_functionGroupsGrid->SetReadOnly( subRow, FG_COL_DESC );
+            m_functionGroupsGrid->SetReadOnly( subRow, FG_COL_BUS );
+        }
+    }
+}
+
+
+bool DIALOG_LIB_SYMBOL_PROPERTIES::applyFunctionGroupsGrid()
+{
+    if( !m_functionGroupsGrid )
+        return true;
+
+    std::map<wxString, PIN_FUNCTION_GROUP_DESC> descs;
+
+    for( int row = 0; row < m_functionGroupsGrid->GetNumberRows(); ++row )
+    {
+        wxString group = m_functionGroupsGrid->GetCellValue( row, FG_COL_GROUP );
+        wxString subgroup = m_functionGroupsGrid->GetCellValue( row, FG_COL_SUBGROUP );
+
+        if( group.IsEmpty() )
+            continue;
+
+        if( subgroup.IsEmpty() )
+        {
+            descs[group].description = m_functionGroupsGrid->GetCellValue( row, FG_COL_DESC );
+            descs[group].bus = m_functionGroupsGrid->GetCellValue( row, FG_COL_BUS );
+        }
+        else
+        {
+            long minimum = PIN_FUNCTION_SUBGROUP_RULE{}.min;
+
+            if( !m_functionGroupsGrid->GetCellValue( row, FG_COL_MIN ).ToLong( &minimum ) )
+                minimum = PIN_FUNCTION_SUBGROUP_RULE{}.min;
+
+            if( minimum < 0 )
+            {
+                DisplayErrorMessage( this,
+                                     wxString::Format( _( "Subgroup '%s' of function group '%s' "
+                                                          "has a negative minimum." ),
+                                                       subgroup, group ) );
+                return false;
+            }
+
+            // Only store a rule that differs from the default, so the common case stays
+            // expressible with alternate tags alone and the file does not gain noise.
+            if( minimum != PIN_FUNCTION_SUBGROUP_RULE{}.min )
+                descs[group].subgroups[subgroup] = PIN_FUNCTION_SUBGROUP_RULE{ (int) minimum };
+        }
+    }
+
+    // Drop entries that carry no information at all.
+    for( auto it = descs.begin(); it != descs.end(); )
+    {
+        if( it->second.description.IsEmpty() && it->second.bus.IsEmpty()
+                && it->second.subgroups.empty() )
+        {
+            it = descs.erase( it );
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    m_libEntry->PinFunctionGroupDescriptions() = std::move( descs );
+    return true;
 }
 
 
@@ -387,6 +578,8 @@ bool DIALOG_LIB_SYMBOL_PROPERTIES::TransferDataToWindow()
         m_jumperGroupsGrid->AppendRows( 1 );
         m_jumperGroupsGrid->SetCellValue( m_jumperGroupsGrid->GetNumberRows() - 1, 0, groupTxt );
     }
+
+    buildFunctionGroupsGrid();
 
     // Populate the list of root parts for inherited objects.
     if( m_libEntry->IsDerived() )
@@ -782,6 +975,10 @@ bool DIALOG_LIB_SYMBOL_PROPERTIES::TransferDataFromWindow()
     m_libEntry->SetFPFilters( m_FootprintFilterListBox->GetStrings());
 
     m_libEntry->SetDuplicatePinNumbersAreJumpers( m_cbDuplicatePinsAreJumpers->GetValue() );
+
+    if( !applyFunctionGroupsGrid() )
+        return false;
+
 
     std::vector<std::set<wxString>>& jumpers = m_libEntry->JumperPinGroups();
     jumpers.clear();

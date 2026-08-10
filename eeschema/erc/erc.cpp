@@ -1933,6 +1933,43 @@ int ERC_TESTER::TestStackedPinNotation()
 }
 
 
+int ERC_TESTER::TestPinFunctionGroups()
+{
+    int warnings = 0;
+
+    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+    {
+        SCH_SCREEN* screen = sheet.LastScreen();
+
+        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+
+            for( const auto& [groupName, status] : symbol->ValidatePinFunctionGroups( &sheet ) )
+            {
+                // Only an active-but-incomplete group is reported.  An unused peripheral is
+                // INACTIVE and must not generate noise on every symbol that has one.
+                if( status.state != PIN_FUNCTION_GROUP_STATE::INCOMPLETE )
+                    continue;
+
+                std::shared_ptr<ERC_ITEM> ercItem =
+                        ERC_ITEM::Create( ERCE_PIN_FUNCTION_GROUP_INCOMPLETE );
+                ercItem->SetErrorMessage( status.message );
+                ercItem->SetItems( symbol );
+                ercItem->SetSheetSpecificPath( sheet );
+                ercItem->SetItemsSheetPaths( sheet );
+
+                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() );
+                screen->Append( marker );
+                warnings++;
+            }
+        }
+    }
+
+    return warnings;
+}
+
+
 int ERC_TESTER::TestSameLocalGlobalLabel()
 {
     int errCount = 0;
@@ -2747,6 +2784,9 @@ void ERC_TESTER::RunTests( DS_PROXY_VIEW_ITEM* aDrawingSheet, SCH_EDIT_FRAME* aE
 
     if( m_settings.IsTestEnabled( ERCE_STACKED_PIN_SYNTAX ) )
         TestStackedPinNotation();
+
+    if( m_settings.IsTestEnabled( ERCE_PIN_FUNCTION_GROUP_INCOMPLETE ) )
+        TestPinFunctionGroups();
 
     // Test similar labels (i;e. labels which are identical when
     // using case insensitive comparisons)

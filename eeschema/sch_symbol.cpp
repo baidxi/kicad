@@ -2219,6 +2219,61 @@ std::vector<SCH_PIN*> SCH_SYMBOL::GetPins() const
 }
 
 
+std::set<wxString> SCH_SYMBOL::GetActivePinFunctionGroups() const
+{
+    // Active groups are derived from the alternates the pins are currently assigned to: a group
+    // is active when one of its member alternates is the selected alternate on its pin.
+    std::set<wxString> active;
+
+    for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
+    {
+        if( pin->GetAlt().IsEmpty() )
+            continue;
+
+        SCH_PIN* libPin = pin->GetLibPin();
+
+        if( !libPin )
+            continue;
+
+        const std::map<wxString, SCH_PIN::ALT>& alternates = libPin->GetAlternates();
+        auto                                    it = alternates.find( pin->GetAlt() );
+
+        if( it != alternates.end() && !it->second.m_FunctionGroup.IsEmpty() )
+            active.insert( it->second.m_FunctionGroup );
+    }
+
+    return active;
+}
+
+
+std::map<wxString, wxString> SCH_SYMBOL::GetPinAlternateAssignments() const
+{
+    std::map<wxString, wxString> assignments;
+
+    for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
+    {
+        if( !pin->GetAlt().IsEmpty() )
+            assignments[pin->GetNumber()] = pin->GetAlt();
+    }
+
+    return assignments;
+}
+
+
+std::map<wxString, PIN_FUNCTION_GROUP_STATUS>
+SCH_SYMBOL::ValidatePinFunctionGroups( const SCH_SHEET_PATH* aSheet ) const
+{
+    if( !m_part )
+        return {};
+
+    // GetUnitSelection() dereferences the sheet, so fall back to "all units" without one.
+    const int unit = aSheet ? GetUnitSelection( aSheet ) : 0;
+
+    return m_part->ValidatePinFunctionGroups( GetPinAlternateAssignments(), unit,
+                                              GetBodyStyle() );
+}
+
+
 void SCH_SYMBOL::swapData( SCH_ITEM* aItem )
 {
     wxCHECK_RET( aItem != nullptr && aItem->Type() == SCH_SYMBOL_T, wxT( "Cannot swap data with invalid symbol." ) );

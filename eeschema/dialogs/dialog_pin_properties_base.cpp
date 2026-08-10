@@ -197,21 +197,27 @@ DIALOG_PIN_PROPERTIES_BASE::DIALOG_PIN_PROPERTIES_BASE( wxWindow* parent, wxWind
 	m_alternatesGrid = new WX_GRID( m_alternatesTurndown->GetPane(), wxID_ANY, wxDefaultPosition, wxDefaultSize, 0 );
 
 	// Grid
-	m_alternatesGrid->CreateGrid( 1, 3 );
+	m_alternatesGrid->CreateGrid( 1, 6 );
 	m_alternatesGrid->EnableEditing( true );
 	m_alternatesGrid->EnableGridLines( true );
 	m_alternatesGrid->EnableDragGridSize( false );
 	m_alternatesGrid->SetMargins( 0, 0 );
 
 	// Columns
-	m_alternatesGrid->SetColSize( 0, 260 );
-	m_alternatesGrid->SetColSize( 1, 140 );
-	m_alternatesGrid->SetColSize( 2, 140 );
+	m_alternatesGrid->SetColSize( 0, 180 );
+	m_alternatesGrid->SetColSize( 1, 120 );
+	m_alternatesGrid->SetColSize( 2, 120 );
+	m_alternatesGrid->SetColSize( 3, 130 );
+	m_alternatesGrid->SetColSize( 4, 70 );
+	m_alternatesGrid->SetColSize( 5, 110 );
 	m_alternatesGrid->EnableDragColMove( false );
 	m_alternatesGrid->EnableDragColSize( false );
 	m_alternatesGrid->SetColLabelValue( 0, _("Alternate Pin Name") );
 	m_alternatesGrid->SetColLabelValue( 1, _("Electrical Type") );
 	m_alternatesGrid->SetColLabelValue( 2, _("Graphic Style") );
+	m_alternatesGrid->SetColLabelValue( 3, _("Function Group") );
+	m_alternatesGrid->SetColLabelValue( 4, _("Optional") );
+	m_alternatesGrid->SetColLabelValue( 5, _("Subgroup") );
 	m_alternatesGrid->SetColLabelSize( 22 );
 	m_alternatesGrid->SetColLabelAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
 

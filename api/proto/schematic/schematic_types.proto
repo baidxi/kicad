@@ -294,6 +294,18 @@ message SchematicPinAlternate
   string name = 1;
   SchematicPinShape shape = 2;
   kiapi.common.types.ElectricalPinType electrical_type = 3;
+
+  // Name of the pin function group (peripheral) this alternate belongs to, empty if ungrouped.
+  string function_group = 4;
+
+  // True when this alternate is an optional member of function_group, so enabling the group in
+  // bulk leaves its pin free for another use.
+  bool function_group_optional = 5;
+
+  // Subgroup within function_group, empty if none.  At least a minimum number of a subgroup's
+  // members must be assigned for the group to be validly configured; the minimum is a property
+  // of the library symbol's group description rather than of this alternate.
+  string function_group_subgroup = 6;
 }
 
 message SchematicPin

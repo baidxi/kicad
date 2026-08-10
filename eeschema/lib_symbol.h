@@ -28,6 +28,7 @@
 #include <sch_field.h>
 #include <sch_pin.h>
 #include <lib_tree_item.h>
+#include <pin_function_group.h>
 #include <pin_map.h>
 #include <set>
 #include <vector>
@@ -69,6 +70,11 @@ struct LIB_SYMBOL_UNIT
     int m_bodyStyle;                  ///< The alternate body style of the unit.
     std::vector<SCH_ITEM*> m_items;   ///< The items unique to this unit and alternate body style.
 };
+
+
+// PIN_FUNCTION_SUBGROUP_RULE / PIN_FUNCTION_GROUP_DESC / PIN_FUNCTION_GROUP_STATUS live in
+// pin_function_group.h, included above, so SCH_SYMBOL can use them without pulling in this
+// header.
 
 
 /**
@@ -891,6 +897,48 @@ public:
     const std::vector<wxString>& GetBodyStyleNames() const { return m_bodyStyleNames; }
     void SetBodyStyleNames( const std::vector<wxString>& aBodyStyleNames ) { m_bodyStyleNames = aBodyStyleNames; }
 
+    std::map<wxString, PIN_FUNCTION_GROUP_DESC>& PinFunctionGroupDescriptions() { return m_pinFunctionGroupDescriptions; }
+    const std::map<wxString, PIN_FUNCTION_GROUP_DESC>& PinFunctionGroupDescriptions() const { return m_pinFunctionGroupDescriptions; }
+
+    /**
+     * Evaluate the pin function group constraints for a hypothetical set of alternate assignments.
+     *
+     * Taking the assignment as a parameter rather than reading it off a SCH_SYMBOL lets this be
+     * called on uncommitted dialog edits, on a committed schematic symbol from ERC, and on a bare
+     * LIB_SYMBOL in a unit test with no schematic at all.
+     *
+     * A group is COMPLETE when every member that is not IsOptionalGroupMember() is assigned and
+     * every subgroup that has members meets its minimum.  Subgroups are evaluated from the members
+     * actually present, not from the declared rules, so a rule naming a subgroup with no members
+     * is ignored rather than making every instance of the symbol permanently invalid.
+     *
+     * @param aAssignedAlts maps pin number -> assigned alternate name.  A pin that is absent, or
+     *                      maps to an empty string, sits at its base function.
+     * @param aUnit         unit to consider, 0 for all.
+     * @param aBodyStyle    body style to consider, 0 for all.
+     * @return one status per group having at least one member alternate on the considered pins.
+     */
+    std::map<wxString, PIN_FUNCTION_GROUP_STATUS>
+    ValidatePinFunctionGroups( const std::map<wxString, wxString>& aAssignedAlts, int aUnit = 0,
+                               int aBodyStyle = 0 ) const;
+
+    /**
+     * Return, for each group, the set of active groups it cannot coexist with -- either because
+     * they contend for the same pin or because they share a mutually-exclusive bus name.
+     *
+     * Unlike a required-members-only check, pins claimed through an *assigned* optional or
+     * subgroup member count as contended, so partially-used peripherals still collide correctly.
+     *
+     * @param aAssignedAlts maps pin number -> assigned alternate name (as above); used to decide
+     *                      which optional members are actually holding a pin.
+     */
+    /// @return group name -> ( conflicting group name -> the pins they contend for ).  An empty
+    ///         pin set means the clash is bus-level mutual exclusivity, not a specific pin.
+    std::map<wxString, std::map<wxString, std::set<wxString>>>
+    GetConflictingPinFunctionGroups( const std::set<wxString>& aActiveGroups,
+                                     const std::map<wxString, wxString>& aAssignedAlts,
+                                     int aUnit = 0, int aBodyStyle = 0 ) const;
+
     /**
      * Set the number of body styles for the symbol.
      *
@@ -1049,4 +1097,7 @@ private:
     int m_pinCountCache;
     wxString m_shownDescriptionCache;
     std::map<wxString, wxString> m_chooserFieldsCache;
+
+    /// Human-readable descriptions for pin function groups (e.g. "SPI0" -> "Serial Peripheral Interface bus 0")
+    std::map<wxString, PIN_FUNCTION_GROUP_DESC> m_pinFunctionGroupDescriptions;
 };
