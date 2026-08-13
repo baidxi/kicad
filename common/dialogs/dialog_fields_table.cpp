@@ -574,6 +574,7 @@ void DIALOG_FIELDS_TABLE::OnTableCellClick( wxGridEvent& event )
 
         getDataModel()->ExpandCollapseRow( event.GetRow() );
         m_grid->SetGridCursor( event.GetRow(), event.GetCol() );
+        m_grid->SelectRow( event.GetRow() );
     }
     else
     {
