@@ -7586,8 +7586,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseGENERATOR_templates( GENERATOR_INFO& aGenIn
         if( NextTok() != T_template )
             Expecting( T_template );
 
-        wxString    templateName;
-        BOARD_ITEM* parsed = nullptr;
+        wxString                    templateName;
+        std::unique_ptr<BOARD_ITEM> parsed;
 
         // Parse (template ...
         for( T innerTok = NextTok(); innerTok != T_RIGHT; innerTok = NextTok() )
@@ -7606,7 +7606,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseGENERATOR_templates( GENERATOR_INFO& aGenIn
                 break;
 
             case T_via:
-                parsed = parsePCB_VIA();
+                // A duplicate item in the same (template …) block replaces the previous one.
+                parsed.reset( parsePCB_VIA() );
                 // parsePCB_VIA consumes the closing T_RIGHT itself.
                 break;
 
@@ -7615,7 +7616,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseGENERATOR_templates( GENERATOR_INFO& aGenIn
         }
 
         if( parsed )
-            aGenInfo.templates.emplace_back( templateName, std::unique_ptr<BOARD_ITEM>( parsed ) );
+            aGenInfo.templates.emplace_back( templateName, std::move( parsed ) );
     }
 }
 
