@@ -331,7 +331,8 @@ unsigned int BOARD_ADAPTER::GetCircleSegmentCount( int aDiameterBIU ) const
 }
 
 
-void BOARD_ADAPTER::InitSettings( REPORTER* aStatusReporter, REPORTER* aWarningReporter )
+void BOARD_ADAPTER::InitSettings( std::shared_ptr<REPORTER> aStatusReporter,
+                                  std::shared_ptr<REPORTER> aWarningReporter )
 {
     wxLogTrace( m_logTrace, wxT( "BOARD_ADAPTER::InitSettings" ) );
 
@@ -566,7 +567,11 @@ void BOARD_ADAPTER::InitSettings( REPORTER* aStatusReporter, REPORTER* aWarningR
     boardMax.z = m_layerZcoordTop[F_Adhes];
 
     m_boardBoundingBox = BBOX_3D( boardMin, boardMax );
+}
 
+
+void BOARD_ADAPTER::CreateLayers( std::shared_ptr<REPORTER> aStatusReporter, std::stop_token aStop )
+{
 #ifdef PRINT_STATISTICS_3D_VIEWER
     int64_t stats_startCreateBoardPolyTime = GetRunningMicroSecs();
 #endif
@@ -574,7 +579,7 @@ void BOARD_ADAPTER::InitSettings( REPORTER* aStatusReporter, REPORTER* aWarningR
     if( aStatusReporter )
         aStatusReporter->Report( _( "Create layers" ) );
 
-    createLayers( aStatusReporter );
+    createLayers( aStatusReporter, aStop );
 
     auto to_SFVEC4F =
             []( const COLOR4D& src )

@@ -109,10 +109,15 @@ EDA_3D_VIEWER_FRAME::EDA_3D_VIEWER_FRAME( KIWAY* aKiway, PCB_BASE_FRAME* aParent
     SetIcon( icon );
 
     // Create the status line
-    static const int status_dims[5] = { -1, 170, 130, 130, 130 };
+    std::vector<int> status_dims{ -1,
+                                  -1,
+                                  -1,
+                                  GetTextExtent( wxS( "dx -88.88" ) ).x + 10,
+                                  GetTextExtent( wxS( "dy -88.88" ) ).x + 10,
+                                  GetTextExtent( wxS( "zoom -88.88" ) ).x + 10 };
 
-    wxStatusBar *status_bar = CreateStatusBar( arrayDim( status_dims ) );
-    SetStatusWidths( arrayDim( status_dims ), status_dims );
+    wxStatusBar* status_bar = CreateStatusBar( status_dims.size() );
+    SetStatusWidths( status_dims.size(), status_dims.data() );
 
     ANTIALIASING_MODE       aaMode = ANTIALIASING_MODE::AA_NONE;
     EDA_3D_VIEWER_SETTINGS* cfg = GetAppSettings<EDA_3D_VIEWER_SETTINGS>( "3d_viewer" );
@@ -226,8 +231,11 @@ EDA_3D_VIEWER_FRAME::~EDA_3D_VIEWER_FRAME()
     Prj().GetProjectFile().m_Viewports3D = m_appearancePanel->GetUserViewports();
 
     m_canvas->SetEventDispatcher( nullptr );
-
+    
     m_auimgr.UnInit();
+
+    delete m_canvas;
+    m_canvas = nullptr;
 }
 
 
@@ -651,6 +659,7 @@ void EDA_3D_VIEWER_FRAME::ShowChangedLanguage()
     }
 
     SetStatusText( wxEmptyString, ACTIVITY );
+    SetStatusText( wxEmptyString, RENDER_TIME );
     SetStatusText( wxEmptyString, HOVERED_ITEM );
 }
 
@@ -713,8 +722,14 @@ wxImage EDA_3D_VIEWER_FRAME::captureCurrentViewScreenshot()
     bool original_highlight = cfg.highlight_on_rollover;
     cfg.highlight_on_rollover = false;
 
-    m_canvas->DoRePaint();      // init first buffer
-    m_canvas->DoRePaint();      // init second buffer
+    if( m_canvas )
+    {
+        // Ensure any in-progress background loading finishes before capture.
+        m_canvas->JoinBgWorker();
+        m_canvas->DoRePaint(); // init first buffer
+        m_canvas->JoinBgWorker();
+        m_canvas->DoRePaint(); // init second buffer
+    }
 
     wxImage screenshotImage;
 
@@ -866,12 +881,13 @@ wxImage EDA_3D_VIEWER_FRAME::captureRaytracingScreenshot( BOARD_ADAPTER& aAdapte
     tempadapter.SetBoard( GetBoard() );
     tempadapter.m_Cfg = aAdapter.m_Cfg;
     tempadapter.InitSettings( nullptr, nullptr );
+    tempadapter.CreateLayers( nullptr );
     tempadapter.Set3dCacheManager( aAdapter.Get3dCacheManager() );
 
     RENDER_3D_RAYTRACE_RAM raytrace( tempadapter, aCamera );
     raytrace.SetCurWindowSize( aSize );
 
-    while( raytrace.Redraw( false, nullptr, nullptr ) );
+    while( raytrace.Redraw( false ) );
 
     uint8_t* rgbaBuffer = raytrace.GetBuffer();
     wxSize   realSize   = raytrace.GetRealBufferSize();
@@ -929,6 +945,7 @@ wxImage EDA_3D_VIEWER_FRAME::captureOpenGLScreenshot( BOARD_ADAPTER& aAdapter, T
     tempadapter.SetBoard( GetBoard() );
     tempadapter.m_Cfg = aAdapter.m_Cfg;
     tempadapter.InitSettings( nullptr, nullptr );
+    tempadapter.CreateLayers( nullptr );
     tempadapter.Set3dCacheManager( aAdapter.Get3dCacheManager() );
 
     auto canvas = std::make_unique<EDA_3D_CANVAS>( &temp,
