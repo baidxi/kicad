@@ -463,9 +463,20 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
             if( expectedPos != p )
             {
-                // Recalculate the origin offset but account for stagger possibly being enabled
-                m_originOffset = VECTOR2I( ( ( p.x % detectPitch ) + detectPitch ) % detectPitch,
-                                           ( ( p.y % detectPitch ) + detectPitch ) % detectPitch );
+                int offsetY = ( ( p.y % detectPitch ) + detectPitch ) % detectPitch;
+
+                // The dragged via defines the new grid origin.  On a staggered layout an odd
+                // row carries an extra half-pitch x shift, which must be removed before
+                // computing the origin offset or the whole grid re-anchors half a pitch off.
+                // (p.y - offsetY) is an exact multiple of the pitch, so this row index matches
+                // what cellForPosition()/positionForCell() will derive after the re-anchor.
+                int row    = ( p.y - offsetY ) / detectPitch;
+                int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED
+                               && ( ( row % 2 + 2 ) % 2 != 0 ) ) ? detectPitch / 2 : 0;
+
+                m_originOffset =
+                        VECTOR2I( ( ( ( p.x - xShift ) % detectPitch ) + detectPitch ) % detectPitch,
+                                  offsetY );
                 break;
             }
         }
