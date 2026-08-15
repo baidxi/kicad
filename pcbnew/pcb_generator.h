@@ -206,10 +206,10 @@ public:
     {
     }
 
-    SHAPE_POLY_SET&       Outline() { MarkDirty(); return m_outline; }
     const SHAPE_POLY_SET& Outline() const { return m_outline; }
+    SHAPE_POLY_SET& Outline() { return m_outline; }
 
-    void SetOutline( SHAPE_POLY_SET& aOutline ) { m_outline = aOutline; MarkDirty(); }
+    void SetOutline( const SHAPE_POLY_SET& aOutline ) { m_outline = aOutline; MarkDirty(); }
 
     void Move( const VECTOR2I& aMoveVector ) override
     {

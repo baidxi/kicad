@@ -4506,7 +4506,7 @@ int PCB_SELECTION_TOOL::hitTestDistance( const VECTOR2I& aWhere, BOARD_ITEM* aIt
         // to that outline instead of to their generated children, otherwise clicks landing
         // inside the region but away from any child get a huge distance and the generator
         // gets pruned by the sloppiness heuristic.
-        if( PCB_GENERATOR_POLY* poly = dynamic_cast<PCB_GENERATOR_POLY*>( aItem ) )
+        if( const PCB_GENERATOR_POLY* poly = dynamic_cast<const PCB_GENERATOR_POLY*>( aItem ) )
         {
             int actual = aMaxDistance;
 

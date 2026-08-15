@@ -626,12 +626,11 @@ public:
     void UpdateItem( const EDIT_POINT& aEditedPoint, EDIT_POINTS& aPoints, COMMIT& aCommit,
                      std::vector<EDA_ITEM*>& aUpdatedItems ) override
     {
-        //m_zone.UnFill();
-
         // Defer to the base class to update the polygon
         POLYGON_POINT_EDIT_BEHAVIOR::UpdateItem( aEditedPoint, aPoints, aCommit, aUpdatedItems );
 
-        //m_zone.HatchBorder();
+        // Flag the generator has to be updated based on potential outline change
+        m_gen.MarkDirty();
     }
 
 private:
