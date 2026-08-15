@@ -34,6 +34,7 @@
 #include <dialogs/dialog_plot_schematic.h>
 #include <dialogs/dialog_symbol_remap.h>
 #include <dialogs/dialog_assign_netclass.h>
+#include <dialogs/dialog_create_bus_alias.h>
 #include <dialogs/dialog_update_from_pcb.h>
 #include <dialogs/hotkey_cycle_popup.h>
 #include <dialogs/dialog_increment_annotations_base.h>
@@ -52,6 +53,7 @@
 #include <project/net_settings.h>
 #include <project_sch.h>
 #include <settings/color_settings.h>
+#include <settings/settings_manager.h>
 #include <richio.h>
 #include <sch_design_block_pane.h>
 #include <sch_edit_frame.h>
@@ -69,12 +71,14 @@
 #include <sch_tablecell.h>
 #include <sch_label.h>
 #include <sch_commit.h>
+#include <bus_alias.h>
 #include <sim/simulator_frame.h>
 #include <symbol_library_manager.h>
 #include <symbol_viewer_frame.h>
 #include <tool/picker_tool.h>
 #include <tool/tool_manager.h>
 #include <tools/sch_actions.h>
+#include <tools/sch_drawing_tools.h>
 #include <tools/sch_selection.h>
 #include <tools/sch_selection_tool.h>
 #include <tools/sch_tool_utils.h>
@@ -1535,6 +1539,106 @@ int SCH_EDITOR_CONTROL::AssignNetclass( const TOOL_EVENT& aEvent )
     }
 
     highlightNet( m_toolMgr, CLEAR );
+    return 0;
+}
+
+
+int SCH_EDITOR_CONTROL::CreateBusAlias( const TOOL_EVENT& aEvent )
+{
+    SCH_SELECTION_TOOL* selectionTool = m_toolMgr->GetTool<SCH_SELECTION_TOOL>();
+
+    if( !selectionTool )
+        return 0;
+
+    const SCH_SELECTION& selection = selectionTool->GetSelection();
+    std::set<wxString>   memberSet;
+    std::vector<wxString> members;
+
+    auto addMember =
+            [&]( const wxString& aName )
+            {
+                wxString name = aName.Strip( wxString::both );
+
+                if( !name.IsEmpty() && memberSet.insert( name ).second )
+                    members.push_back( name );
+            };
+
+    for( EDA_ITEM* item : selection )
+    {
+        if( item->IsType( { SCH_LABEL_T, SCH_GLOBAL_LABEL_T } ) )
+        {
+            addMember( UnescapeString( static_cast<SCH_LABEL_BASE*>( item )->GetText() ) );
+            continue;
+        }
+
+        SCH_ITEM*       schItem = static_cast<SCH_ITEM*>( item );
+        SCH_CONNECTION* conn = schItem->Connection();
+
+        if( !conn )
+            continue;
+
+        // Same labeling bar as Assign Netclass: skip unnamed / pin-driven nets.
+        if( !conn->Driver()
+            || CONNECTION_SUBGRAPH::GetDriverPriority( conn->Driver() )
+                       < CONNECTION_SUBGRAPH::PRIORITY::SHEET_PIN )
+        {
+            m_frame->ShowInfoBarError( _( "All selected nets must be labeled." ) );
+            return 0;
+        }
+
+        if( conn->IsBus() )
+        {
+            m_frame->ShowInfoBarError( _( "Select individual labeled nets, not a bus." ) );
+            return 0;
+        }
+
+        addMember( UnescapeString( conn->LocalName() ) );
+    }
+
+    if( members.size() < 2 )
+    {
+        m_frame->ShowInfoBarError( _( "Select at least two labeled nets." ) );
+        return 0;
+    }
+
+    DIALOG_CREATE_BUS_ALIAS dlg( m_frame, members );
+
+    if( dlg.ShowModal() != wxID_OK )
+        return 0;
+
+    std::shared_ptr<BUS_ALIAS> alias = std::make_shared<BUS_ALIAS>();
+    alias->SetName( dlg.GetAliasName() );
+    alias->SetMembers( dlg.GetMembers() );
+
+    m_frame->Schematic().AddBusAlias( alias );
+    m_frame->OnModify();
+    Pgm().GetSettingsManager().SaveProject();
+    m_frame->RecalculateConnections( nullptr, GLOBAL_CLEANUP );
+
+    wxString placeMsg = wxString::Format( _( "Place a bus label for alias '%s'?" ),
+                                          alias->GetName() );
+
+    if( IsOK( m_frame, placeMsg ) )
+    {
+        if( SCH_DRAWING_TOOLS* drawingTools = m_toolMgr->GetTool<SCH_DRAWING_TOOLS>() )
+        {
+            wxString labelText = alias->GetName() + wxT( "{" );
+
+            for( size_t ii = 0; ii < alias->Members().size(); ++ii )
+            {
+                if( ii > 0 )
+                    labelText += wxT( " " );
+
+                labelText += alias->Members()[ii];
+            }
+
+            labelText += wxT( "}" );
+
+            drawingTools->SetPrefillLabelText( labelText );
+            m_toolMgr->PostAction( SCH_ACTIONS::placeLabel );
+        }
+    }
+
     return 0;
 }
 
@@ -4012,6 +4116,7 @@ void SCH_EDITOR_CONTROL::setTransitions()
     Go( &SCH_EDITOR_CONTROL::UpdateNetHighlighting,   SCH_ACTIONS::updateNetHighlighting.MakeEvent() );
 
     Go( &SCH_EDITOR_CONTROL::AssignNetclass,          SCH_ACTIONS::assignNetclass.MakeEvent() );
+    Go( &SCH_EDITOR_CONTROL::CreateBusAlias,          SCH_ACTIONS::createBusAlias.MakeEvent() );
     Go( &SCH_EDITOR_CONTROL::FindNetInInspector,      SCH_ACTIONS::findNetInInspector.MakeEvent() );
 
     Go( &SCH_EDITOR_CONTROL::Undo,                    ACTIONS::undo.MakeEvent() );

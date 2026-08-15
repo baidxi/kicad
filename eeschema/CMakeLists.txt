@@ -161,6 +161,7 @@ set( EESCHEMA_DLGS
     dialogs/dialog_lib_symbol_properties_base.cpp
     dialogs/dialog_line_properties.cpp
     dialogs/dialog_line_properties_base.cpp
+    dialogs/dialog_create_bus_alias.cpp
     dialogs/dialog_create_net_chain.cpp
     dialogs/dialog_create_net_chain_base.cpp
     dialogs/dialog_migrate_buses.cpp

@@ -581,6 +581,7 @@ bool SCH_SELECTION_TOOL::Init()
     auto linesSelection =        SCH_CONDITIONS::MoreThan( 0 ) && SCH_CONDITIONS::OnlyTypes( lineTypes );
     auto wireOrBusSelection =    SCH_CONDITIONS::Count( 1 )    && SCH_CONDITIONS::OnlyTypes( connectedLineTypes );
     auto connectedSelection =    SCH_CONDITIONS::MoreThan( 0 ) && SCH_CONDITIONS::OnlyTypes( connectedTypes );
+    auto labeledNetsSelection =  SCH_CONDITIONS::MoreThan( 1 ) && SCH_CONDITIONS::OnlyTypes( connectedTypes );
     auto expandableSelection =
                                  SCH_CONDITIONS::MoreThan( 0 ) && SCH_CONDITIONS::HasTypes( expandConnectionGraphTypes );
     auto sheetSelection =        SCH_CONDITIONS::Count( 1 )    && SCH_CONDITIONS::OnlyTypes( sheetTypes );
@@ -732,6 +733,7 @@ bool SCH_SELECTION_TOOL::Init()
     menu.AddItem( SCH_ACTIONS::swapUnitLabels,        multipleUnitsSelection && schEditCondition && SCH_CONDITIONS::Idle, 250 );
     menu.AddItem( SCH_ACTIONS::swapPins,              multiplePinsSelection && schEditCondition && SCH_CONDITIONS::Idle && allowPinSwaps, 250 );
     menu.AddItem( SCH_ACTIONS::assignNetclass,        connectedSelection && SCH_CONDITIONS::Idle, 250 );
+    menu.AddItem( SCH_ACTIONS::createBusAlias,        labeledNetsSelection && SCH_CONDITIONS::Idle, 250 );
     menu.AddItem( SCH_ACTIONS::findNetInInspector,    connectedSelection && SCH_CONDITIONS::Idle, 250 );
     menu.AddItem( SCH_ACTIONS::editPageNumber,        schEditSheetPageNumberCondition, 250 );
 
