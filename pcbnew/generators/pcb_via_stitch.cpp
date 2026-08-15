@@ -630,6 +630,11 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         // Vias must be marked free to avoid connectivity stealing them away
         via->SetIsFree( true );
 
+        // If the generator is selected (point editing), make sure to mark new vias
+        // as selected to match
+        if( IsSelected() )
+            via->SetSelected();
+
         AddItem( via );
         aCommit->Add( via );
         changed = true;
