@@ -273,6 +273,9 @@ private:
     // position implies a new offset and the entire grid re-aligns to it.
     VECTOR2I m_originOffset{ 0, 0 };
 
+    // Whether the last Update() actually added, moved, or removed any via.
+    bool m_lastUpdateChangedVias = true;
+
     // Lazily-built right-click menu shown when the selection is exclusively this generator's
     // child vias.  mutable so it can be created from a const accessor.
     mutable std::unique_ptr<ACTION_MENU> m_childContextMenu;

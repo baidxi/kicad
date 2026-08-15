@@ -30,6 +30,7 @@
 #include <board_commit.h>
 
 #include <cmath>
+#include <map>
 #include <vector>
 
 #include <boost/random/mersenne_twister.hpp>
@@ -482,23 +483,35 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         }
     }
 
+    // Take snapshot of existing vias, we then selectively remove vias only if they should be removed
+    // we want to reduce file churn of KIIDs
+    std::vector<PCB_VIA*> existingVias;
+
     for( BOARD_ITEM* item : GetBoardItems() )
     {
         if( item->Type() == PCB_VIA_T )
-            aCommit->Remove( item );
+            existingVias.push_back( static_cast<PCB_VIA*>( item ) );
     }
 
-    // Remove from group container
-    std::vector<BOARD_ITEM*> toRemove;
-    for( BOARD_ITEM* item : GetBoardItems() )
-        if( item->Type() == PCB_VIA_T )
-            toRemove.push_back( item );
+    bool changed = false;
 
-    for( BOARD_ITEM* item : toRemove )
-        RemoveItem( item );
+    auto removeVia =
+            [&]( PCB_VIA* aVia )
+            {
+                aCommit->Remove( aVia );
+                RemoveItem( aVia );
+                changed = true;
+            };
 
     if( m_outline.IsEmpty() )
+    {
+        for( PCB_VIA* via : existingVias )
+            removeVia( via );
+
+        m_lastUpdateChangedVias = changed;
+        ClearDirty();
         return false;
+    }
 
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
 
@@ -533,12 +546,77 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
                 return false;
             };
 
+    // Get the new list of desired via cells
+    std::map<VECTOR2I, VECTOR2I> desired;
+
     for( const VECTOR2I& cell : placementCells )
     {
-        if( isExcluded( cell ) )
+        if( !isExcluded( cell ) )
+            desired.emplace( cell, positionForCell( cell, pitch ) );
+    }
+
+    // Determine existing vias we can keep
+    std::map<VECTOR2I, PCB_VIA*> kept;
+
+    for( PCB_VIA* via : existingVias )
+    {
+        VECTOR2I cell = cellForPosition( via->GetPosition() );
+
+        if( desired.count( cell ) && kept.emplace( cell, via ).second )
             continue;
 
-        VECTOR2I pt = positionForCell( cell, pitch );
+        removeVia( via );
+    }
+
+    // Now create a reference via to compare against, we need to see if existing vias need to be nuked
+    // anyway on a property change. In which case we will just regen rather than play games
+    std::unique_ptr<PCB_VIA> ref( static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
+    ref->SetParent( aBoard );
+    ref->SetIsFree( true );
+
+    if( m_netCode )
+        ref->SetNetCode( m_netCode );
+
+    auto matchesRef =
+            [&]( const PCB_VIA* aVia ) -> bool
+            {
+                // The padstack carries size, drill, layer span, mask/paste attributes,
+                // backdrill and post-machining — i.e. everything the template via dialog
+                // can edit apart from the net and teardrop settings.
+                return aVia->GetPosition() == ref->GetPosition()
+                        && aVia->GetLayer() == ref->GetLayer()
+                        && aVia->GetViaType() == ref->GetViaType()
+                        && aVia->Padstack() == ref->Padstack()
+                        && aVia->GetNetCode() == ref->GetNetCode()
+                        && aVia->GetTeardropParams() == ref->GetTeardropParams();
+            };
+
+    for( const auto& [cell, pt] : desired )
+    {
+        auto it = kept.find( cell );
+
+        if( it != kept.end() )
+        {
+            PCB_VIA* via = it->second;
+
+            ref->SetPosition( pt );
+
+            if( matchesRef( via ) )
+                continue;   // unchanged — no commit entry, UUID preserved
+
+            // Just nudge the via
+            ref->SetPosition( via->GetPosition() );
+
+            if( matchesRef( via ) )
+            {
+                aCommit->Modify( via );
+                via->SetPosition( pt );
+                changed = true;
+                continue;
+            }
+
+            removeVia( via );
+        }
 
         PCB_VIA* via = static_cast<PCB_VIA*>( m_viaTemplate->Clone() );
         via->ResetUuidDirect();
@@ -554,8 +632,10 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
         AddItem( via );
         aCommit->Add( via );
+        changed = true;
     }
 
+    m_lastUpdateChangedVias = changed;
     ClearDirty();
     return true;
 }
@@ -1050,6 +1130,11 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 std::vector<ZONE*> PCB_VIA_STITCH::GetZonesNeedingRefillAfterUpdate() const
 {
     std::vector<ZONE*> result;
+
+    // A regeneration that added, moved, or removed nothing can't have changed any
+    // foreign-net anti-pads, so no refill is owed.
+    if( !m_lastUpdateChangedVias )
+        return result;
 
     const BOARD* brd = GetBoard();
 
