@@ -1585,10 +1585,11 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
         {
             const PAD_NET_DATA& pn = pnIt->second;
 
-            PAD* pad = footprint->FindPadByNumber( pn.padNumber );
-
-            if( pad )
-                pad->SetNet( aBoard->FindNet( pn.padNet ) );
+            for( PAD* pad : footprint->Pads() )
+            {
+                if( pad->GetNumber() == pn.padNumber )
+                    pad->SetNet( aBoard->FindNet( pn.padNet ) );
+            }
         }
 
         aBoard->Add( footprint.release(), ADD_MODE::APPEND );

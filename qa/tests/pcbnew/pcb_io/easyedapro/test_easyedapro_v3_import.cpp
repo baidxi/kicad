@@ -44,6 +44,7 @@
 #include <wx/filename.h>
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -133,6 +134,77 @@ BOOST_AUTO_TEST_CASE( FootprintCanvasOriginNormalizesPadPosition )
     const VECTOR2I localPosition = pad->GetFPRelativePosition();
     BOOST_CHECK_EQUAL( localPosition.x, 0 );
     BOOST_CHECK_EQUAL( localPosition.y, 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
+{
+    // A hot-swap socket style footprint where the SMD contact and the through-hole
+    // pin share the same pad number and must end up on the same net.
+    EASYEDAPRO::V3_DOC_RAW fpDoc;
+    fpDoc.rows = {
+        { wxS( "PAD" ), wxEmptyString, 0, {},
+          { { "num", "1" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 0 } } },
+        { wxS( "PAD" ), wxEmptyString, 0, {},
+          { { "num", "1" }, { "layerId", 12 }, { "centerX", 100 }, { "centerY", 0 },
+            { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } },
+        { wxS( "PAD" ), wxEmptyString, 0, {},
+          { { "num", "2" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 200 } } },
+        { wxS( "PAD" ), wxEmptyString, 0, {},
+          { { "num", "2" }, { "layerId", 12 }, { "centerX", 100 }, { "centerY", 200 },
+            { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } }
+    };
+
+    BOARD                      board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+    std::unique_ptr<FOOTPRINT>  footprint( parser.ParseFootprint( {}, fpDoc ) );
+
+    BOOST_REQUIRE( footprint );
+    BOOST_REQUIRE_EQUAL( footprint->Pads().size(), 4 );
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprintMap;
+    footprintMap[wxS( "fp1" )] = std::move( footprint );
+
+    EASYEDAPRO::V3_DOC_RAW boardDoc;
+    boardDoc.rows = {
+        { wxS( "NET" ), wxS( "[\"NET\",\"GND\"]" ), 0, {}, {} },
+        { wxS( "NET" ), wxS( "[\"NET\",\"PA8\"]" ), 0, {}, {} },
+        { wxS( "COMPONENT" ), wxS( "c1" ), 0, {}, { { "layerId", 1 }, { "x", 0 }, { "y", 0 } } },
+        { wxS( "ATTR" ), wxEmptyString, 0, {},
+          { { "parentId", "c1" }, { "key", "Footprint" }, { "value", "fp1" } } },
+        { wxS( "ATTR" ), wxEmptyString, 0, {},
+          { { "parentId", "c1" }, { "key", "Designator" }, { "value", "KEY1" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e1\"]" ), 0, {},
+          { { "padNet", "GND" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e47\"]" ), 0, {},
+          { { "padNet", "GND" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e2\"]" ), 0, {},
+          { { "padNet", "PA8" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e48\"]" ), 0, {},
+          { { "padNet", "PA8" } } }
+    };
+
+    parser.ParseBoard( &board, nlohmann::json::object(), footprintMap, {}, {}, boardDoc,
+                       wxS( "lib" ) );
+
+    BOOST_REQUIRE_EQUAL( board.Footprints().size(), 1 );
+
+    FOOTPRINT* placed = board.Footprints().front();
+
+    int pad1WithNet = 0;
+    int pad2WithNet = 0;
+
+    for( PAD* pad : placed->Pads() )
+    {
+        if( pad->GetNumber() == wxS( "1" ) && pad->GetNetname() == wxS( "GND" ) )
+            pad1WithNet++;
+
+        if( pad->GetNumber() == wxS( "2" ) && pad->GetNetname() == wxS( "PA8" ) )
+            pad2WithNet++;
+    }
+
+    BOOST_CHECK_EQUAL( pad1WithNet, 2 );
+    BOOST_CHECK_EQUAL( pad2WithNet, 2 );
 }
 
 
