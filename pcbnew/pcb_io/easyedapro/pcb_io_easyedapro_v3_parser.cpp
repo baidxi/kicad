@@ -275,6 +275,7 @@ PCB_IO_EASYEDAPRO_V3_PARSER::ParseFootprint( const std::map<wxString, EASYEDAPRO
 
     const VECTOR2I defaultTextSize( pcbIUScale.mmToIU( 1.0 ), pcbIUScale.mmToIU( 1.0 ) );
     const int      defaultTextThickness( pcbIUScale.mmToIU( 0.15 ) );
+    VECTOR2I       canvasOrigin( 0, 0 );
 
     for( PCB_FIELD* field : footprint->GetFields() )
     {
@@ -284,7 +285,12 @@ PCB_IO_EASYEDAPRO_V3_PARSER::ParseFootprint( const std::map<wxString, EASYEDAPRO
 
     for( const V3_ROW& row : aDoc.rows )
     {
-        if( row.type == wxS( "POLY" ) )
+        if( row.type == wxS( "CANVAS" ) )
+        {
+            canvasOrigin = PCB_IO_EASYEDAPRO_PARSER::ScalePos(
+                    VECTOR2D( V3GetDouble( row.inner, "originX" ), V3GetDouble( row.inner, "originY" ) ) );
+        }
+        else if( row.type == wxS( "POLY" ) )
         {
             int          layer = V3GetInt( row.inner, "layerId", 1 );
             PCB_LAYER_ID klayer = m_v2Parser.LayerToKi( layer );
@@ -669,6 +675,8 @@ PCB_IO_EASYEDAPRO_V3_PARSER::ParseFootprint( const std::map<wxString, EASYEDAPRO
 
         footprint->Add( refText.release(), ADD_MODE::APPEND );
     }
+
+    footprint->MoveAnchorPosition( -canvasOrigin );
 
     return footprintPtr;
 }

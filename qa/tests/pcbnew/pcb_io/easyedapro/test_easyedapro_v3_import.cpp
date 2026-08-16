@@ -31,11 +31,13 @@
 #include <pcbnew_utils/board_file_utils.h>
 #include <pcbnew_utils/board_test_utils.h>
 
+#include <pcbnew/pcb_io/easyedapro/pcb_io_easyedapro_v3_parser.h>
 #include <pcbnew/pcb_io/pcb_io.h>
 #include <pcbnew/pcb_io/pcb_io_mgr.h>
 
 #include <board.h>
 #include <footprint.h>
+#include <pad.h>
 
 #include <wx/dir.h>
 #include <wx/filefn.h>
@@ -110,6 +112,27 @@ BOOST_AUTO_TEST_CASE( FootprintLibraryEnumeratesAndLoadsElibz2 )
     BOOST_REQUIRE( footprint );
     BOOST_CHECK_EQUAL( footprint->GetFPID().GetLibItemName(), UTF8( "BGA-286_17x17_12.0x12.0mm" ) );
     BOOST_CHECK_EQUAL( footprint->Pads().size(), 286 );
+}
+
+
+BOOST_AUTO_TEST_CASE( FootprintCanvasOriginNormalizesPadPosition )
+{
+    EASYEDAPRO::V3_DOC_RAW doc;
+    doc.rows = { { wxS( "CANVAS" ), wxEmptyString, 0, {}, { { "originX", -145 }, { "originY", -20 } } },
+                 { wxS( "PAD" ), wxEmptyString, 0, {}, { { "num", 1 }, { "centerX", -145 }, { "centerY", -20 } } } };
+
+    BOARD                       board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+    std::unique_ptr<FOOTPRINT>  footprint( parser.ParseFootprint( {}, doc ) );
+
+    BOOST_REQUIRE( footprint );
+
+    PAD* pad = footprint->FindPadByNumber( wxS( "1" ) );
+    BOOST_REQUIRE( pad );
+
+    const VECTOR2I localPosition = pad->GetFPRelativePosition();
+    BOOST_CHECK_EQUAL( localPosition.x, 0 );
+    BOOST_CHECK_EQUAL( localPosition.y, 0 );
 }
 
 
