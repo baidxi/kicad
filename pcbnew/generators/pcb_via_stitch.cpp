@@ -134,7 +134,7 @@ PCB_VIA_STITCH::~PCB_VIA_STITCH() = default;
 
 int PCB_VIA_STITCH::GetViaSize() const
 {
-    return m_viaTemplate->GetWidth();
+    return m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS );
 }
 
 
@@ -264,7 +264,7 @@ VECTOR2I PCB_VIA_STITCH::GetPosition() const
 
 void PCB_VIA_STITCH::InitializeDefaults( BOARD* aBoard )
 {
-    if( m_viaTemplate->GetWidth() <= 0 )
+    if( m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS ) <= 0 )
         m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
 
     if( m_viaTemplate->GetDrillValue() <= 0 )
@@ -308,7 +308,7 @@ void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMM
 int PCB_VIA_STITCH::defaultPitch( BOARD* aBoard ) const
 {
     int mm2 = pcbIUScale.mmToIU( 2.0 );
-    int viaSize = m_viaTemplate->GetWidth() > 0 ? m_viaTemplate->GetWidth()
+    int viaSize = m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS ) > 0 ? m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS )
                                                 : defaultViaSize( aBoard );
     int pitch = std::max( mm2, viaSize * 2 );
     return pitch;
@@ -428,7 +428,7 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
 
-    if( m_viaTemplate->GetWidth() <= 0 )
+    if( m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS ) <= 0 )
         m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
     if( m_viaTemplate->GetDrillValue() <= 0 )
         m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
@@ -650,7 +650,12 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
     m_outline.RemoveAllContours();
 
     if( auto outline = aProps.get_opt<SHAPE_LINE_CHAIN>( "outline" ) )
+    {
+        // A chain parsed from the file is a bare point list; the closed flag is not
+        // serialized and AddOutline() asserts on open chains
+        outline->SetClosed( true );
         m_outline.AddOutline( *outline );
+    }
 }
 
 
@@ -765,7 +770,7 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         return cells;
 
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
-    int viaSize = m_viaTemplate->GetWidth() > 0 ? m_viaTemplate->GetWidth() : defaultViaSize( aBoard );
+    int viaSize = m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS ) > 0 ? m_viaTemplate->GetWidth( PADSTACK::ALL_LAYERS ) : defaultViaSize( aBoard );
 
     if( GetNetCode() == 0 )
         return cells;

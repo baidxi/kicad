@@ -284,7 +284,7 @@ void DIALOG_VIA_STITCH_PROPERTIES::redrawPreview()
         return;
     }
 
-    int viaSize = m_workingCopy->ViaTemplate()->GetWidth();
+    int viaSize = m_workingCopy->ViaTemplate()->GetWidth( PADSTACK::ALL_LAYERS );
 
     if( viaSize <= 0 )
         viaSize = pcbIUScale.mmToIU( 0.6 );
