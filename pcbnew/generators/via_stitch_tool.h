@@ -23,9 +23,7 @@
 #include <tools/pcb_tool_base.h>
 
 /**
- * Tool that owns actions specific to via-stitch generators (e.g. excluding individual
- * stitching vias).  Keeping these out of GENERATOR_TOOL avoids leaking via-stitch
- * specifics into the generic generator handling.
+ * Tool that owns actions specific to via-stitch generators
  */
 class VIA_STITCH_TOOL : public PCB_TOOL_BASE
 {

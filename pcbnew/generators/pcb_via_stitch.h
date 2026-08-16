@@ -145,18 +145,19 @@ public:
     PCB_VIA*       ViaTemplate() { return m_viaTemplate.get(); }
     const PCB_VIA* ViaTemplate() const { return m_viaTemplate.get(); }
 
-    /// Exposes m_viaTemplate to the kicad-sexpr writer as a named template item.
     std::vector<std::pair<wxString, const BOARD_ITEM*>> GetTemplateItems() const override;
-
-    /// Receives the parsed via template from the kicad-sexpr loader.
     void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem ) override;
 
-    /** Remove a board position from the exclusion set so the next Update() places a via there. */
+    /**
+     *  Remove a board position from exclusion list.
+     */
     void ClearExclusion( const VECTOR2I& aPos );
 
-    /** Add a board position to the exclusion set so the next Update() skips it.  The position
-     *  is converted to a grid cell index so the exclusion follows the grid as the offset or
-     *  outline changes. */
+    /**
+     * Add a board position to the exclusion set so the next Update() skips it.  The position
+     * is converted to a grid cell index so the exclusion follows the grid as the offset or
+     * outline changes.
+     */
     void ExcludePosition( const VECTOR2I& aPos );
 
     /** Drop all manual exclusions. */
@@ -175,7 +176,7 @@ public:
 
     void ShowPropertiesDialog( PCB_BASE_EDIT_FRAME* aEditFrame ) override;
 
-    /// Foreign-net zones overlapping our outline — they need anti-pads around our vias.
+    /// List of zones that cross out stitch zone, they'll need to be refilled for the punches
     std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const override;
 
 protected:
@@ -190,26 +191,28 @@ private:
     int defaultViaSize( BOARD* aBoard ) const;    // via diameter
     int defaultViaDrill( BOARD* aBoard ) const;   // drill diameter
 
-    /** Convert an absolute board position to a (col, row) grid cell index. */
+    /// Convert an absolute board position to a (col, row) grid cell index.
     VECTOR2I cellForPosition( const VECTOR2I& aPos ) const;
 
-    /** Convert a (col, row) grid cell index to an absolute board position, including
-     *  any stagger shift on odd rows.
+    /**
+     * Convert a (col, row) grid cell index to an absolute board position, including
+     * any stagger shift on odd rows.
      */
     VECTOR2I positionForCell( const VECTOR2I& aCell, int aPitch ) const;
 
-    /** Walk the placement grid, run DRC clearance tests, and return the set of (col, row)
-     *  cells where a via fits cleanly.  Does not consult exclusions — that's a separate
-     *  user-driven concern applied at consumption time.
+    /**
+     * Walk the placement grid, run DRC clearance tests, and return the set of (col, row)
+     * cells where a via fits cleanly.  Does not consult exclusions — that's a separate
+     * user-driven concern applied at consumption time.
      */
     std::set<VECTOR2I> buildPlacementCells( BOARD* aBoard ) const;
 
 
 public:
     /**
-     *  Tile size for the POISSON layout, in units of pitch.  The baked pattern's normalized
-     *  min-distance is 1 / POISSON_TILE_PITCHES, scaled by (pitch * POISSON_TILE_PITCHES)
-     *  at use time → physical min-distance of `pitch`.
+     * Tile size for the POISSON layout, in units of pitch.  The baked pattern's normalized
+     * min-distance is 1 / POISSON_TILE_PITCHES, scaled by (pitch * POISSON_TILE_PITCHES)
+     * at use time → physical min-distance of `pitch`.
      */
     static constexpr int      POISSON_TILE_PITCHES = 8;
 
@@ -225,7 +228,6 @@ public:
     static const std::vector<VECTOR2D>& bakedPoissonTile();
 
 private:
-    // Stored properties (iu units)
     int                   m_pitch  = 0;                   // center-to-center spacing
     PCB_VIA_STITCH_LAYOUT m_layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
     PCB_VIA_STITCH_MODE   m_mode   = PCB_VIA_STITCH_MODE::STITCH;
@@ -240,27 +242,21 @@ private:
     wxString    m_lastGuardedNetName;
     mutable int m_guardedNetCode = 0;
 
-    // Grid cells (col, row) the user has explicitly excluded.  Tracking by cell index instead
+    // Grid cells (col, row) the user has explicitly excluded. Tracking by cell index instead
     // of absolute position lets exclusions follow the grid as m_originOffset or the outline
-    // change.  Persisted so regeneration skips them.
+    // change.
     std::set<VECTOR2I> m_excludedCells;
 
     // Offset of the placement grid relative to the global (0,0) anchor, in [0, pitch) on each
-    // axis.  Updated when the user drags an individual stitching via — that via's new
-    // position implies a new offset and the entire grid re-aligns to it.
+    // axis. Users can offset the grid by dragging a single stitched via
     VECTOR2I m_originOffset{ 0, 0 };
 
     // Whether the last Update() actually added, moved, or removed any via.
     bool m_lastUpdateChangedVias = true;
 
-    // Children Update() has retired during the current edit session.  Their commit removal
-    // is deferred to EditFinish(); until then they stay on the board (detached from the
-    // group) so a later Update() in the same session can resurrect one when its cell
-    // becomes valid again — e.g. shrinking then re-expanding the outline in a single drag —
-    // instead of replacing it with a new via.  Transient: not persisted or copied.
+    // Vias in the current generator edit session that are pending removal.
     std::set<PCB_VIA*> m_pendingRemovals;
 
-    // Lazily-built right-click menu shown when the selection is exclusively this generator's
-    // child vias.  mutable so it can be created from a const accessor.
+    // Right-click context menu for our child vias.
     mutable std::unique_ptr<ACTION_MENU> m_childContextMenu;
 };

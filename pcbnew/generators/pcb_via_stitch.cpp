@@ -181,7 +181,7 @@ void PCB_VIA_STITCH::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
     if( m_outline.OutlineCount() == 0 )
         return;
 
-    // Only paint on the outline layerViewGetLayers() also lists LAYER_VIAS /
+    // Only paint on the outline layer.  ViewGetLayers() also lists LAYER_VIAS /
     // LAYER_VIA_HOLES / LAYER_ANCHOR for the produced vias' rendering, but those are
     // handled by the via children themselves; we don't want to redraw the outline
     // multiple times per frame.
@@ -501,8 +501,8 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
             [&]( const PCB_VIA* aVia ) -> bool
             {
                 // The padstack carries size, drill, layer span, mask/paste attributes,
-                // backdrill and post-machining — i.e. everything the template via dialog
-                // can edit apart from the net and teardrop settings.
+                // backdrill and post-machining.  That covers everything the via dialog
+                // can edit except the net and teardrop settings, checked separately.
                 return aVia->GetPosition() == ref->GetPosition()
                         && aVia->GetLayer() == ref->GetLayer()
                         && aVia->GetViaType() == ref->GetViaType()
@@ -659,9 +659,8 @@ void PCB_VIA_STITCH::EditFinish( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
     if( !( GetFlags() & IN_EDIT ) )
         return;
 
-    // The edit session is over: vias still pending removal are gone for good, so stage
-    // their commit removal now (deferring it this long is what lets an Update() earlier
-    // in the session resurrect them).
+    // The edit session is over, any vias still pending removal can now be committed
+    // for removal.
     if( aCommit )
     {
         for( PCB_VIA* via : m_pendingRemovals )
@@ -991,7 +990,7 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
                     // Our copper against theirs.
                     int margin = viaSize / 2 + evalConstraint( CLEARANCE_CONSTRAINT, aOther, layer );
 
-                    // Our drill against their copper (hole clearance) — cross-net only.
+                    // Our drill against their copper (hole clearance), cross-net only.
                     if( !sameNet )
                     {
                         margin = std::max( margin,
@@ -1056,8 +1055,8 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         if( zone->GetNetCode() == GetNetCode() )
             continue;
 
-        // A different-net zone only blocks near its fill *outside* its own outline
-        // a via dropped inside the zone is fine because the refill punches an anti-pad around it.
+        // A different-net zone only blocks near its fill outside its own outline.
+        // A via dropped inside the zone is fine because the refill punches an anti-pad around it.
         for( PCB_LAYER_ID layer : LSET( zone->GetLayerSet() & viaCopperLayers ) )
         {
             SHAPE_POLY_SET* fill = zone->GetFill( layer );
@@ -1280,7 +1279,7 @@ std::vector<ZONE*> PCB_VIA_STITCH::GetZonesNeedingRefillAfterUpdate() const
     std::vector<ZONE*> result;
 
     // A regeneration that added, moved, or removed nothing can't have changed any
-    // foreign-net anti-pads, so no refill is owed.
+    // foreign-net anti-pads, so no refill is needed.
     if( !m_lastUpdateChangedVias )
         return result;
 
