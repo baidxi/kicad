@@ -36,8 +36,13 @@ std::vector<VECTOR2D> POISSON_DISK::ToroidalUnitTile( double aMinDist, uint32_t 
     if( aMinDist <= 0.0 || aMinDist > 0.5 )
         return samples;  // unsupported / degenerate
 
-    const double cellSize = aMinDist / std::sqrt( 2.0 );
-    const int    gridN    = std::max( 1, (int) std::ceil( 1.0 / cellSize ) );
+    // The cell count must tile the torus exactly: with a truncated seam cell the +-2 cell
+    // neighborhood spans less than aMinDist of actual distance near the wrap seam, letting
+    // cross-seam sample pairs slip under the minimum distance.  1/gridN <= aMinDist/sqrt(2)
+    // keeps at most one sample per cell, and 2/gridN >= aMinDist holds for any aMinDist
+    // <= 0.5, so the +-2 scan still covers the exclusion radius.
+    const int    gridN    = std::max( 3, (int) std::ceil( std::sqrt( 2.0 ) / aMinDist ) );
+    const double cellSize = 1.0 / gridN;
 
     std::vector<int> grid( (size_t) gridN * gridN, -1 );
     std::vector<int> active;
