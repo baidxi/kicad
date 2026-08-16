@@ -44,6 +44,8 @@
 #include <connectivity/connectivity_data.h>
 #include <connectivity/topo_match.h>
 #include <algorithm>
+#include <deque>
+#include <map>
 #include <pcb_track.h>
 #include <tool/tool_manager.h>
 #include <tools/pcb_picker_tool.h>
@@ -1700,6 +1702,24 @@ bool MULTICHANNEL_TOOL::copyRuleAreaContents( RULE_AREA* aRefArea, RULE_AREA* aT
                 continue;
 
             aCommit->Modify( targetFP );
+
+            std::map<wxString, std::deque<PAD*>> targetPadsByNumber;
+
+            for( PAD* targetPad : targetFP->Pads() )
+                targetPadsByNumber[targetPad->GetNumber()].push_back( targetPad );
+
+            for( PAD* refPad : refFP->Pads() )
+            {
+                auto it = targetPadsByNumber.find( refPad->GetNumber() );
+
+                if( it == targetPadsByNumber.end() || it->second.empty() )
+                    continue;
+
+                PAD* targetPad = it->second.front();
+                it->second.pop_front();
+
+                targetPad->SetLocalZoneConnection( refPad->GetLocalZoneConnection() );
+            }
 
             targetFP->SetLayerAndFlip( refFP->GetLayer() );
             targetFP->SetOrientation( refFP->GetOrientation() );

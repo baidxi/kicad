@@ -426,6 +426,17 @@ BOOST_FIXTURE_TEST_CASE( RepeatLayoutCopiesFootprintProperties, MULTICHANNEL_TES
         return;
     }
 
+    PAD* refPad = refFP->FindPadByNumber( wxT( "2" ) );
+    PAD* targetPad = targetFP->FindPadByNumber( wxT( "2" ) );
+
+    BOOST_REQUIRE( refPad != nullptr );
+    BOOST_REQUIRE( targetPad != nullptr );
+
+    refPad->SetLocalZoneConnection( ZONE_CONNECTION::FULL );
+    targetPad->SetLocalZoneConnection( ZONE_CONNECTION::INHERITED );
+
+    BOOST_CHECK( refPad->GetLocalZoneConnection() != targetPad->GetLocalZoneConnection() );
+
     PCB_FIELD* refValueField = refFP->GetField( FIELD_T::VALUE );
     bool refValueVisible = refValueField ? refValueField->IsVisible() : true;
 
@@ -450,6 +461,9 @@ BOOST_FIXTURE_TEST_CASE( RepeatLayoutCopiesFootprintProperties, MULTICHANNEL_TES
     }
 
     BOOST_CHECK_EQUAL( targetFP->Models().size(), refModels.size() );
+
+    BOOST_CHECK_EQUAL( static_cast<int>( targetPad->GetLocalZoneConnection() ),
+                       static_cast<int>( refPad->GetLocalZoneConnection() ) );
 
     if( !refModels.empty() )
     {
