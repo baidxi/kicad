@@ -51,6 +51,9 @@
 #include <pcb_track.h>
 #include <board.h>
 #include <board_design_settings.h>
+#include <convert_basic_shapes_to_polygon.h>
+#include <footprint.h>
+#include <geometry/shape_segment.h>
 #include <drc/drc_engine.h>
 #include <drc/drc_rtree.h>
 #include <drc/drc_rule.h>
@@ -902,15 +905,54 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 
     SHAPE_POLY_SET obstacles;
 
-    auto evalClearance =
-            [&]( BOARD_ITEM* aOther, PCB_LAYER_ID aLayer ) -> int
+    int viaDrill = m_viaTemplate->GetDrillValue() > 0 ? m_viaTemplate->GetDrillValue()
+                                                      : defaultViaDrill( aBoard );
+
+    auto evalConstraint =
+            [&]( DRC_CONSTRAINT_T aType, BOARD_ITEM* aOther, PCB_LAYER_ID aLayer ) -> int
             {
                 if( !drcEngine )
                     return 0;
 
                 DRC_CONSTRAINT constraint =
-                        drcEngine->EvalRules( CLEARANCE_CONSTRAINT, probe.get(), aOther, aLayer );
+                        drcEngine->EvalRules( aType, probe.get(), aOther, aLayer );
                 return constraint.GetValue().Min();
+            };
+
+    auto isSameNet =
+            [&]( BOARD_ITEM* aOther ) -> bool
+            {
+                BOARD_CONNECTED_ITEM* cItem = dynamic_cast<BOARD_CONNECTED_ITEM*>( aOther );
+                return cItem && cItem->GetNetCode() == GetNetCode();
+            };
+
+    // Drilled holes are obstacles as we need to respect the hole to hole constraint
+    std::set<BOARD_ITEM*> holeSeen;
+
+    auto addHoleObstacle =
+            [&]( BOARD_ITEM* aOther, PCB_LAYER_ID aLayer )
+            {
+                if( !aOther->HasHole() || !holeSeen.insert( aOther ).second )
+                    return;
+
+                std::shared_ptr<SHAPE_SEGMENT> hole = aOther->GetEffectiveHoleShape();
+
+                if( !hole )
+                    return;
+
+                int margin = viaDrill / 2
+                             + evalConstraint( HOLE_TO_HOLE_CONSTRAINT, aOther, UNDEFINED_LAYER );
+
+                if( !isSameNet( aOther ) )
+                {
+                    margin = std::max( margin,
+                                       viaSize / 2 + evalConstraint( HOLE_CLEARANCE_CONSTRAINT,
+                                                                     aOther, aLayer ) );
+                }
+
+                TransformOvalToPolygon( obstacles, hole->GetSeg().A, hole->GetSeg().B,
+                                        hole->GetWidth() + 2 * margin, polyApproxError,
+                                        ERROR_OUTSIDE );
             };
 
     SHAPE_RECT queryRect( queryBBox.GetPosition(), queryBBox.GetWidth(), queryBBox.GetHeight() );
@@ -939,19 +981,26 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
                         return false;
                     }
 
-                    // Vias are obstacles regardless of net — stacking two drills is a
-                    // manufacturing problem even on the same net.
-                    if( aOther->Type() != PCB_VIA_T )
-                    {
-                        BOARD_CONNECTED_ITEM* cItem = dynamic_cast<BOARD_CONNECTED_ITEM*>( aOther );
+                    addHoleObstacle( aOther, layer );
 
-                        if( cItem && cItem->GetNetCode() == GetNetCode() )
-                            return false;   // same net — a connection, not a collision
+                    bool sameNet = isSameNet( aOther );
+
+                    if( aOther->Type() != PCB_VIA_T && sameNet )
+                        return false;
+
+                    // Our copper against theirs.
+                    int margin = viaSize / 2 + evalConstraint( CLEARANCE_CONSTRAINT, aOther, layer );
+
+                    // Our drill against their copper (hole clearance) — cross-net only.
+                    if( !sameNet )
+                    {
+                        margin = std::max( margin,
+                                           viaDrill / 2 + evalConstraint( HOLE_CLEARANCE_CONSTRAINT,
+                                                                          aOther, layer ) );
                     }
 
-                    aOther->TransformShapeToPolygon( obstacles, layer,
-                                                     viaSize / 2 + evalClearance( aOther, layer ),
-                                                     polyApproxError, ERROR_OUTSIDE );
+                    aOther->TransformShapeToPolygon( obstacles, layer, margin, polyApproxError,
+                                                     ERROR_OUTSIDE );
                     return false;
                 };
 
@@ -959,6 +1008,19 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         {
             aBoard->m_CopperItemRTreeCache->CheckColliding( &queryRect, layer, worstClearance,
                                                             enumerate );
+        }
+    }
+
+    // Add NPTH mounting holes which have no copper
+    for( FOOTPRINT* footprint : aBoard->Footprints() )
+    {
+        if( !footprint->GetBoundingBox().Intersects( queryBBox ) )
+            continue;
+
+        for( PAD* pad : footprint->Pads() )
+        {
+            if( pad->GetBoundingBox().Intersects( queryBBox ) )
+                addHoleObstacle( pad, F_Cu );
         }
     }
 
@@ -1009,8 +1071,11 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
             if( nearFill.IsEmpty() )
                 continue;
 
-            nearFill.Inflate( viaSize / 2 + evalClearance( zone, layer ),
-                              CORNER_STRATEGY::ROUND_ALL_CORNERS, polyApproxError );
+            int zoneMargin = std::max(
+                    viaSize / 2 + evalConstraint( CLEARANCE_CONSTRAINT, zone, layer ),
+                    viaDrill / 2 + evalConstraint( HOLE_CLEARANCE_CONSTRAINT, zone, layer ) );
+
+            nearFill.Inflate( zoneMargin, CORNER_STRATEGY::ROUND_ALL_CORNERS, polyApproxError );
 
             if( const SHAPE_POLY_SET* outline = zone->Outline() )
             {
@@ -1113,7 +1178,7 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
             if( track->Type() == PCB_VIA_T )
                 layer = F_Cu;  // arbitrary copper layer for clearance evaluation
 
-            int requiredClearance = evalClearance( track, layer );
+            int requiredClearance = evalConstraint( CLEARANCE_CONSTRAINT, track, layer );
 
             // Safety margin so envelope samples land outside the obstacle mask.  The
             // guarded items are themselves obstacles, polygonized outward with up to
