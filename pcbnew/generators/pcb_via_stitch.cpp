@@ -259,6 +259,19 @@ VECTOR2I PCB_VIA_STITCH::GetPosition() const
 }
 
 
+void PCB_VIA_STITCH::InitializeDefaults( BOARD* aBoard )
+{
+    if( m_viaTemplate->GetWidth() <= 0 )
+        m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
+
+    if( m_viaTemplate->GetDrillValue() <= 0 )
+        m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
+
+    if( m_pitch <= 0 )
+        m_pitch = defaultPitch( aBoard );
+}
+
+
 void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT* aCommit )
 {
     if( aCommit )
@@ -270,12 +283,7 @@ void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMM
     }
 
     // Initialize property defaults on first edit
-    if( m_viaTemplate->GetWidth() <= 0 )
-        m_viaTemplate->SetWidth( defaultViaSize( aBoard ) );
-    if( m_viaTemplate->GetDrillValue() <= 0 )
-        m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
-    if( m_pitch <= 0 )
-        m_pitch = defaultPitch( aBoard );
+    InitializeDefaults( aBoard );
 
     // Resolve net code from saved name (SetProperties has no board reference)
     if( m_netCode == 0 && !m_lastNetName.empty() && aBoard )
@@ -297,7 +305,8 @@ void PCB_VIA_STITCH::EditStart( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMM
 int PCB_VIA_STITCH::defaultPitch( BOARD* aBoard ) const
 {
     int mm2 = pcbIUScale.mmToIU( 2.0 );
-    int viaSize = defaultViaSize( aBoard );
+    int viaSize = m_viaTemplate->GetWidth() > 0 ? m_viaTemplate->GetWidth()
+                                                : defaultViaSize( aBoard );
     int pitch = std::max( mm2, viaSize * 2 );
     return pitch;
 }

@@ -247,6 +247,18 @@ void DIALOG_VIA_STITCH_PROPERTIES::prepareCanvas()
 
     m_panelShowPreview->StartDrawing();
     m_canvasInitialized = true;
+
+    m_panelShowPreview->Bind( wxEVT_SIZE,
+                              [this]( wxSizeEvent& aEvt )
+                              {
+                                  aEvt.Skip();
+
+                                  CallAfter(
+                                          [this]()
+                                          {
+                                              fitPreview();
+                                          } );
+                              } );
 }
 
 
@@ -267,6 +279,7 @@ void DIALOG_VIA_STITCH_PROPERTIES::redrawPreview()
 
     if( pitch <= 0 )
     {
+        m_previewExtent = 0;
         m_panelShowPreview->Refresh();
         return;
     }
@@ -352,9 +365,32 @@ void DIALOG_VIA_STITCH_PROPERTIES::redrawPreview()
         m_previewVias.push_back( std::move( via ) );
     }
 
+    m_previewExtent = previewExtent;
+    fitPreview();
+
+    m_panelShowPreview->Refresh();
+}
+
+
+void DIALOG_VIA_STITCH_PROPERTIES::fitPreview()
+{
+    if( !m_canvasInitialized || !m_workingCopy || m_previewExtent <= 0 )
+        return;
+
+    KIGFX::VIEW* view = m_panelShowPreview->GetView();
+
+    // Make sure we don't try fit too early
+    if( view->GetGAL()->GetScreenPixelSize().x <= 0
+            || view->GetGAL()->GetScreenPixelSize().y <= 0 )
+    {
+        return;
+    }
+
     // Frame the preview window with a bit of margin.
-    BOX2D viewBox( VECTOR2D( 0, 0 ), VECTOR2D( previewExtent, previewExtent ) );
-    viewBox.Inflate( pitch );
+    int   margin = m_workingCopy->GetPitch() > 0 ? m_workingCopy->GetPitch() : 1;
+    BOX2D viewBox( VECTOR2D( 0, 0 ), VECTOR2D( m_previewExtent, m_previewExtent ) );
+
+    viewBox.Inflate( margin );
     view->SetViewport( viewBox );
 
     m_panelShowPreview->Refresh();

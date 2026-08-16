@@ -126,6 +126,11 @@ public:
         MarkDirty();
     }
 
+    /**
+     * Fill in any unset via-template and pitch values from the board's design settings.
+     */
+    void InitializeDefaults( BOARD* aBoard );
+
     void     EditStart( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;
     bool     Update( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override; // generate vias
     void     EditFinish( GENERATOR_TOOL*, BOARD*, BOARD_COMMIT* ) override;

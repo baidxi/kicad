@@ -70,6 +70,9 @@ private:
     /// Push the GAL preview to reflect the current m_workingCopy state.
     void redrawPreview();
 
+    /// Autozoom the preview canvas onto the last-rendered tile
+    void fitPreview();
+
     /// First-time set-up of m_panelShowPreview — colors, view layers, board attachment.
     void prepareCanvas();
 
@@ -94,4 +97,8 @@ private:
     std::vector<std::unique_ptr<PCB_VIA>> m_previewVias;
 
     bool                            m_canvasInitialized = false;
+
+    /// Side length of the tile drawn by the last redrawPreview(), in IU; 0 if nothing is
+    /// currently drawn.  Kept so a resize can re-fit without rebuilding the vias.
+    int                             m_previewExtent = 0;
 };

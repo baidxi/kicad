@@ -265,6 +265,7 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE> aZone )
             stitcher->SetFlags( IS_NEW );
             stitcher->SetParent( board );
             stitcher->SetOutline( *aZone->Outline() );
+            stitcher->InitializeDefaults( board );
 
             // Pop the properties dialog up-front so the user picks net / pitch / pattern
             // before any vias materialize.  Cancel discards the whole creation.
