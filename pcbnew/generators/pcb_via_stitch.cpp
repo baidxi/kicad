@@ -39,6 +39,7 @@
 #include <geometry/poisson_disk.h>
 #include <geometry/seg.h>
 #include <geometry/shape_line_chain.h>
+#include <geometry/shape_rect.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <gal/painter.h>
 #include <tool/action_menu.h>
@@ -95,7 +96,7 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         m_excludedCells( aOther.m_excludedCells ),
         m_originOffset( aOther.m_originOffset )
 {
-    // m_childContextMenu is intentionally not copied — each instance lazy-builds its own.
+    // m_childContextMenu is intentionally not copied
 }
 
 
@@ -177,7 +178,7 @@ void PCB_VIA_STITCH::ViewDraw( int aLayer, KIGFX::VIEW* aView ) const
     if( m_outline.OutlineCount() == 0 )
         return;
 
-    // Only paint on the outline layer — ViewGetLayers() also lists LAYER_VIAS /
+    // Only paint on the outline layerViewGetLayers() also lists LAYER_VIAS /
     // LAYER_VIA_HOLES / LAYER_ANCHOR for the produced vias' rendering, but those are
     // handled by the via children themselves; we don't want to redraw the outline
     // multiple times per frame.
@@ -327,106 +328,6 @@ int PCB_VIA_STITCH::defaultViaDrill( BOARD* aBoard ) const
 }
 
 
-bool PCB_VIA_STITCH::collidesWithBoard( BOARD* aBoard, DRC_ENGINE* aDRCEngine,
-                                        PCB_VIA* aVia ) const
-{
-    LSET boardCopperLayers = LSET::AllCuMask( aBoard->GetCopperLayerCount() );
-
-    for( PCB_LAYER_ID layer : LSET( aVia->GetLayerSet() & boardCopperLayers ) )
-    {
-        std::shared_ptr<SHAPE> viaShape = aVia->GetEffectiveShape( layer );
-        bool                   violationFound = false;
-
-        aBoard->m_CopperItemRTreeCache->QueryColliding(
-                aVia, layer, layer,
-                // Filter out same net collisions, generally ok except for collisions with vias
-                // TODO: Probably some other types we dont want to collide with
-                [&]( BOARD_ITEM* other ) -> bool
-                {
-                    if( other->Type() == PCB_VIA_T && other->GetParent() != aVia->GetParent() )
-                        return true;
-
-                    if( BOARD_CONNECTED_ITEM* otherCItem =
-                                dynamic_cast<BOARD_CONNECTED_ITEM*>( other ) )
-                    {
-                        if( otherCItem->GetNetCode() == aVia->GetNetCode() )
-                            return false;
-                    }
-                    return true;
-                },
-                // Visitor: evaluate the actual required clearance for this pair, then
-                // check whether the shapes are within that distance of each other.
-                // (QueryColliding already pre-filtered to items within m_DRCMaxClearance.)
-                [&]( BOARD_ITEM* other ) -> bool
-                {
-                    int requiredClearance = 0;
-
-                    if( aDRCEngine )
-                    {
-                        DRC_CONSTRAINT constraint = aDRCEngine->EvalRules(
-                                CLEARANCE_CONSTRAINT, aVia, other, layer );
-                        requiredClearance = constraint.GetValue().Min();
-                    }
-
-                    std::shared_ptr<SHAPE> otherShape = other->GetEffectiveShape( layer );
-
-                    if( viaShape->Collide( otherShape.get(), requiredClearance ) )
-                    {
-                        violationFound = true;
-                        return false; // stop on first violation
-                    }
-
-                    return true;
-                },
-                aBoard->m_DRCMaxClearance );
-
-        if( violationFound )
-            return true;
-
-        // Zones are stored in a separate per-zone R-tree (m_CopperItemRTreeCache does not
-        // contain them).  Check the via against every different-net zone's filled polygon.
-        BOX2I viaBBox = aVia->GetBoundingBox();
-
-        for( auto& [zone, zoneTree] : aBoard->m_CopperZoneRTreeCache )
-        {
-            if( zone->GetNetCode() == aVia->GetNetCode() )
-                continue; // same net — no clearance required
-
-            if( !zone->IsOnLayer( layer ) )
-                continue;
-
-            // If we collide with a zone, of a different net, we will punch through it later
-            // on a refill, so this is ok
-            if( const SHAPE_POLY_SET* zoneOutline = zone->Outline() )
-            {
-                if( zoneOutline->Contains( aVia->GetPosition() ) )
-                    continue;
-            }
-
-            int requiredClearance = 0;
-
-            if( aDRCEngine )
-            {
-                DRC_CONSTRAINT constraint = aDRCEngine->EvalRules(
-                        CLEARANCE_CONSTRAINT, aVia, zone, layer );
-                requiredClearance = constraint.GetValue().Min();
-            }
-
-            int      actual;
-            VECTOR2I pos;
-
-            if( zoneTree->QueryColliding( viaBBox, viaShape.get(), layer,
-                                          requiredClearance, &actual, &pos ) )
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-
 bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT* aCommit )
 {
     if( !( GetFlags() & IN_EDIT ) )
@@ -498,8 +399,8 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
     auto removeVia =
             [&]( PCB_VIA* aVia )
             {
-                aCommit->Remove( aVia );
                 RemoveItem( aVia );
+                m_pendingRemovals.insert( aVia );
                 changed = true;
             };
 
@@ -568,6 +469,13 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
         removeVia( via );
     }
 
+    // Vias retired earlier may need to be unretired, this usually occurs when someone
+    // is shrinking the outline and then changes their mind in the same drag
+    std::map<VECTOR2I, PCB_VIA*> resurrectable;
+
+    for( PCB_VIA* via : m_pendingRemovals )
+        resurrectable.try_emplace( cellForPosition( via->GetPosition() ), via );
+
     // Now create a reference via to compare against, we need to see if existing vias need to be nuked
     // anyway on a property change. In which case we will just regen rather than play games
     std::unique_ptr<PCB_VIA> ref( static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
@@ -616,6 +524,24 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
             }
 
             removeVia( via );
+        }
+
+        // Resurrect a via retired earlier
+        auto rit = resurrectable.find( cell );
+
+        if( rit != resurrectable.end() )
+        {
+            PCB_VIA* via = rit->second;
+
+            ref->SetPosition( pt );
+
+            if( matchesRef( via ) )
+            {
+                m_pendingRemovals.erase( via );
+                AddItem( via );
+                changed = true;
+                continue;
+            }
         }
 
         PCB_VIA* via = static_cast<PCB_VIA*>( m_viaTemplate->Clone() );
@@ -721,6 +647,17 @@ void PCB_VIA_STITCH::EditFinish( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
     if( !( GetFlags() & IN_EDIT ) )
         return;
 
+    // The edit session is over: vias still pending removal are gone for good, so stage
+    // their commit removal now (deferring it this long is what lets an Update() earlier
+    // in the session resurrect them).
+    if( aCommit )
+    {
+        for( PCB_VIA* via : m_pendingRemovals )
+            aCommit->Remove( via );
+    }
+
+    m_pendingRemovals.clear();
+
     ClearFlags( IN_EDIT );
 }
 
@@ -729,6 +666,13 @@ void PCB_VIA_STITCH::EditCancel( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COM
 {
     if( !( GetFlags() & IN_EDIT ) )
         return;
+
+    // The commit is being reverted; re-attach retired vias so group membership matches
+    // the pre-edit state they revert to.
+    for( PCB_VIA* via : m_pendingRemovals )
+        AddItem( via );
+
+    m_pendingRemovals.clear();
 
     ClearFlags( IN_EDIT );
 }
@@ -753,6 +697,13 @@ void PCB_VIA_STITCH::Remove( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
     for( BOARD_ITEM* item : GetBoardItems() )
         aCommit->Remove( item );
+
+    // Retired-but-unpushed vias are detached from the group and would otherwise be
+    // orphaned on the board.
+    for( PCB_VIA* via : m_pendingRemovals )
+        aCommit->Remove( via );
+
+    m_pendingRemovals.clear();
 
     aCommit->Remove( this );
 }
@@ -805,14 +756,14 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
     int pitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
     int viaSize = m_viaTemplate->GetWidth() > 0 ? m_viaTemplate->GetWidth() : defaultViaSize( aBoard );
 
+    if( GetNetCode() == 0 )
+        return cells;
+
     DRC_ENGINE* drcEngine = aBoard->GetDesignSettings().m_DRCEngine.get();
 
     DRC_CACHE_GENERATOR cacheGenerator;
     cacheGenerator.SetDRCEngine( drcEngine );
     cacheGenerator.Run();
-
-    if( GetNetCode() == 0 )
-        return cells;
 
     // Pre-clip every zone fill to the stitch outline bbox before adding it to perLayerFills.
     // Without this, a board-wide GND zone would drag in an entire complex polygon when we may
@@ -905,26 +856,178 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
     if( allowedRegion.OutlineCount() == 0 )
         return cells;
 
+    // Generate a obstacle mask for via placement
+    // Rather than DRC-probing every possible placement cell against the r-tree
+    // to test for collisions. We instead create a keep-out polygon with obstacles
+    // inflated by the via-radius and clearance we want. The result is now
+    // we only have to do a point-in-polygon test for placement
+
+    const int polyApproxError = pcbIUScale.mmToIU( 0.005 );
+
+    // Require the whole via, not just its center, to land on same-net copper inside the
+    // outline
+    allowedRegion.Deflate( viaSize / 2, CORNER_STRATEGY::ROUND_ALL_CORNERS, polyApproxError );
+
+    if( allowedRegion.OutlineCount() == 0 )
+        return cells;
+
+    // Probe used for clearance evaluation; it must carry the stitch net because clearance
+    // rules can key off the net class.
+    std::unique_ptr<PCB_VIA> probe( static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
+    probe->SetParent( const_cast<BOARD*>( aBoard ) );
+
+    if( m_netCode )
+        probe->SetNetCode( m_netCode );
+
+    const int worstClearance = aBoard->m_DRCMaxClearance;
+
+    BOX2I queryBBox = stitchBBox;
+    queryBBox.Inflate( worstClearance + viaSize );
+
+    SHAPE_POLY_SET queryClip;
+    queryClip.NewOutline();
+    queryClip.Append( queryBBox.GetLeft(), queryBBox.GetTop() );
+    queryClip.Append( queryBBox.GetRight(), queryBBox.GetTop() );
+    queryClip.Append( queryBBox.GetRight(), queryBBox.GetBottom() );
+    queryClip.Append( queryBBox.GetLeft(), queryBBox.GetBottom() );
+
+    SHAPE_POLY_SET obstacles;
+
+    auto evalClearance =
+            [&]( BOARD_ITEM* aOther, PCB_LAYER_ID aLayer ) -> int
+            {
+                if( !drcEngine )
+                    return 0;
+
+                DRC_CONSTRAINT constraint =
+                        drcEngine->EvalRules( CLEARANCE_CONSTRAINT, probe.get(), aOther, aLayer );
+                return constraint.GetValue().Min();
+            };
+
+    SHAPE_RECT queryRect( queryBBox.GetPosition(), queryBBox.GetWidth(), queryBBox.GetHeight() );
+
+    for( PCB_LAYER_ID layer : viaCopperLayers )
+    {
+        std::set<BOARD_ITEM*> seen;
+
+        auto enumerate =
+                [&]( BOARD_ITEM* aOther ) -> bool
+                {
+                    if( !seen.insert( aOther ).second )
+                        return false;
+
+                    // Our own children are regenerated along with us and must not block
+                    // their own cells.
+                    if( aOther->GetParentGroup() == static_cast<const EDA_GROUP*>( this ) )
+                        return false;
+
+                    // Same for children retired during the same edit: they are
+                    // detached from the group but stay on the board until the commit is
+                    // pushed, and their cells must stay placeable so they can resurrect.
+                    if( aOther->Type() == PCB_VIA_T
+                            && m_pendingRemovals.count( static_cast<PCB_VIA*>( aOther ) ) )
+                    {
+                        return false;
+                    }
+
+                    // Vias are obstacles regardless of net — stacking two drills is a
+                    // manufacturing problem even on the same net.
+                    if( aOther->Type() != PCB_VIA_T )
+                    {
+                        BOARD_CONNECTED_ITEM* cItem = dynamic_cast<BOARD_CONNECTED_ITEM*>( aOther );
+
+                        if( cItem && cItem->GetNetCode() == GetNetCode() )
+                            return false;   // same net — a connection, not a collision
+                    }
+
+                    aOther->TransformShapeToPolygon( obstacles, layer,
+                                                     viaSize / 2 + evalClearance( aOther, layer ),
+                                                     polyApproxError, ERROR_OUTSIDE );
+                    return false;
+                };
+
+        if( aBoard->m_CopperItemRTreeCache )
+        {
+            aBoard->m_CopperItemRTreeCache->CheckColliding( &queryRect, layer, worstClearance,
+                                                            enumerate );
+        }
+    }
+
+    obstacles.Simplify();
+
+    for( ZONE* zone : aBoard->Zones() )
+    {
+        if( !zone->GetBoundingBox().Intersects( queryBBox ) )
+            continue;
+
+        if( zone->GetIsRuleArea() )
+        {
+            // Honor via keepouts (any net).
+            if( !zone->GetDoNotAllowVias() || !( zone->GetLayerSet() & viaCopperLayers ).any() )
+                continue;
+
+            if( const SHAPE_POLY_SET* keepout = zone->Outline() )
+            {
+                SHAPE_POLY_SET area = *keepout;
+                area.BooleanIntersection( queryClip );
+
+                if( !area.IsEmpty() )
+                {
+                    area.Inflate( viaSize / 2, CORNER_STRATEGY::ROUND_ALL_CORNERS,
+                                  polyApproxError );
+                    obstacles.BooleanAdd( area );
+                }
+            }
+
+            continue;
+        }
+
+        if( zone->GetNetCode() == GetNetCode() )
+            continue;
+
+        // A different-net zone only blocks near its fill *outside* its own outline
+        // a via dropped inside the zone is fine because the refill punches an anti-pad around it.
+        for( PCB_LAYER_ID layer : LSET( zone->GetLayerSet() & viaCopperLayers ) )
+        {
+            SHAPE_POLY_SET* fill = zone->GetFill( layer );
+
+            if( !fill || fill->IsEmpty() )
+                continue;
+
+            SHAPE_POLY_SET nearFill = *fill;
+            nearFill.BooleanIntersection( queryClip );
+
+            if( nearFill.IsEmpty() )
+                continue;
+
+            nearFill.Inflate( viaSize / 2 + evalClearance( zone, layer ),
+                              CORNER_STRATEGY::ROUND_ALL_CORNERS, polyApproxError );
+
+            if( const SHAPE_POLY_SET* outline = zone->Outline() )
+            {
+                SHAPE_POLY_SET interior = *outline;
+                interior.BooleanIntersection( queryClip );
+                nearFill.BooleanSubtract( interior );
+            }
+
+            if( !nearFill.IsEmpty() )
+                obstacles.BooleanAdd( nearFill );
+        }
+    }
+
+    allowedRegion.BooleanSubtract( obstacles );
+
+    if( allowedRegion.OutlineCount() == 0 )
+        return cells;
+
+    allowedRegion.BuildBBoxCaches();
+
     BOX2I bbox = allowedRegion.BBox();
 
     auto isValid =
             [&]( const VECTOR2I& pt ) -> bool
             {
-                if( !allowedRegion.Contains( pt ) )
-                    return false;
-
-                if( allowedRegion.PointOnEdge( pt, viaSize / 2 ) )
-                    return false;
-
-                std::unique_ptr<PCB_VIA> probe(
-                        static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
-                probe->SetParent( const_cast<BOARD*>( aBoard ) );
-                probe->SetPosition( pt );
-
-                if( m_netCode )
-                    probe->SetNetCode( m_netCode );
-
-                return !collidesWithBoard( aBoard, drcEngine, probe.get() );
+                return allowedRegion.Contains( pt, -1, 0, true );
             };
 
     if( m_mode == PCB_VIA_STITCH_MODE::GUARD )
@@ -955,28 +1058,6 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
                     return true;
                 };
 
-        // vias sit at the inner edge of the same-net zone's
-        // anti-pad, which is also `allowedRegion`'s inner edge
-        auto isValidGuard =
-                [&]( const VECTOR2I& pt ) -> bool
-                {
-                    if( !allowedRegion.Contains( pt ) )
-                        return false;
-
-                    if( m_outline.PointOnEdge( pt, viaSize / 2 ) )
-                        return false;
-
-                    std::unique_ptr<PCB_VIA> probe(
-                            static_cast<PCB_VIA*>( m_viaTemplate->Clone() ) );
-                    probe->SetParent( const_cast<BOARD*>( aBoard ) );
-                    probe->SetPosition( pt );
-
-                    if( m_netCode )
-                        probe->SetNetCode( m_netCode );
-
-                    return !collidesWithBoard( aBoard, drcEngine, probe.get() );
-                };
-
         auto walkChain =
                 [&]( const SHAPE_LINE_CHAIN& chain )
                 {
@@ -999,16 +1080,13 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
 
                             nextSample += pitch;
 
-                            if( isValidGuard( pt ) && farEnough( pt ) )
+                            if( isValid( pt ) && farEnough( pt ) )
                                 accepted.push_back( pt );
                         }
 
                         cursor += segLen;
                     }
                 };
-
-        // Polygon-approximation tolerance for arc envelopes
-        const int polyApproxError = pcbIUScale.mmToIU( 0.005 );
 
         // Merge every guarded-net item's clearance envelope into one polygon
         SHAPE_POLY_SET mergedEnvelope;
@@ -1026,22 +1104,13 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
             if( track->Type() == PCB_VIA_T )
                 layer = F_Cu;  // arbitrary copper layer for clearance evaluation
 
-            int requiredClearance = 0;
+            int requiredClearance = evalClearance( track, layer );
 
-            if( drcEngine )
-            {
-                DRC_CONSTRAINT constraint = drcEngine->EvalRules(
-                        CLEARANCE_CONSTRAINT, m_viaTemplate.get(), track, layer );
-                requiredClearance = constraint.GetValue().Min();
-            }
-
-            // Tiny safety margin so diagonal envelope samples don't round through the
-            // DRC threshold.  For axis-aligned envelopes the perpendicular distance is
-            // always integer; for diagonals it's computed in floating point and the
-            // sample coordinate's integer rounding can bias by up to ~0.7 IU inward,
-            // which is enough to fail collidesWithBoard.  A 2µm bump comfortably clears
-            // any sub-IU rounding
-            const int safetyMargin = pcbIUScale.mmToIU( 0.002 );
+            // Safety margin so envelope samples land outside the obstacle mask.  The
+            // guarded items are themselves obstacles, polygonized outward with up to
+            // polyApproxError of overshoot, so the envelope must sit at least that much
+            // further out; the extra 2µm absorbs the sample coordinates' integer rounding.
+            const int safetyMargin = polyApproxError + pcbIUScale.mmToIU( 0.002 );
             int       margin       = viaSize / 2 + requiredClearance + safetyMargin;
 
             SHAPE_POLY_SET envelope;

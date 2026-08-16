@@ -215,16 +215,6 @@ private:
      */
     std::set<VECTOR2I> buildPlacementCells( BOARD* aBoard ) const;
 
-    /**
-     * Returns true if @a aVia violates the required copper clearance against any existing board
-     * item (ignoring same-net connected items).  The via must NOT yet have been added to the
-     * board so that the R-tree query only sees pre-existing items.
-     *
-     * @param aBoard Board to test against
-     * @param aDRCEngine Used to retrieve DRC clearance constraints for the via vs. other items.
-     * @param aVia The via to test for clearance violations
-     */
-    bool collidesWithBoard( BOARD* aBoard, class DRC_ENGINE* aDRCEngine, PCB_VIA* aVia ) const;
 
 public:
     /**
@@ -275,6 +265,13 @@ private:
 
     // Whether the last Update() actually added, moved, or removed any via.
     bool m_lastUpdateChangedVias = true;
+
+    // Children Update() has retired during the current edit session.  Their commit removal
+    // is deferred to EditFinish(); until then they stay on the board (detached from the
+    // group) so a later Update() in the same session can resurrect one when its cell
+    // becomes valid again — e.g. shrinking then re-expanding the outline in a single drag —
+    // instead of replacing it with a new via.  Transient: not persisted or copied.
+    std::set<PCB_VIA*> m_pendingRemovals;
 
     // Lazily-built right-click menu shown when the selection is exclusively this generator's
     // child vias.  mutable so it can be created from a const accessor.
