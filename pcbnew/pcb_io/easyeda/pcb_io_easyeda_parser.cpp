@@ -561,8 +561,8 @@ void PCB_IO_EASYEDA_PARSER::ParseToBoardItemContainer(
 
                         SHAPE_POLY_SET currentOutline( contourPolySet.COutline( 0 ) );
 
-                        for( int i = 1; i < contourPolySet.OutlineCount(); i++ )
-                            currentOutline.AddHole( contourPolySet.COutline( i ) );
+                        for( int i = 0; i < contourPolySet.HoleCount( 0 ); i++ )
+                            currentOutline.AddHole( contourPolySet.CHole( 0, i ) );
 
                         fillPolySet.Append( currentOutline );
                     }
