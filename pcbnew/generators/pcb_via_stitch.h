@@ -82,22 +82,6 @@ public:
     {
         return std::vector<int>{ LAYER_VIAS, LAYER_VIA_HOLES, LAYER_ANCHOR, LAYER_VIA_STITCHING };
     }
-    #if 0
-    void SetPolyShape( const SHAPE_POLY_SET& aShape )
-    {
-        m_poly = aShape;
-
-        for( int ii = 0; ii < m_poly.OutlineCount(); ++ii )
-        {
-            if( m_poly.HoleCount( ii ) )
-            {
-                m_poly.Fracture();
-                break;
-            }
-        }
-    }
-#endif
-
     int GetNetCode() const;
 
     void        SetNetCode( int aNetCode );
@@ -241,8 +225,6 @@ public:
     static const std::vector<VECTOR2D>& bakedPoissonTile();
 
 private:
- //   SHAPE_POLY_SET m_poly; // Stores the S_POLYGON shape
-
     // Stored properties (iu units)
     int                   m_pitch  = 0;                   // center-to-center spacing
     PCB_VIA_STITCH_LAYOUT m_layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
