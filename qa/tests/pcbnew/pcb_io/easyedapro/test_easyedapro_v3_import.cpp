@@ -34,6 +34,7 @@
 #include <pcbnew/pcb_io/easyedapro/pcb_io_easyedapro_v3_parser.h>
 #include <pcbnew/pcb_io/pcb_io.h>
 #include <pcbnew/pcb_io/pcb_io_mgr.h>
+#include <pcbnew/pcb_io/easyedapro/pcb_io_easyedapro_parser.h>
 
 #include <board.h>
 #include <footprint.h>
@@ -44,6 +45,7 @@
 #include <wx/filename.h>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <memory>
 #include <vector>
@@ -251,6 +253,25 @@ BOOST_AUTO_TEST_CASE( BoardLoadImportsInnerLayers )
     BOOST_CHECK_EQUAL( board->GetLayerName( In1_Cu ), wxString( wxS( "Inner1" ) ) );
     BOOST_CHECK_EQUAL( board->GetLayerName( In2_Cu ), wxString( wxS( "Inner2" ) ) );
     BOOST_CHECK_EQUAL( board->GetLayerName( B_Cu ), wxString( wxS( "Bottom Layer" ) ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( ParseContourClampsRoundedRectangleRadius )
+{
+    // Given the BATIN FILL rounded rectangle with an oversized radius.
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+    nlohmann::json contourData = nlohmann::json::parse(
+            R"(["R", -736.1963, -1056.456, 34.1853, 84.0904, -90, 1111])" );
+
+    // When parsing the contour, the radius must be clamped to the short side.
+    SHAPE_LINE_CHAIN contour = parser.ParseContour( contourData, true );
+    contour.SetClosed( true );
+
+    // Then the result must have the area of a rounded rectangle/capsule, not a thin cross.
+    const double boundingBoxArea = static_cast<double>( contour.BBox().GetArea() );
+    BOOST_REQUIRE_GT( boundingBoxArea, 0.0 );
+    BOOST_CHECK_GT( std::abs( contour.Area() ) / boundingBoxArea, 0.75 );
 }
 
 

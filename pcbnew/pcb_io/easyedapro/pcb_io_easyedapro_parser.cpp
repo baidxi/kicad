@@ -21,6 +21,8 @@
 #include "pcb_io_easyedapro_parser.h"
 #include <io/easyedapro/easyedapro_import_utils.h>
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
 
 #include <json_common.h>
@@ -494,8 +496,11 @@ PCB_IO_EASYEDAPRO_PARSER::ParseContour( nlohmann::json polyData, bool aInFill,
                 VECTOR2D kcenter = kstart + ksize / 2;
                 RotatePoint( kcenter, kstart, EDA_ANGLE( angle, DEGREES_T ) );
 
+                double maxRadius = std::min( std::abs( ksize.x ), std::abs( ksize.y ) ) / 2.0;
+                double radius = std::min( ScaleSize( cr ), maxRadius );
+
                 TransformRoundChamferedRectToPolygon( poly, kcenter, ksize, EDA_ANGLE( angle, DEGREES_T ),
-                                                      ScaleSize( cr ), 0, 0, 0, aMaxError, ERROR_INSIDE );
+                                                       radius, 0, 0, 0, aMaxError, ERROR_INSIDE );
 
                 result.Append( poly.Outline( 0 ) );
             }
