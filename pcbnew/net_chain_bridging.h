@@ -33,6 +33,10 @@ class FOOTPRINT;
 class PAD;
 
 
+/// Physical fallback (150 ps/in) applied when no chain netclass names a tuning profile.
+constexpr double DEFAULT_PROPAGATION_DELAY_PS_PER_MM = 5.9;
+
+
 /**
  * Compute the bridging length contributed by a single footprint to a net chain.
  *
@@ -58,24 +62,25 @@ double BoardChainBridgingLength( const BOARD* aBoard, const wxString& aNetChain 
 
 
 /**
- * Pick a single per-IU-per-mm delay for a given chain.  Walks the chain's tracks until it
- * finds one with a tuning profile defined; returns aDefaultBridgeUnitDelay if none found. Shared
- * between the aggregate and per-edge bridge helpers so they always apply the same scaling.
+ * Pick a single per-IU-per-mm delay for a given chain.  Walks the chain's nets until it finds
+ * one whose netclass names a tuning profile and returns that profile's bridge delay, which can
+ * legitimately be zero.  Chains with no tuning profile get DEFAULT_PROPAGATION_DELAY_PS_PER_MM,
+ * so bridge length and bridge delay always agree about the bridge being there.  Shared between
+ * the aggregate and per-edge bridge helpers so they always apply the same scaling.
  */
-double ChainBridgingDelayPerMm( const BOARD* aBoard, const wxString& aNetChain, double aDefaultBridgeUnitDelay = 0.0 );
+double ChainBridgingDelayPerMm( const BOARD* aBoard, const wxString& aNetChain );
 
 
 /**
  * Compute both the chain bridging length and its associated propagation delay (in internal
- * delay IU, i.e. attoseconds) in one pass.  The delay is derived from the first chain track
- * with a tuning profile defined; if no such track exists the helper falls back to aDefaultBridgeUnitDelay.
+ * delay IU, i.e. attoseconds) in one pass.  The delay per mm comes from
+ * ChainBridgingDelayPerMm().
  *
  * The matched-length DRC provider and the tuning pattern generator share this helper so the
  * time-domain DRC verdict and the tuner's per-net budget agree on bridging delay.  The
  * returned tuple is (lengthIU, delayIU).
  */
-std::tuple<double, double> BoardChainBridging( const BOARD* aBoard, const wxString& aNetChain,
-                                               double aDefaultBridgeUnitDelay = 0.0 );
+std::tuple<double, double> BoardChainBridging( const BOARD* aBoard, const wxString& aNetChain );
 
 
 /**
@@ -117,8 +122,7 @@ struct CHAIN_BRIDGE
  * what the CHAIN_TOPOLOGY graph builder needs to compute trunk paths through series
  * passives.
  */
-std::vector<CHAIN_BRIDGE> EnumerateChainBridges( const BOARD* aBoard, const wxString& aNetChain,
-                                                 double aDefaultBridgeUnitDelay = 0.0 );
+std::vector<CHAIN_BRIDGE> EnumerateChainBridges( const BOARD* aBoard, const wxString& aNetChain );
 
 
 /**

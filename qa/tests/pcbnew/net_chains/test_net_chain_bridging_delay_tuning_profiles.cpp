@@ -44,4 +44,25 @@ BOOST_AUTO_TEST_CASE( ZeroBridgingDelay )
     BOOST_CHECK_CLOSE( delay_2, 3300000.0, 0.01 );
 }
 
+
+// A configured zero must win over the physical fallback before the chain is routed, so the
+// result cannot depend on the tracks
+BOOST_AUTO_TEST_CASE( ZeroBridgingDelayWithoutTracks )
+{
+    SETTINGS_MANAGER       settingsManager;
+    std::unique_ptr<BOARD> board;
+    KI_TEST::LoadBoard( settingsManager, "net_chain_bridging_tuning_profiles", board );
+
+    board->RemoveAll( { PCB_TRACE_T } );
+    BOOST_REQUIRE( board->Tracks().empty() );
+
+    auto [len_1, delay_1] = BoardChainBridging( board.get(), wxS( "CHAIN_1" ) );
+    BOOST_CHECK_CLOSE( len_1, 3300000.0, 0.01 );
+    BOOST_CHECK_EQUAL( delay_1, 0.0 );
+
+    auto [len_2, delay_2] = BoardChainBridging( board.get(), wxS( "CHAIN_2" ) );
+    BOOST_CHECK_CLOSE( len_2, 3300000.0, 0.01 );
+    BOOST_CHECK_CLOSE( delay_2, 3300000.0, 0.01 );
+}
+
 BOOST_AUTO_TEST_SUITE_END();
