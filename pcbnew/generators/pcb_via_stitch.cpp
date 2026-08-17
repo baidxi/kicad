@@ -97,6 +97,7 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         m_lastGuardedNetName( aOther.m_lastGuardedNetName ),
         m_guardedNetCode( aOther.m_guardedNetCode ),
         m_excludedCells( aOther.m_excludedCells ),
+        m_excludedPositions( aOther.m_excludedPositions ),
         m_originOffset( aOther.m_originOffset )
 {
     // m_childContextMenu is intentionally not copied
@@ -120,6 +121,7 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
         m_lastGuardedNetName = aOther.m_lastGuardedNetName;
         m_guardedNetCode = aOther.m_guardedNetCode;
         m_excludedCells = aOther.m_excludedCells;
+        m_excludedPositions = aOther.m_excludedPositions;
         m_originOffset = aOther.m_originOffset;
         // m_childContextMenu is intentionally not copied.
         m_childContextMenu.reset();
@@ -443,20 +445,23 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
     auto isExcluded =
             [&]( const VECTOR2I& cell ) -> bool
             {
-                // Stitch mode is a simple check
-                if( m_mode != PCB_VIA_STITCH_MODE::GUARD )
-                    return m_excludedCells.count( cell ) > 0;
-
-                // Guard mode proximity check
-                for( const VECTOR2I& excluded : m_excludedCells )
+                // Guard vias are walked along the guarded net's envelope, so a stored position
+                // will rarely land exactly on a regenerated via.  Match by proximity instead.
+                if( m_mode == PCB_VIA_STITCH_MODE::GUARD )
                 {
-                    VECTOR2I d = excluded - cell;
+                    for( const VECTOR2I& excluded : m_excludedPositions )
+                    {
+                        VECTOR2I d = excluded - cell;
 
-                    if( (int64_t) d.x * d.x + (int64_t) d.y * d.y < guardExcludeRadiusSq )
-                        return true;
+                        if( (int64_t) d.x * d.x + (int64_t) d.y * d.y < guardExcludeRadiusSq )
+                            return true;
+                    }
+
+                    return false;
                 }
 
-                return false;
+                return usesGridCells() ? m_excludedCells.count( cell ) > 0
+                                       : m_excludedPositions.count( cell ) > 0;
             };
 
     // Get the new list of desired via cells
@@ -604,10 +609,16 @@ const STRING_ANY_MAP PCB_VIA_STITCH::GetProperties() const
 
     if( !m_excludedCells.empty() )
     {
+        std::vector<VECTOR2I> cells( m_excludedCells.begin(), m_excludedCells.end() );
+        props.set( "excluded_grid_cells", wxAny( cells ) );
+    }
+
+    if( !m_excludedPositions.empty() )
+    {
         SHAPE_LINE_CHAIN chain;
-        for( const VECTOR2I& cell : m_excludedCells )
-            chain.Append( cell );
-        props.set( "excluded_cells", wxAny( chain ) );
+        for( const VECTOR2I& pos : m_excludedPositions )
+            chain.Append( pos );
+        props.set( "excluded_positions", wxAny( chain ) );
     }
 
     // Serialize the single zone outline as a SHAPE_LINE_CHAIN.
@@ -642,9 +653,17 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
     aProps.get_to( "guarded_net_name", m_lastGuardedNetName );
 
     m_excludedCells.clear();
-    if( auto chain = aProps.get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" ) )
+    m_excludedPositions.clear();
+
+
+    if( auto cells = aProps.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" ) )
+        m_excludedCells.insert( cells->begin(), cells->end() );
+
+    if( auto chain = aProps.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" ) )
+    {
         for( int i = 0; i < chain->PointCount(); ++i )
-            m_excludedCells.insert( chain->CPoint( i ) );
+            m_excludedPositions.insert( chain->CPoint( i ) );
+    }
 
     // Restore the single zone outline
     m_outline.RemoveAllContours();
@@ -736,7 +755,7 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
 
     // Poisson layout and GUARD mode both place at arbitrary positions, not a grid —
     // cell index == absolute position.
-    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON || m_mode == PCB_VIA_STITCH_MODE::GUARD )
+    if( !usesGridCells() )
         return aPos;
 
     int row = roundDiv( aPos.y - m_originOffset.y, pitch );
@@ -751,7 +770,7 @@ VECTOR2I PCB_VIA_STITCH::cellForPosition( const VECTOR2I& aPos ) const
 
 VECTOR2I PCB_VIA_STITCH::positionForCell( const VECTOR2I& aCell, int aPitch ) const
 {
-    if( m_layout == PCB_VIA_STITCH_LAYOUT::POISSON || m_mode == PCB_VIA_STITCH_MODE::GUARD )
+    if( !usesGridCells() )
         return aCell;
 
     int xShift = ( m_layout == PCB_VIA_STITCH_LAYOUT::STAGGERED && ( ( aCell.y % 2 + 2 ) % 2 != 0 ) )
@@ -1357,14 +1376,22 @@ void PCB_VIA_STITCH::ShowPropertiesDialog( PCB_BASE_EDIT_FRAME* aEditFrame )
 
 void PCB_VIA_STITCH::ExcludePosition( const VECTOR2I& aPos )
 {
-    m_excludedCells.insert( cellForPosition( aPos ) );
+    if( usesGridCells() )
+        m_excludedCells.insert( cellForPosition( aPos ) );
+    else
+        m_excludedPositions.insert( aPos );
+
     MarkDirty();
 }
 
 
 void PCB_VIA_STITCH::ClearExclusion( const VECTOR2I& aPos )
 {
-    m_excludedCells.erase( cellForPosition( aPos ) );
+    if( usesGridCells() )
+        m_excludedCells.erase( cellForPosition( aPos ) );
+    else
+        m_excludedPositions.erase( aPos );
+
     MarkDirty();
 }
 
@@ -1372,6 +1399,7 @@ void PCB_VIA_STITCH::ClearExclusion( const VECTOR2I& aPos )
 void PCB_VIA_STITCH::ClearAllExclusions()
 {
     m_excludedCells.clear();
+    m_excludedPositions.clear();
     MarkDirty();
 }
 

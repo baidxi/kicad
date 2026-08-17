@@ -2879,6 +2879,19 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GENERATOR* aGenerator ) const
             formatPolyPts( val );
             m_out->Print( ")" );
         }
+        else if( value.CheckType<std::vector<VECTOR2I>>() )
+        {
+            // Unitless integer pairs
+            std::vector<VECTOR2I> val;
+            value.GetAs( &val );
+
+            m_out->Print( "(%s (cells", key.c_str() );
+
+            for( const VECTOR2I& cell : val )
+                m_out->Print( "(ij %d %d)", cell.x, cell.y );
+
+            m_out->Print( "))" );
+        }
         else
         {
             wxString val;

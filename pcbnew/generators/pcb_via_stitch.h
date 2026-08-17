@@ -149,7 +149,7 @@ public:
     void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem ) override;
 
     /**
-     *  Remove a board position from exclusion list.
+     * Remove a board position from the exclusion list for the current layout/mode.
      */
     void ClearExclusion( const VECTOR2I& aPos );
 
@@ -163,8 +163,8 @@ public:
     /** Drop all manual exclusions. */
     void ClearAllExclusions();
 
-    /** @return true if there is at least one exclusion */
-    bool HasExclusions() const { return !m_excludedCells.empty(); }
+    /** @return true if there is at least one exclusion that ClearAllExclusions() would drop. */
+    bool HasExclusions() const { return !m_excludedCells.empty() || !m_excludedPositions.empty(); }
 
     const STRING_ANY_MAP GetProperties() const override;
     void SetProperties( const STRING_ANY_MAP& aProps ) override;
@@ -193,6 +193,16 @@ private:
     int defaultPitch( BOARD* aBoard ) const;      // grid pitch
     int defaultViaSize( BOARD* aBoard ) const;    // via diameter
     int defaultViaDrill( BOARD* aBoard ) const;   // drill diameter
+
+    /**
+     * @return true when the current layout/mode places vias on a regular grid, and so keys
+     *         exclusions by (col, row) cell index rather than by absolute board position.
+     *         POISSON and GUARD both place at arbitrary positions and return false.
+     */
+    bool usesGridCells() const
+    {
+        return m_layout != PCB_VIA_STITCH_LAYOUT::POISSON && m_mode != PCB_VIA_STITCH_MODE::GUARD;
+    }
 
     /// Convert an absolute board position to a (col, row) grid cell index.
     VECTOR2I cellForPosition( const VECTOR2I& aPos ) const;
@@ -245,10 +255,12 @@ private:
     wxString    m_lastGuardedNetName;
     mutable int m_guardedNetCode = 0;
 
-    // Grid cells (col, row) the user has explicitly excluded. Tracking by cell index instead
-    // of absolute position lets exclusions follow the grid as m_originOffset or the outline
-    // change.
+    // Grid cells (col, row) the user has explicitly excluded, used by the grid layouts
     std::set<VECTOR2I> m_excludedCells;
+
+    // Absolute board positions the user has explicitly excluded, used by POISSON layout and
+    // GUARD mode, where vias are not placed on a grid and so have no cell index to key on.
+    std::set<VECTOR2I> m_excludedPositions;
 
     // Offset of the placement grid relative to the global (0,0) anchor, in [0, pitch) on each
     // axis. Users can offset the grid by dragging a single stitched via

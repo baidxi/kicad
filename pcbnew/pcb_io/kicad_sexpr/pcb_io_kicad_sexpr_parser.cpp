@@ -8022,8 +8022,34 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseGENERATOR( BOARD_ITEM* aParent )
                     break;
                 }
 
+                case T_cells:
+                {
+                    std::vector<VECTOR2I> cells;
+
+                    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                    {
+                        if( token != T_LEFT )
+                            Expecting( T_LEFT );
+
+                        if( NextTok() != T_ij )
+                            Expecting( T_ij );
+
+                        VECTOR2I cell;
+
+                        cell.x = parseInt( "column index" );
+                        cell.y = parseInt( "row index" );
+
+                        NeedRIGHT();
+                        cells.push_back( cell );
+                    }
+
+                    NeedRIGHT();
+                    genInfo.properties.emplace( pName, wxAny( cells ) );
+                    break;
+                }
+
                 default:
-                    Expecting( "xy or pts" );
+                    Expecting( "xy, pts or cells" );
                 }
 
                 break;

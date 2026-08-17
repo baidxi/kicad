@@ -21,7 +21,11 @@
 #include <boost/test/unit_test.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <set>
+#include <string>
+#include <vector>
 
 #include <base_units.h>
 #include <board.h>
@@ -112,17 +116,15 @@ BOOST_AUTO_TEST_CASE( PropertiesRoundTrip )
 
     checkOutlinesEqual( a.Outline(), b.Outline() );
 
-    std::optional<SHAPE_LINE_CHAIN> aCells =
-            a.GetProperties().get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" );
-    std::optional<SHAPE_LINE_CHAIN> bCells =
-            b.GetProperties().get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" );
+    auto aCells = a.GetProperties().get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
+    auto bCells = b.GetProperties().get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
 
     BOOST_REQUIRE( aCells.has_value() );
     BOOST_REQUIRE( bCells.has_value() );
-    BOOST_REQUIRE_EQUAL( bCells->PointCount(), aCells->PointCount() );
+    BOOST_REQUIRE_EQUAL( bCells->size(), aCells->size() );
 
-    for( int i = 0; i < aCells->PointCount(); ++i )
-        BOOST_CHECK_EQUAL( bCells->CPoint( i ), aCells->CPoint( i ) );
+    for( size_t i = 0; i < aCells->size(); ++i )
+        BOOST_CHECK_EQUAL( ( *bCells )[i], ( *aCells )[i] );
 }
 
 
@@ -173,17 +175,116 @@ BOOST_AUTO_TEST_CASE( SexprSaveLoad )
 
     checkOutlinesEqual( stitch->Outline(), loaded->Outline() );
 
-    std::optional<SHAPE_LINE_CHAIN> savedCells =
-            stitch->GetProperties().get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" );
-    std::optional<SHAPE_LINE_CHAIN> loadedCells =
-            loaded->GetProperties().get_opt<SHAPE_LINE_CHAIN>( "excluded_cells" );
+    auto savedCells =
+            stitch->GetProperties().get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
+    auto loadedCells =
+            loaded->GetProperties().get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
 
     BOOST_REQUIRE( savedCells.has_value() );
     BOOST_REQUIRE( loadedCells.has_value() );
-    BOOST_REQUIRE_EQUAL( loadedCells->PointCount(), savedCells->PointCount() );
+    BOOST_REQUIRE_EQUAL( loadedCells->size(), savedCells->size() );
 
-    for( int i = 0; i < savedCells->PointCount(); ++i )
-        BOOST_CHECK_EQUAL( loadedCells->CPoint( i ), savedCells->CPoint( i ) );
+    // (6mm, 6mm) on a 2mm staggered grid is cell (3, 3).
+    BOOST_REQUIRE_EQUAL( savedCells->size(), 1 );
+    BOOST_CHECK_EQUAL( savedCells->front(), VECTOR2I( 3, 3 ) );
+    BOOST_CHECK_EQUAL( loadedCells->front(), VECTOR2I( 3, 3 ) );
+
+    std::ifstream in( path );
+    std::string   text( ( std::istreambuf_iterator<char>( in ) ),
+                        std::istreambuf_iterator<char>() );
+
+    BOOST_CHECK( text.find( "excluded_grid_cells" ) != std::string::npos );
+    BOOST_CHECK( text.find( "(ij 3 3)" ) != std::string::npos );
+}
+
+
+// Grid cells and absolute positions live in separate sets, so switching layout must not let
+// one be reinterpreted as the other.  Before the split, a PLAIN cell index like (3,5) became a
+// position 3nm from the board origin once the layout changed.
+BOOST_AUTO_TEST_CASE( ExclusionsAreScopedToTheirLayout )
+{
+    BOARD board;
+    board.Add( new NETINFO_ITEM( &board, wxT( "GND" ), 1 ) );
+
+    PCB_VIA_STITCH stitch;
+    stitch.SetParent( &board );
+    configureStitch( &stitch );
+    stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+
+    const VECTOR2I gridPos( pcbIUScale.mmToIU( 6 ), pcbIUScale.mmToIU( 6 ) );
+    stitch.ExcludePosition( gridPos );
+
+    STRING_ANY_MAP asGrid = stitch.GetProperties();
+    BOOST_CHECK( asGrid.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" ).has_value() );
+    BOOST_CHECK( !asGrid.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" ).has_value() );
+
+    // Switching to POISSON must not expose the grid cell as a position exclusion
+    stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::POISSON );
+
+    const VECTOR2I poissonPos( pcbIUScale.mmToIU( 9 ), pcbIUScale.mmToIU( 9 ) );
+    stitch.ExcludePosition( poissonPos );
+
+    STRING_ANY_MAP both = stitch.GetProperties();
+    auto gridCells = both.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
+    auto posChain = both.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" );
+
+    BOOST_REQUIRE( gridCells.has_value() );
+    BOOST_REQUIRE( posChain.has_value() );
+
+    // The two carriers are visibly different: the dormant grid entry is an index pair,
+    // the POISSON entry is the verbatim board position.
+    BOOST_REQUIRE_EQUAL( gridCells->size(), 1 );
+    BOOST_CHECK_EQUAL( gridCells->front(), VECTOR2I( 3, 3 ) );
+    BOOST_REQUIRE_EQUAL( posChain->PointCount(), 1 );
+    BOOST_CHECK_EQUAL( posChain->CPoint( 0 ), poissonPos );
+
+    // Round-tripping keeps the two apart
+    PCB_VIA_STITCH loaded;
+    loaded.SetParent( &board );
+    loaded.SetProperties( both );
+
+    STRING_ANY_MAP reserialized = loaded.GetProperties();
+    auto reGrid = reserialized.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
+    auto rePos = reserialized.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" );
+
+    BOOST_REQUIRE( reGrid.has_value() );
+    BOOST_REQUIRE( rePos.has_value() );
+    BOOST_CHECK_EQUAL( reGrid->front(), gridCells->front() );
+    BOOST_CHECK_EQUAL( rePos->CPoint( 0 ), poissonPos );
+
+    // Switching back restores the original grid exclusion rather than a mangled one
+    loaded.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+    loaded.ClearExclusion( gridPos );
+
+    BOOST_CHECK( !loaded.GetProperties()
+                          .get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" )
+                          .has_value() );
+}
+
+
+// Negative indices are ordinary: the grid is anchored to the board origin, so cells left of
+// or above it are addressed with negative col/row and must survive the format unchanged.
+BOOST_AUTO_TEST_CASE( NegativeGridCellsRoundTrip )
+{
+    BOARD board;
+    board.Add( new NETINFO_ITEM( &board, wxT( "GND" ), 1 ) );
+
+    PCB_VIA_STITCH stitch;
+    stitch.SetParent( &board );
+    configureStitch( &stitch );
+    stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+
+    stitch.ExcludePosition( VECTOR2I( pcbIUScale.mmToIU( -4 ), pcbIUScale.mmToIU( -6 ) ) );
+
+    PCB_VIA_STITCH loaded;
+    loaded.SetParent( &board );
+    loaded.SetProperties( stitch.GetProperties() );
+
+    auto cells = loaded.GetProperties().get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
+
+    BOOST_REQUIRE( cells.has_value() );
+    BOOST_REQUIRE_EQUAL( cells->size(), 1 );
+    BOOST_CHECK_EQUAL( cells->front(), VECTOR2I( -2, -3 ) );
 }
 
 
