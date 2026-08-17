@@ -5019,8 +5019,7 @@ void PCB_SELECTION_TOOL::FilterCollectorForHierarchy( GENERAL_COLLECTOR& aCollec
 
         if( !selectableParent )
         {
-            if( EDA_GROUP* top = PCB_GROUP::TopLevelGroup( start, m_enteredGroup,
-                                                           m_isFootprintEditor ) )
+            if( EDA_GROUP* top = PCB_GROUP::TopLevelGroup( start, m_enteredGroup, m_isFootprintEditor ) )
             {
                 if( top->AsEdaItem() != item )
                 {

@@ -631,7 +631,7 @@ SELECTION PCB_PROPERTIES_PANEL::filterOutReadOnlyGenChildren( const SELECTION& a
             EDA_GROUP* parent = static_cast<BOARD_ITEM*>( item )->GetParentGroup();
 
             if( parent && parent->AsEdaItem()->Type() == PCB_GENERATOR_T
-                    && static_cast<PCB_GENERATOR*>( parent->AsEdaItem() )->ChildrenAreReadOnly() )
+                && static_cast<PCB_GENERATOR*>( parent->AsEdaItem() )->ChildrenAreReadOnly() )
             {
                 continue;
             }
@@ -647,8 +647,8 @@ SELECTION PCB_PROPERTIES_PANEL::filterOutReadOnlyGenChildren( const SELECTION& a
 void PCB_PROPERTIES_PANEL::rebuildProperties( const SELECTION& aRawSelection )
 {
     // Strip read-only generator children (like stitch vias)
-    SELECTION         editableSelection = filterOutReadOnlyGenChildren( aRawSelection );
-    const SELECTION&  aSelection = editableSelection;
+    SELECTION        editableSelection = filterOutReadOnlyGenChildren( aRawSelection );
+    const SELECTION& aSelection = editableSelection;
 
     m_currentFieldNames.clear();
 
@@ -1176,8 +1176,7 @@ void PCB_PROPERTIES_PANEL::updateLists( const BOARD* aBoard )
     auto stitchNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ), _HKI( "Net" ) );
     stitchNet->SetChoices( nets );
 
-    auto stitchGuardedNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ),
-                                                   _HKI( "Guarded Net" ) );
+    auto stitchGuardedNet = m_propMgr.GetProperty( TYPE_HASH( PCB_VIA_STITCH ), _HKI( "Guarded Net" ) );
     stitchGuardedNet->SetChoices( nets );
 }
 

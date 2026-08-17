@@ -2192,27 +2192,26 @@ int EDIT_TOOL::Properties( const TOOL_EVENT& aEvent )
 
     // Detector to reject attempting to edit generated items that may be selectable
     // but we don't want to remain read-only to outside-the-generator editing
-    auto containsReadOnlyGenChild =
-            []( const SELECTION& aSel ) -> bool
-            {
-                for( EDA_ITEM* item : aSel )
-                {
-                    if( !item->IsBOARD_ITEM() )
-                        continue;
+    auto containsReadOnlyGenChild = []( const SELECTION& aSel ) -> bool
+    {
+        for( EDA_ITEM* item : aSel )
+        {
+            if( !item->IsBOARD_ITEM() )
+                continue;
 
-                    EDA_GROUP* parent = static_cast<BOARD_ITEM*>( item )->GetParentGroup();
+            EDA_GROUP* parent = static_cast<BOARD_ITEM*>( item )->GetParentGroup();
 
-                    if( !parent || parent->AsEdaItem()->Type() != PCB_GENERATOR_T )
-                        continue;
+            if( !parent || parent->AsEdaItem()->Type() != PCB_GENERATOR_T )
+                continue;
 
-                    PCB_GENERATOR* gen = static_cast<PCB_GENERATOR*>( parent->AsEdaItem() );
+            PCB_GENERATOR* gen = static_cast<PCB_GENERATOR*>( parent->AsEdaItem() );
 
-                    if( gen->ChildrenAreReadOnly() )
-                        return true;
-                }
+            if( gen->ChildrenAreReadOnly() )
+                return true;
+        }
 
-                return false;
-            };
+        return false;
+    };
 
     if( containsReadOnlyGenChild( selection ) )
     {

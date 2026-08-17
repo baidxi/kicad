@@ -3555,8 +3555,7 @@ bool DRAWING_TOOL::getSourceZoneForAction( ZONE_MODE aMode, ZONE** aZone )
     *aZone = nullptr;
 
     // not an action that needs a source zone
-    if( aMode == ZONE_MODE::ADD || aMode == ZONE_MODE::GRAPHIC_POLYGON
-        || aMode == ZONE_MODE::STITCH )
+    if( aMode == ZONE_MODE::ADD || aMode == ZONE_MODE::GRAPHIC_POLYGON || aMode == ZONE_MODE::STITCH )
         return true;
 
     PCB_SELECTION_TOOL*  selTool = m_toolMgr->GetTool<PCB_SELECTION_TOOL>();

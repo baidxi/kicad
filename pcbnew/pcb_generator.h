@@ -89,10 +89,7 @@ public:
      *
      * @return non-owning pointers to the template items; empty by default.
      */
-    virtual std::vector<std::pair<wxString, const BOARD_ITEM*>> GetTemplateItems() const
-    {
-        return {};
-    }
+    virtual std::vector<std::pair<wxString, const BOARD_ITEM*>> GetTemplateItems() const { return {}; }
 
     /**
      * Insert a template item (from board file loading)
@@ -100,9 +97,7 @@ public:
      * @param aName Template name
      * @param aItem The parsed item
      */
-    virtual void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem )
-    {
-    }
+    virtual void SetTemplateItem( const wxString& aName, std::unique_ptr<BOARD_ITEM> aItem ) {}
 
 #define STATUS_ITEMS_ONLY true
 
@@ -172,15 +167,12 @@ public:
     /**
      * Callback to be informed zones have changed
      */
-    virtual void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) { }
+    virtual void OnZoneFillChanged( const std::vector<ZONE*>& aZones ) {}
 
     /**
      * Zones that need to be refilled after the generator runs Update()
      */
-    virtual std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const
-    {
-        return {};
-    }
+    virtual std::vector<ZONE*> GetZonesNeedingRefillAfterUpdate() const { return {}; }
 
 protected:
     wxString m_generatorType;

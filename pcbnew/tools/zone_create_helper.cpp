@@ -110,7 +110,7 @@ std::unique_ptr<ZONE> ZONE_CREATE_HELPER::createNewZone( bool aKeepout )
     }
 
     if( m_params.m_mode != ZONE_MODE::GRAPHIC_POLYGON && m_params.m_mode != ZONE_MODE::STITCH
-            && ( zoneInfo.m_Layers & LSET::AllCuMask() ).any() )
+        && ( zoneInfo.m_Layers & LSET::AllCuMask() ).any() )
     {
         setUniquePriority( zoneInfo );
     }
@@ -269,8 +269,7 @@ void ZONE_CREATE_HELPER::commitZone( std::unique_ptr<ZONE> aZone )
 
             // Pop the properties dialog up-front so the user picks net / pitch / pattern
             // before any vias materialize.  Cancel discards the whole creation.
-            PCB_BASE_EDIT_FRAME* editFrame =
-                    dynamic_cast<PCB_BASE_EDIT_FRAME*>( m_tool.GetManager()->GetToolHolder() );
+            PCB_BASE_EDIT_FRAME* editFrame = dynamic_cast<PCB_BASE_EDIT_FRAME*>( m_tool.GetManager()->GetToolHolder() );
 
             if( editFrame )
             {
