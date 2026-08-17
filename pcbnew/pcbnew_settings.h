@@ -194,6 +194,13 @@ public:
         bool                 m_Live3DRefresh;
 
         bool m_ShowConstraints; ///< Keep the geometric-constraint overlay shown.
+
+        double              m_TrackOpacity;
+        double              m_ViaOpacity;
+        double              m_PadOpacity;
+        double              m_ZoneOpacity;
+        double              m_ImageOpacity;     
+        double              m_FilledShapeOpacity;
     };
 
     struct DIFF_PHASE_SKEW_SETTINGS

@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a-dirty)
+// C++ code generated with wxFormBuilder (version 4.2.1-115-g11c2dec8)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -23,6 +23,7 @@
 #include <wx/choice.h>
 #include <wx/gbsizer.h>
 #include <wx/panel.h>
+#include <wx/textctrl.h>
 #include <wx/simplebook.h>
 
 ///////////////////////////////////////////////////////////////////////////
@@ -56,11 +57,31 @@ class PANEL_DISPLAY_OPTIONS_BASE : public RESETTABLE_PANEL
 		wxStaticText* m_crossProbingLabel;
 		wxStaticLine* m_staticline3;
 		wxCheckBox* m_checkCrossProbeOnSelection;
-		wxCheckBox* m_checkCrossProbeCenter;
 		wxCheckBox* m_checkCrossProbeZoom;
+		wxCheckBox* m_checkCrossProbeCenter;
 		wxCheckBox* m_checkCrossProbeAutoHighlight;
 		wxCheckBox* m_checkCrossProbeFlash;
 		wxCheckBox* m_live3Drefresh;
+		wxStaticText* m_defaultOpacityLabel;
+		wxStaticLine* m_staticline6;
+		wxStaticText* m_trackOpacityLabel;
+		wxTextCtrl* m_OptTrackOpacity;
+		wxStaticText* m_opacityUnit;
+		wxStaticText* m_viaOpacityLabel;
+		wxTextCtrl* m_OptViaOpacity;
+		wxStaticText* m_opacityUnit1;
+		wxStaticText* m_padOpacityLabel;
+		wxTextCtrl* m_OptPadOpacity;
+		wxStaticText* m_opacityUnit2;
+		wxStaticText* m_zoneOpacityLabel;
+		wxTextCtrl* m_OptZoneOpacity;
+		wxStaticText* m_opacityUnit3;
+		wxStaticText* m_imageOpacityLabel;
+		wxTextCtrl* m_OptImageOpacity;
+		wxStaticText* m_opacityUnit4;
+		wxStaticText* m_filledShapesOpacityLabel;
+		wxTextCtrl* m_OptFilledShapeOpacity;
+		wxStaticText* m_opacityUnit5;
 
 	public:
 

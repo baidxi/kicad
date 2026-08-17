@@ -289,6 +289,24 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS() :
     m_params.emplace_back( new PARAM<bool>( "pcb_display.live_3d_refresh",
             &m_Display.m_Live3DRefresh, false ) );
 
+    m_params.emplace_back( new PARAM<double>( "pcb_display.track_opacity",
+            &m_Display.m_TrackOpacity, 1.0 ) );  
+
+    m_params.emplace_back( new PARAM<double>( "pcb_display.via_opacity",
+            &m_Display.m_ViaOpacity, 1.0 ) );  
+
+    m_params.emplace_back( new PARAM<double>( "pcb_display.pad_opacity",
+            &m_Display.m_PadOpacity, 1.0 ) );  
+
+    m_params.emplace_back( new PARAM<double>( "pcb_display.zone_opacity",
+            &m_Display.m_ZoneOpacity, 1.0 ) );   
+
+    m_params.emplace_back( new PARAM<double>( "pcb_display.image_opacity",
+            &m_Display.m_ImageOpacity, 1.0 ) );  
+
+    m_params.emplace_back( new PARAM<double>( "pcb_display.filled_shape_opacity",
+            &m_Display.m_FilledShapeOpacity, 1.0 ) );   
+
     m_params.emplace_back( new PARAM<bool>( "pcb_display.show_page_borders",
             &m_ShowPageLimits, true ) );
 
