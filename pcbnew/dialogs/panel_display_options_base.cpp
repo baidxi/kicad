@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a-dirty)
+// C++ code generated with wxFormBuilder (version 4.2.1-115-g11c2dec8)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -171,15 +171,15 @@ PANEL_DISPLAY_OPTIONS_BASE::PANEL_DISPLAY_OPTIONS_BASE( wxWindow* parent, wxWind
 
 	bSizer8->Add( m_checkCrossProbeOnSelection, 0, wxALL, 5 );
 
+	m_checkCrossProbeZoom = new wxCheckBox( pcbPage, wxID_ANY, _("Zoom to fit cross-probed items"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_checkCrossProbeZoom->SetValue(true);
+	bSizer8->Add( m_checkCrossProbeZoom, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
+
 	m_checkCrossProbeCenter = new wxCheckBox( pcbPage, wxID_ANY, _("Center view on cross-probed items"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_checkCrossProbeCenter->SetValue(true);
 	m_checkCrossProbeCenter->SetToolTip( _("Ensures that cross-probed footprints are visible in the current view") );
 
 	bSizer8->Add( m_checkCrossProbeCenter, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
-
-	m_checkCrossProbeZoom = new wxCheckBox( pcbPage, wxID_ANY, _("Zoom to fit cross-probed items"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_checkCrossProbeZoom->SetValue(true);
-	bSizer8->Add( m_checkCrossProbeZoom, 0, wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
 	m_checkCrossProbeAutoHighlight = new wxCheckBox( pcbPage, wxID_ANY, _("Highlight cross-probed nets"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_checkCrossProbeAutoHighlight->SetValue(true);
@@ -202,7 +202,91 @@ PANEL_DISPLAY_OPTIONS_BASE::PANEL_DISPLAY_OPTIONS_BASE( wxWindow* parent, wxWind
 	bMargins->Add( bSizer8, 0, wxEXPAND|wxRIGHT|wxLEFT, 5 );
 
 
-	bMargins->Add( 0, 8, 1, wxEXPAND, 5 );
+	bMargins->Add( 0, 8, 0, 0, 5 );
+
+	m_defaultOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Default Opacity"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_defaultOpacityLabel->Wrap( -1 );
+	bMargins->Add( m_defaultOpacityLabel, 0, wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 13 );
+
+	m_staticline6 = new wxStaticLine( pcbPage, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+	bMargins->Add( m_staticline6, 0, wxBOTTOM|wxEXPAND|wxTOP, 5 );
+
+	wxFlexGridSizer* fgSizer1;
+	fgSizer1 = new wxFlexGridSizer( 0, 3, 0, 0 );
+	fgSizer1->SetFlexibleDirection( wxBOTH );
+	fgSizer1->SetNonFlexibleGrowMode( wxFLEX_GROWMODE_SPECIFIED );
+
+	m_trackOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Tracks:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_trackOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_trackOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptTrackOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptTrackOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_viaOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Vias:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_viaOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_viaOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptViaOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptViaOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit1 = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit1->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit1, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_padOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Pads:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_padOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_padOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptPadOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptPadOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit2 = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit2->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit2, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_zoneOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Zones:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_zoneOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_zoneOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptZoneOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptZoneOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit3 = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit3->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit3, 0, wxALIGN_CENTER, 5 );
+
+	m_imageOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Images:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_imageOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_imageOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptImageOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptImageOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit4 = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit4->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit4, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_filledShapesOpacityLabel = new wxStaticText( pcbPage, wxID_ANY, _("Shapes:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_filledShapesOpacityLabel->Wrap( -1 );
+	fgSizer1->Add( m_filledShapesOpacityLabel, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
+
+	m_OptFilledShapeOpacity = new wxTextCtrl( pcbPage, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	fgSizer1->Add( m_OptFilledShapeOpacity, 0, wxALL, 5 );
+
+	m_opacityUnit5 = new wxStaticText( pcbPage, wxID_ANY, _("%"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_opacityUnit5->Wrap( -1 );
+	fgSizer1->Add( m_opacityUnit5, 0, wxALIGN_CENTER|wxALL, 5 );
+
+
+	bMargins->Add( fgSizer1, 1, wxEXPAND, 5 );
+
+
+	bMargins->Add( 0, 0, 1, wxEXPAND, 5 );
 
 
 	pcbOptionsSizer->Add( bMargins, 0, wxEXPAND, 5 );

@@ -68,6 +68,19 @@ void PANEL_DISPLAY_OPTIONS::loadPCBSettings( PCBNEW_SETTINGS* aCfg )
     m_checkCrossProbeZoom->SetValue( aCfg->m_CrossProbing.zoom_to_fit );
     m_checkCrossProbeAutoHighlight->SetValue( aCfg->m_CrossProbing.auto_highlight );
     m_checkCrossProbeFlash->SetValue( aCfg->m_CrossProbing.flash_selection );
+
+    double trackOpacityPercent = aCfg->m_Display.m_TrackOpacity * 100.0;
+    m_OptTrackOpacity->SetValue( wxString::Format( "%.0f", trackOpacityPercent ) );
+    double viaOpacityPercent = aCfg->m_Display.m_ViaOpacity * 100.0;
+    m_OptViaOpacity->SetValue( wxString::Format( "%.0f", viaOpacityPercent ) ); 
+    double padOpacityPercent = aCfg->m_Display.m_PadOpacity * 100.0;
+    m_OptPadOpacity->SetValue( wxString::Format( "%.0f", padOpacityPercent ) );
+    double zoneOpacityPercent = aCfg->m_Display.m_ZoneOpacity * 100.0;
+    m_OptZoneOpacity->SetValue( wxString::Format( "%.0f", zoneOpacityPercent ) );
+    double imageOpacityPercent = aCfg->m_Display.m_ImageOpacity * 100.0;
+    m_OptImageOpacity->SetValue( wxString::Format( "%.0f", imageOpacityPercent ) );
+    double filledShapeOpacityPercent = aCfg->m_Display.m_FilledShapeOpacity * 100.0;
+    m_OptFilledShapeOpacity->SetValue( wxString::Format( "%.0f", filledShapeOpacityPercent ) );
 }
 
 
@@ -107,6 +120,26 @@ bool PANEL_DISPLAY_OPTIONS::TransferDataFromWindow()
             cfg->m_CrossProbing.zoom_to_fit = m_checkCrossProbeZoom->GetValue();
             cfg->m_CrossProbing.auto_highlight = m_checkCrossProbeAutoHighlight->GetValue();
             cfg->m_CrossProbing.flash_selection = m_checkCrossProbeFlash->GetValue();
+
+            double trackOpacityPercent = cfg->m_Display.m_TrackOpacity * 100.0;
+            m_OptTrackOpacity->GetValue().ToDouble( &trackOpacityPercent );
+            double viaOpacityPercent = cfg->m_Display.m_ViaOpacity * 100.0;
+            m_OptViaOpacity->GetValue().ToDouble( &viaOpacityPercent );
+            double padOpacityPercent = cfg->m_Display.m_PadOpacity * 100.0;
+            m_OptPadOpacity->GetValue().ToDouble( &padOpacityPercent );
+            double zoneOpacityPercent = cfg->m_Display.m_ZoneOpacity * 100.0;
+            m_OptZoneOpacity->GetValue().ToDouble( &zoneOpacityPercent );
+            double imageOpacityPercent = cfg->m_Display.m_ImageOpacity * 100.0;
+            m_OptImageOpacity->GetValue().ToDouble( &imageOpacityPercent );
+            double filledShapeOpacityPercent = cfg->m_Display.m_FilledShapeOpacity * 100.0;
+            m_OptFilledShapeOpacity->GetValue().ToDouble( &filledShapeOpacityPercent ); 
+            
+            cfg->m_Display.m_TrackOpacity       = trackOpacityPercent / 100.0;
+            cfg->m_Display.m_ViaOpacity         = viaOpacityPercent / 100.0;
+            cfg->m_Display.m_PadOpacity         = padOpacityPercent / 100.0;
+            cfg->m_Display.m_ZoneOpacity        = zoneOpacityPercent / 100.0;
+            cfg->m_Display.m_ImageOpacity       = imageOpacityPercent / 100.0;
+            cfg->m_Display.m_FilledShapeOpacity = filledShapeOpacityPercent / 100.0;
         }
     }
 
