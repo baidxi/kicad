@@ -196,6 +196,9 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter ) const
 
     KICAD_FORMAT::FormatBool( aFormatter, getTokenName( T_plot_black_and_white ), m_blackAndWhite );
 
+    KICAD_FORMAT::FormatBool( aFormatter, "plotreference", m_plotReference );
+    KICAD_FORMAT::FormatBool( aFormatter, "plotvalue", m_plotValue );
+    KICAD_FORMAT::FormatBool( aFormatter, "plotfptext", m_plotFPText );
     KICAD_FORMAT::FormatBool( aFormatter, "sketchpadsonfab", m_sketchPadsOnFabLayers );
     KICAD_FORMAT::FormatBool( aFormatter, "plotpadnumbers", m_plotPadNumbers );
     KICAD_FORMAT::FormatBool( aFormatter, "hidednponfab", m_hideDNPFPsOnFabLayers );
@@ -775,6 +778,18 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
 
         case T_plotinvisibletext:   // legacy token; no longer supported
             parseBool();
+            break;
+
+        case T_plotreference:
+            aPcbPlotParams->m_plotReference = parseBool();
+            break;
+
+        case T_plotfptext:
+            aPcbPlotParams->m_plotFPText = parseBool();
+            break;
+
+        case T_plotvalue:
+            aPcbPlotParams->m_plotValue = parseBool();
             break;
 
         case T_sketchpadsonfab:

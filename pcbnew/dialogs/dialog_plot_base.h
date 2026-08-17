@@ -67,6 +67,9 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		wxCheckListBox* m_layerCheckListBox;
 		wxBoxSizer* m_PlotOptionsSizer;
 		wxCheckBox* m_plotSheetRef;
+        wxCheckBox* m_plotFootprintValues;
+        wxCheckBox* m_plotFootprintRefs;
+        wxCheckBox* m_plotFootprintText;
 		wxCheckBox* m_subtractMaskFromSilk;
 		wxCheckBox* m_plotDNP;
 		wxRadioButton* m_hideDNP;
@@ -143,6 +146,9 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		virtual void onOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onOpenOutputDirectory( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onDNPCheckbox( wxCommandEvent& event ) { event.Skip(); }
+        virtual void onPlotFPValues( wxCommandEvent& event ) { event.Skip(); }
+        virtual void onPlotFPRefs( wxCommandEvent& event ) { event.Skip(); }
+        virtual void onPlotFPText( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onSketchPads( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onBoardSetup( wxHyperlinkEvent& event ) { event.Skip(); }
 		virtual void OnGerberX2Checked( wxCommandEvent& event ) { event.Skip(); }

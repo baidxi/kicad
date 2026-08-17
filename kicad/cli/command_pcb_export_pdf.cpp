@@ -37,19 +37,13 @@ CLI::PCB_EXPORT_PDF_COMMAND::PCB_EXPORT_PDF_COMMAND() :
 
     addLayerArg();
     addCommonLayersArg();
+    addReadabilityArgs();
+    addDNPArgs();
     addDrawingSheetArg();
     addDefineArg();
 
     m_argParser.add_argument( "-m", ARG_MIRROR )
             .help( UTF8STDSTR( _( "Mirror the board (useful for trying to show bottom layers)" ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
-            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
-            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
             .flag();
 
     m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
@@ -58,26 +52,6 @@ CLI::PCB_EXPORT_PDF_COMMAND::PCB_EXPORT_PDF_COMMAND() :
 
     m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
             .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--spn", ARG_SKETCH_PAD_NUMBERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PAD_NUMBERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_NEGATIVE_SHORT, ARG_NEGATIVE )
@@ -154,8 +128,16 @@ int CLI::PCB_EXPORT_PDF_COMMAND::doPerform( KIWAY& aKiway )
         return EXIT_CODES::ERR_INVALID_INPUT_FILE;
     }
 
+    // Readability
+    pdfJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+    pdfJob->m_plotPadNumbers = pdfJob->m_sketchPadsOnFabLayers && m_argParser.get<bool>( ARG_SKETCH_PAD_NUMBERS );
     pdfJob->m_plotFootprintValues = !m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
     pdfJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
+
+    // DNP presentation
+    pdfJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+    pdfJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+    pdfJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
 
     pdfJob->m_plotDrawingSheet = m_argParser.get<bool>( ARG_INCLUDE_BORDER_TITLE );
     pdfJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
@@ -172,12 +154,6 @@ int CLI::PCB_EXPORT_PDF_COMMAND::doPerform( KIWAY& aKiway )
         pdfJob->m_pdfFrontFPPropertyPopups = false;
         pdfJob->m_pdfBackFPPropertyPopups = false;
     }
-
-    pdfJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
-    pdfJob->m_plotPadNumbers = pdfJob->m_sketchPadsOnFabLayers && m_argParser.get<bool>( ARG_SKETCH_PAD_NUMBERS );
-    pdfJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
-    pdfJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
-    pdfJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
 
     wxString bgColor = From_UTF8( m_argParser.get<std::string>( ARG_BACKGROUND_COLOR ).c_str() );
     if( bgColor != wxEmptyString )
