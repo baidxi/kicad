@@ -262,6 +262,18 @@ private:
     // GUARD mode, where vias are not placed on a grid and so have no cell index to key on.
     std::set<VECTOR2I> m_excludedPositions;
 
+    // The grid configuration that produced the currently attached child vias.
+    struct GRID_CONFIG
+    {
+        PCB_VIA_STITCH_LAYOUT layout = PCB_VIA_STITCH_LAYOUT::PLAIN;
+        PCB_VIA_STITCH_MODE   mode   = PCB_VIA_STITCH_MODE::STITCH;
+        int                   pitch  = 0;
+
+        bool operator==( const GRID_CONFIG& aOther ) const = default;
+    };
+
+    GRID_CONFIG m_childGridConfig;
+
     // Offset of the placement grid relative to the global (0,0) anchor, in [0, pitch) on each
     // axis. Users can offset the grid by dragging a single stitched via
     VECTOR2I m_originOffset{ 0, 0 };

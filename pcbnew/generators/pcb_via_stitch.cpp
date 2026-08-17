@@ -98,6 +98,7 @@ PCB_VIA_STITCH::PCB_VIA_STITCH( const PCB_VIA_STITCH& aOther ) :
         m_guardedNetCode( aOther.m_guardedNetCode ),
         m_excludedCells( aOther.m_excludedCells ),
         m_excludedPositions( aOther.m_excludedPositions ),
+        m_childGridConfig( aOther.m_childGridConfig ),
         m_originOffset( aOther.m_originOffset )
 {
     // m_childContextMenu is intentionally not copied
@@ -122,6 +123,7 @@ PCB_VIA_STITCH& PCB_VIA_STITCH::operator=( const PCB_VIA_STITCH& aOther )
         m_guardedNetCode = aOther.m_guardedNetCode;
         m_excludedCells = aOther.m_excludedCells;
         m_excludedPositions = aOther.m_excludedPositions;
+        m_childGridConfig = aOther.m_childGridConfig;
         m_originOffset = aOther.m_originOffset;
         // m_childContextMenu is intentionally not copied.
         m_childContextMenu.reset();
@@ -273,7 +275,11 @@ void PCB_VIA_STITCH::InitializeDefaults( BOARD* aBoard )
         m_viaTemplate->SetDrill( defaultViaDrill( aBoard ) );
 
     if( m_pitch <= 0 )
+    {
         m_pitch = defaultPitch( aBoard );
+
+        m_childGridConfig.pitch = m_pitch;
+    }
 }
 
 
@@ -366,8 +372,14 @@ bool PCB_VIA_STITCH::Update( GENERATOR_TOOL* aTool, BOARD* aBoard, BOARD_COMMIT*
 
     int detectPitch = m_pitch > 0 ? m_pitch : defaultPitch( aBoard );
 
+    // Avoid accidentally calculating a grid offset change because we just changed layout modes
+    const GRID_CONFIG currentConfig{ m_layout, m_mode, detectPitch };
+    const bool        childrenAreOnThisGrid = m_childGridConfig == currentConfig;
+
+    m_childGridConfig = currentConfig;
+
     // Try to detect origin offset change due to moved via
-    if( m_layout != PCB_VIA_STITCH_LAYOUT::POISSON && m_mode != PCB_VIA_STITCH_MODE::GUARD )
+    if( usesGridCells() && childrenAreOnThisGrid )
     {
         for( BOARD_ITEM* it : GetBoardItems() )
         {
@@ -647,6 +659,8 @@ void PCB_VIA_STITCH::SetProperties( const STRING_ANY_MAP& aProps )
 
     aProps.get_to_iu( "origin_offset_x", m_originOffset.x );
     aProps.get_to_iu( "origin_offset_y", m_originOffset.y );
+
+    m_childGridConfig = GRID_CONFIG{ m_layout, m_mode, m_pitch };
 
     // Restore net name; net code is resolved from the board in EditStart()/Update()
     aProps.get_to( "net_name", m_lastNetName );

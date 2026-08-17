@@ -348,11 +348,89 @@ struct STITCH_UPDATE_FIXTURE
         return ids;
     }
 
+    std::set<VECTOR2I> childViaPositions() const
+    {
+        std::set<VECTOR2I> positions;
+
+        for( BOARD_ITEM* item : m_stitch->GetBoardItems() )
+        {
+            if( item->Type() == PCB_VIA_T )
+                positions.insert( item->GetPosition() );
+        }
+
+        return positions;
+    }
+
     std::unique_ptr<BOARD>  m_board;
     PCB_VIA_STITCH*         m_stitch = nullptr;
     TOOL_MANAGER            m_toolMgr;
     KI_TEST::DUMMY_TOOL*    m_dummyTool = nullptr;
 };
+
+
+// Round-tripping the layout through POISSON and back must land the grid exactly where it
+// started.  The origin re-anchoring heuristic in Update() treats any child via that isn't on
+// the grid as a user-dragged via defining a new origin — and after a POISSON pass every child
+// is off-grid, so it would silently re-anchor the whole grid to an arbitrary Poisson via.
+BOOST_FIXTURE_TEST_CASE( LayoutRoundTripKeepsGridAnchored, STITCH_UPDATE_FIXTURE )
+{
+    regenerate();
+
+    std::set<VECTOR2I> before = childViaPositions();
+    BOOST_REQUIRE_GT( before.size(), 10 );
+
+    const VECTOR2I victim = *before.begin();
+
+    m_stitch->ExcludePosition( victim );
+    regenerate();
+
+    std::set<VECTOR2I> excluded = childViaPositions();
+    BOOST_REQUIRE_EQUAL( excluded.size(), before.size() - 1 );
+    BOOST_REQUIRE_EQUAL( excluded.count( victim ), 0 );
+
+    // Out to POISSON and back
+    m_stitch->SetLayout( PCB_VIA_STITCH_LAYOUT::POISSON );
+    regenerate();
+
+    m_stitch->SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+    regenerate();
+
+    std::set<VECTOR2I> after = childViaPositions();
+
+    // Same grid, same hole where the exclusion is
+    BOOST_CHECK_EQUAL( after.count( victim ), 0 );
+    BOOST_CHECK_EQUAL( after.size(), excluded.size() );
+
+    for( const VECTOR2I& pos : excluded )
+        BOOST_CHECK_EQUAL( after.count( pos ), 1 );
+}
+
+
+// Same root cause as the layout round trip: after a pitch change every existing via is off the
+// new grid, and the re-anchoring heuristic would treat the first one as a deliberate drag.
+// Changing the pitch must keep the grid anchored where it was.
+BOOST_FIXTURE_TEST_CASE( PitchChangeKeepsGridAnchored, STITCH_UPDATE_FIXTURE )
+{
+    regenerate();
+    BOOST_REQUIRE_GT( childViaPositions().size(), 10 );
+
+    // Out to a different pitch and back
+    m_stitch->SetPitch( pcbIUScale.mmToIU( 3 ) );
+    regenerate();
+
+    std::set<VECTOR2I> coarse = childViaPositions();
+    BOOST_REQUIRE( !coarse.empty() );
+
+    m_stitch->SetPitch( pcbIUScale.mmToIU( 2 ) );
+    regenerate();
+
+    // Every via must sit on the original 2mm lattice, i.e. at an exact multiple of the pitch
+    for( const VECTOR2I& pos : childViaPositions() )
+    {
+        BOOST_CHECK_EQUAL( pos.x % pcbIUScale.mmToIU( 2 ), 0 );
+        BOOST_CHECK_EQUAL( pos.y % pcbIUScale.mmToIU( 2 ), 0 );
+    }
+}
 
 
 BOOST_FIXTURE_TEST_CASE( UpdateDeltaStability, STITCH_UPDATE_FIXTURE )
