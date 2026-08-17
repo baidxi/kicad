@@ -34,6 +34,10 @@
 #include <pad.h>
 #include <pcb_shape.h>
 
+#include <map>
+#include <memory>
+#include <vector>
+
 
 struct EASYEDAPRO_IMPORT_FIXTURE
 {
@@ -98,6 +102,65 @@ BOOST_AUTO_TEST_CASE( ParsePolyDegenerateClosedPathSkipped )
     std::vector<std::unique_ptr<PCB_SHAPE>> shapes;
     BOOST_CHECK_NO_THROW( shapes = parser.ParsePoly( &board, polyData, true, false ) );
     BOOST_CHECK( shapes.empty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( FootprintCanvasOriginNormalizesPadPosition )
+{
+    BOARD                       board;
+    PCB_IO_EASYEDAPRO_PARSER    parser( &board, nullptr );
+    std::vector<nlohmann::json> footprintLines = {
+        { "CANVAS", 100, 200 }, { "PAD", "pad1", 0, "", 1, "1", 100, 200, 0, nullptr, { "RECT", 10, 10, 0 } }
+    };
+    std::unique_ptr<FOOTPRINT> footprint( parser.ParseFootprint( {}, wxEmptyString, footprintLines ) );
+
+    BOOST_REQUIRE( footprint );
+
+    PAD* pad = footprint->FindPadByNumber( wxS( "1" ) );
+    BOOST_REQUIRE( pad );
+
+    const VECTOR2I localPosition = pad->GetFPRelativePosition();
+    BOOST_CHECK_EQUAL( localPosition.x, 0 );
+    BOOST_CHECK_EQUAL( localPosition.y, 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
+{
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+
+    auto footprint = std::make_unique<FOOTPRINT>( &board );
+
+    for( int i = 0; i < 2; ++i )
+    {
+        auto pad = std::make_unique<PAD>( footprint.get() );
+        pad->SetNumber( wxS( "1" ) );
+        footprint->Add( pad.release(), ADD_MODE::APPEND );
+    }
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprintMap;
+    footprintMap[wxS( "fp1" )] = std::move( footprint );
+
+    nlohmann::json project = { { "devices", { { "device1", { { "attributes", { { "Footprint", "fp1" } } } } } } } };
+    std::vector<nlohmann::json> boardLines = { { "COMPONENT", "component1", 0, 1, 0, 0, 0, nlohmann::json::object() },
+                                               { "ATTR", "attr1", 0, "component1", 3, nullptr, nullptr, "Device",
+                                                  "device1", 0, 0, "default", 0, 0, 0, 0, 0, 0, 0, 0 },
+                                               { "PAD_NET", "component1", "1", "GND" } };
+
+    parser.ParseBoard( &board, project, footprintMap, {}, {}, boardLines, wxS( "lib" ) );
+
+    BOOST_REQUIRE_EQUAL( board.Footprints().size(), 1 );
+
+    int padsWithNet = 0;
+
+    for( PAD* pad : board.Footprints().front()->Pads() )
+    {
+        if( pad->GetNumber() == wxS( "1" ) && pad->GetNetname() == wxS( "GND" ) )
+            padsWithNet++;
+    }
+
+    BOOST_CHECK_EQUAL( padsWithNet, 2 );
 }
 
 

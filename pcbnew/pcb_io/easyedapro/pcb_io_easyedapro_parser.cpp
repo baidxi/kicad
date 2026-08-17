@@ -768,6 +768,7 @@ std::unique_ptr<FOOTPRINT> PCB_IO_EASYEDAPRO_PARSER::ParseFootprint( const nlohm
 
     const VECTOR2I defaultTextSize( pcbIUScale.mmToIU( 1.0 ), pcbIUScale.mmToIU( 1.0 ) );
     const int      defaultTextThickness( pcbIUScale.mmToIU( 0.15 ) );
+    VECTOR2I       canvasOrigin( 0, 0 );
 
     for( PCB_FIELD* field : footprint->GetFields() )
     {
@@ -782,8 +783,14 @@ std::unique_ptr<FOOTPRINT> PCB_IO_EASYEDAPRO_PARSER::ParseFootprint( const nlohm
 
         wxString type = line.at( 0 );
 
-        if( type == wxS( "POLY" ) || type == wxS( "PAD" ) || type == wxS( "FILL" )
-            || type == wxS( "ATTR" ) )
+        if( type == wxS( "CANVAS" ) )
+        {
+            if( line.size() > 2 && line.at( 1 ).is_number() && line.at( 2 ).is_number() )
+            {
+                canvasOrigin = ScalePos( VECTOR2D( line.at( 1 ), line.at( 2 ) ) );
+            }
+        }
+        else if( type == wxS( "POLY" ) || type == wxS( "PAD" ) || type == wxS( "FILL" ) || type == wxS( "ATTR" ) )
         {
             wxString uuid = line.at( 1 );
 
@@ -1010,6 +1017,8 @@ std::unique_ptr<FOOTPRINT> PCB_IO_EASYEDAPRO_PARSER::ParseFootprint( const nlohm
 
         footprint->Add( refText.release(), ADD_MODE::APPEND );
     }
+
+    footprint->MoveAnchorPosition( -canvasOrigin );
 
     return footprintPtr;
 }
@@ -1821,14 +1830,10 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                 wxString padNumber = line.at( 2 );
                 wxString padNet = line.at( 3 );
 
-                PAD* pad = footprint->FindPadByNumber( padNumber );
-                if( pad )
+                for( PAD* pad : footprint->Pads() )
                 {
-                    pad->SetNet( getNet( aBoard, padNet ) );
-                }
-                else
-                {
-                    // Not a pad
+                    if( pad->GetNumber() == padNumber )
+                        pad->SetNet( getNet( aBoard, padNet ) );
                 }
             }
         }
