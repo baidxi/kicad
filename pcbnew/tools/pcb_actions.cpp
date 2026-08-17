@@ -3137,6 +3137,13 @@ TOOL_ACTION PCB_ACTIONS::excludeStitchVia( TOOL_ACTION_ARGS()
         .Tooltip( _( "Remove the selected via from its via-stitch generator and prevent "
                      "it from being regenerated" ) ) );
 
+TOOL_ACTION PCB_ACTIONS::clearStitchViaExclusions( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.Generator.clearStitchViaExclusions" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Clear Via Stitching Exclusions" ) )
+        .Tooltip( _( "Restore all vias previously excluded from the selected via-stitch "
+                     "generators" ) ) );
+
 
 // LENGTH_TUNER_TOOL
 //

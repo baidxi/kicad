@@ -304,6 +304,9 @@ public:
     /// Exclude selected stitching vias from their parent via-stitch generator.
     static TOOL_ACTION excludeStitchVia;
 
+    /// Restore every manually-excluded via in the selected via-stitch generators.
+    static TOOL_ACTION clearStitchViaExclusions;
+
     // Point Editor
     static TOOL_ACTION pointEditorAddCorner;
     static TOOL_ACTION pointEditorRemoveCorner;

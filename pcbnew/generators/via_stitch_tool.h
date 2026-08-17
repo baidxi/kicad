@@ -31,7 +31,10 @@ public:
     VIA_STITCH_TOOL() : PCB_TOOL_BASE( "pcbnew.ViaStitch" ) {}
     ~VIA_STITCH_TOOL() override = default;
 
+    bool Init() override;
+
     int ExcludeStitchVia( const TOOL_EVENT& aEvent );
+    int ClearStitchViaExclusions( const TOOL_EVENT& aEvent );
 
 private:
     void setTransitions() override;

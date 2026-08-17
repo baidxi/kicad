@@ -163,6 +163,9 @@ public:
     /** Drop all manual exclusions. */
     void ClearAllExclusions();
 
+    /** @return true if there is at least one exclusion */
+    bool HasExclusions() const { return !m_excludedCells.empty(); }
+
     const STRING_ANY_MAP GetProperties() const override;
     void SetProperties( const STRING_ANY_MAP& aProps ) override;
 

@@ -1405,6 +1405,7 @@ int PCB_VIA_STITCH::GetGuardedNetCode() const
     return m_guardedNetCode;
 }
 
+
 void PCB_VIA_STITCH::SetNetCode( int aNetCode )
 {
     m_netCode = aNetCode;
@@ -1438,6 +1439,7 @@ void PCB_VIA_STITCH::SetGuardedNetCode( int aNetCode )
 
     MarkDirty();
 }
+
 
 static struct PCB_VIA_STITCH_DESC
 {

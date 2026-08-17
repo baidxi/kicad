@@ -351,4 +351,52 @@ BOOST_FIXTURE_TEST_CASE( UpdateRespectsExclusions, STITCH_UPDATE_FIXTURE )
     BOOST_CHECK( found );
 }
 
+
+BOOST_FIXTURE_TEST_CASE( ClearAllExclusionsRestoresEveryVia, STITCH_UPDATE_FIXTURE )
+{
+    regenerate();
+
+    std::set<KIID> before = childViaIds();
+    BOOST_REQUIRE_GT( before.size(), 10 );
+
+    std::vector<VECTOR2I> victimPositions;
+
+    for( BOARD_ITEM* item : m_stitch->GetBoardItems() )
+    {
+        if( item->Type() == PCB_VIA_T && victimPositions.size() < 3 )
+            victimPositions.push_back( item->GetPosition() );
+    }
+
+    BOOST_REQUIRE_EQUAL( victimPositions.size(), 3 );
+    BOOST_CHECK( !m_stitch->HasExclusions() );
+
+    for( const VECTOR2I& pos : victimPositions )
+        m_stitch->ExcludePosition( pos );
+
+    BOOST_CHECK( m_stitch->HasExclusions() );
+
+    regenerate();
+    BOOST_CHECK_EQUAL( childViaIds().size(), before.size() - 3 );
+
+    m_stitch->ClearAllExclusions();
+    BOOST_CHECK( !m_stitch->HasExclusions() );
+
+    regenerate();
+    BOOST_CHECK_EQUAL( childViaIds().size(), before.size() );
+
+    // Every excluded position must be occupied again
+    for( const VECTOR2I& pos : victimPositions )
+    {
+        bool found = false;
+
+        for( BOARD_ITEM* item : m_stitch->GetBoardItems() )
+        {
+            if( item->Type() == PCB_VIA_T && item->GetPosition() == pos )
+                found = true;
+        }
+
+        BOOST_CHECK( found );
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
