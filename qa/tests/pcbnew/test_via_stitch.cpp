@@ -198,67 +198,103 @@ BOOST_AUTO_TEST_CASE( SexprSaveLoad )
 }
 
 
-// Grid cells and absolute positions live in separate sets, so switching layout must not let
-// one be reinterpreted as the other.  Before the split, a PLAIN cell index like (3,5) became a
-// position 3nm from the board origin once the layout changed.
-BOOST_AUTO_TEST_CASE( ExclusionsAreScopedToTheirLayout )
+// An exclusion identifies a via within one specific pattern, so a layout or mode change drops
+// it rather than translating it.  The alternative silently relocates the user's work: the same
+// cell index sits half a pitch away under STAGGERED, and means nothing at all under POISSON.
+BOOST_AUTO_TEST_CASE( ExclusionsClearedOnLayoutOrModeChange )
 {
     BOARD board;
     board.Add( new NETINFO_ITEM( &board, wxT( "GND" ), 1 ) );
 
-    PCB_VIA_STITCH stitch;
-    stitch.SetParent( &board );
-    configureStitch( &stitch );
-    stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+    const VECTOR2I pos( pcbIUScale.mmToIU( 6 ), pcbIUScale.mmToIU( 6 ) );
 
-    const VECTOR2I gridPos( pcbIUScale.mmToIU( 6 ), pcbIUScale.mmToIU( 6 ) );
-    stitch.ExcludePosition( gridPos );
+    auto excluded = []( const PCB_VIA_STITCH& aStitch )
+    {
+        STRING_ANY_MAP props = aStitch.GetProperties();
+        return props.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" ).has_value()
+               || props.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" ).has_value();
+    };
 
-    STRING_ANY_MAP asGrid = stitch.GetProperties();
-    BOOST_CHECK( asGrid.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" ).has_value() );
-    BOOST_CHECK( !asGrid.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" ).has_value() );
+    // PLAIN -> STAGGERED
+    {
+        PCB_VIA_STITCH stitch;
+        stitch.SetParent( &board );
+        configureStitch( &stitch );
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+        stitch.ExcludePosition( pos );
 
-    // Switching to POISSON must not expose the grid cell as a position exclusion
-    stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::POISSON );
+        BOOST_REQUIRE( stitch.HasExclusions() );
 
-    const VECTOR2I poissonPos( pcbIUScale.mmToIU( 9 ), pcbIUScale.mmToIU( 9 ) );
-    stitch.ExcludePosition( poissonPos );
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::STAGGERED );
 
-    STRING_ANY_MAP both = stitch.GetProperties();
-    auto gridCells = both.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
-    auto posChain = both.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" );
+        BOOST_CHECK( !stitch.HasExclusions() );
+        BOOST_CHECK( !excluded( stitch ) );
+    }
 
-    BOOST_REQUIRE( gridCells.has_value() );
-    BOOST_REQUIRE( posChain.has_value() );
+    // PLAIN -> POISSON
+    {
+        PCB_VIA_STITCH stitch;
+        stitch.SetParent( &board );
+        configureStitch( &stitch );
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+        stitch.ExcludePosition( pos );
 
-    // The two carriers are visibly different: the dormant grid entry is an index pair,
-    // the POISSON entry is the verbatim board position.
-    BOOST_REQUIRE_EQUAL( gridCells->size(), 1 );
-    BOOST_CHECK_EQUAL( gridCells->front(), VECTOR2I( 3, 3 ) );
-    BOOST_REQUIRE_EQUAL( posChain->PointCount(), 1 );
-    BOOST_CHECK_EQUAL( posChain->CPoint( 0 ), poissonPos );
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::POISSON );
 
-    // Round-tripping keeps the two apart
-    PCB_VIA_STITCH loaded;
-    loaded.SetParent( &board );
-    loaded.SetProperties( both );
+        BOOST_CHECK( !stitch.HasExclusions() );
 
-    STRING_ANY_MAP reserialized = loaded.GetProperties();
-    auto reGrid = reserialized.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" );
-    auto rePos = reserialized.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" );
+        // The POISSON exclusion that replaces it is stored verbatim, not as an index
+        stitch.ExcludePosition( pos );
 
-    BOOST_REQUIRE( reGrid.has_value() );
-    BOOST_REQUIRE( rePos.has_value() );
-    BOOST_CHECK_EQUAL( reGrid->front(), gridCells->front() );
-    BOOST_CHECK_EQUAL( rePos->CPoint( 0 ), poissonPos );
+        STRING_ANY_MAP props = stitch.GetProperties();
+        auto           chain = props.get_opt<SHAPE_LINE_CHAIN>( "excluded_positions" );
 
-    // Switching back restores the original grid exclusion rather than a mangled one
-    loaded.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
-    loaded.ClearExclusion( gridPos );
+        BOOST_CHECK( !props.get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" ).has_value() );
+        BOOST_REQUIRE( chain.has_value() );
+        BOOST_REQUIRE_EQUAL( chain->PointCount(), 1 );
+        BOOST_CHECK_EQUAL( chain->CPoint( 0 ), pos );
+    }
 
-    BOOST_CHECK( !loaded.GetProperties()
-                          .get_opt<std::vector<VECTOR2I>>( "excluded_grid_cells" )
-                          .has_value() );
+    // STITCH -> GUARD clears too
+    {
+        PCB_VIA_STITCH stitch;
+        stitch.SetParent( &board );
+        configureStitch( &stitch );
+        stitch.ExcludePosition( pos );
+
+        stitch.SetMode( PCB_VIA_STITCH_MODE::GUARD );
+
+        BOOST_CHECK( !stitch.HasExclusions() );
+    }
+
+    // Re-assigning the value already in effect must not throw exclusions away
+    {
+        PCB_VIA_STITCH stitch;
+        stitch.SetParent( &board );
+        configureStitch( &stitch );
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+        stitch.ExcludePosition( pos );
+
+        stitch.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+        stitch.SetMode( PCB_VIA_STITCH_MODE::STITCH );
+
+        BOOST_CHECK( stitch.HasExclusions() );
+    }
+
+    // Loading must not run through the setters and wipe what the file carries
+    {
+        PCB_VIA_STITCH saved;
+        saved.SetParent( &board );
+        configureStitch( &saved );
+        saved.SetLayout( PCB_VIA_STITCH_LAYOUT::PLAIN );
+        saved.ExcludePosition( pos );
+
+        PCB_VIA_STITCH loaded;
+        loaded.SetParent( &board );
+        loaded.SetProperties( saved.GetProperties() );
+
+        BOOST_CHECK( loaded.HasExclusions() );
+    }
 }
 
 
@@ -379,16 +415,8 @@ BOOST_FIXTURE_TEST_CASE( LayoutRoundTripKeepsGridAnchored, STITCH_UPDATE_FIXTURE
     std::set<VECTOR2I> before = childViaPositions();
     BOOST_REQUIRE_GT( before.size(), 10 );
 
-    const VECTOR2I victim = *before.begin();
-
-    m_stitch->ExcludePosition( victim );
-    regenerate();
-
-    std::set<VECTOR2I> excluded = childViaPositions();
-    BOOST_REQUIRE_EQUAL( excluded.size(), before.size() - 1 );
-    BOOST_REQUIRE_EQUAL( excluded.count( victim ), 0 );
-
-    // Out to POISSON and back
+    // Out to POISSON and back.  Exclusions are deliberately not involved: they are cleared by
+    // the layout change, whereas the grid anchor must be completely unaffected by it.
     m_stitch->SetLayout( PCB_VIA_STITCH_LAYOUT::POISSON );
     regenerate();
 
@@ -397,11 +425,9 @@ BOOST_FIXTURE_TEST_CASE( LayoutRoundTripKeepsGridAnchored, STITCH_UPDATE_FIXTURE
 
     std::set<VECTOR2I> after = childViaPositions();
 
-    // Same grid, same hole where the exclusion is
-    BOOST_CHECK_EQUAL( after.count( victim ), 0 );
-    BOOST_CHECK_EQUAL( after.size(), excluded.size() );
+    BOOST_CHECK_EQUAL( after.size(), before.size() );
 
-    for( const VECTOR2I& pos : excluded )
+    for( const VECTOR2I& pos : before )
         BOOST_CHECK_EQUAL( after.count( pos ), 1 );
 }
 

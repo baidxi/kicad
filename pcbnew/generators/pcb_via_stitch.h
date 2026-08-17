@@ -130,10 +130,30 @@ public:
     int  GetPitch() const { return m_pitch; }
     void SetPitch( int aVal ) { m_pitch = aVal; MarkDirty(); }
     PCB_VIA_STITCH_LAYOUT GetLayout() const { return m_layout; }
-    void                  SetLayout( PCB_VIA_STITCH_LAYOUT aVal ) { m_layout = aVal; MarkDirty(); }
+
+    void SetLayout( PCB_VIA_STITCH_LAYOUT aVal )
+    {
+        if( aVal != m_layout )
+        {
+            m_layout = aVal;
+            ClearAllExclusions();
+        }
+
+        MarkDirty();
+    }
 
     PCB_VIA_STITCH_MODE GetMode() const { return m_mode; }
-    void                SetMode( PCB_VIA_STITCH_MODE aVal ) { m_mode = aVal; MarkDirty(); }
+
+    void SetMode( PCB_VIA_STITCH_MODE aVal )
+    {
+        if( aVal != m_mode )
+        {
+            m_mode = aVal;
+            ClearAllExclusions();
+        }
+
+        MarkDirty();
+    }
 
     /// Net being guarded in GUARD mode
     int  GetGuardedNetCode() const;
