@@ -23,6 +23,7 @@
 #define FP_TREE_MODEL_ADAPTER_H
 
 #include <lib_tree_model_adapter.h>
+#include <set>
 
 class FOOTPRINT_LIBRARY_ADAPTER;
 class PCB_BASE_FRAME;
@@ -38,7 +39,11 @@ public:
     static wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER> Create( PCB_BASE_FRAME* aParent,
                                                            FOOTPRINT_LIBRARY_ADAPTER* aLibs );
 
-    void AddLibraries( EDA_BASE_FRAME* aParent );
+    virtual void AddLibraries( EDA_BASE_FRAME* aParent );
+
+    bool IsContainer( const wxDataViewItem& aItem ) const override;
+    void EnsureChildrenLoaded( const wxDataViewItem& aItem ) override;
+    void EnsureAllChildrenLoaded() override;
 
     wxString GenerateInfo( LIB_ID const& aLibId, int aUnit ) override;
 
@@ -50,8 +55,11 @@ protected:
 
     PROJECT::LIB_TYPE_T getLibType() override { return PROJECT::LIB_TYPE_T::FOOTPRINT_LIB; }
 
+    bool populateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode, bool aNotify );
+
 protected:
     FOOTPRINT_LIBRARY_ADAPTER* m_libs;
+    std::set<wxString>         m_populatedLibs;
 };
 
 #endif // FP_TREE_MODEL_ADAPTER_H

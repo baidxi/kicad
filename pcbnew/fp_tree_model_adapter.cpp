@@ -26,8 +26,10 @@
 #include <wx/tokenzr.h>
 #include <string_utils.h>
 #include <footprint_library_adapter.h>
-#include <footprint.h>
+#include <footprint_info_impl.h>
 #include <generate_footprint_info.h>
+#include <trace_helpers.h>
+#include <memory>
 
 #include "fp_tree_model_adapter.h"
 
@@ -50,27 +52,118 @@ void FP_TREE_MODEL_ADAPTER::AddLibraries( EDA_BASE_FRAME* aParent )
 {
     COMMON_SETTINGS* cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&    project = aParent->Prj().GetProjectFile();
-    std::vector<wxString> libNames = m_libs->GetLibraryNames();
 
-    for( const wxString& libName : libNames )
+    for( const LIBRARY_TABLE_ROW* row : m_libs->Rows() )
     {
-        if( !m_libs->HasLibrary( libName, true ) )
+        wxString libName = row->Nickname();
+
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        std::optional<LIB_STATUS> libStatus = m_libs->GetLibraryStatus( libName );
+
+        if( libStatus && ( libStatus->load_status == LOAD_STATUS::LOAD_ERROR || libStatus->error ) )
             continue;
 
         bool pinned = alg::contains( cfg->m_Session.pinned_fp_libs, libName )
                         || alg::contains( project.m_PinnedFootprintLibs, libName );
 
-        std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( libName, true );
-        std::vector<LIB_TREE_ITEM*> treeItems;
-        treeItems.reserve( footprints.size() );
-
-        for( FOOTPRINT* fp : footprints )
-            treeItems.push_back( fp );
-
-        DoAddLibrary( libName, *m_libs->GetLibraryDescription( libName ), treeItems, pinned, true );
+        DoAddLibraryNode( libName, row->Description(), pinned );
     }
 
     m_tree.AssignIntrinsicRanks( m_shownColumns );
+}
+
+
+bool FP_TREE_MODEL_ADAPTER::IsContainer( const wxDataViewItem& aItem ) const
+{
+    const LIB_TREE_NODE* node = ToNode( aItem );
+    return node ? node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY : true;
+}
+
+
+void FP_TREE_MODEL_ADAPTER::EnsureChildrenLoaded( const wxDataViewItem& aItem )
+{
+    LIB_TREE_NODE* node = ToNode( aItem );
+
+    if( !node || node->m_Type != LIB_TREE_NODE::TYPE::LIBRARY )
+        return;
+
+    populateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( node ), true );
+}
+
+
+void FP_TREE_MODEL_ADAPTER::EnsureAllChildrenLoaded()
+{
+    std::unique_ptr<ResetTreeView> resetGuard;
+
+    if( m_widget )
+        resetGuard = std::make_unique<ResetTreeView>( *this );
+
+    bool loadedAny = false;
+
+    for( std::unique_ptr<LIB_TREE_NODE>& lib : m_tree.m_Children )
+    {
+        if( lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+            loadedAny |= populateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( lib.get() ), false );
+    }
+
+    resetGuard.reset();
+
+    if( loadedAny && m_lazyLoadHandler )
+        m_lazyLoadHandler();
+}
+
+
+bool FP_TREE_MODEL_ADAPTER::populateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode, bool aNotify )
+{
+    if( m_populatedLibs.count( aLibNode.m_Name ) )
+        return false;
+
+    try
+    {
+        if( !m_libs->IsLibraryLoaded( aLibNode.m_Name ) )
+        {
+            std::optional<LIB_STATUS> status = m_libs->LoadLibraryEntry( aLibNode.m_Name );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                return false;
+        }
+
+        m_libs->RefreshLibraryIfChanged( aLibNode.m_Name );
+
+        std::vector<wxString> footprintNames = m_libs->GetFootprintNames( aLibNode.m_Name, true );
+        wxDataViewItemArray   addedItems;
+
+        for( const wxString& footprintName : footprintNames )
+        {
+            FOOTPRINT_INFO_IMPL fpInfo( aLibNode.m_Name, footprintName );
+            LIB_TREE_NODE_ITEM& item = aLibNode.AddItem( &fpInfo );
+
+            if( aNotify )
+                addedItems.Add( ToItem( &item ) );
+        }
+
+        aLibNode.AssignIntrinsicRanks( m_shownColumns, true );
+
+        std::vector<std::unique_ptr<EDA_COMBINED_MATCHER>> matchers;
+        aLibNode.UpdateScore( matchers, GetFilter() );
+
+        m_populatedLibs.insert( aLibNode.m_Name );
+
+        if( aNotify && m_widget && addedItems.GetCount() )
+            ItemsAdded( ToItem( &aLibNode ), addedItems );
+
+        if( aNotify && m_lazyLoadHandler )
+            m_lazyLoadHandler();
+
+        return true;
+    }
+    catch( ... )
+    {
+        wxLogTrace( traceLibraries, "FP: lazy tree population failed for %s", aLibNode.m_Name );
+        return false;
+    }
 }
 
 

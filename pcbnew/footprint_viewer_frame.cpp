@@ -404,9 +404,29 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateLibraryList()
 
     COMMON_SETTINGS*      cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&         project = Kiway().Prj().GetProjectFile();
-    std::vector<wxString> nicknames = PROJECT_PCB::FootprintLibAdapter( &Prj() )->GetLibraryNames();
+    FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
+    std::vector<wxString>      nicknames;
     std::vector<wxString> pinnedMatches;
     std::vector<wxString> otherMatches;
+
+    if( adapter )
+    {
+        for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+        {
+            if( row->Disabled() || row->Hidden() )
+                continue;
+
+            wxString                  nickname = row->Nickname();
+            std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+            if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+                continue;
+
+            nicknames.emplace_back( nickname );
+        }
+    }
+
+    StrNumSort( nicknames, CASE_SENSITIVITY::INSENSITIVE );
 
     auto process =
             [&]( const wxString& aNickname )
@@ -490,6 +510,29 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
 
     if( !nickname )
         return;
+
+    std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+    if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+        return;
+
+    if( !adapter->IsLibraryLoaded( nickname ) )
+    {
+        status = adapter->LoadLibraryEntry( nickname );
+
+        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+            return;
+    }
+
+    adapter->RefreshLibraryIfChanged( nickname );
+
+    if( m_fpFilter->GetValue().IsEmpty() )
+    {
+        for( const wxString& footprintName : adapter->GetFootprintNames( nickname, true ) )
+            m_fpList->Append( footprintName );
+
+        return;
+    }
 
     std::vector<FOOTPRINT*> footprints = adapter->GetFootprints( nickname, true );
 
@@ -912,8 +955,28 @@ void FOOTPRINT_VIEWER_FRAME::OnActivate( wxActivateEvent& event )
     if( event.GetActive() )
     {
         // Ensure we have the right library list:
-        std::vector< wxString > libNicknames = PROJECT_PCB::FootprintLibAdapter( &Prj() )->GetLibraryNames();
-        bool                    stale = false;
+        FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
+        std::vector<wxString>      libNicknames;
+        bool                       stale = false;
+
+        if( adapter )
+        {
+            for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+            {
+                if( row->Disabled() || row->Hidden() )
+                    continue;
+
+                wxString                  nickname = row->Nickname();
+                std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+                if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+                    continue;
+
+                libNicknames.emplace_back( nickname );
+            }
+        }
+
+        StrNumSort( libNicknames, CASE_SENSITIVITY::INSENSITIVE );
 
         if( libNicknames.size() != m_libList->GetCount() )
             stale = true;

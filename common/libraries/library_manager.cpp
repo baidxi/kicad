@@ -68,6 +68,56 @@ std::mutex& LIBRARY_MANAGER_ADAPTER::pluginMutex( const wxString& aNickname )
 }
 
 
+bool LIBRARY_MANAGER_ADAPTER::beginLibraryLoad( const wxString& aNickname )
+{
+    std::unique_lock lock( m_loadingLibrariesMutex );
+    std::thread::id  currentThread = std::this_thread::get_id();
+
+    if( auto it = m_loadingLibraries.find( aNickname ); it != m_loadingLibraries.end() )
+    {
+        if( it->second == currentThread )
+            return false;
+
+        m_loadingLibrariesCond.wait( lock,
+                                     [&]()
+                                     {
+                                         return !m_loadingLibraries.contains( aNickname );
+                                     } );
+        return false;
+    }
+
+    m_loadingLibraries.emplace( aNickname, currentThread );
+    return true;
+}
+
+
+void LIBRARY_MANAGER_ADAPTER::finishLibraryLoad( const wxString& aNickname )
+{
+    {
+        std::lock_guard lock( m_loadingLibrariesMutex );
+        m_loadingLibraries.erase( aNickname );
+    }
+
+    m_loadingLibrariesCond.notify_all();
+}
+
+
+LIBRARY_MANAGER_ADAPTER::LIBRARY_LOAD_GUARD::LIBRARY_LOAD_GUARD( LIBRARY_MANAGER_ADAPTER& aAdapter,
+                                                                 const wxString&          aNickname ) :
+        m_adapter( aAdapter ),
+        m_nickname( aNickname ),
+        m_active( aAdapter.beginLibraryLoad( aNickname ) )
+{
+}
+
+
+LIBRARY_MANAGER_ADAPTER::LIBRARY_LOAD_GUARD::~LIBRARY_LOAD_GUARD()
+{
+    if( m_active )
+        m_adapter.finishLibraryLoad( m_nickname );
+}
+
+
 LIBRARY_MANAGER::LIBRARY_MANAGER()
 {
 }
@@ -1338,12 +1388,12 @@ std::vector<wxString> LIBRARY_MANAGER_ADAPTER::GetLibraryNames() const
 
 bool LIBRARY_MANAGER_ADAPTER::HasLibrary( const wxString& aNickname, bool aCheckEnabled ) const
 {
-    std::optional<const LIB_DATA*> r = fetchIfLoaded( aNickname );
+    std::optional<LIBRARY_TABLE_ROW*> row = m_manager.GetRow( Type(), aNickname );
 
-    if( r.has_value() )
-        return !aCheckEnabled || !r.value()->row->Disabled();
+    if( !row || !( *row )->IsOk() )
+        return false;
 
-    return false;
+    return !aCheckEnabled || !( *row )->Disabled();
 }
 
 
@@ -1550,9 +1600,26 @@ std::optional<LIB_STATUS> LIBRARY_MANAGER_ADAPTER::LoadLibraryEntry( const wxStr
     LIBRARY_RESULT<LIB_DATA*> result = loadIfNeeded( aNickname );
 
     if( result.has_value() )
-        return LoadOne( *result );
+        return loadLibraryEntry( aNickname, *result );
 
     return std::nullopt;
+}
+
+
+std::optional<LIB_STATUS> LIBRARY_MANAGER_ADAPTER::loadLibraryEntry( const wxString& aNickname, LIB_DATA* aLib )
+{
+    if( std::optional<LIB_STATUS> status = GetLibraryStatus( aNickname );
+        status && status->load_status == LOAD_STATUS::LOADED )
+    {
+        return status;
+    }
+
+    LIBRARY_LOAD_GUARD loadGuard( *this, aNickname );
+
+    if( !loadGuard.Active() )
+        return GetLibraryStatus( aNickname );
+
+    return LoadOne( aLib );
 }
 
 
@@ -1913,6 +1980,7 @@ void LIBRARY_MANAGER_ADAPTER::AsyncLoad()
     // libraries and avoid flooding the pool.
     size_t poolSize = tp.get_thread_count();
     size_t maxLoadThreads = std::max<size_t>( 1, poolSize > 2 ? poolSize - 2 : 1 );
+
     size_t numWorkers = std::min( maxLoadThreads, workQueue->size() );
 
     auto workIndex = std::make_shared<std::atomic<size_t>>( 0 );
@@ -1941,37 +2009,39 @@ void LIBRARY_MANAGER_ADAPTER::AsyncLoad()
                         if( result.has_value() )
                         {
                             LIB_DATA* lib = *result;
+                            LIBRARY_LOAD_GUARD loadGuard( *this, work.nickname );
 
-                            try
+                            if( loadGuard.Active() )
                             {
+                                try
+                                {
+                                    {
+                                        std::unique_lock lock( work.scope == LIBRARY_TABLE_SCOPE::GLOBAL
+                                                                       ? globalLibsMutex()
+                                                                       : m_librariesMutex );
+                                        lib->status.load_status = LOAD_STATUS::LOADING;
+                                    }
+
+                                    enumerateLibrary( lib, work.uri );
+
+                                    {
+                                        std::unique_lock lock( work.scope == LIBRARY_TABLE_SCOPE::GLOBAL
+                                                                       ? globalLibsMutex()
+                                                                       : m_librariesMutex );
+                                        lib->status.load_status = LOAD_STATUS::LOADED;
+                                    }
+                                }
+                                catch( IO_ERROR& e )
                                 {
                                     std::unique_lock lock(
                                             work.scope == LIBRARY_TABLE_SCOPE::GLOBAL
                                                     ? globalLibsMutex()
                                                     : m_librariesMutex );
-                                    lib->status.load_status = LOAD_STATUS::LOADING;
+                                    lib->status.load_status = LOAD_STATUS::LOAD_ERROR;
+                                    lib->status.error = LIBRARY_ERROR( { e.What() } );
+                                    wxLogTrace( traceLibraries, "%s: plugin threw exception: %s", work.nickname,
+                                                e.What() );
                                 }
-
-                                enumerateLibrary( lib, work.uri );
-
-                                {
-                                    std::unique_lock lock(
-                                            work.scope == LIBRARY_TABLE_SCOPE::GLOBAL
-                                                    ? globalLibsMutex()
-                                                    : m_librariesMutex );
-                                    lib->status.load_status = LOAD_STATUS::LOADED;
-                                }
-                            }
-                            catch( IO_ERROR& e )
-                            {
-                                std::unique_lock lock(
-                                        work.scope == LIBRARY_TABLE_SCOPE::GLOBAL
-                                                ? globalLibsMutex()
-                                                : m_librariesMutex );
-                                lib->status.load_status = LOAD_STATUS::LOAD_ERROR;
-                                lib->status.error = LIBRARY_ERROR( { e.What() } );
-                                wxLogTrace( traceLibraries, "%s: plugin threw exception: %s",
-                                            work.nickname, e.What() );
                             }
                         }
                         else

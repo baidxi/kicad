@@ -29,12 +29,12 @@
 
 wxDEFINE_EVENT( EVT_FOOTPRINT_SELECTED, wxCommandEvent );
 
-FOOTPRINT_SELECT_WIDGET::FOOTPRINT_SELECT_WIDGET( EDA_DRAW_FRAME* aFrame, wxWindow* aParent,
-                                                  int aMaxItems ) :
+FOOTPRINT_SELECT_WIDGET::FOOTPRINT_SELECT_WIDGET( EDA_DRAW_FRAME* aFrame, wxWindow* aParent, int aMaxItems ) :
         wxPanel( aParent ),
         m_max_items( aMaxItems ),
         m_pin_count( 0 ),
         m_zero_filter( true ),
+        m_list_dirty( true ),
         m_kiway( nullptr )
 {
     m_sizer = new wxBoxSizer( wxVERTICAL );
@@ -46,6 +46,7 @@ FOOTPRINT_SELECT_WIDGET::FOOTPRINT_SELECT_WIDGET( EDA_DRAW_FRAME* aFrame, wxWind
     m_sizer->Fit( this );
 
     m_fp_sel_ctrl->Bind( wxEVT_COMBOBOX, &FOOTPRINT_SELECT_WIDGET::OnComboBox, this );
+    m_fp_sel_ctrl->Bind( wxEVT_COMBOBOX_DROPDOWN, &FOOTPRINT_SELECT_WIDGET::OnDropDown, this );
 }
 
 
@@ -78,6 +79,7 @@ void FOOTPRINT_SELECT_WIDGET::ClearFilters()
     m_default_footprint.Clear();
     m_zero_filter = false;
     m_always_included.clear();
+    m_list_dirty = true;
 }
 
 
@@ -93,12 +95,14 @@ void FOOTPRINT_SELECT_WIDGET::AddAlwaysIncludedFootprint( const LIB_ID& aFootpri
     }
 
     m_always_included.push_back( aFootprintId );
+    m_list_dirty = true;
 }
 
 
 void FOOTPRINT_SELECT_WIDGET::FilterByPinCount( int aPinCount )
 {
     m_pin_count = aPinCount;
+    m_list_dirty = true;
 }
 
 
@@ -107,23 +111,19 @@ void FOOTPRINT_SELECT_WIDGET::FilterByFootprintFilters( wxArrayString const& aFi
 {
     m_zero_filter = ( aZeroFilters && aFilters.size() == 0 );
     m_filters = aFilters;
+    m_list_dirty = true;
 }
 
 
 void FOOTPRINT_SELECT_WIDGET::SetDefaultFootprint( wxString const& aFp )
 {
     m_default_footprint = aFp;
+    m_list_dirty = true;
 }
 
 
-bool FOOTPRINT_SELECT_WIDGET::UpdateList()
+void FOOTPRINT_SELECT_WIDGET::appendDefaultEntries()
 {
-    if( !m_kiway )
-        return false;
-
-    wxWindowUpdateLocker lock( m_fp_sel_ctrl );
-    m_fp_sel_ctrl->Clear();
-
     // Add the default footprint entry at the top
     wxString defaultLabel = m_default_footprint.IsEmpty()
                                     ? _( "No default footprint" )
@@ -142,6 +142,34 @@ bool FOOTPRINT_SELECT_WIDGET::UpdateList()
 
         if( alwaysIncludedNames.insert( fpName ).second )
             m_fp_sel_ctrl->Append( fpName, new wxStringClientData( fpName ) );
+    }
+}
+
+
+void FOOTPRINT_SELECT_WIDGET::UpdateDefault()
+{
+    wxWindowUpdateLocker lock( m_fp_sel_ctrl );
+    m_fp_sel_ctrl->Clear();
+    appendDefaultEntries();
+    SelectDefault();
+}
+
+
+bool FOOTPRINT_SELECT_WIDGET::UpdateList()
+{
+    if( !m_kiway )
+        return false;
+
+    wxWindowUpdateLocker lock( m_fp_sel_ctrl );
+    m_fp_sel_ctrl->Clear();
+    appendDefaultEntries();
+
+    std::set<wxString> alwaysIncludedNames;
+
+    for( const LIB_ID& fpId : m_always_included )
+    {
+        wxString fpName = fpId.Format().wx_str();
+        alwaysIncludedNames.insert( fpName );
     }
 
     // If zero_filter is set and we have no filters, show only the always-included footprints
@@ -216,7 +244,17 @@ bool FOOTPRINT_SELECT_WIDGET::UpdateList()
     }
 
     SelectDefault();
+    m_list_dirty = false;
     return true;
+}
+
+
+void FOOTPRINT_SELECT_WIDGET::OnDropDown( wxCommandEvent& aEvent )
+{
+    if( m_list_dirty )
+        UpdateList();
+
+    aEvent.Skip();
 }
 
 

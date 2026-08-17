@@ -571,13 +571,38 @@ void DIALOG_EDIT_SYMBOLS_LIBID::onCellBrowseLib( wxGridEvent& event )
 
 void DIALOG_EDIT_SYMBOLS_LIBID::onClickOrphansButton( wxCommandEvent& event )
 {
-    std::vector<wxString> libs = PROJECT_SCH::SymbolLibAdapter( &Prj() )->GetLibraryNames();
+    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &Prj() );
+    std::vector<wxString>   libs;
     std::vector<wxString> aliasNames;
     wxArrayString candidateSymbNames;
 
+    for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+    {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  nickname = row->Nickname();
+        std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+        if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+            continue;
+
+        if( !adapter->IsLibraryLoaded( nickname ) )
+        {
+            status = adapter->LoadLibraryEntry( nickname );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                continue;
+        }
+
+        libs.emplace_back( nickname );
+    }
+
+    StrNumSort( libs, CASE_SENSITIVITY::INSENSITIVE );
+
     unsigned fixesCount = 0;
 
-    // Try to find a candidate for non existing symbols in any loaded library
+    // Try to find a candidate for non existing symbols in any available library
     for( int orphanRow : m_OrphansRowIndexes )
     {
         wxString orphanLibid = getLibIdValue( m_grid, orphanRow, COL_CURR_LIBID );
@@ -600,7 +625,7 @@ void DIALOG_EDIT_SYMBOLS_LIBID::onClickOrphansButton( wxCommandEvent& event )
 
             try
             {
-                aliasNames = PROJECT_SCH::SymbolLibAdapter( &Prj() )->GetSymbolNames( lib );
+                aliasNames = adapter->GetSymbolNames( lib );
             }
             catch( const IO_ERROR& ) {}   // ignore, it is handled below
 

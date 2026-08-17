@@ -1028,14 +1028,11 @@ bool FOOTPRINT_EDIT_FRAME::SaveFootprintToBoard( bool aAddNew )
 class SAVE_AS_DIALOG : public EDA_LIST_DIALOG
 {
 public:
-    SAVE_AS_DIALOG( FOOTPRINT_EDIT_FRAME* aParent, const wxString& aFootprintName,
-                    const wxString& aLibraryPreselect,
+    SAVE_AS_DIALOG( FOOTPRINT_EDIT_FRAME* aParent, const wxString& aFootprintName, const wxString& aLibraryPreselect,
                     std::function<bool( wxString libName, wxString fpName )> aValidator ) :
             EDA_LIST_DIALOG( aParent, _( "Save Footprint As" ), false ),
             m_validator( std::move( aValidator ) )
     {
-        FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
-        std::vector<wxString>      nicknames = adapter->GetLibraryNames();
         wxArrayString              headers;
         std::vector<wxArrayString> itemsToDisplay;
 
@@ -1402,13 +1399,21 @@ void PCB_BASE_FRAME::GetLibraryItemsForListDialog( wxArrayString& aHeaders,
     COMMON_SETTINGS*           cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&              project = Kiway().Prj().GetProjectFile();
     FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
-    std::vector<wxString>      nicknames = adapter->GetLibraryNames();
     std::vector<wxArrayString> unpinned;
 
-    for( const wxString& nickname : nicknames )
+    for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
     {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  nickname = row->Nickname();
+        std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+        if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+            continue;
+
         wxArrayString item;
-        wxString      description = adapter->GetLibraryDescription( nickname ).value_or( wxEmptyString );
+        wxString      description = row->Description();
 
         if( alg::contains( project.m_PinnedFootprintLibs, nickname )
                 || alg::contains( cfg->m_Session.pinned_fp_libs, nickname ) )

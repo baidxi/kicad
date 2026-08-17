@@ -24,9 +24,11 @@
 
 #include <lib_tree_model_adapter.h>
 #include <map>
+#include <memory>
 
 class SYMBOL_EDIT_FRAME;
 class SYMBOL_LIBRARY_MANAGER;
+class wxTimer;
 
 class SYMBOL_TREE_SYNCHRONIZING_ADAPTER : public LIB_TREE_MODEL_ADAPTER
 {
@@ -68,4 +70,6 @@ protected:
 
     /// #SYMBOL_LIBRARY_MANAGER hash value returned in the last synchronization.
     int                     m_lastSyncHash;
+
+    std::unique_ptr<wxTimer> m_checkPendingLibrariesTimer;
 };

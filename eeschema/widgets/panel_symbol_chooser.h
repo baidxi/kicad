@@ -118,6 +118,7 @@ protected:
 
     void onFootprintSelected( wxCommandEvent& aEvent );
     void onSymbolSelected( wxCommandEvent& aEvent );
+    void updateSymbolSelection( unsigned int aGeneration );
 
     /**
      * Handle parent frame menu events to block tree preview
@@ -177,6 +178,7 @@ protected:
     bool                      m_showPower;
     bool                      m_allow_field_edits;
     bool                      m_show_footprints;
+    unsigned int              m_selection_update_generation;
     wxString                  m_fp_override;
 
     std::vector<std::pair<FIELD_T, wxString>>  m_field_edits;

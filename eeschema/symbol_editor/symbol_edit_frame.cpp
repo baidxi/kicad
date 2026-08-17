@@ -1479,12 +1479,6 @@ void SYMBOL_EDIT_FRAME::SyncLibraries( bool aShowProgress, bool aPreloadCancelle
         expanded = GetLibTree()->GetExpandedLibraries();
     }
 
-    // Ensure any in-progress background library preloading is complete before syncing the
-    // tree. Without this, libraries still in LOADING state get skipped by Sync(), resulting
-    // in an incomplete tree that requires a manual refresh to fully populate.
-    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &Prj() );
-    adapter->BlockUntilLoaded();
-
     if( aShowProgress )
     {
         APP_PROGRESS_DIALOG progressDlg( _( "Loading Symbol Libraries" ), wxEmptyString,

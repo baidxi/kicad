@@ -772,7 +772,7 @@ void SCH_SCREEN::UpdateSymbolLinks( REPORTER* aReporter )
         // before attempting to load the symbol.
         std::optional<LIBRARY_TABLE_ROW*> libRow = libs->GetRow( symbol->GetLibId().GetLibNickname() );
         bool hasLibraryRow = libRow.has_value();
-        bool hasLoadedLibrary = libs->HasLibrary( symbol->GetLibId().GetLibNickname() );
+        bool                              hasLibrary = libs->HasLibrary( symbol->GetLibId().GetLibNickname() );
 
         if( !hasLibraryRow && !legacyLibs )
         {
@@ -787,13 +787,7 @@ void SCH_SCREEN::UpdateSymbolLinks( REPORTER* aReporter )
             continue;
         }
 
-        if( hasLibraryRow && !hasLoadedLibrary )
-        {
-            libs->LoadOne( symbol->GetLibId().GetLibNickname() );
-            hasLoadedLibrary = libs->HasLibrary( symbol->GetLibId().GetLibNickname() );
-        }
-
-        if( hasLoadedLibrary )
+        if( hasLibrary )
         {
             try
             {

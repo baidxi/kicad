@@ -146,6 +146,7 @@ private:
 
     int                                             m_pinCount;
     std::vector<std::unique_ptr<EDA_PATTERN_MATCH>> m_fpFilters;
+    wxString                                        m_originalTitle;
 
     // On MacOS (at least) SetFocus() calls made in the constructor will fail because a
     // window that isn't yet visible will return false to AcceptsFocus().  So we must delay

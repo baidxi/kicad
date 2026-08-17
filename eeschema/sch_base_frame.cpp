@@ -669,13 +669,21 @@ void SCH_BASE_FRAME::GetLibraryItemsForListDialog( wxArrayString& aHeaders,
     COMMON_SETTINGS*           cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&              project = Prj().GetProjectFile();
     SYMBOL_LIBRARY_ADAPTER*    adapter = PROJECT_SCH::SymbolLibAdapter( &Prj() );
-    std::vector<wxString>      libNicknames = adapter->GetLibraryNames();
     std::vector<wxArrayString> unpinned;
 
-    for( const wxString& nickname : libNicknames )
+    for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
     {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  nickname = row->Nickname();
+        std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+        if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+            continue;
+
         wxArrayString item;
-        wxString description = adapter->GetLibraryDescription( nickname ).value_or( wxEmptyString );
+        wxString      description = row->Description();
 
         if( alg::contains( project.m_PinnedSymbolLibs, nickname )
             || alg::contains( cfg->m_Session.pinned_symbol_libs, nickname ) )

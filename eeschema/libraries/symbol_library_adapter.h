@@ -28,6 +28,7 @@
 #include <core/leak_at_exit.h>
 #include <libraries/library_manager.h>
 #include <sch_io/sch_io.h>
+#include <sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.h>
 
 class LIB_SYMBOL;
 class PROJECT;
@@ -53,6 +54,8 @@ class SYMBOL_LIBRARY_ADAPTER : public LIBRARY_MANAGER_ADAPTER
 public:
     static const char* PropPowerSymsOnly;
     static const char* PropNonPowerSymsOnly;
+
+    using SYMBOL_INDEX = SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX;
 
 public:
     SYMBOL_LIBRARY_ADAPTER( LIBRARY_MANAGER& aManager );
@@ -91,6 +94,8 @@ public:
 
     std::vector<wxString> GetSymbolNames( const wxString& aNickname,
                                           SYMBOL_TYPE aType = SYMBOL_TYPE::ALL_SYMBOLS );
+
+    std::vector<SYMBOL_INDEX> GetSymbolIndex( const wxString& aNickname, SYMBOL_TYPE aType = SYMBOL_TYPE::ALL_SYMBOLS );
     /**
      * Load a #LIB_SYMBOL having @a aName from the library given by @a aNickname.
      *
@@ -189,6 +194,9 @@ private:
     // Leaked like GlobalLibraries so adapter destructors can still lock it to evict their entries
     // even when they run during static teardown.
     static LEAK_AT_EXIT<std::shared_mutex> GlobalLibraryMutex;
+
+    static LEAK_AT_EXIT<std::map<wxString, std::vector<SYMBOL_INDEX>>> PreloadedSymbolIndex;
+    static std::shared_mutex                                           PreloadedSymbolIndexMutex;
 };
 
 #endif //SYMBOL_LIBRARY_MANAGER_ADAPTER_H

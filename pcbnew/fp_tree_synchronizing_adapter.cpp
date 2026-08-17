@@ -24,6 +24,7 @@
 #include <project/project_file.h>
 #include <fp_tree_synchronizing_adapter.h>
 #include <footprint_edit_frame.h>
+#include <footprint_info_impl.h>
 #include <footprint_preview_panel.h>
 #include <footprint_library_adapter.h>
 #include <gal/graphics_abstraction_layer.h>
@@ -34,7 +35,8 @@
 #include <tool/tool_manager.h>
 #include <tools/footprint_editor_control.h>
 
-#include <map>
+#include <memory>
+#include <set>
 
 #include <wx/log.h>
 #include <wx/settings.h>
@@ -66,6 +68,12 @@ bool FP_TREE_SYNCHRONIZING_ADAPTER::IsContainer( const wxDataViewItem& aItem ) c
 {
     const LIB_TREE_NODE* node = ToNode( aItem );
     return node ? node->m_Type == LIB_TREE_NODE::TYPE::LIBRARY : true;
+}
+
+
+void FP_TREE_SYNCHRONIZING_ADAPTER::AddLibraries( EDA_BASE_FRAME* aParent )
+{
+    Sync( PROJECT_PCB::FootprintLibAdapter( &aParent->Prj() ) );
 }
 
 
@@ -108,7 +116,8 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::Sync( FOOTPRINT_LIBRARY_ADAPTER* aLibs )
                 continue;
             }
 
-            updateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( it->get() ) );
+            if( m_populatedLibs.count( name ) )
+                updateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( it->get() ) );
         }
         catch( ... )
         {
@@ -125,30 +134,25 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::Sync( FOOTPRINT_LIBRARY_ADAPTER* aLibs )
     PROJECT_FILE&    project = m_frame->Prj().GetProjectFile();
     size_t           count = m_libMap.size();
 
-    for( const auto& [libName, status] : m_libs->GetLibraryStatuses() )
+    for( const LIBRARY_TABLE_ROW* row : m_libs->Rows() )
     {
-        if( status.load_status != LOAD_STATUS::LOADED || status.error )
-            continue;
+        wxString libName = row->Nickname();
 
         if( m_libMap.count( libName ) != 0 )
             continue;
 
-        std::optional<LIBRARY_TABLE_ROW*> optRow = m_libs->GetRow( libName );
+        if( row->Disabled() || row->Hidden() )
+            continue;
 
-        if( !optRow.has_value() || ( *optRow )->Disabled() || ( *optRow )->Hidden() )
+        std::optional<LIB_STATUS> libStatus = m_libs->GetLibraryStatus( libName );
+
+        if( libStatus && ( libStatus->load_status == LOAD_STATUS::LOAD_ERROR || libStatus->error ) )
             continue;
 
         bool pinned = alg::contains( cfg->m_Session.pinned_fp_libs, libName )
                         || alg::contains( project.m_PinnedFootprintLibs, libName );
 
-        std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( libName, true );
-        std::vector<LIB_TREE_ITEM*> treeItems;
-        treeItems.reserve( footprints.size() );
-
-        for( FOOTPRINT* fp : footprints )
-            treeItems.push_back( fp );
-
-        DoAddLibrary( libName, ( *optRow )->Description(), treeItems, pinned, true );
+        DoAddLibraryNode( libName, row->Description(), pinned );
         m_libMap.insert( libName );
     }
 
@@ -159,35 +163,115 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::Sync( FOOTPRINT_LIBRARY_ADAPTER* aLibs )
 }
 
 
+void FP_TREE_SYNCHRONIZING_ADAPTER::EnsureChildrenLoaded( const wxDataViewItem& aItem )
+{
+    LIB_TREE_NODE* node = ToNode( aItem );
+
+    if( !node || node->m_Type != LIB_TREE_NODE::TYPE::LIBRARY )
+        return;
+
+    populateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( node ), true );
+}
+
+
+void FP_TREE_SYNCHRONIZING_ADAPTER::EnsureAllChildrenLoaded()
+{
+    if( m_populatedLibs.size() == m_libMap.size() )
+        return;
+
+    std::unique_ptr<ResetTreeView> resetGuard;
+
+    if( m_widget )
+        resetGuard = std::make_unique<ResetTreeView>( *this );
+
+    for( std::unique_ptr<LIB_TREE_NODE>& lib : m_tree.m_Children )
+    {
+        if( lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+            populateLibrary( *static_cast<LIB_TREE_NODE_LIBRARY*>( lib.get() ), false );
+    }
+}
+
+
 int FP_TREE_SYNCHRONIZING_ADAPTER::GetLibrariesCount() const
 {
-    return m_libs->GetLibraryNames().size();
+    return static_cast<int>( m_libMap.size() );
+}
+
+
+bool FP_TREE_SYNCHRONIZING_ADAPTER::populateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode, bool aNotify )
+{
+    if( m_populatedLibs.count( aLibNode.m_Name ) )
+        return false;
+
+    try
+    {
+        if( !m_libs->IsLibraryLoaded( aLibNode.m_Name ) )
+        {
+            std::optional<LIB_STATUS> status = m_libs->LoadLibraryEntry( aLibNode.m_Name );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                return false;
+        }
+
+        m_libs->RefreshLibraryIfChanged( aLibNode.m_Name );
+
+        std::vector<wxString> footprintNames = m_libs->GetFootprintNames( aLibNode.m_Name, true );
+        wxDataViewItemArray   addedItems;
+
+        for( const wxString& footprintName : footprintNames )
+        {
+            FOOTPRINT_INFO_IMPL fpInfo( aLibNode.m_Name, footprintName );
+            LIB_TREE_NODE_ITEM& item = aLibNode.AddItem( &fpInfo );
+
+            if( aNotify )
+                addedItems.Add( ToItem( &item ) );
+        }
+
+        aLibNode.AssignIntrinsicRanks( m_shownColumns, true );
+
+        std::vector<std::unique_ptr<EDA_COMBINED_MATCHER>> matchers;
+        aLibNode.UpdateScore( matchers, GetFilter() );
+
+        m_populatedLibs.insert( aLibNode.m_Name );
+
+        if( aNotify && m_widget && addedItems.GetCount() )
+            ItemsAdded( ToItem( &aLibNode ), addedItems );
+
+        return true;
+    }
+    catch( ... )
+    {
+        wxLogTrace( wxT( "KICAD_TABS_DBG" ), wxT( "FpSyncAdapter::populateLibrary failed for %s" ), aLibNode.m_Name );
+        return false;
+    }
 }
 
 
 void FP_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode )
 {
+    if( !m_libs->IsLibraryLoaded( aLibNode.m_Name ) )
+    {
+        std::optional<LIB_STATUS> status = m_libs->LoadLibraryEntry( aLibNode.m_Name );
+
+        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+            return;
+    }
+
     // Re-enumerate from disk if the library has changed since it was last preloaded.
     // This picks up external modifications such as git branch switches.
     m_libs->RefreshLibraryIfChanged( aLibNode.m_Name );
 
-    std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( aLibNode.m_Name, true );
-
-    // Build a map of footprint names for quick lookup
-    std::map<wxString, FOOTPRINT*> fpMap;
-
-    for( FOOTPRINT* fp : footprints )
-        fpMap[fp->GetFPID().GetLibItemName()] = fp;
+    std::vector<wxString> footprintNames = m_libs->GetFootprintNames( aLibNode.m_Name, true );
+    std::set<wxString>    fpNames( footprintNames.begin(), footprintNames.end() );
 
     // Remove items that no longer exist
     for( auto nodeIt = aLibNode.m_Children.begin(); nodeIt != aLibNode.m_Children.end(); )
     {
-        auto fpIt = fpMap.find( (*nodeIt)->m_Name );
+        auto fpIt = fpNames.find( ( *nodeIt )->m_Name );
 
-        if( fpIt != fpMap.end() )
+        if( fpIt != fpNames.end() )
         {
-            static_cast<LIB_TREE_NODE_ITEM*>( nodeIt->get() )->Update( fpIt->second );
-            fpMap.erase( fpIt );
+            fpNames.erase( fpIt );
             ++nodeIt;
         }
         else
@@ -197,8 +281,11 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNo
     }
 
     // Add new items
-    for( auto& [name, fp] : fpMap )
-        aLibNode.AddItem( fp );
+    for( const wxString& name : fpNames )
+    {
+        FOOTPRINT_INFO_IMPL fpInfo( aLibNode.m_Name, name );
+        aLibNode.AddItem( &fpInfo );
+    }
 
     aLibNode.AssignIntrinsicRanks( m_shownColumns );
     m_libMap.insert( aLibNode.m_Name );
@@ -210,6 +297,7 @@ FP_TREE_SYNCHRONIZING_ADAPTER::deleteLibrary( LIB_TREE_NODE::PTR_VECTOR::iterato
 {
     LIB_TREE_NODE* node = aLibNodeIt->get();
     m_libMap.erase( node->m_Name );
+    m_populatedLibs.erase( node->m_Name );
     auto it = m_tree.m_Children.erase( aLibNodeIt );
     return it;
 }

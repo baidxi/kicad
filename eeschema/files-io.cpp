@@ -584,6 +584,8 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
                             (*table)->Save();
                         }
 
+                        adapter->LoadLibraryEntry( nickname );
+
                         std::vector<wxString> cacheSymbols = adapter->GetSymbolNames( nickname );
                         std::set<wxString> cacheSymbolSet( cacheSymbols.begin(), cacheSymbols.end() );
 
@@ -591,14 +593,25 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
                         {
                             std::vector<wxString> loadedLibs;
 
-                            for( const wxString& libName : adapter->GetLibraryNames() )
+                            for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
                             {
+                                if( row->Disabled() || row->Hidden() )
+                                    continue;
+
+                                wxString libName = row->Nickname();
+
                                 if( libName == nickname )
                                     continue;
 
                                 std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( libName );
 
-                                if( status && status->load_status == LOAD_STATUS::LOADED )
+                                if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+                                    continue;
+
+                                if( !adapter->IsLibraryLoaded( libName ) )
+                                    status = adapter->LoadLibraryEntry( libName );
+
+                                if( status && status->load_status == LOAD_STATUS::LOADED && !status->error )
                                     loadedLibs.push_back( libName );
                             }
 

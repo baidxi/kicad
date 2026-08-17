@@ -130,6 +130,8 @@ FOOTPRINT_CHOOSER_FRAME::FOOTPRINT_CHOOSER_FRAME( KIWAY* aKiway, wxWindow* aPare
     SetCanvas( m_chooserPanel->GetViewerPanel()->GetPreviewPanel()->GetCanvas() );
     SetBoard( m_chooserPanel->GetViewerPanel()->GetPreviewPanel()->GetBoard() );
 
+    m_originalTitle = GetTitle();
+
     // This board will only be used to hold a footprint for viewing
     GetBoard()->SetBoardUse( BOARD_USE::FPHOLDER );
 
@@ -190,9 +192,6 @@ FOOTPRINT_CHOOSER_FRAME::FOOTPRINT_CHOOSER_FRAME( KIWAY* aKiway, wxWindow* aPare
     frameSizer->Add( m_bottomPanel, 0, wxEXPAND );
 
     SetSizer( frameSizer );
-
-    SetTitle( GetTitle() + wxString::Format( _( " (%d items loaded)" ),
-                                             m_chooserPanel->GetItemCount() ) );
 
     Layout();
     m_chooserPanel->FinishSetup();

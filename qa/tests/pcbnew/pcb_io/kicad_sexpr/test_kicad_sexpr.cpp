@@ -1009,6 +1009,35 @@ BOOST_AUTO_TEST_CASE( Issue24911_CancelledAppendLeavesBoardUntouched )
 }
 
 
+BOOST_AUTO_TEST_CASE( BestEffortFootprintEnumerateDoesNotParseFootprints )
+{
+    std::filesystem::path libPath =
+            std::filesystem::temp_directory_path()
+            / ( "kicad_qa_best_effort_enumerate_"
+                + std::to_string( std::chrono::steady_clock::now().time_since_epoch().count() ) + ".pretty" );
+
+    std::filesystem::remove_all( libPath );
+    std::filesystem::create_directories( libPath );
+
+    {
+        std::ofstream badFootprint( libPath / "BadFootprint.kicad_mod" );
+        badFootprint << "not a valid footprint\n";
+    }
+
+    wxArrayString names;
+
+    BOOST_CHECK_NO_THROW( kicadPlugin.FootprintEnumerate( names, libPath.string(), true ) );
+    BOOST_REQUIRE_EQUAL( names.GetCount(), 1 );
+    BOOST_CHECK_EQUAL( names[0].ToStdString(), "BadFootprint" );
+
+    names.Clear();
+
+    BOOST_CHECK_THROW( kicadPlugin.FootprintEnumerate( names, libPath.string(), false ), IO_ERROR );
+
+    std::filesystem::remove_all( libPath );
+}
+
+
 // Enumerating a footprint library that is not on disk must fail every time. The failed
 // load leaves a cache bound to the missing path carrying a zero timestamp, which is also
 // what a missing directory reports, so the cache looks current and the next enumerate

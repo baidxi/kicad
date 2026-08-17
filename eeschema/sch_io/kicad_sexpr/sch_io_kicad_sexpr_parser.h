@@ -34,8 +34,13 @@
 #include <sch_file_versions.h>
 #include <pin_map.h>
 #include <default_values.h>    // For some default values
+#include <eda_shape.h>
+#include <eda_text.h>
+#include <kiid.h>
+#include <stroke_params.h>
 #include <map>
 #include <set>
+#include <vector>
 #include <wx/string.h>
 
 
@@ -78,11 +83,37 @@ public:
 class SCH_IO_KICAD_SEXPR_PARSER : public SCHEMATIC_LEXER
 {
 public:
+    struct LIB_SYMBOL_INDEX
+    {
+        wxString                     m_Name;
+        wxString                     m_ParentName;
+        wxString                     m_Description;
+        wxString                     m_KeyWords;
+        wxString                     m_Footprint;
+        std::map<wxString, wxString> m_ChooserFields;
+        std::map<int, wxString>      m_UnitDisplayNames;
+        int                          m_UnitCount = 1;
+        bool                         m_IsPower = false;
+    };
+
     SCH_IO_KICAD_SEXPR_PARSER( LINE_READER* aLineReader = nullptr,
                       PROGRESS_REPORTER* aProgressReporter = nullptr, unsigned aLineCount = 0,
                       SCH_SHEET* aRootSheet = nullptr, bool aIsAppending = false );
 
     void ParseLib( LIB_SYMBOL_MAP& aSymbolLibMap );
+
+    /**
+     * Parse the internal #LINE_READER object and return only the top-level symbol names.
+     *
+     * This is used by library browsers that only need to build an index.  It avoids
+     * materializing full #LIB_SYMBOL objects for every symbol in the library.
+     */
+    void ParseLibSymbolNames( wxArrayString& aSymbolNameList, bool aPowerSymbolsOnly = false );
+
+    /**
+     * Parse the internal #LINE_READER object and return a lightweight top-level symbol index.
+     */
+    void ParseLibSymbolIndex( std::vector<LIB_SYMBOL_INDEX>& aSymbolIndex, bool aPowerSymbolsOnly = false );
 
     /**
      * Parse internal #LINE_READER object into symbols and return all found.
@@ -222,6 +253,10 @@ private:
     bool parseMaybeAbsentBool( bool aDefaultValue );
 
     LIB_SYMBOL* parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLibMap );
+    void        parseLibSymbolName( wxString& aName, wxString& aParentName, bool& aIsPower );
+    void        parseLibSymbolIndex( LIB_SYMBOL_INDEX& aIndex );
+    void        parseLibSymbolIndexProperty( LIB_SYMBOL_INDEX& aIndex );
+    void        parseLibSymbolIndexUnit( LIB_SYMBOL_INDEX& aIndex );
 
     /**
      * Parse stroke definition \a aStroke.

@@ -26,6 +26,7 @@
 #include <memory>
 #include <sch_io/sch_io.h>
 #include <sch_io/sch_io_mgr.h>
+#include <sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.h>
 #include <sch_file_versions.h>
 #include <sch_sheet_path.h>
 #include <stack>
@@ -120,6 +121,9 @@ public:
     void EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList,
                              const wxString&           aLibraryPath,
                              const std::map<std::string, UTF8>*         aProperties = nullptr ) override;
+    void        EnumerateSymbolLibIndex( std::vector<SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX>& aSymbolIndex,
+                                         const wxString&                                           aLibraryPath,
+                                         const std::map<std::string, UTF8>*                        aProperties = nullptr );
     LIB_SYMBOL* LoadSymbol( const wxString& aLibraryPath, const wxString& aAliasName,
                             const std::map<std::string, UTF8>* aProperties = nullptr ) override;
     void SaveSymbol( const wxString& aLibraryPath, const LIB_SYMBOL* aSymbol,

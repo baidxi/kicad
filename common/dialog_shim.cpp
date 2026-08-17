@@ -75,8 +75,8 @@ END_EVENT_TABLE()
 /**
  * Strip parenthetical suffixes from dialog titles to create stable persistence keys.
  *
- * Dialog titles like "Choose Symbol (1234 items loaded)" would otherwise create unique
- * keys for each item count, flooding the settings file with duplicate entries.
+ * Dialog titles with changing suffixes would otherwise create unique keys for each
+ * suffix value, flooding the settings file with duplicate entries.
  */
 static std::string getDialogKeyFromTitle( const wxString& aTitle )
 {

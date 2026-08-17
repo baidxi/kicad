@@ -110,6 +110,12 @@ public:
     bool UpdateList();
 
     /**
+     * Update only the currently displayed default entry.  The full filtered list is generated
+     * lazily when the combo dropdown is opened.
+     */
+    void UpdateDefault();
+
+    /**
      * Set current selection to the default footprint
      */
     void SelectDefault();
@@ -131,10 +137,13 @@ private:
     wxArrayString       m_filters;
     bool                m_zero_filter;
     std::vector<LIB_ID> m_always_included;
+    bool                m_list_dirty;
 
     KIWAY*            m_kiway;
 
     void OnComboBox( wxCommandEvent& aEvent );
+    void OnDropDown( wxCommandEvent& aEvent );
+    void appendDefaultEntries();
 };
 
 

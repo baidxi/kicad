@@ -24,11 +24,10 @@
 
 #include <lib_tree_model_adapter.h>
 #include <variant_symbol_utils.h>
+#include <set>
 
 class SYMBOL_LIBRARY_ADAPTER;
 class SCH_BASE_FRAME;
-
-class wxTimer;
 
 class SYMBOL_TREE_MODEL_ADAPTER : public LIB_TREE_MODEL_ADAPTER
 {
@@ -57,6 +56,10 @@ public:
 
     void AddLibrary( wxString const& aLibNickname, bool pinned );
 
+    bool IsContainer( const wxDataViewItem& aItem ) const override;
+    void EnsureChildrenLoaded( const wxDataViewItem& aItem ) override;
+    void EnsureAllChildrenLoaded() override;
+
     void SetCompatibilityCallback( SYMBOL_COMPAT_FUNC aFunc )
     {
         m_compatCallback = std::move( aFunc );
@@ -79,10 +82,11 @@ protected:
     PROJECT::LIB_TYPE_T getLibType() override { return PROJECT::LIB_TYPE_T::SYMBOL_LIB; }
 
 private:
+    bool populateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode, bool aNotify );
+
     SYMBOL_LIBRARY_ADAPTER*  m_adapter;
 
-    std::set<wxString> m_pending_load_libraries;
-    std::unique_ptr<wxTimer> m_check_pending_libraries_timer;
+    std::set<wxString> m_populated_libraries;
 
     SYMBOL_COMPAT_FUNC                    m_compatCallback;
     mutable std::map<LIB_ID, bool>        m_compatCache;

@@ -201,6 +201,7 @@ LIB_TREE::LIB_TREE( wxWindow* aParent, const wxString& aRecentSearchesKey,
 
     m_tree_ctrl->Bind( wxEVT_DATAVIEW_ITEM_ACTIVATED, &LIB_TREE::onTreeActivate, this );
     m_tree_ctrl->Bind( wxEVT_DATAVIEW_SELECTION_CHANGED, &LIB_TREE::onTreeSelect, this );
+    m_tree_ctrl->Bind( wxEVT_DATAVIEW_ITEM_EXPANDING, &LIB_TREE::onTreeItemExpanding, this );
     m_tree_ctrl->Bind( wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &LIB_TREE::onItemContextMenu, this );
     m_tree_ctrl->Bind( wxEVT_DATAVIEW_COLUMN_HEADER_RIGHT_CLICK, &LIB_TREE::onHeaderContextMenu,
                        this );
@@ -249,6 +250,7 @@ LIB_TREE::~LIB_TREE()
 
     m_tree_ctrl->Unbind( wxEVT_DATAVIEW_ITEM_ACTIVATED, &LIB_TREE::onTreeActivate, this );
     m_tree_ctrl->Unbind( wxEVT_DATAVIEW_SELECTION_CHANGED, &LIB_TREE::onTreeSelect, this );
+    m_tree_ctrl->Unbind( wxEVT_DATAVIEW_ITEM_EXPANDING, &LIB_TREE::onTreeItemExpanding, this );
     m_tree_ctrl->Unbind( wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &LIB_TREE::onItemContextMenu, this );
     m_tree_ctrl->Unbind( wxEVT_DATAVIEW_COLUMN_HEADER_RIGHT_CLICK, &LIB_TREE::onHeaderContextMenu,
                          this );
@@ -421,6 +423,7 @@ std::vector<LIB_ID> LIB_TREE::GetExpandedLibraries() const
 
 void LIB_TREE::ExpandAll()
 {
+    m_adapter->EnsureAllChildrenLoaded();
     m_tree_ctrl->ExpandAll();
 }
 
@@ -520,7 +523,10 @@ void LIB_TREE::toggleExpand( const wxDataViewItem& aTreeId )
     if( m_tree_ctrl->IsExpanded( aTreeId ) )
         m_tree_ctrl->Collapse( aTreeId );
     else
+    {
+        m_adapter->EnsureChildrenLoaded( aTreeId );
         m_tree_ctrl->Expand( aTreeId );
+    }
 }
 
 
@@ -587,7 +593,10 @@ void LIB_TREE::centerIfValid( const wxDataViewItem& aTreeId )
 void LIB_TREE::expandIfValid( const wxDataViewItem& aTreeId )
 {
     if( aTreeId.IsOk() && !m_tree_ctrl->IsExpanded( aTreeId ) )
+    {
+        m_adapter->EnsureChildrenLoaded( aTreeId );
         m_tree_ctrl->Expand( aTreeId );
+    }
 }
 
 
@@ -633,7 +642,10 @@ void LIB_TREE::setState( const STATE& aState )
     m_tree_ctrl->Freeze();
 
     for( const wxDataViewItem& item : aState.expanded )
+    {
+        m_adapter->EnsureChildrenLoaded( item );
         m_tree_ctrl->Expand( item );
+    }
 
     // TODO(JE) probably remove this; it fights with centerIfValid
     // m_tree_ctrl->SetScrollPos( wxHORIZONTAL, aState.scrollpos.x );
@@ -703,7 +715,7 @@ void LIB_TREE::onQueryCharHook( wxKeyEvent& aKeyStroke )
     if( hotkey == ACTIONS::expandAll.GetHotKey()
         || hotkey == ACTIONS::expandAll.GetHotKeyAlt() )
     {
-        m_tree_ctrl->ExpandAll();
+        ExpandAll();
         return;
     }
     else if( hotkey == ACTIONS::collapseAll.GetHotKey()
@@ -737,7 +749,7 @@ void LIB_TREE::onQueryCharHook( wxKeyEvent& aKeyStroke )
         updateRecentSearchMenu();
 
         if( type == LIB_TREE_NODE::TYPE::LIBRARY )
-            m_tree_ctrl->Expand( sel );
+            expandIfValid( sel );
 
         break;
 
@@ -781,6 +793,13 @@ void LIB_TREE::onQueryMouseMoved( wxMouseEvent& aEvent )
     else
         SetCursor( wxCURSOR_IBEAM );
 #endif
+}
+
+
+void LIB_TREE::onTreeItemExpanding( wxDataViewEvent& aEvent )
+{
+    m_adapter->EnsureChildrenLoaded( aEvent.GetItem() );
+    aEvent.Skip();
 }
 
 
@@ -917,7 +936,7 @@ void LIB_TREE::onTreeCharHook( wxKeyEvent& aKeyStroke )
         if( sel.IsOk() )
         {
             if( aKeyStroke.GetKeyCode() == WXK_RIGHT )
-                m_tree_ctrl->Expand( sel );
+                expandIfValid( sel );
             else
                 m_tree_ctrl->Collapse( sel );
         }

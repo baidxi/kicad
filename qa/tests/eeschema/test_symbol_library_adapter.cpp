@@ -21,7 +21,9 @@
 
 #include <libraries/symbol_library_adapter.h>
 #include <libraries/library_manager.h>
+#include <template_fieldnames.h>
 
+#include <fstream>
 #include <wx/textfile.h>
 
 #include <filesystem>
@@ -201,6 +203,115 @@ BOOST_AUTO_TEST_CASE( PartiallyLoadedTableReportsNoSpuriousErrors )
     // The genuine failure must still be reported.
     BOOST_CHECK( errors.Contains( wxS( "BadLib" ) ) );
     BOOST_CHECK( errors.Contains( wxS( "File is corrupt" ) ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( KiCadSymbolIndexCarriesChooserMetadata )
+{
+    std::error_code       ec;
+    std::filesystem::path dir =
+            std::filesystem::temp_directory_path( ec )
+            / std::filesystem::path( wxString::Format( wxS( "kicad_qa_symindex_%p" ), (void*) &ec ).ToStdString() );
+
+    std::filesystem::remove_all( dir, ec );
+    std::filesystem::create_directories( dir, ec );
+
+    const wxString        nickname = wxS( "IndexMetadata" );
+    std::filesystem::path libPath = dir / "IndexMetadata.kicad_sym";
+    std::filesystem::path tablePath = dir / "sym-lib-table";
+
+    {
+        std::ofstream lib( libPath );
+        lib << R"(
+(kicad_symbol_lib
+  (version 20241209)
+  (generator "qa")
+  (generator_version "10.0")
+  (symbol "ParentPower"
+    (power global)
+    (property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "ParentPower" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Description" "Parent description" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "ki_keywords" "parent supply rail" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (symbol "ParentPower_1_1"
+      (unit_name "Power")
+    )
+    (symbol "ParentPower_2_1"
+      (unit_name "Sense")
+    )
+  )
+  (symbol "DerivedPower"
+    (extends "ParentPower")
+    (property "Reference" "#PWR" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "DerivedPower" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Footprint" "Package_TO_SOT_SMD:SOT-23" (at 0 0 0) (effects (font (size 1.27 1.27))))
+    (property "Manufacturer" "Acme" (at 0 0 0) (effects (font (size 1.27 1.27))))
+  )
+)
+)";
+    }
+
+    wxString uri = wxString::FromUTF8( libPath.generic_string() );
+
+    wxTextFile table( wxString::FromUTF8( tablePath.string() ) );
+    table.Create();
+    table.AddLine( wxS( "(sym_lib_table" ) );
+    table.AddLine( wxS( "  (version 7)" ) );
+    table.AddLine( wxString::Format(
+            wxS( "  (lib (name \"%s\")(type \"KiCad\")(uri \"%s\")(options \"\")(descr \"\"))" ), nickname, uri ) );
+    table.AddLine( wxS( ")" ) );
+    table.Write();
+    table.Close();
+
+    LIBRARY_MANAGER manager;
+    manager.LoadProjectTables( wxString::FromUTF8( dir.string() ), { LIBRARY_TABLE_TYPE::SYMBOL } );
+
+    TEST_SYMBOL_LIBRARY_ADAPTER adapter( manager );
+    std::optional<LIB_STATUS>   status = adapter.LoadOne( nickname );
+
+    BOOST_REQUIRE( status.has_value() );
+    BOOST_REQUIRE( status->load_status == LOAD_STATUS::LOADED );
+
+    std::vector<SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX> index = adapter.GetSymbolIndex( nickname );
+
+    BOOST_REQUIRE_EQUAL( index.size(), 2 );
+
+    auto derived = std::ranges::find_if( index,
+                                         []( const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& aSymbol )
+                                         {
+                                             return aSymbol.m_Name == wxS( "DerivedPower" );
+                                         } );
+
+    BOOST_REQUIRE( derived != index.end() );
+    BOOST_CHECK( derived->m_IsPower );
+    BOOST_CHECK_EQUAL( derived->m_Description, wxS( "Parent description" ) );
+    BOOST_CHECK_EQUAL( derived->m_KeyWords, wxS( "parent supply rail" ) );
+    BOOST_CHECK_EQUAL( derived->m_Footprint, wxS( "Package_TO_SOT_SMD:SOT-23" ) );
+    BOOST_REQUIRE_EQUAL( derived->m_UnitCount, 2 );
+    BOOST_REQUIRE( derived->m_UnitDisplayNames.contains( 1 ) );
+    BOOST_REQUIRE( derived->m_UnitDisplayNames.contains( 2 ) );
+    BOOST_CHECK_EQUAL( derived->m_UnitDisplayNames.at( 1 ), wxS( "Power" ) );
+    BOOST_CHECK_EQUAL( derived->m_UnitDisplayNames.at( 2 ), wxS( "Sense" ) );
+
+    BOOST_REQUIRE( derived->m_ChooserFields.contains( GetDefaultFieldName( FIELD_T::VALUE, false ) ) );
+    BOOST_REQUIRE( derived->m_ChooserFields.contains( GetDefaultFieldName( FIELD_T::FOOTPRINT, false ) ) );
+    BOOST_REQUIRE( derived->m_ChooserFields.contains( wxS( "Manufacturer" ) ) );
+    BOOST_REQUIRE( derived->m_ChooserFields.contains( _( "Keywords" ) ) );
+    BOOST_CHECK_EQUAL( derived->m_ChooserFields.at( GetDefaultFieldName( FIELD_T::VALUE, false ) ),
+                       wxS( "DerivedPower" ) );
+    BOOST_CHECK_EQUAL( derived->m_ChooserFields.at( GetDefaultFieldName( FIELD_T::FOOTPRINT, false ) ),
+                       wxS( "Package_TO_SOT_SMD:SOT-23" ) );
+    BOOST_CHECK_EQUAL( derived->m_ChooserFields.at( wxS( "Manufacturer" ) ), wxS( "Acme" ) );
+    BOOST_CHECK_EQUAL( derived->m_ChooserFields.at( _( "Keywords" ) ), wxS( "parent supply rail" ) );
+
+    std::vector<wxString> powerNames =
+            adapter.GetSymbolNames( nickname, SYMBOL_LIBRARY_ADAPTER::SYMBOL_TYPE::POWER_ONLY );
+    std::vector<wxString> expectedPowerNames = { wxS( "DerivedPower" ), wxS( "ParentPower" ) };
+
+    BOOST_CHECK_EQUAL_COLLECTIONS( powerNames.begin(), powerNames.end(), expectedPowerNames.begin(),
+                                   expectedPowerNames.end() );
+
+    std::filesystem::remove_all( dir, ec );
 }
 
 

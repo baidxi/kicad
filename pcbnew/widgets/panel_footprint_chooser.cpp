@@ -64,12 +64,6 @@ PANEL_FOOTPRINT_CHOOSER::PANEL_FOOTPRINT_CHOOSER( PCB_BASE_FRAME* aFrame, wxTopL
     m_CurrFootprint = nullptr;
     FOOTPRINT_LIBRARY_ADAPTER* footprints = PROJECT_PCB::FootprintLibAdapter( &aFrame->Prj() );
 
-    // Ensure libraries are loaded before building the tree. This is necessary when the footprint
-    // chooser is opened from contexts that don't preload libraries (e.g., from Eeschema).
-    footprints->AsyncLoad();
-    footprints->BlockUntilLoaded();
-    footprints->RefreshChangedLibraries();
-
     m_adapter = FP_TREE_MODEL_ADAPTER::Create( aFrame, footprints );
     FP_TREE_MODEL_ADAPTER* adapter = static_cast<FP_TREE_MODEL_ADAPTER*>( m_adapter.get() );
 
@@ -81,6 +75,16 @@ PANEL_FOOTPRINT_CHOOSER::PANEL_FOOTPRINT_CHOOSER( PCB_BASE_FRAME* aFrame, wxTopL
 
         if( fpid.Parse( item ) >= 0 )
             continue;
+
+        wxString nickname = fpid.GetLibNickname();
+
+        if( !nickname.IsEmpty() && !footprints->IsLibraryLoaded( nickname ) )
+        {
+            std::optional<LIB_STATUS> status = footprints->LoadLibraryEntry( nickname );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                continue;
+        }
 
         FOOTPRINT* fp = footprints->LoadFootprint( fpid, false );
 
