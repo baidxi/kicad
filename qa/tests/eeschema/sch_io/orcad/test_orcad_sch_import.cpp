@@ -428,6 +428,18 @@ BOOST_AUTO_TEST_CASE( OleNativeBitmapExtraction )
 }
 
 
+BOOST_AUTO_TEST_CASE( WmfPreviewUsesRequestedResolution )
+{
+    auto [upWidth, upHeight] = OrcadFitWmfRenderSize( 288, 144, 800, 600 );
+    auto [downWidth, downHeight] = OrcadFitWmfRenderSize( 800, 400, 200, 200 );
+
+    BOOST_CHECK_EQUAL( upWidth, 800 );
+    BOOST_CHECK_EQUAL( upHeight, 400 );
+    BOOST_CHECK_EQUAL( downWidth, 200 );
+    BOOST_CHECK_EQUAL( downHeight, 100 );
+}
+
+
 BOOST_AUTO_TEST_CASE( LegacyPageNetGroups )
 {
     std::vector<uint8_t> bytes = { ORCAD_ST_PAGE, 0, 0 };

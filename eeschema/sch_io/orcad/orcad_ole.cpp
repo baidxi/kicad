@@ -143,6 +143,21 @@ ORCAD_OLE_PREVIEW OrcadExtractOlePreview( const std::vector<uint8_t>& aPayload )
 }
 
 
+std::pair<unsigned int, unsigned int> OrcadFitWmfRenderSize( unsigned int aNaturalWidth, unsigned int aNaturalHeight,
+                                                             int aMaxWidth, int aMaxHeight )
+{
+    if( aNaturalWidth == 0 || aNaturalHeight == 0 )
+        return { 0, 0 };
+
+    double scale = std::min( static_cast<double>( std::max( 1, aMaxWidth ) ) / aNaturalWidth,
+                             static_cast<double>( std::max( 1, aMaxHeight ) ) / aNaturalHeight );
+
+    unsigned int width = static_cast<unsigned int>( std::max<long>( 1, std::lround( aNaturalWidth * scale ) ) );
+    unsigned int height = static_cast<unsigned int>( std::max<long>( 1, std::lround( aNaturalHeight * scale ) ) );
+    return { width, height };
+}
+
+
 bool OrcadRenderWmf( const std::vector<uint8_t>& aWmf, int aMaxWidth, int aMaxHeight, wxImage& aImage )
 {
     if( aWmf.empty() || aWmf.size() > static_cast<size_t>( std::numeric_limits<long>::max() ) )
@@ -194,11 +209,7 @@ bool OrcadRenderWmf( const std::vector<uint8_t>& aWmf, int aMaxWidth, int aMaxHe
         return false;
     }
 
-    double scale = std::min( static_cast<double>( std::max( 1, aMaxWidth ) ) / naturalWidth,
-                             static_cast<double>( std::max( 1, aMaxHeight ) ) / naturalHeight );
-    scale = std::min( scale, 1.0 );
-    unsigned int width = static_cast<unsigned int>( std::max<long>( 1, std::lround( naturalWidth * scale ) ) );
-    unsigned int height = static_cast<unsigned int>( std::max<long>( 1, std::lround( naturalHeight * scale ) ) );
+    auto [width, height] = OrcadFitWmfRenderSize( naturalWidth, naturalHeight, aMaxWidth, aMaxHeight );
 
     gd->bbox = bbox;
     gd->width = width;
