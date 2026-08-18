@@ -48,7 +48,31 @@ static int guessNickname( FOOTPRINT_LIBRARY_ADAPTER* aAdapter, LIB_ID* aFootprin
     wxString    nick;
     wxString    fpname = aFootprintId->GetLibItemName();
 
-    std::vector<wxString> nicks = aAdapter->GetLibraryNames();
+    std::vector<wxString> nicks;
+
+    for( const LIBRARY_TABLE_ROW* row : aAdapter->Rows() )
+    {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  nickname = row->Nickname();
+        std::optional<LIB_STATUS> status = aAdapter->GetLibraryStatus( nickname );
+
+        if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+            continue;
+
+        if( !aAdapter->IsLibraryLoaded( nickname ) )
+        {
+            status = aAdapter->LoadLibraryEntry( nickname );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                continue;
+        }
+
+        nicks.emplace_back( nickname );
+    }
+
+    StrNumSort( nicks, CASE_SENSITIVITY::INSENSITIVE );
 
     // Search each library going through libraries alphabetically.
     for( unsigned libNdx = 0; libNdx < nicks.size(); ++libNdx )

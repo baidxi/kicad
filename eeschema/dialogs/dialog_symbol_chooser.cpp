@@ -65,11 +65,6 @@ DIALOG_SYMBOL_CHOOSER::DIALOG_SYMBOL_CHOOSER( SCH_BASE_FRAME* aParent, const LIB
     if( aFilter && aFilter->GetFilterPowerSymbols() )
         SetTitle( _( "Choose Power Symbol" ) );
 
-    m_originalTitle = GetTitle();
-    onLazyLoadUpdate();
-    m_chooserPanel->Adapter()->RegisterLazyLoadHandler(
-            std::bind( &DIALOG_SYMBOL_CHOOSER::onLazyLoadUpdate, this ) );
-
     wxBoxSizer* buttonsSizer = new wxBoxSizer( wxHORIZONTAL );
 
     m_keepSymbol = new wxCheckBox( this, wxID_ANY, _( "Place repeated copies" ) );
@@ -120,13 +115,4 @@ LIB_ID DIALOG_SYMBOL_CHOOSER::GetSelectedLibId( int* aUnit ) const
 std::vector<std::pair<FIELD_T, wxString>> DIALOG_SYMBOL_CHOOSER::GetFields() const
 {
     return m_chooserPanel->GetFields();
-}
-
-
-
-void DIALOG_SYMBOL_CHOOSER::onLazyLoadUpdate()
-{
-    SetTitle( m_originalTitle + wxString::Format( _( " (%d items loaded)" ),
-                                                  m_chooserPanel->GetItemCount() ) );
-    m_chooserPanel->Regenerate();
 }

@@ -23,11 +23,13 @@
 #include <chrono>
 #include <env_vars.h>
 #include <footprint_info_impl.h>
+#include <string_utils.h>
 #include <thread_pool.h>
 #include <trace_helpers.h>
 #include <footprint.h>
 
 #include <magic_enum.hpp>
+#include <wx/dir.h>
 #include <wx/hash.h>
 #include <wx/log.h>
 
@@ -38,7 +40,10 @@ LEAK_AT_EXIT<std::map<wxString, LIB_DATA>> FOOTPRINT_LIBRARY_ADAPTER::GlobalLibr
 
 LEAK_AT_EXIT<std::shared_mutex> FOOTPRINT_LIBRARY_ADAPTER::GlobalLibraryMutex;
 
-LEAK_AT_EXIT<std::map<wxString, std::vector<std::unique_ptr<FOOTPRINT>>>> FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprints;
+LEAK_AT_EXIT<std::map<wxString, std::vector<std::unique_ptr<FOOTPRINT>>>>
+        FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprints;
+
+LEAK_AT_EXIT<std::map<wxString, std::vector<wxString>>> FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprintNames;
 
 std::shared_mutex FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprintsMutex;
 
@@ -69,60 +74,35 @@ void FOOTPRINT_LIBRARY_ADAPTER::enumerateLibrary( LIB_DATA* aLib, const wxString
     std::map<std::string, UTF8> options = aLib->row->GetOptionsMap();
     PCB_IO* plugin = pcbplugin( aLib );
     wxString nickname = aLib->row->Nickname();
+    PCB_IO_MGR::PCB_FILE_T      pluginType = PCB_IO_MGR::EnumFromStr( aLib->row->Type() );
 
     long long timestamp = plugin->GetLibraryTimestamp( aUri );
 
-    // Hold across the enumerate-then-borrow sequence: GetEnumeratedFootprint returns borrowed
-    // FP_CACHE pointers, so no other thread may rebuild the cache until we finish cloning.
+    if( pluginType == PCB_IO_MGR::KICAD_SEXP )
+    {
+        wxDir dir( aUri );
+
+        if( !dir.IsOpened() )
+            THROW_IO_ERRORF( _( "Footprint library '%s' not found." ), aUri );
+    }
+
     std::lock_guard pluginGuard( pluginMutex( nickname ) );
 
-    // FootprintEnumerate populates the plugin's internal FP_CACHE with parsed footprints
-    plugin->FootprintEnumerate( namesAS, aUri, false, &options );
+    plugin->FootprintEnumerate( namesAS, aUri, pluginType == PCB_IO_MGR::KICAD_SEXP, &options );
 
-    std::vector<std::unique_ptr<FOOTPRINT>> footprints;
-    footprints.reserve( namesAS.size() );
-
-    // For plugins with internal caches (like kicad_sexpr), GetEnumeratedFootprint returns
-    // a borrowed pointer and ClearCachedFootprints handles cleanup. For other plugins,
-    // GetEnumeratedFootprint allocates new memory that we must delete after cloning.
-    const bool pluginCaches = plugin->CachesEnumeratedFootprints();
+    std::vector<wxString> footprintNames;
+    footprintNames.reserve( namesAS.size() );
 
     for( const wxString& footprintName : namesAS )
-    {
-        try
-        {
-            const FOOTPRINT* cached = plugin->GetEnumeratedFootprint( aUri, footprintName, &options );
-
-            if( !cached )
-                continue;
-
-            FOOTPRINT* footprint = static_cast<FOOTPRINT*>( cached->Duplicate( IGNORE_PARENT_GROUP ) );
-            footprint->SetParent( nullptr );
-
-            // For non-caching plugins, delete the allocated footprint now that we've cloned it
-            if( !pluginCaches )
-                delete cached;
-
-            LIB_ID id = footprint->GetFPID();
-            id.SetLibNickname( nickname );
-            footprint->SetFPID( id );
-            footprints.emplace_back( footprint );
-        }
-        catch( IO_ERROR& e )
-        {
-            wxLogTrace( traceLibraries, "FP: %s:%s enumeration error: %s",
-                        nickname, footprintName, e.What() );
-        }
-    }
+        footprintNames.emplace_back( footprintName );
 
     {
         std::unique_lock lock( PreloadedFootprintsMutex );
-        PreloadedFootprints.Get()[nickname] = std::move( footprints );
+        PreloadedFootprints.Get().erase( nickname );
+        PreloadedFootprintNames.Get()[nickname] = std::move( footprintNames );
         PreloadedTimestamps.Get()[nickname] = timestamp;
     }
 
-    // Clear the plugin's FP_CACHE now that we've copied footprints to PreloadedFootprints.
-    // This eliminates the double-caching that was consuming ~1.2GB of extra RAM.
     plugin->ClearCachedFootprints( aUri );
 }
 
@@ -131,14 +111,11 @@ std::optional<LIB_STATUS> FOOTPRINT_LIBRARY_ADAPTER::LoadOne( LIB_DATA* aLib )
 {
     aLib->status.load_status = LOAD_STATUS::LOADING;
 
-    std::map<std::string, UTF8> options = aLib->row->GetOptionsMap();
+    wxString uri = getUri( aLib->row );
 
     try
     {
-        std::lock_guard pluginGuard( pluginMutex( aLib->row->Nickname() ) );
-
-        wxArrayString dummyList;
-        pcbplugin( aLib )->FootprintEnumerate( dummyList, getUri( aLib->row ), false, &options );
+        enumerateLibrary( aLib, uri );
         aLib->status.load_status = LOAD_STATUS::LOADED;
     }
     catch( IO_ERROR& e )
@@ -157,7 +134,7 @@ std::optional<LIB_STATUS> FOOTPRINT_LIBRARY_ADAPTER::LoadOne( const wxString& ni
     LIBRARY_RESULT<LIB_DATA*> result = loadIfNeeded( nickname );
 
     if( result.has_value() )
-        return LoadOne( *result );
+        return loadLibraryEntry( nickname, *result );
 
     return LIB_STATUS{
         .load_status = LOAD_STATUS::LOAD_ERROR,
@@ -169,17 +146,70 @@ std::optional<LIB_STATUS> FOOTPRINT_LIBRARY_ADAPTER::LoadOne( const wxString& ni
 std::vector<FOOTPRINT*> FOOTPRINT_LIBRARY_ADAPTER::GetFootprints( const wxString& aNickname, bool aBestEfforts )
 {
     std::vector<FOOTPRINT*> footprints;
+    std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname );
 
-    std::shared_lock lock( PreloadedFootprintsMutex );
-    auto it = PreloadedFootprints.Get().find( aNickname );
-
-    if( it == PreloadedFootprints.Get().end() )
+    if( !maybeLib )
         return footprints;
 
-    footprints.reserve( it->second.size() );
+    {
+        std::shared_lock lock( PreloadedFootprintsMutex );
+        auto             it = PreloadedFootprints.Get().find( aNickname );
 
-    for( const auto& fp : it->second )
-        footprints.push_back( fp.get() );
+        if( it != PreloadedFootprints.Get().end() )
+        {
+            footprints.reserve( it->second.size() );
+
+            for( const auto& fp : it->second )
+                footprints.push_back( fp.get() );
+
+            return footprints;
+        }
+    }
+
+    const LIB_DATA*                         lib = *maybeLib;
+    std::map<std::string, UTF8>             options = lib->row->GetOptionsMap();
+    std::vector<wxString>                   names = GetFootprintNames( aNickname, aBestEfforts );
+    std::vector<std::unique_ptr<FOOTPRINT>> loadedFootprints;
+
+    loadedFootprints.reserve( names.size() );
+
+    {
+        std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+
+        for( const wxString& footprintName : names )
+        {
+            try
+            {
+                if( FOOTPRINT* footprint =
+                            pcbplugin( lib )->FootprintLoad( getUri( lib->row ), footprintName, false, &options ) )
+                {
+                    LIB_ID id = footprint->GetFPID();
+                    id.SetLibNickname( aNickname );
+                    footprint->SetFPID( id );
+                    footprint->SetParent( nullptr );
+                    loadedFootprints.emplace_back( footprint );
+                }
+            }
+            catch( IO_ERROR& e )
+            {
+                wxLogTrace( traceLibraries, "FP: %s:%s load error: %s", aNickname, footprintName, e.What() );
+
+                if( !aBestEfforts )
+                    throw;
+            }
+        }
+    }
+
+    {
+        std::unique_lock lock( PreloadedFootprintsMutex );
+        auto&            cachedFootprints = PreloadedFootprints.Get()[aNickname];
+        cachedFootprints = std::move( loadedFootprints );
+
+        footprints.reserve( cachedFootprints.size() );
+
+        for( const auto& fp : cachedFootprints )
+            footprints.push_back( fp.get() );
+    }
 
     return footprints;
 }
@@ -191,26 +221,40 @@ std::vector<wxString> FOOTPRINT_LIBRARY_ADAPTER::GetFootprintNames( const wxStri
     // TODO(JE) can we kill wxArrayString in internal API?
     wxArrayString namesAS;
     std::vector<wxString> names;
+    std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname );
 
-    if( std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname ) )
+    if( !maybeLib )
+        return names;
+
     {
-        const LIB_DATA* lib = *maybeLib;
-        std::map<std::string, UTF8> options = lib->row->GetOptionsMap();
+        std::shared_lock lock( PreloadedFootprintsMutex );
+        auto             it = PreloadedFootprintNames.Get().find( aNickname );
 
-        try
-        {
-            std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+        if( it != PreloadedFootprintNames.Get().end() )
+            return it->second;
+    }
 
-            pcbplugin( lib )->FootprintEnumerate( namesAS, getUri( lib->row ), true, &options );
-        }
-        catch( IO_ERROR& e )
-        {
-            wxLogTrace( traceLibraries, "FP: Exception enumerating library %s: %s", lib->row->Nickname(), e.What() );
-        }
+    const LIB_DATA*             lib = *maybeLib;
+    std::map<std::string, UTF8> options = lib->row->GetOptionsMap();
+
+    try
+    {
+        std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+
+        pcbplugin( lib )->FootprintEnumerate( namesAS, getUri( lib->row ), true, &options );
+    }
+    catch( IO_ERROR& e )
+    {
+        wxLogTrace( traceLibraries, "FP: Exception enumerating library %s: %s", lib->row->Nickname(), e.What() );
     }
 
     for( const wxString& name : namesAS )
         names.emplace_back( name );
+
+    {
+        std::unique_lock lock( PreloadedFootprintsMutex );
+        PreloadedFootprintNames.Get()[aNickname] = names;
+    }
 
     return names;
 }
@@ -297,22 +341,53 @@ void FOOTPRINT_LIBRARY_ADAPTER::RefreshChangedLibraries()
 
 bool FOOTPRINT_LIBRARY_ADAPTER::FootprintExists( const wxString& aNickname, const wxString& aName )
 {
-    if( std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname ) )
+    std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname );
+
+    if( !maybeLib )
     {
-        const LIB_DATA* lib = *maybeLib;
-        std::map<std::string, UTF8> options = lib->row->GetOptionsMap();
+        std::optional<LIB_STATUS> status = LoadLibraryEntry( aNickname );
 
-        std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+            return false;
 
-        return pcbplugin( lib )->FootprintExists( getUri( lib->row ), aName, &options );
+        maybeLib = fetchIfLoaded( aNickname );
     }
 
-    return false;
+    if( !maybeLib )
+        return false;
+
+    const LIB_DATA*             lib = *maybeLib;
+    std::map<std::string, UTF8> options = lib->row->GetOptionsMap();
+
+    std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+
+    return pcbplugin( lib )->FootprintExists( getUri( lib->row ), aName, &options );
 }
 
 
 FOOTPRINT* FOOTPRINT_LIBRARY_ADAPTER::LoadFootprint( const wxString& aNickname, const wxString& aName, bool aKeepUUID )
 {
+    std::optional<const LIB_DATA*> maybeLib = fetchIfLoaded( aNickname );
+
+    if( !maybeLib )
+    {
+        std::optional<LIB_STATUS> status = LoadLibraryEntry( aNickname );
+
+        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+        {
+            wxLogTrace( traceLibraries, "LoadFootprint: requested library %s not loaded", aNickname );
+            return nullptr;
+        }
+
+        maybeLib = fetchIfLoaded( aNickname );
+    }
+
+    if( !maybeLib )
+    {
+        wxLogTrace( traceLibraries, "LoadFootprint: requested library %s not loaded", aNickname );
+        return nullptr;
+    }
+
     // First check if the footprint is in PreloadedFootprints and clone from there.
     // This avoids re-parsing the file and keeps FP_CACHE from being repopulated.
     {
@@ -341,28 +416,23 @@ FOOTPRINT* FOOTPRINT_LIBRARY_ADAPTER::LoadFootprint( const wxString& aNickname, 
 
     // Footprint not found in PreloadedFootprints, fall back to plugin.
     // This re-parses the file but is needed for footprints not yet enumerated.
-    if( std::optional<const LIB_DATA*> lib = fetchIfLoaded( aNickname ) )
-    {
-        try
-        {
-            std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+    const LIB_DATA* lib = *maybeLib;
 
-            if( FOOTPRINT* footprint = pcbplugin( *lib )->FootprintLoad( getUri( ( *lib )->row ), aName, aKeepUUID ) )
-            {
-                LIB_ID id = footprint->GetFPID();
-                id.SetLibNickname( ( *lib )->row->Nickname() );
-                footprint->SetFPID( id );
-                return footprint;
-            }
-        }
-        catch( const IO_ERROR& ioe )
+    try
+    {
+        std::lock_guard pluginGuard( pluginMutex( aNickname ) );
+
+        if( FOOTPRINT* footprint = pcbplugin( lib )->FootprintLoad( getUri( lib->row ), aName, aKeepUUID ) )
         {
-            wxLogTrace( traceLibraries, "LoadFootprint: error loading %s:%s: %s", aNickname, aName, ioe.What() );
+            LIB_ID id = footprint->GetFPID();
+            id.SetLibNickname( lib->row->Nickname() );
+            footprint->SetFPID( id );
+            return footprint;
         }
     }
-    else
+    catch( const IO_ERROR& ioe )
     {
-        wxLogTrace( traceLibraries, "LoadFootprint: requested library %s not loaded", aNickname );
+        wxLogTrace( traceLibraries, "LoadFootprint: error loading %s:%s: %s", aNickname, aName, ioe.What() );
     }
 
     return nullptr;
@@ -377,8 +447,34 @@ FOOTPRINT* FOOTPRINT_LIBRARY_ADAPTER::LoadFootprintWithOptionalNickname( const L
     if( nickname.size() )
         return LoadFootprint( nickname, footprintName, aKeepUUID );
 
+    std::vector<wxString> libraries;
+
+    for( const LIBRARY_TABLE_ROW* row : Rows() )
+    {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  library = row->Nickname();
+        std::optional<LIB_STATUS> status = GetLibraryStatus( library );
+
+        if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+            continue;
+
+        if( !IsLibraryLoaded( library ) )
+        {
+            status = LoadLibraryEntry( library );
+
+            if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                continue;
+        }
+
+        libraries.emplace_back( library );
+    }
+
+    StrNumSort( libraries, CASE_SENSITIVITY::INSENSITIVE );
+
     // nickname is empty, sequentially search (alphabetically) all libs/nicks for first match:
-    for( const wxString& library : GetLibraryNames() )
+    for( const wxString& library : libraries )
     {
         // FootprintLoad() returns NULL on not found, does not throw exception
         // unless there's an IO_ERROR.
@@ -439,11 +535,10 @@ FOOTPRINT_LIBRARY_ADAPTER::SAVE_T FOOTPRINT_LIBRARY_ADAPTER::SaveFootprint( cons
         {
             std::unique_lock lock( PreloadedFootprintsMutex );
             auto             it = PreloadedFootprints.Get().find( aNickname );
+            wxString         fpName = aFootprint->GetFPID().GetLibItemName();
 
             if( it != PreloadedFootprints.Get().end() )
             {
-                wxString fpName = aFootprint->GetFPID().GetLibItemName();
-
                 if( aOverwrite )
                 {
                     auto& footprints = it->second;
@@ -463,6 +558,17 @@ FOOTPRINT_LIBRARY_ADAPTER::SAVE_T FOOTPRINT_LIBRARY_ADAPTER::SaveFootprint( cons
                 clone->SetFPID( id );
 
                 it->second.emplace_back( clone );
+            }
+
+            auto namesIt = PreloadedFootprintNames.Get().find( aNickname );
+
+            if( namesIt != PreloadedFootprintNames.Get().end() )
+            {
+                namesIt->second.erase( std::remove( namesIt->second.begin(), namesIt->second.end(), fpName ),
+                                       namesIt->second.end() );
+
+                namesIt->second.push_back( fpName );
+                StrNumSort( namesIt->second, CASE_SENSITIVITY::INSENSITIVE );
             }
         }
 
@@ -506,6 +612,14 @@ void FOOTPRINT_LIBRARY_ADAPTER::DeleteFootprint( const wxString& aNickname, cons
                                                       return fp->GetFPID().GetLibItemName().wx_str() == aFootprintName;
                                                   } ),
                                   footprints.end() );
+            }
+
+            auto namesIt = PreloadedFootprintNames.Get().find( aNickname );
+
+            if( namesIt != PreloadedFootprintNames.Get().end() )
+            {
+                namesIt->second.erase( std::remove( namesIt->second.begin(), namesIt->second.end(), aFootprintName ),
+                                       namesIt->second.end() );
             }
         }
     }

@@ -242,6 +242,7 @@ protected:
 
     void onTreeSelect( wxDataViewEvent& aEvent );
     void onTreeActivate( wxDataViewEvent& aEvent );
+    void onTreeItemExpanding( wxDataViewEvent& aEvent );
     void onTreeCharHook( wxKeyEvent& aEvent );
 
     void onIdle( wxIdleEvent& aEvent );

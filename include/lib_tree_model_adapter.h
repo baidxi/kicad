@@ -236,6 +236,18 @@ public:
     void UpdateSearchString( const wxString& aSearch, bool aState );
 
     /**
+     * Ensure that child nodes are available before expanding or selecting a tree node.
+     * Adapters with fully-populated models can leave the default no-op behavior.
+     */
+    virtual void EnsureChildrenLoaded( const wxDataViewItem& aItem ) {}
+
+    /**
+     * Ensure that every library node has its children available, for operations such as
+     * Expand All and full-tree searching.
+     */
+    virtual void EnsureAllChildrenLoaded() {}
+
+    /**
      * Attach to a wxDataViewCtrl and initialize it. This will set up columns
      * and associate the model via the adapter.
      *

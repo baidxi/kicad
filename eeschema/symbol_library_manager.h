@@ -203,6 +203,8 @@ public:
 
     std::list<LIB_SYMBOL*> EnumerateSymbols( const wxString& aLibrary ) const;
 
+    bool IsLibraryBuffered( const wxString& aLibrary ) const;
+
     /**
      * Create an empty library and adds it to the library table.
      *

@@ -34,7 +34,10 @@ public:
 
     bool IsContainer( const wxDataViewItem& aItem ) const override;
 
+    void AddLibraries( EDA_BASE_FRAME* aParent ) override;
     void Sync( FOOTPRINT_LIBRARY_ADAPTER* aLibs );
+    void EnsureChildrenLoaded( const wxDataViewItem& aItem ) override;
+    void EnsureAllChildrenLoaded() override;
 
     int GetLibrariesCount() const override;
 
@@ -50,6 +53,7 @@ protected:
     FP_TREE_SYNCHRONIZING_ADAPTER( FOOTPRINT_EDIT_FRAME* aFrame, FOOTPRINT_LIBRARY_ADAPTER* aLibs );
 
     void updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode );
+    bool populateLibrary( LIB_TREE_NODE_LIBRARY& aLibNode, bool aNotify );
 
     LIB_TREE_NODE::PTR_VECTOR::iterator deleteLibrary( LIB_TREE_NODE::PTR_VECTOR::iterator& aLibNodeIt );
 

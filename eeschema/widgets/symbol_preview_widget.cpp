@@ -195,7 +195,9 @@ void SYMBOL_PREVIEW_WIDGET::DisplaySymbol( const LIB_ID& aSymbolID, int aUnit, i
         LIB_SYMBOL* tmp = PROJECT_SCH::SymbolLibAdapter( &m_kiway->Prj() )->LoadSymbol( aSymbolID );
 
         if( tmp )
+        {
             symbol = tmp->Flatten();
+        }
     }
     catch( const IO_ERROR& ioe )
     {

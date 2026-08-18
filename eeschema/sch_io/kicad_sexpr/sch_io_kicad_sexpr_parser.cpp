@@ -26,7 +26,9 @@
 
 // For some reason wxWidgets is built with wxUSE_BASE64 unset so expose the wxWidgets
 // base64 code.
+#include <algorithm>
 #include <charconv>
+#include <functional>
 
 #include <fmt/format.h>
 #define wxUSE_BASE64 1
@@ -277,6 +279,182 @@ void SCH_IO_KICAD_SEXPR_PARSER::ParseLib( LIB_SYMBOL_MAP& aSymbolLibMap )
 }
 
 
+void SCH_IO_KICAD_SEXPR_PARSER::ParseLibSymbolNames( wxArrayString& aSymbolNameList, bool aPowerSymbolsOnly )
+{
+    std::vector<LIB_SYMBOL_INDEX> symbolIndex;
+
+    ParseLibSymbolIndex( symbolIndex, aPowerSymbolsOnly );
+
+    for( const LIB_SYMBOL_INDEX& symbol : symbolIndex )
+        aSymbolNameList.Add( symbol.m_Name );
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::ParseLibSymbolIndex( std::vector<LIB_SYMBOL_INDEX>& aSymbolIndex,
+                                                     bool                           aPowerSymbolsOnly )
+{
+    T token;
+
+    NeedLEFT();
+    NextTok();
+    parseHeader( T_kicad_symbol_lib, SEXPR_SYMBOL_LIB_FILE_VERSION );
+
+    // Prior to this, bar was a valid string char for unquoted strings.
+    SetKnowsBar( m_requiredVersion >= 20240529 );
+
+    bool versionChecked = false;
+
+    auto checkVersion = [&]()
+    {
+        if( !versionChecked && m_requiredVersion > SEXPR_SYMBOL_LIB_FILE_VERSION )
+        {
+            throw FUTURE_FORMAT_ERROR( fmt::format( "{}", m_requiredVersion ), m_generatorVersion );
+        }
+
+        versionChecked = true;
+    };
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_generator:
+            NeedSYMBOL();
+            NeedRIGHT();
+            break;
+
+        case T_host:
+            NeedSYMBOL();
+
+            if( m_requiredVersion < 20200827 )
+                NeedSYMBOL();
+
+            NeedRIGHT();
+            break;
+
+        case T_generator_version:
+            NextTok();
+            m_generatorVersion = FromUTF8();
+            NeedRIGHT();
+            checkVersion();
+            break;
+
+        case T_symbol:
+        {
+            checkVersion();
+
+            LIB_SYMBOL_INDEX symbolIndex;
+            parseLibSymbolIndex( symbolIndex );
+            aSymbolIndex.push_back( std::move( symbolIndex ) );
+            break;
+        }
+
+        default: Expecting( "symbol, generator, or generator_version" );
+        }
+    }
+
+    std::map<wxString, LIB_SYMBOL_INDEX*> recordMap;
+
+    for( LIB_SYMBOL_INDEX& symbolIndex : aSymbolIndex )
+        recordMap[symbolIndex.m_Name] = &symbolIndex;
+
+    std::set<wxString>       resolving;
+    std::map<wxString, bool> powerCache;
+
+    std::function<void( LIB_SYMBOL_INDEX& )> inherit = [&]( LIB_SYMBOL_INDEX& aSymbolIndex )
+    {
+        if( aSymbolIndex.m_ParentName.IsEmpty() || resolving.contains( aSymbolIndex.m_Name ) )
+            return;
+
+        auto parentIt = recordMap.find( aSymbolIndex.m_ParentName );
+
+        if( parentIt == recordMap.end() )
+            return;
+
+        resolving.insert( aSymbolIndex.m_Name );
+        inherit( *parentIt->second );
+        resolving.erase( aSymbolIndex.m_Name );
+
+        LIB_SYMBOL_INDEX& parent = *parentIt->second;
+
+        if( !aSymbolIndex.m_IsPower )
+            aSymbolIndex.m_IsPower = parent.m_IsPower;
+
+        if( aSymbolIndex.m_Description.IsEmpty() )
+            aSymbolIndex.m_Description = parent.m_Description;
+
+        if( aSymbolIndex.m_KeyWords.IsEmpty() )
+            aSymbolIndex.m_KeyWords = parent.m_KeyWords;
+
+        if( aSymbolIndex.m_UnitCount <= 1 )
+        {
+            aSymbolIndex.m_UnitCount = parent.m_UnitCount;
+            aSymbolIndex.m_UnitDisplayNames = parent.m_UnitDisplayNames;
+        }
+    };
+
+    std::function<bool( LIB_SYMBOL_INDEX& )> isPower = [&]( LIB_SYMBOL_INDEX& aSymbolIndex )
+    {
+        if( aSymbolIndex.m_IsPower )
+            return true;
+
+        if( aSymbolIndex.m_ParentName.IsEmpty() )
+            return false;
+
+        if( auto cached = powerCache.find( aSymbolIndex.m_Name ); cached != powerCache.end() )
+            return cached->second;
+
+        if( resolving.contains( aSymbolIndex.m_Name ) )
+            return false;
+
+        auto parent = recordMap.find( aSymbolIndex.m_ParentName );
+
+        if( parent == recordMap.end() )
+            return false;
+
+        resolving.insert( aSymbolIndex.m_Name );
+        bool ret = isPower( *parent->second );
+        resolving.erase( aSymbolIndex.m_Name );
+        powerCache[aSymbolIndex.m_Name] = ret;
+        return ret;
+    };
+
+    for( LIB_SYMBOL_INDEX& symbolIndex : aSymbolIndex )
+    {
+        inherit( symbolIndex );
+
+        if( !symbolIndex.m_KeyWords.IsEmpty() && !symbolIndex.m_ChooserFields.contains( _( "Keywords" ) ) )
+        {
+            symbolIndex.m_ChooserFields[_( "Keywords" )] = symbolIndex.m_KeyWords;
+        }
+    }
+
+    std::erase_if( aSymbolIndex,
+                   [&]( LIB_SYMBOL_INDEX& aSymbolIndex )
+                   {
+                       return aPowerSymbolsOnly && !isPower( aSymbolIndex );
+                   } );
+
+    std::sort( aSymbolIndex.begin(), aSymbolIndex.end(),
+               []( const LIB_SYMBOL_INDEX& aFirst, const LIB_SYMBOL_INDEX& aSecond )
+               {
+                   return StrNumCmp( aFirst.m_Name, aSecond.m_Name, true ) < 0;
+               } );
+
+    auto duplicate = std::unique( aSymbolIndex.begin(), aSymbolIndex.end(),
+                                  []( const LIB_SYMBOL_INDEX& aFirst, const LIB_SYMBOL_INDEX& aSecond )
+                                  {
+                                      return aFirst.m_Name == aSecond.m_Name;
+                                  } );
+    aSymbolIndex.erase( duplicate, aSymbolIndex.end() );
+}
+
+
 LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::ParseSymbol( LIB_SYMBOL_MAP& aSymbolLibMap,
                                                     int aFileVersion )
 {
@@ -314,6 +492,294 @@ LIB_SYMBOL* SCH_IO_KICAD_SEXPR_PARSER::ParseSymbol( LIB_SYMBOL_MAP& aSymbolLibMa
     }
 
     return newSymbol;
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbolName( wxString& aName, wxString& aParentName, bool& aIsPower )
+{
+    wxCHECK_RET( CurTok() == T_symbol, wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as a symbol." ) );
+
+    T        token;
+    wxString name;
+
+    aName.Clear();
+    aParentName.Clear();
+    aIsPower = false;
+
+    token = NextTok();
+
+    if( !IsSymbol( token ) )
+        THROW_PARSE_ERROR( _( "Invalid symbol name" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+
+    name = FromUTF8();
+    name.Replace( wxS( "{slash}" ), wxT( "/" ) );
+
+    LIB_ID id;
+    int    bad_pos = id.Parse( name );
+
+    if( bad_pos >= 0 )
+    {
+        if( static_cast<int>( name.size() ) > bad_pos )
+        {
+            wxString msg = wxString::Format( _( "Symbol %s contains invalid character '%c'" ), name, name[bad_pos] );
+
+            THROW_PARSE_ERROR( msg, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+        }
+
+        THROW_PARSE_ERROR( _( "Invalid library identifier" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    aName = id.GetLibItemName().wx_str();
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_power:
+            aIsPower = true;
+            skipToBlockEnd( 1 );
+            break;
+
+        case T_extends:
+            token = NextTok();
+
+            if( !IsSymbol( token ) )
+            {
+                THROW_PARSE_ERROR( _( "Invalid parent symbol name" ), CurSource(), CurLine(), CurLineNumber(),
+                                   CurOffset() );
+            }
+
+            aParentName = FromUTF8();
+            aParentName.Replace( wxS( "{slash}" ), wxT( "/" ) );
+            NeedRIGHT();
+            break;
+
+        default: skipToBlockEnd( 1 );
+        }
+    }
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbolIndex( LIB_SYMBOL_INDEX& aIndex )
+{
+    wxCHECK_RET( CurTok() == T_symbol, wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as a symbol." ) );
+
+    T        token;
+    wxString name;
+
+    aIndex = LIB_SYMBOL_INDEX();
+
+    token = NextTok();
+
+    if( !IsSymbol( token ) )
+        THROW_PARSE_ERROR( _( "Invalid symbol name" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+
+    name = FromUTF8();
+    name.Replace( wxS( "{slash}" ), wxT( "/" ) );
+
+    LIB_ID id;
+    int    bad_pos = id.Parse( name );
+
+    if( bad_pos >= 0 )
+    {
+        if( static_cast<int>( name.size() ) > bad_pos )
+        {
+            wxString msg = wxString::Format( _( "Symbol %s contains invalid character '%c'" ), name, name[bad_pos] );
+
+            THROW_PARSE_ERROR( msg, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+        }
+
+        THROW_PARSE_ERROR( _( "Invalid library identifier" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    aIndex.m_Name = id.GetLibItemName().wx_str();
+    aIndex.m_ChooserFields[GetDefaultFieldName( FIELD_T::VALUE, false )] = aIndex.m_Name;
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_power:
+            aIndex.m_IsPower = true;
+            skipToBlockEnd( 1 );
+            break;
+
+        case T_extends:
+            token = NextTok();
+
+            if( !IsSymbol( token ) )
+            {
+                THROW_PARSE_ERROR( _( "Invalid parent symbol name" ), CurSource(), CurLine(), CurLineNumber(),
+                                   CurOffset() );
+            }
+
+            aIndex.m_ParentName = FromUTF8();
+            aIndex.m_ParentName.Replace( wxS( "{slash}" ), wxT( "/" ) );
+            NeedRIGHT();
+            break;
+
+        case T_property: parseLibSymbolIndexProperty( aIndex ); break;
+
+        case T_symbol: parseLibSymbolIndexUnit( aIndex ); break;
+
+        default: skipToBlockEnd( 1 );
+        }
+    }
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbolIndexProperty( LIB_SYMBOL_INDEX& aIndex )
+{
+    wxCHECK_RET( CurTok() == T_property,
+                 wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as a property." ) );
+
+    T        token = NextTok();
+    wxString name;
+    wxString value;
+
+    if( token == T_private )
+        token = NextTok();
+
+    if( !IsSymbol( token ) )
+    {
+        THROW_PARSE_ERROR( _( "Invalid property name" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    name = FromUTF8();
+
+    if( name.IsEmpty() )
+    {
+        THROW_PARSE_ERROR( _( "Empty property name" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    token = NextTok();
+
+    if( !IsSymbol( token ) )
+    {
+        THROW_PARSE_ERROR( _( "Invalid property value" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    if( m_requiredVersion < 20250318 && CurStr() == "~" )
+        value = wxEmptyString;
+    else
+        value = FromUTF8();
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        skipToBlockEnd( 1 );
+    }
+
+    if( name == wxT( "ki_keywords" ) )
+    {
+        aIndex.m_KeyWords = value;
+        aIndex.m_ChooserFields[_( "Keywords" )] = value;
+        return;
+    }
+
+    if( name == wxT( "ki_description" ) )
+    {
+        aIndex.m_Description = value;
+        return;
+    }
+
+    if( name.StartsWith( wxT( "ki_" ) ) )
+        return;
+
+    aIndex.m_ChooserFields[name] = value;
+
+    if( name.CmpNoCase( GetCanonicalFieldName( FIELD_T::DESCRIPTION ) ) == 0 )
+        aIndex.m_Description = value;
+    else if( name.CmpNoCase( GetCanonicalFieldName( FIELD_T::FOOTPRINT ) ) == 0 )
+        aIndex.m_Footprint = value;
+}
+
+
+void SCH_IO_KICAD_SEXPR_PARSER::parseLibSymbolIndexUnit( LIB_SYMBOL_INDEX& aIndex )
+{
+    wxCHECK_RET( CurTok() == T_symbol,
+                 wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as a symbol unit." ) );
+
+    T        token;
+    long     unit;
+    long     bodyStyle;
+    wxString name;
+    wxString error;
+
+    token = NextTok();
+
+    if( !IsSymbol( token ) )
+    {
+        THROW_PARSE_ERROR( _( "Invalid symbol unit name" ), CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    name = FromUTF8();
+    name.Replace( wxS( "{slash}" ), wxT( "/" ) );
+
+    if( !name.StartsWith( aIndex.m_Name ) )
+    {
+        error.Printf( _( "Invalid symbol unit name prefix %s" ), name.c_str() );
+        THROW_PARSE_ERROR( error, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    name = name.Right( name.Length() - aIndex.m_Name.Length() - 1 );
+
+    wxStringTokenizer tokenizer( name, "_" );
+
+    if( tokenizer.CountTokens() != 2 )
+    {
+        error.Printf( _( "Invalid symbol unit name suffix %s" ), name.c_str() );
+        THROW_PARSE_ERROR( error, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    if( !tokenizer.GetNextToken().ToLong( &unit ) )
+    {
+        error.Printf( _( "Invalid symbol unit number %s" ), name.c_str() );
+        THROW_PARSE_ERROR( error, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    if( !tokenizer.GetNextToken().ToLong( &bodyStyle ) )
+    {
+        error.Printf( _( "Invalid symbol body style number %s" ), name.c_str() );
+        THROW_PARSE_ERROR( error, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
+    }
+
+    if( unit > aIndex.m_UnitCount )
+        aIndex.m_UnitCount = static_cast<int>( unit );
+
+    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        if( token == T_unit_name )
+        {
+            token = NextTok();
+
+            if( IsSymbol( token ) )
+                aIndex.m_UnitDisplayNames[static_cast<int>( unit )] = FromUTF8();
+
+            NeedRIGHT();
+        }
+        else
+        {
+            skipToBlockEnd( 1 );
+        }
+    }
 }
 
 

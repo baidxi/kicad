@@ -110,7 +110,6 @@ SYMBOL_CHOOSER_FRAME::SYMBOL_CHOOSER_FRAME( KIWAY* aKiway, wxWindow* aParent, bo
     frameSizer->Add( bottomPanel, 0, wxEXPAND );
 
     SetSizer( frameSizer );
-    SetTitle( GetTitle() + wxString::Format( _( " (%d items loaded)" ), m_chooserPanel->GetItemCount() ) );
     Layout();
     m_chooserPanel->FinishSetup();
 

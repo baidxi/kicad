@@ -44,6 +44,7 @@
 #include <settings/settings_manager.h>
 #include <settings/cvpcb_settings.h>
 #include <footprint_library_adapter.h>
+#include <footprint_filter.h>
 #include <footprint_edit_frame.h>
 #include <footprint_viewer_frame.h>
 #include <footprint_chooser_frame.h>
@@ -77,6 +78,8 @@
 #include <widgets/kistatusbar.h>
 
 #include <wx/tokenzr.h>
+#include <map>
+#include <mutex>
 
 #include "invoke_pcb_dialog.h"
 #include <wildcards_and_files_ext.h>
@@ -111,31 +114,32 @@ static wxString filterFootprints( const wxString& aFilterJson )
 {
     using json = nlohmann::json;
 
+    static std::mutex                      footprintListMutex;
+    static FOOTPRINT_LIST_IMPL             footprintList;
+    static long long                       footprintCacheTimestamp = 0;
+    static std::map<std::string, wxString> footprintFilterCache;
+
     try
     {
         json input = json::parse( aFilterJson.ToStdString() );
+        std::string cacheKey = aFilterJson.ToStdString();
 
         int  pinCount = input.value( "pin_count", 0 );
         bool zeroFilters = input.value( "zero_filters", true );
         int  maxResults = input.value( "max_results", 400 );
 
-        std::vector<std::unique_ptr<EDA_PATTERN_MATCH>> filterMatchers;
+        wxArrayString footprintFilters;
 
         if( input.contains( "filters" ) && input["filters"].is_array() )
         {
             for( const auto& f : input["filters"] )
             {
                 if( f.is_string() )
-                {
-                    wxString pattern = wxString::FromUTF8( f.get<std::string>() );
-                    auto     matcher = std::make_unique<EDA_PATTERN_MATCH_WILDCARD_ANCHORED>();
-                    matcher->SetPattern( pattern.Lower() );
-                    filterMatchers.push_back( std::move( matcher ) );
-                }
+                    footprintFilters.Add( wxString::FromUTF8( f.get<std::string>() ) );
             }
         }
 
-        bool hasFilters = ( pinCount > 0 || !filterMatchers.empty() );
+        bool hasFilters = ( pinCount > 0 || !footprintFilters.empty() );
 
         if( zeroFilters && !hasFilters )
             return wxS( "[]" );
@@ -162,69 +166,55 @@ static wxString filterFootprints( const wxString& aFilterJson )
         if( !adapter )
             return wxS( "[]" );
 
-        adapter->AsyncLoad();
-        adapter->BlockUntilLoaded();
+        std::lock_guard listGuard( footprintListMutex );
 
-        // Iterate through preloaded footprints directly instead of re-reading from disk
+        long long generatedTimestamp = adapter->GenerateTimestamp( nullptr );
+        bool      canCache = generatedTimestamp != 0;
+
+        if( canCache )
+        {
+            if( generatedTimestamp != footprintCacheTimestamp )
+            {
+                footprintFilterCache.clear();
+                footprintCacheTimestamp = generatedTimestamp;
+            }
+            else
+            {
+                auto cacheIt = footprintFilterCache.find( cacheKey );
+
+                if( cacheIt != footprintFilterCache.end() )
+                    return cacheIt->second;
+            }
+        }
+
+        footprintList.ReadFootprintFiles( adapter );
+
+        FOOTPRINT_FILTER filter( footprintList );
+
+        if( !footprintFilters.empty() )
+            filter.FilterByFootprintFilters( footprintFilters );
+
+        if( pinCount > 0 )
+            filter.FilterByPinCount( pinCount );
+
         json output = json::array();
         int  count = 0;
 
-        for( const wxString& nickname : adapter->GetLibraryNames() )
+        for( FOOTPRINT_INFO& footprint : filter )
         {
-            std::vector<FOOTPRINT*> footprints = adapter->GetFootprints( nickname, true );
+            wxString libId = footprint.GetLIB_ID().Format();
+            output.push_back( libId.ToStdString() );
 
-            for( FOOTPRINT* fp : footprints )
-            {
-                if( !fp )
-                    continue;
-
-                // Pin count filter
-                if( pinCount > 0 )
-                {
-                    int fpPadCount = fp->GetUniquePadCount( DO_NOT_INCLUDE_NPTH );
-
-                    if( fpPadCount != pinCount )
-                        continue;
-                }
-
-                // Footprint filter patterns with case-insensitive matching
-                if( !filterMatchers.empty() )
-                {
-                    bool matches = false;
-
-                    for( const auto& matcher : filterMatchers )
-                    {
-                        wxString name;
-
-                        // If filter contains ':', include library nickname in match string
-                        if( matcher->GetPattern().Contains( wxS( ":" ) ) )
-                            name = fp->GetFPID().GetLibNickname().wx_str().Lower() + wxS( ":" );
-
-                        name += fp->GetFPID().GetLibItemName().wx_str().Lower();
-
-                        if( matcher->Find( name ) )
-                        {
-                            matches = true;
-                            break;
-                        }
-                    }
-
-                    if( !matches )
-                        continue;
-                }
-
-                wxString libId = fp->GetFPID().Format();
-                output.push_back( libId.ToStdString() );
-
-                if( ++count >= maxResults )
-                    break;
-            }
-
-            if( count >= maxResults )
+            if( ++count >= maxResults )
                 break;
         }
 
-        return wxString::FromUTF8( output.dump() );
+        wxString outputString = wxString::FromUTF8( output.dump() );
+
+        if( canCache )
+            footprintFilterCache[cacheKey] = outputString;
+
+        return outputString;
     }
     catch( const std::exception& )
     {

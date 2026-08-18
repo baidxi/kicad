@@ -1039,10 +1039,19 @@ void CVPCB_MAINFRAME::BuildLibrariesList()
 
     if( adapter )
     {
-        std::vector<wxString> libNickNames = adapter->GetLibraryNames();
+        for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+        {
+            if( row->Disabled() || row->Hidden() )
+                continue;
 
-        for( const wxString& libNickName : libNickNames )
-            process( libNickName );
+            wxString                  nickname = row->Nickname();
+            std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+            if( status && ( status->load_status == LOAD_STATUS::LOAD_ERROR || status->error ) )
+                continue;
+
+            process( nickname );
+        }
     }
 
     for( const wxString& nickname : pinnedMatches )

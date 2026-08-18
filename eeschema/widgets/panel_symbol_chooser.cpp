@@ -55,8 +55,8 @@ SCH_BASE_FRAME* PANEL_SYMBOL_CHOOSER::m_frame = nullptr;
 PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aParent,
                                             const SYMBOL_LIBRARY_FILTER* aFilter,
                                             std::vector<PICKED_SYMBOL>&  aHistoryList,
-                                            std::vector<PICKED_SYMBOL>&  aAlreadyPlaced,
-                                            bool aAllowFieldEdits, bool aShowFootprints, bool& aCancelled,
+                                            std::vector<PICKED_SYMBOL>& aAlreadyPlaced, bool aAllowFieldEdits,
+                                            bool aShowFootprints, bool& aCancelled,
                                             std::function<void()> aAcceptHandler,
                                             std::function<void()> aEscapeHandler ) :
         wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxDefaultSize ),
@@ -71,7 +71,8 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
         m_escapeHandler( std::move( aEscapeHandler ) ),
         m_showPower( false ),
         m_allow_field_edits( aAllowFieldEdits ),
-        m_show_footprints( aShowFootprints )
+        m_show_footprints( aShowFootprints ),
+        m_selection_update_generation( 0 )
 {
     m_frame = aFrame;
 
@@ -136,6 +137,16 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
 
                 for( const PICKED_SYMBOL& i : inputList )
                 {
+                    wxString nickname = i.LibId.GetLibNickname();
+
+                    if( !nickname.IsEmpty() && !libmgr->IsLibraryLoaded( nickname ) )
+                    {
+                        std::optional<LIB_STATUS> status = libmgr->LoadLibraryEntry( nickname );
+
+                        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                            continue;
+                    }
+
                     LIB_SYMBOL* symbol = m_frame->GetLibSymbol( i.LibId );
 
                     if( symbol )
@@ -645,12 +656,13 @@ void PANEL_SYMBOL_CHOOSER::populateFootprintSelector( LIB_ID const& aLibId )
         m_fp_sel_ctrl->FilterByPinCount( pinCount );
         m_fp_sel_ctrl->FilterByFootprintFilters( symbol->GetFPFilters(), true );
         m_fp_sel_ctrl->SetDefaultFootprint( fp_name );
-        m_fp_sel_ctrl->UpdateList();
+
+        m_fp_sel_ctrl->UpdateDefault();
         m_fp_sel_ctrl->Enable();
     }
     else
     {
-        m_fp_sel_ctrl->UpdateList();
+        m_fp_sel_ctrl->UpdateDefault();
         m_fp_sel_ctrl->Disable();
     }
 }
@@ -674,6 +686,23 @@ void PANEL_SYMBOL_CHOOSER::onFootprintSelected( wxCommandEvent& aEvent )
 
 void PANEL_SYMBOL_CHOOSER::onSymbolSelected( wxCommandEvent& aEvent )
 {
+    wxUnusedVar( aEvent );
+
+    const unsigned int generation = ++m_selection_update_generation;
+
+    CallAfter(
+            [this, generation]()
+            {
+                updateSymbolSelection( generation );
+            } );
+}
+
+
+void PANEL_SYMBOL_CHOOSER::updateSymbolSelection( unsigned int aGeneration )
+{
+    if( aGeneration != m_selection_update_generation )
+        return;
+
     LIB_TREE_NODE* node = m_tree->GetCurrentTreeNode();
 
     if( node && node->m_LibId.IsValid() )

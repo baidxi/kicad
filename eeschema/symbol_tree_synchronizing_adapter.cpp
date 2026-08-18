@@ -23,18 +23,81 @@
 
 #include <wx/log.h>
 #include <wx/settings.h>
+#include <wx/timer.h>
 
 #include <core/throttle.h>
 #include <kiplatform/ui.h>
 #include <pgm_base.h>
 #include <project/project_file.h>
 #include <lib_symbol_library_manager.h>
+#include <lib_symbol.h>
 #include <tools/symbol_editor_control.h>
 #include <project_sch.h>
 #include <string_utils.h>
 #include <symbol_preview_widget.h>
 #include <libraries/symbol_library_adapter.h>
 #include <widgets/wx_panel.h>
+
+#include <wx/tokenzr.h>
+
+
+namespace
+{
+
+class SYMBOL_INDEX_TREE_ITEM : public LIB_TREE_ITEM
+{
+public:
+    SYMBOL_INDEX_TREE_ITEM( const wxString& aLibNickname, const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& aIndex ) :
+            m_libNickname( aLibNickname ),
+            m_index( aIndex )
+    {
+        m_libId.SetLibNickname( m_libNickname );
+        m_libId.SetLibItemName( m_index.m_Name );
+
+        m_searchTerms.emplace_back( SEARCH_TERM( m_libNickname, 4 ) );
+        m_searchTerms.emplace_back( SEARCH_TERM( m_index.m_Name, 8, true ) );
+        m_searchTerms.emplace_back( SEARCH_TERM( m_libId.Format(), 16, true ) );
+
+        wxStringTokenizer keywordTokenizer( m_index.m_KeyWords, " \t\r\n", wxTOKEN_STRTOK );
+
+        while( keywordTokenizer.HasMoreTokens() )
+            m_searchTerms.emplace_back( SEARCH_TERM( keywordTokenizer.GetNextToken(), 4 ) );
+
+        m_searchTerms.emplace_back( SEARCH_TERM( m_index.m_KeyWords, 1 ) );
+        m_searchTerms.emplace_back( SEARCH_TERM( m_index.m_Description, 1 ) );
+
+        if( !m_index.m_Footprint.IsEmpty() )
+            m_searchTerms.emplace_back( SEARCH_TERM( m_index.m_Footprint, 1 ) );
+    }
+
+    LIB_ID   GetLIB_ID() const override { return m_libId; }
+    wxString GetName() const override { return m_index.m_Name; }
+    wxString GetLibNickname() const override { return m_libNickname; }
+    wxString GetDesc() override { return m_index.m_Description; }
+    bool     IsPowerSymbol() const override { return m_index.m_IsPower; }
+    wxString GetFootprint() override { return m_index.m_Footprint; }
+    int      GetSubUnitCount() const override { return m_index.m_UnitCount; }
+
+    wxString GetUnitName( int aUnit ) const override
+    {
+        if( m_index.m_UnitDisplayNames.contains( aUnit ) )
+            return m_index.m_UnitDisplayNames.at( aUnit );
+
+        return wxString::Format( _( "Unit %s" ), LIB_SYMBOL::LetterSubReference( aUnit, 'A' ) );
+    }
+
+    void GetChooserFields( std::map<wxString, wxString>& aColumnMap ) override { aColumnMap = m_index.m_ChooserFields; }
+
+    std::vector<SEARCH_TERM>& GetSearchTerms() override { return m_searchTerms; }
+
+private:
+    wxString                             m_libNickname;
+    SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX m_index;
+    LIB_ID                               m_libId;
+    std::vector<SEARCH_TERM>             m_searchTerms;
+};
+
+} // namespace
 
 
 wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER>
@@ -45,13 +108,13 @@ SYMBOL_TREE_SYNCHRONIZING_ADAPTER::Create( SYMBOL_EDIT_FRAME* aParent, SYMBOL_LI
 }
 
 
-SYMBOL_TREE_SYNCHRONIZING_ADAPTER::SYMBOL_TREE_SYNCHRONIZING_ADAPTER( SYMBOL_EDIT_FRAME* aParent,
+SYMBOL_TREE_SYNCHRONIZING_ADAPTER::SYMBOL_TREE_SYNCHRONIZING_ADAPTER( SYMBOL_EDIT_FRAME*      aParent,
                                                                       SYMBOL_LIBRARY_MANAGER* aLibMgr ) :
-        LIB_TREE_MODEL_ADAPTER( aParent, "pinned_symbol_libs",
-                                aParent->GetViewerSettingsBase()->m_LibTree ),
+        LIB_TREE_MODEL_ADAPTER( aParent, "pinned_symbol_libs", aParent->GetViewerSettingsBase()->m_LibTree ),
         m_frame( aParent ),
         m_libMgr( aLibMgr ),
-        m_lastSyncHash( -1 )
+        m_lastSyncHash( -1 ),
+        m_checkPendingLibrariesTimer( nullptr )
 {
 }
 
@@ -135,27 +198,66 @@ void SYMBOL_TREE_SYNCHRONIZING_ADAPTER::Sync( const wxString& aForceRefresh,
     //
     COMMON_SETTINGS* cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&    project = m_frame->Prj().GetProjectFile();
+    bool             hasPendingLoads = false;
 
-    for( const auto& [libName, status] : adapter->GetLibraryStatuses() )
+    for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
     {
-        if( status.load_status != LOAD_STATUS::LOADED || status.error )
+        if( row->Disabled() || row->Hidden() )
             continue;
 
-        if( m_libHashes.count( libName ) == 0 )
+        wxString libName = row->Nickname();
+
+        if( m_libHashes.count( libName ) != 0 )
+            continue;
+
+        std::optional<LIB_STATUS> libStatus = adapter->GetLibraryStatus( libName );
+
+        if( libStatus && ( libStatus->load_status == LOAD_STATUS::LOAD_ERROR || libStatus->error ) )
+            continue;
+
+        if( libStatus && libStatus->load_status == LOAD_STATUS::LOADING )
         {
-            if( progressThrottle.Ready() )
-                aProgressCallback( i++, max, libName );
-
-            auto optRow = adapter->GetRow( libName );
-            wxCHECK2( optRow.has_value(), continue );
-
-            bool pinned = alg::contains( cfg->m_Session.pinned_symbol_libs, libName )
-                            || alg::contains( project.m_PinnedSymbolLibs, libName );
-
-            LIB_TREE_NODE_LIBRARY& lib_node = DoAddLibraryNode( libName, ( *optRow )->Description(), pinned );
-
-            updateLibrary( lib_node );
+            hasPendingLoads = true;
+            continue;
         }
+
+        if( !adapter->IsLibraryLoaded( libName ) )
+        {
+            libStatus = adapter->LoadLibraryEntry( libName );
+
+            if( !libStatus || libStatus->load_status != LOAD_STATUS::LOADED || libStatus->error )
+                continue;
+        }
+
+        if( progressThrottle.Ready() )
+            aProgressCallback( i++, max, libName );
+
+        bool pinned = alg::contains( cfg->m_Session.pinned_symbol_libs, libName )
+                      || alg::contains( project.m_PinnedSymbolLibs, libName );
+
+        LIB_TREE_NODE_LIBRARY& lib_node = DoAddLibraryNode( libName, row->Description(), pinned );
+
+        updateLibrary( lib_node );
+    }
+
+    if( hasPendingLoads && !m_checkPendingLibrariesTimer )
+    {
+        m_checkPendingLibrariesTimer = std::make_unique<wxTimer>( m_frame );
+
+        m_frame->Bind(
+                wxEVT_TIMER,
+                [this]( wxTimerEvent& )
+                {
+                    m_frame->SyncLibraries( false );
+                },
+                m_checkPendingLibrariesTimer->GetId() );
+
+        m_checkPendingLibrariesTimer->Start( 500 );
+    }
+    else if( !hasPendingLoads && m_checkPendingLibrariesTimer )
+    {
+        m_checkPendingLibrariesTimer->Stop();
+        m_checkPendingLibrariesTimer.reset();
     }
 
     m_tree.AssignIntrinsicRanks( m_shownColumns );
@@ -182,50 +284,45 @@ void SYMBOL_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aL
 {
     auto hashIt = m_libHashes.find( aLibNode.m_Name );
 
-    if( hashIt == m_libHashes.end() )
+    if( hashIt == m_libHashes.end() || hashIt->second != m_libMgr->GetLibraryHash( aLibNode.m_Name ) )
     {
-        // add a new library
-        for( LIB_SYMBOL* symbol : m_libMgr->EnumerateSymbols( aLibNode.m_Name ) )
-            aLibNode.AddItem( symbol );
-    }
-    else if( hashIt->second != m_libMgr->GetLibraryHash( aLibNode.m_Name ) )
-    {
-        // update an existing library
-        std::list<LIB_SYMBOL*> symbols = m_libMgr->EnumerateSymbols( aLibNode.m_Name );
+        aLibNode.m_Children.clear();
 
-        // remove the common part from the aliases list
-        for( auto nodeIt = aLibNode.m_Children.begin(); nodeIt != aLibNode.m_Children.end(); /**/ )
+        if( m_libMgr->IsLibraryBuffered( aLibNode.m_Name ) )
         {
-            auto symbolIt = std::find_if( symbols.begin(), symbols.end(),
-                    [&] ( const LIB_SYMBOL* a )
-                    {
-                        return a->GetName() == (*nodeIt)->m_LibId.GetLibItemName().wx_str();
-                    } );
+            for( LIB_SYMBOL* symbol : m_libMgr->EnumerateSymbols( aLibNode.m_Name ) )
+            {
+                std::map<wxString, wxString> chooserFields;
+                symbol->GetChooserFields( chooserFields );
 
-            if( symbolIt != symbols.end() )
-            {
-                // alias exists both in the symbol tree and the library manager,
-                // update only the node data.
-                static_cast<LIB_TREE_NODE_ITEM*>( nodeIt->get() )->Update( *symbolIt );
-                symbols.erase( symbolIt );
-                ++nodeIt;
-            }
-            else
-            {
-                // node does not exist in the library manager, remove the corresponding node
-                nodeIt = aLibNode.m_Children.erase( nodeIt );
+                for( const auto& chooserField : chooserFields )
+                    addColumnIfNecessary( chooserField.first );
+
+                aLibNode.AddItem( symbol );
             }
         }
+        else
+        {
+            SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame->Prj() );
 
-        // now the aliases list contains only new aliases that need to be added to the tree
-        for( LIB_SYMBOL* symbol : symbols )
-            aLibNode.AddItem( symbol );
+            if( !adapter->IsLibraryLoaded( aLibNode.m_Name ) )
+            {
+                std::optional<LIB_STATUS> status = adapter->LoadLibraryEntry( aLibNode.m_Name );
+
+                if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                    return;
+            }
+
+            for( const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& symbol : adapter->GetSymbolIndex( aLibNode.m_Name ) )
+            {
+                for( const auto& chooserField : symbol.m_ChooserFields )
+                    addColumnIfNecessary( chooserField.first );
+
+                SYMBOL_INDEX_TREE_ITEM item( aLibNode.m_Name, symbol );
+                aLibNode.AddItem( &item );
+            }
+        }
     }
-
-    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame->Prj() );
-
-    for( const wxString& column : adapter->GetAvailableExtraFields( aLibNode.m_Name ) )
-        addColumnIfNecessary( column );
 
     aLibNode.AssignIntrinsicRanks( m_shownColumns );
     m_libHashes[aLibNode.m_Name] = m_libMgr->GetLibraryHash( aLibNode.m_Name );

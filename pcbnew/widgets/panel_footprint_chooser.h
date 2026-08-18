@@ -78,6 +78,8 @@ public:
 
     FOOTPRINT_PREVIEW_WIDGET* GetViewerPanel() const { return m_preview_ctrl; }
 
+    wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER> Adapter() const { return m_adapter; }
+
     wxSplitterWindow* GetVerticalSpliter() const { return m_vsplitter; }
 
     wxPanel* GetDetailsPanel() const { return m_detailsPanel; }

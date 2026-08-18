@@ -49,12 +49,6 @@ int testFootprintLink( const wxString& aFootprint, PROJECT* aProject )
     wxString libName = fpID.GetLibNickname();
     wxString fpName = fpID.GetLibItemName();
 
-    // TODO(JE) this is a bit of a hack; CLI lazy-loading of libraries should be more unified
-    // Libraries may not be present at this point if running in kicad-cli because nothings will
-    // have triggered a load up to this point
-    if( !adapter->GetLibraryStatus( libName ) )
-        adapter->LoadOne( libName );
-
     if( !adapter->HasLibrary( libName, false ) )
         return KIFACE_TEST_FOOTPRINT_LINK_NO_LIBRARY;
     else if( !adapter->HasLibrary( libName, true ) )
@@ -72,12 +66,6 @@ void getFootprintPadNumbers( const wxString& aFootprint, PROJECT* aProject, std:
 
     if( fpID.Parse( aFootprint ) >= 0 )
         return;
-
-    if( std::optional<LIBRARY_MANAGER_ADAPTER*> mgr =
-                Pgm().GetLibraryManager().Adapter( LIBRARY_TABLE_TYPE::FOOTPRINT ) )
-    {
-        ( *mgr )->BlockUntilLoaded();
-    }
 
     FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( aProject );
 

@@ -152,12 +152,6 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FOOTPRINT_LIBRARY_ADAPTER* aAdapte
 
     m_adapter = aAdapter;
 
-    // AsyncLoad() must be called before BlockUntilLoaded() to ensure library loading is started.
-    // This is necessary when the footprint chooser is opened from contexts that don't preload
-    // footprint libraries (e.g., eeschema).
-    m_adapter->AsyncLoad();
-    m_adapter->BlockUntilLoaded();
-
     long long int generatedTimestamp = 0;
 
     if( !CatchErrors( [&]()
@@ -168,7 +162,7 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FOOTPRINT_LIBRARY_ADAPTER* aAdapte
         return false;
     }
 
-    if( generatedTimestamp == m_list_timestamp )
+    if( generatedTimestamp != 0 && generatedTimestamp == m_list_timestamp )
         return true;
 
     // Disable KIID generation: not needed for library parts; sometimes very slow
@@ -189,8 +183,13 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FOOTPRINT_LIBRARY_ADAPTER* aAdapte
     }
     else
     {
-        for( const wxString& nickname : aAdapter->GetLibraryNames() )
-            m_queue.push( nickname );
+        for( const LIBRARY_TABLE_ROW* row : aAdapter->Rows() )
+        {
+            if( row->Disabled() || row->Hidden() )
+                continue;
+
+            m_queue.push( row->Nickname() );
+        }
     }
 
     if( m_progress_reporter )
@@ -207,7 +206,18 @@ bool FOOTPRINT_LIST_IMPL::ReadFootprintFiles( FOOTPRINT_LIBRARY_ADAPTER* aAdapte
     if( m_cancelled )
         m_list_timestamp = 0;       // God knows what we got before we were canceled
     else
+    {
+        if( !CatchErrors(
+                    [&]()
+                    {
+                        generatedTimestamp = aAdapter->GenerateTimestamp( aNickname );
+                    } ) )
+        {
+            generatedTimestamp = 0;
+        }
+
         m_list_timestamp = generatedTimestamp;
+    }
 
     return m_errors.empty();
 }
@@ -239,7 +249,18 @@ void FOOTPRINT_LIST_IMPL::loadFootprints()
                 CatchErrors(
                         [&]()
                         {
-                            fpnames = m_adapter->GetFootprintNames( nickname );
+                            if( !m_adapter->IsLibraryLoaded( nickname ) )
+                            {
+                                std::optional<LIB_STATUS> status = m_adapter->LoadLibraryEntry( nickname );
+
+                                if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                                {
+                                    return;
+                                }
+                            }
+
+                            m_adapter->RefreshLibraryIfChanged( nickname );
+                            fpnames = m_adapter->GetFootprintNames( nickname, true );
                         } );
 
                 for( wxString fpname : fpnames )

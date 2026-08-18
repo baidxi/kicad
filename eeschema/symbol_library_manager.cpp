@@ -387,6 +387,12 @@ std::list<LIB_SYMBOL*> SYMBOL_LIBRARY_MANAGER::EnumerateSymbols( const wxString&
 }
 
 
+bool SYMBOL_LIBRARY_MANAGER::IsLibraryBuffered( const wxString& aLibrary ) const
+{
+    return m_libs.find( aLibrary ) != m_libs.end();
+}
+
+
 LIB_SYMBOL* SYMBOL_LIBRARY_MANAGER::GetBufferedSymbol( const wxString& aSymbolName, const wxString& aLibrary )
 {
     // try the library buffers first
@@ -742,8 +748,7 @@ bool SYMBOL_LIBRARY_MANAGER::HasDerivedSymbols( const wxString& aSymbolName, con
 
 size_t SYMBOL_LIBRARY_MANAGER::GetLibraryCount() const
 {
-    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_frame.Prj() );
-    return adapter->GetLibraryNames().size();
+    return GetLibraryNames().size();
 }
 
 

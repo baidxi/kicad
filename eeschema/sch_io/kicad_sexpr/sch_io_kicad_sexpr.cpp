@@ -77,6 +77,147 @@ using namespace TSCHEMATIC_T;
                        reader.LineNumber(), pos - reader.Line() )
 
 
+namespace
+{
+
+void sortAndRemoveDuplicateNames( wxArrayString& aNames )
+{
+    aNames.Sort();
+
+    for( size_t ii = 1; ii < aNames.GetCount(); )
+    {
+        if( aNames[ii] == aNames[ii - 1] )
+            aNames.RemoveAt( ii );
+        else
+            ++ii;
+    }
+}
+
+
+void enumerateSymbolNamesFromFile( wxArrayString& aSymbolNameList, const wxString& aFileName, bool aPowerSymbolsOnly )
+{
+    FILE_LINE_READER          reader( aFileName );
+    SCH_IO_KICAD_SEXPR_PARSER parser( &reader );
+
+    parser.ParseLibSymbolNames( aSymbolNameList, aPowerSymbolsOnly );
+}
+
+
+void enumerateSymbolIndexFromFile( std::vector<SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX>& aSymbolIndex,
+                                   const wxString& aFileName, bool aPowerSymbolsOnly )
+{
+    FILE_LINE_READER          reader( aFileName );
+    SCH_IO_KICAD_SEXPR_PARSER parser( &reader );
+
+    parser.ParseLibSymbolIndex( aSymbolIndex, aPowerSymbolsOnly );
+}
+
+
+void enumerateSymbolNamesWithoutCache( wxArrayString& aSymbolNameList, const wxString& aLibraryPath,
+                                       bool aPowerSymbolsOnly )
+{
+    wxFileName libFileName( aLibraryPath );
+
+    if( !libFileName.IsDir() && wxFileName::DirExists( libFileName.GetFullPath() ) )
+        libFileName.AssignDir( libFileName.GetFullPath() );
+
+    if( !libFileName.IsDir() )
+    {
+        if( !libFileName.FileExists() )
+            THROW_IO_ERRORF( _( "Library '%s' not found." ), aLibraryPath );
+
+        enumerateSymbolNamesFromFile( aSymbolNameList, libFileName.GetFullPath(), aPowerSymbolsOnly );
+        return;
+    }
+
+    if( !libFileName.DirExists() )
+        THROW_IO_ERRORF( _( "Library '%s' not found." ), libFileName.GetPath() );
+
+    wxDir         dir( libFileName.GetPath() );
+    wxString      libFile;
+    wxArrayString files;
+    wxString      fileSpec = wxS( "*." ) + wxString( FILEEXT::KiCadSymbolLibFileExtension );
+
+    if( dir.GetFirst( &libFile, fileSpec, wxDIR_FILES ) )
+    {
+        do
+        {
+            files.Add( libFile );
+        } while( dir.GetNext( &libFile ) );
+    }
+
+    files.Sort();
+
+    for( const wxString& file : files )
+    {
+        wxFileName symbolFile( libFileName.GetPath(), file );
+        enumerateSymbolNamesFromFile( aSymbolNameList, symbolFile.GetFullPath(), aPowerSymbolsOnly );
+    }
+
+    sortAndRemoveDuplicateNames( aSymbolNameList );
+}
+
+
+void enumerateSymbolIndexWithoutCache( std::vector<SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX>& aSymbolIndex,
+                                       const wxString& aLibraryPath, bool aPowerSymbolsOnly )
+{
+    wxFileName libFileName( aLibraryPath );
+
+    if( !libFileName.IsDir() && wxFileName::DirExists( libFileName.GetFullPath() ) )
+        libFileName.AssignDir( libFileName.GetFullPath() );
+
+    if( !libFileName.IsDir() )
+    {
+        if( !libFileName.FileExists() )
+            THROW_IO_ERRORF( _( "Library '%s' not found." ), aLibraryPath );
+
+        enumerateSymbolIndexFromFile( aSymbolIndex, libFileName.GetFullPath(), aPowerSymbolsOnly );
+        return;
+    }
+
+    if( !libFileName.DirExists() )
+        THROW_IO_ERRORF( _( "Library '%s' not found." ), libFileName.GetPath() );
+
+    wxDir         dir( libFileName.GetPath() );
+    wxString      libFile;
+    wxArrayString files;
+    wxString      fileSpec = wxS( "*." ) + wxString( FILEEXT::KiCadSymbolLibFileExtension );
+
+    if( dir.GetFirst( &libFile, fileSpec, wxDIR_FILES ) )
+    {
+        do
+        {
+            files.Add( libFile );
+        } while( dir.GetNext( &libFile ) );
+    }
+
+    files.Sort();
+
+    for( const wxString& file : files )
+    {
+        wxFileName symbolFile( libFileName.GetPath(), file );
+        enumerateSymbolIndexFromFile( aSymbolIndex, symbolFile.GetFullPath(), aPowerSymbolsOnly );
+    }
+
+    std::sort( aSymbolIndex.begin(), aSymbolIndex.end(),
+               []( const SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX& aFirst,
+                   const SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX& aSecond )
+               {
+                   return StrNumCmp( aFirst.m_Name, aSecond.m_Name, true ) < 0;
+               } );
+
+    auto duplicate = std::unique( aSymbolIndex.begin(), aSymbolIndex.end(),
+                                  []( const SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX& aFirst,
+                                      const SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX& aSecond )
+                                  {
+                                      return aFirst.m_Name == aSecond.m_Name;
+                                  } );
+    aSymbolIndex.erase( duplicate, aSymbolIndex.end() );
+}
+
+} // namespace
+
+
 SCH_IO_KICAD_SEXPR::SCH_IO_KICAD_SEXPR() : SCH_IO( wxS( "Eeschema s-expression" ) )
 {
     init( nullptr );
@@ -1884,6 +2025,12 @@ void SCH_IO_KICAD_SEXPR::EnumerateSymbolLib( wxArrayString&    aSymbolNameList,
 {
     bool powerSymbolsOnly = ( aProperties && aProperties->contains( SYMBOL_LIBRARY_ADAPTER::PropPowerSymsOnly ) );
 
+    if( !isBuffering( aProperties ) )
+    {
+        enumerateSymbolNamesWithoutCache( aSymbolNameList, aLibraryPath, powerSymbolsOnly );
+        return;
+    }
+
     cacheLib( aLibraryPath, aProperties );
 
     if( !isBuffering( aProperties ) && !m_cache->isLibraryPathValid() )
@@ -1895,6 +2042,32 @@ void SCH_IO_KICAD_SEXPR::EnumerateSymbolLib( wxArrayString&    aSymbolNameList,
     {
         if( !powerSymbolsOnly || it->second->IsPower() )
             aSymbolNameList.Add( it->first );
+    }
+}
+
+
+void SCH_IO_KICAD_SEXPR::EnumerateSymbolLibIndex(
+        std::vector<SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX>& aSymbolIndex, const wxString& aLibraryPath,
+        const std::map<std::string, UTF8>* aProperties )
+{
+    bool powerSymbolsOnly = ( aProperties && aProperties->contains( SYMBOL_LIBRARY_ADAPTER::PropPowerSymsOnly ) );
+
+    if( !isBuffering( aProperties ) )
+    {
+        enumerateSymbolIndexWithoutCache( aSymbolIndex, aLibraryPath, powerSymbolsOnly );
+        return;
+    }
+
+    wxArrayString symbolNames;
+
+    EnumerateSymbolLib( symbolNames, aLibraryPath, aProperties );
+
+    for( const wxString& symbolName : symbolNames )
+    {
+        SCH_IO_KICAD_SEXPR_PARSER::LIB_SYMBOL_INDEX symbolIndex;
+        symbolIndex.m_Name = symbolName;
+        symbolIndex.m_ChooserFields[GetDefaultFieldName( FIELD_T::VALUE, false )] = symbolName;
+        aSymbolIndex.push_back( std::move( symbolIndex ) );
     }
 }
 

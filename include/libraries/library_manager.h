@@ -21,10 +21,13 @@
 #ifndef LIBRARY_MANAGER_H
 #define LIBRARY_MANAGER_H
 
+#include <condition_variable>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <thread>
 
 #include <kicommon.h>
 #include <libraries/library_table.h>
@@ -151,7 +154,7 @@ public:
 
     void CheckTableRow( LIBRARY_TABLE_ROW& aRow );
 
-    /// Loads all available libraries for this adapter type in the background
+    /// Loads all available libraries for this adapter type in the background.
     void AsyncLoad();
 
     virtual std::optional<LIB_STATUS> LoadOne( LIB_DATA* aLib ) = 0;
@@ -215,6 +218,8 @@ protected:
     /// Fetches a loaded library, triggering a load of that library if it isn't loaded yet
     LIBRARY_RESULT<LIB_DATA*> loadIfNeeded( const wxString& aNickname );
 
+    std::optional<LIB_STATUS> loadLibraryEntry( const wxString& aNickname, LIB_DATA* aLib );
+
     LIBRARY_RESULT<LIB_DATA*> loadFromScope( const wxString& aNickname,
                                              LIBRARY_TABLE_SCOPE aScope,
                                              std::map<wxString, LIB_DATA>& aTarget,
@@ -251,6 +256,29 @@ protected:
     /// never under-protect. Static because global-library plugins are shared process-wide.
     static std::mutex& pluginMutex( const wxString& aNickname );
 
+    /// Returns true if this caller should load the library. If another caller is already loading
+    /// it, waits until that load finishes and returns false so the caller can use the existing
+    /// result instead of enumerating the same library again. Re-entrant requests from the loading
+    /// thread also return false, avoiding self-deadlock if a plugin asks about its own library.
+    bool beginLibraryLoad( const wxString& aNickname );
+
+    void finishLibraryLoad( const wxString& aNickname );
+
+    class LIBRARY_LOAD_GUARD
+    {
+    public:
+        LIBRARY_LOAD_GUARD( LIBRARY_MANAGER_ADAPTER& aAdapter, const wxString& aNickname );
+
+        ~LIBRARY_LOAD_GUARD();
+
+        bool Active() const { return m_active; }
+
+    private:
+        LIBRARY_MANAGER_ADAPTER& m_adapter;
+        wxString                 m_nickname;
+        bool                     m_active;
+    };
+
     LIBRARY_MANAGER& m_manager;
 
     // The actual library content is held in an associated IO plugin
@@ -264,6 +292,10 @@ protected:
     std::atomic<size_t> m_loadCount{ 0 };
     std::atomic<size_t> m_loadTotal{ 0 };
     std::mutex          m_loadMutex;
+
+    std::mutex                          m_loadingLibrariesMutex;
+    std::condition_variable             m_loadingLibrariesCond;
+    std::map<wxString, std::thread::id> m_loadingLibraries;
 };
 
 

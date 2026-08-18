@@ -245,7 +245,10 @@ void LIB_TREE_MODEL_ADAPTER::OpenLibs( const std::vector<wxString>& aLibs )
         wxDataViewItem item = FindItem( LIB_ID( lib, wxEmptyString ) );
 
         if( item.IsOk() )
+        {
+            EnsureChildrenLoaded( item );
             m_widget->Expand( item );
+        }
     }
 }
 
@@ -319,6 +322,9 @@ void LIB_TREE_MODEL_ADAPTER::RemoveGroup( bool aRecentGroup, bool aPlacedGroup )
 void LIB_TREE_MODEL_ADAPTER::UpdateSearchString( const wxString& aSearch, bool aState )
 {
     const LIB_TREE_NODE* firstMatch = nullptr;
+
+    if( !aSearch.IsEmpty() )
+        EnsureAllChildrenLoaded();
 
     {
         wxWindowUpdateLocker updateLock( m_widget );
@@ -607,6 +613,8 @@ wxDataViewItem LIB_TREE_MODEL_ADAPTER::FindItem( const LIB_ID& aLibId )
         // if part name is not specified, return the library node
         if( aLibId.GetLibItemName() == "" )
             return ToItem( lib.get() );
+
+        EnsureChildrenLoaded( ToItem( lib.get() ) );
 
         for( std::unique_ptr<LIB_TREE_NODE>& alias: lib->m_Children )
         {

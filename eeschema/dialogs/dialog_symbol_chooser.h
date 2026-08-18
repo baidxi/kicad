@@ -85,11 +85,6 @@ protected:
     PANEL_SYMBOL_CHOOSER*     m_chooserPanel;
     wxCheckBox*               m_keepSymbol;
     wxCheckBox*               m_useUnits;
-
-private:
-    void onLazyLoadUpdate();
-
-    wxString                  m_originalTitle;
 };
 
 #endif /* DIALOG_SYMBOL_CHOOSER_H */

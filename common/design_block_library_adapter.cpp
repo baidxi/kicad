@@ -136,7 +136,7 @@ std::optional<LIB_STATUS> DESIGN_BLOCK_LIBRARY_ADAPTER::LoadOne( const wxString&
     LIBRARY_RESULT<LIB_DATA*> result = loadIfNeeded( nickname );
 
     if( result.has_value() )
-        return LoadOne( *result );
+        return loadLibraryEntry( nickname, *result );
 
     return LIB_STATUS{
         .load_status = LOAD_STATUS::LOAD_ERROR,

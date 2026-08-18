@@ -37,6 +37,7 @@
 #include <widgets/wx_listbox.h>
 #include <widgets/wx_aui_utils.h>
 #include <widgets/wx_progress_reporters.h>
+#include <sch_io/sch_io_mgr.h>
 #include <sch_view.h>
 #include <sch_painter.h>
 #include <symbol_tree_model_adapter.h>
@@ -73,6 +74,43 @@ LIB_ID SYMBOL_VIEWER_FRAME::m_currentSymbol;
 
 int SYMBOL_VIEWER_FRAME::m_unit = 1;
 int SYMBOL_VIEWER_FRAME::m_bodyStyle = 1;
+
+
+namespace
+{
+
+std::vector<SEARCH_TERM> buildSymbolIndexSearchTerms( const wxString&                             aLibName,
+                                                      const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& aSymbol )
+{
+    LIB_ID libId;
+    libId.SetLibNickname( aLibName );
+    libId.SetLibItemName( aSymbol.m_Name );
+
+    std::vector<SEARCH_TERM> searchTerms;
+    searchTerms.emplace_back( SEARCH_TERM( aLibName, 4 ) );
+    searchTerms.emplace_back( SEARCH_TERM( aSymbol.m_Name, 8, true ) );
+    searchTerms.emplace_back( SEARCH_TERM( libId.Format(), 16, true ) );
+
+    wxStringTokenizer keywordTokenizer( aSymbol.m_KeyWords, " \t\r\n", wxTOKEN_STRTOK );
+
+    while( keywordTokenizer.HasMoreTokens() )
+        searchTerms.emplace_back( SEARCH_TERM( keywordTokenizer.GetNextToken(), 4 ) );
+
+    searchTerms.emplace_back( SEARCH_TERM( aSymbol.m_KeyWords, 1 ) );
+    searchTerms.emplace_back( SEARCH_TERM( aSymbol.m_Description, 1 ) );
+
+    if( !aSymbol.m_Footprint.IsEmpty() )
+        searchTerms.emplace_back( SEARCH_TERM( aSymbol.m_Footprint, 1 ) );
+
+    return searchTerms;
+}
+
+bool isLoadError( const std::optional<LIB_STATUS>& aStatus )
+{
+    return aStatus && ( aStatus->load_status == LOAD_STATUS::LOAD_ERROR || aStatus->error );
+}
+
+} // namespace
 
 
 BEGIN_EVENT_TABLE( SYMBOL_VIEWER_FRAME, SCH_BASE_FRAME )
@@ -481,9 +519,25 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
     COMMON_SETTINGS*        cfg = Pgm().GetCommonSettings();
     PROJECT_FILE&           project = Kiway().Prj().GetProjectFile();
     SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &Prj() );
-    std::vector<wxString>   libNicknames = adapter->GetLibraryNames();
+    std::vector<wxString>   libNicknames;
     std::vector<wxString>   pinnedMatches;
     std::vector<wxString>   otherMatches;
+
+    for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+    {
+        if( row->Disabled() || row->Hidden() )
+            continue;
+
+        wxString                  nickname = row->Nickname();
+        std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( nickname );
+
+        if( isLoadError( status ) )
+            continue;
+
+        libNicknames.emplace_back( nickname );
+    }
+
+    StrNumSort( libNicknames, CASE_SENSITIVITY::INSENSITIVE );
 
     auto doAddLib =
             [&]( const wxString& aLib )
@@ -512,10 +566,24 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
                 // Remove libs which have no power symbols, if this filter is activated
                 if( m_listPowerOnly )
                 {
-                    std::vector<wxString> symbolNames = adapter->GetSymbolNames(
-                            aLib, SYMBOL_LIBRARY_ADAPTER::SYMBOL_TYPE::POWER_ONLY );
+                    std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( aLib );
 
-                    if( symbolNames.empty() )
+                    if( status && status->load_status == LOAD_STATUS::LOADING )
+                        return;
+
+                    if( !adapter->IsLibraryLoaded( aLib ) )
+                    {
+                        status = adapter->LoadLibraryEntry( aLib );
+
+                        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+                            return;
+                    }
+
+                    SYMBOL_LIBRARY_ADAPTER::SYMBOL_TYPE type = SYMBOL_LIBRARY_ADAPTER::SYMBOL_TYPE::POWER_ONLY;
+                    std::vector<SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX> symbolIndex =
+                            adapter->GetSymbolIndex( aLib, type );
+
+                    if( symbolIndex.empty() )
                         return;
                 }
 
@@ -525,7 +593,22 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
                 if( row->Hidden() )
                     return;
 
-                if( adapter->SupportsSubLibraries( aLib ) )
+                if( row->Type() != SCH_IO_MGR::ShowType( SCH_IO_MGR::SCH_KICAD ) && !adapter->IsLibraryLoaded( aLib ) )
+                {
+                    std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( aLib );
+
+                    if( !status || status->load_status != LOAD_STATUS::LOADING )
+                    {
+                        status = adapter->LoadLibraryEntry( aLib );
+
+                        if( !status || status->load_status == LOAD_STATUS::LOAD_ERROR || status->error )
+                        {
+                            return;
+                        }
+                    }
+                }
+
+                if( adapter->IsLibraryLoaded( aLib ) && adapter->SupportsSubLibraries( aLib ) )
                 {
                     for( const auto& [nickname, description] : adapter->GetSubLibraries( aLib ) )
                     {
@@ -612,7 +695,24 @@ bool SYMBOL_VIEWER_FRAME::ReCreateSymbolList()
         return false;
 
     SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &Prj() );
-    std::vector<LIB_SYMBOL*> symbols = adapter->GetSymbols( libName );
+    std::optional<LIB_STATUS> status = adapter->GetLibraryStatus( libName );
+
+    if( isLoadError( status ) )
+        return false;
+
+    if( status && status->load_status == LOAD_STATUS::LOADING )
+        return false;
+
+    if( !adapter->IsLibraryLoaded( libName ) )
+    {
+        status = adapter->LoadLibraryEntry( libName );
+
+        if( !status || status->load_status != LOAD_STATUS::LOADED || status->error )
+            return false;
+    }
+
+    bool     requireFullSymbols = adapter->SupportsSubLibraries( libName );
+    wxString subLib = m_currentSymbol.GetSubLibraryName();
 
     std::set<wxString> excludes;
 
@@ -622,34 +722,78 @@ bool SYMBOL_VIEWER_FRAME::ReCreateSymbolList()
 
         while( tokenizer.HasMoreTokens() )
         {
-            const wxString       filterTerm = tokenizer.GetNextToken().Lower();
-            EDA_COMBINED_MATCHER matcher( filterTerm, CTX_LIBITEM );
+            const wxString filterTerm = tokenizer.GetNextToken().Lower();
 
-            for( LIB_SYMBOL* symbol : symbols )
-            {
-                int matched = matcher.ScoreTerms( symbol->GetSearchTerms() );
-
-                if( filterTerm.IsNumber() && wxAtoi( filterTerm ) == (int)symbol->GetPinCount() )
-                    matched++;
-
-                if( !matched )
-                    excludes.insert( symbol->GetName() );
-            }
+            if( filterTerm.IsNumber() )
+                requireFullSymbols = true;
         }
     }
 
-    wxString subLib = m_currentSymbol.GetSubLibraryName();
-
-    for( const LIB_SYMBOL* symbol : symbols )
+    if( requireFullSymbols )
     {
-        if( adapter->SupportsSubLibraries( libName )
-            && !subLib.IsSameAs( symbol->GetLibId().GetSubLibraryName() ) )
+        std::vector<LIB_SYMBOL*> symbols = adapter->GetSymbols( libName );
+
+        if( !m_symbolFilter->GetValue().IsEmpty() )
         {
-            continue;
+            wxStringTokenizer tokenizer( m_symbolFilter->GetValue(), " \t\r\n", wxTOKEN_STRTOK );
+
+            while( tokenizer.HasMoreTokens() )
+            {
+                const wxString       filterTerm = tokenizer.GetNextToken().Lower();
+                EDA_COMBINED_MATCHER matcher( filterTerm, CTX_LIBITEM );
+
+                for( LIB_SYMBOL* symbol : symbols )
+                {
+                    int matched = matcher.ScoreTerms( symbol->GetSearchTerms() );
+
+                    if( filterTerm.IsNumber() && wxAtoi( filterTerm ) == (int) symbol->GetPinCount() )
+                        matched++;
+
+                    if( !matched )
+                        excludes.insert( symbol->GetName() );
+                }
+            }
         }
 
-        if( !excludes.count( symbol->GetName() ) )
-            m_symbolList->Append( UnescapeString( symbol->GetName() ) );
+        for( const LIB_SYMBOL* symbol : symbols )
+        {
+            if( adapter->SupportsSubLibraries( libName ) && !subLib.IsSameAs( symbol->GetLibId().GetSubLibraryName() ) )
+            {
+                continue;
+            }
+
+            if( !excludes.count( symbol->GetName() ) )
+                m_symbolList->Append( UnescapeString( symbol->GetName() ) );
+        }
+    }
+    else
+    {
+        std::vector<SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX> symbolIndex = adapter->GetSymbolIndex( libName );
+
+        if( !m_symbolFilter->GetValue().IsEmpty() )
+        {
+            wxStringTokenizer tokenizer( m_symbolFilter->GetValue(), " \t\r\n", wxTOKEN_STRTOK );
+
+            while( tokenizer.HasMoreTokens() )
+            {
+                const wxString       filterTerm = tokenizer.GetNextToken().Lower();
+                EDA_COMBINED_MATCHER matcher( filterTerm, CTX_LIBITEM );
+
+                for( const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& symbol : symbolIndex )
+                {
+                    std::vector<SEARCH_TERM> searchTerms = buildSymbolIndexSearchTerms( libName, symbol );
+
+                    if( !matcher.ScoreTerms( searchTerms ) )
+                        excludes.insert( symbol.m_Name );
+                }
+            }
+        }
+
+        for( const SYMBOL_LIBRARY_ADAPTER::SYMBOL_INDEX& symbol : symbolIndex )
+        {
+            if( !excludes.count( symbol.m_Name ) )
+                m_symbolList->Append( UnescapeString( symbol.m_Name ) );
+        }
     }
 
     if( m_symbolList->IsEmpty() )

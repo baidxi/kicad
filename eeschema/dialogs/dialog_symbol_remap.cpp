@@ -181,7 +181,13 @@ void DIALOG_SYMBOL_REMAP::createProjectSymbolLibTable( REPORTER& aReporter )
     if( getLibsNotInGlobalSymbolLibTable( libs ) )
     {
         wxBusyCursor          busy;
-        std::vector<wxString> libNames = adapter->GetLibraryNames();
+        std::vector<wxString> libNames;
+
+        for( const LIBRARY_TABLE_ROW* row : adapter->Rows() )
+        {
+            if( !row->Disabled() && !row->Hidden() )
+                libNames.emplace_back( row->Nickname() );
+        }
 
         for( LEGACY_SYMBOL_LIB* lib : libs )
         {

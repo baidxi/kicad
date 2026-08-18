@@ -3666,6 +3666,26 @@ void PCB_IO_KICAD_SEXPR::FootprintEnumerate( wxArrayString& aFootprintNames,
 
     init( aProperties );
 
+    if( aBestEfforts )
+    {
+        if( !dir.IsOpened() )
+            return;
+
+        wxString fullName;
+        wxString fileSpec = wxT( "*." ) + wxString( FILEEXT::KiCadFootprintFileExtension );
+
+        if( dir.GetFirst( &fullName, fileSpec ) )
+        {
+            do
+            {
+                aFootprintNames.Add( wxFileName( fullName ).GetName() );
+            } while( dir.GetNext( &fullName ) );
+        }
+
+        aFootprintNames.Sort();
+        return;
+    }
+
     try
     {
         validateCache( aLibPath );
@@ -3767,6 +3787,36 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR::FootprintLoad( const wxString& aLibraryPath,
 {
     // Suppress font substitution warnings (RAII - automatically restored on scope exit)
     FONTCONFIG_REPORTER_SCOPE fontconfigScope( nullptr );
+
+    if( !m_cache || !m_cache->IsPath( aLibraryPath ) )
+    {
+        wxFileName footprintFile( aLibraryPath, aFootprintName, FILEEXT::KiCadFootprintFileExtension );
+
+        if( footprintFile.FileExists() )
+        {
+            init( aProperties );
+
+            FILE_LINE_READER          reader( footprintFile.GetFullPath() );
+            PCB_IO_KICAD_SEXPR_PARSER parser( &reader, nullptr, m_queryUserCallback );
+
+            std::unique_ptr<FOOTPRINT> footprint( dynamic_cast<FOOTPRINT*>( parser.Parse() ) );
+
+            if( footprint )
+            {
+                footprint->SetFPID( LIB_ID( wxEmptyString, aFootprintName ) );
+
+                if( aKeepUUID )
+                {
+                    footprint->SetParent( nullptr );
+                    return footprint.release();
+                }
+
+                FOOTPRINT* copy = static_cast<FOOTPRINT*>( footprint->Duplicate( IGNORE_PARENT_GROUP ) );
+                copy->SetParent( nullptr );
+                return copy;
+            }
+        }
+    }
 
     const FOOTPRINT* footprint = getFootprint( aLibraryPath, aFootprintName, aProperties, true );
 

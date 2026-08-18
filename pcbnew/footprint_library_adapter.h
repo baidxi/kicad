@@ -200,8 +200,9 @@ private:
     static LEAK_AT_EXIT<std::shared_mutex> GlobalLibraryMutex;
 
     /// Storage for preloaded footprints, indexed by library nickname.
-    /// These are cloned during library enumeration so GetFootprints() returns instantly.
+    /// These are loaded only when callers explicitly request full footprint objects.
     static LEAK_AT_EXIT<std::map<wxString, std::vector<std::unique_ptr<FOOTPRINT>>>> PreloadedFootprints;
+    static LEAK_AT_EXIT<std::map<wxString, std::vector<wxString>>>                   PreloadedFootprintNames;
     static std::shared_mutex PreloadedFootprintsMutex;
 
     /// Filesystem timestamps from when PreloadedFootprints was last populated, guarded by

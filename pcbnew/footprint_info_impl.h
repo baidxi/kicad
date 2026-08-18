@@ -42,10 +42,10 @@ public:
         m_num = 0;
         m_pad_count = 0;
         m_unique_pad_count = 0;
+        m_numbered_pad_count = 0;
 
         m_owner = aOwner;
         m_loaded = false;
-        load();
     }
 
     // A constructor for cached items
@@ -71,6 +71,10 @@ public:
     {
         m_nickname = aNickname;
         m_fpname = aFootprintName;
+        m_num = 0;
+        m_pad_count = 0;
+        m_unique_pad_count = 0;
+        m_numbered_pad_count = 0;
 
         m_owner = nullptr;
         m_loaded = true;
