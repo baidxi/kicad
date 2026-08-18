@@ -20,6 +20,8 @@
 
 #include "altium_props_utils.h"
 
+#include <cmath>
+#include <cstring>
 #include <limits>
 #include <sstream>
 #include <math/util.h>
@@ -46,7 +48,19 @@ int ALTIUM_PROPS_UTILS::ReadInt( const std::map<wxString, wxString>& aProps, con
                             int aDefault )
 {
     const std::map<wxString, wxString>::const_iterator& value = aProps.find( aKey );
-    return value == aProps.end() ? aDefault : wxAtoi( value->second );
+
+    if( value == aProps.end() )
+        return aDefault;
+
+    long parsed;
+
+    if( !value->second.ToLong( &parsed ) || parsed < std::numeric_limits<int>::min()
+        || parsed > std::numeric_limits<int>::max() )
+    {
+        return aDefault;
+    }
+
+    return static_cast<int>( parsed );
 }
 
 
@@ -62,8 +76,17 @@ double ALTIUM_PROPS_UTILS::ReadDouble( const std::map<wxString, wxString>& aProp
     std::istringstream istr( (const char*) value->second.mb_str() );
     istr.imbue( std::locale::classic() );
 
-    double doubleValue;
+    double doubleValue = aDefault;
     istr >> doubleValue;
+
+    if( istr.fail() || !std::isfinite( doubleValue ) )
+        return aDefault;
+
+    istr >> std::ws;
+
+    if( istr.peek() != std::char_traits<char>::eof() )
+        return aDefault;
+
     return doubleValue;
 }
 
@@ -75,50 +98,98 @@ bool ALTIUM_PROPS_UTILS::ReadBool( const std::map<wxString, wxString>& aProps, c
 
     if( value == aProps.end() )
         return aDefault;
-    else
-        return value->second == "T" || value->second == "TRUE";
+    if( value->second.IsSameAs( wxS( "T" ), false ) || value->second.IsSameAs( wxS( "TRUE" ), false ) )
+    {
+        return true;
+    }
+
+    if( value->second.IsSameAs( wxS( "F" ), false ) || value->second.IsSameAs( wxS( "FALSE" ), false ) )
+    {
+        return false;
+    }
+
+    return aDefault;
 }
 
 
 int32_t ALTIUM_PROPS_UTILS::ReadKicadUnit( const std::map<wxString, wxString>& aProps,
                                            const wxString& aKey, const wxString& aDefault )
 {
-    const wxString& value = ReadString( aProps, aKey, aDefault );
-
+    wxString value = ReadString( aProps, aKey, aDefault );
     wxString prefix;
+    double   mils;
 
-    if( !value.EndsWith( "mil", &prefix ) )
+    auto parse = [&]( const wxString& aValue )
     {
-        wxLogTrace( "ALTIUM", wxT( "Unit '%s' does not end with 'mil'." ), value );
-        return 0;
-    }
+        if( !aValue.EndsWith( "mil", &prefix ) )
+            return false;
 
-    prefix.StartsWith( "+", &prefix );
+        prefix.StartsWith( "+", &prefix );
+        return prefix.ToCDouble( &mils ) && std::isfinite( mils );
+    };
 
-    double mils;
-
-    if( !prefix.ToCDouble( &mils ) )
+    if( !parse( value ) )
     {
-        wxLogTrace( "ALTIUM", wxT( "Cannot convert '%s' to double." ), prefix );
-        return 0;
+        wxLogTrace( "ALTIUM", wxT( "Cannot convert '%s' to a distance." ), value );
+
+        if( !parse( aDefault ) )
+            return 0;
     }
 
     return ConvertToKicadUnit( mils * 10000 );
 }
 
 
+wxString ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( const wxString& aString )
+{
+    if( aString.IsEmpty() )
+        return aString;
+
+    // Only a string whose codepoints all fit in a single byte can be a Latin-1 misreading of raw
+    // UTF-8 bytes; anything outside that range (real Unicode) cannot be Latin-1 encoded and is
+    // therefore already correct.
+    wxScopedCharBuffer latin1 = aString.mb_str( wxConvISO8859_1 );
+
+    if( !latin1 || latin1.length() == 0 )
+        return aString;
+
+    // Re-interpret those bytes as UTF-8.  A failed decode yields an empty string.
+    wxString decoded( latin1.data(), wxConvUTF8, latin1.length() );
+
+    if( decoded.IsEmpty() || decoded == aString )
+        return aString;
+
+    // Only accept the repair when the bytes were *exactly* valid UTF-8, i.e. re-encoding the
+    // decoded text reproduces the original byte sequence.  This rejects lossy/partial decodes and
+    // guarantees correctly-decoded values (e.g. a lone 0xB5 "µ") are never altered.
+    wxScopedCharBuffer roundtrip = decoded.utf8_str();
+
+    if( roundtrip.length() == latin1.length() && std::memcmp( roundtrip.data(), latin1.data(), latin1.length() ) == 0 )
+    {
+        return decoded;
+    }
+
+    return aString;
+}
+
+
 wxString ALTIUM_PROPS_UTILS::ReadString( const std::map<wxString, wxString>& aProps,
                                          const wxString& aKey, const wxString& aDefault )
 {
+    // The double-encoding repair is applied to BOTH the '%UTF8%' twin and the plain value on
+    // purpose: real Altium files corrupt both forms (e.g. a plain ComponentDescription whose bytes
+    // are already UTF-8, and a '%UTF8%' twin that has been UTF-8-encoded a second time).  The
+    // repair's exact round-trip guard means a genuine Latin-1 value is only rewritten when its
+    // bytes happen to form valid UTF-8 — a case that is, in practice, itself mojibake.
     const auto& utf8Value = aProps.find( wxString( "%UTF8%" ) + aKey );
 
     if( utf8Value != aProps.end() )
-        return utf8Value->second;
+        return RepairDoubleEncodedUtf8( utf8Value->second );
 
     const auto& value = aProps.find( aKey );
 
     if( value != aProps.end() )
-        return value->second;
+        return RepairDoubleEncodedUtf8( value->second );
 
     return aDefault;
 }

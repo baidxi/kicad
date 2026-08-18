@@ -21,6 +21,8 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
 #include <lib_id.h>
+#include <lib_symbol.h>
+#include <reporter.h>
 #include <schematic.h>
 #include <sch_io/altium/sch_io_altium.h>
 #include <sch_label.h>
@@ -31,6 +33,7 @@
 #include <sch_symbol.h>
 #include <settings/settings_manager.h>
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <set>
@@ -39,6 +42,29 @@
 
 namespace
 {
+
+struct CAPTURING_REPORTER : public REPORTER
+{
+    REPORTER& Report( const wxString& aText, SEVERITY aSeverity = RPT_SEVERITY_UNDEFINED ) override
+    {
+        m_messages.push_back( aText );
+        return REPORTER::Report( aText, aSeverity );
+    }
+
+    bool Contains( const wxString& aSubstring ) const
+    {
+        for( const wxString& message : m_messages )
+        {
+            if( message.Contains( aSubstring ) )
+                return true;
+        }
+
+        return false;
+    }
+
+    std::vector<wxString> m_messages;
+};
+
 
 struct ALTIUM_SCH_IMPORT_FIXTURE
 {
@@ -79,6 +105,11 @@ struct ALTIUM_SCH_IMPORT_FIXTURE
                + aName;
     }
 
+    wxString parameterSetDataFile( const wxString& aName ) const
+    {
+        return wxString::FromUTF8( KI_TEST::GetEeschemaTestDataDir() + "/plugins/altium/parameter_set/" ) + aName;
+    }
+
     SETTINGS_MANAGER m_settingsManager;
     SCHEMATIC        m_schematic;
 };
@@ -87,6 +118,93 @@ struct ALTIUM_SCH_IMPORT_FIXTURE
 
 
 BOOST_FIXTURE_TEST_SUITE( AltiumSchImport, ALTIUM_SCH_IMPORT_FIXTURE )
+
+
+BOOST_AUTO_TEST_CASE( ParameterSetsBecomeDirectiveLabels )
+{
+    SCH_IO_ALTIUM plugin;
+
+    SCH_SHEET* rootSheet = plugin.LoadSchematicFile( parameterSetDataFile( "parameter_set.SchDoc" ), &m_schematic );
+    BOOST_REQUIRE( rootSheet );
+    BOOST_REQUIRE( rootSheet->GetScreen() );
+
+    std::vector<SCH_DIRECTIVE_LABEL*> labels;
+
+    for( SCH_ITEM* item : rootSheet->GetScreen()->Items().OfType( SCH_DIRECTIVE_LABEL_T ) )
+        labels.push_back( static_cast<SCH_DIRECTIVE_LABEL*>( item ) );
+
+    BOOST_REQUIRE_EQUAL( labels.size(), 2 );
+
+    auto findField = []( const SCH_DIRECTIVE_LABEL* aLabel, const wxString& aName )
+    {
+        for( const SCH_FIELD& field : aLabel->GetFields() )
+        {
+            if( field.GetCanonicalName() == aName )
+                return &field;
+        }
+
+        return static_cast<const SCH_FIELD*>( nullptr );
+    };
+
+    auto findLabel = [&]( const wxString& aSetName )
+    {
+        for( SCH_DIRECTIVE_LABEL* label : labels )
+        {
+            const SCH_FIELD* field = findField( label, wxT( "Altium Parameter Set" ) );
+
+            if( field && field->GetText() == aSetName )
+                return label;
+        }
+
+        return static_cast<SCH_DIRECTIVE_LABEL*>( nullptr );
+    };
+
+    auto isOnWire = [&]( const SCH_DIRECTIVE_LABEL* aLabel )
+    {
+        const VECTOR2I position = aLabel->GetPosition();
+
+        for( SCH_ITEM* item : rootSheet->GetScreen()->Items().OfType( SCH_LINE_T ) )
+        {
+            const SCH_LINE* line = static_cast<const SCH_LINE*>( item );
+            const VECTOR2I  start = line->GetStartPoint();
+            const VECTOR2I  end = line->GetEndPoint();
+
+            if( start.y == position.y && end.y == position.y && position.x >= std::min( start.x, end.x )
+                && position.x <= std::max( start.x, end.x ) )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    SCH_DIRECTIVE_LABEL* differentialPair = findLabel( wxT( "DIFFPAIR" ) );
+    BOOST_REQUIRE( differentialPair );
+    BOOST_CHECK( isOnWire( differentialPair ) );
+
+    const SCH_FIELD* setName = findField( differentialPair, wxT( "Altium Parameter Set" ) );
+    BOOST_REQUIRE( setName );
+    BOOST_CHECK_EQUAL( setName->GetText(), wxT( "DIFFPAIR" ) );
+    BOOST_CHECK( !setName->IsVisible() );
+
+    const SCH_FIELD* differentialPairField = findField( differentialPair, wxT( "DifferentialPair" ) );
+    BOOST_REQUIRE( differentialPairField );
+    BOOST_CHECK_EQUAL( differentialPairField->GetText(), wxT( "True" ) );
+    BOOST_CHECK( !differentialPairField->IsVisible() );
+    BOOST_CHECK_EQUAL( differentialPairField->GetPosition(), differentialPair->GetPosition() );
+
+    SCH_DIRECTIVE_LABEL* netclass = findLabel( wxT( "NETCLASS" ) );
+    BOOST_REQUIRE( netclass );
+    BOOST_CHECK( isOnWire( netclass ) );
+    BOOST_CHECK( netclass->GetSpinStyle() == SPIN_STYLE::LEFT );
+
+    const SCH_FIELD* netclassField = findField( netclass, wxT( "Netclass" ) );
+    BOOST_REQUIRE( netclassField );
+    BOOST_CHECK_EQUAL( netclassField->GetText(), wxT( "HighSpeed" ) );
+    BOOST_CHECK( netclassField->IsVisible() );
+    BOOST_CHECK_NE( netclassField->GetPosition(), netclass->GetPosition() );
+}
 
 
 // https://gitlab.com/kicad/code/kicad/-/issues/22943
@@ -132,6 +250,57 @@ BOOST_AUTO_TEST_CASE( Issue22943_SourceLibrarySymbolLibId )
 }
 
 
+// After importing an Altium schematic that has no accompanying KiCad symbol library, every placed
+// symbol must resolve against the importer-built definition stored in the screen's local cache.
+// The importer used to run an unconditional external SCH_SCREENS::UpdateSymbolLinks() pass, which
+// discards that cache and reloads from the active library table; with no such library it emitted
+// spurious "no library symbol found" errors and, on a nickname collision, could replace imported
+// geometry.  The imported definitions must be kept and the local cache must be self-contained.
+BOOST_AUTO_TEST_CASE( ImportedSymbolsResolveFromLocalCache )
+{
+    SCH_IO_ALTIUM plugin;
+
+    CAPTURING_REPORTER capture;
+    SCH_SHEET*         rootSheet = nullptr;
+
+    {
+        // Redirect the loader's internal reporter so we can see any external-relink errors.
+        LOAD_INFO_REPORTER_SCOPE scope( &capture );
+        rootSheet = plugin.LoadSchematicFile( dataFile( "1_cover.SchDoc" ), &m_schematic );
+    }
+
+    BOOST_REQUIRE( rootSheet );
+
+    // The importer must not attempt an external symbol relink; with no accompanying library that
+    // pass reports "No library symbol found" for every placement.
+    BOOST_CHECK_MESSAGE( !capture.Contains( wxT( "No library symbol found" ) ),
+                         "Importer ran a destructive external symbol relink" );
+
+    SCH_SCREEN* screen = rootSheet->GetScreen();
+    BOOST_REQUIRE( screen );
+
+    const std::map<wxString, LIB_SYMBOL*>& cache = screen->GetLibSymbols();
+
+    int symbolCount = 0;
+
+    for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+    {
+        SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        symbolCount++;
+
+        // The instance keeps the imported definition ...
+        BOOST_CHECK_MESSAGE( symbol->GetLibSymbolRef(), "Imported symbol '" << symbol->GetLibId().Format().wx_str()
+                                                                            << "' lost its library symbol" );
+
+        // ... and that definition is cached locally so the saved schematic is self-contained.
+        BOOST_CHECK_MESSAGE( cache.count( symbol->GetSchSymbolLibraryName() ),
+                             "Screen cache is missing '" << symbol->GetSchSymbolLibraryName().wx_str() << "'" );
+    }
+
+    BOOST_REQUIRE_GT( symbolCount, 0 );
+}
+
+
 // https://gitlab.com/kicad/code/kicad/-/issues/24861
 BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
 {
@@ -170,6 +339,38 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
     BOOST_CHECK_EQUAL( channelPaths.at( wxT( "CH2" ) ).GetPageNumber(), wxT( "3" ) );
     BOOST_CHECK_EQUAL( channelPaths.at( wxT( "CH3" ) ).GetPageNumber(), wxT( "4" ) );
 
+    // All repeated channels reference the same document and so must share a single SCH_SCREEN.
+    // Separate per-channel screens would each keep only their own annotation, so the shared
+    // .kicad_sch file would lose every channel but the last one written on save.
+    std::set<SCH_SCREEN*> channelScreens;
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+        channelScreens.insert( sheetPath.LastScreen() );
+
+    BOOST_REQUIRE_EQUAL( channelScreens.size(), 1 );
+
+    // That one shared screen must carry the per-instance annotation for every channel path.
+    SCH_SCREEN* sharedScreen = *channelScreens.begin();
+    BOOST_REQUIRE( sharedScreen );
+
+    SCH_SYMBOL* ledSymbol = nullptr;
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+    {
+        std::set<wxString> refsOnPath;
+
+        for( SCH_ITEM* item : sharedScreen->Items().OfType( SCH_SYMBOL_T ) )
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+            refsOnPath.insert( symbol->GetRef( &sheetPath ) );
+        }
+
+        BOOST_CHECK_MESSAGE( refsOnPath.count( wxT( "LED1_" ) + channelName ),
+                             "Shared screen missing LED1 annotation for " << channelName );
+        BOOST_CHECK_MESSAGE( refsOnPath.count( wxT( "R1_" ) + channelName ),
+                             "Shared screen missing R1 annotation for " << channelName );
+    }
+
     std::set<wxString> ledReferences;
     std::set<wxString> resistorReferences;
 
@@ -181,7 +382,10 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
             wxString    ref = symbol->GetRef( &sheetPath );
 
             if( ref.StartsWith( wxT( "LED" ) ) )
+            {
+                ledSymbol = symbol;
                 ledReferences.insert( ref );
+            }
             else if( ref.StartsWith( wxT( "R" ) ) )
                 resistorReferences.insert( ref );
         }
@@ -191,6 +395,26 @@ BOOST_AUTO_TEST_CASE( Issue24861_RepeatedSchematicChannels )
                                                         wxT( "LED1_CH3" ) } ) );
     BOOST_CHECK( resistorReferences == std::set<wxString>( { wxT( "R1_CH1" ), wxT( "R1_CH2" ),
                                                              wxT( "R1_CH3" ) } ) );
+
+    BOOST_REQUIRE( ledSymbol );
+    BOOST_REQUIRE_EQUAL( ledSymbol->GetInstances().size(), 3 );
+
+    for( const auto& [channelName, sheetPath] : channelPaths )
+    {
+        std::optional<SCH_SYMBOL_VARIANT> variant = ledSymbol->GetVariant( sheetPath, wxT( "CH2 only" ) );
+
+        if( channelName == wxT( "CH2" ) )
+        {
+            BOOST_REQUIRE( variant );
+            BOOST_CHECK( variant->m_DNP );
+            BOOST_CHECK( variant->m_ExcludedFromBOM );
+            BOOST_CHECK( variant->m_ExcludedFromPosFiles );
+        }
+        else
+        {
+            BOOST_CHECK( !variant );
+        }
+    }
 }
 
 

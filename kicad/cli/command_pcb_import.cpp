@@ -32,6 +32,7 @@
 #define ARG_REPORT_FORMAT "--report-format"
 #define ARG_REPORT_FILE "--report-file"
 #define ARG_LAYER_MAP "--layer-map"
+#define ARG_REFILL_ZONES "--refill-zones"
 
 
 CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
@@ -62,6 +63,11 @@ CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
             .help( UTF8STDSTR( _( "JSON file mapping source layer names to KiCad layer names; "
                                   "unmapped layers use the automatic best-guess" ) ) )
             .metavar( "FILE" );
+
+    m_argParser.add_argument( ARG_REFILL_ZONES )
+            .flag()
+            .help( UTF8STDSTR( _( "Refill all copper zones after import instead of keeping the "
+                                  "source pour" ) ) );
 }
 
 
@@ -135,6 +141,8 @@ int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
             return EXIT_CODES::ERR_ARGS;
         }
     }
+
+    importJob->m_refillZones = m_argParser.get<bool>( ARG_REFILL_ZONES );
 
     int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, importJob.get() );
 

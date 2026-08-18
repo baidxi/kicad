@@ -104,17 +104,19 @@ enum class ALTIUM_RULE_KIND
 {
     UNKNOWN = 0,
 
-    CLEARANCE              = 1,
-    DIFF_PAIR_ROUTINGS     = 2,
-    HEIGHT                 = 3,
-    HOLE_SIZE              = 4,
+    CLEARANCE = 1,
+    DIFF_PAIR_ROUTINGS = 2,
+    HEIGHT = 3,
+    HOLE_SIZE = 4,
     HOLE_TO_HOLE_CLEARANCE = 5,
-    WIDTH                  = 6,
-    PASTE_MASK_EXPANSION   = 7,
-    SOLDER_MASK_EXPANSION  = 8,
-    PLANE_CLEARANCE        = 9,
-    POLYGON_CONNECT        = 10,
-    ROUTING_VIAS           = 11
+    WIDTH = 6,
+    PASTE_MASK_EXPANSION = 7,
+    SOLDER_MASK_EXPANSION = 8,
+    PLANE_CLEARANCE = 9,
+    POLYGON_CONNECT = 10,
+    ROUTING_VIAS = 11,
+    PLANE_CONNECT = 12,
+    BOARD_OUTLINE_CLEARANCE = 13
 };
 
 enum class ALTIUM_CONNECT_STYLE
@@ -220,6 +222,14 @@ enum class ALTIUM_BARCODE_TYPE
     CODE128 = 1
 };
 
+enum class ALTIUM_MODEL_TYPE
+{
+    EXTRUDED = 0, ///< 2D outline extruded between MODEL.EXTRUDED.MINZ and MAXZ.
+    GENERIC = 1,  ///< An embedded STEP/model file referenced by MODELID.
+    CYLINDER = 2,
+    SPHERE = 3
+};
+
 struct ALTIUM_VERTICE
 {
     const bool    isRound;
@@ -255,16 +265,16 @@ enum class ALTIUM_LAYER : uint32_t
 {
     UNKNOWN = 0,
 
-    TOP_LAYER    = 1,
-    MID_LAYER_1  = 2,
-    MID_LAYER_2  = 3,
-    MID_LAYER_3  = 4,
-    MID_LAYER_4  = 5,
-    MID_LAYER_5  = 6,
-    MID_LAYER_6  = 7,
-    MID_LAYER_7  = 8,
-    MID_LAYER_8  = 9,
-    MID_LAYER_9  = 10,
+    TOP_LAYER = 1,
+    MID_LAYER_1 = 2,
+    MID_LAYER_2 = 3,
+    MID_LAYER_3 = 4,
+    MID_LAYER_4 = 5,
+    MID_LAYER_5 = 6,
+    MID_LAYER_6 = 7,
+    MID_LAYER_7 = 8,
+    MID_LAYER_8 = 9,
+    MID_LAYER_9 = 10,
     MID_LAYER_10 = 11,
     MID_LAYER_11 = 12,
     MID_LAYER_12 = 13,
@@ -288,22 +298,22 @@ enum class ALTIUM_LAYER : uint32_t
     MID_LAYER_30 = 31,
     BOTTOM_LAYER = 32,
 
-    TOP_OVERLAY    = 33,
+    TOP_OVERLAY = 33,
     BOTTOM_OVERLAY = 34,
-    TOP_PASTE      = 35,
-    BOTTOM_PASTE   = 36,
-    TOP_SOLDER     = 37,
-    BOTTOM_SOLDER  = 38,
+    TOP_PASTE = 35,
+    BOTTOM_PASTE = 36,
+    TOP_SOLDER = 37,
+    BOTTOM_SOLDER = 38,
 
-    INTERNAL_PLANE_1  = 39,
-    INTERNAL_PLANE_2  = 40,
-    INTERNAL_PLANE_3  = 41,
-    INTERNAL_PLANE_4  = 42,
-    INTERNAL_PLANE_5  = 43,
-    INTERNAL_PLANE_6  = 44,
-    INTERNAL_PLANE_7  = 45,
-    INTERNAL_PLANE_8  = 46,
-    INTERNAL_PLANE_9  = 47,
+    INTERNAL_PLANE_1 = 39,
+    INTERNAL_PLANE_2 = 40,
+    INTERNAL_PLANE_3 = 41,
+    INTERNAL_PLANE_4 = 42,
+    INTERNAL_PLANE_5 = 43,
+    INTERNAL_PLANE_6 = 44,
+    INTERNAL_PLANE_7 = 45,
+    INTERNAL_PLANE_8 = 46,
+    INTERNAL_PLANE_9 = 47,
     INTERNAL_PLANE_10 = 48,
     INTERNAL_PLANE_11 = 49,
     INTERNAL_PLANE_12 = 50,
@@ -312,18 +322,18 @@ enum class ALTIUM_LAYER : uint32_t
     INTERNAL_PLANE_15 = 53,
     INTERNAL_PLANE_16 = 54,
 
-    DRILL_GUIDE    = 55,
+    DRILL_GUIDE = 55,
     KEEP_OUT_LAYER = 56,
 
-    MECHANICAL_1  = 57,
-    MECHANICAL_2  = 58,
-    MECHANICAL_3  = 59,
-    MECHANICAL_4  = 60,
-    MECHANICAL_5  = 61,
-    MECHANICAL_6  = 62,
-    MECHANICAL_7  = 63,
-    MECHANICAL_8  = 64,
-    MECHANICAL_9  = 65,
+    MECHANICAL_1 = 57,
+    MECHANICAL_2 = 58,
+    MECHANICAL_3 = 59,
+    MECHANICAL_4 = 60,
+    MECHANICAL_5 = 61,
+    MECHANICAL_6 = 62,
+    MECHANICAL_7 = 63,
+    MECHANICAL_8 = 64,
+    MECHANICAL_9 = 65,
     MECHANICAL_10 = 66,
     MECHANICAL_11 = 67,
     MECHANICAL_12 = 68,
@@ -332,51 +342,52 @@ enum class ALTIUM_LAYER : uint32_t
     MECHANICAL_15 = 71,
     MECHANICAL_16 = 72,
 
-    DRILL_DRAWING     = 73,
-    MULTI_LAYER       = 74,
-    CONNECTIONS       = 75,
-    BACKGROUND        = 76,
+    DRILL_DRAWING = 73,
+    MULTI_LAYER = 74,
+    CONNECTIONS = 75,
+    BACKGROUND = 76,
     DRC_ERROR_MARKERS = 77,
-    SELECTIONS        = 78,
-    VISIBLE_GRID_1    = 79,
-    VISIBLE_GRID_2    = 80,
-    PAD_HOLES         = 81,
-    VIA_HOLES         = 82,
+    SELECTIONS = 78,
+    VISIBLE_GRID_1 = 79,
+    VISIBLE_GRID_2 = 80,
+    PAD_HOLES = 81,
+    VIA_HOLES = 82,
 
     // V7 format layers
     V7_START = 0x01000000,
 
-    V7_COPPER_BASE  = 0x01000000,
-    V7_TOP_LAYER    = V7_COPPER_BASE + 1,
+    V7_COPPER_BASE = 0x01000000,
+    V7_TOP_LAYER = V7_COPPER_BASE + 1,
     V7_BOTTOM_LAYER = V7_COPPER_BASE + 65535,
 
     V7_MECHANICAL_BASE = 0x01020000,
-    V7_MECHANICAL_1    = V7_MECHANICAL_BASE + 1,
-    V7_MECHANICAL_17   = V7_MECHANICAL_BASE + 17,
+    V7_MECHANICAL_1 = V7_MECHANICAL_BASE + 1,
+    V7_MECHANICAL_17 = V7_MECHANICAL_BASE + 17,
+    V7_ROUTE_GUIDE = V7_MECHANICAL_BASE + 32767,
     V7_MECHANICAL_LAST = V7_MECHANICAL_BASE + 65535,
 
     // V8 format layers
-    V8_OTHER_BASE         = 0x01030000,
-    V8_TOP_OVERLAY        = V8_OTHER_BASE + 6,
-    V8_BOTTOM_OVERLAY     = V8_OTHER_BASE + 7,
-    V8_TOP_PASTE          = V8_OTHER_BASE + 8,
-    V8_BOTTOM_PASTE       = V8_OTHER_BASE + 9,
-    V8_TOP_SOLDER         = V8_OTHER_BASE + 10,
-    V8_BOTTOM_SOLDER      = V8_OTHER_BASE + 11,
-    V8_DRILL_GUIDE        = V8_OTHER_BASE + 12,
-    V8_KEEP_OUT_LAYER     = V8_OTHER_BASE + 13,
-    V8_DRILL_DRAWING      = V8_OTHER_BASE + 14,
-    V8_MULTI_LAYER        = V8_OTHER_BASE + 15,
-    V8_CONNECTIONS        = V8_OTHER_BASE + 16,
-    V8_BACKGROUND         = V8_OTHER_BASE + 17,
-    V8_DRC_ERROR_MARKERS  = V8_OTHER_BASE + 18,
-    V8_SELECTIONS         = V8_OTHER_BASE + 19,
-    V8_VISIBLE_GRID_1     = V8_OTHER_BASE + 20,
-    V8_VISIBLE_GRID_2     = V8_OTHER_BASE + 21,
-    V8_PAD_HOLES          = V8_OTHER_BASE + 22,
-    V8_VIA_HOLES          = V8_OTHER_BASE + 23,
-    V8_TOP_PAD_MASTER     = V8_OTHER_BASE + 24,
-    V8_BOTTOM_PAD_MASTER  = V8_OTHER_BASE + 25,
+    V8_OTHER_BASE = 0x01030000,
+    V8_TOP_OVERLAY = V8_OTHER_BASE + 6,
+    V8_BOTTOM_OVERLAY = V8_OTHER_BASE + 7,
+    V8_TOP_PASTE = V8_OTHER_BASE + 8,
+    V8_BOTTOM_PASTE = V8_OTHER_BASE + 9,
+    V8_TOP_SOLDER = V8_OTHER_BASE + 10,
+    V8_BOTTOM_SOLDER = V8_OTHER_BASE + 11,
+    V8_DRILL_GUIDE = V8_OTHER_BASE + 12,
+    V8_KEEP_OUT_LAYER = V8_OTHER_BASE + 13,
+    V8_DRILL_DRAWING = V8_OTHER_BASE + 14,
+    V8_MULTI_LAYER = V8_OTHER_BASE + 15,
+    V8_CONNECTIONS = V8_OTHER_BASE + 16,
+    V8_BACKGROUND = V8_OTHER_BASE + 17,
+    V8_DRC_ERROR_MARKERS = V8_OTHER_BASE + 18,
+    V8_SELECTIONS = V8_OTHER_BASE + 19,
+    V8_VISIBLE_GRID_1 = V8_OTHER_BASE + 20,
+    V8_VISIBLE_GRID_2 = V8_OTHER_BASE + 21,
+    V8_PAD_HOLES = V8_OTHER_BASE + 22,
+    V8_VIA_HOLES = V8_OTHER_BASE + 23,
+    V8_TOP_PAD_MASTER = V8_OTHER_BASE + 24,
+    V8_BOTTOM_PAD_MASTER = V8_OTHER_BASE + 25,
     V8_DRC_DETAIL_MARKERS = V8_OTHER_BASE + 26,
 };
 
@@ -501,6 +512,31 @@ struct ABOARD6
     explicit ABOARD6( ALTIUM_BINARY_PARSER& aReader );
 };
 
+
+struct ADESIGNRULECHECKEROPTIONS6
+{
+    bool    reportDeadCopper;
+    int64_t deadCopperMinArea;
+
+    explicit ADESIGNRULECHECKEROPTIONS6( ALTIUM_BINARY_PARSER& aReader );
+};
+
+
+struct AEMBEDDEDFONT6
+{
+    wxString displayName;
+    wxString familyName;
+    wxString styleName;
+    bool     isBold;
+    bool     isItalic;
+
+    /// zlib-compressed TrueType/OpenType font payload as stored in the Altium stream.
+    std::vector<char> compressedData;
+
+    explicit AEMBEDDEDFONT6( ALTIUM_BINARY_PARSER& aReader );
+};
+
+
 struct ACLASS6
 {
     wxString name;
@@ -521,6 +557,7 @@ struct ACOMPONENT6
     bool         locked;
     bool         nameon;
     bool         commenton;
+    wxString     uniqueid;
     wxString     sourceUniqueID;
     wxString     sourceHierachicalPath;
     wxString     sourcedesignator;
@@ -595,6 +632,7 @@ struct APOLYGON6
     ALTIUM_LAYER layer_v7 = ALTIUM_LAYER::UNKNOWN;
     ALTIUM_LAYER layer = ALTIUM_LAYER::UNKNOWN;
     uint16_t     net;
+    bool         isSplitPlane;
     bool         locked;
 
     ALTIUM_POLYGON_HATCHSTYLE hatchstyle;
@@ -603,6 +641,12 @@ struct APOLYGON6
     int32_t trackwidth;
     int32_t minprimlength;
     bool    useoctagons;
+
+    bool    removeNecks;
+    int32_t neckWidthThreshold;
+    bool    removeDead;
+    bool    removeIslandsByArea;
+    int64_t areaThreshold;
 
     // Note: Altium pour index is the opposite of KiCad zone priority!
     int32_t pourindex;
@@ -616,7 +660,9 @@ struct APOLYGON6
 struct ARULE6
 {
     wxString name;
+    wxString rulekind;
     int      priority = 0;
+    bool     enabled = true;
 
     ALTIUM_RULE_KIND kind = ALTIUM_RULE_KIND::UNKNOWN;
 
@@ -658,6 +704,12 @@ struct ARULE6
     int                  polygonconnectReliefentries        = 0;
     ALTIUM_CONNECT_STYLE polygonconnectStyle                = ALTIUM_CONNECT_STYLE::UNKNOWN;
 
+    // ALTIUM_RULE_KIND::PLANE_CONNECT
+    int32_t              planeconnectAirgapwidth = 0;
+    int32_t              planeconnectReliefconductorwidth = 0;
+    int                  planeconnectReliefentries = 0;
+    ALTIUM_CONNECT_STYLE planeconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
+
     // TODO: implement different types of rules we need to parse
 
     ARULE6() = default;
@@ -684,11 +736,22 @@ struct AREGION6
 
     ALTIUM_REGION_KIND kind; // I assume this means if normal or keepout?
 
+    int     bendinglinecount = 0; ///< Rigid-flex bend lines crossing a board region (0 if rigid).
+    int64_t cavityheight = 0;     ///< Cavity depth of a board region (0 if none).
+
     std::vector<ALTIUM_VERTICE>              outline;
     std::vector<std::vector<ALTIUM_VERTICE>> holes;
 
     explicit AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices );
 };
+
+
+/**
+ * Return true when an Altium BoardRegions record carries semantics that KiCad cannot represent
+ * (rigid-flex bends or a cavity), as opposed to an ordinary rigid board region that merely
+ * restates the board outline and default stackup.
+ */
+bool AltiumBoardRegionIsSpecial( int aBendingLineCount, int64_t aCavityHeight, ALTIUM_REGION_KIND aKind );
 
 struct AARC6
 {
@@ -743,9 +806,19 @@ struct ACOMPONENTBODY6
     wxString             modelChecksum;
     bool                 modelIsEmbedded = false;
     wxString             modelName;
-    int                  modelType       = 0;
+    ALTIUM_MODEL_TYPE    modelType = ALTIUM_MODEL_TYPE::GENERIC;
     int                  modelSource     = 0;
     int                  modelSnapCount  = 0;
+
+    // Geometry of Altium-generated (non-file) bodies, reconstructed into STEP on import.
+    int modelExtrudedMinZ = 0;
+    int modelExtrudedMaxZ = 0;
+    int modelCylinderRadius = 0;
+    int modelCylinderHeight = 0;
+    int modelSphereRadius = 0;
+
+    /// 2D body outline in KiCad IU (used to extrude EXTRUDED bodies).
+    std::vector<VECTOR2I> modelOutline;
 
     VECTOR3D             modelPosition;
     VECTOR3D             modelRotation;
@@ -1016,6 +1089,15 @@ const ARULE6* selectAltiumPolygonRule( const std::vector<ARULE6>& aRulesByPriori
  */
 bool altiumViaSideIsTented( bool aTentFlag, bool aManual, bool aFromHole, uint32_t aHoleSize,
                             int32_t aMaskExpansion, int aLandDiameter );
+
+
+/**
+ * Convert an Altium slot's independent rotation and dimensions to KiCad's cardinal drill shape.
+ *
+ * KiCad cannot rotate a drill independently of its pad.  Non-cardinal slots therefore retain
+ * their source dimensions in a horizontal approximation and set @p aRotationSupported false.
+ */
+VECTOR2I altiumSlotDrillSize( uint32_t aHoleSize, uint32_t aSlotSize, double aSlotRotation, bool& aRotationSupported );
 
 
 #endif //ALTIUM_PARSER_PCB_H

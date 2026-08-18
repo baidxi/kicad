@@ -22,6 +22,7 @@
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_sch_import.h>
 #include <jobs/job_import_utils.h>
+#include <io/altium/altium_project.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <project.h>
@@ -34,11 +35,14 @@
 #include <wx/crt.h>
 #include <wx/filename.h>
 
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 
 
 #define ARG_LAYER_MAP "--layer-map"
+#define ARG_REFILL_ZONES "--refill-zones"
 
 
 CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
@@ -64,6 +68,11 @@ CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
             .help( UTF8STDSTR( _( "JSON file mapping source layer names to KiCad layer names for "
                                   "imported boards; unmapped layers use the automatic best-guess" ) ) )
             .metavar( "FILE" );
+
+    m_argParser.add_argument( ARG_REFILL_ZONES )
+            .flag()
+            .help( UTF8STDSTR( _( "Refill all copper zones on imported boards instead of keeping "
+                                  "the source pour" ) ) );
 }
 
 
@@ -82,6 +91,8 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     for( const std::string& raw : rawInputs )
         inputFiles.push_back( From_UTF8( raw.c_str() ) );
+
+    bool refillZones = m_argParser.get<bool>( ARG_REFILL_ZONES );
 
     std::map<wxString, wxString> layerMap;
     wxString layerMapFile = From_UTF8( m_argParser.get<std::string>( ARG_LAYER_MAP ).c_str() );
@@ -147,6 +158,65 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     for( const wxString& input : inputFiles )
     {
+        // An Altium .PrjPcb is a project descriptor, not a board/schematic file.  Expand it into
+        // the child schematic documents and board so the schematic importer runs through its
+        // project path (applying variants and repeated-sheet channels) instead of a bare file.
+        if( wxFileName( input ).GetExt().IsSameAs( wxS( "PrjPcb" ), false ) )
+        {
+            ALTIUM_PROJECT_FILES projectFiles = ParseAltiumProjectFiles( input );
+
+            if( projectFiles.schematicFiles.empty() && projectFiles.pcbFile.empty() )
+            {
+                reporter.Report( wxString::Format( _( "No importable documents found in project: %s\n" ), input ),
+                                 RPT_SEVERITY_ERROR );
+                retCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
+                break;
+            }
+
+            if( !haveSch && !projectFiles.schematicFiles.empty() )
+            {
+                std::unique_ptr<JOB_SCH_IMPORT> schJob = std::make_unique<JOB_SCH_IMPORT>();
+                schJob->m_inputFile = input;
+                schJob->m_format = JOB_SCH_IMPORT::FORMAT::ALTIUM;
+                schJob->m_projectFile = input;
+                schJob->m_schematicFiles = projectFiles.schematicFiles;
+                schJob->SetConfiguredOutputPath( schFn.GetFullPath() );
+
+                int schResult = aKiway.ProcessJob( KIWAY::FACE_SCH, schJob.get(), &reporter );
+
+                if( schResult == EXIT_CODES::SUCCESS )
+                    haveSch = true;
+                else
+                {
+                    retCode = schResult;
+                    break;
+                }
+            }
+
+            if( !haveBoard && !projectFiles.pcbFile.empty() )
+            {
+                std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
+                pcbJob->m_inputFile = projectFiles.pcbFile;
+                pcbJob->m_projectFile = input;
+                pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
+                pcbJob->m_layerMap = layerMap;
+                pcbJob->m_refillZones = refillZones;
+                pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
+
+                int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );
+
+                if( pcbResult == EXIT_CODES::SUCCESS )
+                    haveBoard = true;
+                else
+                {
+                    retCode = pcbResult;
+                    break;
+                }
+            }
+
+            continue;
+        }
+
         // Classify by trial dispatch: a face that does not recognize the file returns the
         // ERR_UNKNOWN_FILE_FORMAT sentinel before loading, so we fall through to the next face.
         // Probe a face only while its slot is open so a duplicate input is rejected without
@@ -157,6 +227,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
             pcbJob->m_inputFile = input;
             pcbJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
             pcbJob->m_layerMap = layerMap;
+            pcbJob->m_refillZones = refillZones;
             pcbJob->SetConfiguredOutputPath( boardFn.GetFullPath() );
 
             int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );

@@ -99,6 +99,22 @@ BOOST_AUTO_TEST_CASE( MultipleLayers )
     BOOST_TEST( zone.IsOnCopperLayer() == true );
 }
 
+
+BOOST_AUTO_TEST_CASE( LibraryFootprintZoneDescription )
+{
+    FOOTPRINT footprint( nullptr );
+    ZONE      zone( &footprint );
+
+    zone.SetIsRuleArea( true );
+    zone.SetLayerSet( { F_Cu, B_Cu } );
+
+    wxString description = zone.GetItemDescription( nullptr, false );
+
+    BOOST_CHECK( description.Contains( wxS( "F.Cu" ) ) );
+    BOOST_CHECK( description.Contains( wxS( "B.Cu" ) ) );
+}
+
+
 /**
  * During zone loading, the layer is set to Rescue if the layer is not found.
  * This is not a UI-visible layer, so make sure it can still be retreived.

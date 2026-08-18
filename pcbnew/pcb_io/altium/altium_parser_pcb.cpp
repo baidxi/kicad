@@ -19,6 +19,7 @@
  */
 
 #include <cmath>
+#include <limits>
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -45,6 +46,18 @@
 static const wxChar* traceAltiumImport = wxT( "KICAD_ALTIUM_IMPORT" );
 
 
+static int64_t altiumAreaToKicad( double aSourceArea )
+{
+    constexpr double areaScale = 2.54 * 2.54;
+
+    aSourceArea = std::max( 0.0, aSourceArea );
+    aSourceArea = std::min( aSourceArea, static_cast<double>( std::numeric_limits<int64_t>::max() ) / areaScale );
+
+    // Altium areas are square 0.1 microinch units; KiCad areas are square nanometres.
+    return static_cast<int64_t>( std::llround( aSourceArea * areaScale ) );
+}
+
+
 /*
  * Returns an Altium layer id from V6 and V7 file format data, compatible with the rest of the parser.
  */
@@ -69,8 +82,9 @@ const ARULE6* selectAltiumPolygonRule( const std::vector<ARULE6>& aRulesByPriori
 {
     for( const ARULE6& rule : aRulesByPriorityAsc )
     {
-        if( altiumScopeExprMatchesPolygon( rule.scope1expr )
-            || altiumScopeExprMatchesPolygon( rule.scope2expr ) )
+        if( rule.enabled
+            && ( altiumScopeExprMatchesPolygon( rule.scope1expr )
+                 || altiumScopeExprMatchesPolygon( rule.scope2expr ) ) )
         {
             return &rule;
         }
@@ -94,6 +108,26 @@ bool altiumViaSideIsTented( bool aTentFlag, bool aManual, bool aFromHole, uint32
     }
 
     return false;
+}
+
+
+VECTOR2I altiumSlotDrillSize( uint32_t aHoleSize, uint32_t aSlotSize, double aSlotRotation, bool& aRotationSupported )
+{
+    double slotRotation = std::fmod( aSlotRotation, 360.0 );
+
+    if( slotRotation < 0.0 )
+        slotRotation += 360.0;
+
+    aRotationSupported = true;
+
+    if( std::abs( slotRotation ) < 1e-9 || std::abs( slotRotation - 180.0 ) < 1e-9 )
+        return { static_cast<int>( aSlotSize ), static_cast<int>( aHoleSize ) };
+
+    if( std::abs( slotRotation - 90.0 ) < 1e-9 || std::abs( slotRotation - 270.0 ) < 1e-9 )
+        return { static_cast<int>( aHoleSize ), static_cast<int>( aSlotSize ) };
+
+    aRotationSupported = false;
+    return { static_cast<int>( aSlotSize ), static_cast<int>( aHoleSize ) };
 }
 
 
@@ -610,6 +644,59 @@ ABOARD6::ABOARD6( ALTIUM_BINARY_PARSER& aReader )
         THROW_IO_ERROR( wxT( "Board6 stream was not parsed correctly!" ) );
 }
 
+
+ADESIGNRULECHECKEROPTIONS6::ADESIGNRULECHECKEROPTIONS6( ALTIUM_BINARY_PARSER& aReader )
+{
+    std::map<wxString, wxString> props = aReader.ReadProperties();
+
+    if( props.empty() )
+        THROW_IO_ERROR( wxT( "DesignRuleCheckerOptions6 stream has no properties!" ) );
+
+    reportDeadCopper = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "REPORTDEADCOPPER" ), false );
+    deadCopperMinArea = altiumAreaToKicad( ALTIUM_PROPS_UTILS::ReadDouble( props, wxT( "DEADCOPPERMINAREA" ), 0.0 ) );
+
+    if( aReader.HasParsingError() )
+        THROW_IO_ERROR( wxT( "DesignRuleCheckerOptions6 stream was not parsed correctly!" ) );
+}
+
+
+AEMBEDDEDFONT6::AEMBEDDEDFONT6( ALTIUM_BINARY_PARSER& aReader )
+{
+    // Each record is three byte-counted UTF-16LE strings (display / family / style name, each
+    // including the trailing NUL), three flag bytes, and a zlib-compressed font payload.
+    auto readWideString = [&aReader]() -> wxString
+    {
+        uint32_t length = aReader.Read<uint32_t>();
+
+        if( length == 0 || length > aReader.GetRemainingBytes() )
+            return wxString();
+
+        std::vector<char> buffer = aReader.ReadVector( length );
+
+        // The stored length includes the two-byte UTF-16 NUL terminator.
+        return wxString( buffer.data(), wxMBConvUTF16LE(), length >= 2 ? length - 2 : length );
+    };
+
+    displayName = readWideString();
+    familyName = readWideString();
+    styleName = readWideString();
+
+    isBold = aReader.Read<uint8_t>() != 0;
+    isItalic = aReader.Read<uint8_t>() != 0;
+    aReader.Read<uint8_t>(); // Unknown flag; consistently 1 in all inspected files.
+
+    uint32_t compressedLength = aReader.Read<uint32_t>();
+
+    if( compressedLength > aReader.GetRemainingBytes() )
+        THROW_IO_ERROR( wxT( "EmbeddedFonts6 stream has an out-of-range font payload length" ) );
+
+    compressedData = aReader.ReadVector( compressedLength );
+
+    if( aReader.HasParsingError() )
+        THROW_IO_ERROR( wxT( "EmbeddedFonts6 stream was not parsed correctly!" ) );
+}
+
+
 ACLASS6::ACLASS6( ALTIUM_BINARY_PARSER& aReader )
 {
     std::map<wxString, wxString> properties = aReader.ReadProperties();
@@ -651,6 +738,7 @@ ACOMPONENT6::ACOMPONENT6( ALTIUM_BINARY_PARSER& aReader )
     commenton        = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "COMMENTON" ), false );
     sourcedesignator = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SOURCEDESIGNATOR" ), wxT( "" ) );
 
+    uniqueid = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "UNIQUEID" ), wxT( "" ) );
     sourceUniqueID = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SOURCEUNIQUEID" ), wxT( "" ) );
 
     // Remove leading backslash from sourceUniqueID to match schematic component unique IDs
@@ -698,7 +786,7 @@ ADIMENSION6::ADIMENSION6( ALTIUM_BINARY_PARSER& aReader )
     textheight     = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "TEXTHEIGHT" ), wxT( "10mil" ) );
     textlinewidth  = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "TEXTLINEWIDTH" ), wxT( "6mil" ) );
     textprecision  = ALTIUM_PROPS_UTILS::ReadInt( props, wxT( "TEXTPRECISION" ), 2 );
-    textbold       = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "TEXTLINEWIDTH" ), false );
+    textbold = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "BOLD" ), false );
     textitalic     = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "ITALIC" ), false );
     textgap        = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "TEXTGAP" ), wxT( "10mil" ) );
 
@@ -793,12 +881,19 @@ APOLYGON6::APOLYGON6( ALTIUM_BINARY_PARSER& aReader )
     net    = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "NET" ), ALTIUM_NET_UNCONNECTED );
     locked = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "LOCKED" ), false );
 
-    // TODO: kind
+    isSplitPlane =
+            ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "POLYGONTYPE" ), wxT( "" ) ) == wxT( "Split Plane" );
 
     gridsize      = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "GRIDSIZE" ), wxT( "0mil" ) );
     trackwidth    = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "TRACKWIDTH" ), wxT( "0mil" ) );
     minprimlength = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MINPRIMLENGTH" ), wxT( "0mil" ) );
     useoctagons   = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "USEOCTAGONS" ), false );
+
+    removeNecks = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVENECKS" ), false );
+    neckWidthThreshold = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "NECKWIDTHTHRESHOLD" ), wxT( "0mil" ) );
+    removeDead = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEDEAD" ), true );
+    removeIslandsByArea = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "REMOVEISLANDSBYAREA" ), false );
+    areaThreshold = altiumAreaToKicad( ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "AREATHRESHOLD" ), 0.0 ) );
 
     pourindex = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "POURINDEX" ), 0 );
 
@@ -831,14 +926,20 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
 
     name     = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "NAME" ), wxT( "" ) );
     priority = ALTIUM_PROPS_UTILS::ReadInt( props, wxT( "PRIORITY" ), 1 );
+    enabled = ALTIUM_PROPS_UTILS::ReadBool( props, wxT( "ENABLED" ), true );
 
     scope1expr = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SCOPE1EXPRESSION" ), wxT( "" ) );
     scope2expr = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "SCOPE2EXPRESSION" ), wxT( "" ) );
 
-    wxString rulekind = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "RULEKIND" ), wxT( "" ) );
+    rulekind = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "RULEKIND" ), wxT( "" ) );
     if( rulekind == wxT( "Clearance" ) )
     {
         kind         = ALTIUM_RULE_KIND::CLEARANCE;
+        clearanceGap = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "GAP" ), wxT( "10mil" ) );
+    }
+    else if( rulekind == wxT( "BoardOutlineClearance" ) )
+    {
+        kind = ALTIUM_RULE_KIND::BOARD_OUTLINE_CLEARANCE;
         clearanceGap = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "GAP" ), wxT( "10mil" ) );
     }
     else if( rulekind == wxT( "DiffPairsRouting" ) )
@@ -875,7 +976,9 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
         kind = ALTIUM_RULE_KIND::WIDTH;
         minLimit       = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "MINLIMIT" ), wxT( "6mil" ) );
         maxLimit       = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "MAXLIMIT" ), wxT( "40mil" ) );
-        preferredWidth = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "PREFERREDWIDTH" ), wxT( "6mil" ) );
+        preferredWidth = ALTIUM_PROPS_UTILS::ReadKicadUnit(
+                props, wxT( "PREFEREDWIDTH" ),
+                ALTIUM_PROPS_UTILS::ReadString( props, wxT( "PREFERREDWIDTH" ), wxT( "6mil" ) ) );
 }
     else if( rulekind == wxT( "PasteMaskExpansion" ) )
     {
@@ -905,6 +1008,25 @@ ARULE6::ARULE6( ALTIUM_BINARY_PARSER& aReader )
         else if( style == wxT( "Relief" ) )    polygonconnectStyle = ALTIUM_CONNECT_STYLE::RELIEF;
         else if( style == wxT( "NoConnect" ) ) polygonconnectStyle = ALTIUM_CONNECT_STYLE::NONE;
         else                                   polygonconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
+    }
+    else if( rulekind == wxT( "PlaneConnect" ) )
+    {
+        kind = ALTIUM_RULE_KIND::PLANE_CONNECT;
+        planeconnectAirgapwidth = ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "RELIEFAIRGAP" ), wxT( "10mil" ) );
+        planeconnectReliefconductorwidth =
+                ALTIUM_PROPS_UTILS::ReadKicadUnit( props, wxT( "RELIEFCONDUCTORWIDTH" ), wxT( "10mil" ) );
+        planeconnectReliefentries = ALTIUM_PROPS_UTILS::ReadInt( props, wxT( "RELIEFENTRIES" ), 4 );
+
+        wxString style = ALTIUM_PROPS_UTILS::ReadString( props, wxT( "PLANECONNECTSTYLE" ), wxT( "" ) );
+
+        if( style == wxT( "Direct" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::DIRECT;
+        else if( style == wxT( "Relief" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::RELIEF;
+        else if( style == wxT( "NoConnect" ) )
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::NONE;
+        else
+            planeconnectStyle = ALTIUM_CONNECT_STYLE::UNKNOWN;
     }
     else
     {
@@ -1042,6 +1164,8 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
         THROW_IO_ERROR( wxT( "ComponentsBodies6 stream has no properties" ) );
 
     modelName       = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODEL.NAME" ), wxT( "" ) );
+    modelType = static_cast<ALTIUM_MODEL_TYPE>( ALTIUM_PROPS_UTILS::ReadInt(
+            properties, wxT( "MODEL.MODELTYPE" ), static_cast<int>( ALTIUM_MODEL_TYPE::GENERIC ) ) );
     modelId         = ALTIUM_PROPS_UTILS::ReadString( properties, wxT( "MODELID" ), wxT( "" ) );
     modelIsEmbedded = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "MODEL.EMBED" ), false );
 
@@ -1055,8 +1179,38 @@ ACOMPONENTBODY6::ACOMPONENTBODY6( ALTIUM_BINARY_PARSER& aReader )
 
     rotation = ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "MODEL.2D.ROTATION" ), 0. );
 
+    body_color_3d = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BODYCOLOR3D" ), 0 );
     body_opacity_3d = ALTIUM_PROPS_UTILS::ReadDouble( properties, wxT( "BODYOPACITY3D" ), 1. );
     body_projection = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BODYPROJECTION" ), 0 );
+
+    modelExtrudedMinZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MINZ" ), wxT( "0mil" ) );
+    modelExtrudedMaxZ = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.EXTRUDED.MAXZ" ), wxT( "0mil" ) );
+    modelCylinderRadius =
+            ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.RADIUS" ), wxT( "0mil" ) );
+    modelCylinderHeight =
+            ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.CYLINDER.HEIGHT" ), wxT( "0mil" ) );
+    modelSphereRadius = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "MODEL.SPHERE.RADIUS" ), wxT( "0mil" ) );
+
+    // The 2D body outline follows the property block: a uint32 vertex count, then that many
+    // (double x, double y) pairs.  It is bounded by the subrecord, so read defensively; the trailing
+    // SkipSubrecord() realigns the stream regardless.
+    if( aReader.GetRemainingSubrecordBytes() >= sizeof( uint32_t ) )
+    {
+        uint32_t outlineCount = aReader.Read<uint32_t>();
+
+        if( outlineCount > 0
+            && static_cast<uint64_t>( outlineCount ) * 2 * sizeof( double ) <= aReader.GetRemainingSubrecordBytes() )
+        {
+            modelOutline.reserve( outlineCount );
+
+            for( uint32_t i = 0; i < outlineCount; i++ )
+            {
+                int32_t x = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( aReader.Read<double>() );
+                int32_t y = ALTIUM_PROPS_UTILS::ConvertToKicadUnit( -aReader.Read<double>() );
+                modelOutline.emplace_back( VECTOR2I( x, y ) );
+            }
+        }
+    }
 
     aReader.SkipSubrecord();
 
@@ -1587,7 +1741,7 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     is_teardrop    = ( flags1 & 0x10 ) != 0;
 
     uint8_t flags2 = aReader.Read<uint8_t>();
-    is_keepout     = flags2 == 2;
+    bool    binaryIsKeepout = flags2 == 2;
 
     net = aReader.Read<uint16_t>();
     polygon = aReader.Read<uint16_t>();
@@ -1607,13 +1761,21 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
     bool is_cutout = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISBOARDCUTOUT" ), false );
 
     is_shapebased = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "ISSHAPEBASED" ), false );
+    is_keepout = ALTIUM_PROPS_UTILS::ReadBool( properties, wxT( "KEEPOUT" ), binaryIsKeepout );
+
+    int legacyKeepoutRestrictions = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRIC" ), 0x1F );
     keepoutrestrictions = static_cast<uint8_t>(
-            ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRIC" ), 0x1F ) );
+            ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "KEEPOUTRESTRICTIONS" ), legacyKeepoutRestrictions ) );
 
     // TODO: this can differ from the other subpolyindex?!
     // Note: "the other subpolyindex" is "polygon"
     subpolyindex = static_cast<uint16_t>(
             ALTIUM_PROPS_UTILS::ReadInt( properties, "SUBPOLYINDEX", ALTIUM_POLYGON_NONE ) );
+
+    // Rigid-flex / cavity semantics carried by BoardRegions records (absent/zero for ordinary
+    // rigid board regions).
+    bendinglinecount = ALTIUM_PROPS_UTILS::ReadInt( properties, wxT( "BENDINGLINECOUNT" ), 0 );
+    cavityheight = ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, wxT( "CAVITYHEIGHT" ), wxT( "0mil" ) );
 
     switch( pkind )
     {
@@ -1696,4 +1858,10 @@ AREGION6::AREGION6( ALTIUM_BINARY_PARSER& aReader, bool aExtendedVertices )
 
     if( aReader.HasParsingError() )
         THROW_IO_ERROR( wxT( "Regions6 stream was not parsed correctly" ) );
+}
+
+
+bool AltiumBoardRegionIsSpecial( int aBendingLineCount, int64_t aCavityHeight, ALTIUM_REGION_KIND aKind )
+{
+    return aBendingLineCount > 0 || aCavityHeight > 0 || aKind == ALTIUM_REGION_KIND::CAVITY_DEFINITION;
 }

@@ -27,17 +27,26 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
 #include <pcbnew/pcb_io/altium/pcb_io_altium_designer.h>
+#include <pcbnew/pcb_io/altium/altium_pcb.h>
+#include <io/altium/altium_project.h>
+#include <pcbnew/pcb_io/altium/altium_pcb_compound_file.h>
 #include <pcbnew/pcb_io/altium/altium_parser_pcb.h>
+
+#include <compoundfilereader.h>
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <embedded_files.h>
 #include <footprint.h>
 #include <board_stackup_manager/board_stackup.h>
 #include <common.h>
 #include <core/utf8.h>
 #include <eda_text.h>
+#include <footprint.h>
 #include <netinfo.h>
 #include <netclass.h>
+#include <pad.h>
+#include <pcb_shape.h>
 #include <pcb_track.h>
 #include <pcb_shape.h>
 #include <pcb_generator.h>
@@ -49,6 +58,9 @@
 #include <settings/settings_manager.h>
 #include <zone.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <map>
 #include <set>
 #include <string>
@@ -59,11 +71,504 @@ struct ALTIUM_PCB_IMPORT_FIXTURE
 {
     ALTIUM_PCB_IMPORT_FIXTURE() = default;
 
+    static void parseExtendedPrimitiveInformation( ALTIUM_PCB& aImporter, const ALTIUM_PCB_COMPOUND_FILE& aFile,
+                                                   const CFB::COMPOUND_FILE_ENTRY* aEntry )
+    {
+        aImporter.ParseExtendedPrimitiveInformationData( aFile, aEntry );
+    }
+
+    static std::vector<std::pair<PCB_LAYER_ID, int>> getMaskExpansions( ALTIUM_PCB& aImporter, ALTIUM_RECORD aType,
+                                                                        int aPrimitiveIndex, ALTIUM_LAYER aLayer )
+    {
+        return aImporter.HelperGetSolderAndPasteMaskExpansions( aType, aPrimitiveIndex, aLayer );
+    }
+
+    static void convertConnectedArc( ALTIUM_PCB& aImporter, const AARC6& aArc, PCB_LAYER_ID aLayer )
+    {
+        aImporter.m_altiumToKicadNetcodes = { NETINFO_LIST::UNCONNECTED };
+        aImporter.ConvertArcs6ToBoardItemOnLayer( aArc, aLayer );
+    }
+
     PCB_IO_ALTIUM_DESIGNER m_altiumPlugin;
 };
 
 
 BOOST_FIXTURE_TEST_SUITE( AltiumPcbImport, ALTIUM_PCB_IMPORT_FIXTURE )
+
+
+BOOST_AUTO_TEST_CASE( DimensionBoldPropertyParsing )
+{
+    std::string properties = "|BOLD=TRUE|TEXTLINEWIDTH=6mil";
+    properties.push_back( '\0' );
+
+    const uint16_t recordHeader = 1;
+    const uint32_t propertySize = static_cast<uint32_t>( properties.size() );
+    const size_t   recordSize = sizeof( recordHeader ) + sizeof( propertySize ) + properties.size();
+
+    std::unique_ptr<char[]> content = std::make_unique<char[]>( recordSize );
+
+    std::memcpy( content.get(), &recordHeader, sizeof( recordHeader ) );
+    std::memcpy( content.get() + sizeof( recordHeader ), &propertySize, sizeof( propertySize ) );
+    std::memcpy( content.get() + sizeof( recordHeader ) + sizeof( propertySize ), properties.data(),
+                 properties.size() );
+
+    ALTIUM_BINARY_PARSER reader( content, recordSize );
+    ADIMENSION6          dimension( reader );
+
+    BOOST_CHECK( dimension.textbold );
+    BOOST_CHECK_EQUAL( dimension.textlinewidth, pcbIUScale.mmToIU( 0.1524 ) );
+    BOOST_CHECK( !reader.HasParsingError() );
+    BOOST_CHECK_EQUAL( reader.GetRemainingBytes(), 0 );
+}
+
+
+// Altium keeps per-component parameters (manufacturer, part number, value, etc.) in the
+// PrimitiveParameters stream.  The importer must attach the default (non-variant) parameters to the
+// matching footprint as fields so BOM data survives conversion.
+BOOST_AUTO_TEST_CASE( PrimitiveParametersBecomeFootprintFields )
+{
+    auto fieldText = []( BOARD* aBoard, const wxString& aRef, const wxString& aField ) -> wxString
+    {
+        for( FOOTPRINT* footprint : aBoard->Footprints() )
+        {
+            if( footprint->GetReference() != aRef )
+                continue;
+
+            if( !footprint->HasField( aField ) )
+                return wxString( wxS( "<missing>" ) );
+
+            return footprint->GetField( aField )->GetText();
+        }
+
+        return wxString( wxS( "<no footprint>" ) );
+    };
+
+    // Modern file: parameters are keyed by an explicit component index.
+    {
+        std::string dataPath =
+                KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+        BOOST_REQUIRE( board );
+
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "C266" ), wxT( "ALTIUM_VALUE" ) ), wxT( "47n" ) );
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "C266" ), wxT( "APPLICATION" ) ), wxT( "Bypass, Decoupling" ) );
+
+        // The imported parameter fields must be hidden so they do not clutter the board.
+        for( FOOTPRINT* footprint : board->Footprints() )
+        {
+            if( footprint->GetReference() == wxT( "C266" ) && footprint->HasField( wxT( "APPLICATION" ) ) )
+                BOOST_CHECK( !footprint->GetField( wxT( "APPLICATION" ) )->IsVisible() );
+        }
+    }
+
+    // Legacy file: parameters are keyed by the component UNIQUEID (no explicit index).
+    {
+        std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+        BOOST_REQUIRE( board );
+
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "J5" ), wxT( "MANUFACTURER" ) ), wxT( "Amphenol FCI" ) );
+        BOOST_CHECK_EQUAL( fieldText( board.get(), wxT( "J5" ), wxT( "PART NUMBER" ) ), wxT( "J0000048" ) );
+    }
+}
+
+
+// Altium stores no per-component mounting style, so the importer derives it from the pads.  Without
+// this every imported footprint stays "Other", which silently drops the whole board from SMD-only
+// placement files and from the 3D, STEP and IDF exports, and leaves ODB++/IPC-2581 reporting no
+// mount type to the assembler.
+BOOST_AUTO_TEST_CASE( FootprintMountingStyleDerivedFromPads )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+    BOOST_REQUIRE( board );
+    BOOST_REQUIRE( !board->Footprints().empty() );
+
+    int smd = 0;
+    int throughHole = 0;
+
+    for( FOOTPRINT* footprint : board->Footprints() )
+    {
+        const int expected = footprint->GetLikelyAttribute();
+        const int actual = footprint->GetAttributes() & ( FP_SMD | FP_THROUGH_HOLE );
+
+        // Deriving the style with the same heuristic the footprint checker uses is what keeps
+        // DRC from reporting a type mismatch on every footprint we just imported.
+        BOOST_CHECK_MESSAGE( actual == expected,
+                             wxString::Format( wxT( "Footprint %s has mounting style %d, expected %d" ),
+                                               footprint->GetReference(), actual, expected ) );
+
+        if( expected == FP_SMD )
+            smd++;
+        else if( expected == FP_THROUGH_HOLE )
+            throughHole++;
+    }
+
+    // Guard against the loop above passing because nothing was classified at all.
+    BOOST_CHECK_GT( smd, 0 );
+    BOOST_CHECK_GT( throughHole, 0 );
+}
+
+
+// Altium auto-generates simple 3D bodies (extruded outlines, cylinders, spheres) for parts without
+// a real model.  The importer reconstructs these with OpenCASCADE and embeds them as STEP so the
+// components are no longer invisible in the 3D viewer.
+BOOST_AUTO_TEST_CASE( GeneratedBodiesBecomeEmbeddedStep )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    static const std::string stepHeader = "ISO-10303-21;";
+    int                      generatedModels = 0;
+    int                      footprintsWithModel = 0;
+
+    for( FOOTPRINT* footprint : board->Footprints() )
+    {
+        bool hasGenerated = false;
+
+        for( const auto& [name, file] : footprint->GetEmbeddedFiles()->EmbeddedFileMap() )
+        {
+            if( file->type != EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::MODEL )
+                continue;
+
+            if( !name.EndsWith( wxT( ".step" ) ) )
+                continue;
+
+            // The embedded payload must be a real STEP file.
+            BOOST_REQUIRE_GT( file->decompressedData.size(), stepHeader.size() );
+            BOOST_CHECK(
+                    std::string( file->decompressedData.begin(), file->decompressedData.begin() + stepHeader.size() )
+                    == stepHeader );
+
+            generatedModels++;
+            hasGenerated = true;
+        }
+
+        if( hasGenerated )
+        {
+            footprintsWithModel++;
+
+            // A generated body must be referenced by the footprint's 3D model list.
+            BOOST_CHECK( !footprint->Models().empty() );
+        }
+    }
+
+    // HiFive is full of parts with Altium-generated extruded bodies; at least some must convert.
+    BOOST_CHECK_GT( generatedModels, 0 );
+    BOOST_CHECK_GT( footprintsWithModel, 0 );
+}
+
+
+// Altium stores the board's TrueType fonts, zlib-compressed, in the EmbeddedFonts6 stream.  The
+// importer must decompress them into the board's embedded files so imported text keeps its face on
+// systems that lack the font.
+BOOST_AUTO_TEST_CASE( EmbeddedFontsImported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    EMBEDDED_FILES* files = board->GetEmbeddedFiles();
+    BOOST_REQUIRE( files );
+
+    // The board declares embedded fonts, so serialization keeps the imported files.
+    BOOST_CHECK( files->GetAreFontsEmbedded() );
+
+    int fontCount = 0;
+
+    for( const auto& [name, file] : files->EmbeddedFileMap() )
+    {
+        if( file->type != EMBEDDED_FILES::EMBEDDED_FILE::FILE_TYPE::FONT )
+            continue;
+
+        fontCount++;
+
+        // Each imported font is a real, stored payload: valid, re-encoded, and large enough to be
+        // an actual font rather than a truncated blob.
+        BOOST_CHECK( file->is_valid );
+        BOOST_CHECK( !file->compressedEncodedData.empty() );
+        BOOST_CHECK_GT( file->decompressedData.size(), 100000u );
+    }
+
+    // HiFive embeds Arial Regular and Arial Bold.
+    BOOST_CHECK_EQUAL( fontCount, 2 );
+}
+
+
+BOOST_AUTO_TEST_CASE( ArcMaskExpansionUsesArcMetadata )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    ALTIUM_PCB_COMPOUND_FILE        file( wxString::FromUTF8( dataPath.c_str() ) );
+    const CFB::COMPOUND_FILE_ENTRY* data = file.FindStream( { "ExtendedPrimitiveInformation", "Data" } );
+
+    BOOST_REQUIRE( data );
+
+    BOARD                 board;
+    LAYER_MAPPING_HANDLER layerMappingHandler;
+    ALTIUM_PCB            importer( &board, nullptr, layerMappingHandler );
+
+    parseExtendedPrimitiveInformation( importer, file, data );
+
+    std::vector<std::pair<PCB_LAYER_ID, int>> front =
+            getMaskExpansions( importer, ALTIUM_RECORD::ARC, 6, ALTIUM_LAYER::TOP_LAYER );
+
+    BOOST_REQUIRE_EQUAL( front.size(), 1 );
+    BOOST_CHECK_EQUAL( front[0].first, F_Paste );
+    BOOST_CHECK_EQUAL( front[0].second, pcbIUScale.mmToIU( -1.0 ) );
+
+    std::vector<std::pair<PCB_LAYER_ID, int>> back =
+            getMaskExpansions( importer, ALTIUM_RECORD::ARC, 70, ALTIUM_LAYER::BOTTOM_LAYER );
+
+    BOOST_REQUIRE_EQUAL( back.size(), 1 );
+    BOOST_CHECK_EQUAL( back[0].first, B_Paste );
+    BOOST_CHECK_EQUAL( back[0].second, pcbIUScale.mmToIU( -1.0 ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnsupportedStreamsAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    std::set<wxString> missingWarnings = { wxS( "DifferentialPairs6" ), wxS( "PadViaLibraryCache" ),
+                                           wxS( "Pin Swap Options6" ), wxS( "ShapeBasedComponentBodies6" ),
+                                           wxS( "SignalClasses" ) };
+
+    bool fileVersionWarning = false;
+    bool embeddedFontsWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        for( auto it = missingWarnings.begin(); it != missingWarnings.end(); )
+        {
+            if( message.text.Contains( *it ) )
+                it = missingWarnings.erase( it );
+            else
+                ++it;
+        }
+
+        fileVersionWarning |= message.text.Contains( wxS( "FileVersionInfo" ) );
+
+        if( message.text.Contains( wxS( "EmbeddedFonts6" ) ) && message.text.Contains( wxS( "not supported" ) ) )
+        {
+            embeddedFontsWarning = true;
+        }
+    }
+
+    BOOST_CHECK_MESSAGE( missingWarnings.empty(), missingWarnings.size() << " unsupported-stream warning(s) missing" );
+    BOOST_CHECK( !fileVersionWarning );
+
+    // EmbeddedFonts6 is now imported, so it must no longer be reported as unsupported.
+    BOOST_CHECK( !embeddedFontsWarning );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnknownStreamsAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool unknownStreamWarning = false;
+    bool primitiveParametersWarning = false;
+    bool generatedCacheWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "Unknown Altium stream 'LayerKindMapping'" ) ) )
+        {
+            unknownStreamWarning = true;
+        }
+
+        if( message.text.Contains( wxS( "PrimitiveParameters" ) ) && message.text.Contains( wxS( "not supported" ) ) )
+        {
+            primitiveParametersWarning = true;
+        }
+
+        if( message.text.Contains( wxS( "TMatchedNetLengthsViolation" ) )
+            || message.text.Contains( wxS( "SimbeorCacheSection" ) ) )
+        {
+            generatedCacheWarning = true;
+        }
+    }
+
+    // The unknown-stream diagnostic still fires for genuinely unhandled streams ...
+    BOOST_CHECK( unknownStreamWarning );
+
+    // ... but PrimitiveParameters is now imported, so it is no longer reported as unknown.
+    BOOST_CHECK( !primitiveParametersWarning );
+    BOOST_CHECK( !generatedCacheWarning );
+}
+
+
+// The classifier distinguishes an ordinary rigid board region (which merely restates the board
+// outline and default stackup) from one carrying rigid-flex bend lines or a cavity.
+BOOST_AUTO_TEST_CASE( BoardRegionSpecialSemanticsClassification )
+{
+    // Ordinary rigid board region: no bends, no cavity, plain board-cutout envelope.
+    BOOST_CHECK( !AltiumBoardRegionIsSpecial( 0, 0, ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // Rigid-flex bend lines.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 2, 0, ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // A cavity depth.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 0, pcbIUScale.mmToIU( 0.5 ), ALTIUM_REGION_KIND::BOARD_CUTOUT ) );
+
+    // A dedicated cavity-definition region.
+    BOOST_CHECK( AltiumBoardRegionIsSpecial( 0, 0, ALTIUM_REGION_KIND::CAVITY_DEFINITION ) );
+}
+
+
+// A plain rigid board has exactly one ordinary board region.  The importer must not claim that
+// rigid-flex, bend, or cavity data was lost for such a board; that warning is a false positive.
+BOOST_AUTO_TEST_CASE( PlainRigidBoardRegionNotReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool boardRegionWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "Altium board region(s) were not imported" ) ) )
+        {
+            boardRegionWarning = true;
+        }
+    }
+
+    BOOST_CHECK( !boardRegionWarning );
+}
+
+
+BOOST_AUTO_TEST_CASE( ApproximatedRuleScopesAreReported )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    bool ruleScopeWarning = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.severity == RPT_SEVERITY_WARNING
+            && message.text.Contains( wxS( "enabled Altium scoped rule(s)" ) ) )
+        {
+            ruleScopeWarning = true;
+        }
+    }
+
+    BOOST_CHECK( ruleScopeWarning );
+}
+
+
+BOOST_AUTO_TEST_CASE( ConnectedFullCircleArcPreservesRingGeometry )
+{
+    constexpr uint32_t      subrecordSize = 57;
+    constexpr size_t        recordSize = 1 + sizeof( subrecordSize ) + subrecordSize;
+    std::unique_ptr<char[]> content = std::make_unique<char[]>( recordSize );
+    size_t                  offset = 0;
+
+    auto append = [&]( auto aValue )
+    {
+        std::memcpy( content.get() + offset, &aValue, sizeof( aValue ) );
+        offset += sizeof( aValue );
+    };
+
+    append( static_cast<uint8_t>( ALTIUM_RECORD::ARC ) );
+    append( subrecordSize );
+    append( static_cast<uint8_t>( ALTIUM_LAYER::TOP_LAYER ) );
+    append( uint8_t{ 0 } );
+    append( uint8_t{ 0 } );
+    append( uint16_t{ 0 } );
+    append( static_cast<uint16_t>( ALTIUM_POLYGON_NONE ) );
+    append( static_cast<uint16_t>( ALTIUM_COMPONENT_NONE ) );
+    append( uint32_t{ 0 } );
+    append( int32_t{ 0 } );
+    append( int32_t{ 0 } );
+    append( uint32_t{ 100000 } );
+    append( double{ 0.0 } );
+    append( double{ 360.0 } );
+    append( uint32_t{ 10000 } );
+    append( uint16_t{ 0 } );
+    append( uint8_t{ 0 } );
+    append( uint32_t{ 0 } );
+    append( static_cast<uint32_t>( ALTIUM_LAYER::UNKNOWN ) );
+    append( uint8_t{ 0 } );
+
+    BOOST_REQUIRE_EQUAL( offset, recordSize );
+
+    ALTIUM_BINARY_PARSER  reader( content, recordSize );
+    AARC6                 sourceArc( reader );
+    BOARD                 board;
+    LAYER_MAPPING_HANDLER layerMappingHandler;
+    ALTIUM_PCB            importer( &board, nullptr, layerMappingHandler );
+
+    convertConnectedArc( importer, sourceArc, F_Cu );
+
+    BOOST_REQUIRE_EQUAL( board.Tracks().size(), 2 );
+
+    std::vector<const PCB_ARC*> arcs;
+
+    for( const PCB_TRACK* track : board.Tracks() )
+    {
+        BOOST_REQUIRE_EQUAL( track->Type(), PCB_ARC_T );
+        arcs.push_back( static_cast<const PCB_ARC*>( track ) );
+    }
+
+    for( const PCB_ARC* arc : arcs )
+    {
+        BOOST_CHECK_CLOSE( std::abs( arc->GetAngle().AsDegrees() ), 180.0, 1e-6 );
+        BOOST_CHECK_CLOSE( arc->GetRadius(), pcbIUScale.mmToIU( 0.254 ), 1e-6 );
+        BOOST_CHECK_EQUAL( arc->GetWidth(), pcbIUScale.mmToIU( 0.0254 ) );
+        BOOST_CHECK_EQUAL( arc->GetLayer(), F_Cu );
+    }
+
+    BOOST_CHECK( arcs[0]->GetStart() == arcs[1]->GetEnd() );
+    BOOST_CHECK( arcs[0]->GetEnd() == arcs[1]->GetStart() );
+    BOOST_CHECK( board.Drawings().empty() );
+}
 
 
 /**
@@ -119,6 +624,249 @@ BOOST_AUTO_TEST_CASE( CachedLibraryFootprintsAreOwnedCopies )
         BOOST_CHECK_MESSAGE( boardFootprints.count( fp ) == 0,
                              "GetImportedCachedLibraryFootprints returned a board-owned footprint" );
     }
+}
+
+
+/**
+ * Altium emits metadata for all 16 legacy internal-plane slots even when most are absent from the
+ * physical stackup.  Only active planes should be offered to the layer mapper; otherwise every
+ * unused slot produces a misleading warning during command-line imports.
+ */
+BOOST_AUTO_TEST_CASE( UnusedInternalPlanesNotMapped )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    std::set<wxString> mappedLayerNames;
+
+    m_altiumPlugin.RegisterCallback(
+            [&]( const std::vector<INPUT_LAYER_DESC>& aLayers )
+            {
+                for( const INPUT_LAYER_DESC& layer : aLayers )
+                    mappedLayerNames.insert( layer.Name );
+
+                return PCB_IO_ALTIUM_DESIGNER::DefaultLayerMappingCallback( aLayers );
+            } );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+    BOOST_CHECK( mappedLayerNames.count( wxS( "Internal Plane 1" ) ) );
+    BOOST_CHECK( mappedLayerNames.count( wxS( "Internal Plane 2" ) ) );
+
+    for( int plane = 3; plane <= 16; ++plane )
+    {
+        wxString name = wxString::Format( wxS( "Internal Plane %d" ), plane );
+        BOOST_CHECK_MESSAGE( !mappedLayerNames.count( name ),
+                             wxString::Format( "Unused layer '%s' reached the mapper", name ) );
+    }
+}
+
+
+/**
+ * Rule-area primitives on Altium's keepout and negative-plane layers can carry a zero restriction
+ * mask because the layer itself defines their behavior.  The importer must apply those implicit
+ * restrictions rather than producing rule areas which allow every item.
+ */
+BOOST_AUTO_TEST_CASE( NoInertRuleAreas )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int inertRuleAreaCount = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( !zone->GetIsRuleArea() )
+            continue;
+
+        bool hasRestriction = zone->GetDoNotAllowTracks() || zone->GetDoNotAllowVias() || zone->GetDoNotAllowPads()
+                              || zone->GetDoNotAllowZoneFills() || zone->GetDoNotAllowFootprints()
+                              || zone->GetPlacementAreaEnabled();
+
+        if( !hasRestriction )
+            inertRuleAreaCount++;
+    }
+
+    BOOST_CHECK_EQUAL( inertRuleAreaCount, 0 );
+}
+
+
+/**
+ * Altium polygons can preserve dead copper while still removing islands below an area threshold.
+ * Importing every polygon with KiCad's default "always remove" mode drops copper on refill.
+ */
+BOOST_AUTO_TEST_CASE( PolygonIslandRemovalSettings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int alwaysRemovedZones = 0;
+    int areaLimitedZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::ALWAYS )
+            alwaysRemovedZones++;
+
+        if( zone->GetIslandRemovalMode() != ISLAND_REMOVAL_MODE::AREA )
+            continue;
+
+        areaLimitedZones++;
+        BOOST_CHECK_EQUAL( zone->GetMinIslandArea(), 1612900000000LL );
+    }
+
+    BOOST_CHECK_GT( alwaysRemovedZones, 0 );
+    BOOST_CHECK_EQUAL( areaLimitedZones, 1 );
+}
+
+
+/**
+ * Altium's DesignRuleCheckerOptions6 "dead copper" area is a DRC *reporting* threshold, not an
+ * instruction to physically delete poured copper.  Split-plane regions must therefore preserve all
+ * of their copper (island removal NEVER) rather than being refilled with a destructive area-based
+ * island removal, and the unsupported reporting threshold must be reported rather than silently
+ * applied.
+ */
+BOOST_AUTO_TEST_CASE( SplitPlaneDeadCopperPreserved )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    KI_TEST::CAPTURING_REPORTER reporter;
+    m_altiumPlugin.SetReporter( &reporter );
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int splitPlaneZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetIsRuleArea() )
+            continue;
+
+        for( PCB_LAYER_ID layer : zone->GetLayerSet() )
+        {
+            if( board->GetLayerType( layer ) != LT_POWER )
+                continue;
+
+            splitPlaneZones++;
+
+            // All poured copper is preserved; the DRC reporting threshold must not delete islands.
+            BOOST_CHECK( zone->GetIslandRemovalMode() == ISLAND_REMOVAL_MODE::NEVER );
+            BOOST_CHECK_EQUAL( zone->GetMinThickness(), pcbIUScale.mmToIU( ZONE_THICKNESS_MIN_VALUE_MM ) );
+            break;
+        }
+    }
+
+    BOOST_CHECK_EQUAL( splitPlaneZones, 4 );
+
+    // This board enables dead-copper reporting with a non-trivial area, which KiCad cannot
+    // represent; the importer must report the approximation.
+    bool reportedDeadCopper = false;
+
+    for( const KI_TEST::CAPTURING_REPORTER::MESSAGE& message : reporter.GetMessages() )
+    {
+        if( message.text.Contains( wxS( "dead-copper reporting area" ) ) )
+            reportedDeadCopper = true;
+    }
+
+    BOOST_CHECK( reportedDeadCopper );
+}
+
+
+/**
+ * Altium's remove-necks threshold is the closest equivalent to KiCad's zone minimum thickness.
+ */
+BOOST_AUTO_TEST_CASE( PolygonNeckWidthSettings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/HiFive/HiFive1.B01.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int fiveMilZones = 0;
+    int tenMilZones = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetMinThickness() == pcbIUScale.mmToIU( 0.127 ) )
+            fiveMilZones++;
+        else if( zone->GetMinThickness() == pcbIUScale.mmToIU( 0.254 ) )
+            tenMilZones++;
+    }
+
+    BOOST_CHECK_EQUAL( fiveMilZones, 19 );
+    BOOST_CHECK_EQUAL( tenMilZones, 2 );
+}
+
+
+/**
+ * Traces at or below the endpoint canonicalization tolerance still represent copper, but are too
+ * short to be useful routing objects.  The importer preserves their geometry as copper graphics
+ * rather than creating zero-length or nanometre-scale tracks.
+ */
+BOOST_AUTO_TEST_CASE( DegenerateTracksBecomeCopperGraphics )
+{
+    constexpr int endpointTolerance = pcbIUScale.mmToIU( 0.000020 );
+
+    std::vector<std::string> dataFiles = { "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc",
+                                           "plugins/altium/HiFive/HiFive1.B01.PcbDoc",
+                                           "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc",
+                                           "plugins/altium/issue24654/PCB1.PcbDoc" };
+    int                      degenerateCopperGraphicCount = 0;
+
+    for( const std::string& dataFile : dataFiles )
+    {
+        std::string            dataPath = KI_TEST::GetPcbnewTestDataDir() + dataFile;
+        std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+        m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+        BOOST_REQUIRE( board );
+
+        int degenerateTrackCount = 0;
+
+        for( const PCB_TRACK* track : board->Tracks() )
+        {
+            if( track->Type() == PCB_TRACE_T && track->GetLength() <= endpointTolerance )
+                degenerateTrackCount++;
+        }
+
+        BOOST_CHECK_MESSAGE( degenerateTrackCount == 0,
+                             dataFile << " imported " << degenerateTrackCount << " degenerate routed tracks" );
+
+        for( const BOARD_ITEM* item : board->Drawings() )
+        {
+            const PCB_SHAPE* shape = dynamic_cast<const PCB_SHAPE*>( item );
+
+            if( !shape || !IsCopperLayer( shape->GetLayer() ) || shape->GetNetCode() <= 0 )
+                continue;
+
+            bool isCopperDot = shape->GetShape() == SHAPE_T::CIRCLE && shape->GetStroke().GetWidth() == 0;
+            bool isShortCopperSegment = shape->GetShape() == SHAPE_T::SEGMENT
+                                        && shape->GetStart().Distance( shape->GetEnd() ) <= endpointTolerance;
+
+            if( isCopperDot || isShortCopperSegment )
+                degenerateCopperGraphicCount++;
+        }
+    }
+
+    BOOST_CHECK_GT( degenerateCopperGraphicCount, 0 );
 }
 
 
@@ -247,6 +995,109 @@ BOOST_AUTO_TEST_CASE( ZoneClearances_HiFive )
 {
     checkAllCopperFillZonesHaveClearance( m_altiumPlugin,
                                           "plugins/altium/HiFive/HiFive1.B01.PcbDoc" );
+}
+
+
+/**
+ * Altium negative planes create antipads around unconnected via holes without retaining unused
+ * annular rings.  Conditional via flashing preserves the source via diameters while reproducing
+ * those hole-based antipads.
+ */
+BOOST_AUTO_TEST_CASE( NegativePlaneViasRemoveUnusedAnnularRings )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24654/PCB1.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    BOOST_REQUIRE( board );
+
+    int planeSpanningViaCount = 0;
+
+    for( PCB_TRACK* track : board->Tracks() )
+    {
+        if( track->Type() != PCB_VIA_T )
+            continue;
+
+        PCB_VIA* via = static_cast<PCB_VIA*>( track );
+        int      endLayerWidth = via->GetWidth( via->TopLayer() );
+        bool     spansPowerPlane = false;
+
+        for( PCB_LAYER_ID layer : via->GetLayerSet() )
+        {
+            if( board->GetLayerType( layer ) == LT_POWER )
+                spansPowerPlane = true;
+
+            BOOST_CHECK_EQUAL( via->GetWidth( layer ), endLayerWidth );
+        }
+
+        if( !spansPowerPlane )
+            continue;
+
+        planeSpanningViaCount++;
+        BOOST_CHECK( via->Padstack().UnconnectedLayerMode() == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END );
+        BOOST_CHECK( via->Padstack().Mode() == PADSTACK::MODE::NORMAL );
+    }
+
+    BOOST_CHECK_GT( planeSpanningViaCount, 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnmappedViaLayersFallBackToThroughVias )
+{
+    std::string dataPath =
+            KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/eDP_adapter_dvt1_source/eDP_adapter_dvt1.PcbDoc";
+
+    PCB_IO_ALTIUM_DESIGNER baselinePlugin;
+    std::unique_ptr<BOARD> baselineBoard = std::make_unique<BOARD>();
+    baselinePlugin.LoadBoard( dataPath, baselineBoard.get(), nullptr );
+
+    BOOST_REQUIRE( baselineBoard );
+
+    auto countVias = []( const BOARD& aBoard )
+    {
+        return std::count_if( aBoard.Tracks().begin(), aBoard.Tracks().end(),
+                              []( const PCB_TRACK* aTrack )
+                              {
+                                  return aTrack->Type() == PCB_VIA_T;
+                              } );
+    };
+
+    int baselineViaCount = countVias( *baselineBoard );
+    BOOST_REQUIRE_GT( baselineViaCount, 0 );
+
+    PCB_IO_ALTIUM_DESIGNER remappedPlugin;
+    remappedPlugin.RegisterCallback(
+            []( const std::vector<INPUT_LAYER_DESC>& aLayers )
+            {
+                std::map<wxString, PCB_LAYER_ID> mapping =
+                        PCB_IO_ALTIUM_DESIGNER::DefaultLayerMappingCallback( aLayers );
+
+                for( const INPUT_LAYER_DESC& layer : aLayers )
+                {
+                    if( layer.AutoMapLayer == F_Cu )
+                        mapping[layer.Name] = UNDEFINED_LAYER;
+                }
+
+                return mapping;
+            } );
+
+    std::unique_ptr<BOARD> remappedBoard = std::make_unique<BOARD>();
+    remappedPlugin.LoadBoard( dataPath, remappedBoard.get(), nullptr );
+
+    BOOST_REQUIRE( remappedBoard );
+    BOOST_CHECK_EQUAL( countVias( *remappedBoard ), baselineViaCount );
+
+    for( const PCB_TRACK* track : remappedBoard->Tracks() )
+    {
+        if( track->Type() != PCB_VIA_T )
+            continue;
+
+        const PCB_VIA* via = static_cast<const PCB_VIA*>( track );
+        BOOST_CHECK( via->GetViaType() == VIATYPE::THROUGH );
+        BOOST_CHECK_EQUAL( via->TopLayer(), F_Cu );
+        BOOST_CHECK_EQUAL( via->BottomLayer(), B_Cu );
+    }
 }
 
 
@@ -400,6 +1251,21 @@ BOOST_AUTO_TEST_CASE( Via_HoleReferencedMaskTenting )
 }
 
 
+BOOST_AUTO_TEST_CASE( SlotDrillDimensionsSurviveUnsupportedRotation )
+{
+    bool rotationSupported;
+
+    BOOST_CHECK_EQUAL( altiumSlotDrillSize( 550000, 850000, 0.0, rotationSupported ), VECTOR2I( 850000, 550000 ) );
+    BOOST_CHECK( rotationSupported );
+
+    BOOST_CHECK_EQUAL( altiumSlotDrillSize( 550000, 850000, 90.0, rotationSupported ), VECTOR2I( 550000, 850000 ) );
+    BOOST_CHECK( rotationSupported );
+
+    BOOST_CHECK_EQUAL( altiumSlotDrillSize( 550000, 850000, 45.0, rotationSupported ), VECTOR2I( 850000, 550000 ) );
+    BOOST_CHECK( !rotationSupported );
+}
+
+
 /**
  * Verify that the dielectric loss tangent is imported from the modern Altium physical stackup
  * (LAYER_V8_/V9_STACK_LAYER keys). The legacy LAYER<n> records used to build the stackup do not
@@ -418,7 +1284,11 @@ BOOST_AUTO_TEST_CASE( StackupDielectricLossTangent )
 
     BOOST_REQUIRE( board );
 
-    const BOARD_STACKUP& stackup = board->GetDesignSettings().GetStackupDescriptor();
+    const BOARD_DESIGN_SETTINGS& designSettings = board->GetDesignSettings();
+    const BOARD_STACKUP&         stackup = designSettings.GetStackupDescriptor();
+
+    BOOST_REQUIRE( designSettings.m_HasStackup );
+    BOOST_CHECK( board->GetStackupOrDefault() == stackup );
 
     int dielectricCount = 0;
     int dielectricWithTangent = 0;
@@ -654,6 +1524,8 @@ BOOST_AUTO_TEST_CASE( LengthTuningPatterns )
     int singleCount = 0;
     int diffPairCount = 0;
 
+    std::set<wxString> patternNames;
+
     for( PCB_GENERATOR* generator : board->Generators() )
     {
         PCB_TUNING_PATTERN* pattern = dynamic_cast<PCB_TUNING_PATTERN*>( generator );
@@ -662,6 +1534,7 @@ BOOST_AUTO_TEST_CASE( LengthTuningPatterns )
             continue;
 
         tuningCount++;
+        patternNames.insert( pattern->GetName() );
 
         // Each pattern must wrap the real imported copper and carry Altium's meander parameters.
         BOOST_CHECK_MESSAGE( !pattern->GetBoardItems().empty(),
@@ -699,6 +1572,20 @@ BOOST_AUTO_TEST_CASE( LengthTuningPatterns )
     BOOST_CHECK_EQUAL( tuningCount, 8 );
     BOOST_CHECK_EQUAL( singleCount, 4 );
     BOOST_CHECK_EQUAL( diffPairCount, 4 );
+
+    // Each meander keeps the interactive union name Altium assigned it (from the UnionNames stream).
+    const std::set<wxString> expectedNames = {
+        wxT( "Interactive Length Tunings" ),
+        wxT( "Interactive Length Tunings 1" ),
+        wxT( "Interactive Length Tunings 2" ),
+        wxT( "Interactive Length Tunings 3" ),
+        wxT( "Interactive Diffpair Length Tunings" ),
+        wxT( "Interactive Diffpair Length Tunings 1" ),
+        wxT( "Interactive Diffpair Length Tunings 2" ),
+        wxT( "Interactive Diffpair Length Tunings 3" ),
+    };
+
+    BOOST_CHECK( patternNames == expectedNames );
 }
 
 
@@ -791,6 +1678,10 @@ BOOST_AUTO_TEST_CASE( Issue24847_FootprintKeepoutPlacement )
     BOOST_REQUIRE( board );
     BOOST_REQUIRE_GT( board->Footprints().size(), 0 );
 
+    BOOST_CHECK_EQUAL( board->GetDesignSettings().m_CopperEdgeClearance, pcbIUScale.mmToIU( 0.4 ) );
+    BOOST_CHECK_EQUAL( board->GetDesignSettings().m_HoleClearance, pcbIUScale.mmToIU( 0.254 ) );
+    BOOST_CHECK_EQUAL( board->GetDesignSettings().m_HoleToHoleMin, pcbIUScale.mmToIU( 0.254 ) );
+
     int keepoutZoneCount = 0;
 
     for( FOOTPRINT* footprint : board->Footprints() )
@@ -876,6 +1767,140 @@ BOOST_AUTO_TEST_CASE( RegionSolderMaskExpansion )
     }
 
     BOOST_CHECK_MESSAGE( exactMatches == 1, "F_Mask relief aperture must exactly match exactly one copper region" );
+}
+
+
+/**
+ * Component-scoped copper regions do not carry a pad number in Altium.  When their net maps to
+ * one pad number in the component, preserve that logical connection, including disjoint lands
+ * connected internally by the part.  Region vertices use board coordinates and must not inherit
+ * the parent footprint's rotation.
+ */
+BOOST_AUTO_TEST_CASE( ComponentCopperRegionPadNumbers )
+{
+    std::string dataPath = KI_TEST::GetPcbnewTestDataDir() + "plugins/altium/issue24456/Fastino_Ground_Isolator.PcbDoc";
+
+    std::unique_ptr<BOARD> board = std::make_unique<BOARD>();
+    m_altiumPlugin.LoadBoard( dataPath, board.get(), nullptr );
+
+    int footprintCount = 0;
+    int regionCount = 0;
+
+    for( FOOTPRINT* footprint : board->Footprints() )
+    {
+        if( footprint->GetReference() != wxT( "A102" ) && footprint->GetReference() != wxT( "A103" ) )
+        {
+            continue;
+        }
+
+        footprintCount++;
+        BOOST_CHECK( !footprint->GetOrientation().IsZero() );
+
+        int footprintRegionCount = 0;
+
+        for( PAD* regionPad : footprint->Pads() )
+        {
+            PCB_LAYER_ID copperLayer = regionPad->IsOnLayer( F_Cu ) ? F_Cu : B_Cu;
+
+            if( !regionPad->IsOnLayer( copperLayer ) || regionPad->GetShape( copperLayer ) != PAD_SHAPE::CUSTOM )
+                continue;
+
+            regionCount++;
+            footprintRegionCount++;
+            BOOST_CHECK( !regionPad->GetNumber().IsEmpty() );
+            BOOST_CHECK( !regionPad->GetFPRelativeOrientation().IsZero() );
+
+            if( regionPad->GetNetname() == wxT( "P12V0" ) )
+                BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "2" ) );
+            else
+                BOOST_CHECK_EQUAL( regionPad->GetNumber(), wxT( "1" ) );
+
+            for( PAD* candidate : footprint->Pads() )
+            {
+                if( candidate == regionPad || candidate->GetNetCode() == regionPad->GetNetCode()
+                    || !candidate->IsOnLayer( copperLayer ) )
+                {
+                    continue;
+                }
+
+                BOOST_CHECK( !regionPad->GetEffectiveShape( copperLayer )
+                                      ->Collide( candidate->GetEffectiveShape( copperLayer ).get() ) );
+            }
+        }
+
+        BOOST_CHECK_EQUAL( footprintRegionCount, 2 );
+        BOOST_CHECK( !footprint->GetDuplicatePadNumbersAreJumpers() );
+    }
+
+    BOOST_CHECK_EQUAL( footprintCount, 2 );
+    BOOST_CHECK_EQUAL( regionCount, 4 );
+}
+
+
+/**
+ * A variant's parameter override targets ALTIUM_VALUE, which is where a component's Altium
+ * "Value" parameter is imported.  KiCad's own Value field is imported from the component's
+ * Comment instead, so the override may only follow into Value when the two agree in the base
+ * design; otherwise the Comment says something else and would be destroyed.
+ */
+BOOST_AUTO_TEST_CASE( VariantParameterOverrideRespectsDivergentComment )
+{
+    BOARD board;
+
+    auto addFootprint = [&]( const wxString& aRef, const wxString& aValue,
+                             const wxString& aAltiumValue ) -> FOOTPRINT*
+    {
+        FOOTPRINT* footprint = new FOOTPRINT( &board );
+
+        footprint->SetReference( aRef );
+        footprint->SetValue( aValue );
+
+        PCB_FIELD* field = new PCB_FIELD( footprint, FIELD_T::USER );
+        field->SetName( wxS( "ALTIUM_VALUE" ) );
+        field->SetText( aAltiumValue );
+        footprint->Add( field );
+
+        board.Add( footprint );
+
+        return footprint;
+    };
+
+    // C1 mirrors the common case: the Comment was tracking the Value parameter.
+    FOOTPRINT* inSync = addFootprint( wxS( "C1" ), wxS( "100nF" ), wxS( "100nF" ) );
+
+    // C2 mirrors a real divergence seen in the wild, where the Value parameter is stale but the
+    // Comment carries the part the designer actually intends.
+    FOOTPRINT* divergent = addFootprint( wxS( "C2" ), wxS( "10uF" ), wxS( "0R" ) );
+
+    ALTIUM_PROJECT_VARIANT projectVariant;
+    projectVariant.name = wxS( "VariantA" );
+
+    for( const wxString& ref : { wxS( "C1" ), wxS( "C2" ) } )
+    {
+        ALTIUM_VARIANT_ENTRY entry;
+
+        entry.designator = ref;
+        entry.kind = 0;
+        entry.parameterOverrides[wxS( "VALUE" )] = wxS( "39pF" );
+
+        projectVariant.variations.push_back( entry );
+    }
+
+    ApplyAltiumProjectVariantsToBoard( &board, { projectVariant } );
+
+    const FOOTPRINT_VARIANT* inSyncVariant = inSync->GetVariant( wxS( "VariantA" ) );
+    BOOST_REQUIRE( inSyncVariant );
+    BOOST_CHECK_EQUAL( inSyncVariant->GetFieldValue( wxS( "ALTIUM_VALUE" ) ), wxS( "39pF" ) );
+
+    // Both fields must move together, otherwise exporters that read Value (BOM, ODB++ PRP) would
+    // still report the base part for this variant.
+    BOOST_CHECK( inSyncVariant->HasFieldValue( wxS( "Value" ) ) );
+    BOOST_CHECK_EQUAL( inSyncVariant->GetFieldValue( wxS( "Value" ) ), wxS( "39pF" ) );
+
+    const FOOTPRINT_VARIANT* divergentVariant = divergent->GetVariant( wxS( "VariantA" ) );
+    BOOST_REQUIRE( divergentVariant );
+    BOOST_CHECK_EQUAL( divergentVariant->GetFieldValue( wxS( "ALTIUM_VALUE" ) ), wxS( "39pF" ) );
+    BOOST_CHECK( !divergentVariant->HasFieldValue( wxS( "Value" ) ) );
 }
 
 

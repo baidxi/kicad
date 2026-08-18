@@ -1434,6 +1434,12 @@ wxString ZONE::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) 
 {
     LSEQ     layers = m_layerSet.Seq();
     wxString layerDesc;
+    const BOARD* board = GetBoard();
+
+    auto layerName = [&]( PCB_LAYER_ID aLayer )
+    {
+        return board ? board->GetLayerName( aLayer ) : BOARD::GetStandardLayerName( aLayer );
+    };
 
     auto layerName =
         [this]( PCB_LAYER_ID aLayer ) -> wxString

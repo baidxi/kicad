@@ -49,6 +49,18 @@ public:
 
     static wxString ReadUnicodeString( const std::map<wxString, wxString>& aProps,
                                        const wxString& aKey, const wxString& aDefault );
+
+    /**
+     * Recover a string that is UTF-8 which has been erroneously decoded as Latin-1 (classic
+     * "mojibake", e.g. "µ" shown as "Âµ").  Some Altium files store such double-encoded values,
+     * including in the '%UTF8%'-prefixed twins that are otherwise assumed to be correct UTF-8.
+     *
+     * The repair is deliberately conservative: it only rewrites @p aString when re-encoding it to
+     * Latin-1 yields a byte sequence that is *exactly* valid UTF-8 and decodes to a different
+     * string.  Correctly-decoded values (whose Latin-1 bytes are not valid UTF-8) are returned
+     * unchanged, so this never corrupts already-correct text.
+     */
+    static wxString RepairDoubleEncodedUtf8( const wxString& aString );
 };
 
 #endif //_ALTIUM_PROPS_UTILS_H

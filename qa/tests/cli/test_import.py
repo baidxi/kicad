@@ -74,6 +74,30 @@ def get_eagle_test_file() -> str:
     return eagle_file if os.path.exists( eagle_file ) else None
 
 
+def get_altium_test_file() -> str:
+    """Get an Altium board with imported netclasses and board rules."""
+    altium_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                                "altium", "HiFive", "HiFive1.B01.PcbDoc" )
+
+    return altium_file if os.path.exists( altium_file ) else None
+
+
+def get_altium_project_file() -> str:
+    """Get a minimal Altium project carrying board-level project parameters."""
+    project_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                                 "altium", "issue24456", "Fastino_Ground_Isolator_CLI.PrjPcb" )
+
+    return project_file if os.path.exists( project_file ) else None
+
+
+def get_altium_repeated_schematic_project() -> str:
+    """Get a multi-document Altium schematic project (one root plus a repeated channel)."""
+    project_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "eeschema",
+                                 "plugins", "altium", "issue24861", "Repeated_Schematic.PrjPcb" )
+
+    return project_file if os.path.exists( project_file ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -87,6 +111,7 @@ class TestImportHelp:
         assert "INPUT_FILES" in stdout
         assert "--format" not in stdout
         assert "--layer-map" in stdout
+        assert "--refill-zones" in stdout
 
 
 class TestImportErrors:
@@ -151,6 +176,112 @@ class TestImportBoardOnly:
         assert return_code == 0
         assert stem.with_suffix( ".kicad_pro" ).exists()
         assert stem.with_suffix( ".kicad_pcb" ).exists()
+
+
+@pytest.mark.skipif( get_altium_test_file() is None,
+                     reason="Altium test files not available" )
+class TestImportAltiumProjectSettings:
+    """Test preserving project-owned settings from an imported Altium board."""
+
+    def test_import_board_preserves_project_settings( self, kitest: KiTestFixture ):
+        """Imported netclasses and board constraints survive the CLI project save."""
+        stem = get_project_stem( kitest, "altium_project_settings", "hifive" )
+
+        command = [ utils.kicad_cli(), "import", get_altium_test_file(), "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        net_settings = project["net_settings"]
+        assert len( net_settings["classes"] ) > 1
+        assert net_settings["netclass_patterns"]
+
+        rules = project["board"]["design_settings"]["rules"]
+        assert rules["min_clearance"] > 0
+        assert rules["min_track_width"] > 0
+
+    @pytest.mark.skipif( get_altium_project_file() is None,
+                         reason="Altium project test file not available" )
+    def test_import_project_passes_board_metadata( self, kitest: KiTestFixture ):
+        """The board importer receives the source project descriptor and its parameters."""
+        stem = get_project_stem( kitest, "altium_project_metadata", "fastino" )
+
+        command = [ utils.kicad_cli(), "import", get_altium_project_file(), "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        assert project["text_variables"]["PCB_REVISION"] == "CLI"
+
+    def test_import_refill_zones_changes_fill( self, kitest: KiTestFixture ):
+        """The top-level import propagates --refill-zones, re-pouring imported copper."""
+        plain = get_project_stem( kitest, "altium_refill_plain", "hifive" )
+        refilled = get_project_stem( kitest, "altium_refill", "hifive" )
+
+        base = [ utils.kicad_cli(), "import", get_altium_test_file(), "-o" ]
+
+        _, _, rc_plain = utils.run_and_capture( base + [ str( plain ) ] )
+        _, _, rc_refilled = utils.run_and_capture(
+                [ utils.kicad_cli(), "import", "--refill-zones", get_altium_test_file(),
+                  "-o", str( refilled ) ] )
+
+        assert rc_plain == 0
+        assert rc_refilled == 0
+
+        def count_fills( stem ):
+            with open( stem.with_suffix( ".kicad_pcb" ), "r" ) as f:
+                return f.read().count( "filled_polygon" )
+
+        plain_fills = count_fills( plain )
+        refilled_fills = count_fills( refilled )
+
+        assert plain_fills > 0
+        assert refilled_fills > 0
+        assert refilled_fills != plain_fills
+
+
+@pytest.mark.skipif( get_altium_repeated_schematic_project() is None,
+                     reason="Altium repeated-schematic project not available" )
+class TestImportAltiumSchematicProject:
+    """Test importing a multi-document Altium schematic project."""
+
+    def test_import_records_real_top_level_sheet( self, kitest: KiTestFixture ):
+        """The project records the real root sheet and emits no hidden virtual-root file."""
+        stem = get_project_stem( kitest, "altium_sch_project", "repeated" )
+
+        # A prior run may have left the stray hidden file; clear it so the assertion is meaningful.
+        hidden = stem.parent / ".kicad_sch"
+
+        if hidden.exists():
+            hidden.unlink()
+
+        command = [ utils.kicad_cli(), "import", get_altium_repeated_schematic_project(),
+                    "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert stem.with_suffix( ".kicad_sch" ).exists()
+
+        # The internal virtual-root container must not be written out as a stray ".kicad_sch".
+        assert not hidden.exists(), "importer wrote a stray virtual-root .kicad_sch"
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        top_level = project["schematic"]["top_level_sheets"]
+        assert len( top_level ) == 1
+        assert top_level[0]["name"] == "Repeated_Schematic"
+        assert top_level[0]["filename"] == "repeated.kicad_sch"
+        assert top_level[0]["uuid"]
+
+        # The flat sheet list must still be populated.
+        assert project["sheets"]
 
 
 @pytest.mark.skipif( get_eagle_test_file() is None,

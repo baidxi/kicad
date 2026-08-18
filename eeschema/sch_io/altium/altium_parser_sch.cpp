@@ -968,6 +968,17 @@ ASCH_PARAMETER::ASCH_PARAMETER( const std::map<wxString, wxString>& aProps ) :
 }
 
 
+ASCH_PARAMETER_SET::ASCH_PARAMETER_SET( const std::map<wxString, wxString>& aProps ) :
+        ASCH_OWNER_INTERFACE( aProps )
+{
+    wxASSERT( ReadRecord( aProps ) == ALTIUM_SCH_RECORD::PARAMETER_SET );
+
+    location = VECTOR2I( ReadKiCadUnitFrac( aProps, "LOCATION.X" ), -ReadKiCadUnitFrac( aProps, "LOCATION.Y" ) );
+    orientation = ReadEnum<ASCH_RECORD_ORIENTATION>( aProps, "ORIENTATION", 0, 3, ASCH_RECORD_ORIENTATION::RIGHTWARDS );
+    name = ALTIUM_PROPS_UTILS::ReadString( aProps, "NAME", "" );
+}
+
+
 ASCH_HYPERLINK::ASCH_HYPERLINK( const std::map<wxString, wxString>& aProps ) :
         ASCH_LABEL( aProps )
 {

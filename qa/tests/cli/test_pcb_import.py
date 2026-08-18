@@ -70,6 +70,19 @@ def get_pads_test_file() -> str:
     return None
 
 
+def get_altium_zone_board() -> str:
+    """Get an Altium board that carries filled copper zones."""
+    altium_file = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                                "altium", "HiFive", "HiFive1.B01.PcbDoc" )
+
+    return altium_file if os.path.exists( altium_file ) else None
+
+
+def _count_filled_polygons( path: Path ) -> int:
+    with open( path, "r" ) as f:
+        return f.read().count( "filled_polygon" )
+
+
 class TestPcbImportHelp:
     """Test help output for pcb import command"""
 
@@ -84,6 +97,41 @@ class TestPcbImportHelp:
         assert "--format" in stdout
         assert "--report-format" in stdout
         assert "--layer-map" in stdout
+        assert "--refill-zones" in stdout
+
+
+@pytest.mark.skipif( get_altium_zone_board() is None,
+                     reason="Altium board with zones not available" )
+class TestPcbImportRefillZones:
+    """The --refill-zones flag re-pours imported copper instead of keeping the source fill."""
+
+    def test_refill_changes_fill_geometry( self, kitest: KiTestFixture ):
+        """Refilling an imported board produces different serialized fill geometry."""
+        board = get_altium_zone_board()
+
+        plain = get_output_path( kitest, "refill", "plain.kicad_pcb" )
+        refilled = get_output_path( kitest, "refill", "refilled.kicad_pcb" )
+
+        _, _, rc_plain = utils.run_and_capture(
+                [ utils.kicad_cli(), "pcb", "import", "--format", "altium", board,
+                  "-o", str( plain ) ] )
+        _, _, rc_refilled = utils.run_and_capture(
+                [ utils.kicad_cli(), "pcb", "import", "--format", "altium", "--refill-zones",
+                  board, "-o", str( refilled ) ] )
+
+        assert rc_plain == 0
+        assert rc_refilled == 0
+        assert plain.exists()
+        assert refilled.exists()
+
+        # The source pour and a KiCad refill differ; a brittle exact count is avoided by only
+        # requiring that both boards carry fills and that the refilled geometry is not identical.
+        plain_fills = _count_filled_polygons( plain )
+        refilled_fills = _count_filled_polygons( refilled )
+
+        assert plain_fills > 0
+        assert refilled_fills > 0
+        assert refilled_fills != plain_fills
 
 
 class TestPcbImportErrors:

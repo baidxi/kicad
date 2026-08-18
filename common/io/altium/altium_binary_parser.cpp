@@ -277,6 +277,31 @@ ALTIUM_COMPOUND_FILE::EnumDir( const std::wstring& aDir ) const
 }
 
 
+std::vector<wxString> ALTIUM_COMPOUND_FILE::EnumDirectories() const
+{
+    if( !m_reader )
+        return {};
+
+    const CFB::COMPOUND_FILE_ENTRY* root = m_reader->GetRootEntry();
+
+    if( !root )
+        return {};
+
+    std::vector<wxString> directories;
+
+    m_reader->EnumFiles( root, 1,
+                         [&]( const CFB::COMPOUND_FILE_ENTRY* entry, const CFB::utf16string&, int ) -> int
+                         {
+                             if( !m_reader->IsStream( entry ) )
+                                 directories.emplace_back( UTF16ToWstring( entry->name, entry->nameLen ) );
+
+                             return 0;
+                         } );
+
+    return directories;
+}
+
+
 const CFB::COMPOUND_FILE_ENTRY*
 ALTIUM_COMPOUND_FILE::FindStream( const CFB::COMPOUND_FILE_ENTRY* aStart,
                                   const std::vector<std::string>& aStreamPath ) const

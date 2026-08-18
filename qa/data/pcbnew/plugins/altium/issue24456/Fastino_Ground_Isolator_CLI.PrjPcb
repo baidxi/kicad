@@ -1,0 +1,9 @@
+[Design]
+Version=1.0
+
+[Document1]
+DocumentPath=Fastino_Ground_Isolator.PcbDoc
+
+[Parameter1]
+Name=PCB_Revision
+Value=CLI

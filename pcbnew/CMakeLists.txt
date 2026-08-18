@@ -668,6 +668,18 @@ if( APPLE )
 endif()
 
 
+# STEP solid-body export (OCC-backed).  Kept in its own static library, separate from
+# pcbnew_kiface_objects, so foreign-format IO plugins that generate 3D bodies (e.g. altium2pcbnew)
+# can be linked into other kifaces such as cvpcb without dragging in the whole pcbnew kiface.  It is
+# defined before the pcb_io subdirectories so those plugins can link it.
+add_library( step_solid_export STATIC
+    exporters/step/step_solid_export.cpp )
+
+target_link_libraries( step_solid_export
+    common
+    ${OCC_LIBRARIES} )
+
+
 add_subdirectory( pcb_io/pcad )
 add_subdirectory( pcb_io/allegro )
 add_subdirectory( pcb_io/altium )

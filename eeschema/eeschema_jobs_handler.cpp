@@ -20,6 +20,7 @@
 
 #include "eeschema_jobs_handler.h"
 #include <common.h>
+#include <core/utf8.h>
 #include <pgm_base.h>
 #include <kiface_base.h>
 #include <kiway_player.h>
@@ -50,7 +51,9 @@
 #include <project/project_file.h>
 #include <wx/dir.h>
 #include <wx/file.h>
+#include <map>
 #include <memory>
+#include <string>
 #include <connection_graph.h>
 #include "eeschema_helpers.h"
 #include <filename_resolver.h>
@@ -1590,7 +1593,24 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
                                               inputFn.GetFullPath(), formatName ),
                             RPT_SEVERITY_INFO );
 
-        loadedSheet = pi->LoadSchematicFile( inputFn.GetFullPath(), schematic.get() );
+        if( !job->m_projectFile.IsEmpty() )
+        {
+            // Project-level import: drive the plugin through its project path so design-wide
+            // data (assembly variants, repeated-sheet channels) is applied.
+            std::map<std::string, UTF8> properties;
+            properties.emplace( "project_file", UTF8( job->m_projectFile ) );
+
+            int schIdx = 0;
+
+            for( const wxString& schFile : job->m_schematicFiles )
+                properties.emplace( "sch" + std::to_string( schIdx++ ), UTF8( schFile ) );
+
+            loadedSheet = pi->LoadSchematicFile( wxEmptyString, schematic.get(), nullptr, &properties );
+        }
+        else
+        {
+            loadedSheet = pi->LoadSchematicFile( inputFn.GetFullPath(), schematic.get() );
+        }
 
         if( !loadedSheet )
         {
@@ -1607,6 +1627,10 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
     size_t symbolCount = 0;
     size_t sheetCount = 0;
+
+    // Maps each saved screen to its output path; needed both for saving and, afterwards, for
+    // recording the project's top-level sheet metadata.
+    std::unordered_map<SCH_SCREEN*, wxString> filenameMap;
 
     try
     {
@@ -1645,7 +1669,7 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
         SCH_SCREENS screens( schematic->Root() );
 
-        std::unordered_map<SCH_SCREEN*, wxString> filenameMap;
+        filenameMap.clear();
         filenameMap[schematic->RootScreen()] = outputFn.GetFullPath();
 
         wxString errorMsg;
@@ -1665,7 +1689,14 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
         for( size_t i = 0; i < screens.GetCount(); i++ )
         {
             SCH_SCREEN* screen = screens.GetScreen( i );
-            wxString    path = filenameMap[screen];
+            SCH_SHEET*  sheet = screens.GetSheet( i );
+
+            // The virtual root is an internal container for multi-top-level hierarchies and has no
+            // file of its own; saving it would emit a stray, empty-named ".kicad_sch".
+            if( sheet && sheet->IsVirtualRootSheet() )
+                continue;
+
+            wxString path = filenameMap[screen];
 
             if( path.IsEmpty() )
                 continue;
@@ -1673,7 +1704,7 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
             wxFileName fn( path );
             fn.SetExt( FILEEXT::KiCadSchematicFileExtension );
 
-            kicadPi->SaveSchematicFile( fn.GetFullPath(), screens.GetSheet( i ), schematic.get() );
+            kicadPi->SaveSchematicFile( fn.GetFullPath(), sheet, schematic.get() );
             sheetCount++;
 
             auto symbols = screen->Items().OfType( SCH_SYMBOL_T );
@@ -1711,6 +1742,28 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
             if( sheet && !sheet->IsVirtualRootSheet() )
                 projectSheets.emplace_back( std::make_pair( sheet->m_Uuid, sheet->GetName() ) );
+        }
+
+        // Record the real top-level sheet(s) so the project opens the imported root rather than the
+        // internal virtual-root container.
+        std::vector<TOP_LEVEL_SHEET_INFO>& topLevelInfo = project.GetProjectFile().GetTopLevelSheets();
+        topLevelInfo.clear();
+
+        for( SCH_SHEET* sheet : schematic->GetTopLevelSheets() )
+        {
+            if( !sheet )
+                continue;
+
+            wxString outPath = filenameMap[sheet->GetScreen()];
+
+            if( outPath.IsEmpty() )
+                outPath = outputFn.GetFullPath();
+
+            wxFileName relFn( outPath );
+            relFn.SetExt( FILEEXT::KiCadSchematicFileExtension );
+            relFn.MakeRelativeTo( project.GetProjectPath() );
+
+            topLevelInfo.emplace_back( sheet->m_Uuid, sheet->GetName(), relFn.GetFullPath() );
         }
     }
 

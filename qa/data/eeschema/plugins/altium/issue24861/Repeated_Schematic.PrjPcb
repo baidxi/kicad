@@ -83,6 +83,14 @@ DItemRevisionGUID=
 GenerateClassCluster=0
 DocumentUniqueId=KCCVHWZL
 
+[ProjectVariant1]
+UniqueId=D458DA55-84CE-41BA-A8CA-4745ABA86D05
+Description=CH2 only
+AllowFabrication=0
+ParameterCount=0
+VariationCount=1
+Variation1=Designator=LED1_CH2|UniqueId=\RFGNRNPF\YAYDGKCM|Kind=1|AlternatePart=
+
 [Configuration1]
 Name=Sources
 ParameterCount=0

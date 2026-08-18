@@ -33,6 +33,7 @@ class PROGRESS_REPORTER;
 class BOARD;
 class COMMIT;
 class SHAPE_LINE_CHAIN;
+class REPORTER;
 
 
 class ZONE_FILLER
@@ -244,5 +245,24 @@ private:
                                                                    m_refillResultCache;
     mutable std::mutex                                             m_cacheMutex;
 };
+
+
+/**
+ * Fill imported power-plane zones that arrived without a copper pour.
+ *
+ * Some importers store planes as outlines only, with no poured copper (for example Altium
+ * negative/split planes).  KiCad needs the copper generated so the plane is usable for DRC and
+ * fabrication output.  Only zones that are unfilled, net-connected, non-rule-area copper zones on a
+ * power-plane (LT_POWER) layer are filled; every other zone keeps its imported pour verbatim.
+ *
+ * Connectivity is rebuilt around the fill.  Does nothing when there is nothing to fill.  This lives
+ * at the board level (not in the IO plugins) so foreign-format IO libraries do not have to link the
+ * zone filler.
+ *
+ * @param aBoard the imported board.
+ * @param aProgressReporter optional progress reporter for the fill / connectivity rebuild.
+ * @param aReporter optional message reporter; a warning is emitted if the fill fails.
+ */
+void FillImportedPowerPlaneZones( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter, REPORTER* aReporter );
 
 #endif

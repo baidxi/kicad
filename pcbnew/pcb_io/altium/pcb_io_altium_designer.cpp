@@ -33,7 +33,7 @@
 #include <altium_pcb_compound_file.h>
 #include <io/io_utils.h>
 #include <io/altium/altium_binary_parser.h>
-#include <io/altium/altium_project_variants.h>
+#include <io/altium/altium_project.h>
 #include <pcb_io/pcb_io.h>
 #include <reporter.h>
 
@@ -115,6 +115,29 @@ void ApplyAltiumProjectVariantsToBoard( BOARD* aBoard,
                         fpVariant->SetFieldValue( wxS( "Description" ), value );
                     else if( key.CmpNoCase( wxS( "Footprint" ) ) == 0 )
                         fpVariant->SetFieldValue( wxS( "Footprint" ), value );
+                }
+            }
+
+            // Parameter overrides only change values on a component that stays fitted, so they
+            // are applied outside the Kind switch above.
+            for( const auto& [rawName, value] : entry.parameterOverrides )
+            {
+                const wxString fieldName = AltiumParameterNameToKiCadField( rawName );
+
+                fpVariant->SetFieldValue( fieldName, value );
+
+                // Altium's own "Value" parameter is imported into ALTIUM_VALUE, while KiCad's
+                // Value field is imported from the component's Comment.  Those are independent
+                // strings that usually, but not always, agree.  Mirror the override into Value
+                // only when the two base values match, because that is the case where the Comment
+                // was tracking the parameter and would have followed it in Altium.  Where they
+                // differ the Comment carries something else and must not be overwritten.
+                if( fieldName == wxS( "ALTIUM_VALUE" ) )
+                {
+                    PCB_FIELD* altiumValue = target->GetField( wxS( "ALTIUM_VALUE" ) );
+
+                    if( altiumValue && altiumValue->GetText() == target->Value().GetText() )
+                        fpVariant->SetFieldValue( wxS( "Value" ), value );
                 }
             }
         }
@@ -235,25 +258,48 @@ BOARD* PCB_IO_ALTIUM_DESIGNER::LoadBoard( const wxString& aFileName, BOARD* aApp
     // clang-format off
     const std::map<ALTIUM_PCB_DIR, std::string> mapping = {
             { ALTIUM_PCB_DIR::FILE_HEADER, "FileHeader" },
+            { ALTIUM_PCB_DIR::ADVANCEDPLACEROPTIONS6, "Advanced Placer Options6" },
             { ALTIUM_PCB_DIR::ARCS6, "Arcs6" },
             { ALTIUM_PCB_DIR::BOARD6, "Board6" },
             { ALTIUM_PCB_DIR::BOARDREGIONS, "BoardRegions" },
             { ALTIUM_PCB_DIR::CLASSES6, "Classes6" },
             { ALTIUM_PCB_DIR::COMPONENTS6, "Components6" },
             { ALTIUM_PCB_DIR::COMPONENTBODIES6, "ComponentBodies6" },
+            { ALTIUM_PCB_DIR::CONNECTIONS6, "Connections6" },
+            { ALTIUM_PCB_DIR::COORDINATES6, "Coordinates6" },
+            { ALTIUM_PCB_DIR::DESIGNRULECHECKEROPTIONS6, "Design Rule Checker Options6" },
+            { ALTIUM_PCB_DIR::DIFFERENTIALPAIRS6, "DifferentialPairs6" },
             { ALTIUM_PCB_DIR::DIMENSIONS6, "Dimensions6" },
+            { ALTIUM_PCB_DIR::EMBEDDEDBOARDS6, "EmbeddedBoards6" },
+            { ALTIUM_PCB_DIR::EMBEDDEDFONTS6, "EmbeddedFonts6" },
+            { ALTIUM_PCB_DIR::EMBEDDEDS6, "Embeddeds6" },
             { ALTIUM_PCB_DIR::EXTENDPRIMITIVEINFORMATION, "ExtendedPrimitiveInformation" },
+            { ALTIUM_PCB_DIR::FILEVERSIONINFO, "FileVersionInfo" },
             { ALTIUM_PCB_DIR::FILLS6, "Fills6" },
+            { ALTIUM_PCB_DIR::FROMTOS6, "FromTos6" },
             { ALTIUM_PCB_DIR::MODELS, "Models" },
+            { ALTIUM_PCB_DIR::MODELSNOEMBED, "ModelsNoEmbed" },
             { ALTIUM_PCB_DIR::NETS6, "Nets6" },
             { ALTIUM_PCB_DIR::PADS6, "Pads6" },
+            { ALTIUM_PCB_DIR::PADVIALIBRARY, "PadViaLibrary" },
+            { ALTIUM_PCB_DIR::PADVIALIBRARYCACHE, "PadViaLibraryCache" },
+            { ALTIUM_PCB_DIR::PADVIALIBRARYLINKS, "PadViaLibraryLinks" },
+            { ALTIUM_PCB_DIR::PINSWAPOPTIONS6, "Pin Swap Options6" },
+            { ALTIUM_PCB_DIR::PINPAIRSSECTION, "PinPairsSection" },
             { ALTIUM_PCB_DIR::POLYGONS6, "Polygons6" },
+            { ALTIUM_PCB_DIR::PRIMITIVEPARAMETERS, "PrimitiveParameters" },
             { ALTIUM_PCB_DIR::REGIONS6, "Regions6" },
             { ALTIUM_PCB_DIR::RULES6, "Rules6" },
+            { ALTIUM_PCB_DIR::SHAPEBASEDCOMPONENTBODIES6, "ShapeBasedComponentBodies6" },
             { ALTIUM_PCB_DIR::SHAPEBASEDREGIONS6, "ShapeBasedRegions6" },
+            { ALTIUM_PCB_DIR::SIGNALCLASSES, "SignalClasses" },
             { ALTIUM_PCB_DIR::SMARTUNIONS, "SmartUnions" },
+            { ALTIUM_PCB_DIR::TEXTS, "Texts" },
             { ALTIUM_PCB_DIR::TEXTS6, "Texts6" },
+            { ALTIUM_PCB_DIR::TEXTURES, "Textures" },
             { ALTIUM_PCB_DIR::TRACKS6, "Tracks6" },
+            { ALTIUM_PCB_DIR::UNIONNAMES, "UnionNames" },
+            { ALTIUM_PCB_DIR::UNIQUEIDPRIMITIVEINFORMATION, "UniqueIDPrimitiveInformation" },
             { ALTIUM_PCB_DIR::VIAS6, "Vias6" },
             { ALTIUM_PCB_DIR::WIDESTRINGS6, "WideStrings6" }
     };

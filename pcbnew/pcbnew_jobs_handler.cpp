@@ -127,6 +127,7 @@
 #include <dialogs/dialog_board_stats_job.h>
 #include <paths.h>
 #include <tools/zone_filler_tool.h>
+#include <zone_filler.h>
 
 #include <locale_io.h>
 #include <confirm.h>
@@ -3486,7 +3487,13 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                 wxString::Format( _( "Importing '%s' using %s format...\n" ), job->m_inputFile, formatName ),
                 RPT_SEVERITY_INFO );
 
-        board = pi->LoadBoard( job->m_inputFile, nullptr, nullptr, nullptr );
+        std::map<std::string, UTF8> properties;
+
+        if( !job->m_projectFile.IsEmpty() )
+            properties["project_file"] = job->m_projectFile;
+
+        board = pi->LoadBoard( job->m_inputFile, nullptr,
+                               properties.empty() ? nullptr : &properties, projectPtr );
 
         if( !board )
         {
@@ -3494,12 +3501,40 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
         }
 
+        board->SetProject( projectPtr );
+
         // Extract a project footprint library and re-link FPIDs, as the board editor's import
         // does; without it the saved board references a nickname no library table row resolves.
         if( PCB_IO_MGR::ImportGeneratesProjectLibrary( fileType ) )
         {
             ReconcileImportedFootprints( *pi, *board, *projectPtr, job->m_inputFile, nullptr,
                                          *m_reporter );
+        }
+
+        // Some formats store power planes as outlines only (e.g. Altium negative/split planes);
+        // generate their copper so the imported board is usable without a manual fill.
+        FillImportedPowerPlaneZones( board, m_progressReporter, m_reporter );
+
+        // Imported boards keep their source pour verbatim; optionally re-pour every zone with
+        // KiCad's filler so downstream DRC and fabrication output reflect KiCad's fill geometry.
+        if( job->m_refillZones )
+        {
+            m_reporter->Report( _( "Refilling copper zones...\n" ), RPT_SEVERITY_INFO );
+
+            // The filler needs valid connectivity to knock out other-net copper, and it invalidates
+            // connectivity afterwards, so rebuild on both sides.
+            board->BuildConnectivity();
+
+            ZONE_FILLER filler( board, nullptr );
+            filler.SetProgressReporter( m_progressReporter );
+
+            if( !filler.Fill( board->Zones() ) )
+            {
+                m_reporter->Report( _( "Failed to refill copper zones\n" ), RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            board->BuildConnectivity();
         }
 
         // Flag explicit map entries that never matched a source layer so typos do not pass silently.
@@ -3593,6 +3628,16 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             // No report requested, but explicit-mapping problems still need to surface.
             for( const wxString& warning : warnings )
                 m_reporter->Report( warning + wxS( "\n" ), RPT_SEVERITY_WARNING );
+        }
+
+        if( board->GetProject() )
+        {
+            board->GetDesignSettings().SaveToFile( wxEmptyString, true );
+
+            if( board->GetDesignSettings().m_NetSettings )
+                board->GetDesignSettings().m_NetSettings->SaveToFile( wxEmptyString, true );
+
+            board->ClearProject();
         }
 
         delete board;

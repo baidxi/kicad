@@ -110,6 +110,7 @@ set( QA_PCBNEW_SRCS
     test_d356_export.cpp
     test_specctra_export.cpp
     test_step_model_color_transfer.cpp
+    test_step_solid_export.cpp
     test_board_netlist_updater_fpid_change.cpp
     test_board_netlist_updater_nested_groups.cpp
     test_netlist_group_instances.cpp
@@ -228,6 +229,7 @@ set( QA_PCBNEW_SRCS
     drc/test_drc_rule_editor.cpp
     drc/test_drc_violation_layers_issue24941.cpp
     drc/test_drc_net_chain_tuning_profiles.cpp
+    drc/test_drc_zone_zone_clearance_epsilon.cpp
 
     pcb_io/altium/test_altium_rule_transformer.cpp
     pcb_io/altium/test_altium_pcblib_import.cpp

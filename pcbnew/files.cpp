@@ -910,6 +910,11 @@ bool PCB_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
     wxLogTrace( traceAllegroPerf, wxT( "Post-load BuildConnectivity: %.3f ms" ),
                 connectivityTimer.msecs( true ) );
 
+    // Some non-KiCad formats store power planes as outlines only (e.g. Altium negative/split
+    // planes); generate their copper so the imported board is usable without a manual fill.
+    if( converted )
+        FillImportedPowerPlaneZones( GetBoard(), &progressReporter, nullptr );
+
     // Load project settings after setting up board; some of them depend on the nets list
     LoadProjectSettings();
     LoadDrawingSheet();

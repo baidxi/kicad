@@ -58,6 +58,7 @@
 #include <kidialog.h>
 #include <thread_pool.h>
 #include <math/util.h>      // for KiROUND
+#include <reporter.h>
 #include "zone_filler.h"
 #include "project.h"
 #include "project/project_local_settings.h"
@@ -395,6 +396,49 @@ ZONE_FILLER::~ZONE_FILLER()
 void ZONE_FILLER::SetProgressReporter( PROGRESS_REPORTER* aReporter )
 {
     m_progressReporter = aReporter;
+}
+
+
+void FillImportedPowerPlaneZones( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter, REPORTER* aReporter )
+{
+    if( !aBoard )
+        return;
+
+    std::vector<ZONE*> unfilledPlanes;
+
+    for( ZONE* zone : aBoard->Zones() )
+    {
+        if( !zone || zone->GetIsRuleArea() || zone->GetNetCode() <= NETINFO_LIST::UNCONNECTED || zone->IsFilled() )
+        {
+            continue;
+        }
+
+        for( PCB_LAYER_ID layer : zone->GetLayerSet() )
+        {
+            if( aBoard->GetLayerType( layer ) == LT_POWER )
+            {
+                unfilledPlanes.push_back( zone );
+                break;
+            }
+        }
+    }
+
+    if( unfilledPlanes.empty() )
+        return;
+
+    // The filler needs valid connectivity to knock out other-net copper, and it invalidates
+    // connectivity afterwards, so rebuild on both sides.
+    aBoard->BuildConnectivity( aProgressReporter );
+
+    ZONE_FILLER filler( aBoard, nullptr );
+    filler.SetProgressReporter( aProgressReporter );
+
+    if( !filler.Fill( unfilledPlanes ) && aReporter )
+    {
+        aReporter->Report( _( "Failed to fill one or more imported plane zones." ), RPT_SEVERITY_WARNING );
+    }
+
+    aBoard->BuildConnectivity( aProgressReporter );
 }
 
 

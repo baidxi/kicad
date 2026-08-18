@@ -31,7 +31,7 @@
 #include <altium_pcb.h>
 #include <altium_pcb_compound_file.h>
 #include <io/altium/altium_binary_parser.h>
-#include <io/altium/altium_project_variants.h>
+#include <io/altium/altium_project.h>
 #include <pcb_io/pcb_io.h>
 #include <reporter.h>
 

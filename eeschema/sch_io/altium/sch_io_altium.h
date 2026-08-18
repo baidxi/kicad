@@ -35,6 +35,7 @@
 class SYMBOL;
 class SCH_SYMBOL;
 class SCH_SHEET;
+class SCH_DIRECTIVE_LABEL;
 class TITLE_BLOCK;
 
 class ALTIUM_COMPOUND_FILE;
@@ -203,6 +204,10 @@ private:
     void ParseLibDesignator( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym, std::vector<int>& aFontSize = nullint );
     void ParseBusEntry( const std::map<wxString, wxString>& aProperties );
     void ParseParameter( const std::map<wxString, wxString>& aProperties );
+    void ParseParameterSet( int aIndex, const std::map<wxString, wxString>& aProperties );
+    void FinalizeParameters();
+    void AddParameterSetField( SCH_DIRECTIVE_LABEL* aLabel, const ASCH_PARAMETER& aParameter );
+    void AddComponentParameter( const ASCH_PARAMETER& aParameter );
     void ParseLibParameter( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym, std::vector<int>& aFontSize = nullint );
     void ParseImplementationList( int aIndex, const std::map<wxString, wxString>& aProperties );
     void ParseImplementation( const std::map<wxString, wxString>& aProperties, std::vector<LIB_SYMBOL*>& aSymbol  = nullsym );
@@ -241,6 +246,13 @@ private:
     std::map<int, SCH_SHEET*>          m_sheets;
     std::map<int, LIB_SYMBOL*>         m_libSymbols;        // every symbol has its unique lib_symbol
 
+    // Every Altium schematic document is loaded into a single SCH_SCREEN, keyed by its resolved
+    // KiCad document path (lower-cased).  Repeated sheets / channels reference the same document
+    // from several sheet symbols; they must share that one screen so per-instance annotation
+    // (e.g. R1_D1 vs R1_D2) is preserved.  Persists for the whole import because the currently
+    // parsed subtree is not yet attached to the root, so hierarchy traversal cannot find it.
+    std::map<wxString, SCH_SCREEN*> m_altiumSheetScreens;
+
     std::map<wxString, LIB_SYMBOL*>    m_powerSymbols;
     std::vector<ASCH_STORAGE_FILE>     m_altiumStorage;
     std::vector<ASCH_ADDITIONAL_FILE>  m_altiumAdditional;
@@ -248,6 +260,8 @@ private:
     std::map<int, ASCH_SYMBOL>         m_altiumComponents;
     std::map<int, ASCH_TEMPLATE>       m_altiumTemplates;
     std::map<int, int>                 m_altiumImplementationList;
+    std::map<int, SCH_DIRECTIVE_LABEL*> m_altiumParameterSets;
+    std::multimap<int, ASCH_PARAMETER>  m_altiumOwnedParameters;
     std::vector<ASCH_PORT>             m_altiumPortsCurrentSheet; // we require all connections first
 
     // parse harness ports after "FileHeader" was parsed, in 2nd run.

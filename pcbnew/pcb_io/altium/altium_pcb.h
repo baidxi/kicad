@@ -63,6 +63,7 @@ enum class ALTIUM_PCB_DIR
     PINSWAPOPTIONS6,
     PINPAIRSSECTION,
     POLYGONS6,
+    PRIMITIVEPARAMETERS,
     REGIONS6,
     RULES6,
     SHAPEBASEDCOMPONENTBODIES6,
@@ -85,6 +86,7 @@ class BOARD_ITEM;
 class EDA_TEXT;
 class FP_SHAPE;
 class PCB_SHAPE;
+class PCB_ARC;
 class PCB_TEXTBOX;
 class FOOTPRINT;
 class ZONE;
@@ -97,6 +99,7 @@ struct COMPOUND_FILE_ENTRY;
 } // namespace CFB
 
 class ALTIUM_PCB_COMPOUND_FILE;
+struct ALTIUM_PCB_IMPORT_FIXTURE;
 
 // Structure for storing embedded model data
 struct ALTIUM_EMBEDDED_MODEL_DATA
@@ -118,6 +121,8 @@ typedef std::function<void( const ALTIUM_PCB_COMPOUND_FILE&, const CFB::COMPOUND
 
 class ALTIUM_PCB
 {
+    friend struct ALTIUM_PCB_IMPORT_FIXTURE;
+
 public:
     explicit ALTIUM_PCB( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter,
                          LAYER_MAPPING_HANDLER& aLayerMappingHandler,
@@ -148,6 +153,10 @@ private:
     // Text Format
     void ParseBoard6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                           const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void ParseDesignRuleCheckerOptions6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                             const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void ParseEmbeddedFonts6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                  const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ParseClasses6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                             const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ParseComponents6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
@@ -179,6 +188,13 @@ private:
     void ConvertComponentBody6ToFootprintItem( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
                                               FOOTPRINT* aFootprint,
                                               const ACOMPONENTBODY6& aElem );
+
+    /**
+     * Reconstruct an Altium-generated (non-file) 3D body — extruded, cylinder or sphere — as STEP
+     * bytes.  Identical geometries are generated once and shared through m_generatedBodyCache.
+     * Returns true and fills @p aStepOut on success.
+     */
+    bool HelperGenerateBodyStep( const ACOMPONENTBODY6& aElem, std::vector<char>& aStepOut );
     void ParsePads6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                          const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ConvertPads6ToBoardItem( const APAD6& aElem );
@@ -199,7 +215,10 @@ private:
                                                PCB_LAYER_ID aLayer );
     void ParseSmartUnions6Data( const ALTIUM_PCB_COMPOUND_FILE&  aAltiumPcbFile,
                                 const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void ParseUnionNamesData( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile, const CFB::COMPOUND_FILE_ENTRY* aEntry );
+    void HelperCanonicalizeArcEndpoints();
     void HelperCreateTuningPatterns();
+    void HelperSetFootprintMountingStyles();
     void ParseTexts6Data( const ALTIUM_PCB_COMPOUND_FILE&     aAltiumPcbFile,
                           const CFB::COMPOUND_FILE_ENTRY* aEntry );
     void ConvertTexts6ToBoardItem( const ATEXT6& aElem );
@@ -269,12 +288,19 @@ private:
     HelperGetSolderAndPasteMaskExpansions( const ALTIUM_RECORD aType, const int aPrimitiveIndex,
                                            const ALTIUM_LAYER aAltiumLayer );
 
+    void       ParsePrimitiveParametersData( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPcbFile,
+                                             const CFB::COMPOUND_FILE_ENTRY* aEntry );
     FOOTPRINT* HelperGetFootprint( uint16_t aComponent ) const;
 
     void remapUnsureLayers( std::vector<ABOARD6_LAYER_STACKUP>& aStackup );
 
     BOARD*                               m_board;
     std::vector<FOOTPRINT*>              m_components;
+    std::map<wxString, FOOTPRINT*>       m_componentsByUniqueId;
+
+    /// Cache of reconstructed 3D-body STEP payloads, keyed by a hash of the body geometry, so
+    /// identical Altium-generated bodies are only built once.
+    std::map<std::size_t, std::vector<char>> m_generatedBodyCache;
     std::vector<ZONE*>                   m_polygons;
     std::vector<PCB_DIM_RADIAL*>         m_radialDimensions;
     std::map<uint32_t, wxString>         m_unicodeStrings;
@@ -288,7 +314,9 @@ private:
             m_extendedPrimitiveInformationMaps;
 
     std::vector<ASMARTUNION6>                  m_tuningUnions;
+    std::map<uint32_t, wxString>               m_unionNames;
     std::map<int, std::vector<BOARD_ITEM*>>    m_unionToBoardItems;
+    std::vector<PCB_ARC*>                      m_importedArcs;
 
     std::map<ALTIUM_LAYER, ZONE*>        m_outer_plane;
 

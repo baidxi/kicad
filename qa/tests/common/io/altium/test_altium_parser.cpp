@@ -26,6 +26,7 @@
 #include <boost/test/data/test_case.hpp>
 
 #include <common/io/altium/altium_binary_parser.h>
+#include <common/io/altium/altium_props_utils.h>
 
 struct ALTIUM_BINARY_PARSER_FIXTURE
 {
@@ -196,6 +197,29 @@ BOOST_DATA_TEST_CASE( PropertiesReadKicadUnit,
 }
 
 
+BOOST_AUTO_TEST_CASE( MalformedTypedPropertiesUseDefaults )
+{
+    std::map<wxString, wxString> properties = { { "INVALID", "not-a-number" }, { "TRAILING", "12garbage" },
+                                                { "INTEGER", "-12" },          { "DOUBLE", "1.25e2" },
+                                                { "FALSE", "FALSE" },          { "TRUE", "true" },
+                                                { "UNIT", "broken" } };
+
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "INVALID", 42 ), 42 );
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "TRAILING", 42 ), 42 );
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadInt( properties, "INTEGER", 42 ), -12 );
+
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "INVALID", 3.5 ), 3.5, 1e-9 );
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "TRAILING", 3.5 ), 3.5, 1e-9 );
+    BOOST_CHECK_CLOSE( ALTIUM_PROPS_UTILS::ReadDouble( properties, "DOUBLE", 3.5 ), 125.0, 1e-9 );
+
+    BOOST_CHECK( !ALTIUM_PROPS_UTILS::ReadBool( properties, "FALSE", true ) );
+    BOOST_CHECK( ALTIUM_PROPS_UTILS::ReadBool( properties, "TRUE", false ) );
+    BOOST_CHECK( ALTIUM_PROPS_UTILS::ReadBool( properties, "INVALID", true ) );
+
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadKicadUnit( properties, "UNIT", "5mil" ), 127000 );
+}
+
+
 /**
  * A list of valid test strings and the expected result map
  */
@@ -323,6 +347,73 @@ BOOST_AUTO_TEST_CASE( ReadPropertiesBinaryNullBytePreserved )
     BOOST_CHECK_EQUAL( parser.HasParsingError(), false );
     BOOST_CHECK_EQUAL( captured.size(), payload.size() );
     BOOST_CHECK_EQUAL( captured, payload );
+}
+
+
+/**
+ * Some Altium files store text that is UTF-8 which has already been misread as Latin-1 and then
+ * re-encoded as UTF-8 (classic "mojibake": "µ" becomes "Âµ"), including in the '%UTF8%' twins that
+ * are otherwise assumed to be correct UTF-8.  RepairDoubleEncodedUtf8() must recover the real text
+ * while leaving correctly-decoded values untouched.
+ */
+BOOST_AUTO_TEST_CASE( RepairDoubleEncodedUtf8 )
+{
+    const wxString correct = wxString::FromUTF8( "3.30 \xc2\xb5H" );          // "3.30 µH" (µ = U+00B5)
+    const wxString mojibake = wxString::FromUTF8( "3.30 \xc3\x82\xc2\xb5H" ); // "3.30 ÂµH"
+
+    // The double-encoded value is repaired ...
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( mojibake ), correct );
+
+    // ... while an already-correct value (whose Latin-1 byte 0xB5 is not valid stand-alone UTF-8)
+    // is returned unchanged.
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( correct ), correct );
+
+    // Plain ASCII and genuine Unicode (codepoints beyond Latin-1) are never altered.
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( wxT( "3.30 uH" ) ), wxT( "3.30 uH" ) );
+
+    const wxString ohm = wxString::FromUTF8( "10 \xce\xa9" ); // "10 Ω" (Ω = U+03A9)
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( ohm ), ohm );
+
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( wxEmptyString ), wxEmptyString );
+
+    // Genuine Latin-1 text whose high bytes do not form valid UTF-8 must be left untouched.  These
+    // guard against the repair over-reaching onto real accented content.
+    const wxString german = wxString::FromUTF8( "Gr\xc3\xb6\xc3\x9f" "e" ); // "Größe" (ö U+00F6, ß U+00DF)
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( german ), german );
+
+    const wxString plusMinus = wxString::FromUTF8( "\xc2\xb1"
+                                                   "5%" ); // "±5%" (± U+00B1)
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( plusMinus ), plusMinus );
+
+    const wxString degrees = wxString::FromUTF8( "50 \xc2\xb0"
+                                                 "C" ); // "50 °C" (° U+00B0)
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::RepairDoubleEncodedUtf8( degrees ), degrees );
+}
+
+
+/**
+ * End-to-end: a property block whose '%UTF8%' twin is double-encoded (as seen in real Altium
+ * ComponentDescription fields) must be recovered by ReadString().
+ */
+BOOST_AUTO_TEST_CASE( ReadStringRepairsDoubleEncodedUtf8 )
+{
+    // "3.30 µH": real bytes 0xC2 0xB5; the double-encoded twin is 0xC3 0x82 0xC2 0xB5.
+    std::string block = "|%UTF8%TEXT=3.30 \xc3\x82\xc2\xb5H|TEXT=3.30 \xc2\xb5H";
+    block.push_back( '\0' );
+
+    size_t                  size = 4 + block.size();
+    std::unique_ptr<char[]> content = std::make_unique<char[]>( size );
+
+    *content.get() = static_cast<char>( block.size() );
+    std::memcpy( content.get() + 4, block.data(), block.size() );
+
+    ALTIUM_BINARY_PARSER         parser( content, size );
+    std::map<wxString, wxString> props = parser.ReadProperties();
+
+    BOOST_CHECK_EQUAL( parser.HasParsingError(), false );
+
+    const wxString expected = wxString::FromUTF8( "3.30 \xc2\xb5H" );
+    BOOST_CHECK_EQUAL( ALTIUM_PROPS_UTILS::ReadString( props, "TEXT", "" ), expected );
 }
 
 

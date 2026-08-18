@@ -1286,7 +1286,11 @@ void DRC_TEST_PROVIDER_COPPER_CLEARANCE::testZonesToZones()
                                         refSegment.NearestPoints( testSegment, pt, other_pt, dist_sq );
                                         actual = std::floor( std::sqrt( dist_sq ) + 0.5 );
 
-                                        if( actual < clearance )
+                                        // Apply the shared DRC epsilon here (as every other copper
+                                        // clearance test does through sub_e()).  Without it, filled
+                                        // zones that meet the rule after rounding are reported as
+                                        // violations that are only a few nm short.
+                                        if( actual < sub_e( clearance ) )
                                         {
                                             found = true;
                                             return false;
