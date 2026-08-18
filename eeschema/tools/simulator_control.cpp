@@ -401,7 +401,7 @@ int SIMULATOR_CONTROL::Zoom( const TOOL_EVENT& aEvent )
         if( plotTab->IsSmithMode() )
         {
             // the chart is drawn from the Smith view, not the hidden axes
-            wxPoint center( plot->GetScrX() / 2, plot->GetScrY() / 2 );
+            wxPoint center( defaultView->GetScrX() / 2, defaultView->GetScrY() / 2 );
 
             if( aEvent.IsAction( &ACTIONS::zoomInCenter ) )
             {
@@ -414,7 +414,6 @@ int SIMULATOR_CONTROL::Zoom( const TOOL_EVENT& aEvent )
             else if( aEvent.IsAction( &ACTIONS::zoomFitScreen ) )
             {
                 plotTab->ResetSmithView();
-                plot->Refresh();
             }
 
             return 0;
