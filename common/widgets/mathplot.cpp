@@ -247,8 +247,17 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
             m_winY  = scry;
         }
 
-        dc.SetBrush( m_brush );
+        // Opaque, so the traces and the grid it overlaps cannot show through and make the
+        // labels hard to read.  It follows the plot's own background, dark mode included.
+        wxBrush background( w.GetBackgroundColour() );
+
+        dc.SetBrush( background );
         dc.SetFont( m_font );
+
+        // Layers are plotted in list order and some of them (plot cursors) leave their own
+        // text colour on the DC.  Grabbing an overlay moves it to the end of that list, so
+        // the legend cannot rely on the colour OnPaint() set before the first layer.
+        dc.SetTextForeground( w.GetForegroundColour() );
 
         const int baseWidth = mpLEGEND_MARGIN * 2 + mpLEGEND_LINEWIDTH;
         int       textX = baseWidth, textY = mpLEGEND_MARGIN;
@@ -274,7 +283,7 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
         }
 
         dc.SetPen( m_pen );
-        dc.SetBrush( m_brush );
+        dc.SetBrush( background );
         m_dim.width = textX;
 
         if( textY != mpLEGEND_MARGIN )    // Don't draw any thing if there are no visible layers
@@ -1831,7 +1840,12 @@ void mpWindow::Fit( double xMin, double xMax, double yMin, double yMax, const wx
     // The caller wanting to print should perform another Fit() afterwards to restore this
     // object's state.
     if( !isPrinting )
+    {
         UpdateAll();
+
+        if( ( directions & wxHORIZONTAL ) != 0 )
+            OnXViewChanged();
+    }
 }
 
 
@@ -1892,6 +1906,8 @@ bool mpWindow::SetXView( double pos, double desiredMax, double desiredMin )
     m_desiredXmax   = desiredMax;
     m_desiredXmin   = desiredMin;
     AdjustLimitedView( wxHORIZONTAL );
+
+    OnXViewChanged();
 
     return true;
 }
@@ -2304,6 +2320,9 @@ void mpWindow::DoZoom( const wxPoint& centerPoint, double zoomFactor, wxOrientat
     }
 
     UpdateAll();
+
+    if( horizontally )
+        OnXViewChanged();
 }
 
 
