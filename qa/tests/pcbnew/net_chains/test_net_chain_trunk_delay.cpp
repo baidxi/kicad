@@ -32,7 +32,9 @@
 #include <pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.h>
 
 
-constexpr double DEFAULT_PROPAGATION_DELAY_PS_PER_MM = 5.9 * pcbIUScale.IU_PER_PS;
+// Physical 150 ps/in fallback in delay IU per mm, held independently of the production
+// constant so a regression that zeroes the fallback cannot make these checks vacuous
+constexpr double FALLBACK_DELAY_IU_PER_MM = 5.9 * pcbIUScale.IU_PER_PS_PER_MM;
 
 // Two-net daisy chain through a single bridge.  Trunk = 20 mm (net A track) +
 // 5 mm (bridge pad-to-pad span) + 25 mm (net B track) = 50 mm.  The board has
@@ -137,19 +139,17 @@ BOOST_AUTO_TEST_CASE( DaisyTrunkDelayEqualsBridgeWithoutStackup )
     tagChainNets( board.get(), wxS( "DSY" ) );
     setTerminals( board.get(), wxS( "DSY" ) );
 
-    CHAIN_TOPOLOGY topo( board.get(), wxS( "DSY" ), collectChainItems( board.get(), wxS( "DSY" ) ),
-                         DEFAULT_PROPAGATION_DELAY_PS_PER_MM );
+    CHAIN_TOPOLOGY topo( board.get(), wxS( "DSY" ), collectChainItems( board.get(), wxS( "DSY" ) ) );
 
     BOOST_REQUIRE( topo.IsValid() );
     BOOST_CHECK_CLOSE( topo.TrunkLength(), 50.0e6, 5.0 );
 
-    double expectedDelayIU = DEFAULT_PROPAGATION_DELAY_PS_PER_MM * 5.0;
+    double expectedDelayIU = FALLBACK_DELAY_IU_PER_MM * 5.0;
     BOOST_CHECK_CLOSE( topo.TrunkDelay(), expectedDelayIU, 5.0 );
     BOOST_CHECK_GT( topo.TrunkDelay(), 0.0 );
 
     // The bridging-only helper should agree with what the trunk picked up.
-    auto [bridgingLen, bridgingDelay] =
-            BoardChainBridging( board.get(), wxS( "DSY" ), DEFAULT_PROPAGATION_DELAY_PS_PER_MM );
+    auto [bridgingLen, bridgingDelay] = BoardChainBridging( board.get(), wxS( "DSY" ) );
     BOOST_CHECK_CLOSE( bridgingDelay, topo.TrunkDelay(), 0.001 );
     BOOST_CHECK_CLOSE( bridgingLen, 5.0e6, 0.001 );
 }
@@ -165,19 +165,17 @@ BOOST_AUTO_TEST_CASE( NoTerminalsFallbackUsesBridgingDelay )
     tagChainNets( board.get(), wxS( "DSY" ) );
     // Intentionally do NOT call setTerminals.
 
-    CHAIN_TOPOLOGY topo( board.get(), wxS( "DSY" ), collectChainItems( board.get(), wxS( "DSY" ) ),
-                         DEFAULT_PROPAGATION_DELAY_PS_PER_MM );
+    CHAIN_TOPOLOGY topo( board.get(), wxS( "DSY" ), collectChainItems( board.get(), wxS( "DSY" ) ) );
 
     BOOST_CHECK( !topo.IsValid() );
     BOOST_CHECK_EQUAL( static_cast<int>( topo.GetStatus() ),
                        static_cast<int>( CHAIN_TOPOLOGY::STATUS::NO_TERMINAL_PADS ) );
 
-    auto [bridgingLen, bridgingDelay] =
-            BoardChainBridging( board.get(), wxS( "DSY" ), DEFAULT_PROPAGATION_DELAY_PS_PER_MM );
+    auto [bridgingLen, bridgingDelay] = BoardChainBridging( board.get(), wxS( "DSY" ) );
 
     BOOST_CHECK_CLOSE( bridgingLen, 5.0e6, 0.001 );
 
-    double expectedDelayIU = DEFAULT_PROPAGATION_DELAY_PS_PER_MM * 5.0;
+    double expectedDelayIU = FALLBACK_DELAY_IU_PER_MM * 5.0;
     BOOST_CHECK_CLOSE( bridgingDelay, expectedDelayIU, 0.001 );
 }
 
