@@ -37,8 +37,8 @@
 #include <wx/image.h>
 
 #include <cmath>
-#include <cstdio>   // used only for debug
-#include <ctime>    // used for representation of x axes involving date
+#include <cstdio> // used only for debug
+#include <ctime>  // used for representation of x axes involving date
 #include <limits>
 #include <set>
 
@@ -48,8 +48,8 @@
 #endif
 
 // Legend margins
-#define mpLEGEND_MARGIN     5
-#define mpLEGEND_LINEWIDTH  10
+#define mpLEGEND_MARGIN 5
+#define mpLEGEND_LINEWIDTH 10
 
 // See doxygen comments.
 double mpWindow::zoomIncrementalFactor = 1.1;
@@ -91,8 +91,8 @@ mpLayer::mpLayer() :
         m_type( mpLAYER_UNDEF )
 {
     SetPen( (wxPen&) *wxBLACK_PEN );
-    m_continuous = false;   // Default
-    m_showName = true;      // Default
+    m_continuous = false; // Default
+    m_showName = true;    // Default
     m_visible = true;
 }
 
@@ -106,10 +106,11 @@ mpInfoLayer::mpInfoLayer()
 {
     m_dim = wxRect( 0, 0, 1, 1 );
     m_brush = *wxTRANSPARENT_BRUSH;
-    m_reference.x = 0; m_reference.y = 0;
-    m_winX  = 1;    // parent->GetScrX();
-    m_winY  = 1;    // parent->GetScrY();
-    m_type  = mpLAYER_INFO;
+    m_reference.x = 0;
+    m_reference.y = 0;
+    m_winX = 1; // parent->GetScrX();
+    m_winY = 1; // parent->GetScrY();
+    m_type = mpLAYER_INFO;
 }
 
 
@@ -117,11 +118,11 @@ mpInfoLayer::mpInfoLayer( wxRect rect, const wxBrush* brush ) :
         m_dim( rect )
 {
     m_brush = *brush;
-    m_reference.x   = rect.x;
-    m_reference.y   = rect.y;
-    m_winX  = 1;    // parent->GetScrX();
-    m_winY  = 1;    // parent->GetScrY();
-    m_type  = mpLAYER_INFO;
+    m_reference.x = rect.x;
+    m_reference.y = rect.y;
+    m_winX = 1; // parent->GetScrX();
+    m_winY = 1; // parent->GetScrY();
+    m_type = mpLAYER_INFO;
 }
 
 
@@ -151,8 +152,8 @@ void mpInfoLayer::Move( wxPoint delta )
 
 void mpInfoLayer::UpdateReference()
 {
-    m_reference.x   = m_dim.x;
-    m_reference.y   = m_dim.y;
+    m_reference.x = m_dim.x;
+    m_reference.y = m_dim.y;
 }
 
 
@@ -161,8 +162,8 @@ void mpInfoLayer::Plot( wxDC& dc, mpWindow& w )
     if( m_visible )
     {
         // Adjust relative position inside the window
-        int scrx    = w.GetScrX();
-        int scry    = w.GetScrY();
+        int scrx = w.GetScrX();
+        int scry = w.GetScrY();
 
         // Avoid dividing by 0
         if( scrx == 0 )
@@ -183,8 +184,8 @@ void mpInfoLayer::Plot( wxDC& dc, mpWindow& w )
             }
 
             // Finally update window size
-            m_winX  = scrx;
-            m_winY  = scry;
+            m_winX = scrx;
+            m_winY = scry;
         }
 
         dc.SetPen( m_pen );
@@ -228,8 +229,8 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
     if( m_visible )
     {
         // Adjust relative position inside the window
-        int scrx    = w.GetScrX();
-        int scry    = w.GetScrY();
+        int scrx = w.GetScrX();
+        int scry = w.GetScrY();
 
         if( m_winX != scrx || m_winY != scry )
         {
@@ -243,11 +244,15 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
             }
 
             // Finally update window size
-            m_winX  = scrx;
-            m_winY  = scry;
+            m_winX = scrx;
+            m_winY = scry;
         }
 
-        dc.SetBrush( m_brush );
+        // Opaque, so the traces and the grid it overlaps cannot show through and make the
+        // labels hard to read.  It follows the plot's own background, dark mode included.
+        wxBrush background( w.GetBackgroundColour() );
+
+        dc.SetBrush( background );
         dc.SetFont( GetPlotFont() );
 
         const int baseWidth = mpLEGEND_MARGIN * 2 + mpLEGEND_LINEWIDTH;
@@ -274,17 +279,17 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
         }
 
         dc.SetPen( m_pen );
-        dc.SetBrush( m_brush );
+        dc.SetBrush( background );
         m_dim.width = textX;
 
-        if( textY != mpLEGEND_MARGIN )    // Don't draw any thing if there are no visible layers
+        if( textY != mpLEGEND_MARGIN ) // Don't draw any thing if there are no visible layers
         {
             textY += mpLEGEND_MARGIN;
             m_dim.height = textY;
             dc.DrawRectangle( m_dim.x, m_dim.y, m_dim.width, m_dim.height );
 
-            // Set explicitly: other layers (e.g. plot cursors) leave their own text colour on
-            // the DC, which would otherwise leak into the legend's labels.
+            // Set explicitly: other layers (plot cursors, the statistics panel) leave their own
+            // text colour on the DC, which would otherwise leak into the legend's labels.
             dc.SetTextForeground( w.GetForegroundColour() );
 
             for( unsigned int p2 = 0; p2 < w.CountAllLayers(); p2++ )
@@ -293,18 +298,16 @@ void mpInfoLegend::Plot( wxDC& dc, mpWindow& w )
 
                 if( layer->GetLayerType() == mpLAYER_PLOT && layer->IsVisible() )
                 {
-                    label   = layer->GetDisplayName();
-                    lpen    = layer->GetPen();
+                    label = layer->GetDisplayName();
+                    lpen = layer->GetPen();
                     dc.GetTextExtent( label, &tmpX, &tmpY );
                     dc.SetPen( lpen );
-                    posY = m_dim.y + mpLEGEND_MARGIN + plotCount * tmpY + (tmpY >> 1);
+                    posY = m_dim.y + mpLEGEND_MARGIN + plotCount * tmpY + ( tmpY >> 1 );
                     dc.DrawLine( m_dim.x + mpLEGEND_MARGIN,                      // X start coord
                                  posY,                                           // Y start coord
                                  m_dim.x + mpLEGEND_LINEWIDTH + mpLEGEND_MARGIN, // X end coord
                                  posY );
-                    dc.DrawText( label,
-                                 m_dim.x + baseWidth,
-                                 m_dim.y + mpLEGEND_MARGIN + plotCount * tmpY );
+                    dc.DrawText( label, m_dim.x + baseWidth, m_dim.y + mpLEGEND_MARGIN + plotCount * tmpY );
                     plotCount++;
                 }
             }
@@ -323,7 +326,7 @@ mpFX::mpFX( const wxString& name, int flags )
 {
     SetName( name );
     m_flags = flags;
-    m_type  = mpLAYER_PLOT;
+    m_type = mpLAYER_PLOT;
 }
 
 
@@ -334,9 +337,9 @@ void mpFX::Plot( wxDC& dc, mpWindow& w )
         dc.SetPen( m_pen );
 
         wxCoord startPx = w.GetMarginLeft();
-        wxCoord endPx   = w.GetScrX() - w.GetMarginRight();
-        wxCoord minYpx  = w.GetMarginTop();
-        wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+        wxCoord endPx = w.GetScrX() - w.GetMarginRight();
+        wxCoord minYpx = w.GetMarginTop();
+        wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
         wxCoord iy = 0;
 
@@ -375,8 +378,7 @@ void mpFX::Plot( wxDC& dc, mpWindow& w )
             if( ( m_flags & mpALIGNMASK ) == mpALIGN_RIGHT )
                 tx = ( w.GetScrX() - tx ) - w.GetMarginRight() - 8;
             else if( ( m_flags & mpALIGNMASK ) == mpALIGN_CENTER )
-                tx = ( ( w.GetScrX() - w.GetMarginRight() - w.GetMarginLeft() - tx ) / 2 )
-                     + w.GetMarginLeft();
+                tx = ( ( w.GetScrX() - w.GetMarginRight() - w.GetMarginLeft() - tx ) / 2 ) + w.GetMarginLeft();
             else
                 tx = w.GetMarginLeft() + 8;
 
@@ -393,7 +395,7 @@ mpFY::mpFY( const wxString& name, int flags )
 {
     SetName( name );
     m_flags = flags;
-    m_type  = mpLAYER_PLOT;
+    m_type = mpLAYER_PLOT;
 }
 
 
@@ -406,9 +408,9 @@ void mpFY::Plot( wxDC& dc, mpWindow& w )
         wxCoord i, ix;
 
         wxCoord startPx = w.GetMarginLeft();
-        wxCoord endPx   = w.GetScrX() - w.GetMarginRight();
-        wxCoord minYpx  = w.GetMarginTop();
-        wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+        wxCoord endPx = w.GetScrX() - w.GetMarginRight();
+        wxCoord minYpx = w.GetMarginTop();
+        wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
         if( m_pen.GetWidth() <= 1 )
         {
@@ -422,7 +424,7 @@ void mpFY::Plot( wxDC& dc, mpWindow& w )
         }
         else
         {
-            for( i = 0; i< w.GetScrY(); ++i )
+            for( i = 0; i < w.GetScrY(); ++i )
             {
                 ix = w.x2p( GetX( w.p2y( i ) ) );
 
@@ -441,8 +443,7 @@ void mpFY::Plot( wxDC& dc, mpWindow& w )
             if( ( m_flags & mpALIGNMASK ) == mpALIGN_TOP )
                 ty = w.GetMarginTop() + 8;
             else if( ( m_flags & mpALIGNMASK ) == mpALIGN_CENTER )
-                ty = ( ( w.GetScrY() - w.GetMarginTop() - w.GetMarginBottom() - ty ) / 2 )
-                     + w.GetMarginTop();
+                ty = ( ( w.GetScrY() - w.GetMarginTop() - w.GetMarginBottom() - ty ) / 2 ) + w.GetMarginTop();
             else
                 ty = w.GetScrY() - 8 - ty - w.GetMarginBottom();
 
@@ -458,10 +459,10 @@ IMPLEMENT_ABSTRACT_CLASS( mpFXY, mpLayer )
 mpFXY::mpFXY( const wxString& name, int flags )
 {
     SetName( name );
-    m_flags     = flags;
-    m_type      = mpLAYER_PLOT;
-    m_scaleX    = nullptr;
-    m_scaleY    = nullptr;
+    m_flags = flags;
+    m_type = mpLAYER_PLOT;
+    m_scaleX = nullptr;
+    m_scaleY = nullptr;
 
     // Avoid not initialized members:
     maxDrawX = minDrawX = maxDrawY = minDrawY = 0;
@@ -471,10 +472,10 @@ mpFXY::mpFXY( const wxString& name, int flags )
 void mpFXY::UpdateViewBoundary( wxCoord xnew, wxCoord ynew )
 {
     // Keep track of how many points have been drawn and the bounding box
-    maxDrawX    = (xnew > maxDrawX) ? xnew : maxDrawX;
-    minDrawX    = (xnew < minDrawX) ? xnew : minDrawX;
-    maxDrawY    = (maxDrawY > ynew) ? maxDrawY : ynew;
-    minDrawY    = (minDrawY < ynew) ? minDrawY : ynew;
+    maxDrawX = ( xnew > maxDrawX ) ? xnew : maxDrawX;
+    minDrawX = ( xnew < minDrawX ) ? xnew : minDrawX;
+    maxDrawY = ( maxDrawY > ynew ) ? maxDrawY : ynew;
+    minDrawY = ( minDrawY < ynew ) ? minDrawY : ynew;
     // drawnPoints++;
 }
 
@@ -493,9 +494,9 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
         return;
 
     wxCoord startPx = w.GetMarginLeft();
-    wxCoord endPx   = w.GetScrX() - w.GetMarginRight();
-    wxCoord minYpx  = w.GetMarginTop();
-    wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+    wxCoord endPx = w.GetScrX() - w.GetMarginRight();
+    wxCoord minYpx = w.GetMarginTop();
+    wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
     // Check for a collapsed window before we try to allocate a negative number of points
     if( endPx <= startPx || minYpx >= maxYpx )
@@ -522,8 +523,8 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
 
     if( !m_continuous )
     {
-        bool first = true;
-        wxCoord ix = 0;
+        bool              first = true;
+        wxCoord           ix = 0;
         std::set<wxCoord> ys;
 
         while( GetNextXY( x, y ) )
@@ -532,8 +533,8 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
             if( !std::isfinite( x ) || !std::isfinite( y ) )
                 continue;
 
-            double px = m_scaleX->TransformToPlot( x );
-            double py = m_scaleY->TransformToPlot( y );
+            double  px = m_scaleX->TransformToPlot( x );
+            double  py = m_scaleY->TransformToPlot( y );
             wxCoord newX = w.x2p( px );
 
             if( first )
@@ -542,14 +543,14 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
                 first = false;
             }
 
-            if( newX == ix )    // continue until a new X coordinate is reached
+            if( newX == ix ) // continue until a new X coordinate is reached
             {
                 // collect all unique points
                 ys.insert( w.y2p( py ) );
                 continue;
             }
 
-            for( auto& iy: ys )
+            for( auto& iy : ys )
             {
                 if( ( ix >= startPx ) && ( ix <= endPx ) && ( iy >= minYpx ) && ( iy <= maxYpx ) )
                 {
@@ -569,182 +570,179 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
             ys.insert( w.y2p( py ) );
         }
     }
-    else for( int sweep = 0; sweep < GetSweepCount(); ++sweep )
-    {
-        SetSweepWindow( sweep );
+    else
+        for( int sweep = 0; sweep < GetSweepCount(); ++sweep )
+        {
+            SetSweepWindow( sweep );
 
-        int     count = 0;
-        int     x0 = 0;         // X position of merged current vertical line
-        int     ymin0 = 0;      // y min coord of merged current vertical line
-        int     ymax0 = 0;      // y max coord of merged current vertical line
-        int     dupx0 = 0;      // count of currently merged vertical lines
-        wxPoint line_start;     // starting point of the current line to draw
+            int     count = 0;
+            int     x0 = 0;     // X position of merged current vertical line
+            int     ymin0 = 0;  // y min coord of merged current vertical line
+            int     ymax0 = 0;  // y max coord of merged current vertical line
+            int     dupx0 = 0;  // count of currently merged vertical lines
+            wxPoint line_start; // starting point of the current line to draw
 
-        // A buffer to store coordinates of lines to draw
-        std::vector<wxPoint>pointList;
-        pointList.reserve( ( endPx - startPx ) * 2 );
+            // A buffer to store coordinates of lines to draw
+            std::vector<wxPoint> pointList;
+            pointList.reserve( ( endPx - startPx ) * 2 );
 
-        double nextX;
-        double nextY;
-        bool hasNext = GetNextXY( nextX, nextY );
-        bool offRight = false;
+            double nextX;
+            double nextY;
+            bool   hasNext = GetNextXY( nextX, nextY );
+            bool   offRight = false;
 
-        // Note: we can use dc.DrawLines() only for a reasonable number or points (<10,000),
-        // because at least on Windows dc.DrawLines() can hang for a lot of points.  Note that
-        // this includes the intermediate points when drawing dotted lines.
+            // Note: we can use dc.DrawLines() only for a reasonable number or points (<10,000),
+            // because at least on Windows dc.DrawLines() can hang for a lot of points.  Note that
+            // this includes the intermediate points when drawing dotted lines.
 
-        // A buffer for the merged points, reused across the runs of a fragmented trace
-        std::vector<wxPoint> drawPoints;
-        drawPoints.reserve( ( endPx - startPx ) * 2 );
+            // A buffer for the merged points, reused across the runs of a fragmented trace
+            std::vector<wxPoint> drawPoints;
+            drawPoints.reserve( ( endPx - startPx ) * 2 );
 
-        // Short verticals spoil anti-aliasing on Retina displays, so only significant
-        // aggregations are worth the ink; the user can zoom in for detail
-        auto flushVertical =
-                [&]()
+            // Short verticals spoil anti-aliasing on Retina displays, so only significant
+            // aggregations are worth the ink; the user can zoom in for detail
+            auto flushVertical = [&]()
+            {
+                if( count && dupx0 > 1 && abs( ymax0 - ymin0 ) > 2 )
+                    dc.DrawLine( x0, ymin0, x0, ymax0 );
+            };
+
+            auto flushPolyline = [&]()
+            {
+                if( pointList.size() > 1 )
                 {
-                    if( count && dupx0 > 1 && abs( ymax0 - ymin0 ) > 2 )
-                        dc.DrawLine( x0, ymin0, x0, ymax0 );
-                };
-
-        auto flushPolyline =
-                [&]()
-                {
-                    if( pointList.size() > 1 )
-                    {
-                        // Second pass optimization is to merge horizontal segments.  This improves
-                        // the look of dotted lines, keeps the point count down, and it's easy.
-                        //
-                        // This pass also includes a final protection to keep MSW from hanging by
-                        // chunking to a size it can handle.
-                        drawPoints.clear();
+                    // Second pass optimization is to merge horizontal segments.  This improves
+                    // the look of dotted lines, keeps the point count down, and it's easy.
+                    //
+                    // This pass also includes a final protection to keep MSW from hanging by
+                    // chunking to a size it can handle.
+                    drawPoints.clear();
 
 #ifdef __WXMSW__
-                        int chunkSize = 10000;
+                    int chunkSize = 10000;
 #else
-                        int chunkSize = 100000;
+                    int chunkSize = 100000;
 #endif
-                        wxPenStyle penStyle = dc.GetPen().GetStyle();
-                        bool isSolidPen = ( penStyle == wxPENSTYLE_SOLID
-                                            || penStyle == wxPENSTYLE_TRANSPARENT );
+                    wxPenStyle penStyle = dc.GetPen().GetStyle();
+                    bool       isSolidPen = ( penStyle == wxPENSTYLE_SOLID || penStyle == wxPENSTYLE_TRANSPARENT );
 
-                        if( !isSolidPen )
-                            chunkSize /= 500;
+                    if( !isSolidPen )
+                        chunkSize /= 500;
 
-                        drawPoints.push_back( pointList[0] );   // push the first point in list
+                    drawPoints.push_back( pointList[0] ); // push the first point in list
 
-                        for( size_t ii = 1; ii < pointList.size()-1; ii++ )
+                    for( size_t ii = 1; ii < pointList.size() - 1; ii++ )
+                    {
+                        // Skip intermediate points between the first point and the last point
+                        // of the segment candidate. This optimization merges horizontal line
+                        // segments, which breaks non-solid pen styles by altering segment
+                        // lengths.
+                        if( isSolidPen && drawPoints.back().y == pointList[ii].y
+                            && drawPoints.back().y == pointList[ii + 1].y )
                         {
-                            // Skip intermediate points between the first point and the last point
-                            // of the segment candidate. This optimization merges horizontal line
-                            // segments, which breaks non-solid pen styles by altering segment
-                            // lengths.
-                            if( isSolidPen
-                                && drawPoints.back().y == pointList[ii].y
-                                && drawPoints.back().y == pointList[ii+1].y )
+                            continue;
+                        }
+                        else
+                        {
+                            drawPoints.push_back( pointList[ii] );
+
+                            if( (int) drawPoints.size() > chunkSize )
                             {
-                                continue;
-                            }
-                            else
-                            {
+                                dc.DrawLines( (int) drawPoints.size(), &drawPoints[0] );
+                                drawPoints.clear();
+
+                                // Restart the line with the current point
                                 drawPoints.push_back( pointList[ii] );
-
-                                if( (int) drawPoints.size() > chunkSize )
-                                {
-                                    dc.DrawLines( (int) drawPoints.size(), &drawPoints[0] );
-                                    drawPoints.clear();
-
-                                    // Restart the line with the current point
-                                    drawPoints.push_back( pointList[ii] );
-                                }
                             }
                         }
-
-                        // push the last point to draw in list
-                        if( drawPoints.back() != pointList.back() )
-                            drawPoints.push_back( pointList.back() );
-
-                        dc.DrawLines( (int) drawPoints.size(), &drawPoints[0] );
                     }
 
-                    pointList.clear();
-                    count = 0;
+                    // push the last point to draw in list
+                    if( drawPoints.back() != pointList.back() )
+                        drawPoints.push_back( pointList.back() );
 
-                    // offRight allows one point past the right edge so the line reaches it; each
-                    // run of points gets that allowance for itself
-                    offRight = false;
-                };
+                    dc.DrawLines( (int) drawPoints.size(), &drawPoints[0] );
+                }
 
-        // Our first-pass optimization is to exclude points outside the view, and aggregate all
-        // contiguous y values found at a single x value into a vertical line.
-        while( hasNext )
-        {
-            x = nextX;
-            y = nextY;
-            hasNext = GetNextXY( nextX, nextY );
+                pointList.clear();
+                count = 0;
 
-            // A non-finite sample has no position on the axis, so end the run of points here and
-            // let the trace show a gap rather than a line bridging the missing data
-            if( !std::isfinite( x ) || !std::isfinite( y ) )
+                // offRight allows one point past the right edge so the line reaches it; each
+                // run of points gets that allowance for itself
+                offRight = false;
+            };
+
+            // Our first-pass optimization is to exclude points outside the view, and aggregate all
+            // contiguous y values found at a single x value into a vertical line.
+            while( hasNext )
             {
-                flushVertical();
-                flushPolyline();
-                continue;
-            }
+                x = nextX;
+                y = nextY;
+                hasNext = GetNextXY( nextX, nextY );
 
-            double px = m_scaleX->TransformToPlot( x );
-            double py = m_scaleY->TransformToPlot( y );
-
-            wxCoord x1 = w.x2p( px );
-            wxCoord y1 = w.y2p( py );
-
-            // Note that we can't start *right* at the edge of the view because we need to
-            // interpolate between two points, one of which might be outside the view.
-            // Note: x1 is a value truncated from px by w.x2p(). So to be sure the first point
-            // is drawn, the x1 low limit is startPx-1 in plot coordinates
-            if( x1 < startPx-1 )
-            {
-                // a non-finite neighbour cannot pull this point into view
-                if( !std::isfinite( nextX ) )
+                // A non-finite sample has no position on the axis, so end the run of points here and
+                // let the trace show a gap rather than a line bridging the missing data
+                if( !std::isfinite( x ) || !std::isfinite( y ) )
+                {
+                    flushVertical();
+                    flushPolyline();
                     continue;
+                }
 
-                wxCoord nextX1 = w.x2p( m_scaleX->TransformToPlot( nextX ) );
+                double px = m_scaleX->TransformToPlot( x );
+                double py = m_scaleY->TransformToPlot( y );
 
-                if( nextX1 < startPx-1 )
-                    continue;
-            }
-            else if( x1 > endPx )
-            {
-                if( offRight )
-                    continue;
+                wxCoord x1 = w.x2p( px );
+                wxCoord y1 = w.y2p( py );
+
+                // Note that we can't start *right* at the edge of the view because we need to
+                // interpolate between two points, one of which might be outside the view.
+                // Note: x1 is a value truncated from px by w.x2p(). So to be sure the first point
+                // is drawn, the x1 low limit is startPx-1 in plot coordinates
+                if( x1 < startPx - 1 )
+                {
+                    // a non-finite neighbour cannot pull this point into view
+                    if( !std::isfinite( nextX ) )
+                        continue;
+
+                    wxCoord nextX1 = w.x2p( m_scaleX->TransformToPlot( nextX ) );
+
+                    if( nextX1 < startPx - 1 )
+                        continue;
+                }
+                else if( x1 > endPx )
+                {
+                    if( offRight )
+                        continue;
+                    else
+                        offRight = true;
+                }
+
+                if( !count || line_start.x != x1 )
+                {
+                    flushVertical();
+
+                    x0 = x1;
+                    ymin0 = ymax0 = y1;
+                    dupx0 = 0;
+
+                    pointList.emplace_back( wxPoint( x1, y1 ) );
+
+                    line_start.x = x1;
+                    line_start.y = y1;
+                    count++;
+                }
                 else
-                    offRight = true;
+                {
+                    ymin0 = std::min( ymin0, y1 );
+                    ymax0 = std::max( ymax0, y1 );
+                    x0 = x1;
+                    dupx0++;
+                }
             }
 
-            if( !count || line_start.x != x1 )
-            {
-                flushVertical();
-
-                x0 = x1;
-                ymin0 = ymax0 = y1;
-                dupx0 = 0;
-
-                pointList.emplace_back( wxPoint( x1, y1 ) );
-
-                line_start.x = x1;
-                line_start.y = y1;
-                count++;
-            }
-            else
-            {
-                ymin0 = std::min( ymin0, y1 );
-                ymax0 = std::max( ymax0, y1 );
-                x0 = x1;
-                dupx0++;
-            }
+            flushPolyline();
         }
-
-        flushPolyline();
-    }
 
     if( !m_name.IsEmpty() && m_showName )
     {
@@ -755,24 +753,24 @@ void mpFXY::Plot( wxDC& dc, mpWindow& w )
 
         if( ( m_flags & mpALIGNMASK ) == mpALIGN_NW )
         {
-            tx  = minDrawX + 8;
-            ty  = maxDrawY + 8;
+            tx = minDrawX + 8;
+            ty = maxDrawY + 8;
         }
         else if( ( m_flags & mpALIGNMASK ) == mpALIGN_NE )
         {
-            tx  = maxDrawX - tx - 8;
-            ty  = maxDrawY + 8;
+            tx = maxDrawX - tx - 8;
+            ty = maxDrawY + 8;
         }
         else if( ( m_flags & mpALIGNMASK ) == mpALIGN_SE )
         {
-            tx  = maxDrawX - tx - 8;
-            ty  = minDrawY - ty - 8;
+            tx = maxDrawX - tx - 8;
+            ty = minDrawY - ty - 8;
         }
         else
         {
             // mpALIGN_SW
-            tx  = minDrawX + 8;
-            ty  = minDrawY - ty - 8;
+            tx = minDrawX + 8;
+            ty = minDrawY - ty - 8;
         }
 
         dc.DrawText( m_name, tx, ty );
@@ -800,16 +798,16 @@ void mpScaleX::recalculateTicks( wxDC& dc, mpWindow& w )
     m_tickValues.clear();
     m_tickLabels.clear();
 
-    double  minErr = 1000000000000.0;
-    double  bestStep = 1.0;
-    int     m_scrX = w.GetXScreen();
+    double minErr = 1000000000000.0;
+    double bestStep = 1.0;
+    int    m_scrX = w.GetXScreen();
 
     for( int i = 10; i <= 20; i += 2 )
     {
-        double  curr_step    = fabs( maxVvis - minVvis ) / (double) i;
-        double  base    = pow( 10, floor( log10( curr_step ) ) );
-        double  stepInt = floor( curr_step / base ) * base;
-        double  err = fabs( curr_step - stepInt );
+        double curr_step = fabs( maxVvis - minVvis ) / (double) i;
+        double base = pow( 10, floor( log10( curr_step ) ) );
+        double stepInt = floor( curr_step / base ) * base;
+        double err = fabs( curr_step - stepInt );
 
         if( err < minErr )
         {
@@ -823,7 +821,7 @@ void mpScaleX::recalculateTicks( wxDC& dc, mpWindow& w )
     // Half the number of ticks according to window size.
     // The value 96 is used to have only 4 ticks when m_scrX is 268.
     // For each 96 device context units, is possible to add a new tick.
-    while( numberSteps - 2.0 >= m_scrX/96.0 )
+    while( numberSteps - 2.0 >= m_scrX / 96.0 )
     {
         bestStep *= 2;
         numberSteps = floor( ( maxVvis - minVvis ) / bestStep );
@@ -867,8 +865,8 @@ mpScaleBase::mpScaleBase()
     m_offset = 0.0;
     m_scale = 1.0;
     m_absVisibleMaxV = 0.0;
-    m_flags = 0;            // Flag for axis alignment
-    m_ticks = true;         // Flag to toggle between ticks or grid
+    m_flags = 0;    // Flag for axis alignment
+    m_ticks = true; // Flag to toggle between ticks or grid
     m_minV = 0.0;
     m_maxV = 0.0;
     m_maxLabelHeight = 1;
@@ -878,8 +876,8 @@ mpScaleBase::mpScaleBase()
 
 void mpScaleBase::computeLabelExtents( wxDC& dc, mpWindow& w )
 {
-    m_maxLabelHeight    = 0;
-    m_maxLabelWidth     = 0;
+    m_maxLabelHeight = 0;
+    m_maxLabelWidth = 0;
 
     for( const TICK_LABEL& tickLabel : m_tickLabels )
     {
@@ -888,7 +886,7 @@ void mpScaleBase::computeLabelExtents( wxDC& dc, mpWindow& w )
 
         dc.GetTextExtent( s, &tx, &ty );
         m_maxLabelHeight = std::max( ty, m_maxLabelHeight );
-        m_maxLabelWidth  = std::max( tx, m_maxLabelWidth );
+        m_maxLabelWidth = std::max( tx, m_maxLabelWidth );
     }
 }
 
@@ -902,14 +900,14 @@ void mpScaleBase::updateTickLabels( wxDC& dc, mpWindow& w )
 
 void mpScaleY::getVisibleDataRange( mpWindow& w, double& minV, double& maxV )
 {
-    wxCoord minYpx  = w.GetMarginTop();
-    wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+    wxCoord minYpx = w.GetMarginTop();
+    wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
-    double  pymin   = w.p2y( minYpx );
-    double  pymax   = w.p2y( maxYpx );
+    double pymin = w.p2y( minYpx );
+    double pymax = w.p2y( maxYpx );
 
-    minV    = TransformFromPlot( pymax );
-    maxV    = TransformFromPlot( pymin );
+    minV = TransformFromPlot( pymax );
+    maxV = TransformFromPlot( pymin );
 }
 
 
@@ -922,8 +920,8 @@ void mpScaleY::computeSlaveTicks( mpWindow& w )
     m_tickValues.clear();
     m_tickLabels.clear();
 
-    double  p0 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[0] );
-    double  p1 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[1] );
+    double p0 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[0] );
+    double p1 = m_masterScale->TransformToPlot( m_masterScale->m_tickValues[1] );
 
     m_scale = 1.0 / ( m_maxV - m_minV );
     m_offset = -m_minV;
@@ -931,9 +929,9 @@ void mpScaleY::computeSlaveTicks( mpWindow& w )
     double y_slave0 = p0 / m_scale;
     double y_slave1 = p1 / m_scale;
 
-    double  dy_slave = ( y_slave1 - y_slave0 );
-    double  exponent = floor( log10( dy_slave ) );
-    double  base = dy_slave / pow( 10.0, exponent );
+    double dy_slave = ( y_slave1 - y_slave0 );
+    double exponent = floor( log10( dy_slave ) );
+    double base = dy_slave / pow( 10.0, exponent );
 
     double dy_scaled = ceil( 2.0 * base ) / 2.0 * pow( 10.0, exponent );
 
@@ -989,18 +987,18 @@ void mpScaleY::recalculateTicks( wxDC& dc, mpWindow& w )
     m_tickValues.clear();
     m_tickLabels.clear();
 
-    double  minErr = 1000000000000.0;
-    double  bestStep = 1.0;
-    int     m_scrY = w.GetYScreen();
+    double minErr = 1000000000000.0;
+    double bestStep = 1.0;
+    int    m_scrY = w.GetYScreen();
 
     for( int i = 10; i <= 20; i += 2 )
     {
-        double  curr_step = fabs( maxVvis - minVvis ) / (double) i;
-        double  base = pow( 10, floor( log10( curr_step ) ) );
-        double  stepInt = floor( curr_step / base ) * base;
-        double  err = fabs( curr_step - stepInt );
+        double curr_step = fabs( maxVvis - minVvis ) / (double) i;
+        double base = pow( 10, floor( log10( curr_step ) ) );
+        double stepInt = floor( curr_step / base ) * base;
+        double err = fabs( curr_step - stepInt );
 
-        if( err< minErr )
+        if( err < minErr )
         {
             minErr = err;
             bestStep = stepInt;
@@ -1017,10 +1015,10 @@ void mpScaleY::recalculateTicks( wxDC& dc, mpWindow& w )
         numberSteps = floor( ( maxVvis - minVvis ) / bestStep );
     }
 
-    double v = floor( minVvis / bestStep ) * bestStep;
-    double zeroOffset = 100000000.0;
-    const  int iterLimit = 1000;
-    int    i = 0;
+    double    v = floor( minVvis / bestStep ) * bestStep;
+    double    zeroOffset = 100000000.0;
+    const int iterLimit = 1000;
+    int       i = 0;
 
     while( v <= maxVvis && i < iterLimit )
     {
@@ -1054,11 +1052,11 @@ void mpScaleXBase::getVisibleDataRange( mpWindow& w, double& minV, double& maxV 
 {
     wxCoord startPx = w.GetMarginLeft();
     wxCoord endPx = w.GetScrX() - w.GetMarginRight();
-    double  pxmin   = w.p2x( startPx );
-    double  pxmax   = w.p2x( endPx );
+    double  pxmin = w.p2x( startPx );
+    double  pxmax = w.p2x( endPx );
 
-    minV    = TransformFromPlot( pxmin );
-    maxV    = TransformFromPlot( pxmax );
+    minV = TransformFromPlot( pxmin );
+    maxV = TransformFromPlot( pxmax );
 }
 
 
@@ -1070,11 +1068,11 @@ void mpScaleXLog::recalculateTicks( wxDC& dc, mpWindow& w )
     getVisibleDataRange( w, minVvis, maxVvis );
 
     // double decades = log( maxV / minV ) / log(10);
-    double  minDecade   = pow( 10, floor( log10( minV ) ) );
-    double  maxDecade   = pow( 10, ceil( log10( maxV ) ) );
+    double minDecade = pow( 10, floor( log10( minV ) ) );
+    double maxDecade = pow( 10, ceil( log10( maxV ) ) );
     double visibleDecades = log( maxVvis / minVvis ) / log( 10 );
-    double  step = 10.0;
-    int     m_scrX = w.GetXScreen();
+    double step = 10.0;
+    int    m_scrX = w.GetXScreen();
 
     double d;
 
@@ -1096,7 +1094,7 @@ void mpScaleXLog::recalculateTicks( wxDC& dc, mpWindow& w )
             break;
     }
 
-    for( d = minDecade; d<=maxDecade; d *= step )
+    for( d = minDecade; d <= maxDecade; d *= step )
     {
         m_tickLabels.emplace_back( d );
 
@@ -1129,13 +1127,13 @@ mpScaleXBase::mpScaleXBase( const wxString& name, int flags, bool ticks, unsigne
 
 
 mpScaleX::mpScaleX( const wxString& name, int flags, bool ticks, unsigned int type ) :
-    mpScaleXBase( name, flags, ticks, type )
+        mpScaleXBase( name, flags, ticks, type )
 {
 }
 
 
 mpScaleXLog::mpScaleXLog( const wxString& name, int flags, bool ticks, unsigned int type ) :
-    mpScaleXBase( name, flags, ticks, type )
+        mpScaleXBase( name, flags, ticks, type )
 {
 }
 
@@ -1144,18 +1142,21 @@ void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
 {
     int tx, ty;
 
-    m_offset    = -m_minV;
-    m_scale     = 1.0 / ( m_maxV - m_minV );
+    m_offset = -m_minV;
+    m_scale = 1.0 / ( m_maxV - m_minV );
 
+    // Ticks are measured against whatever font the DC currently has set, so set ours first;
+    // otherwise recalculateTicks() sizes m_maxLabelHeight from a leftover font, throwing off
+    // where the axis name is placed relative to the bottom margin.
+    dc.SetFont( GetPlotFont() );
     recalculateTicks( dc, w );
 
     if( m_visible )
     {
         dc.SetPen( m_pen );
-        dc.SetFont( GetPlotFont() );
         int orgy = 0;
 
-        const int extend = w.GetScrX();    ///2;
+        const int extend = w.GetScrX(); ///2;
 
         if( m_flags == mpALIGN_CENTER )
             orgy = w.y2p( 0 );
@@ -1173,9 +1174,9 @@ void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
             orgy = 1;
 
         wxCoord startPx = w.GetMarginLeft();
-        wxCoord endPx   = w.GetScrX() - w.GetMarginRight();
-        wxCoord minYpx  = w.GetMarginTop();
-        wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+        wxCoord endPx = w.GetScrX() - w.GetMarginRight();
+        wxCoord minYpx = w.GetMarginTop();
+        wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
         // int tmp=-65535;
 
@@ -1190,14 +1191,14 @@ void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
 
             if( p >= startPx && p <= endPx )
             {
-                if( m_ticks )    // draw axis ticks
+                if( m_ticks ) // draw axis ticks
                 {
                     if( m_flags == mpALIGN_BORDER_BOTTOM )
                         dc.DrawLine( p, orgy, p, orgy - 4 );
                     else
                         dc.DrawLine( p, orgy, p, orgy + 4 );
                 }
-                else     // draw grid dotted lines
+                else // draw grid dotted lines
                 {
                     m_pen.SetStyle( wxPENSTYLE_DOT );
                     dc.SetPen( m_pen );
@@ -1259,32 +1260,23 @@ void mpScaleXBase::Plot( wxDC& dc, mpWindow& w )
 
         switch( m_nameFlags )
         {
-        case mpALIGN_BORDER_BOTTOM:
-            dc.DrawText( m_name, extend - tx - 4, orgy - 8 - ty - labelH );
-            break;
+        case mpALIGN_BORDER_BOTTOM: dc.DrawText( m_name, extend - tx - 4, orgy - 8 - ty - labelH ); break;
 
-        case mpALIGN_BOTTOM:
-            dc.DrawText( m_name, ( endPx + startPx ) / 2 - tx / 2, orgy + 6 + labelH );
-            break;
+        case mpALIGN_BOTTOM: dc.DrawText( m_name, ( endPx + startPx ) / 2 - tx / 2, orgy + 6 + labelH ); break;
 
-        case mpALIGN_CENTER:
-            dc.DrawText( m_name, extend - tx - 4, orgy - 4 - ty );
-            break;
+        case mpALIGN_CENTER: dc.DrawText( m_name, extend - tx - 4, orgy - 4 - ty ); break;
 
         case mpALIGN_TOP:
-            if( w.GetMarginTop() > (ty + labelH + 8) )
+            if( w.GetMarginTop() > ( ty + labelH + 8 ) )
                 dc.DrawText( m_name, ( endPx - startPx - tx ) >> 1, orgy - 6 - ty - labelH );
             else
                 dc.DrawText( m_name, extend - tx - 4, orgy + 4 );
 
             break;
 
-        case mpALIGN_BORDER_TOP:
-            dc.DrawText( m_name, extend - tx - 4, orgy + 6 + labelH );
-            break;
+        case mpALIGN_BORDER_TOP: dc.DrawText( m_name, extend - tx - 4, orgy + 6 + labelH ); break;
 
-        default:
-            break;
+        default: break;
         }
     }
 }
@@ -1299,7 +1291,7 @@ mpScaleY::mpScaleY( const wxString& name, int flags, bool ticks )
     SetPen( (wxPen&) *wxGREY_PEN );
     m_flags = flags;
     m_ticks = ticks;
-    m_type  = mpLAYER_AXIS;
+    m_type = mpLAYER_AXIS;
     m_masterScale = nullptr;
     m_nameFlags = mpALIGN_BORDER_LEFT;
 }
@@ -1307,15 +1299,17 @@ mpScaleY::mpScaleY( const wxString& name, int flags, bool ticks )
 
 void mpScaleY::Plot( wxDC& dc, mpWindow& w )
 {
-    m_offset    = -m_minV;
-    m_scale     = 1.0 / ( m_maxV - m_minV );
+    m_offset = -m_minV;
+    m_scale = 1.0 / ( m_maxV - m_minV );
 
+    // See mpScaleXBase::Plot(): set the font before measuring so label extents match what is
+    // actually drawn.
+    dc.SetFont( GetPlotFont() );
     recalculateTicks( dc, w );
 
     if( m_visible )
     {
         dc.SetPen( m_pen );
-        dc.SetFont( GetPlotFont() );
 
         int orgx = 0;
 
@@ -1337,9 +1331,9 @@ void mpScaleY::Plot( wxDC& dc, mpWindow& w )
         if( m_flags == mpALIGN_BORDER_LEFT )
             orgx = 1;
 
-        wxCoord endPx   = w.GetScrX() - w.GetMarginRight();
-        wxCoord minYpx  = w.GetMarginTop();
-        wxCoord maxYpx  = w.GetScrY() - w.GetMarginBottom();
+        wxCoord endPx = w.GetScrX() - w.GetMarginRight();
+        wxCoord minYpx = w.GetMarginTop();
+        wxCoord maxYpx = w.GetScrY() - w.GetMarginBottom();
 
         // Draw line
         dc.DrawLine( orgx, minYpx, orgx, maxYpx );
@@ -1362,7 +1356,7 @@ void mpScaleY::Plot( wxDC& dc, mpWindow& w )
 
             if( p >= minYpx && p <= maxYpx )
             {
-                if( m_ticks )    // Draw axis ticks
+                if( m_ticks ) // Draw axis ticks
                 {
                     if( m_flags == mpALIGN_BORDER_LEFT )
                         dc.DrawLine( orgx, p, orgx + 4, p );
@@ -1399,11 +1393,10 @@ void mpScaleY::Plot( wxDC& dc, mpWindow& w )
                 s = tickLabel.label;
                 dc.GetTextExtent( s, &tx, &ty );
 
-                if( m_flags == mpALIGN_BORDER_LEFT || m_flags == mpALIGN_RIGHT
-                  || m_flags == mpALIGN_FAR_RIGHT )
+                if( m_flags == mpALIGN_BORDER_LEFT || m_flags == mpALIGN_RIGHT || m_flags == mpALIGN_FAR_RIGHT )
                     dc.DrawText( s, orgx + 4, p - ty / 2 );
                 else
-                    dc.DrawText( s, orgx - 4 - tx, p - ty / 2 );    // ( s, orgx+4, p-ty/2);
+                    dc.DrawText( s, orgx - 4 - tx, p - ty / 2 ); // ( s, orgx+4, p-ty/2);
             }
         }
 
@@ -1412,29 +1405,18 @@ void mpScaleY::Plot( wxDC& dc, mpWindow& w )
 
         switch( m_nameFlags )
         {
-        case mpALIGN_BORDER_LEFT:
-            dc.DrawText( m_name, labelW + 8, 4 );
-            break;
+        case mpALIGN_BORDER_LEFT: dc.DrawText( m_name, labelW + 8, 4 ); break;
 
-        case mpALIGN_LEFT:
-            dc.DrawText( m_name, orgx - ( tx / 2 ), minYpx - ty - 4 );
-            break;
+        case mpALIGN_LEFT: dc.DrawText( m_name, orgx - ( tx / 2 ), minYpx - ty - 4 ); break;
 
-        case mpALIGN_CENTER:
-            dc.DrawText( m_name, orgx + 4, 4 );
-            break;
+        case mpALIGN_CENTER: dc.DrawText( m_name, orgx + 4, 4 ); break;
 
         case mpALIGN_RIGHT:
-        case mpALIGN_FAR_RIGHT:
-            dc.DrawText( m_name, orgx - ( tx / 2 ), minYpx - ty - 4 );
-            break;
+        case mpALIGN_FAR_RIGHT: dc.DrawText( m_name, orgx - ( tx / 2 ), minYpx - ty - 4 ); break;
 
-        case mpALIGN_BORDER_RIGHT:
-            dc.DrawText( m_name, orgx - 6 - tx - labelW, 4 );
-            break;
+        case mpALIGN_BORDER_RIGHT: dc.DrawText( m_name, orgx - 6 - tx - labelW, 4 ); break;
 
-        default:
-            break;
+        default: break;
         }
     }
 }
@@ -1450,11 +1432,11 @@ BEGIN_EVENT_TABLE( mpWindow, wxWindow )
 EVT_PAINT( mpWindow::OnPaint )
 EVT_SIZE( mpWindow::OnSize )
 
-EVT_MIDDLE_DOWN( mpWindow::OnMouseMiddleDown )  // JLB
+EVT_MIDDLE_DOWN( mpWindow::OnMouseMiddleDown ) // JLB
 EVT_RIGHT_UP( mpWindow::OnShowPopupMenu )
-EVT_MOUSEWHEEL( mpWindow::onMouseWheel )        // JLB
+EVT_MOUSEWHEEL( mpWindow::onMouseWheel ) // JLB
 EVT_MAGNIFY( mpWindow::onMagnify )
-EVT_MOTION( mpWindow::onMouseMove )             // JLB
+EVT_MOTION( mpWindow::onMouseMove ) // JLB
 EVT_LEFT_DOWN( mpWindow::onMouseLeftDown )
 EVT_LEFT_DCLICK( mpWindow::onMouseLeftDClick )
 EVT_LEFT_UP( mpWindow::onMouseLeftRelease )
@@ -1468,31 +1450,28 @@ EVT_MENU( mpID_ZOOM_REDO, mpWindow::onZoomRedo )
 END_EVENT_TABLE()
 
 
-mpWindow::mpWindow() : mpWindow( DelegatingContructorTag() )
+mpWindow::mpWindow() :
+        mpWindow( DelegatingContructorTag() )
 {
     initializeGraphicsContext();
 }
 
 
 mpWindow::mpWindow( wxWindow* parent, wxWindowID id ) :
-        mpWindow( DelegatingContructorTag(), parent, id, wxDefaultPosition, wxDefaultSize, 0,
-                  wxT( "mathplot" ) )
+        mpWindow( DelegatingContructorTag(), parent, id, wxDefaultPosition, wxDefaultSize, 0, wxT( "mathplot" ) )
 {
-    m_popmenu.Append( mpID_ZOOM_UNDO, _( "Undo Last Zoom" ),
-                      _( "Return zoom to level prior to last zoom action" ) );
-    m_popmenu.Append( mpID_ZOOM_REDO, _( "Redo Last Zoom" ),
-                      _( "Return zoom to level prior to last zoom undo" ) );
+    m_popmenu.Append( mpID_ZOOM_UNDO, _( "Undo Last Zoom" ), _( "Return zoom to level prior to last zoom action" ) );
+    m_popmenu.Append( mpID_ZOOM_REDO, _( "Redo Last Zoom" ), _( "Return zoom to level prior to last zoom undo" ) );
     m_popmenu.AppendSeparator();
     m_popmenu.Append( mpID_ZOOM_IN, _( "Zoom In" ), _( "Zoom in plot view." ) );
     m_popmenu.Append( mpID_ZOOM_OUT, _( "Zoom Out" ), _( "Zoom out plot view." ) );
-    m_popmenu.Append( mpID_CENTER, _( "Center on Cursor" ),
-                      _( "Center plot view to this position" ) );
+    m_popmenu.Append( mpID_CENTER, _( "Center on Cursor" ), _( "Center plot view to this position" ) );
     m_popmenu.Append( mpID_FIT, _( "Fit on Screen" ), _( "Set plot view to show all items" ) );
 
     m_layers.clear();
     SetBackgroundColour( *wxWHITE );
-    m_bgColour  = *wxWHITE;
-    m_fgColour  = *wxBLACK;
+    m_bgColour = *wxWHITE;
+    m_fgColour = *wxBLACK;
 
     SetSizeHints( 128, 128 );
 
@@ -1603,8 +1582,8 @@ void mpWindow::onMouseMove( wxMouseEvent& event )
         cursor = wxCURSOR_ARROW;
 
         // The change:
-        int Ax  = m_mouseMClick.x - event.GetX();
-        int Ay  = m_mouseMClick.y - event.GetY();
+        int Ax = m_mouseMClick.x - event.GetX();
+        int Ay = m_mouseMClick.y - event.GetY();
 
         // For the next event, use relative to this coordinates.
         m_mouseMClick.x = event.GetX();
@@ -1612,18 +1591,18 @@ void mpWindow::onMouseMove( wxMouseEvent& event )
 
         if( Ax )
         {
-            double  Ax_units = Ax / m_scaleX;
+            double Ax_units = Ax / m_scaleX;
             SetXView( m_posX + Ax_units, m_desiredXmax + Ax_units, m_desiredXmin + Ax_units );
         }
 
         if( Ay )
         {
-            double  Ay_units = -Ay / m_scaleY;
+            double Ay_units = -Ay / m_scaleY;
             SetYView( m_posY + Ay_units, m_desiredYmax + Ay_units, m_desiredYmin + Ay_units );
         }
 
         if( Ax || Ay )
-             UpdateAll();
+            UpdateAll();
     }
     else if( event.m_leftDown )
     {
@@ -1643,15 +1622,15 @@ void mpWindow::onMouseMove( wxMouseEvent& event )
             cursor = wxCURSOR_MAGNIFIER;
 
             wxClientDC dc( this );
-            wxPen pen( m_fgColour, 1, wxPENSTYLE_DOT );
+            wxPen      pen( m_fgColour, 1, wxPENSTYLE_DOT );
             dc.SetPen( pen );
             dc.SetBrush( *wxTRANSPARENT_BRUSH );
-            dc.DrawRectangle( m_mouseLClick.x, m_mouseLClick.y,
-                              event.GetX() - m_mouseLClick.x, event.GetY() - m_mouseLClick.y );
+            dc.DrawRectangle( m_mouseLClick.x, m_mouseLClick.y, event.GetX() - m_mouseLClick.x,
+                              event.GetY() - m_mouseLClick.y );
             m_zooming = true;
-            m_zoomRect.x      = m_mouseLClick.x;
-            m_zoomRect.y      = m_mouseLClick.y;
-            m_zoomRect.width  = event.GetX() - m_mouseLClick.x;
+            m_zoomRect.x = m_mouseLClick.x;
+            m_zoomRect.y = m_mouseLClick.y;
+            m_zoomRect.width = event.GetX() - m_mouseLClick.x;
             m_zoomRect.height = event.GetY() - m_mouseLClick.y;
         }
 
@@ -1659,7 +1638,7 @@ void mpWindow::onMouseMove( wxMouseEvent& event )
     }
     else
     {
-        for( mpLayer* layer : m_layers)
+        for( mpLayer* layer : m_layers )
         {
             if( layer->IsInfo() && layer->IsVisible() )
             {
@@ -1785,19 +1764,19 @@ void mpWindow::Fit( double xMin, double xMax, double yMin, double yMax, const wx
     }
 
     // Compute the width/height in pixels for the plot area.
-    const int plotScreenWidth  = newScrX - m_marginLeft - m_marginRight;
-    const int plotScreenHeight = newScrY - m_marginTop  - m_marginBottom;
+    const int plotScreenWidth = newScrX - m_marginLeft - m_marginRight;
+    const int plotScreenHeight = newScrY - m_marginTop - m_marginBottom;
 
     // Adjust scale so that desired X/Y span plus extra gap fits in the plot area
     double desiredSpanX = xMax - xMin;
     double desiredSpanY = yMax - yMin;
-    double newScaleX = ( desiredSpanX != 0 ) ? double( plotScreenWidth )  / desiredSpanX : 1;
+    double newScaleX = ( desiredSpanX != 0 ) ? double( plotScreenWidth ) / desiredSpanX : 1;
     double newScaleY = ( desiredSpanY != 0 ) ? double( plotScreenHeight ) / desiredSpanY : 1;
 
     // Adjust corner coordinates:
     // Upstream's aspect lock code has been removed, so no need to account for centering.
     double newPosX = xMin - ( m_marginLeft / newScaleX );
-    double newPosY = yMax + ( m_marginTop  / newScaleY );
+    double newPosY = yMax + ( m_marginTop / newScaleY );
 
     // Commit above changes to member variables only if enabled for their respective dimension.
     if( ( ( directions & wxHORIZONTAL ) != 0 ) || isPrinting )
@@ -1896,8 +1875,8 @@ bool mpWindow::SetXView( double pos, double desiredMax, double desiredMin )
     // Possible cause: When AdjustLimitedView subtracts the out-of-bound delta, it does not
     // revert back to the exact same original coordinates due to floating point rounding errors.
     m_posX = pos;
-    m_desiredXmax   = desiredMax;
-    m_desiredXmin   = desiredMin;
+    m_desiredXmax = desiredMax;
+    m_desiredXmin = desiredMin;
     AdjustLimitedView( wxHORIZONTAL );
 
     OnXViewChanged();
@@ -1909,8 +1888,8 @@ bool mpWindow::SetXView( double pos, double desiredMax, double desiredMin )
 bool mpWindow::SetYView( double pos, double desiredMax, double desiredMin )
 {
     m_posY = pos;
-    m_desiredYmax   = desiredMax;
-    m_desiredYmin   = desiredMin;
+    m_desiredYmax = desiredMax;
+    m_desiredYmin = desiredMin;
     AdjustLimitedView( wxVERTICAL );
 
     return true;
@@ -1963,16 +1942,16 @@ void mpWindow::ZoomRect( wxPoint p0, wxPoint p1 )
     p1.y = std::min( p1.y, pMaxY );
 
     // Compute the 2 corners in graph coordinates:
-    double  p0x = p2x( p0.x );
-    double  p0y = p2y( p0.y );
-    double  p1x = p2x( p1.x );
-    double  p1y = p2y( p1.y );
+    double p0x = p2x( p0.x );
+    double p0y = p2y( p0.y );
+    double p1x = p2x( p1.x );
+    double p1y = p2y( p1.y );
 
     // Order them:
-    double  zoom_x_min = p0x<p1x ? p0x : p1x;
-    double  zoom_x_max = p0x>p1x ? p0x : p1x;
-    double  zoom_y_min = p0y<p1y ? p0y : p1y;
-    double  zoom_y_max = p0y>p1y ? p0y : p1y;
+    double zoom_x_min = p0x < p1x ? p0x : p1x;
+    double zoom_x_max = p0x > p1x ? p0x : p1x;
+    double zoom_y_min = p0y < p1y ? p0y : p1y;
+    double zoom_y_max = p0y > p1y ? p0y : p1y;
 
     if( m_yLocked )
     {
@@ -2036,8 +2015,8 @@ void mpWindow::ZoomRedo()
 
 void mpWindow::OnShowPopupMenu( wxMouseEvent& event )
 {
-    m_clickedX  = event.GetX();
-    m_clickedY  = event.GetY();
+    m_clickedX = event.GetX();
+    m_clickedY = event.GetY();
 
     m_popmenu.Enable( mpID_ZOOM_UNDO, !m_undoZoomStack.empty() );
     m_popmenu.Enable( mpID_ZOOM_REDO, !m_redoZoomStack.empty() );
@@ -2067,10 +2046,10 @@ mpWindow::MouseWheelActionSet mpWindow::defaultMouseWheelActions()
 {
     MouseWheelActionSet actions;
     actions.verticalUnmodified = MouseWheelAction::ZOOM;
-    actions.verticalWithCtrl   = MouseWheelAction::PAN_LEFT_RIGHT;
-    actions.verticalWithShift  = MouseWheelAction::PAN_UP_DOWN;
-    actions.verticalWithAlt    = MouseWheelAction::NONE;
-    actions.horizontal         = MouseWheelAction::NONE;
+    actions.verticalWithCtrl = MouseWheelAction::PAN_LEFT_RIGHT;
+    actions.verticalWithShift = MouseWheelAction::PAN_UP_DOWN;
+    actions.verticalWithAlt = MouseWheelAction::NONE;
+    actions.horizontal = MouseWheelAction::NONE;
     return actions;
 }
 
@@ -2134,7 +2113,7 @@ bool mpWindow::DelLayer( mpLayer* layer, bool alsoDeleteObject, bool refreshDisp
             if( alsoDeleteObject )
                 delete *layIt;
 
-            m_layers.erase( layIt );    // this deleted the reference only
+            m_layers.erase( layIt ); // this deleted the reference only
 
             if( refreshDisplay )
                 UpdateAll();
@@ -2149,13 +2128,13 @@ bool mpWindow::DelLayer( mpLayer* layer, bool alsoDeleteObject, bool refreshDisp
 
 void mpWindow::DelAllLayers( bool alsoDeleteObject, bool refreshDisplay )
 {
-    while( m_layers.size()>0 )
+    while( m_layers.size() > 0 )
     {
         // Also delete the object?
         if( alsoDeleteObject )
             delete m_layers[0];
 
-        m_layers.erase( m_layers.begin() );    // this deleted the reference only
+        m_layers.erase( m_layers.begin() ); // this deleted the reference only
     }
 
     if( refreshDisplay )
@@ -2167,7 +2146,7 @@ void mpWindow::OnPaint( wxPaintEvent& WXUNUSED( event ) )
 {
     wxPaintDC paintDC( this );
 
-    paintDC.GetSize( &m_scrX, &m_scrY );    // This is the size of the visible area only!
+    paintDC.GetSize( &m_scrX, &m_scrY ); // This is the size of the visible area only!
 
     // Selects direct or buffered draw:
     wxDC* targetDC = &paintDC;
@@ -2183,8 +2162,7 @@ void mpWindow::OnPaint( wxPaintEvent& WXUNUSED( event ) )
         const int    physX = static_cast<int>( std::round( m_scrX * scale ) );
         const int    physY = static_cast<int>( std::round( m_scrY * scale ) );
 
-        if( !m_buff_bmp || m_last_lx != physX || m_last_ly != physY
-                || m_buff_bmp->GetScaleFactor() != scale )
+        if( !m_buff_bmp || m_last_lx != physX || m_last_ly != physY || m_buff_bmp->GetScaleFactor() != scale )
         {
             m_buff_dc.SelectObject( wxNullBitmap );
             delete m_buff_bmp;
@@ -2243,7 +2221,7 @@ void mpWindow::DoZoom( const wxPoint& centerPoint, double zoomFactor, wxOrientat
     }
 
     const bool horizontally = ( directions & wxHORIZONTAL ) != 0;
-    const bool vertically   = ( directions & wxVERTICAL )   != 0;
+    const bool vertically = ( directions & wxVERTICAL ) != 0;
 
     pushZoomUndo( { { m_desiredXmin, m_desiredXmax, m_desiredYmin, m_desiredYmax } } );
 
@@ -2266,7 +2244,7 @@ void mpWindow::DoZoom( const wxPoint& centerPoint, double zoomFactor, wxOrientat
     // Zoom in/out:
     const double MAX_SCALE = 1e6;
     const double newScaleX = horizontally ? ( m_scaleX * zoomFactor ) : m_scaleX;
-    const double newScaleY = vertically   ? ( m_scaleY * zoomFactor ) : m_scaleY;
+    const double newScaleY = vertically ? ( m_scaleY * zoomFactor ) : m_scaleY;
 
     // Baaaaad things happen when you zoom in too much..
     if( newScaleX > MAX_SCALE || newScaleY > MAX_SCALE )
@@ -2381,22 +2359,19 @@ void mpWindow::PerformMouseWheelAction( wxMouseEvent& event, MouseWheelAction ac
     case MouseWheelAction::NONE: break;
 
     case MouseWheelAction::PAN_LEFT_RIGHT:
-        SetXView( m_posX + changeUnitsX, m_desiredXmax + changeUnitsX,
-                  m_desiredXmin + changeUnitsX );
+        SetXView( m_posX + changeUnitsX, m_desiredXmax + changeUnitsX, m_desiredXmin + changeUnitsX );
         UpdateAll();
         break;
 
     case MouseWheelAction::PAN_RIGHT_LEFT:
-        SetXView( m_posX - changeUnitsX, m_desiredXmax - changeUnitsX,
-                  m_desiredXmin - changeUnitsX );
+        SetXView( m_posX - changeUnitsX, m_desiredXmax - changeUnitsX, m_desiredXmin - changeUnitsX );
         UpdateAll();
         break;
 
     case MouseWheelAction::PAN_UP_DOWN:
         if( !m_yLocked )
         {
-            SetYView( m_posY + changeUnitsY, m_desiredYmax + changeUnitsY,
-                      m_desiredYmin + changeUnitsY );
+            SetYView( m_posY + changeUnitsY, m_desiredYmax + changeUnitsY, m_desiredYmin + changeUnitsY );
             UpdateAll();
         }
 
@@ -2426,18 +2401,17 @@ void mpWindow::PerformMouseWheelAction( wxMouseEvent& event, MouseWheelAction ac
 
         break;
 
-    default:
-        break;
+    default: break;
     }
 }
 
 
 bool mpWindow::UpdateBBox()
 {
-    m_minX  = 0.0;
-    m_maxX  = 1.0;
-    m_minY  = 0.0;
-    m_maxY  = 1.0;
+    m_minX = 0.0;
+    m_maxX = 1.0;
+    m_minY = 0.0;
+    m_maxY = 1.0;
 
     return true;
 }
@@ -2507,7 +2481,7 @@ bool mpWindow::SaveScreenshot( wxImage& aImage, wxSize aImageSize, bool aFit )
         SetScr( sizeX, sizeY );
     }
 
-    wxBitmap screenBuffer( sizeX, sizeY );
+    wxBitmap   screenBuffer( sizeX, sizeY );
     wxMemoryDC screenDC;
     screenDC.SelectObject( screenBuffer );
     screenDC.SetPen( *wxWHITE_PEN );
@@ -2544,10 +2518,10 @@ bool mpWindow::SaveScreenshot( wxImage& aImage, wxSize aImageSize, bool aFit )
 
 void mpWindow::SetMargins( int top, int right, int bottom, int left )
 {
-    m_marginTop    = top;
-    m_marginRight  = right;
+    m_marginTop = top;
+    m_marginRight = right;
     m_marginBottom = bottom;
-    m_marginLeft   = left;
+    m_marginLeft = left;
 }
 
 
@@ -2606,14 +2580,13 @@ bool mpWindow::IsLayerVisible( unsigned int position ) const
 }
 
 
-void mpWindow::SetColourTheme( const wxColour& bgColour, const wxColour& drawColour,
-                               const wxColour& axesColour )
+void mpWindow::SetColourTheme( const wxColour& bgColour, const wxColour& drawColour, const wxColour& axesColour )
 {
     SetBackgroundColour( bgColour );
     SetForegroundColour( drawColour );
-    m_bgColour  = bgColour;
-    m_fgColour  = drawColour;
-    m_axColour  = axesColour;
+    m_bgColour = bgColour;
+    m_fgColour = drawColour;
+    m_axColour = axesColour;
 
     // Cycle between layers to set colours and properties to them
     for( mpLayer* layer : m_layers )
@@ -2672,7 +2645,8 @@ mpWindow::mpWindow( DelegatingContructorTag, Ts&&... windowArgs ) :
         m_mouseWheelActions( defaultMouseWheelActions() ),
         m_movingInfoLayer( nullptr ),
         m_zooming( false )
-{}
+{
+}
 
 
 void mpWindow::initializeGraphicsContext()
@@ -2702,11 +2676,11 @@ mpFXYVector::mpFXYVector( const wxString& name, int flags ) :
 {
     m_index = 0;
     m_sweepWindow = 0;
-    m_minX  = -1;
-    m_maxX  = 1;
-    m_minY  = -1;
-    m_maxY  = 1;
-    m_type  = mpLAYER_PLOT;
+    m_minX = -1;
+    m_maxX = 1;
+    m_minY = -1;
+    m_maxY = 1;
+    m_type = mpLAYER_PLOT;
 }
 
 
@@ -2736,8 +2710,8 @@ double mpScaleY::TransformFromPlot( double xplot ) const
 
 double mpScaleXLog::TransformToPlot( double x ) const
 {
-    double  xlogmin = log10( m_minV );
-    double  xlogmax = log10( m_maxV );
+    double xlogmin = log10( m_minV );
+    double xlogmax = log10( m_maxV );
 
     return ( log10( x ) - xlogmin ) / ( xlogmax - xlogmin );
 }
@@ -2745,8 +2719,8 @@ double mpScaleXLog::TransformToPlot( double x ) const
 
 double mpScaleXLog::TransformFromPlot( double xplot ) const
 {
-    double  xlogmin = log10( m_minV );
-    double  xlogmax = log10( m_maxV );
+    double xlogmin = log10( m_minV );
+    double xlogmax = log10( m_maxV );
 
     return pow( 10.0, xplot * ( xlogmax - xlogmin ) + xlogmin );
 }
@@ -2795,8 +2769,8 @@ void mpFXYVector::SetData( const std::vector<double>& xs, const std::vector<doub
         return;
 
     // Copy the data:
-    m_xs    = xs;
-    m_ys    = ys;
+    m_xs = xs;
+    m_ys = ys;
 
     // An axis with nothing finite to show is left NaN so UpdateScales() knows this layer cannot
     // constrain it
@@ -2812,8 +2786,8 @@ void mpFXYVector::SetData( const std::vector<double>& xs, const std::vector<doub
 
 void mpFXY::SetScale( mpScaleBase* scaleX, mpScaleBase* scaleY )
 {
-    m_scaleX    = scaleX;
-    m_scaleY    = scaleY;
+    m_scaleX = scaleX;
+    m_scaleY = scaleY;
 
     UpdateScales();
 }

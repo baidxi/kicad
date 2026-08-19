@@ -26,6 +26,7 @@
 #include "sim_plot_colors.h"
 #include "sim_plot_tab.h"
 #include "simulator_frame.h"
+#include "spice_value.h"
 #include "core/kicad_algo.h"
 
 #include <algorithm>
@@ -1173,6 +1174,138 @@ wxString CURSOR::getID()
 }
 
 
+bool TRACE::GetStatistics( TRACE_STATS& aStats ) const
+{
+    size_t startIdx = 0;
+    size_t endIdx = std::min( m_ys.size(), m_xs.size() );
+
+    if( m_isMultiRun && GetSweepCount() > 1 && GetSweepSize() != std::numeric_limits<size_t>::max()
+        && GetSweepSize() > 0 )
+    {
+        // Runs are concatenated one after another; only consider the most recent one.
+        size_t available = std::min( endIdx, static_cast<size_t>( GetSweepCount() ) * GetSweepSize() );
+        endIdx = available;
+        startIdx = available - GetSweepSize();
+    }
+
+    if( startIdx >= endIdx )
+        return false;
+
+    bool   found = false;
+    size_t count = 0;
+    double sum = 0.0; // plain sample sums, the fallback when X carries no span
+    double sumSq = 0.0;
+    double span = 0.0; // integrated over X
+    double integral = 0.0;
+    double integralSq = 0.0;
+    bool   havePrev = false;
+    double prevX = 0.0;
+    double prevY = 0.0;
+
+    for( size_t ii = startIdx; ii < endIdx; ++ii )
+    {
+        const double x = m_xs[ii];
+        const double y = m_ys[ii];
+
+        // a magnitude of zero plots as NaN, it is not a data point
+        if( !std::isfinite( y ) )
+            continue;
+
+        if( found )
+        {
+            aStats.min = std::min( aStats.min, y );
+            aStats.max = std::max( aStats.max, y );
+        }
+        else
+        {
+            aStats.min = y;
+            aStats.max = y;
+            found = true;
+        }
+
+        sum += y;
+        sumSq += y * y;
+        count++;
+
+        if( std::isfinite( x ) )
+        {
+            if( havePrev && x > prevX )
+            {
+                // trapezoid over the interval, so unevenly spaced samples weigh correctly
+                const double dx = x - prevX;
+
+                integral += ( prevY + y ) * 0.5 * dx;
+                integralSq += ( prevY * prevY + y * y ) * 0.5 * dx;
+                span += dx;
+            }
+
+            havePrev = true;
+            prevX = x;
+            prevY = y;
+        }
+    }
+
+    if( !found )
+        return false;
+
+    if( span > 0.0 )
+    {
+        aStats.average = integral / span;
+        aStats.rms = std::sqrt( std::max( 0.0, integralSq / span ) );
+    }
+    else
+    {
+        aStats.average = sum / count;
+        aStats.rms = std::sqrt( std::max( 0.0, sumSq / count ) );
+    }
+
+    return true;
+}
+
+
+bool TRACE::GetValueAtX( double aX, double* aY ) const
+{
+    if( m_xs.size() <= 1 )
+        return false;
+
+    size_t startIdx = 0;
+    size_t endIdx = m_xs.size();
+
+    if( m_isMultiRun && GetSweepCount() > 1 && GetSweepSize() != std::numeric_limits<size_t>::max()
+        && GetSweepSize() > 0 )
+    {
+        // Runs are concatenated one after another; only show the most recent one.
+        size_t available = std::min( m_xs.size(), static_cast<size_t>( GetSweepCount() ) * GetSweepSize() );
+        endIdx = available;
+        startIdx = available - GetSweepSize();
+    }
+
+    if( startIdx >= endIdx )
+        return false;
+
+    auto beginIt = m_xs.begin() + startIdx;
+    auto endIt = m_xs.begin() + endIdx;
+
+    auto   maxXIt = std::upper_bound( beginIt, endIt, aX );
+    size_t maxIdx = maxXIt - m_xs.begin();
+    size_t minIdx = maxIdx - 1;
+
+    if( maxXIt == beginIt || maxXIt == endIt )
+        return false;
+
+    const double leftX = m_xs[minIdx];
+    const double rightX = m_xs[maxIdx];
+    const double leftY = m_ys[minIdx];
+    const double rightY = m_ys[maxIdx];
+
+    if( leftX == rightX )
+        return false;
+
+    *aY = leftY + ( rightY - leftY ) / ( rightX - leftX ) * ( aX - leftX );
+    return true;
+}
+
+
 void CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
 {
     if( !m_window )
@@ -1325,6 +1458,299 @@ void CURSOR::UpdateReference()
 }
 
 
+bool STATS_PANEL::Inside( const wxPoint& aPoint ) const
+{
+    if( !m_visible || m_view->IsSmithChart() )
+        return false;
+
+    return mpInfoLayer::Inside( aPoint );
+}
+
+
+void STATS_PANEL::Plot( wxDC& aDC, mpWindow& aWindow )
+{
+    if( !m_visible )
+        return;
+
+    // a Smith chart plots through the chart geometry, its Y values are not a signal range
+    if( m_view->IsSmithChart() )
+        return;
+
+    struct ROW
+    {
+        wxString              label;
+        std::vector<wxString> values;
+        wxColour              colour;
+    };
+
+    wxColour fg = aWindow.GetForegroundColour();
+    wxColour bg = aWindow.GetBackgroundColour();
+
+    std::vector<ROW> rows;
+
+    rows.push_back( { wxEmptyString, { _( "Min" ), _( "Max" ), _( "P-P" ), _( "Avg" ), _( "RMS" ) }, fg } );
+
+    for( const auto& [name, trace] : m_plotTab->GetTraces() )
+    {
+        if( !trace || trace->GetView() != m_view || !trace->IsVisible() )
+            continue;
+
+        TRACE_STATS stats;
+
+        if( !trace->GetStatistics( stats ) )
+            continue;
+
+        SPICE_VALUE_FORMAT fmt{ 4, wxS( "~" ) + m_view->GetUnitsForTrace( trace ) };
+
+        auto format = [&fmt]( double aValue )
+        {
+            return SPICE_VALUE( aValue ).ToString( fmt );
+        };
+
+        rows.push_back( { trace->GetDisplayName(),
+                          { format( stats.min ), format( stats.max ), format( stats.max - stats.min ),
+                            format( stats.average ), format( stats.rms ) },
+                          trace->GetTraceColour() } );
+    }
+
+    if( rows.size() <= 1 ) // nothing but the header
+        return;
+
+    aDC.SetFont( m_font );
+
+    const size_t     columnCount = rows[0].values.size();
+    int              labelWidth = 0;
+    std::vector<int> columnWidths( columnCount, 0 );
+    int              rowHeight = 0;
+
+    auto measure = [&]( const wxString& aText, int& aWidth )
+    {
+        wxSize size = aDC.GetTextExtent( aText );
+
+        aWidth = std::max( aWidth, size.x );
+        rowHeight = std::max( rowHeight, size.y );
+    };
+
+    for( const ROW& row : rows )
+    {
+        measure( row.label, labelWidth );
+
+        for( size_t col = 0; col < columnCount; ++col )
+            measure( row.values[col], columnWidths[col] );
+    }
+
+    const int margin = 5;
+    const int columnGap = 14; // room for a rule with clear air either side
+
+    int lineHeight = rowHeight + 3;
+    int boxWidth = margin * 2 + labelWidth;
+    int boxHeight = margin * 2 + lineHeight * (int) rows.size();
+
+    for( int width : columnWidths )
+        boxWidth += columnGap + width;
+
+    m_dim.width = boxWidth;
+    m_dim.height = boxHeight;
+
+    // Default to the top-right corner, out of the legend's way.  Once dragged, the panel keeps
+    // wherever the user put it.
+    if( !m_placed )
+    {
+        m_dim.x = std::max( 0, aWindow.GetScrX() - aWindow.GetMarginRight() - boxWidth - 8 );
+        m_dim.y = aWindow.GetMarginTop() + 8;
+        UpdateReference();
+        m_placed = true;
+    }
+
+    aDC.SetPen( wxPen( fg ) );
+    aDC.SetBrush( wxBrush( bg ) );
+    aDC.DrawRectangle( m_dim.x, m_dim.y, boxWidth, boxHeight );
+
+    // Right edge of each column; the values are right-aligned against these.
+    std::vector<int> columnRights;
+    int              columnRight = m_dim.x + margin + labelWidth;
+
+    for( size_t col = 0; col < columnCount; ++col )
+    {
+        columnRight += columnGap + columnWidths[col];
+        columnRights.push_back( columnRight );
+    }
+
+    // Rules, in a colour that reads as structure rather than as data: the values carry unit
+    // suffixes of differing widths, so the eye needs a fixed edge to scan down.
+    wxColour ruleColour = COLOR4D( fg ).Mix( COLOR4D( bg ), 0.35 ).ToColour();
+
+    aDC.SetPen( wxPen( ruleColour, 1 ) );
+
+    for( size_t col = 0; col < columnCount; ++col )
+    {
+        // one rule before each value column, so the labels are fenced off from the data too
+        int ruleX = ( col == 0 ? m_dim.x + margin + labelWidth : columnRights[col - 1] ) + columnGap / 2;
+
+        aDC.DrawLine( ruleX, m_dim.y + 2, ruleX, m_dim.y + boxHeight - 2 );
+    }
+
+    int headerBottom = m_dim.y + margin + lineHeight - 1;
+
+    aDC.DrawLine( m_dim.x + 2, headerBottom, m_dim.x + boxWidth - 2, headerBottom );
+
+    int textY = m_dim.y + margin;
+
+    for( const ROW& row : rows )
+    {
+        // set explicitly: layers are plotted in list order and the plot cursors leave their own
+        // text colour on the DC
+        aDC.SetTextForeground( row.colour );
+        aDC.DrawText( row.label, m_dim.x + margin, textY );
+
+        for( size_t col = 0; col < columnCount; ++col )
+            aDC.DrawText( row.values[col], columnRights[col] - aDC.GetTextExtent( row.values[col] ).x, textY );
+
+        textY += lineHeight;
+    }
+}
+
+
+void TRACK_CURSOR::Plot( wxDC& aDC, mpWindow& aWindow )
+{
+    if( !m_visible )
+        return;
+
+    // a Smith chart is drawn from the chart geometry, its X axis carries no readable value
+    if( m_view->IsSmithChart() )
+        return;
+
+    wxCoord leftPx = aWindow.GetMarginLeft();
+    wxCoord rightPx = aWindow.GetScrX() - aWindow.GetMarginRight();
+    wxCoord topPx = aWindow.GetMarginTop();
+    wxCoord bottomPx = aWindow.GetScrY() - aWindow.GetMarginBottom();
+
+    // each view converts the shared plot-space X with its own margins and scale
+    wxCoord mouseX = aWindow.x2p( m_plotX );
+
+    if( mouseX < leftPx || mouseX > rightPx )
+        return;
+
+    wxColour fg = aWindow.GetForegroundColour();
+    wxPen    linePen( fg, 1, wxPENSTYLE_DOT );
+
+    aDC.SetPen( linePen );
+    aDC.DrawLine( mouseX, topPx, mouseX, bottomPx );
+
+    // only the traces plotted on this view are read out here; the sibling views draw their own
+    std::vector<TRACE*> traces;
+
+    for( const auto& [name, trace] : m_plotTab->GetTraces() )
+    {
+        if( trace && trace->GetView() == m_view )
+            traces.push_back( trace );
+    }
+
+    if( traces.empty() )
+        return;
+
+    // All traces on a tab share the same X axis, so any one of them can convert the window's
+    // plot-space X (which may be log-transformed) back into the real X data value.
+    double dataX = traces.front()->s2x( m_plotX );
+
+    wxColour bg = aWindow.GetBackgroundColour();
+
+    // Pick a box colour scheme that contrasts with the plot's own background, so the box reads
+    // the same regardless of whether "Dark Mode Plots" is on.
+    double   luminance = 0.299 * bg.Red() + 0.587 * bg.Green() + 0.114 * bg.Blue();
+    bool     plotIsDark = luminance < 128;
+    wxColour boxBg = plotIsDark ? wxColour( 0, 0, 0, 220 ) : wxColour( 255, 255, 255, 220 );
+    wxColour boxDefaultText = plotIsDark ? *wxWHITE : *wxBLACK;
+
+    struct ROW
+    {
+        wxString label;
+        wxString value;
+        wxColour colour;
+    };
+
+    std::vector<ROW> rows;
+
+    SPICE_VALUE_FORMAT xFmt{ 4, wxS( "~" ) + m_view->GetUnitsX() };
+    rows.push_back( { m_view->GetLabelX() + wxS( ":" ), SPICE_VALUE( dataX ).ToString( xFmt ), boxDefaultText } );
+
+    for( TRACE* trace : traces )
+    {
+        double traceX = trace->s2x( m_plotX );
+        double y;
+
+        if( !trace->GetValueAtX( traceX, &y ) )
+            continue;
+
+        wxColour traceColour = trace->GetTraceColour();
+
+        // Mark the intersection point of the crosshair with the trace itself.
+        int markerY = aWindow.y2p( trace->y2s( y ) );
+
+        if( markerY >= topPx && markerY <= bottomPx )
+        {
+            wxBrush markerBrush( traceColour );
+            wxPen   markerPen( bg, 1 );
+
+            aDC.SetBrush( markerBrush );
+            aDC.SetPen( markerPen );
+            aDC.DrawCircle( mouseX, markerY, 4 );
+        }
+
+        SPICE_VALUE_FORMAT fmt{ 4, wxS( "~" ) + m_view->GetUnitsForTrace( trace ) };
+
+        rows.push_back( { trace->GetName() + wxS( ":" ), SPICE_VALUE( y ).ToString( fmt ), traceColour } );
+    }
+
+    if( rows.size() <= 1 )
+        return;
+
+    int labelWidth = 0;
+    int valueWidth = 0;
+    int rowHeight = 0;
+
+    for( const ROW& row : rows )
+    {
+        wxSize labelSize = aDC.GetTextExtent( row.label );
+        wxSize valueSize = aDC.GetTextExtent( row.value );
+
+        labelWidth = std::max( labelWidth, labelSize.x );
+        valueWidth = std::max( valueWidth, valueSize.x );
+        rowHeight = std::max( { rowHeight, labelSize.y, valueSize.y } );
+    }
+
+    const int columnGap = 8;
+    int       lineHeight = rowHeight + 2;
+    int       boxWidth = labelWidth + columnGap + valueWidth + 10;
+    int       boxHeight = lineHeight * (int) rows.size() + 6;
+
+    int boxX = mouseX + 12;
+
+    if( boxX + boxWidth > rightPx )
+        boxX = mouseX - 12 - boxWidth;
+
+    int boxY = topPx + 4;
+
+    wxBrush brush( boxBg );
+    wxPen   boxPen( fg );
+
+    aDC.SetBrush( brush );
+    aDC.SetPen( boxPen );
+    aDC.DrawRectangle( boxX, boxY, boxWidth, boxHeight );
+
+    int textY = boxY + 3;
+    int valueRight = boxX + boxWidth - 5;
+
+    for( const ROW& row : rows )
+    {
+        aDC.SetTextForeground( row.colour );
+        aDC.DrawText( row.label, boxX + 5, textY );
+        aDC.DrawText( row.value, valueRight - aDC.GetTextExtent( row.value ).x, textY );
+        textY += lineHeight;
+    }
+}
+
+
 SIM_VIEW::SIM_VIEW( SIM_PLOT_TAB* aPlotTab, wxWindow* aParent ) :
         mpWindow( aParent, wxID_ANY ),
         m_axis_x( nullptr ),
@@ -1333,6 +1759,8 @@ SIM_VIEW::SIM_VIEW( SIM_PLOT_TAB* aPlotTab, wxWindow* aParent ) :
         m_axis_y3( nullptr ),
         m_legend( nullptr ),
         m_plotTab( aPlotTab ),
+        m_trackCursor( nullptr ),
+        m_statsPanel( nullptr ),
         m_smithGrid( nullptr ),
         m_smithChart( false ),
         m_smithZoom( 1.0 ),
@@ -1353,6 +1781,64 @@ SIM_VIEW::SIM_VIEW( SIM_PLOT_TAB* aPlotTab, wxWindow* aParent ) :
     // route the context-menu zoom commands to the Smith view
     for( int id : { mpID_ZOOM_IN, mpID_ZOOM_OUT, mpID_FIT, mpID_CENTER } )
         Bind( wxEVT_MENU, &SIM_VIEW::onSmithMenuCommand, this, id );
+
+    m_statsPanel = new STATS_PANEL( aPlotTab, this );
+    AddLayer( m_statsPanel );
+
+    m_trackCursor = new TRACK_CURSOR( aPlotTab, this );
+    AddLayer( m_trackCursor );
+
+    Bind( wxEVT_MOTION, &SIM_VIEW::onPlotMouseMove, this );
+    Bind( wxEVT_LEAVE_WINDOW, &SIM_VIEW::onPlotMouseLeave, this );
+}
+
+
+void SIM_VIEW::SetTrackCursorPlotX( double aPlotX )
+{
+    if( m_trackCursor )
+        m_trackCursor->SetPlotX( aPlotX );
+}
+
+
+void SIM_VIEW::HideTrackCursor()
+{
+    if( m_trackCursor )
+        m_trackCursor->SetHidden();
+}
+
+
+void SIM_VIEW::RaiseOverlays()
+{
+    // Layers are drawn in the order they were added, so re-adding the overlays last ensures
+    // they stay on top of (newly added) trace and cursor layers.  Their order here is their
+    // stacking order, with the track cursor -- the transient one -- on top.
+    for( mpLayer* overlay : { (mpLayer*) m_legend, (mpLayer*) m_statsPanel, (mpLayer*) m_trackCursor } )
+    {
+        if( overlay )
+        {
+            DelLayer( overlay, false, false );
+            AddLayer( overlay, false );
+        }
+    }
+}
+
+
+void SIM_VIEW::onPlotMouseMove( wxMouseEvent& aEvent )
+{
+    // the pointer is over one chart, but the crosshair is drawn on all of them
+    if( m_plotTab && m_plotTab->IsTrackCursorEnabled() )
+        m_plotTab->SetTrackCursorX( p2x( aEvent.GetX() ) );
+
+    aEvent.Skip();
+}
+
+
+void SIM_VIEW::onPlotMouseLeave( wxMouseEvent& aEvent )
+{
+    if( m_plotTab )
+        m_plotTab->HideTrackCursor();
+
+    aEvent.Skip();
 }
 
 
@@ -1645,6 +2131,24 @@ void SIM_VIEW::updateAxes( int aNewTraceType )
     if( m_axis_y3 )
         m_axis_y3->SetFont( KIUI::GetStatusFont( this ) );
 
+    if( m_axis_x )
+    {
+        wxClientDC dc( this );
+        dc.SetFont( m_axis_x->GetFont() );
+
+        int tx, ty;
+        dc.GetTextExtent( wxT( "0" ), &tx, &ty );
+
+        // Enough room for a row of tick labels, a gap, and the axis name below them -- mirrors
+        // the layout mpScaleXBase::Plot() uses when it places the name relative to the bottom
+        // margin. A fixed margin can't keep up with the UI font, which varies by platform and
+        // DPI/scaling settings.
+        int marginBottom = 2 * ty + 10;
+
+        if( marginBottom > GetMarginBottom() )
+            SetMargins( GetMarginTop(), GetMarginRight(), marginBottom, GetMarginLeft() );
+    }
+
     UpdateAxisVisibility();
 }
 
@@ -1890,6 +2394,9 @@ void SIM_VIEW::SetSmithChart( bool aEnable )
         m_smithGrid->SetFont( KIUI::GetStatusFont( this ) );
         m_smithGrid->SetPen( wxPen( m_plotTab->GetPlotColor( SIM_PLOT_COLORS::COLOR_SET::AXIS ), 1 ) );
         AddLayer( m_smithGrid );
+
+        // the chart is a backdrop; keep the floating overlays above it
+        RaiseOverlays();
     }
 
     if( m_smithGrid )
@@ -2179,6 +2686,7 @@ SIM_PLOT_TAB::SIM_PLOT_TAB( const wxString& aSimCommand, wxWindow* parent ) :
         SIM_TAB( aSimCommand, parent ),
         m_dotted_cp( false ),
         m_syncingXView( false ),
+        m_trackCursorEnabled( false ),
         m_smithMode( false )
 {
     m_mouseWheelActions = convertMouseWheelActions( SIM_MOUSE_WHEEL_ACTION_SET::GetMouseDefaults() );
@@ -2257,7 +2765,15 @@ SIM_VIEW* SIM_PLOT_TAB::AddView()
     view->m_lastLegendPosition = legend->GetPosition();
 
     view->EnableDoubleBuffer( true );
+    view->RaiseOverlays();
     view->SetSmithChart( m_smithMode );
+
+    // a chart added later matches the overlays the tab is already showing
+    if( !m_views.empty() )
+    {
+        view->ShowLegend( m_views[0]->IsLegendShown() );
+        view->ShowStatistics( m_views[0]->IsStatisticsShown() );
+    }
 
     m_views.push_back( view );
     m_viewsSizer->Add( view, 1, wxALL | wxEXPAND, 1 );
@@ -2403,6 +2919,20 @@ void SIM_PLOT_TAB::ShowLegend( bool aEnable )
 }
 
 
+void SIM_PLOT_TAB::ShowStatistics( bool aEnable )
+{
+    for( SIM_VIEW* view : m_views )
+        view->ShowStatistics( aEnable );
+}
+
+
+bool SIM_PLOT_TAB::IsStatisticsShown() const
+{
+    SIM_VIEW* view = GetDefaultView();
+    return view && view->IsStatisticsShown();
+}
+
+
 bool SIM_PLOT_TAB::IsLegendShown() const
 {
     SIM_VIEW* view = GetDefaultView();
@@ -2526,6 +3056,35 @@ void SIM_PLOT_TAB::UpdatePlotColors()
                               m_colors.GetPlotColor( SIM_PLOT_COLORS::COLOR_SET::AXIS ) );
 
         view->UpdateSmithGridColor();
+        view->UpdateAll();
+    }
+}
+
+
+void SIM_PLOT_TAB::EnableTrackCursor( bool aEnable )
+{
+    m_trackCursorEnabled = aEnable;
+
+    if( !aEnable )
+        HideTrackCursor();
+}
+
+
+void SIM_PLOT_TAB::SetTrackCursorX( double aPlotX )
+{
+    for( SIM_VIEW* view : m_views )
+    {
+        view->SetTrackCursorPlotX( aPlotX );
+        view->UpdateAll();
+    }
+}
+
+
+void SIM_PLOT_TAB::HideTrackCursor()
+{
+    for( SIM_VIEW* view : m_views )
+    {
+        view->HideTrackCursor();
         view->UpdateAll();
     }
 }
@@ -2674,6 +3233,7 @@ TRACE* SIM_PLOT_TAB::GetOrAddTrace( const wxString& aVectorName, int aType, SIM_
 
         trace->SetView( aView );
         aView->AddLayer( (mpLayer*) trace );
+        aView->RaiseOverlays();
     }
 
     return trace;
@@ -2824,6 +3384,7 @@ void SIM_PLOT_TAB::EnableCursor( TRACE* aTrace, int aCursorId, const wxString& a
 
     aTrace->SetCursor( aCursorId, cursor );
     view->AddLayer( cursor );
+    view->RaiseOverlays();
 
     // Notify the parent window about the changes
     wxQueueEvent( this, new wxCommandEvent( EVT_SIM_CURSOR_UPDATE ) );

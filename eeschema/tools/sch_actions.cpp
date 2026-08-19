@@ -1881,6 +1881,19 @@ TOOL_ACTION SCH_ACTIONS::toggleDarkModePlots( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Dark Mode Plots" ) )
         .Tooltip( _( "Draw plots with a black background" ) ) );
 
+TOOL_ACTION SCH_ACTIONS::toggleTrackCursor( TOOL_ACTION_ARGS()
+        .Name( "eeschema.Simulator.toggleTrackCursor" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Track Cursor" ) )
+        .Tooltip( _( "Show a crosshair that follows the mouse and reads out every signal's "
+                      "value" ) ) );
+
+TOOL_ACTION SCH_ACTIONS::toggleStatistics( TOOL_ACTION_ARGS()
+        .Name( "eeschema.Simulator.toggleStatistics" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Show Statistics" ) )
+        .Tooltip( _( "Show a panel with each signal's min, max and peak-to-peak values" ) ) );
+
 TOOL_ACTION SCH_ACTIONS::simAnalysisProperties( TOOL_ACTION_ARGS()
         .Name( "eeschema.Simulation.simAnalysisProperties" )
         .Scope( AS_GLOBAL )
