@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a-dirty)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -43,7 +43,8 @@ class WX_HTML_REPORT_PANEL;
 ///////////////////////////////////////////////////////////////////////////
 
 #define ID_ALLOW_PRINT_PAD_ON_SILKSCREEN 6000
-#define ID_MIROR_OPT 6001
+#define ID_PRINT_REF 6001
+#define ID_MIROR_OPT 6002
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Class DIALOG_PLOT_BASE
@@ -67,15 +68,15 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		wxCheckListBox* m_layerCheckListBox;
 		wxBoxSizer* m_PlotOptionsSizer;
 		wxCheckBox* m_plotSheetRef;
-        wxCheckBox* m_plotFootprintValues;
-        wxCheckBox* m_plotFootprintRefs;
-        wxCheckBox* m_plotFootprintText;
 		wxCheckBox* m_subtractMaskFromSilk;
 		wxCheckBox* m_plotDNP;
 		wxRadioButton* m_hideDNP;
 		wxRadioButton* m_crossoutDNP;
 		wxCheckBox* m_sketchPadsOnFabLayers;
 		wxCheckBox* m_plotPadNumbers;
+		wxCheckBox* m_plotFootprintValues;
+		wxCheckBox* m_plotFootprintRefs;
+		wxCheckBox* m_plotFootprintText;
 		wxCheckBox* m_zoneFillCheck;
 		wxStaticText* drillMarksLabel;
 		wxChoice* m_drillShapeOpt;
@@ -146,10 +147,10 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		virtual void onOutputDirectoryBrowseClicked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onOpenOutputDirectory( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onDNPCheckbox( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onPlotFPValues( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onPlotFPRefs( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onPlotFPText( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onSketchPads( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onPlotFPValues( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onPlotFPRefs( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onPlotFPText( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onBoardSetup( wxHyperlinkEvent& event ) { event.Skip(); }
 		virtual void OnGerberX2Checked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnChangeDXFPlotMode( wxCommandEvent& event ) { event.Skip(); }
