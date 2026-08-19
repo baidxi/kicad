@@ -79,7 +79,7 @@ void DIALOG_BOARD_STACKUP_JOB::OnFormatChoice( wxCommandEvent& aEvent )
 
         switch( getSelectedFormat() )
         {
-        case JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV:  fn.SetExt( FILEEXT::CsvFileExtension );  break;
+        case JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV: fn.SetExt( FILEEXT::CsvFileExtension ); break;
         case JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::JSON: fn.SetExt( FILEEXT::JsonFileExtension ); break;
         }
 

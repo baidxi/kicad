@@ -60,14 +60,13 @@ static wxString layerDisplayName( const BOARD_STACKUP_ITEM* aItem )
 
 static void appendCsvProperties( wxString& aOut, BOARD_STACKUP& aStackup, const STACKUP_CSV_OPTIONS& aOptions )
 {
-    auto appendProperty =
-            [&]( const wxString& aName, const wxString& aValue )
-            {
-                wxString row;
-                appendCsvField( row, aName );
-                appendCsvField( row, aValue );
-                aOut << row << '\n';
-            };
+    auto appendProperty = [&]( const wxString& aName, const wxString& aValue )
+    {
+        wxString row;
+        appendCsvField( row, aName );
+        appendCsvField( row, aValue );
+        aOut << row << '\n';
+    };
 
     if( aOptions.includeFinish )
         appendProperty( wxT( "Finish" ), aStackup.m_FinishType );

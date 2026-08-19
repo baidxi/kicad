@@ -50,9 +50,7 @@ CLI::PCB_EXPORT_STACKUP_COMMAND::PCB_EXPORT_STACKUP_COMMAND() :
             .help( UTF8STDSTR( _( "CSV units; valid options: in, mm" ) ) )
             .metavar( "UNITS" );
 
-    m_argParser.add_argument( ARG_EXCLUDE_COLOR )
-            .help( UTF8STDSTR( _( "Omit color from the CSV export" ) ) )
-            .flag();
+    m_argParser.add_argument( ARG_EXCLUDE_COLOR ).help( UTF8STDSTR( _( "Omit color from the CSV export" ) ) ).flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_MATERIAL )
             .help( UTF8STDSTR( _( "Omit material from the CSV export" ) ) )

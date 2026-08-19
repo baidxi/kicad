@@ -2202,8 +2202,8 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
                 item->SetLayerName( brd->GetLayerName( item->GetBrdLayerId() ) );
         }
 
-        EDA_UNITS unitsForReport = stackupJob->m_units == JOB_EXPORT_PCB_STACKUP::UNITS::MM ? EDA_UNITS::MM
-                                                                                           : EDA_UNITS::INCH;
+        EDA_UNITS unitsForReport =
+                stackupJob->m_units == JOB_EXPORT_PCB_STACKUP::UNITS::MM ? EDA_UNITS::MM : EDA_UNITS::INCH;
 
         STACKUP_CSV_OPTIONS options;
         options.includeColor = stackupJob->m_includeColor;
@@ -2234,23 +2234,20 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
 
     if( !outFile )
     {
-        m_reporter->Report( wxString::Format( _( "Failed to create file '%s'.\n" ), outPath ),
-                            RPT_SEVERITY_ERROR );
+        m_reporter->Report( wxString::Format( _( "Failed to create file '%s'.\n" ), outPath ), RPT_SEVERITY_ERROR );
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
     if( fprintf( outFile, "%s", TO_UTF8( output ) ) < 0 )
     {
         fclose( outFile );
-        m_reporter->Report( wxString::Format( _( "Error writing file '%s'.\n" ), outPath ),
-                            RPT_SEVERITY_ERROR );
+        m_reporter->Report( wxString::Format( _( "Error writing file '%s'.\n" ), outPath ), RPT_SEVERITY_ERROR );
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
     fclose( outFile );
 
-    m_reporter->Report( wxString::Format( _( "Wrote board stackup to '%s'.\n" ), outPath ),
-                        RPT_SEVERITY_ACTION );
+    m_reporter->Report( wxString::Format( _( "Wrote board stackup to '%s'.\n" ), outPath ), RPT_SEVERITY_ACTION );
 
     stackupJob->AddOutput( outPath );
 
