@@ -26,8 +26,8 @@
 
 NLOHMANN_JSON_SERIALIZE_ENUM( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT,
                               {
-                                      { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::REPORT, "report" },
                                       { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV, "csv" },
+                                      { JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::JSON, "json" },
                               } )
 
 NLOHMANN_JSON_SERIALIZE_ENUM( JOB_EXPORT_PCB_STACKUP::UNITS, {
@@ -79,10 +79,10 @@ void JOB_EXPORT_PCB_STACKUP::SetDefaultOutputPath( const wxString& aReferenceNam
 
     fn.SetName( fn.GetName() + wxS( "_stackup" ) );
 
-    if( m_format == OUTPUT_FORMAT::CSV )
-        fn.SetExt( FILEEXT::CsvFileExtension );
+    if( m_format == OUTPUT_FORMAT::JSON )
+        fn.SetExt( FILEEXT::JsonFileExtension );
     else
-        fn.SetExt( FILEEXT::ReportFileExtension );
+        fn.SetExt( FILEEXT::CsvFileExtension );
 
     SetWorkingOutputPath( fn.GetFullName() );
 }

@@ -129,6 +129,9 @@
 #include <dialogs/dialog_board_stackup_job.h>
 #include <board_stackup_manager/board_stackup.h>
 #include <board_stackup_manager/board_stackup_reporter.h>
+#include <api/api_pcb_utils.h>
+#include <api/board/board.pb.h>
+#include <google/protobuf/util/json_util.h>
 #include <paths.h>
 #include <tools/zone_filler_tool.h>
 
@@ -297,12 +300,10 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
 
                   return dlg.ShowModal() == wxID_OK;
               } );
-    Register( "stackup",
-              std::bind( &PCBNEW_JOBS_HANDLER::JobExportStackup, this, std::placeholders::_1 ),
+    Register( "stackup", std::bind( &PCBNEW_JOBS_HANDLER::JobExportStackup, this, std::placeholders::_1 ),
               [aKiway]( JOB* job, wxWindow* aParent ) -> bool
               {
-                  JOB_EXPORT_PCB_STACKUP* stackupJob =
-                          dynamic_cast<JOB_EXPORT_PCB_STACKUP*>( job );
+                  JOB_EXPORT_PCB_STACKUP* stackupJob = dynamic_cast<JOB_EXPORT_PCB_STACKUP*>( job );
 
                   PCB_EDIT_FRAME* editFrame =
                           dynamic_cast<PCB_EDIT_FRAME*>( aKiway->Player( FRAME_PCB_EDITOR, false ) );
@@ -2160,42 +2161,63 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
     if( !brd )
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
-    BOARD_DESIGN_SETTINGS& bds = brd->GetDesignSettings();
-    BOARD_STACKUP&         stackup = bds.GetStackupDescriptor();
-    stackup.SynchronizeWithBoard( &bds );
-
-    // Layer display names for copper/mask/silk are filled from the board (same as the
-    // Board Setup UI), because they are not always persisted in the stackup itself.
-    for( BOARD_STACKUP_ITEM* item : stackup.GetList() )
-    {
-        if( item->GetBrdLayerId() != UNDEFINED_LAYER )
-            item->SetLayerName( brd->GetLayerName( item->GetBrdLayerId() ) );
-    }
-
     wxFileName boardFile = brd->GetFileName();
 
     if( boardFile.GetName().IsEmpty() )
         boardFile = wxFileName( stackupJob->m_filename );
 
-    EDA_UNITS unitsForReport =
-            stackupJob->m_units == JOB_EXPORT_PCB_STACKUP::UNITS::MM ? EDA_UNITS::MM
-                                                                    : EDA_UNITS::INCH;
+    wxString output;
 
-    STACKUP_REPORT_OPTIONS options;
-    options.includeColor = stackupJob->m_includeColor;
-    options.includeMaterial = stackupJob->m_includeMaterial;
-    options.includeThickness = stackupJob->m_includeThickness;
-    options.includeEpsilonR = stackupJob->m_includeEpsilonR;
-    options.includeLossTangent = stackupJob->m_includeLossTangent;
-    options.includeFinish = stackupJob->m_includeFinish;
-    options.includeBoardOptions = stackupJob->m_includeBoardOptions;
+    switch( stackupJob->m_format )
+    {
+    case JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::JSON:
+    {
+        kiapi::board::BoardStackup stackupMsg;
+        kiapi::board::PackBoardStackup( *brd, stackupMsg );
 
-    wxString report;
+        google::protobuf::util::JsonPrintOptions jsonOptions;
+        jsonOptions.add_whitespace = true;
 
-    if( stackupJob->m_format == JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV )
-        report = BuildStackupCsv( stackup, unitsForReport, options );
-    else
-        report = BuildStackupReport( stackup, unitsForReport, options );
+        std::string json;
+
+        if( !google::protobuf::util::MessageToJsonString( stackupMsg, &json, jsonOptions ).ok() )
+        {
+            m_reporter->Report( _( "Failed to serialize board stackup\n" ), RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        output = wxString::FromUTF8( json );
+        break;
+    }
+
+    case JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV:
+    {
+        BOARD_DESIGN_SETTINGS& bds = brd->GetDesignSettings();
+        BOARD_STACKUP          stackup = bds.GetStackupDescriptor();
+        stackup.SynchronizeWithBoard( &bds );
+
+        for( BOARD_STACKUP_ITEM* item : stackup.GetList() )
+        {
+            if( item->GetBrdLayerId() != UNDEFINED_LAYER )
+                item->SetLayerName( brd->GetLayerName( item->GetBrdLayerId() ) );
+        }
+
+        EDA_UNITS unitsForReport = stackupJob->m_units == JOB_EXPORT_PCB_STACKUP::UNITS::MM ? EDA_UNITS::MM
+                                                                                           : EDA_UNITS::INCH;
+
+        STACKUP_CSV_OPTIONS options;
+        options.includeColor = stackupJob->m_includeColor;
+        options.includeMaterial = stackupJob->m_includeMaterial;
+        options.includeThickness = stackupJob->m_includeThickness;
+        options.includeEpsilonR = stackupJob->m_includeEpsilonR;
+        options.includeLossTangent = stackupJob->m_includeLossTangent;
+        options.includeFinish = stackupJob->m_includeFinish;
+        options.includeBoardOptions = stackupJob->m_includeBoardOptions;
+
+        output = BuildStackupCsv( stackup, unitsForReport, options );
+        break;
+    }
+    }
 
     if( stackupJob->GetConfiguredOutputPath().IsEmpty() && stackupJob->GetWorkingOutputPath().IsEmpty() )
         stackupJob->SetDefaultOutputPath( boardFile.GetFullPath() );
@@ -2217,7 +2239,7 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
-    if( fprintf( outFile, "%s", TO_UTF8( report ) ) < 0 )
+    if( fprintf( outFile, "%s", TO_UTF8( output ) ) < 0 )
     {
         fclose( outFile );
         m_reporter->Report( wxString::Format( _( "Error writing file '%s'.\n" ), outPath ),

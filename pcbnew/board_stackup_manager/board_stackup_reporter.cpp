@@ -20,8 +20,8 @@
  */
 
 /**
-  * @file board_stackup_reporter.cpp
-  */
+ * @file board_stackup_reporter.cpp
+ */
 
 #include "wx/string.h"
 
@@ -29,8 +29,6 @@
 #include <locale_io.h>
 
 #include "board_stackup.h"
-#include "stackup_predefined_prms.h"
-
 #include "board_stackup_reporter.h"
 
 
@@ -60,29 +58,16 @@ static wxString layerDisplayName( const BOARD_STACKUP_ITEM* aItem )
 }
 
 
-static void appendFinishAndOptions( wxString& aOut, BOARD_STACKUP& aStackup, const STACKUP_REPORT_OPTIONS& aOptions,
-                                    bool aCsv )
+static void appendCsvProperties( wxString& aOut, BOARD_STACKUP& aStackup, const STACKUP_CSV_OPTIONS& aOptions )
 {
-    auto appendProperty = [&]( const wxString& aName, const wxString& aValue )
-    {
-        if( aCsv )
-        {
-            wxString row;
-            appendCsvField( row, aName );
-            appendCsvField( row, aValue );
-            aOut << row << '\n';
-        }
-        else
-        {
-            // Report format mirrors the historical clipboard text.
-            if( aName == wxT( "Finish" ) )
-                aOut << wxString::Format( wxT( "Finish \"%s\"" ), aValue );
-            else if( aName == wxT( "EdgeConnector" ) )
-                aOut << wxString::Format( wxT( " EdgeConnector \"%s\"" ), aValue );
-            else
-                aOut << wxString::Format( wxT( " Option \"%s\"" ), aName );
-        }
-    };
+    auto appendProperty =
+            [&]( const wxString& aName, const wxString& aValue )
+            {
+                wxString row;
+                appendCsvField( row, aName );
+                appendCsvField( row, aValue );
+                aOut << row << '\n';
+            };
 
     if( aOptions.includeFinish )
         appendProperty( wxT( "Finish" ), aStackup.m_FinishType );
@@ -110,18 +95,15 @@ static void appendFinishAndOptions( wxString& aOut, BOARD_STACKUP& aStackup, con
 
 wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits )
 {
-    return BuildStackupReport( aStackup, aUnits, STACKUP_REPORT_OPTIONS() );
-}
+    // Build a ascii representation of stackup and copy it in the clipboard
+    wxString report;
 
-
-wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACKUP_REPORT_OPTIONS& aOptions )
-{
-    wxString  report;
-    wxString  txt;
-    LOCALE_IO toggle;
+    wxString txt;
+    LOCALE_IO toggle;   // toggles on the C locale to write floating values, then off.
 
     for( const BOARD_STACKUP_ITEM* item : aStackup.GetList() )
     {
+        // Skip stackup items useless for the current board
         if( !item->IsEnabled() )
             continue;
 
@@ -131,64 +113,104 @@ wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const ST
 
             if( item->GetSublayersCount() )
             {
-                sublayer_text.Printf( wxT( "\n  sublayer \"1/%d\"" ), item->GetSublayersCount() );
+                sublayer_text.Printf( wxT( "\n  sublayer \"1/%d\"" ),
+                                      item->GetSublayersCount() );
             }
 
-            txt.Printf( wxT( "layer \"%s\" type \"%s\"%s" ), item->FormatDielectricLayerName(), item->GetTypeName(),
-                        sublayer_text );
+            txt.Printf( wxT( "layer \"%s\" type \"%s\"%s" ),
+                        item->FormatDielectricLayerName(),
+                        item->GetTypeName(), sublayer_text );
         }
         else
         {
-            txt.Printf( wxT( "layer \"%s\" type \"%s\"" ), item->GetLayerName(), item->GetTypeName() );
+            txt.Printf( wxT( "layer \"%s\" type \"%s\"" ),
+                        item->GetLayerName(),
+                        item->GetTypeName() );
         }
 
         report << txt;
 
-        if( aOptions.includeColor && item->IsColorEditable() )
-            report << wxString::Format( wxT( " Color \"%s\"" ), item->GetColor() );
+        if( item->IsColorEditable() )
+        {
+            txt.Printf( wxT( " Color \"%s\"" ), item->GetColor() );
+            report << txt;
+        }
 
         for( int idx = 0; idx < item->GetSublayersCount(); idx++ )
         {
-            if( idx )
+            if( idx )    // not printed for the main (first) layer.
             {
-                report << wxString::Format( wxT( "\n  sublayer \"%d/%d\"" ), idx + 1, item->GetSublayersCount() );
+                txt.Printf( wxT( "\n  sublayer \"%d/%d\"" ), idx+1, item->GetSublayersCount() );
+                report << txt;
             }
 
-            if( aOptions.includeThickness && item->IsThicknessEditable() )
+            if( item->IsThicknessEditable() )
             {
-                report << wxString::Format(
-                        wxT( " Thickness %s" ),
-                        EDA_UNIT_UTILS::UI::StringFromValue( pcbIUScale, aUnits, item->GetThickness( idx ), true ) );
+                txt.Printf( wxT( " Thickness %s" ),
+                            EDA_UNIT_UTILS::UI::StringFromValue( pcbIUScale, aUnits, item->GetThickness( idx ), true ) );
+                report << txt;
 
                 if( item->GetType() == BS_ITEM_TYPE_DIELECTRIC && item->IsThicknessLocked( idx ) )
-                    report << wxT( " Locked" );
+                {
+                    txt.Printf( wxT( " Locked" ) );
+                    report << txt;
+                }
             }
 
-            if( aOptions.includeMaterial && item->IsMaterialEditable() )
-                report << wxString::Format( wxT( " Material \"%s\"" ), item->GetMaterial( idx ) );
+            if( item->IsMaterialEditable() )
+            {
+                txt.Printf( wxT( " Material \"%s\"" ), item->GetMaterial( idx ) );
+                report << txt;
+            }
 
-            if( aOptions.includeEpsilonR && item->HasEpsilonRValue() )
-                report << wxString::Format( wxT( " EpsilonR %s" ), item->FormatEpsilonR( idx ) );
+            if( item->HasEpsilonRValue() )
+            {
+                txt.Printf( wxT( " EpsilonR %s" ), item->FormatEpsilonR( idx ) );
+                report << txt;
+            }
 
-            if( aOptions.includeLossTangent && item->HasLossTangentValue() )
-                report << wxString::Format( wxT( " LossTg %s" ), item->FormatLossTangent( idx ) );
+            if( item->HasLossTangentValue() )
+            {
+                txt.Printf( wxT( " LossTg %s" ), item->FormatLossTangent( idx ) );
+                report << txt;
+            }
         }
 
         report << '\n';
     }
 
-    appendFinishAndOptions( report, aStackup, aOptions, false );
+    // Finish and other options:
+    txt.Printf( wxT( "Finish \"%s\"" ), aStackup.m_FinishType );
+    report << txt;
+
+    if( aStackup.m_HasDielectricConstrains )
+        report << wxT( " Option \"Impedance Controlled\"" );
+
+    if( aStackup.m_EdgePlating )
+        report << wxT( " Option \"Plated edges\"" );
+
+    if( aStackup.m_EdgeConnectorConstraints != BS_EDGE_CONNECTOR_NONE )
+    {
+        wxString conn_txt = wxT( "yes" );
+
+        if( aStackup.m_EdgeConnectorConstraints == BS_EDGE_CONNECTOR_BEVELLED )
+            conn_txt << wxT( ",bevelled" );
+
+        txt.Printf( wxT( " EdgeConnector \"%s\"" ), conn_txt );
+        report << txt;
+    }
+
     report << '\n';
+
     return report;
 }
 
 
-wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACKUP_REPORT_OPTIONS& aOptions )
+wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACKUP_CSV_OPTIONS& aOptions )
 {
     wxString  csv;
     LOCALE_IO toggle;
 
-    // Fixed columns, then optional ones in a stable order.
     wxString header;
     appendCsvField( header, wxT( "Layer" ) );
     appendCsvField( header, wxT( "Type" ) );
@@ -265,9 +287,7 @@ wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACK
             }
 
             if( aOptions.includeColor )
-            {
                 appendCsvField( row, item->IsColorEditable() ? item->GetColor() : wxString() );
-            }
 
             if( aOptions.includeEpsilonR )
             {
@@ -294,7 +314,7 @@ wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACK
         appendCsvField( propHeader, wxT( "Value" ) );
         csv << propHeader << '\n';
 
-        appendFinishAndOptions( csv, aStackup, aOptions, true );
+        appendCsvProperties( csv, aStackup, aOptions );
     }
 
     return csv;

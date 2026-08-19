@@ -42,36 +42,40 @@ CLI::PCB_EXPORT_STACKUP_COMMAND::PCB_EXPORT_STACKUP_COMMAND() :
 
     m_argParser.add_argument( ARG_FORMAT )
             .default_value( std::string( "csv" ) )
-            .help( UTF8STDSTR( _( "Output file format, options: csv, report" ) ) )
+            .help( UTF8STDSTR( _( "Output file format, options: csv, json" ) ) )
             .metavar( "FORMAT" );
 
     m_argParser.add_argument( ARG_UNITS )
             .default_value( std::string( "mm" ) )
-            .help( UTF8STDSTR( _( "Report units; valid options: in, mm" ) ) )
+            .help( UTF8STDSTR( _( "CSV units; valid options: in, mm" ) ) )
             .metavar( "UNITS" );
 
-    m_argParser.add_argument( ARG_EXCLUDE_COLOR ).help( UTF8STDSTR( _( "Omit color from the export" ) ) ).flag();
+    m_argParser.add_argument( ARG_EXCLUDE_COLOR )
+            .help( UTF8STDSTR( _( "Omit color from the CSV export" ) ) )
+            .flag();
 
-    m_argParser.add_argument( ARG_EXCLUDE_MATERIAL ).help( UTF8STDSTR( _( "Omit material from the export" ) ) ).flag();
+    m_argParser.add_argument( ARG_EXCLUDE_MATERIAL )
+            .help( UTF8STDSTR( _( "Omit material from the CSV export" ) ) )
+            .flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_THICKNESS )
-            .help( UTF8STDSTR( _( "Omit thickness from the export" ) ) )
+            .help( UTF8STDSTR( _( "Omit thickness from the CSV export" ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_EPSILON_R )
-            .help( UTF8STDSTR( _( "Omit Epsilon R from the export" ) ) )
+            .help( UTF8STDSTR( _( "Omit Epsilon R from the CSV export" ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_LOSS_TANGENT )
-            .help( UTF8STDSTR( _( "Omit loss tangent from the export" ) ) )
+            .help( UTF8STDSTR( _( "Omit loss tangent from the CSV export" ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_FINISH )
-            .help( UTF8STDSTR( _( "Omit board finish from the export" ) ) )
+            .help( UTF8STDSTR( _( "Omit board finish from the CSV export" ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_EXCLUDE_BOARD_OPTIONS )
-            .help( UTF8STDSTR( _( "Omit board options from the export" ) ) )
+            .help( UTF8STDSTR( _( "Omit board options from the CSV export" ) ) )
             .flag();
 }
 
@@ -90,13 +94,13 @@ int CLI::PCB_EXPORT_STACKUP_COMMAND::doPerform( KIWAY& aKiway )
 
     wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
 
-    if( format == "report" )
-        stackupJob->m_format = JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::REPORT;
+    if( format == "json" )
+        stackupJob->m_format = JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::JSON;
     else if( format == "csv" )
         stackupJob->m_format = JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV;
     else
     {
-        wxFprintf( stderr, _( "Invalid report format\n" ) );
+        wxFprintf( stderr, _( "Invalid format\n" ) );
         return EXIT_CODES::ERR_ARGS;
     }
 

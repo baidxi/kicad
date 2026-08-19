@@ -28,8 +28,8 @@ class KICOMMON_API JOB_EXPORT_PCB_STACKUP : public JOB
 public:
     enum class OUTPUT_FORMAT
     {
-        REPORT,
-        CSV
+        CSV,
+        JSON
     };
 
     enum class UNITS

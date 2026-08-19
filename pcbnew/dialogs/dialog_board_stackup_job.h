@@ -20,16 +20,11 @@
 
 #pragma once
 
-#include <dialog_shim.h>
 #include <jobs/job_export_pcb_stackup.h>
+#include <dialogs/dialog_board_stackup_job_base.h>
 
-#include <vector>
 
-class wxCheckBox;
-class wxChoice;
-class wxTextCtrl;
-
-class DIALOG_BOARD_STACKUP_JOB : public DIALOG_SHIM
+class DIALOG_BOARD_STACKUP_JOB : public DIALOG_BOARD_STACKUP_JOB_BASE
 {
 public:
     DIALOG_BOARD_STACKUP_JOB( wxWindow* aParent, JOB_EXPORT_PCB_STACKUP* aJob );
@@ -37,22 +32,13 @@ public:
     bool TransferDataToWindow() override;
     bool TransferDataFromWindow() override;
 
+    void OnFormatChoice( wxCommandEvent& aEvent ) override;
+
 protected:
-    void OnFormatChoice( wxCommandEvent& aEvent );
+    void updateCsvOnlyControls();
 
     JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT getSelectedFormat();
     void                                  setSelectedFormat( JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT aFormat );
 
-    struct FIELD_TOGGLE
-    {
-        wxString    label;
-        bool*       jobFlag;
-        wxCheckBox* checkbox = nullptr;
-    };
-
-    JOB_EXPORT_PCB_STACKUP*   m_job;
-    wxTextCtrl*               m_textCtrlOutputPath;
-    wxChoice*                 m_choiceFormat;
-    wxChoice*                 m_choiceUnits;
-    std::vector<FIELD_TOGGLE> m_fieldToggles;
+    JOB_EXPORT_PCB_STACKUP* m_job;
 };
