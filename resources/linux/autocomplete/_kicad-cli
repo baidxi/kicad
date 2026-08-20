@@ -373,7 +373,7 @@ _kicad_cli_pcb_export_commands() {
         'ply:Export PLY'
         'pos:Generate Position File'
         'ps:Generate Postscript from a list of layers'
-        'stackup:Generate a board stackup table export'
+        'stackup:Export a board stackup report'
         'stats:Generate a board statistics report'
         'step:Export STEP'
         'stl:Export STL'
@@ -867,7 +867,7 @@ _kicad_cli_pcb_export_stackup() {
         '--exclude-loss-tangent[Omit loss tangent from the CSV export]' \
         '--exclude-material[Omit material from the CSV export]' \
         '--exclude-thickness[Omit thickness from the CSV export]' \
-        '--format[Output file format, options: csv, json \[nargs=0..1\] \[default: "csv"\]]' \
+        '--format[Output file format; valid options: csv, json \[nargs=0..1\] \[default: "csv"\]]' \
         '(--help -h)'{--help,-h}'[Shows help message and exits]' \
         '(--output -o)'{--output,-o}'[Output file \[nargs=0..1\] \[default: ""\]]' \
         '--units[CSV units; valid options: in, mm \[nargs=0..1\] \[default: "mm"\]]' \

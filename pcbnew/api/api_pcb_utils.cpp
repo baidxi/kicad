@@ -140,7 +140,6 @@ void PackBoardStackup( const BOARD& aBoard, BoardStackup& aOut )
             continue;
 
         PCB_LAYER_ID id = FromProtoEnum<PCB_LAYER_ID>( layer.layer() );
-        wxCHECK2( id != UNDEFINED_LAYER, continue );
 
         layer.set_user_name( aBoard.GetLayerName( id ) );
     }

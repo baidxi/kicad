@@ -38,11 +38,11 @@
 CLI::PCB_EXPORT_STACKUP_COMMAND::PCB_EXPORT_STACKUP_COMMAND() :
         PCB_EXPORT_BASE_COMMAND( "stackup", IO_TYPE::FILE, IO_TYPE::FILE )
 {
-    m_argParser.add_description( UTF8STDSTR( _( "Generate a board stackup table export" ) ) );
+    m_argParser.add_description( UTF8STDSTR( _( "Export a board stackup report" ) ) );
 
     m_argParser.add_argument( ARG_FORMAT )
             .default_value( std::string( "csv" ) )
-            .help( UTF8STDSTR( _( "Output file format, options: csv, json" ) ) )
+            .help( UTF8STDSTR( _( "Output file format; valid options: csv, json" ) ) )
             .metavar( "FORMAT" );
 
     m_argParser.add_argument( ARG_UNITS )
@@ -93,9 +93,13 @@ int CLI::PCB_EXPORT_STACKUP_COMMAND::doPerform( KIWAY& aKiway )
     wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
 
     if( format == "json" )
+    {
         stackupJob->m_format = JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::JSON;
+    }
     else if( format == "csv" )
+    {
         stackupJob->m_format = JOB_EXPORT_PCB_STACKUP::OUTPUT_FORMAT::CSV;
+    }
     else
     {
         wxFprintf( stderr, _( "Invalid format\n" ) );
@@ -105,9 +109,13 @@ int CLI::PCB_EXPORT_STACKUP_COMMAND::doPerform( KIWAY& aKiway )
     wxString units = From_UTF8( m_argParser.get<std::string>( ARG_UNITS ).c_str() );
 
     if( units == wxS( "mm" ) )
+    {
         stackupJob->m_units = JOB_EXPORT_PCB_STACKUP::UNITS::MM;
+    }
     else if( units == wxS( "in" ) || units == wxS( "inch" ) )
+    {
         stackupJob->m_units = JOB_EXPORT_PCB_STACKUP::UNITS::INCH;
+    }
     else
     {
         wxFprintf( stderr, _( "Invalid units specified\n" ) );
