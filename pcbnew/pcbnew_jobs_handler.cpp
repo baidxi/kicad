@@ -132,7 +132,9 @@
 #include <api/api_pcb_utils.h>
 #include <api/board/board.pb.h>
 #include <google/protobuf/util/json_util.h>
+#include <fstream>
 #include <paths.h>
+#include <streamwrapper.h>
 #include <tools/zone_filler_tool.h>
 
 #include <locale_io.h>
@@ -2230,7 +2232,7 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
-    FILE* outFile = wxFopen( outPath, wxS( "wt" ) );
+    OPEN_OSTREAM( outFile, TO_UTF8( outPath ) );
 
     if( !outFile )
     {
@@ -2238,14 +2240,16 @@ int PCBNEW_JOBS_HANDLER::JobExportStackup( JOB* aJob )
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
-    if( fprintf( outFile, "%s", TO_UTF8( output ) ) < 0 )
+    outFile << TO_UTF8( output );
+
+    const bool writeOk = static_cast<bool>( outFile );
+    CLOSE_STREAM( outFile );
+
+    if( !writeOk )
     {
-        fclose( outFile );
         m_reporter->Report( wxString::Format( _( "Error writing file '%s'.\n" ), outPath ), RPT_SEVERITY_ERROR );
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
-
-    fclose( outFile );
 
     m_reporter->Report( wxString::Format( _( "Wrote board stackup to '%s'.\n" ), outPath ), RPT_SEVERITY_ACTION );
 

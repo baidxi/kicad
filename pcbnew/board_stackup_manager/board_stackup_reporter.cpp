@@ -24,29 +24,15 @@
  */
 
 #include "wx/string.h"
+#include "wx/sstream.h"
 
 #include <base_units.h>
+#include <io/csv.h>
 #include <locale_io.h>
+#include <vector>
 
 #include "board_stackup.h"
 #include "board_stackup_reporter.h"
-
-
-static wxString csvQuote( const wxString& aValue )
-{
-    wxString escaped = aValue;
-    escaped.Replace( wxT( "\"" ), wxT( "\"\"" ) );
-    return wxT( "\"" ) + escaped + wxT( "\"" );
-}
-
-
-static void appendCsvField( wxString& aRow, const wxString& aValue )
-{
-    if( !aRow.IsEmpty() )
-        aRow << wxT( ',' );
-
-    aRow << csvQuote( aValue );
-}
 
 
 static wxString layerDisplayName( const BOARD_STACKUP_ITEM* aItem )
@@ -58,14 +44,12 @@ static wxString layerDisplayName( const BOARD_STACKUP_ITEM* aItem )
 }
 
 
-static void appendCsvProperties( wxString& aOut, BOARD_STACKUP& aStackup, const STACKUP_CSV_OPTIONS& aOptions )
+static void appendCsvProperties( std::vector<std::vector<wxString>>& aRows, BOARD_STACKUP& aStackup,
+                                 const STACKUP_CSV_OPTIONS& aOptions )
 {
     auto appendProperty = [&]( const wxString& aName, const wxString& aValue )
     {
-        wxString row;
-        appendCsvField( row, aName );
-        appendCsvField( row, aValue );
-        aOut << row << '\n';
+        aRows.push_back( { aName, aValue } );
     };
 
     if( aOptions.includeFinish )
@@ -207,33 +191,30 @@ wxString BuildStackupReport( BOARD_STACKUP& aStackup, EDA_UNITS aUnits )
 
 wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACKUP_CSV_OPTIONS& aOptions )
 {
-    wxString  csv;
-    LOCALE_IO toggle;
+    std::vector<std::vector<wxString>> rows;
+    LOCALE_IO                          toggle;
 
-    wxString header;
-    appendCsvField( header, wxT( "Layer" ) );
-    appendCsvField( header, wxT( "Type" ) );
-    appendCsvField( header, wxT( "Sublayer" ) );
+    std::vector<wxString> header = { wxT( "Layer" ), wxT( "Type" ), wxT( "Sublayer" ) };
 
     if( aOptions.includeThickness )
     {
-        appendCsvField( header, wxT( "Thickness" ) );
-        appendCsvField( header, wxT( "Locked" ) );
+        header.push_back( wxT( "Thickness" ) );
+        header.push_back( wxT( "Locked" ) );
     }
 
     if( aOptions.includeMaterial )
-        appendCsvField( header, wxT( "Material" ) );
+        header.push_back( wxT( "Material" ) );
 
     if( aOptions.includeColor )
-        appendCsvField( header, wxT( "Color" ) );
+        header.push_back( wxT( "Color" ) );
 
     if( aOptions.includeEpsilonR )
-        appendCsvField( header, wxT( "EpsilonR" ) );
+        header.push_back( wxT( "EpsilonR" ) );
 
     if( aOptions.includeLossTangent )
-        appendCsvField( header, wxT( "LossTg" ) );
+        header.push_back( wxT( "LossTg" ) );
 
-    csv << header << '\n';
+    rows.push_back( header );
 
     for( const BOARD_STACKUP_ITEM* item : aStackup.GetList() )
     {
@@ -247,20 +228,16 @@ wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACK
 
         for( int idx = 0; idx < sublayerCount; idx++ )
         {
-            const bool hasSublayerData = item->GetSublayersCount() > 0;
-            wxString   row;
+            const bool            hasSublayerData = item->GetSublayersCount() > 0;
+            std::vector<wxString> row;
 
-            appendCsvField( row, layerDisplayName( item ) );
-            appendCsvField( row, item->GetTypeName() );
+            row.push_back( layerDisplayName( item ) );
+            row.push_back( item->GetTypeName() );
 
             if( item->GetType() == BS_ITEM_TYPE_DIELECTRIC && item->GetSublayersCount() > 1 )
-            {
-                appendCsvField( row, wxString::Format( wxT( "%d/%d" ), idx + 1, item->GetSublayersCount() ) );
-            }
+                row.push_back( wxString::Format( wxT( "%d/%d" ), idx + 1, item->GetSublayersCount() ) );
             else
-            {
-                appendCsvField( row, wxEmptyString );
-            }
+                row.push_back( wxEmptyString );
 
             if( aOptions.includeThickness )
             {
@@ -272,49 +249,48 @@ wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACK
                             EDA_UNIT_UTILS::UI::StringFromValue( pcbIUScale, aUnits, item->GetThickness( idx ), true );
                 }
 
-                appendCsvField( row, thickness );
+                row.push_back( thickness );
 
                 const bool locked =
                         item->GetType() == BS_ITEM_TYPE_DIELECTRIC && hasSublayerData && item->IsThicknessLocked( idx );
-                appendCsvField( row, locked ? wxT( "yes" ) : wxEmptyString );
+                row.push_back( locked ? wxT( "yes" ) : wxEmptyString );
             }
 
             if( aOptions.includeMaterial )
             {
-                appendCsvField( row, ( item->IsMaterialEditable() && hasSublayerData ) ? item->GetMaterial( idx )
-                                                                                       : wxString() );
+                row.push_back( ( item->IsMaterialEditable() && hasSublayerData ) ? item->GetMaterial( idx )
+                                                                                : wxString() );
             }
 
             if( aOptions.includeColor )
-                appendCsvField( row, item->IsColorEditable() ? item->GetColor() : wxString() );
+                row.push_back( item->IsColorEditable() ? item->GetColor() : wxString() );
 
             if( aOptions.includeEpsilonR )
             {
-                appendCsvField( row, ( item->HasEpsilonRValue() && hasSublayerData ) ? item->FormatEpsilonR( idx )
-                                                                                     : wxString() );
+                row.push_back( ( item->HasEpsilonRValue() && hasSublayerData ) ? item->FormatEpsilonR( idx )
+                                                                               : wxString() );
             }
 
             if( aOptions.includeLossTangent )
             {
-                appendCsvField( row, ( item->HasLossTangentValue() && hasSublayerData ) ? item->FormatLossTangent( idx )
-                                                                                        : wxString() );
+                row.push_back( ( item->HasLossTangentValue() && hasSublayerData ) ? item->FormatLossTangent( idx )
+                                                                                  : wxString() );
             }
 
-            csv << row << '\n';
+            rows.push_back( row );
         }
     }
 
     if( aOptions.includeFinish || aOptions.includeBoardOptions )
     {
-        csv << '\n';
-
-        wxString propHeader;
-        appendCsvField( propHeader, wxT( "Property" ) );
-        appendCsvField( propHeader, wxT( "Value" ) );
-        csv << propHeader << '\n';
-
-        appendCsvProperties( csv, aStackup, aOptions );
+        rows.push_back( {} );
+        rows.push_back( { wxT( "Property" ), wxT( "Value" ) } );
+        appendCsvProperties( rows, aStackup, aOptions );
     }
 
-    return csv;
+    wxStringOutputStream os;
+    CSV_WRITER           writer( os );
+    writer.WriteLines( rows );
+
+    return os.GetString();
 }
