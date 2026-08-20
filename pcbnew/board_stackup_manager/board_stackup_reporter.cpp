@@ -259,7 +259,7 @@ wxString BuildStackupCsv( BOARD_STACKUP& aStackup, EDA_UNITS aUnits, const STACK
             if( aOptions.includeMaterial )
             {
                 row.push_back( ( item->IsMaterialEditable() && hasSublayerData ) ? item->GetMaterial( idx )
-                                                                                : wxString() );
+                                                                                 : wxString() );
             }
 
             if( aOptions.includeColor )
