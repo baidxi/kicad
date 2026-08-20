@@ -734,9 +734,41 @@ bool DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR::TransferDataFromWindow()
     // Update fields
     m_frame->GetToolManager()->RunAction( ACTIONS::selectionClear );
 
-    while( !m_footprint->GetFields().empty() )
+    for( PCB_FIELD& field : *m_fields )
     {
-        PCB_FIELD* existing = m_footprint->GetFields().front();
+        if( !field.IsMandatory() )
+            continue;
+
+        PCB_FIELD* existing = m_footprint->GetField( field.GetId() );
+
+        wxCHECK2( existing, continue );
+
+        *existing = field;
+        existing->ClearEditFlags();
+        existing->SetParent( m_footprint );
+        view->Update( existing );
+
+        if( existing->IsSelected() )
+        {
+            // The edited copy was selected before the dialog opened, but the real field was
+            // removed from the selection list above.  Re-add it with a clean selection flag.
+            existing->ClearSelected();
+            selectionTool->AddItemToSel( existing, true );
+        }
+    }
+
+    std::vector<PCB_FIELD*> oldUserFields;
+
+    for( PCB_FIELD* existing : m_footprint->GetFields() )
+    {
+        wxCHECK2( existing, continue );
+
+        if( !existing->IsMandatory() )
+            oldUserFields.push_back( existing );
+    }
+
+    for( PCB_FIELD* existing : oldUserFields )
+    {
         view->Remove( existing );
         m_footprint->Remove( existing );
         delete existing;
@@ -744,6 +776,9 @@ bool DIALOG_FOOTPRINT_PROPERTIES_FP_EDITOR::TransferDataFromWindow()
 
     for( PCB_FIELD& field : *m_fields )
     {
+        if( field.IsMandatory() )
+            continue;
+
         PCB_FIELD* newField = field.CloneField();
         m_footprint->Add( newField );
         view->Add( newField );
