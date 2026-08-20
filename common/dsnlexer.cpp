@@ -43,6 +43,7 @@ void DSNLEXER::init()
     space_in_quoted_tokens = false;
     commentsAreTokens = false;
     SetKnowsBar( true );    // default since version 20240706
+    m_wantSeparator = false;
     curOffset = 0;
 }
 
@@ -564,7 +565,9 @@ L_read:
         // skip leading whitespace
         while( cur < limit && isSpace( *cur ) )
         {
-            curSeparator += *cur;
+            if( m_wantSeparator )
+                curSeparator += *cur;
+
             ++cur;
         }
 
@@ -599,7 +602,9 @@ L_read:
         // skip leading whitespace
         while( cur < limit && isSpace( *cur ) )
         {
-            curSeparator += *cur;
+            if( m_wantSeparator )
+                curSeparator += *cur;
+
             ++cur;
         }
     }
@@ -644,6 +649,25 @@ L_read:
             ++cur;  // skip over the leading delimiter, which is always " in non-specctraMode
 
             head = cur;
+
+            // Fast path: a string with no escape sequence in it is a single copy.  Anything
+            // else falls through to the character-by-character loop below.
+            {
+                const char* scan = head;
+
+                while( scan < limit && *scan != '"' && *scan != '\\' )
+                    ++scan;
+
+                if( scan < limit && *scan == '"' )
+                {
+                    curText.assign( head, scan );
+
+                    head = scan + 1;    // omit the trailing double quote
+                    curTok = DSN_STRING;
+
+                    goto exit;
+                }
+            }
 
             while( head<limit )
             {
@@ -802,11 +826,12 @@ L_read:
     }           // specctraMode
 
     // non-quoted token, read it into curText.
-    curText.clear();
-
     head = cur;
+
     while( head<limit && !isSep( *head ) )
-        curText += *head++;
+        ++head;
+
+    curText.assign( cur, head );
 
     if( isNumber( curText.c_str(), curText.c_str() + curText.size() ) )
     {

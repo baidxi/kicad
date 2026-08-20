@@ -182,6 +182,9 @@ void LIB_SYMBOL::cacheSearchTerms()
 
 void LIB_SYMBOL::GetChooserFields( std::map<wxString, wxString>& aColumnMap )
 {
+    if( m_drawItemCachesDirty )
+        refreshDrawItemCaches();
+
     aColumnMap = m_chooserFieldsCache;
 }
 
@@ -254,6 +257,7 @@ LIB_SYMBOL::LIB_SYMBOL( const wxString& aName, LIB_SYMBOL* aParent, LEGACY_SYMBO
     cachePinCount();
     cacheShownDescription();
     cacheChooserFields();
+    m_drawItemCachesDirty = false;
 }
 
 
@@ -307,6 +311,7 @@ LIB_SYMBOL::LIB_SYMBOL( const LIB_SYMBOL& aSymbol, LEGACY_SYMBOL_LIB* aLibrary, 
     m_pinCountCache = aSymbol.m_pinCountCache;
     m_shownDescriptionCache = aSymbol.m_shownDescriptionCache;
     m_chooserFieldsCache = aSymbol.m_chooserFieldsCache;
+    m_drawItemCachesDirty = aSymbol.m_drawItemCachesDirty;
 }
 
 
@@ -358,6 +363,7 @@ const LIB_SYMBOL& LIB_SYMBOL::operator=( const LIB_SYMBOL& aSymbol )
     m_pinCountCache = aSymbol.m_pinCountCache;
     m_shownDescriptionCache = aSymbol.m_shownDescriptionCache;
     m_chooserFieldsCache = aSymbol.m_chooserFieldsCache;
+    m_drawItemCachesDirty = aSymbol.m_drawItemCachesDirty;
 
     return *this;
 }
@@ -1096,8 +1102,7 @@ void LIB_SYMBOL::RemoveDrawItem( SCH_ITEM* aItem )
         if( &*i == aItem )
         {
             items.erase( i );
-            cachePinCount();
-            cacheChooserFields();
+            m_drawItemCachesDirty = true;
             break;
         }
     }
@@ -1115,8 +1120,7 @@ void LIB_SYMBOL::AddDrawItem( SCH_ITEM* aItem, bool aSort )
         if( aSort )
             m_drawings.sort();
 
-        cachePinCount();
-        cacheChooserFields();
+        m_drawItemCachesDirty = true;
     }
 }
 
@@ -1281,6 +1285,9 @@ std::vector<LIB_SYMBOL::LOGICAL_PIN> LIB_SYMBOL::GetLogicalPins( int aUnit, int 
 
 int LIB_SYMBOL::GetPinCount()
 {
+    if( m_drawItemCachesDirty )
+        refreshDrawItemCaches();
+
     return m_pinCountCache;
 }
 
@@ -1294,6 +1301,14 @@ void LIB_SYMBOL::cachePinCount()
         int pinCount = pin->GetStackedPinCount();
         m_pinCountCache += pinCount;
     }
+}
+
+
+void LIB_SYMBOL::refreshDrawItemCaches()
+{
+    cachePinCount();
+    cacheChooserFields();
+    m_drawItemCachesDirty = false;
 }
 
 
@@ -1499,8 +1514,7 @@ void LIB_SYMBOL::RefreshLibraryTreeCaches()
     // cacheSearchTerms() reads the shown-description cache, so refresh it first.
     cacheShownDescription();
     cacheSearchTerms();
-    cachePinCount();
-    cacheChooserFields();
+    refreshDrawItemCaches();
 }
 
 

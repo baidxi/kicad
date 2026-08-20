@@ -292,6 +292,19 @@ public:
     }
 
     /**
+     * Control whether the text separating tokens is recorded.
+     *
+     * Accumulating it costs a string append per whitespace character of every file parsed, and
+     * only DRC_RULES_PARSER ever reads it back, so it is off by default.
+     *
+     * @see CurSeparator()
+     */
+    void SetWantSeparator( bool aWantSeparator = true )
+    {
+        m_wantSeparator = aWantSeparator;
+    }
+
+    /**
      * Change the handling of comments.
      *
      * If set true, comments are returned as single line strings with a terminating newline.
@@ -558,6 +571,9 @@ protected:
                                                 ///< else not.
     bool                m_knowsBar;             ///< True if the lexer knows about the bar token.
                                                 ///< This was introduced by 77797103f7eb1483e03660d3b7848537ebe7cb1f
+
+    bool                m_wantSeparator;        ///< True when curSeparator must be accumulated.
+                                                ///< @see SetWantSeparator()
 
     char                stringDelimiter;
     bool                space_in_quoted_tokens; ///< Blank spaces within quoted strings.
