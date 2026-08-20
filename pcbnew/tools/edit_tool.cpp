@@ -260,6 +260,7 @@ static std::shared_ptr<CONDITIONAL_MENU> makePositioningToolsMenu( TOOL_INTERACT
     menu->AddItem( PCB_ACTIONS::moveIndividually, SELECTION_CONDITIONS::MoreThan( 1 ) && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::positionRelative, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     menu->AddItem( PCB_ACTIONS::interactiveOffsetTool, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
+    menu->AddItem( PCB_ACTIONS::alignToGrid, SELECTION_CONDITIONS::NotEmpty && notMovingCondition );
     return menu;
 };
 
@@ -2678,8 +2679,8 @@ int EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
             break;
 
         case PCB_POINT_T:
-
-            static_cast<PCB_POINT*>( item )->Mirror( mirrorPoint, flipDirection ); break;
+            static_cast<PCB_POINT*>( item )->Mirror( mirrorPoint, flipDirection );
+            break;
 
         default:
             // it's likely the commit object is wrong if you get here
@@ -3262,6 +3263,72 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
             m_toolMgr->PostAction( PCB_ACTIONS::updateLocalRatsnest, VECTOR2I() );
             m_toolMgr->PostAction( PCB_ACTIONS::refreshPreview );
         }
+    }
+
+    return 0;
+}
+
+
+int EDIT_TOOL::AlignToGrid( const TOOL_EVENT& aEvent )
+{
+    if( isRouterActive() )
+    {
+        wxBell();
+        return 0;
+    }
+
+    // TODO: Validate these are the selection parameters we want.
+    const PCB_SELECTION& selection = m_selectionTool->RequestSelection(
+            []( const VECTOR2I& aPt, GENERAL_COLLECTOR& aCollector, PCB_SELECTION_TOOL* sTool )
+            {
+                sTool->FilterCollectorForMarkers( aCollector );
+                sTool->FilterCollectorForHierarchy( aCollector, true );
+                sTool->FilterCollectorForFreePads( aCollector, false );
+                sTool->FilterCollectorForTableCells( aCollector );
+                sTool->FilterCollectorForLockedItems( aCollector );
+
+                static const std::vector<KICAD_T> primitiveTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_SHAPE_T };
+
+                for( int i = aCollector.GetCount() - 1; i >= 0; --i )
+                {
+                    if( aCollector[i]->IsType( primitiveTypes ) )
+                    {
+                        aCollector.Remove( i );
+                    }
+                }
+            } );
+
+    if( selection.Empty() )
+        return 0;
+
+    PCB_GRID_HELPER grid( m_toolMgr, frame()->GetMagneticItemsSettings() );
+    BOARD_COMMIT commit( this );
+    bool modified = false;
+
+    for( EDA_ITEM* item : selection )
+    {
+        if( !item->IsBOARD_ITEM() )
+            continue;
+
+        BOARD_ITEM* boardItem = static_cast<BOARD_ITEM*>( item );
+
+        if ( boardItem->GetParent() && boardItem->GetParent()->IsSelected())
+            continue;
+
+        VECTOR2I        pos = boardItem->GetPosition();
+        VECTOR2I        aligned_pos = grid.AlignGrid( pos );
+
+        if( pos != aligned_pos ) {
+            commit.Modify( boardItem, nullptr, RECURSE_MODE::RECURSE );
+            boardItem->SetPosition( aligned_pos );
+            modified = true;
+        }
+    }
+
+    if (modified)
+    {
+        commit.Push( _( "Align to Grid" ) );
+        m_toolMgr->ProcessEvent( EVENTS::SelectedItemsModified );
     }
 
     return 0;
@@ -3929,6 +3996,7 @@ void EDIT_TOOL::setTransitions()
     Go( &EDIT_TOOL::Remove,                PCB_ACTIONS::deleteFull.MakeEvent() );
     Go( &EDIT_TOOL::Properties,            PCB_ACTIONS::properties.MakeEvent() );
     Go( &EDIT_TOOL::MoveExact,             PCB_ACTIONS::moveExact.MakeEvent() );
+    Go( &EDIT_TOOL::AlignToGrid,            PCB_ACTIONS::alignToGrid.MakeEvent() );
     Go( &EDIT_TOOL::Move,                  PCB_ACTIONS::moveWithReference.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             ACTIONS::duplicate.MakeEvent() );
     Go( &EDIT_TOOL::Duplicate,             PCB_ACTIONS::duplicateIncrement.MakeEvent() );
