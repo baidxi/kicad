@@ -29,6 +29,7 @@
 #include <api/common/types/base_types.pb.h>
 #include <api/board/board_types.pb.h>
 
+class BOARD;
 class BOARD_ITEM;
 class BOARD_ITEM_CONTAINER;
 
@@ -37,9 +38,13 @@ std::unique_ptr<BOARD_ITEM> CreateItemForType( KICAD_T aType, BOARD_ITEM_CONTAIN
 namespace kiapi::board
 {
 
+class BoardStackup;
+
 void PackLayerSet( google::protobuf::RepeatedField<int>& aOutput, const LSET& aLayerSet );
 
 LSET UnpackLayerSet( const google::protobuf::RepeatedField<int>& aInput );
+
+void PackBoardStackup( const BOARD& aBoard, BoardStackup& aOut );
 
 }   // namespace kiapi::board
 
