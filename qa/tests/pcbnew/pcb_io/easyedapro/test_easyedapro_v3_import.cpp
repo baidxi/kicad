@@ -37,6 +37,8 @@
 #include <pcbnew/pcb_io/easyedapro/pcb_io_easyedapro_parser.h>
 
 #include <board.h>
+#include <board_design_settings.h>
+
 #include <footprint.h>
 #include <pad.h>
 
@@ -207,6 +209,29 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
 
     BOOST_CHECK_EQUAL( pad1WithNet, 2 );
     BOOST_CHECK_EQUAL( pad2WithNet, 2 );
+}
+
+
+BOOST_AUTO_TEST_CASE( SafeClearanceIgnoresUnavailablePairs )
+{
+    BOARD                      board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+
+    EASYEDAPRO::V3_DOC_RAW boardDoc;
+    boardDoc.rows = {
+        { wxS( "RULE" ), wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ), 0, {},
+          { { "ruleState", "DEFAULT" },
+            { "ruleContext",
+              { { "safeSpacing",
+                  { { { "content", { { 0, 12.0 }, { 6.5, 0 } } } } } } } } } }
+    };
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
+    parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
+
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance,
+                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 6.5 ) );
+    BOOST_CHECK( board.m_LegacyDesignSettingsLoaded );
 }
 
 

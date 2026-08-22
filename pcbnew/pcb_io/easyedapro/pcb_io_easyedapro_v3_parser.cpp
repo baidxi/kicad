@@ -25,6 +25,8 @@
 #include <io/easyedapro/easyedapro_import_utils.h>
 
 #include <memory>
+#include <limits>
+
 
 #include <json_common.h>
 #include <core/json_serializers.h>
@@ -859,6 +861,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                 {
                     double minVal = V3GetDouble( content[0], "stroMin" );
                     bds.m_TrackMinWidth = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( minVal );
+                    aBoard->m_LegacyDesignSettingsLoaded = true;
+
                 }
             }
             else if( ruleType == wxS( "SAFE" ) && isDefault )
@@ -871,7 +875,7 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                     nlohmann::json content = safeSpacing[0].value( "content",
                                                                     nlohmann::json::array() );
 
-                    int minVal = INT_MAX;
+                    double minVal = std::numeric_limits<double>::max();
 
                     for( const auto& arr : content )
                     {
@@ -879,15 +883,19 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                         {
                             for( const auto& val : arr )
                             {
-                                int v = val.is_number() ? val.get<int>() : 0;
-                                if( v < minVal )
+                                double v = val.is_number() ? val.get<double>() : 0;
+
+                                if( v > 0 && v < minVal )
                                     minVal = v;
                             }
                         }
                     }
 
-                    if( minVal != INT_MAX )
+                    if( minVal != std::numeric_limits<double>::max() )
+                    {
                         bds.m_MinClearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( minVal );
+                        aBoard->m_LegacyDesignSettingsLoaded = true;
+                    }
                 }
             }
         }

@@ -3489,7 +3489,7 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         // LoadBoard reports load failures and user cancellations by throwing.
         try
         {
-            board = pi->LoadBoard( job->m_inputFile );
+            board = pi->LoadBoard( job->m_inputFile, nullptr, projectPtr );
         }
         catch( const IO_CANCELLED& ioce )
         {
@@ -3505,10 +3505,9 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             m_reporter->Report( wxString::Format( _( "Failed to load board: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
         }
+        board->SetProject( projectPtr );
 
-        // Constraints that land in the project need the project attached before they are read.
-        if( PCB_IO_MGR::ImportPopulatesProjectSettings( fileType ) )
-            board->SetProject( projectPtr );
+
 
         if( !ApplyImportedNetNameMap( *board, job->m_netNameMap, *m_reporter ) )
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
@@ -3613,10 +3612,12 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             for( const wxString& warning : warnings )
                 m_reporter->Report( warning + wxS( "\n" ), RPT_SEVERITY_WARNING );
         }
+
     }
     catch( const IO_ERROR& ioe )
     {
         m_reporter->Report( wxString::Format( _( "Error during import: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
+
         return CLI::EXIT_CODES::ERR_UNKNOWN;
     }
 

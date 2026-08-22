@@ -26,9 +26,18 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
 #include <pcbnew/pcb_io/easyeda/pcb_io_easyeda_parser.h>
+#include <pcbnew/pcb_io/pcb_io.h>
+#include <pcbnew/pcb_io/pcb_io_mgr.h>
+
 
 #include <board.h>
+#include <board_design_settings.h>
+#include <netclass.h>
+#include <project/net_settings.h>
+
 #include <footprint.h>
+#include <memory>
+
 #include <zone.h>
 
 
@@ -113,6 +122,26 @@ BOOST_AUTO_TEST_CASE( CopperAreaFillHolesPreserved )
 
     BOOST_CHECK( filled->Contains( copperPoint ) );
     BOOST_CHECK( !filled->Contains( holePoint ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( BoardLoadImportsDefaultClearance )
+{
+    wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir()
+                                             + "plugins/easyeda/PCB_PCB_ESP32-PICO-D4 smart watch_2023-09-02.json" );
+
+    IO_RELEASER<PCB_IO> plugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::EASYEDA ) );
+    BOOST_REQUIRE( plugin );
+
+    std::unique_ptr<BOARD> board( plugin->LoadBoard( dataPath, nullptr ) );
+    BOOST_REQUIRE( board );
+
+    std::shared_ptr<NETCLASS> defaultNetclass =
+            board->GetDesignSettings().m_NetSettings->GetDefaultNetclass();
+
+    BOOST_CHECK_EQUAL( defaultNetclass->GetClearance(),
+                       PCB_IO_EASYEDA_PARSER( nullptr ).ScaleSize( 0.6 ) );
+    BOOST_CHECK( board->m_LegacyNetclassesLoaded );
 }
 
 

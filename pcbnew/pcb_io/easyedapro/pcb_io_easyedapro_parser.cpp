@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <limits>
+
 
 #include <json_common.h>
 #include <core/json_serializers.h>
@@ -1089,6 +1091,8 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                     // double maxVal = ruleData.at( 3 );
 
                     bds.m_TrackMinWidth = ScaleSize( minVal );
+                    aBoard->m_LegacyDesignSettingsLoaded = true;
+
                 }
                 else
                 {
@@ -1102,6 +1106,8 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                         // double maxVal = arr.at( 2 );
 
                         bds.m_TrackMinWidth = ScaleSize( minVal );
+                        aBoard->m_LegacyDesignSettingsLoaded = true;
+
                     }
                 }
             }
@@ -1109,38 +1115,42 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
             {
                 wxString       units = ruleData.at( 0 );
                 nlohmann::json table = ruleData.at( 1 );
-                int            minVal = INT_MAX;
+                double         minVal = std::numeric_limits<double>::max();
 
                 if( table.is_array() && !table.empty() && table.at( 0 ).is_array() )
                 {
                     // ["RULE","1","safeClearance",1,["mil",[[6],[6,6],[6,6,6],[6,6,6,6],[6,6,6,6,6],[6,6,6,6,6,6],[6,6,6,6,6,6,6],[11.8,11.8,11.8,11.8,11.8,11.8,11.8]]]]
                     for( const auto& arr : table )
                     {
-                        for( int val : arr )
+                        for( double val : arr )
                         {
-                            if( val != 0 && val < minVal )
+                            if( val > 0 && val < minVal )
                                 minVal = val;
                         }
                     }
                 }
                 else if( table.is_object() )
                 {
-                    // ["RULE","1","safeClearance",1,["mil",{"1":[[8,8,6,8,20,0,0,6,10,10],[8,6,8,8,12,0,0,6,10,10],[6,8,6,8,12,0,0,6,10,10],[8,8,8,8,12,0,0,6,10,10],
-                    //  [20,12,12,12,20,0,0,0,10,10],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[6,6,6,6,0,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,6]]}]]
+                    // ["RULE","1","safeClearance",1,["mil",{"1":[[8,8,6,8,20,0,0,6,10,10],[8,6,8,8,12,0,0,6,10,10],[6,8,6,8,12,0,0,6,10,10],
+                    //  [8,8,8,8,12,0,0,6,10,10],[20,12,12,12,20,0,0,0,10,10],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[6,6,6,6,0,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,6]]}]]
                     for( auto& [key, arr] : table.items() )
                     {
                         for( const auto& subarr : arr )
                         {
-                            for( int val : subarr )
+                            for( double val : subarr )
                             {
-                                if( val != 0 && val < minVal )
+                                if( val > 0 && val < minVal )
                                     minVal = val;
                             }
                         }
                     }
                 }
 
-                bds.m_MinClearance = ScaleSize( minVal );
+                if( minVal != std::numeric_limits<double>::max() )
+                {
+                    bds.m_MinClearance = ScaleSize( minVal );
+                    aBoard->m_LegacyDesignSettingsLoaded = true;
+                }
             }
 
             ruleLines[ruleType].push_back( line );
