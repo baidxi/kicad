@@ -13,6 +13,7 @@
 #define ORCAD_OLE_H_
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 class wxImage;
@@ -32,6 +33,9 @@ struct ORCAD_OLE_PREVIEW
 };
 
 ORCAD_OLE_PREVIEW OrcadExtractOlePreview( const std::vector<uint8_t>& aPayload );
+
+std::pair<unsigned int, unsigned int> OrcadFitWmfRenderSize( unsigned int aNaturalWidth, unsigned int aNaturalHeight,
+                                                             int aMaxWidth, int aMaxHeight );
 
 bool OrcadRenderWmf( const std::vector<uint8_t>& aWmf, int aMaxWidth, int aMaxHeight, wxImage& aImage );
 
