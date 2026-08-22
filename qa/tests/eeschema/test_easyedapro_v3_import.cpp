@@ -214,8 +214,7 @@ BOOST_AUTO_TEST_CASE( RawDocNullTombstonesRemovedAfterDeduplication )
     EASYEDAPRO::V3_DOC_PARSER parser( archivePath );
     BOOST_REQUIRE_NO_THROW( parser.LoadLibrary() );
 
-    const EASYEDAPRO::V3_DOC_RAW* doc =
-            parser.FindRawDoc( wxS( "FOOTPRINT" ), wxS( "fp_tombstone" ) );
+    const EASYEDAPRO::V3_DOC_RAW* doc = parser.FindRawDoc( wxS( "FOOTPRINT" ), wxS( "fp_tombstone" ) );
     BOOST_REQUIRE( doc );
 
     // Every surviving row carries a non-null inner payload: null tombstones are dropped.

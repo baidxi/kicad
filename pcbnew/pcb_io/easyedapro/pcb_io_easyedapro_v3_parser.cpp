@@ -862,7 +862,6 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                     double minVal = V3GetDouble( content[0], "stroMin" );
                     bds.m_TrackMinWidth = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( minVal );
                     aBoard->m_LegacyDesignSettingsLoaded = true;
-
                 }
             }
             else if( ruleType == wxS( "SAFE" ) && isDefault )

@@ -58,8 +58,8 @@ BOOST_FIXTURE_TEST_SUITE( EasyedaImport, EASYEDA_IMPORT_FIXTURE )
  */
 BOOST_AUTO_TEST_CASE( CopperAreaFillHolesPreserved )
 {
-    BOARD                  board;
-    PCB_IO_EASYEDA_PARSER  parser( nullptr );
+    BOARD                 board;
+    PCB_IO_EASYEDA_PARSER parser( nullptr );
 
     // Outer square 0..1000 with an inner square hole 400..600.
     wxString outline = wxS( "M 0 0 L 1000 0 L 1000 1000 L 0 1000 Z" );
@@ -68,24 +68,24 @@ BOOST_AUTO_TEST_CASE( CopperAreaFillHolesPreserved )
 
     wxArrayString parts;
     parts.Add( wxS( "COPPERAREA" ) );
-    parts.Add( wxS( "1" ) );       // stroke width
-    parts.Add( wxS( "1" ) );       // layer -> F.Cu
-    parts.Add( wxS( "GND" ) );     // net
-    parts.Add( outline );          // pour outline
-    parts.Add( wxS( "1" ) );       // clearance
-    parts.Add( wxS( "solid" ) );   // fill style
-    parts.Add( wxS( "gge1" ) );    // gge id
-    parts.Add( wxS( "spoke" ) );   // thermal relief
-    parts.Add( wxS( "none" ) );    // keep island
-    parts.Add( fillData );         // fill data
+    parts.Add( wxS( "1" ) );     // stroke width
+    parts.Add( wxS( "1" ) );     // layer -> F.Cu
+    parts.Add( wxS( "GND" ) );   // net
+    parts.Add( outline );        // pour outline
+    parts.Add( wxS( "1" ) );     // clearance
+    parts.Add( wxS( "solid" ) ); // fill style
+    parts.Add( wxS( "gge1" ) );  // gge id
+    parts.Add( wxS( "spoke" ) ); // thermal relief
+    parts.Add( wxS( "none" ) );  // keep island
+    parts.Add( fillData );       // fill data
     parts.Add( wxS( "0" ) );
-    parts.Add( wxEmptyString );    // other copper area gge id
-    parts.Add( wxS( "1" ) );       // fill order
+    parts.Add( wxEmptyString ); // other copper area gge id
+    parts.Add( wxS( "1" ) );    // fill order
     parts.Add( wxS( "1" ) );
     parts.Add( wxS( "1" ) );
     parts.Add( wxS( "1" ) );
-    parts.Add( wxS( "none" ) );    // improve fabrication
-    parts.Add( wxS( "0" ) );       // thermal spoke width
+    parts.Add( wxS( "none" ) ); // improve fabrication
+    parts.Add( wxS( "0" ) );    // thermal spoke width
 
     wxString shape;
     for( size_t i = 0; i < parts.size(); ++i )
@@ -128,7 +128,7 @@ BOOST_AUTO_TEST_CASE( CopperAreaFillHolesPreserved )
 BOOST_AUTO_TEST_CASE( BoardLoadImportsDefaultClearance )
 {
     wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir()
-                                             + "plugins/easyeda/PCB_PCB_ESP32-PICO-D4 smart watch_2023-09-02.json" );
+                                            + "plugins/easyeda/PCB_PCB_ESP32-PICO-D4 smart watch_2023-09-02.json" );
 
     IO_RELEASER<PCB_IO> plugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::EASYEDA ) );
     BOOST_REQUIRE( plugin );
@@ -136,11 +136,9 @@ BOOST_AUTO_TEST_CASE( BoardLoadImportsDefaultClearance )
     std::unique_ptr<BOARD> board( plugin->LoadBoard( dataPath, nullptr ) );
     BOOST_REQUIRE( board );
 
-    std::shared_ptr<NETCLASS> defaultNetclass =
-            board->GetDesignSettings().m_NetSettings->GetDefaultNetclass();
+    std::shared_ptr<NETCLASS> defaultNetclass = board->GetDesignSettings().m_NetSettings->GetDefaultNetclass();
 
-    BOOST_CHECK_EQUAL( defaultNetclass->GetClearance(),
-                       PCB_IO_EASYEDA_PARSER( nullptr ).ScaleSize( 0.6 ) );
+    BOOST_CHECK_EQUAL( defaultNetclass->GetClearance(), PCB_IO_EASYEDA_PARSER( nullptr ).ScaleSize( 0.6 ) );
     BOOST_CHECK( board->m_LegacyNetclassesLoaded );
 }
 

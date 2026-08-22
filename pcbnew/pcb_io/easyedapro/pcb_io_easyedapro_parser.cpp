@@ -501,8 +501,8 @@ PCB_IO_EASYEDAPRO_PARSER::ParseContour( nlohmann::json polyData, bool aInFill,
                 double maxRadius = std::min( std::abs( ksize.x ), std::abs( ksize.y ) ) / 2.0;
                 double radius = std::min( ScaleSize( cr ), maxRadius );
 
-                TransformRoundChamferedRectToPolygon( poly, kcenter, ksize, EDA_ANGLE( angle, DEGREES_T ),
-                                                       radius, 0, 0, 0, aMaxError, ERROR_INSIDE );
+                TransformRoundChamferedRectToPolygon( poly, kcenter, ksize, EDA_ANGLE( angle, DEGREES_T ), radius, 0, 0,
+                                                      0, aMaxError, ERROR_INSIDE );
 
                 result.Append( poly.Outline( 0 ) );
             }
@@ -1092,7 +1092,6 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
 
                     bds.m_TrackMinWidth = ScaleSize( minVal );
                     aBoard->m_LegacyDesignSettingsLoaded = true;
-
                 }
                 else
                 {
@@ -1107,7 +1106,6 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
 
                         bds.m_TrackMinWidth = ScaleSize( minVal );
                         aBoard->m_LegacyDesignSettingsLoaded = true;
-
                     }
                 }
             }

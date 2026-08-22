@@ -143,10 +143,12 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
     footprintMap[wxS( "fp1" )] = std::move( footprint );
 
     nlohmann::json project = { { "devices", { { "device1", { { "attributes", { { "Footprint", "fp1" } } } } } } } };
-    std::vector<nlohmann::json> boardLines = { { "COMPONENT", "component1", 0, 1, 0, 0, 0, nlohmann::json::object() },
-                                               { "ATTR", "attr1", 0, "component1", 3, nullptr, nullptr, "Device",
-                                                  "device1", 0, 0, "default", 0, 0, 0, 0, 0, 0, 0, 0 },
-                                               { "PAD_NET", "component1", "1", "GND" } };
+    std::vector<nlohmann::json> boardLines = {
+        { "COMPONENT", "component1", 0, 1, 0, 0, 0, nlohmann::json::object() },
+        { "ATTR", "attr1", 0, "component1", 3, nullptr, nullptr, "Device", "device1", 0, 0, "default", 0, 0, 0, 0, 0,
+          0,      0,       0 },
+        { "PAD_NET", "component1", "1", "GND" }
+    };
 
     parser.ParseBoard( &board, project, footprintMap, {}, {}, boardLines, wxS( "lib" ) );
 

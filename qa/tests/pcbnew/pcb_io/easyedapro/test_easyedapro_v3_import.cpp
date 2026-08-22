@@ -146,20 +146,36 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
     // A hot-swap socket style footprint where the SMD contact and the through-hole
     // pin share the same pad number and must end up on the same net.
     EASYEDAPRO::V3_DOC_RAW fpDoc;
-    fpDoc.rows = {
-        { wxS( "PAD" ), wxEmptyString, 0, {},
-          { { "num", "1" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 0 } } },
-        { wxS( "PAD" ), wxEmptyString, 0, {},
-          { { "num", "1" }, { "layerId", 12 }, { "centerX", 100 }, { "centerY", 0 },
-            { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } },
-        { wxS( "PAD" ), wxEmptyString, 0, {},
-          { { "num", "2" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 200 } } },
-        { wxS( "PAD" ), wxEmptyString, 0, {},
-          { { "num", "2" }, { "layerId", 12 }, { "centerX", 100 }, { "centerY", 200 },
-            { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } }
-    };
+    fpDoc.rows = { { wxS( "PAD" ),
+                     wxEmptyString,
+                     0,
+                     {},
+                     { { "num", "1" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 0 } } },
+                   { wxS( "PAD" ),
+                     wxEmptyString,
+                     0,
+                     {},
+                     { { "num", "1" },
+                       { "layerId", 12 },
+                       { "centerX", 100 },
+                       { "centerY", 0 },
+                       { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } },
+                   { wxS( "PAD" ),
+                     wxEmptyString,
+                     0,
+                     {},
+                     { { "num", "2" }, { "layerId", 2 }, { "centerX", -100 }, { "centerY", 200 } } },
+                   { wxS( "PAD" ),
+                     wxEmptyString,
+                     0,
+                     {},
+                     { { "num", "2" },
+                       { "layerId", 12 },
+                       { "centerX", 100 },
+                       { "centerY", 200 },
+                       { "hole", { { "holeType", "ROUND" }, { "width", 1 }, { "height", 1 } } } } } };
 
-    BOARD                      board;
+    BOARD                       board;
     PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
     std::unique_ptr<FOOTPRINT>  footprint( parser.ParseFootprint( {}, fpDoc ) );
 
@@ -174,22 +190,15 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
         { wxS( "NET" ), wxS( "[\"NET\",\"GND\"]" ), 0, {}, {} },
         { wxS( "NET" ), wxS( "[\"NET\",\"PA8\"]" ), 0, {}, {} },
         { wxS( "COMPONENT" ), wxS( "c1" ), 0, {}, { { "layerId", 1 }, { "x", 0 }, { "y", 0 } } },
-        { wxS( "ATTR" ), wxEmptyString, 0, {},
-          { { "parentId", "c1" }, { "key", "Footprint" }, { "value", "fp1" } } },
-        { wxS( "ATTR" ), wxEmptyString, 0, {},
-          { { "parentId", "c1" }, { "key", "Designator" }, { "value", "KEY1" } } },
-        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e1\"]" ), 0, {},
-          { { "padNet", "GND" } } },
-        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e47\"]" ), 0, {},
-          { { "padNet", "GND" } } },
-        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e2\"]" ), 0, {},
-          { { "padNet", "PA8" } } },
-        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e48\"]" ), 0, {},
-          { { "padNet", "PA8" } } }
+        { wxS( "ATTR" ), wxEmptyString, 0, {}, { { "parentId", "c1" }, { "key", "Footprint" }, { "value", "fp1" } } },
+        { wxS( "ATTR" ), wxEmptyString, 0, {}, { { "parentId", "c1" }, { "key", "Designator" }, { "value", "KEY1" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e1\"]" ), 0, {}, { { "padNet", "GND" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"1\",\"e47\"]" ), 0, {}, { { "padNet", "GND" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e2\"]" ), 0, {}, { { "padNet", "PA8" } } },
+        { wxS( "PAD_NET" ), wxS( "[\"PAD_NET\",\"c1\",\"2\",\"e48\"]" ), 0, {}, { { "padNet", "PA8" } } }
     };
 
-    parser.ParseBoard( &board, nlohmann::json::object(), footprintMap, {}, {}, boardDoc,
-                       wxS( "lib" ) );
+    parser.ParseBoard( &board, nlohmann::json::object(), footprintMap, {}, {}, boardDoc, wxS( "lib" ) );
 
     BOOST_REQUIRE_EQUAL( board.Footprints().size(), 1 );
 
@@ -214,23 +223,23 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
 
 BOOST_AUTO_TEST_CASE( SafeClearanceIgnoresUnavailablePairs )
 {
-    BOARD                      board;
+    BOARD                       board;
     PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
 
     EASYEDAPRO::V3_DOC_RAW boardDoc;
     boardDoc.rows = {
-        { wxS( "RULE" ), wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ), 0, {},
+        { wxS( "RULE" ),
+          wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
+          0,
+          {},
           { { "ruleState", "DEFAULT" },
-            { "ruleContext",
-              { { "safeSpacing",
-                  { { { "content", { { 0, 12.0 }, { 6.5, 0 } } } } } } } } } }
+            { "ruleContext", { { "safeSpacing", { { { "content", { { 0, 12.0 }, { 6.5, 0 } } } } } } } } } }
     };
 
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
     parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
 
-    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance,
-                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 6.5 ) );
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 6.5 ) );
     BOOST_CHECK( board.m_LegacyDesignSettingsLoaded );
 }
 
@@ -286,8 +295,7 @@ BOOST_AUTO_TEST_CASE( ParseContourClampsRoundedRectangleRadius )
     // Given the BATIN FILL rounded rectangle with an oversized radius.
     BOARD                    board;
     PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
-    nlohmann::json contourData = nlohmann::json::parse(
-            R"(["R", -736.1963, -1056.456, 34.1853, 84.0904, -90, 1111])" );
+    nlohmann::json contourData = nlohmann::json::parse( R"(["R", -736.1963, -1056.456, 34.1853, 84.0904, -90, 1111])" );
 
     // When parsing the contour, the radius must be clamped to the short side.
     SHAPE_LINE_CHAIN contour = parser.ParseContour( contourData, true );
