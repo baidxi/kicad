@@ -923,6 +923,45 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
 
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
     m_safeSpacing = nlohmann::json();
+    for( const V3_ROW& row : aDoc.rows )
+    {
+        if( row.type != wxS( "RULE" )
+            || V3GetString( row.inner, "ruleState" ) != wxS( "DEFAULT" ) )
+        {
+            continue;
+        }
+
+        nlohmann::json idArr = V3ParseIdArray( row.id );
+
+        if( !idArr.is_array() || idArr.size() < 3
+            || V3JsonToString( idArr[1] ) != wxS( "SAFE" ) )
+        {
+            continue;
+        }
+
+        nlohmann::json safeSpacing = row.inner.value( "ruleContext",
+                                                      nlohmann::json() ).value(
+                "safeSpacing", nlohmann::json::array() );
+
+        if( safeSpacing.is_array() && !safeSpacing.empty() )
+        {
+            m_safeSpacing = safeSpacing[0].value( "content", nlohmann::json::array() );
+            break;
+        }
+    }
+
+
+    auto zoneClearance = [&]() -> int
+    {
+        if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7
+            && m_safeSpacing.at( 7 ).is_array() && !m_safeSpacing.at( 7 ).empty()
+            && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
+        {
+            return PCB_IO_EASYEDAPRO_PARSER::ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+        }
+
+        return bds.m_MinClearance;
+    };
 
 
     for( const V3_ROW& row : aDoc.rows )
@@ -994,7 +1033,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                     nlohmann::json content = safeSpacing[0].value( "content",
                                                                     nlohmann::json::array() );
 
-                    m_safeSpacing = content;
+                    if( m_safeSpacing.is_null() )
+                        m_safeSpacing = content;
 
                     // EasyEDA Pro labels this array "mm", but its values are always mils.  The
                     // lower-triangular matrix starts with the track-to-track clearance, which maps
@@ -1181,8 +1221,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
             zone->SetIsFilled( true );
             zone->SetNeedRefill( false );
 
-            zone->SetLocalClearance( bds.m_MinClearance );
-            zone->SetMinThickness( bds.m_TrackMinWidth );
+            zone->SetLocalClearance( zoneClearance() );
+            zone->SetMinThickness( zoneClearance() );
 
             aBoard->Add( zone.release(), ADD_MODE::APPEND );
         }
@@ -1201,8 +1241,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
             zone->SetNet( aBoard->FindNet( netname ) );
             zone->SetLayer( klayer );
             zone->SetAssignedPriority( 500 - fillOrder );
-            zone->SetLocalClearance( bds.m_MinClearance );
-            zone->SetMinThickness( bds.m_TrackMinWidth );
+            zone->SetLocalClearance( zoneClearance() );
+            zone->SetMinThickness( zoneClearance() );
 
             for( nlohmann::json& polyData : polyDataList )
             {

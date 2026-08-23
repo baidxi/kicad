@@ -1034,6 +1034,18 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
     m_safeSpacing = nlohmann::json();
 
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    auto zoneClearance = [&]() -> int
+    {
+        if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7
+            && m_safeSpacing.at( 7 ).is_array() && !m_safeSpacing.at( 7 ).empty()
+            && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
+        {
+            return ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+        }
+
+        return bds.m_MinClearance;
+    };
+
     std::map<wxString, nlohmann::json> safeSpacingProfiles;
     std::map<wxString, wxString>       pourSafeSpacingProfiles;
 
@@ -1336,8 +1348,8 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                 zone->SetIsFilled( true );
                 zone->SetNeedRefill( false );
 
-                zone->SetLocalClearance( bds.m_MinClearance );
-                zone->SetMinThickness( bds.m_TrackMinWidth );
+                zone->SetLocalClearance( zoneClearance() );
+                zone->SetMinThickness( zoneClearance() );
 
                 aBoard->Add( zone.release(), ADD_MODE::APPEND );
             }
@@ -1374,7 +1386,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                 zone->SetNet( getNet( aBoard, netname ) );
                 zone->SetLayer( klayer );
                 zone->SetAssignedPriority( 500 - fillOrder );
-                int localClearance = bds.m_MinClearance;
+                int localClearance = zoneClearance();
 
                 if( auto selector = pourSafeSpacingProfiles.find( uuid ); selector != pourSafeSpacingProfiles.end() )
                 {
@@ -1389,7 +1401,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                 }
 
                 zone->SetLocalClearance( localClearance );
-                zone->SetMinThickness( bds.m_TrackMinWidth );
+                zone->SetMinThickness( zoneClearance() );
 
                 for( nlohmann::json& polyData : polyDataList )
                 {
