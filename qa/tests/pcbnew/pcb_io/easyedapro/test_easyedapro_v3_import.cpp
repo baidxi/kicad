@@ -39,6 +39,8 @@
 #include <board.h>
 #include <board_design_settings.h>
 
+#include <zone.h>
+
 #include <footprint.h>
 #include <pad.h>
 
@@ -258,6 +260,37 @@ BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
     BOOST_CHECK( rules.Contains( wxS( "SMD Pad ↔ Track: 5.9843 mil (0.152 mm)" ) ) );
     BOOST_CHECK( rules.Contains( wxS( "Hole ↔ Track: 6.9 mil (0.1755 mm)" ) ) );
     BOOST_CHECK( rules.Contains( wxS( "EasyEDA safe spacing: SMD Pad ↔ Track" ) ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( BoardImportsTeardropCopper )
+{
+    BOARD                        board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+
+    EASYEDAPRO::V3_DOC_RAW boardDoc;
+    boardDoc.rows = {
+        { wxS( "NET" ), wxS( "[\"NET\",\"SIGNAL\"]" ), 0, {}, {} },
+        { wxS( "TEARDROP" ),
+          wxS( "teardrop1" ),
+          0,
+          {},
+          { { "layerId", 1 },
+            { "netName", "SIGNAL" },
+            { "path", nlohmann::json::array( { 0, 0, "L", 100, 0, 50, 100, 0, 0 } ) } } }
+    };
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
+    parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
+
+    BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
+
+    ZONE* teardrop = board.Zones().front();
+    BOOST_CHECK_EQUAL( teardrop->GetNetname(), wxS( "SIGNAL" ) );
+    BOOST_CHECK( teardrop->IsFilled() );
+    BOOST_CHECK_EQUAL( static_cast<int>( teardrop->GetTeardropAreaType() ),
+                       static_cast<int>( TEARDROP_TYPE::TD_UNSPECIFIED ) );
+    BOOST_REQUIRE( teardrop->GetFilledPolysList( F_Cu ) );
 }
 
 

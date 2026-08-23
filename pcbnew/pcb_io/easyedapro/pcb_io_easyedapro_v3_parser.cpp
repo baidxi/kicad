@@ -1217,6 +1217,32 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
 
             aBoard->Add( zone.release(), ADD_MODE::APPEND );
         }
+        else if( row.type == wxS( "TEARDROP" ) )
+        {
+            int          layer = V3GetInt( row.inner, "layerId", 1 );
+            PCB_LAYER_ID klayer = m_v2Parser.LayerToKi( layer );
+            wxString     netname = V3GetString( row.inner, "netName" );
+
+            nlohmann::json polyData = row.inner.value( "path", nlohmann::json::array() );
+
+            SHAPE_LINE_CHAIN contour = m_v2Parser.ParseContour( polyData, false );
+            contour.SetClosed( true );
+
+            std::unique_ptr<ZONE> zone = std::make_unique<ZONE>( aBoard );
+
+            zone->SetNet( aBoard->FindNet( netname ) );
+            zone->SetLayer( klayer );
+            zone->Outline()->Append( contour );
+            zone->SetFilledPolysList( klayer, contour );
+            zone->SetNeedRefill( false );
+            zone->SetIsFilled( true );
+            zone->SetAssignedPriority( 600 );
+            zone->SetLocalClearance( 0 );
+            zone->SetMinThickness( 0 );
+            zone->SetTeardropAreaType( TEARDROP_TYPE::TD_UNSPECIFIED );
+
+            aBoard->Add( zone.release(), ADD_MODE::APPEND );
+        }
         else if( row.type == wxS( "POURED" ) )
         {
             nlohmann::json idArr = V3ParseIdArray( row.id );
