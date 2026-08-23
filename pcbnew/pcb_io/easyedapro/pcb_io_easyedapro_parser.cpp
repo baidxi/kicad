@@ -521,21 +521,9 @@ PCB_IO_EASYEDAPRO_PARSER::ParseContour( nlohmann::json polyData, bool aInFill,
                 end.x = ( polyData.at( ++i ) );
                 end.y = ( polyData.at( ++i ) );
 
-                VECTOR2D arcStart, arcEnd;
-                arcStart = prevPt;
-                arcEnd = end;
-
-                VECTOR2D delta = end - prevPt;
-                VECTOR2D mid = ( prevPt + delta / 2 );
-
-                double   ha = angle / 2;
-                double   hd = delta.EuclideanNorm() / 2;
-                double   cdist = hd / tan( DEG2RAD( ha ) );
-                VECTOR2D center = mid + delta.Perpendicular().Resize( cdist );
-
                 SHAPE_ARC sarc;
-                sarc.ConstructFromStartEndCenter( ScalePos( arcStart ), ScalePos( arcEnd ),
-                                                  ScalePos( center ), angle >= 0, 0 );
+                sarc.ConstructFromStartEndAngle( ScalePos( prevPt ), ScalePos( end ),
+                                                 -EDA_ANGLE( angle, DEGREES_T ) );
 
                 result.Append( sarc, aMaxError );
 

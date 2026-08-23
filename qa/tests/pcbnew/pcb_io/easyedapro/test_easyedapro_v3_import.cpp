@@ -358,4 +358,24 @@ BOOST_AUTO_TEST_CASE( ParseContourClampsRoundedRectangleRadius )
 }
 
 
+BOOST_AUTO_TEST_CASE( ParseContourPreservesArcSweep )
+{
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+    nlohmann::json contourData = nlohmann::json::parse( R"([0, -100, "ARC", 90, 100, 0])" );
+
+    SHAPE_LINE_CHAIN contour = parser.ParseContour( contourData, false );
+
+    BOOST_CHECK_EQUAL( contour.BBox().GetWidth(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 100 ) );
+    BOOST_CHECK_EQUAL( contour.BBox().GetHeight(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 100 ) );
+
+    contourData = nlohmann::json::parse(
+            R"([163.46744817253636, 39.18998256709377, "ARC", 0.11499527707806578, 163.46973078902099, 39.18769537556474])" );
+    contour = parser.ParseContour( contourData, false );
+
+    BOOST_CHECK_LT( contour.BBox().GetWidth(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 0.01 ) );
+    BOOST_CHECK_LT( contour.BBox().GetHeight(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 0.01 ) );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
