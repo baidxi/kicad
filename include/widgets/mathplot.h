@@ -258,6 +258,17 @@ public:
      */
     const wxFont& GetFont() const { return m_font; }
 
+    /** Get the font to draw this layer's text with.
+     *
+     *  Layers are also constructed without a GUI (the QA suites build them headless), and
+     *  resolving a stock GDI font needs an initialized toolkit -- under wxGTK it builds a
+     *  GtkStyleContext, which is fatal with no display connection.  So layers must not reach
+     *  for one in their constructors; fall back to it here instead, at paint time, where a
+     *  live wxDC guarantees the toolkit is up.
+     *  @return Font
+     */
+    const wxFont& GetDrawFont() const { return m_font.IsOk() ? m_font : *wxSMALL_FONT; }
+
     /** Get pen set for this layer.
      *  @return Pen
      */
