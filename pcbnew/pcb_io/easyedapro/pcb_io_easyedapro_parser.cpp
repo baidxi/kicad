@@ -43,6 +43,9 @@
 #include <footprint.h>
 #include <board.h>
 #include <board_design_settings.h>
+#include <netclass.h>
+#include <project/net_settings.h>
+
 #include <bezier_curves.h>
 #include <pcb_group.h>
 #include <pcb_track.h>
@@ -1176,8 +1179,11 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
 
                     if( trackClearance > 0 )
                     {
-                        bds.m_MinClearance = ScaleSize( trackClearance );
+                        int clearance = ScaleSize( trackClearance );
+                        bds.m_MinClearance = clearance;
+                        bds.m_NetSettings->GetDefaultNetclass()->SetClearance( clearance );
                         aBoard->m_LegacyDesignSettingsLoaded = true;
+                        aBoard->m_LegacyNetclassesLoaded = true;
                     }
                 }
                 double minEdgeClearance = 0;

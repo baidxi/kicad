@@ -49,6 +49,9 @@
 #include <pad.h>
 #include <fix_board_shape.h>
 #include <board_design_settings.h>
+#include <netclass.h>
+#include <project/net_settings.h>
+
 #include <font/font.h>
 #include <core/mirror.h>
 #include <convert_basic_shapes_to_polygon.h>
@@ -1004,8 +1007,11 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
 
                         if( trackClearance > 0 )
                         {
-                            bds.m_MinClearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( trackClearance );
+                            int clearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( trackClearance );
+                            bds.m_MinClearance = clearance;
+                            bds.m_NetSettings->GetDefaultNetclass()->SetClearance( clearance );
                             aBoard->m_LegacyDesignSettingsLoaded = true;
+                            aBoard->m_LegacyNetclassesLoaded = true;
                         }
                     }
                     double minEdgeClearance = 0;
