@@ -217,6 +217,8 @@ void PCB_IO_EASYEDAPRO_V3::loadBoard( const wxString& aFileName, BOARD& aBoard, 
                                       const std::map<std::string, UTF8>* aProperties, PROJECT* aProject )
 {
     m_props = aProperties;
+    m_importedDesignRules.clear();
+
     m_board = &aBoard;
 
     FONTCONFIG_REPORTER_SCOPE fontconfigScope( &LOAD_INFO_REPORTER::GetInstance() );
@@ -304,6 +306,8 @@ void PCB_IO_EASYEDAPRO_V3::loadBoard( const wxString& aFileName, BOARD& aBoard, 
     std::multimap<wxString, EASYEDAPRO::POURED> poured; // Empty - v3 parser extracts from raw doc
 
     parser.ParseBoard( m_board, project, footprints, blobs, poured, *pcbRawDoc, fpLibName );
+    m_importedDesignRules = parser.GenerateSafeSpacingRules();
+
 
     // Loading a board must not write to disk, so the project library is left to the reconciler
     m_importedLibFootprints.clear();

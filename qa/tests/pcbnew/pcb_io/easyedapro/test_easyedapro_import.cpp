@@ -30,6 +30,8 @@
 #include <pcbnew/pcb_io/easyedapro/pcb_io_easyedapro_parser.h>
 
 #include <board.h>
+#include <board_design_settings.h>
+
 #include <footprint.h>
 #include <pad.h>
 #include <pcb_shape.h>
@@ -163,6 +165,37 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
     }
 
     BOOST_CHECK_EQUAL( padsWithNet, 2 );
+}
+
+BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
+{
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+
+    nlohmann::json activeMatrix = { { 4.0157 }, { 5.9843, 5.9843 }, { 5.9843, 5.9843, 5.9843 } };
+
+    while( activeMatrix.size() < 10 )
+        activeMatrix.push_back( nlohmann::json::array() );
+
+    activeMatrix[8] = { 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811 };
+    activeMatrix[9] = { 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9 };
+
+    std::vector<nlohmann::json> boardLines = { { "RULE", "1", "copperThickness1oz", 1, { "mm", activeMatrix } },
+                                               { "RULE", "1", "copperThickness2oz", 0, { "mm", { { 7.9921 } } } } };
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
+
+    parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardLines, wxEmptyString );
+
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 4.0157 ) );
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_CopperEdgeClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 11.811 ) );
+
+
+    wxString rules = parser.GetSafeSpacingRules();
+
+    BOOST_CHECK( rules.Contains( wxS( "Track ↔ Track: 4.0157 mil (0.102 mm)" ) ) );
+    BOOST_CHECK( !rules.Contains( wxS( "Track ↔ Track: 7.9921 mil" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "EasyEDA safe spacing: SMD Pad ↔ Track" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "Board Outline ↔ Track: 11.811 mil (0.3 mm)" ) ) );
 }
 
 

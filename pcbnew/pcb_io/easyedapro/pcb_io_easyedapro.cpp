@@ -99,6 +99,8 @@ void PCB_IO_EASYEDAPRO::loadBoard( const wxString& aFileName, BOARD& aBoard, boo
                                    const std::map<std::string, UTF8>* aProperties, PROJECT* aProject )
 {
     m_props = aProperties;
+    m_importedDesignRules.clear();
+
     m_board = &aBoard;
 
     // Collect the font substitution warnings (RAII - automatically reset on scope exit)
@@ -240,6 +242,8 @@ void PCB_IO_EASYEDAPRO::loadBoard( const wxString& aFileName, BOARD& aBoard, boo
             parser.ParseBoard( m_board, project, m_projectData->m_Footprints,
                                m_projectData->m_Blobs, boardPoured, *pcbLines,
                                EASYEDAPRO::ShortenLibName( fname.GetName() ) );
+            m_importedDesignRules = parser.GetSafeSpacingRules();
+
 
             EASY_IT_BREAK;
         };

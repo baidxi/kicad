@@ -152,6 +152,13 @@ public:
      * @return Footprints (caller owns the objects)
      */
     virtual std::vector<FOOTPRINT*> GetImportedCachedLibraryFootprints();
+    /**
+     * Return custom DRC rules generated while importing the most recent board.
+     *
+     * The caller owns persistence of these rules beside the imported KiCad board.
+     */
+    virtual wxString GetImportedDesignRules() const { return wxEmptyString; }
+
 
     /**
      * Write @a aBoard to a storage file in a format that this PCB_IO implementation knows

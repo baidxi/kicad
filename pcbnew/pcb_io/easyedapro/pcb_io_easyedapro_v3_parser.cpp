@@ -25,7 +25,6 @@
 #include <io/easyedapro/easyedapro_import_utils.h>
 
 #include <memory>
-#include <limits>
 
 
 #include <json_common.h>
@@ -56,6 +55,122 @@
 #include <trace_helpers.h>
 
 using namespace EASYEDAPRO;
+
+static const wxString safeSpacingNames[] = { wxS( "Track" ),
+                                             wxS( "SMD Pad" ),
+                                             wxS( "TH Pad" ),
+                                             wxS( "SMD Test Point" ),
+                                             wxS( "TH Test Point" ),
+                                             wxS( "Via" ),
+                                             wxS( "Fill Region / Teardrop" ),
+                                             wxS( "Copper / Plane Zone" ),
+                                             wxS( "Slot Region" ),
+                                             wxS( "Line" ),
+                                             wxS( "Text / Image" ),
+                                             wxS( "Board Outline" ),
+                                             wxS( "Hole" ) };
+
+// Empty entries are source categories that the current item conversion flattens into another
+// KiCad type.  Their values are retained as comments in the generated .kicad_dru file.
+static const wxString safeSpacingConditions[] = { wxS( "A.Type == 'Track'" ),
+                                                  wxS( "A.Type == 'Pad' && A.Pad_Type == 'SMD'" ),
+                                                  wxS( "A.Type == 'Pad' && A.Pad_Type == 'Through-hole'" ),
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxS( "A.Type == 'Via'" ),
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxEmptyString,
+                                                  wxEmptyString };
+
+
+static wxString safeSpacingToMm( double aMil )
+{
+    return wxString::FromUTF8( FormatDouble2Str( pcbIUScale.IUTomm( PCB_IO_EASYEDAPRO_PARSER::ScaleSize( aMil ) ) ) );
+}
+
+
+wxString PCB_IO_EASYEDAPRO_V3_PARSER::GenerateSafeSpacingRules() const
+{
+    return GenerateSafeSpacingRules( m_safeSpacing );
+}
+
+
+wxString PCB_IO_EASYEDAPRO_V3_PARSER::GenerateSafeSpacingRules( const nlohmann::json& aSafeSpacing )
+{
+    if( !aSafeSpacing.is_array() || aSafeSpacing.empty() )
+        return wxEmptyString;
+
+    wxString rules = wxS( "(version 1)\n\n"
+                          "# EasyEDA Pro safeSpacing values.  Values are mils even when the\n"
+                          "# source rule context reports unit \"mm\".  Entries without a\n"
+                          "# generated rule are source categories that KiCad's imported item\n"
+                          "# model cannot distinguish; they remain here for lossless reference.\n" );
+
+    for( size_t row = 0; row < sizeof( safeSpacingNames ) / sizeof( safeSpacingNames[0] ) && row < aSafeSpacing.size();
+         ++row )
+    {
+        const nlohmann::json& values = aSafeSpacing.at( row );
+
+        if( !values.is_array() )
+            continue;
+
+        for( size_t col = 0; col <= row && col < values.size(); ++col )
+        {
+            if( !values.at( col ).is_number() )
+                continue;
+
+            double   value = values.at( col );
+            wxString mil = wxString::FromUTF8( FormatDouble2Str( value ) );
+            wxString mm = safeSpacingToMm( value );
+
+            rules += wxString::Format( wxS( "# %s ↔ %s: %s mil (%s mm)\n" ), safeSpacingNames[row],
+                                       safeSpacingNames[col], mil, mm );
+
+            if( value <= 0 || safeSpacingConditions[row].empty() || safeSpacingConditions[col].empty()
+                || ( row == 0 && col == 0 ) )
+            {
+                continue;
+            }
+            wxString conditionA = safeSpacingConditions[row];
+            wxString conditionB = safeSpacingConditions[col];
+            conditionB.Replace( wxS( "A." ), wxS( "B." ) );
+
+            rules += wxString::Format( wxS( "\n(rule \"EasyEDA safe spacing: %s ↔ %s\"\n"
+                                            "  (condition \"(%s) && (%s)\")\n"
+                                            "  (constraint clearance (min %smm)))\n" ),
+                                       safeSpacingNames[row], safeSpacingNames[col], conditionA, conditionB, mm );
+        }
+    }
+
+    constexpr size_t boardOutline = 11;
+
+    if( boardOutline < aSafeSpacing.size() && aSafeSpacing.at( boardOutline ).is_array() )
+    {
+        const nlohmann::json& values = aSafeSpacing.at( boardOutline );
+
+        for( size_t index : { 0u, 1u, 2u, 5u } )
+        {
+            if( index >= values.size() || !values.at( index ).is_number() || values.at( index ).get<double>() <= 0 )
+            {
+                continue;
+            }
+
+            wxString mm = safeSpacingToMm( values.at( index ) );
+
+            rules += wxString::Format( wxS( "\n(rule \"EasyEDA safe spacing: %s ↔ Board Outline\"\n"
+                                            "  (condition \"(%s)\")\n"
+                                            "  (constraint edge_clearance (min %smm)))\n" ),
+                                       safeSpacingNames[index], safeSpacingConditions[index], mm );
+        }
+    }
+
+    return rules;
+}
+
 
 static const int SHAPE_JOIN_DISTANCE = pcbIUScale.mmToIU( 1.5 );
 
@@ -804,6 +919,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
     std::map<wxString, ZONE*>                   poursToFill;
 
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    m_safeSpacing = nlohmann::json();
+
 
     for( const V3_ROW& row : aDoc.rows )
     {
@@ -874,25 +991,40 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
                     nlohmann::json content = safeSpacing[0].value( "content",
                                                                     nlohmann::json::array() );
 
-                    double minVal = std::numeric_limits<double>::max();
+                    m_safeSpacing = content;
 
-                    for( const auto& arr : content )
+                    // EasyEDA Pro labels this array "mm", but its values are always mils.  The
+                    // lower-triangular matrix starts with the track-to-track clearance, which maps
+                    // to KiCad's global minimum clearance; the remaining object-specific values
+                    // cannot be represented by that single board setting.
+                    if( content.is_array() && !content.empty() && content.at( 0 ).is_array() && !content.at( 0 ).empty()
+                        && content.at( 0 ).at( 0 ).is_number() )
                     {
-                        if( arr.is_array() )
-                        {
-                            for( const auto& val : arr )
-                            {
-                                double v = val.is_number() ? val.get<double>() : 0;
+                        double trackClearance = content.at( 0 ).at( 0 );
 
-                                if( v > 0 && v < minVal )
-                                    minVal = v;
+                        if( trackClearance > 0 )
+                        {
+                            bds.m_MinClearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( trackClearance );
+                            aBoard->m_LegacyDesignSettingsLoaded = true;
+                        }
+                    }
+                    double minEdgeClearance = 0;
+
+                    if( content.size() > 11 && content.at( 11 ).is_array() )
+                    {
+                        for( const nlohmann::json& value : content.at( 11 ) )
+                        {
+                            if( value.is_number() && value.get<double>() > 0
+                                && ( minEdgeClearance == 0 || value.get<double>() < minEdgeClearance ) )
+                            {
+                                minEdgeClearance = value;
                             }
                         }
                     }
 
-                    if( minVal != std::numeric_limits<double>::max() )
+                    if( minEdgeClearance > 0 )
                     {
-                        bds.m_MinClearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( minVal );
+                        bds.m_CopperEdgeClearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( minEdgeClearance );
                         aBoard->m_LegacyDesignSettingsLoaded = true;
                     }
                 }

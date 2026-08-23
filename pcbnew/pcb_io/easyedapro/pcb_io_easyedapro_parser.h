@@ -77,6 +77,8 @@ public:
                      const std::map<wxString, EASYEDAPRO::BLOB>&        aBlobMap,
                      const std::multimap<wxString, EASYEDAPRO::POURED>& aPouredMap,
                      const std::vector<nlohmann::json>& aLines, const wxString& aFpLibName );
+    wxString GetSafeSpacingRules() const;
+
 
     std::vector<std::unique_ptr<PCB_SHAPE>> ParsePoly( BOARD_ITEM_CONTAINER* aContainer,
                                                        nlohmann::json polyData, bool aClosed,
@@ -91,6 +93,8 @@ public:
 private:
     BOARD*   m_board;
     VECTOR2D m_relOrigin;
+    nlohmann::json m_safeSpacing;
+
 
     NETINFO_ITEM* getNet( BOARD* aBoard, const wxString& aNetName );
 

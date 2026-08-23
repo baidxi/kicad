@@ -3536,8 +3536,29 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         }
 
         // Save as KiCad format
+
         IO_RELEASER<PCB_IO> kicadPlugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
         kicadPlugin->SaveBoard( outputPath, *board );
+        wxString importedRules = pi->GetImportedDesignRules();
+
+        if( !importedRules.IsEmpty() )
+        {
+            wxFileName rulesPath( outputPath );
+            rulesPath.SetExt( FILEEXT::DesignRulesFileExtension );
+
+            wxFile rulesFile( rulesPath.GetFullPath(), wxFile::write );
+
+            if( rulesFile.IsOpened() )
+            {
+                rulesFile.Write( importedRules );
+            }
+            else
+            {
+                m_reporter->Report( wxString::Format( _( "Could not write imported design rules to '%s'\n" ),
+                                                      rulesPath.GetFullPath() ),
+                                    RPT_SEVERITY_WARNING );
+            }
+        }
 
         m_reporter->Report( wxString::Format( _( "Successfully saved imported board to '%s'\n" ), outputPath ),
                             RPT_SEVERITY_INFO );

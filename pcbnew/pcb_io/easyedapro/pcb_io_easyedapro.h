@@ -57,6 +57,8 @@ public:
                              const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     std::vector<FOOTPRINT*> GetImportedCachedLibraryFootprints() override;
+    wxString                GetImportedDesignRules() const override { return m_importedDesignRules; }
+
 
     std::unique_ptr<FOOTPRINT> FootprintLoad( const wxString& aLibraryPath, const wxString& aFootprintName,
                                               bool                               aKeepUUID = false,
@@ -74,6 +76,8 @@ protected:
 private:
     struct PRJ_DATA; // Opaque data structure
     PRJ_DATA* m_projectData = nullptr;
+    wxString  m_importedDesignRules;
+
 
     void LoadAllDataFromProject( const wxString& aLibraryPath, const nlohmann::json& aProject );
 };

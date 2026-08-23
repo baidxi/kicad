@@ -20,11 +20,12 @@
 
 #include "pcb_io_easyedapro_parser.h"
 #include <io/easyedapro/easyedapro_import_utils.h>
+#include "pcb_io_easyedapro_v3_parser.h"
+
 
 #include <algorithm>
 #include <cmath>
 #include <memory>
-#include <limits>
 
 
 #include <json_common.h>
@@ -1039,7 +1040,33 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
     std::multimap<wxString, EASYEDAPRO::POURED> boardPouredMap = aPouredMap;
     std::map<wxString, ZONE*>                   poursToFill;
 
+    m_safeSpacing = nlohmann::json();
+
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    std::map<wxString, nlohmann::json> safeSpacingProfiles;
+    std::map<wxString, wxString>       pourSafeSpacingProfiles;
+
+    for( const nlohmann::json& line : aLines )
+    {
+        if( line.empty() || !line.at( 0 ).is_string() )
+            continue;
+
+        wxString type = line.at( 0 );
+
+        if( type == wxS( "RULE" ) && line.size() > 4 && line.at( 1 ).get<wxString>() == wxS( "1" )
+            && line.at( 3 ).get<int>() != 2 && line.at( 4 ).is_array() && line.at( 4 ).size() > 1
+            && line.at( 4 ).at( 1 ).is_array() )
+        {
+            safeSpacingProfiles[line.at( 2 ).get<wxString>()] = line.at( 4 ).at( 1 );
+        }
+        else if( type == wxS( "RULE_SELECTOR" ) && line.size() > 3 && line.at( 1 ).is_array() && line.at( 1 ).size() > 1
+                 && line.at( 1 ).at( 0 ).get<wxString>() == wxS( "POUR" ) && line.at( 3 ).is_object()
+                 && line.at( 3 ).contains( "1" ) && line.at( 3 ).at( "1" ).is_string() )
+        {
+            pourSafeSpacingProfiles[line.at( 1 ).at( 1 ).get<wxString>()] = line.at( 3 ).at( "1" ).get<wxString>();
+        }
+    }
+
 
     for( const nlohmann::json& line : aLines )
     {
@@ -1113,40 +1140,63 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
             {
                 wxString       units = ruleData.at( 0 );
                 nlohmann::json table = ruleData.at( 1 );
-                double         minVal = std::numeric_limits<double>::max();
 
-                if( table.is_array() && !table.empty() && table.at( 0 ).is_array() )
+                if( table.is_array() )
                 {
-                    // ["RULE","1","safeClearance",1,["mil",[[6],[6,6],[6,6,6],[6,6,6,6],[6,6,6,6,6],[6,6,6,6,6,6],[6,6,6,6,6,6,6],[11.8,11.8,11.8,11.8,11.8,11.8,11.8]]]]
-                    for( const auto& arr : table )
+                    m_safeSpacing = table;
+
+                    // Legacy Pro stores a ten-row matrix.  Its final two rows are Board Outline
+                    // and Hole, whereas v3 inserts Slot, Line, and Text/Image before them.
+                    if( table.size() == 10 )
                     {
-                        for( double val : arr )
-                        {
-                            if( val > 0 && val < minVal )
-                                minVal = val;
-                        }
-                    }
-                }
-                else if( table.is_object() )
-                {
-                    // ["RULE","1","safeClearance",1,["mil",{"1":[[8,8,6,8,20,0,0,6,10,10],[8,6,8,8,12,0,0,6,10,10],[6,8,6,8,12,0,0,6,10,10],
-                    //  [8,8,8,8,12,0,0,6,10,10],[20,12,12,12,20,0,0,0,10,10],[0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0],[6,6,6,6,0,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,0],[10,10,10,10,10,0,0,0,0,6]]}]]
-                    for( auto& [key, arr] : table.items() )
-                    {
-                        for( const auto& subarr : arr )
-                        {
-                            for( double val : subarr )
-                            {
-                                if( val > 0 && val < minVal )
-                                    minVal = val;
-                            }
-                        }
+                        nlohmann::json normalized = nlohmann::json::array();
+
+                        for( size_t i = 0; i < 13; ++i )
+                            normalized.push_back( nlohmann::json::array() );
+
+                        for( size_t i = 0; i < 8; ++i )
+                            normalized[i] = table.at( i );
+
+                        normalized[11] = table.at( 8 );
+                        normalized[12] = table.at( 9 );
+                        m_safeSpacing = std::move( normalized );
                     }
                 }
 
-                if( minVal != std::numeric_limits<double>::max() )
+                // EasyEDA Pro labels this array "mm", but its values are always mils.  The
+                // lower-triangular matrix starts with the track-to-track clearance, which maps
+                // to KiCad's global minimum clearance; the remaining object-specific values
+                // cannot be represented by that single board setting.
+                const nlohmann::json& safeSpacing = m_safeSpacing;
+
+                if( safeSpacing.is_array() && !safeSpacing.empty() && safeSpacing.at( 0 ).is_array()
+                    && !safeSpacing.at( 0 ).empty() && safeSpacing.at( 0 ).at( 0 ).is_number() )
                 {
-                    bds.m_MinClearance = ScaleSize( minVal );
+                    double trackClearance = safeSpacing.at( 0 ).at( 0 );
+
+                    if( trackClearance > 0 )
+                    {
+                        bds.m_MinClearance = ScaleSize( trackClearance );
+                        aBoard->m_LegacyDesignSettingsLoaded = true;
+                    }
+                }
+                double minEdgeClearance = 0;
+
+                if( safeSpacing.is_array() && safeSpacing.size() > 11 && safeSpacing.at( 11 ).is_array() )
+                {
+                    for( const nlohmann::json& value : safeSpacing.at( 11 ) )
+                    {
+                        if( value.is_number() && value.get<double>() > 0
+                            && ( minEdgeClearance == 0 || value.get<double>() < minEdgeClearance ) )
+                        {
+                            minEdgeClearance = value;
+                        }
+                    }
+                }
+
+                if( minEdgeClearance > 0 )
+                {
+                    bds.m_CopperEdgeClearance = ScaleSize( minEdgeClearance );
                     aBoard->m_LegacyDesignSettingsLoaded = true;
                 }
             }
@@ -1330,7 +1380,21 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
                 zone->SetNet( getNet( aBoard, netname ) );
                 zone->SetLayer( klayer );
                 zone->SetAssignedPriority( 500 - fillOrder );
-                zone->SetLocalClearance( bds.m_MinClearance );
+                int localClearance = bds.m_MinClearance;
+
+                if( auto selector = pourSafeSpacingProfiles.find( uuid ); selector != pourSafeSpacingProfiles.end() )
+                {
+                    auto profile = safeSpacingProfiles.find( selector->second );
+
+                    if( profile != safeSpacingProfiles.end() && profile->second.size() > 7
+                        && profile->second.at( 7 ).is_array() && !profile->second.at( 7 ).empty()
+                        && profile->second.at( 7 ).at( 0 ).is_number() )
+                    {
+                        localClearance = ScaleSize( profile->second.at( 7 ).at( 0 ).get<double>() );
+                    }
+                }
+
+                zone->SetLocalClearance( localClearance );
                 zone->SetMinThickness( bds.m_TrackMinWidth );
 
                 for( nlohmann::json& polyData : polyDataList )
@@ -1952,10 +2016,15 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
 
     VECTOR2D offset = pageCenter - outlineBbox.GetCenter();
 
+
     int alignGrid = pcbIUScale.mmToIU( 10 );
     offset.x = KiROUND( offset.x / alignGrid ) * alignGrid;
     offset.y = KiROUND( offset.y / alignGrid ) * alignGrid;
 
     aBoard->Move( offset );
     bds.SetAuxOrigin( offset );
+}
+wxString PCB_IO_EASYEDAPRO_PARSER::GetSafeSpacingRules() const
+{
+    return PCB_IO_EASYEDAPRO_V3_PARSER::GenerateSafeSpacingRules( m_safeSpacing );
 }

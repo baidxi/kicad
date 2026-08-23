@@ -221,26 +221,43 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
 }
 
 
-BOOST_AUTO_TEST_CASE( SafeClearanceIgnoresUnavailablePairs )
+BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
 {
     BOARD                       board;
     PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
 
+    nlohmann::json content = { { 4.0157 }, { 5.9843, 5.9843 } };
+
+    while( content.size() < 13 )
+        content.push_back( nlohmann::json::array() );
+
+    content[12] = { 6.9 };
+    content[11] = { 11.811, 10.0 };
+
+
     EASYEDAPRO::V3_DOC_RAW boardDoc;
-    boardDoc.rows = {
-        { wxS( "RULE" ),
-          wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
-          0,
-          {},
-          { { "ruleState", "DEFAULT" },
-            { "ruleContext", { { "safeSpacing", { { { "content", { { 0, 12.0 }, { 6.5, 0 } } } } } } } } } }
-    };
+    boardDoc.rows = { { wxS( "RULE" ),
+                        wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
+                        0,
+                        {},
+                        { { "ruleState", "DEFAULT" },
+                          { "ruleContext", { { "safeSpacing", { { { "content", content } } } } } } } } };
 
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
     parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
 
-    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 6.5 ) );
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 4.0157 ) );
+    BOOST_CHECK_EQUAL( board.GetDesignSettings().m_CopperEdgeClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 10.0 ) );
+
     BOOST_CHECK( board.m_LegacyDesignSettingsLoaded );
+
+    wxString rules = parser.GenerateSafeSpacingRules();
+
+    BOOST_CHECK( rules.Contains( wxS( "(A.Type == 'Pad' && A.Pad_Type == 'SMD') && (B.Type == 'Track')" ) ) );
+
+    BOOST_CHECK( rules.Contains( wxS( "SMD Pad ↔ Track: 5.9843 mil (0.152 mm)" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "Hole ↔ Track: 6.9 mil (0.1755 mm)" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "EasyEDA safe spacing: SMD Pad ↔ Track" ) ) );
 }
 
 
