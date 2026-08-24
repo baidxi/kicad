@@ -292,6 +292,14 @@ void SCH_SHEET::SetScreen( SCH_SCREEN* aScreen )
 }
 
 
+void SCH_SHEET::SyncUuidToScreen()
+{
+    wxCHECK_RET( m_screen, wxS( "Cannot sync a sheet UUID without a screen" ) );
+
+    const_cast<KIID&>( m_Uuid ) = m_screen->GetUuid();
+}
+
+
 int SCH_SHEET::GetScreenCount() const
 {
     if( m_screen == nullptr )
@@ -1161,7 +1169,17 @@ std::map<SCH_SHEET_PIN*, SCH_NO_CONNECT*> SCH_SHEET::GetNoConnects() const
 {
     std::map<SCH_SHEET_PIN*, SCH_NO_CONNECT*> noConnects;
 
-    if( SCH_SCREEN* screen = dynamic_cast<SCH_SCREEN*>( GetParent() ) )
+    SCH_SCREEN* screen = dynamic_cast<SCH_SCREEN*>( GetParent() );
+
+    // A top level sheet is parented to the root sheet rather than to the root screen, so reach
+    // the screen that holds this sheet through the parent sheet instead
+    if( !screen )
+    {
+        if( SCH_SHEET* parentSheet = dynamic_cast<SCH_SHEET*>( GetParent() ) )
+            screen = parentSheet->GetScreen();
+    }
+
+    if( screen )
     {
         for( SCH_SHEET_PIN* sheetPin : m_pins )
         {

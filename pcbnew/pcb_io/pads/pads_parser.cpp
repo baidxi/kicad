@@ -95,6 +95,16 @@ static std::vector<std::string> expandShortcutPattern( const std::string& aPatte
 }
 
 
+static std::string normalizeNetName( const std::string& aNetName )
+{
+    // PADS uses numeric sentinels in optional owner/signame fields for unassigned nets.
+    if( aNetName == "-1" || aNetName == "0" )
+        return {};
+
+    return aNetName;
+}
+
+
 PARSER::PARSER()
 {
 }
@@ -1137,6 +1147,12 @@ void PARSER::parseSectionVIA( std::ifstream& aStream )
                 def.has_mask_back = true;
         }
 
+        if( def.drill_start > 0 && def.drill_end > 0 )
+        {
+            min_layer = std::min( def.drill_start, def.drill_end );
+            max_layer = std::max( def.drill_start, def.drill_end );
+        }
+
         // Determine layer span and via type
         if( min_layer <= max_layer )
         {
@@ -1224,7 +1240,7 @@ void PARSER::parseSectionPOUR( std::ifstream& aStream )
 
             POUR pour;
             pour.name = name;
-            pour.net_name = signame;
+            pour.net_name = normalizeNetName( signame );
             pour.layer = level;
             pour.priority = priority;
             pour.width = width;
@@ -1258,16 +1274,29 @@ void PARSER::parseSectionPOUR( std::ifstream& aStream )
             // Handle different piece types
             if( poly_type == "CIRCLE" || poly_type == "CIRCUT" )
             {
-                // Circle piece: one line with center and radius info
-                // Format: xloc yloc radius
-                if( !readLine( aStream, line ) )
-                    break;
+                // Circle piece: `corners` lines (always 2 in practice), each a diametrically
+                // opposite endpoint -- not a single "xloc yloc radius" line.
+                std::vector<std::pair<double, double>> endpoints;
 
-                std::stringstream iss3( line );
-                double cx = 0.0, cy = 0.0, radius = 0.0;
-
-                if( iss3 >> cx >> cy >> radius )
+                for( int j = 0; j < corners; ++j )
                 {
+                    if( !readLine( aStream, line ) )
+                        break;
+
+                    std::stringstream iss3( line );
+                    double px = 0.0, py = 0.0;
+
+                    if( iss3 >> px >> py )
+                        endpoints.emplace_back( px, py );
+                }
+
+                if( endpoints.size() == 2 )
+                {
+                    double cx = ( endpoints[0].first + endpoints[1].first ) / 2.0;
+                    double cy = ( endpoints[0].second + endpoints[1].second ) / 2.0;
+                    double radius = std::hypot( endpoints[1].first - endpoints[0].first,
+                                                endpoints[1].second - endpoints[0].second ) / 2.0;
+
                     // Create arc representing full circle
                     ARC arc{};
                     arc.cx = x + cx;
@@ -3347,7 +3376,7 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                 copper.name = name;
                 copper.layer = level;
                 copper.width = width;
-                copper.net_name = signame;
+                copper.net_name = normalizeNetName( signame );
 
                 copper.filled = ( shape_type == "COPCLS" || shape_type == "COPCIR" );
                 copper.is_cutout = ( shape_type == "COPCUT" || shape_type == "COPCCO" ||

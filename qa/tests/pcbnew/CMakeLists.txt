@@ -130,6 +130,7 @@ set( QA_PCBNEW_SRCS
     test_multichannel.cpp
     test_pns_tuning_path_through_pad.cpp
     test_pns_diff_pair_tuning_width.cpp
+    test_pns_via_layer_span.cpp
     test_variant.cpp
     test_text_variable_resolution.cpp
     test_zone.cpp
@@ -239,6 +240,7 @@ set( QA_PCBNEW_SRCS
     pcb_io/eagle/test_eagle_lbr_import.cpp
     pcb_io/eagle/test_eagle_managed_lib_naming.cpp
     pcb_io/pads/test_pads_import.cpp
+    pcb_io/pads/test_pads_binary_import.cpp
     pcb_io/pads/test_pads_layer_mapper.cpp
     pcb_io/pads/test_pads_arc_structures.cpp
     pcb_io/pads/test_pads_part_structures.cpp

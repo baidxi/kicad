@@ -179,6 +179,17 @@ SCH_SHEET_PATH& SCH_SHEET_PATH::operator=( SCH_SHEET_PATH&& aOther )
 }
 
 
+void SCH_SHEET_PATH::Swap( SCH_SHEET_PATH& aOther ) noexcept
+{
+    m_sheets.swap( aOther.m_sheets );
+    std::swap( m_virtualPageNumber, aOther.m_virtualPageNumber );
+    std::swap( m_current_hash, aOther.m_current_hash );
+    m_cached_page_number.swap( aOther.m_cached_page_number );
+    m_path.swap( aOther.m_path );
+    m_recursion_test_cache.swap( aOther.m_recursion_test_cache );
+}
+
+
 SCH_SHEET_PATH SCH_SHEET_PATH::operator+( const SCH_SHEET_PATH& aOther )
 {
     SCH_SHEET_PATH retv = *this;
