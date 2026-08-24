@@ -15,8 +15,10 @@ set( ALTIUM2PCBNEW_SRCS
 add_library( altium2pcbnew STATIC ${ALTIUM2PCBNEW_SRCS} )
 
 target_link_libraries( altium2pcbnew
-    pcbcommon
-    compoundfilereader )
+    PUBLIC
+        pcbcommon
+        compoundfilereader
+        ${OCC_LIBRARIES} )
 
 target_include_directories( altium2pcbnew
     PUBLIC

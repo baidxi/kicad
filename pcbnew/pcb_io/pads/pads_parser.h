@@ -339,9 +339,9 @@ struct VIA
  */
 enum class POUR_STYLE
 {
-    SOLID,      ///< Solid filled pour (POUROUT, POLY)
-    HATCHED,    ///< Hatched pour (HATOUT)
-    VOIDOUT     ///< Void/empty region (VOIDOUT)
+    SOLID,   ///< Solid filled pour (POUROUT, POLY)
+    HATCHED, ///< Hatched pour (HATOUT)
+    VOIDOUT  ///< Void/empty region (VOIDOUT)
 };
 
 /**
