@@ -36,6 +36,7 @@
 #include <drc/drc_item.h>
 #include <settings/settings_manager.h>
 #include <geometry/shape_poly_set.h>
+#include <geometry/shape_utils.h>
 #include <advanced_config.h>
 #include <connectivity/connectivity_data.h>
 #include <teardrop/teardrop.h>
@@ -4272,4 +4273,184 @@ BOOST_FIXTURE_TEST_CASE( SameNetBorderIdenticalAcrossFillModes, ZONE_FILL_TEST_F
     BOOST_REQUIRE_MESSAGE( checkedZones >= 3,
                            wxString::Format( "Expected at least three zones sharing a same-net "
                                              "border, found %d.", checkedZones ) );
+}
+
+
+// Helpers for the same-net governing tests below.
+static ZONE* addSquareZone( BOARD* aBoard, const BOX2I& aBox, int aNet, int aPriority,
+                            int aClearanceIU )
+{
+    ZONE* zone = new ZONE( aBoard );
+    zone->SetLayer( F_Cu );
+    zone->SetNetCode( aNet );
+    zone->SetAssignedPriority( aPriority );
+    zone->SetLocalClearance( aClearanceIU );
+    zone->SetMinThickness( pcbIUScale.mmToIU( 0.1 ) );
+
+    SHAPE_POLY_SET* outline = new SHAPE_POLY_SET();
+    outline->AddOutline( KIGEOM::BoxToLineChain( aBox ) );
+    zone->SetOutline( outline );
+
+    aBoard->Add( zone );
+    return zone;
+}
+
+
+static PAD* addSinglePad( BOARD* aBoard, const VECTOR2I& aPos, int aNet )
+{
+    FOOTPRINT* fp = new FOOTPRINT( aBoard );
+    fp->SetPosition( aPos );
+    aBoard->Add( fp );
+
+    PAD* pad = new PAD( fp );
+    pad->SetPosition( aPos );
+    pad->SetSize( PADSTACK::ALL_LAYERS, VECTOR2I( pcbIUScale.mmToIU( 1.0 ), pcbIUScale.mmToIU( 1.0 ) ) );
+    pad->SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::CIRCLE );
+    pad->SetLayerSet( LSET( { F_Cu } ) );
+    pad->SetNetCode( aNet );
+    fp->Add( pad );
+    return pad;
+}
+
+
+// Minimum distance (mm) from copper to an item, or 5.0 if nothing is within that range.
+static double clearanceToItem( const SHAPE_POLY_SET& aCopper, const BOARD_ITEM* aItem )
+{
+    int      actual = 0;
+    VECTOR2I loc;
+    bool     within = aCopper.Collide( aItem->GetEffectiveShape( F_Cu ).get(),
+                                       pcbIUScale.mmToIU( 5.0 ), &actual, &loc );
+
+    return within ? pcbIUScale.IUTomm( actual ) : 5.0;
+}
+
+
+static SHAPE_POLY_SET mergedNetFill( BOARD* aBoard, int aNet )
+{
+    SHAPE_POLY_SET merged;
+
+    for( ZONE* zone : aBoard->Zones() )
+    {
+        if( zone->GetNetCode() == aNet && zone->HasFilledPolysForLayer( F_Cu ) )
+            merged.BooleanAdd( *zone->GetFilledPolysList( F_Cu ) );
+    }
+
+    return merged;
+}
+
+
+// A higher-priority same-net interior zone must govern the clearance to a foreign item inside
+// its outline.  Without the governing partition in buildCopperItemClearances the pour reclaims
+// the notch the interior zone left and the gap collapses to the pour's 0.2mm.
+// https://gitlab.com/kicad/code/kicad/-/issues/24175
+BOOST_FIXTURE_TEST_CASE( SameNetHigherPriorityClearanceOverride, ZONE_FILL_TEST_FIXTURE )
+{
+    ADVANCED_CFG& cfg = const_cast<ADVANCED_CFG&>( ADVANCED_CFG::GetCfg() );
+    struct ScopeGuard { bool& ref; bool orig; ~ScopeGuard() { ref = orig; } }
+        guard{ cfg.m_ZoneFillIterativeRefill, cfg.m_ZoneFillIterativeRefill };
+    cfg.m_ZoneFillIterativeRefill = true;
+
+    m_board = std::make_unique<BOARD>();
+
+    auto mm = []( double v ) { return pcbIUScale.mmToIU( v ); };
+
+    // Drop the default netclass clearance below every zone clearance under test so the zones'
+    // local clearances, not the netclass floor, decide the gap.
+    m_board->GetDesignSettings().m_NetSettings->GetDefaultNetclass()->SetClearance( mm( 0.05 ) );
+
+    NETINFO_ITEM* gnd = new NETINFO_ITEM( m_board.get(), wxT( "GND" ) );
+    NETINFO_ITEM* sig = new NETINFO_ITEM( m_board.get(), wxT( "SIG" ) );
+    m_board->Add( gnd );
+    m_board->Add( sig );
+
+    // BOX2I takes an origin and a size, so these are 0..40mm and 10..30mm.
+    addSquareZone( m_board.get(), BOX2I( VECTOR2I( 0, 0 ), VECTOR2I( mm( 40 ), mm( 40 ) ) ),
+                   gnd->GetNetCode(), 0, mm( 0.2 ) );
+    addSquareZone( m_board.get(),
+                   BOX2I( VECTOR2I( mm( 10 ), mm( 10 ) ), VECTOR2I( mm( 20 ), mm( 20 ) ) ),
+                   gnd->GetNetCode(), 1, mm( 1.0 ) );
+    PAD* foreign = addSinglePad( m_board.get(), VECTOR2I( mm( 20 ), mm( 20 ) ), sig->GetNetCode() );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    double gap = clearanceToItem( mergedNetFill( m_board.get(), gnd->GetNetCode() ), foreign );
+    BOOST_TEST_MESSAGE( "merged clearance to foreign pad = " << gap << " mm (expect ~1.0)" );
+
+    // The upper bound keeps an empty or failed fill, which reads as the 5mm search limit, from
+    // satisfying the check.
+    BOOST_CHECK_MESSAGE( gap > 0.9 && gap < 1.2,
+                         wxString::Format( "Interior zone (1.0mm) should govern; got %.3fmm "
+                                           "(pour clearance 0.2mm leaked through)", gap ) );
+}
+
+
+// The same governing rule applies to thermal relief.  Without it, knockoutThermalReliefs and
+// buildThermalSpokes both use the surrounding pour's 0.2mm gap and the sampled ring fills
+// solid.  https://gitlab.com/kicad/code/kicad/-/issues/24175
+BOOST_FIXTURE_TEST_CASE( SameNetHigherPriorityThermalOverride, ZONE_FILL_TEST_FIXTURE )
+{
+    ADVANCED_CFG& cfg = const_cast<ADVANCED_CFG&>( ADVANCED_CFG::GetCfg() );
+    struct ScopeGuard { bool& ref; bool orig; ~ScopeGuard() { ref = orig; } }
+        guard{ cfg.m_ZoneFillIterativeRefill, cfg.m_ZoneFillIterativeRefill };
+    cfg.m_ZoneFillIterativeRefill = true;
+
+    m_board = std::make_unique<BOARD>();
+
+    auto mm = []( double v ) { return pcbIUScale.mmToIU( v ); };
+    m_board->GetDesignSettings().m_NetSettings->GetDefaultNetclass()->SetClearance( mm( 0.05 ) );
+
+    NETINFO_ITEM* gnd = new NETINFO_ITEM( m_board.get(), wxT( "GND" ) );
+    m_board->Add( gnd );
+
+    auto configThermal =
+            [&]( ZONE* z, int gap )
+            {
+                z->SetPadConnection( ZONE_CONNECTION::THERMAL );
+                z->SetThermalReliefGap( gap );
+                z->SetThermalReliefSpokeWidth( mm( 0.3 ) );
+            };
+
+    ZONE* pour  = addSquareZone( m_board.get(), BOX2I( VECTOR2I( 0, 0 ), VECTOR2I( mm( 40 ), mm( 40 ) ) ),
+                                 gnd->GetNetCode(), 0, mm( 0.1 ) );
+    ZONE* inner = addSquareZone( m_board.get(),
+                                 BOX2I( VECTOR2I( mm( 12 ), mm( 12 ) ), VECTOR2I( mm( 28 ), mm( 28 ) ) ),
+                                 gnd->GetNetCode(), 1, mm( 0.1 ) );
+    configThermal( pour, mm( 0.2 ) );
+    configThermal( inner, mm( 0.6 ) );
+
+    PAD* pad = addSinglePad( m_board.get(), VECTOR2I( mm( 20 ), mm( 20 ) ), gnd->GetNetCode() );
+    pad->SetSize( PADSTACK::ALL_LAYERS, VECTOR2I( mm( 1.5 ), mm( 1.5 ) ) );
+
+    KI_TEST::FillZones( m_board.get() );
+
+    SHAPE_POLY_SET merged = mergedNetFill( m_board.get(), gnd->GetNetCode() );
+
+    // Sample a ring 0.4mm out from the 0.75mm pad edge: inside the interior zone's 0.6mm relief
+    // but outside the pour's 0.2mm one.  Governed, only the four spokes cross it; ungoverned,
+    // the ring is solid copper.  Sampling all round keeps the check free of spoke orientation.
+    const double   r = mm( 0.75 + 0.4 );
+    const VECTOR2I center( mm( 20 ), mm( 20 ) );
+    int            voidPoints = 0;
+    int            copperPoints = 0;
+
+    for( int deg = 0; deg < 360; deg += 5 )
+    {
+        double   a = deg * M_PI / 180.0;
+        VECTOR2I p( center.x + KiROUND( r * std::cos( a ) ), center.y + KiROUND( r * std::sin( a ) ) );
+
+        if( merged.Contains( p ) )
+            copperPoints++;
+        else
+            voidPoints++;
+    }
+
+    BOOST_TEST_MESSAGE( "thermal ring: " << voidPoints << " void, " << copperPoints << " copper of 72" );
+
+    BOOST_CHECK_MESSAGE( voidPoints > 40,
+                         wxString::Format( "Interior zone's 0.6mm thermal gap should govern; only "
+                                           "%d of 72 ring samples are void, so the pour's 0.2mm "
+                                           "gap filled the relief", voidPoints ) );
+
+    // Guards the check above against passing on an unfilled or missing zone.
+    BOOST_CHECK_MESSAGE( copperPoints > 0, "No thermal spokes reached the sampled ring." );
 }
