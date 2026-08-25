@@ -150,6 +150,36 @@ BOOST_AUTO_TEST_CASE( TestSketchModeNetColors )
 }
 
 
+BOOST_AUTO_TEST_CASE( NetColorAreaRatioControl )
+{
+    BOOST_CHECK_CLOSE( m_settings.GetNetColorAreaRatio(), KIGFX::PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO,
+                       1e-5 );
+    BOOST_CHECK_CLOSE( m_settings.GetNetColorAreaRatio(), 0.50, 1e-5 );
+
+    m_settings.SetNetColorAreaRatio( 0.40 );
+    BOOST_CHECK_CLOSE( m_settings.GetNetColorAreaRatio(), 0.40, 1e-5 );
+
+    m_settings.SetNetColorAreaRatio( KIGFX::PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO );
+
+    // Verify annular ring 50% area division formula:
+    // Outer radius R = 1.0, hole radius r_h = 0.4
+    // Total area = pi * (1.0^2 - 0.4^2) = pi * 0.84
+    // Half area = pi * 0.42
+    // Mid radius r_mid = sqrt((1.0^2 + 0.4^2) / 2) = sqrt(1.16 / 2) = sqrt(0.58)
+    // Inner band area = pi * (0.58 - 0.16) = pi * 0.42 (50.0%)
+    // Outer band area = pi * (1.00 - 0.58) = pi * 0.42 (50.0%)
+    double R = 1.0;
+    double r_h = 0.4;
+    double totalArea = M_PI * ( R * R - r_h * r_h );
+    double r_mid = std::sqrt( ( R * R + r_h * r_h ) / 2.0 );
+    double innerArea = M_PI * ( r_mid * r_mid - r_h * r_h );
+    double outerArea = M_PI * ( R * R - r_mid * r_mid );
+
+    BOOST_CHECK_CLOSE( innerArea / totalArea, 0.50, 1e-5 );
+    BOOST_CHECK_CLOSE( outerArea / totalArea, 0.50, 1e-5 );
+}
+
+
 BOOST_AUTO_TEST_CASE( NetColorStylesResolution )
 {
     BOARD board;

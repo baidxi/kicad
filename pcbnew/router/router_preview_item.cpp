@@ -378,7 +378,7 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
             gal->SetFillColor( m_netColor );
             drawLineChain( l, gal );
 
-            double core_w = std::max( 1.0, w * 0.70 );
+            double core_w = std::max( 1.0, w * ( 1.0 - PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO ) );
             gal->SetLayerDepth( m_depth - 0.5 );
             gal->SetLineWidth( core_w );
             gal->SetStrokeColor( m_color );
@@ -393,7 +393,7 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
             gal->SetFillColor( m_color );
             drawLineChain( l, gal );
 
-            double spine_w = std::max( 1.0, w * 0.25 );
+            double spine_w = std::max( 1.0, w * PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO );
             gal->SetLayerDepth( m_depth - 0.5 );
             gal->SetLineWidth( spine_w );
             gal->SetStrokeColor( m_netColor );
@@ -431,7 +431,7 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
             gal->SetFillColor( m_netColor );
             gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
 
-            double core_w = std::max( 1.0, w * 0.70 );
+            double core_w = std::max( 1.0, w * ( 1.0 - PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO ) );
             gal->SetLayerDepth( m_depth - 0.5 );
             gal->SetFillColor( m_color );
             gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, core_w );
@@ -442,7 +442,7 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
             gal->SetFillColor( m_color );
             gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
 
-            double spine_w = std::max( 1.0, w * 0.25 );
+            double spine_w = std::max( 1.0, w * PCB_RENDER_SETTINGS::DEFAULT_NET_COLOR_AREA_RATIO );
             gal->SetLayerDepth( m_depth - 0.5 );
             gal->SetFillColor( m_netColor );
             gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, spine_w );

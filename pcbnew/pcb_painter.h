@@ -145,6 +145,12 @@ public:
     NET_COLOR_STYLE GetNetColorStyle() const { return m_netColorStyle; }
     void            SetNetColorStyle( NET_COLOR_STYLE aStyle ) { m_netColorStyle = aStyle; }
 
+    ///< Default area fraction allocated to net color on copper items (0.50 = 50% net color area)
+    static constexpr double DEFAULT_NET_COLOR_AREA_RATIO = 0.38;
+
+    double GetNetColorAreaRatio() const { return m_netColorAreaRatio; }
+    void   SetNetColorAreaRatio( double aRatio ) { m_netColorAreaRatio = aRatio; }
+
     std::map<int, KIGFX::COLOR4D>& GetNetColorMap() { return m_netColors; }
 
     std::set<int>&       GetHiddenNets() { return m_hiddenNets; }
@@ -185,6 +191,9 @@ protected:
 
     ///< How net color overrides are styled on copper items
     NET_COLOR_STYLE m_netColorStyle;
+
+    ///< Area ratio allocated to net color vs layer color for two-tone styles (0.0 to 1.0)
+    double m_netColorAreaRatio;
 
     ///< Overrides for specific netclass colors
     std::map<wxString, KIGFX::COLOR4D> m_netclassColors;

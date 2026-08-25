@@ -113,6 +113,7 @@ PCB_RENDER_SETTINGS::PCB_RENDER_SETTINGS()
     m_ZoneDisplayMode = ZONE_DISPLAY_MODE::SHOW_FILLED;
     m_netColorMode = NET_COLOR_MODE::RATSNEST;
     m_netColorStyle = NET_COLOR_STYLE::OUTLINE_HALO;
+    m_netColorAreaRatio = DEFAULT_NET_COLOR_AREA_RATIO;
     m_ContrastModeDisplay = HIGH_CONTRAST_MODE::NORMAL;
 
     m_trackOpacity = 1.0;
@@ -1006,14 +1007,16 @@ void PCB_PAINTER::draw( const PCB_TRACK* aTrack, int aLayer )
         m_gal->SetIsStroke( false );
         m_gal->SetFillColor( color );
 
+        double ratio = m_pcbSettings.GetNetColorAreaRatio();
+
         if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO )
         {
-            double core_width = std::max( 1.0, track_width * 0.50 );
+            double core_width = std::max( 1.0, track_width * ( 1.0 - ratio ) );
             m_gal->DrawSegment( start, end, core_width );
         }
         else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE )
         {
-            double spine_width = std::max( 1.0, track_width * 0.40 );
+            double spine_width = std::max( 1.0, track_width * ratio );
             m_gal->DrawSegment( start, end, spine_width );
         }
 
@@ -1215,12 +1218,13 @@ void PCB_PAINTER::draw( const PCB_ARC* aArc, int aLayer )
         m_gal->SetIsStroke( false );
         m_gal->SetFillColor( color );
 
+        double ratio = m_pcbSettings.GetNetColorAreaRatio();
         double draw_width = width;
 
         if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO )
-            draw_width = std::max( 1.0, width * 0.50 );
+            draw_width = std::max( 1.0, width * ( 1.0 - ratio ) );
         else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE )
-            draw_width = std::max( 1.0, width * 0.40 );
+            draw_width = std::max( 1.0, width * ratio );
 
         if( degenerate )
         {
@@ -1671,16 +1675,22 @@ void PCB_PAINTER::draw( const PCB_VIA* aVia, int aLayer )
         m_gal->SetIsFill( true );
         m_gal->SetFillColor( color );
 
+        double ratio = m_pcbSettings.GetNetColorAreaRatio();
+
         if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO && annular_w > 1 )
         {
-            double halo_w = std::clamp( annular_w * 0.40, (double) pcbIUScale.MilsToIU( 1 ),
-                                        (double) pcbIUScale.MilsToIU( 6 ) );
-            double r_inner_core = via_r - halo_w;
+            // Outer annular band is net color; inner core is layer color.
+            // Partition annular area into exact ratio (net color area / total annular area).
+            double r_inner_core = std::sqrt( std::max(
+                    holewall_r * holewall_r, via_r * via_r - ratio * ( via_r * via_r - holewall_r * holewall_r ) ) );
             m_gal->DrawCircle( center, r_inner_core );
         }
-        else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE && annular_w > 2 )
+        else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE && annular_w > 1 )
         {
-            double r_inner_spine = holewall_r + annular_w * 0.50;
+            // Inner annular band is net color; outer ring is layer color.
+            // Partition annular area into exact ratio (net color area / total annular area).
+            double r_inner_spine =
+                    std::sqrt( holewall_r * holewall_r + ratio * ( via_r * via_r - holewall_r * holewall_r ) );
             m_gal->DrawCircle( center, r_inner_spine );
         }
 
@@ -2032,91 +2042,81 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
         if( min_dim <= 0 )
             return;
 
-        if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO )
+        double ratio = m_pcbSettings.GetNetColorAreaRatio();
+
+        if( aPad->GetShape( pcbLayer ) == PAD_SHAPE::CIRCLE )
         {
-            int halo_margin;
+            double r_outer = min_dim / 2.0;
+            double holewall_r = 0.0;
+
             if( aPad->GetDrillSizeX() > 0 )
             {
                 double thickness = m_holePlatingThickness * ADVANCED_CFG::GetCfg().m_HoleWallPaintingMultiplier;
                 double drill_r = aPad->GetDrillSizeX() / 2.0;
-                double holewall_r = std::min( drill_r + thickness, (double) min_dim / 2.0 );
-                int    annular = std::max( 0, (int) ( ( min_dim / 2.0 ) - holewall_r ) );
-                halo_margin =
-                        std::clamp( (int) ( annular * 0.35 ), pcbIUScale.MilsToIU( 1 ), pcbIUScale.MilsToIU( 6 ) );
-            }
-            else
-            {
-                halo_margin =
-                        std::clamp( (int) ( min_dim * 0.18 ), pcbIUScale.MilsToIU( 1 ), pcbIUScale.MilsToIU( 6 ) );
+                holewall_r = std::min( drill_r + thickness, r_outer );
             }
 
-            if( halo_margin >= min_dim / 2 )
-                halo_margin = std::max( 1, min_dim / 4 );
+            double annular_w = r_outer - holewall_r;
+
+            if( annular_w <= 0 )
+                return;
 
             m_gal->SetIsFill( true );
             m_gal->SetIsStroke( false );
-            m_gal->SetFillColor( color ); // Layer color for inner core
+            m_gal->SetFillColor( color );
 
-            SHAPE_POLY_SET polySet;
-            aPad->TransformShapeToPolygon( polySet, pcbLayer, -halo_margin, m_maxError, ERROR_INSIDE );
-            m_gal->DrawPolygon( polySet );
+            if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO )
+            {
+                double r_core = std::sqrt(
+                        std::max( holewall_r * holewall_r,
+                                  r_outer * r_outer - ratio * ( r_outer * r_outer - holewall_r * holewall_r ) ) );
+                m_gal->DrawCircle( aPad->ShapePos( pcbLayer ), r_core );
+            }
+            else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE )
+            {
+                double r_spine =
+                        std::sqrt( holewall_r * holewall_r + ratio * ( r_outer * r_outer - holewall_r * holewall_r ) );
+                m_gal->DrawCircle( aPad->ShapePos( pcbLayer ), r_spine );
+            }
+
             return;
         }
-        else if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE )
+        else
         {
-            if( aPad->GetShape( pcbLayer ) == PAD_SHAPE::CIRCLE )
+            double w = pad_size.x;
+            double h = pad_size.y;
+            double hole_area = 0.0;
+
+            if( aPad->GetDrillSizeX() > 0 )
             {
-                int    r_outer = pad_size.x / 2;
-                double r_spine;
-
-                if( aPad->GetDrillSizeX() > 0 )
-                {
-                    double thickness = m_holePlatingThickness * ADVANCED_CFG::GetCfg().m_HoleWallPaintingMultiplier;
-                    double drill_r = aPad->GetDrillSizeX() / 2.0;
-                    double holewall_r = std::min( drill_r + thickness, (double) r_outer );
-                    double annular = r_outer - holewall_r;
-                    r_spine = holewall_r + annular * 0.50;
-                }
-                else
-                {
-                    r_spine = r_outer * 0.5;
-                }
-
-                m_gal->SetIsFill( true );
-                m_gal->SetIsStroke( false );
-                m_gal->SetFillColor( color ); // Net color for spine
-                m_gal->DrawCircle( aPad->ShapePos( pcbLayer ), r_spine );
-                return;
+                double drill_r = aPad->GetDrillSizeX() / 2.0;
+                double thickness = m_holePlatingThickness * ADVANCED_CFG::GetCfg().m_HoleWallPaintingMultiplier;
+                double holewall_r = std::min( drill_r + thickness, (double) min_dim / 2.0 );
+                hole_area = M_PI * holewall_r * holewall_r;
             }
-            else
-            {
-                int spine_deflate;
-                if( aPad->GetDrillSizeX() > 0 )
-                {
-                    double thickness = m_holePlatingThickness * ADVANCED_CFG::GetCfg().m_HoleWallPaintingMultiplier;
-                    double drill_r = aPad->GetDrillSizeX() / 2.0;
-                    double holewall_r = std::min( drill_r + thickness, (double) min_dim / 2.0 );
-                    int    annular = std::max( 0, (int) ( ( min_dim / 2.0 ) - holewall_r ) );
-                    spine_deflate = annular / 2;
-                }
-                else
-                {
-                    spine_deflate =
-                            std::clamp( (int) ( min_dim * 0.25 ), pcbIUScale.MilsToIU( 2 ), pcbIUScale.MilsToIU( 12 ) );
-                }
 
-                if( spine_deflate >= min_dim / 2 )
-                    spine_deflate = std::max( 1, min_dim / 4 );
+            double total_pad_area = w * h;
+            double copper_area = std::max( 0.0, total_pad_area - hole_area );
 
-                m_gal->SetIsFill( true );
-                m_gal->SetIsStroke( false );
-                m_gal->SetFillColor( color ); // Net color for filled inner shape
+            // Target inner shape fraction f (inner area / total copper area)
+            // OUTLINE_HALO: inner core is layer color (area fraction 1 - ratio)
+            // SPINE: inner core is net color (area fraction ratio)
+            double f = ( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO ) ? ( 1.0 - ratio ) : ratio;
+            double target_inner_area = hole_area + f * copper_area;
+            double c_term = total_pad_area - target_inner_area;
+            double disc = std::max( 0.0, ( w + h ) * ( w + h ) - 4.0 * c_term );
+            int    deflate_d = KiROUND( ( ( w + h ) - std::sqrt( disc ) ) / 4.0 );
 
-                SHAPE_POLY_SET polySet;
-                aPad->TransformShapeToPolygon( polySet, pcbLayer, -spine_deflate, m_maxError, ERROR_INSIDE );
-                m_gal->DrawPolygon( polySet );
-                return;
-            }
+            deflate_d = std::clamp( deflate_d, 1, min_dim / 2 - 1 );
+
+            m_gal->SetIsFill( true );
+            m_gal->SetIsStroke( false );
+            m_gal->SetFillColor( color );
+
+            SHAPE_POLY_SET polySet;
+            aPad->TransformShapeToPolygon( polySet, pcbLayer, -deflate_d, m_maxError, ERROR_INSIDE );
+            m_gal->DrawPolygon( polySet );
+            return;
         }
         return;
     }
