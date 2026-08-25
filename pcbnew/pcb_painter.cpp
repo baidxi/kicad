@@ -501,6 +501,21 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
     bool highlighted = m_highlightEnabled && m_highlightNetcodes.count( netCode );
     bool selected = aItem->IsSelected();
 
+    if( !selected && m_highlightEnabled )
+    {
+        // Single net highlight mode applied to layer color
+        if( highlighted )
+        {
+            auto it_hi = m_layerColorsHi.find( aLayer );
+            color = it_hi == m_layerColorsHi.end() ? color.Brightened( m_highlightFactor ) : it_hi->second;
+        }
+        else
+        {
+            auto it_dark = m_layerColorsDark.find( aLayer );
+            color = it_dark == m_layerColorsDark.end() ? color.Darkened( 1.0 - m_highlightFactor ) : it_dark->second;
+        }
+    }
+
     // Apply net color overrides
     if( conItem && m_netColorMode == NET_COLOR_MODE::ALL && IsCopperLayer( aLayer ) )
     {
@@ -573,20 +588,6 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
                 if( GetItemNetColor( aItem, aLayer, netColor ) )
                     color = netColor;
             }
-        }
-    }
-    else if( !selected && m_highlightEnabled )
-    {
-        // Single net highlight mode
-        if( m_highlightNetcodes.contains( netCode ) )
-        {
-            auto it_hi = m_layerColorsHi.find( aLayer );
-            color = it_hi == m_layerColorsHi.end() ? color.Brightened( m_highlightFactor ) : it_hi->second;
-        }
-        else
-        {
-            auto it_dark = m_layerColorsDark.find( aLayer );
-            color = it_dark == m_layerColorsDark.end() ? color.Darkened( 1.0 - m_highlightFactor ) : it_dark->second;
         }
     }
 
