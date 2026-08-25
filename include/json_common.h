@@ -21,7 +21,7 @@
 #define JSON_COMMON_H
 
 /***********************************************************************************************************************
- * If we are compiling against libc++ >= 17, the version of LLVM no longer includes a generic template for
+ * If we are compiling against libc++ >= 19, the version of LLVM no longer includes a generic template for
  * char_traits for char types which are not specified in the C++ standard. We define our own here for types required by
  * the JSON library.
  *
@@ -36,7 +36,7 @@
 #include <version>
 
 #if defined( _LIBCPP_VERSION )
-#if _LIBCPP_VERSION >= 170000
+#if _LIBCPP_VERSION >= 190102
 
 #include <wx/unichar.h>
 
