@@ -27,7 +27,7 @@
  */
 
 #include <collector.h>
-#include <layer_ids.h>              // LAYER_COUNT, layer defs
+#include <layer_ids.h> // LAYER_COUNT, layer defs
 #include <lset.h>
 #include <view/view.h>
 #include <board_item.h>
@@ -111,10 +111,7 @@ public:
     /**
      * @return true if should ignore PADSs on Front side and Back side.
      */
-    virtual bool IgnorePads() const
-    {
-        return IgnorePadsOnFront() && IgnorePadsOnBack() && IgnoreThroughHolePads();
-    }
+    virtual bool IgnorePads() const { return IgnorePadsOnFront() && IgnorePadsOnBack() && IgnoreThroughHolePads(); }
 
     /**
      * @return true if should ignore footprint values.
@@ -162,7 +159,6 @@ public:
 };
 
 
-
 /**
  * Collect #BOARD_ITEM objects.
  *
@@ -183,8 +179,8 @@ public:
      */
     BOARD_ITEM* operator[]( int ndx ) const override
     {
-        if( (unsigned)ndx < (unsigned)GetCount() )
-            return (BOARD_ITEM*) m_list[ ndx ];
+        if( (unsigned) ndx < (unsigned) GetCount() )
+            return (BOARD_ITEM*) m_list[ndx];
 
         return nullptr;
     }
@@ -208,15 +204,14 @@ protected:
      * "2nd" choice, which will be appended to the end of COLLECTOR's prime
      * "list" at the end of the search.
      */
-    std::vector<EDA_ITEM*>      m_List2nd;
+    std::vector<EDA_ITEM*> m_List2nd;
 
     /**
      * Determine which items are to be collected by Inspect().
      */
-    const COLLECTORS_GUIDE*     m_Guide;
+    const COLLECTORS_GUIDE* m_Guide;
 
 public:
-
     /**
      * A scan list for all editable board items
      */
@@ -269,15 +264,9 @@ public:
         SetScanTypes( AllBoardItems );
     }
 
-    void Empty2nd()
-    {
-        m_List2nd.clear();
-    }
+    void Empty2nd() { m_List2nd.clear(); }
 
-    void Append2nd( EDA_ITEM* item )
-    {
-        m_List2nd.push_back( item );
-    }
+    void Append2nd( EDA_ITEM* item ) { m_List2nd.push_back( item ); }
 
     /**
      * Record which COLLECTORS_GUIDE to use.
@@ -296,7 +285,7 @@ public:
      * @param aTestData is not used in this class.
      * @return SEARCH_QUIT if the Iterator is to stop the scan, else SCAN_CONTINUE
      */
-    INSPECT_RESULT Inspect( EDA_ITEM* aTestItem, void* aTestData )  override;
+    INSPECT_RESULT Inspect( EDA_ITEM* aTestItem, void* aTestData ) override;
 
     /**
      * Scan a BOARD_ITEM using this class's Inspector method, which does the collection.
@@ -307,8 +296,8 @@ public:
      * @param aRefPos A wxPoint to use in hit-testing.
      * @param aGuide The COLLECTORS_GUIDE to use in collecting items.
      */
-    void Collect( BOARD_ITEM* aItem, const std::vector<KICAD_T>& aScanList,
-                  const VECTOR2I& aRefPos, const COLLECTORS_GUIDE& aGuide );
+    void Collect( BOARD_ITEM* aItem, const std::vector<KICAD_T>& aScanList, const VECTOR2I& aRefPos,
+                  const COLLECTORS_GUIDE& aGuide );
 };
 
 
@@ -319,7 +308,6 @@ public:
 class GENERAL_COLLECTORS_GUIDE : public COLLECTORS_GUIDE
 {
 public:
-
     /**
      * Grab stuff from global preferences and uses reasonable defaults.
      *
@@ -328,39 +316,38 @@ public:
      * @param aVisibleLayerMask is the current visible layers (bit mask).
      * @param aPreferredLayer is the layer to search first.
      */
-    GENERAL_COLLECTORS_GUIDE( const LSET& aVisibleLayerMask, PCB_LAYER_ID aPreferredLayer,
-                              KIGFX::VIEW* aView )
+    GENERAL_COLLECTORS_GUIDE( const LSET& aVisibleLayerMask, PCB_LAYER_ID aPreferredLayer, KIGFX::VIEW* aView )
     {
         static const VECTOR2I one( 1, 1 );
 
-        m_preferredLayer            = aPreferredLayer;
-        m_visibleLayers             = aVisibleLayerMask;
-        m_ignoreLockedItems         = false;
+        m_preferredLayer = aPreferredLayer;
+        m_visibleLayers = aVisibleLayerMask;
+        m_ignoreLockedItems = false;
 
-#if defined(USE_MATCH_LAYER)
-        m_includeSecondary          = false;
+#if defined( USE_MATCH_LAYER )
+        m_includeSecondary = false;
 #else
-        m_includeSecondary          = true;
+        m_includeSecondary = true;
 #endif
 
-        m_ignoreFPTextOnBack        = true;
-        m_ignoreFPTextOnFront       = false;
-        m_ignoreFootprintsOnBack    = true; // !Show_footprints_Cmp;
-        m_ignoreFootprintsOnFront   = false;
+        m_ignoreFPTextOnBack = true;
+        m_ignoreFPTextOnFront = false;
+        m_ignoreFootprintsOnBack = true; // !Show_footprints_Cmp;
+        m_ignoreFootprintsOnFront = false;
 
-        m_ignorePadsOnFront         = false;
-        m_ignorePadsOnBack          = false;
-        m_ignoreThroughHolePads     = false;
+        m_ignorePadsOnFront = false;
+        m_ignorePadsOnBack = false;
+        m_ignoreThroughHolePads = false;
 
-        m_ignoreFPValues            = false;
-        m_ignoreFPReferences        = false;
+        m_ignoreFPValues = false;
+        m_ignoreFPReferences = false;
 
-        m_ignoreThroughVias         = false;
-        m_ignoreBlindBuriedVias     = false;
-        m_ignoreMicroVias           = false;
-        m_ignoreTracks              = false;
-        m_ignoreZoneFills           = true;
-        m_ignoreNoNets              = false;
+        m_ignoreThroughVias = false;
+        m_ignoreBlindBuriedVias = false;
+        m_ignoreMicroVias = false;
+        m_ignoreTracks = false;
+        m_ignoreZoneFills = true;
+        m_ignoreNoNets = false;
 
         m_onePixelInIU = abs( aView->ToWorld( one, false ).x );
         m_accuracy = KiROUND( 5 * m_onePixelInIU );
@@ -369,27 +356,25 @@ public:
     /**
      * @return true if the given layer is visible, else false.
      */
-    bool IsLayerVisible( PCB_LAYER_ID aLayerId ) const override
-    {
-        return m_visibleLayers[aLayerId];
-    }
+    bool IsLayerVisible( PCB_LAYER_ID aLayerId ) const override { return m_visibleLayers.Contains( aLayerId ); }
     void SetLayerVisible( PCB_LAYER_ID aLayerId, bool isVisible )
     {
-        m_visibleLayers.set( aLayerId, isVisible );
+        if( aLayerId >= 0 && (size_t) aLayerId < m_visibleLayers.size() )
+            m_visibleLayers.set( aLayerId, isVisible );
     }
     void SetLayerVisibleBits( const LSET& aLayerBits ) { m_visibleLayers = aLayerBits; }
 
     /**
      * @return int - the preferred layer for HitTest()ing.
      */
-    PCB_LAYER_ID GetPreferredLayer() const override    { return m_preferredLayer; }
-    void SetPreferredLayer( PCB_LAYER_ID aLayer )      { m_preferredLayer = aLayer; }
+    PCB_LAYER_ID GetPreferredLayer() const override { return m_preferredLayer; }
+    void         SetPreferredLayer( PCB_LAYER_ID aLayer ) { m_preferredLayer = aLayer; }
 
     /**
      * @return true if should ignore locked items, else false.
      */
-    bool IgnoreLockedItems() const override         { return m_ignoreLockedItems; }
-    void SetIgnoreLockedItems( bool ignore )        { m_ignoreLockedItems = ignore; }
+    bool IgnoreLockedItems() const override { return m_ignoreLockedItems; }
+    void SetIgnoreLockedItems( bool ignore ) { m_ignoreLockedItems = ignore; }
 
     /**
      * Determine if the secondary criteria, or 2nd choice items should be included.
@@ -427,31 +412,31 @@ public:
      * @return true if should ignore pads on back side.
      */
     bool IgnorePadsOnBack() const override { return m_ignorePadsOnBack; }
-    void SetIgnorePadsOnBack(bool ignore) { m_ignorePadsOnBack = ignore; }
+    void SetIgnorePadsOnBack( bool ignore ) { m_ignorePadsOnBack = ignore; }
 
     /**
      * @return true if should ignore pads on front side.
      */
     bool IgnorePadsOnFront() const override { return m_ignorePadsOnFront; }
-    void SetIgnorePadsOnFront(bool ignore) { m_ignorePadsOnFront = ignore; }
+    void SetIgnorePadsOnFront( bool ignore ) { m_ignorePadsOnFront = ignore; }
 
     /**
      * @return true if should ignore through-hole pads.
      */
     bool IgnoreThroughHolePads() const override { return m_ignoreThroughHolePads; }
-    void SetIgnoreThroughHolePads(bool ignore) { m_ignoreThroughHolePads = ignore; }
+    void SetIgnoreThroughHolePads( bool ignore ) { m_ignoreThroughHolePads = ignore; }
 
     /**
      * @return true if should ignore footprints values.
      */
     bool IgnoreFPValues() const override { return m_ignoreFPValues; }
-    void SetIgnoreFPValues( bool ignore) { m_ignoreFPValues = ignore; }
+    void SetIgnoreFPValues( bool ignore ) { m_ignoreFPValues = ignore; }
 
     /**
      * @return true if should ignore footprints references.
      */
     bool IgnoreFPReferences() const override { return m_ignoreFPReferences; }
-    void SetIgnoreFPReferences( bool ignore) { m_ignoreFPReferences = ignore; }
+    void SetIgnoreFPReferences( bool ignore ) { m_ignoreFPReferences = ignore; }
 
     bool IgnoreThroughVias() const override { return m_ignoreThroughVias; }
     void SetIgnoreThroughVias( bool ignore ) { m_ignoreThroughVias = ignore; }
@@ -482,26 +467,26 @@ private:
 
     PCB_LAYER_ID m_preferredLayer;
 
-    LSET    m_visibleLayers;                 ///< bit-mapped layer visible bits
+    LSET m_visibleLayers; ///< bit-mapped layer visible bits
 
-    bool    m_ignoreLockedItems;
-    bool    m_includeSecondary;
+    bool m_ignoreLockedItems;
+    bool m_includeSecondary;
 
-    bool    m_ignoreFPTextOnBack;
-    bool    m_ignoreFPTextOnFront;
-    bool    m_ignoreFootprintsOnBack;
-    bool    m_ignoreFootprintsOnFront;
-    bool    m_ignorePadsOnFront;
-    bool    m_ignorePadsOnBack;
-    bool    m_ignoreThroughHolePads;
-    bool    m_ignoreFPValues;
-    bool    m_ignoreFPReferences;
-    bool    m_ignoreThroughVias;
-    bool    m_ignoreBlindBuriedVias;
-    bool    m_ignoreMicroVias;
-    bool    m_ignoreTracks;
-    bool    m_ignoreZoneFills;
-    bool    m_ignoreNoNets;
+    bool m_ignoreFPTextOnBack;
+    bool m_ignoreFPTextOnFront;
+    bool m_ignoreFootprintsOnBack;
+    bool m_ignoreFootprintsOnFront;
+    bool m_ignorePadsOnFront;
+    bool m_ignorePadsOnBack;
+    bool m_ignoreThroughHolePads;
+    bool m_ignoreFPValues;
+    bool m_ignoreFPReferences;
+    bool m_ignoreThroughVias;
+    bool m_ignoreBlindBuriedVias;
+    bool m_ignoreMicroVias;
+    bool m_ignoreTracks;
+    bool m_ignoreZoneFills;
+    bool m_ignoreNoNets;
 
     double m_onePixelInIU;
     int    m_accuracy;
@@ -516,7 +501,6 @@ private:
 class PCB_TYPE_COLLECTOR : public PCB_COLLECTOR
 {
 public:
-
     /**
      * The examining function within the INSPECTOR which is passed to the Iterate function.
      *
@@ -545,8 +529,9 @@ class PCB_LAYER_COLLECTOR : public PCB_COLLECTOR
 {
 public:
     PCB_LAYER_COLLECTOR( PCB_LAYER_ID aLayerId = UNDEFINED_LAYER ) :
-        m_layer_id( aLayerId )
-    { }
+            m_layer_id( aLayerId )
+    {
+    }
 
     void SetLayerId( PCB_LAYER_ID aLayerId ) { m_layer_id = aLayerId; }
 

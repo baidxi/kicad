@@ -28,36 +28,40 @@ class PCB_DISPLAY_OPTIONS
 public:
     PCB_DISPLAY_OPTIONS()
     {
-        m_ZoneDisplayMode     = ZONE_DISPLAY_MODE::SHOW_FILLED;
+        m_ZoneDisplayMode = ZONE_DISPLAY_MODE::SHOW_FILLED;
         m_ContrastModeDisplay = HIGH_CONTRAST_MODE::NORMAL;
-        m_NetColorMode        = NET_COLOR_MODE::RATSNEST;
+        m_NetColorMode = NET_COLOR_MODE::RATSNEST;
+        m_NetColorStyle = NET_COLOR_STYLE::OUTLINE_HALO;
 
-        m_TrackOpacity        = 1.0;
-        m_ViaOpacity          = 1.0;
-        m_PadOpacity          = 1.0;
-        m_ZoneOpacity         = 1.0;
-        m_ImageOpacity        = 1.0;
-        m_FilledShapeOpacity        = 1.0;
+        m_TrackOpacity = 1.0;
+        m_ViaOpacity = 1.0;
+        m_PadOpacity = 1.0;
+        m_ZoneOpacity = 1.0;
+        m_ImageOpacity = 1.0;
+        m_FilledShapeOpacity = 1.0;
     }
 
     /// @see ZONE_DISPLAY_MODE - stored in the project
-    ZONE_DISPLAY_MODE  m_ZoneDisplayMode;
+    ZONE_DISPLAY_MODE m_ZoneDisplayMode;
 
     /// How inactive layers are displayed.  @see HIGH_CONTRAST_MODE - stored in the project
     HIGH_CONTRAST_MODE m_ContrastModeDisplay;
 
     /// How to use color overrides on specific nets and netclasses
-    NET_COLOR_MODE     m_NetColorMode;
+    NET_COLOR_MODE m_NetColorMode;
+
+    /// How net color overrides are styled on copper items
+    NET_COLOR_STYLE m_NetColorStyle;
 
     // These opacity overrides multiply with any opacity in the base layer color
 
-    double             m_TrackOpacity;     ///< Opacity override for all tracks
-    double             m_ViaOpacity;       ///< Opacity override for all types of via
-    double             m_PadOpacity;       ///< Opacity override for SMD pads and PTHs
-    double             m_ZoneOpacity;      ///< Opacity override for filled zone areas
-    double             m_ImageOpacity;     ///< Opacity override for user images
-    double             m_FilledShapeOpacity;     ///< Opacity override for graphic shapes
-    bool               m_FlipBoardView = false;  ///< true if the board is flipped to show the mirrored view
+    double m_TrackOpacity;          ///< Opacity override for all tracks
+    double m_ViaOpacity;            ///< Opacity override for all types of via
+    double m_PadOpacity;            ///< Opacity override for SMD pads and PTHs
+    double m_ZoneOpacity;           ///< Opacity override for filled zone areas
+    double m_ImageOpacity;          ///< Opacity override for user images
+    double m_FilledShapeOpacity;    ///< Opacity override for graphic shapes
+    bool   m_FlipBoardView = false; ///< true if the board is flipped to show the mirrored view
 };
 
 #endif // PCBSTRUCT_H_

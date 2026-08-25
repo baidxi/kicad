@@ -37,20 +37,22 @@
 #include <gal/color4d.h>
 
 #include <layer_ids.h>
+#include <project/board_project_settings.h>
 #include <eda_item.h>
 
-namespace PNS {
+namespace PNS
+{
 
 class ITEM;
 class ROUTER;
 class ROUTER_IFACE;
 
-}
+} // namespace PNS
 
 #define PNS_HEAD_TRACE 1
 #define PNS_HOVER_ITEM 2
 #define PNS_SEMI_SOLID 4
-#define PNS_COLLISION  8
+#define PNS_COLLISION 8
 
 
 class ROUTER_PREVIEW_ITEM : public EDA_ITEM
@@ -78,8 +80,7 @@ public:
     static constexpr double PathOverlayDepth = LayerDepthFactor * static_cast<double>( LAYER_ZONE_END );
 
     ROUTER_PREVIEW_ITEM( const SHAPE& aShape, PNS::ROUTER_IFACE* aIface, KIGFX::VIEW* aView );
-    ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IFACE* aIface, KIGFX::VIEW* aView,
-                         int aFlags = 0 );
+    ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IFACE* aIface, KIGFX::VIEW* aView, int aFlags = 0 );
     ~ROUTER_PREVIEW_ITEM();
 
     void Update( const PNS::ITEM* aItem );
@@ -93,26 +94,20 @@ public:
 
     double GetOriginDepth() const { return m_originDepth; }
 
-#if defined(DEBUG)
+#if defined( DEBUG )
     void Show( int aA, std::ostream& aB ) const override {}
 #endif
 
     /** Get class name
      * @return  string "ROUTER_PREVIEW_ITEM"
      */
-    virtual wxString GetClass() const override
-    {
-        return wxT( "ROUTER_PREVIEW_ITEM" );
-    }
+    virtual wxString GetClass() const override { return wxT( "ROUTER_PREVIEW_ITEM" ); }
 
     const BOX2I ViewBBox() const override;
 
     virtual void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override;
 
-    virtual std::vector<int> ViewGetLayers() const override
-    {
-        return { m_layer };
-    }
+    virtual std::vector<int> ViewGetLayers() const override { return { m_layer }; }
 
     void drawLineChain( const SHAPE_LINE_CHAIN_BASE* aL, KIGFX::GAL* aGal ) const;
 
@@ -122,27 +117,29 @@ private:
     const KIGFX::COLOR4D getLayerColor( int aLayer, const PNS::ITEM* aItem = nullptr ) const;
 
 private:
-    KIGFX::VIEW*   m_view;
+    KIGFX::VIEW* m_view;
 
     PNS::ROUTER_IFACE* m_iface;
 
-    SHAPE*         m_shape;
-    SHAPE*         m_hole;
+    SHAPE* m_shape;
+    SHAPE* m_hole;
 
-    ITEM_TYPE      m_type;
+    ITEM_TYPE m_type;
 
-    int            m_flags;
-    int            m_width;
-    int            m_layer;
-    int            m_originLayer;
-    int            m_clearance;
-    bool           m_showClearance;
+    int  m_flags;
+    int  m_width;
+    int  m_layer;
+    int  m_originLayer;
+    int  m_clearance;
+    bool m_showClearance;
 
-    double         m_originDepth;
-    double         m_depth;
+    double m_originDepth;
+    double m_depth;
 
-    KIGFX::COLOR4D m_color;
-    VECTOR2I       m_pos;
+    KIGFX::COLOR4D  m_color;
+    KIGFX::COLOR4D  m_netColor;
+    NET_COLOR_STYLE m_netColorStyle;
+    VECTOR2I        m_pos;
 };
 
 #endif

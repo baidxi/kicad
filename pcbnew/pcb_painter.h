@@ -27,7 +27,7 @@
 #include <frame_type.h>
 #include <gal/painter.h>
 #include <kiid.h>
-#include <padstack.h>   // PAD_DRILL_SHAPE
+#include <padstack.h> // PAD_DRILL_SHAPE
 #include <pcb_display_options.h>
 #include <math/vector2d.h>
 #include <memory>
@@ -68,7 +68,7 @@ namespace KIFONT
 {
 class FONT;
 class METRICS;
-}
+} // namespace KIFONT
 
 namespace KIGFX
 {
@@ -106,6 +106,15 @@ public:
         return GetColor( static_cast<const BOARD_ITEM*>( nullptr ), aLayer );
     }
 
+    /**
+     * Look up the net color for a given item (including selection brightening and highlight dimming).
+     * @param aItem is the item whose net color is queried.
+     * @param aLayer is the layer on which the item is being drawn.
+     * @param aNetColor output parameter filled with the net color if found.
+     * @return true if a net color override exists, false otherwise.
+     */
+    bool GetItemNetColor( const BOARD_ITEM* aItem, int aLayer, COLOR4D& aNetColor ) const;
+
     bool GetShowPageLimits() const override;
 
     inline bool IsBackgroundDark() const override
@@ -124,26 +133,32 @@ public:
         return it == m_layerColors.end() ? COLOR4D::BLACK : it->second;
     }
 
-    void SetBackgroundColor( const COLOR4D& aColor ) override
-    {
-        m_layerColors[ LAYER_PCB_BACKGROUND ] = aColor;
-    }
+    void SetBackgroundColor( const COLOR4D& aColor ) override { m_layerColors[LAYER_PCB_BACKGROUND] = aColor; }
 
-    const COLOR4D& GetGridColor() override { return m_layerColors[ LAYER_GRID ]; }
+    const COLOR4D& GetGridColor() override { return m_layerColors[LAYER_GRID]; }
 
-    const COLOR4D& GetCursorColor() override { return m_layerColors[ LAYER_CURSOR ]; }
+    const COLOR4D& GetCursorColor() override { return m_layerColors[LAYER_CURSOR]; }
 
     NET_COLOR_MODE GetNetColorMode() const { return m_netColorMode; }
-    void SetNetColorMode( NET_COLOR_MODE aMode ) { m_netColorMode = aMode; }
+    void           SetNetColorMode( NET_COLOR_MODE aMode ) { m_netColorMode = aMode; }
+
+    NET_COLOR_STYLE GetNetColorStyle() const { return m_netColorStyle; }
+    void            SetNetColorStyle( NET_COLOR_STYLE aStyle ) { m_netColorStyle = aStyle; }
+
+    ///< Default area fraction allocated to net color on copper items (0.50 = 50% net color area)
+    static constexpr double DEFAULT_NET_COLOR_AREA_RATIO = 0.38;
+
+    double GetNetColorAreaRatio() const { return m_netColorAreaRatio; }
+    void   SetNetColorAreaRatio( double aRatio ) { m_netColorAreaRatio = aRatio; }
 
     std::map<int, KIGFX::COLOR4D>& GetNetColorMap() { return m_netColors; }
 
-    std::set<int>& GetHiddenNets() { return m_hiddenNets; }
+    std::set<int>&       GetHiddenNets() { return m_hiddenNets; }
     const std::set<int>& GetHiddenNets() const { return m_hiddenNets; }
 
     // Net chain highlight support (grouped nets).  Empty when no chain highlight active.
     const wxString& GetHighlightedNetChain() const { return m_highlightedNetChain; }
-    void SetHighlightedNetChain( const wxString& aNetChain ) { m_highlightedNetChain = aNetChain; }
+    void            SetHighlightedNetChain( const wxString& aNetChain ) { m_highlightedNetChain = aNetChain; }
 
     // Items referenced by geometric constraint shadow layer draws only for these
     // refreshed each board-wide diagnosis
@@ -151,10 +166,7 @@ public:
     void SetConstrainedItems( std::unordered_set<KIID> aItems ) { m_constrainedItems = std::move( aItems ); }
 
     // Members of badge-selected constraint shadows drawn brighter and thicker
-    const std::unordered_set<KIID>& GetHighlightedConstraintMembers() const
-    {
-        return m_highlightedConstraintMembers;
-    }
+    const std::unordered_set<KIID>& GetHighlightedConstraintMembers() const { return m_highlightedConstraintMembers; }
 
     void SetHighlightedConstraintMembers( std::unordered_set<KIID> aItems )
     {
@@ -162,20 +174,26 @@ public:
     }
 
 public:
-    bool               m_ForcePadSketchModeOn;
-    bool               m_ForceShowFieldsWhenFPSelected;
+    bool m_ForcePadSketchModeOn;
+    bool m_ForceShowFieldsWhenFPSelected;
 
     ZONE_DISPLAY_MODE  m_ZoneDisplayMode;
     HIGH_CONTRAST_MODE m_ContrastModeDisplay;
 
-    PAD*               m_PadEditModePad;       // Pad currently in Pad Edit Mode (if any)
+    PAD* m_PadEditModePad; // Pad currently in Pad Edit Mode (if any)
 
 protected:
     ///< Maximum font size for netnames (and other dynamically shown strings)
     static const double MAX_FONT_SIZE;
 
     ///< How to display nets and netclasses with color overrides
-    NET_COLOR_MODE     m_netColorMode;
+    NET_COLOR_MODE m_netColorMode;
+
+    ///< How net color overrides are styled on copper items
+    NET_COLOR_STYLE m_netColorStyle;
+
+    ///< Area ratio allocated to net color vs layer color for two-tone styles (0.0 to 1.0)
+    double m_netColorAreaRatio;
 
     ///< Overrides for specific netclass colors
     std::map<wxString, KIGFX::COLOR4D> m_netclassColors;
@@ -187,14 +205,14 @@ protected:
     std::set<int> m_hiddenNets;
 
     // These opacity overrides multiply with any opacity in the base layer color
-    double m_trackOpacity;     ///< Opacity override for all tracks
-    double m_viaOpacity;       ///< Opacity override for all types of via
-    double m_padOpacity;       ///< Opacity override for SMD pads and PTHs
-    double m_zoneOpacity;      ///< Opacity override for filled zones
-    double m_imageOpacity;     ///< Opacity override for user images
-    double m_filledShapeOpacity;     ///< Opacity override for graphic shapes
+    double m_trackOpacity;       ///< Opacity override for all tracks
+    double m_viaOpacity;         ///< Opacity override for all types of via
+    double m_padOpacity;         ///< Opacity override for SMD pads and PTHs
+    double m_zoneOpacity;        ///< Opacity override for filled zones
+    double m_imageOpacity;       ///< Opacity override for user images
+    double m_filledShapeOpacity; ///< Opacity override for graphic shapes
 
-    wxString m_highlightedNetChain;    ///< Active highlighted chain name (if any)
+    wxString m_highlightedNetChain; ///< Active highlighted chain name (if any)
 
     ///< Gates the constraint-shadow draw
     std::unordered_set<KIID> m_constrainedItems;
@@ -213,10 +231,7 @@ public:
     PCB_PAINTER( GAL* aGal, FRAME_T aFrameType );
 
     /// @copydoc PAINTER::GetSettings()
-    virtual PCB_RENDER_SETTINGS* GetSettings() override
-    {
-        return &m_pcbSettings;
-    }
+    virtual PCB_RENDER_SETTINGS* GetSettings() override { return &m_pcbSettings; }
 
     /// @copydoc PAINTER::Draw()
     virtual bool Draw( const VIEW_ITEM* aItem, int aLayer ) override;
@@ -225,7 +240,7 @@ public:
     virtual bool HasUniformColor( const VIEW_ITEM* aItem, int aLayer ) const override;
 
 protected:
-    PCB_VIEWERS_SETTINGS_BASE* viewer_settings();
+    PCB_VIEWERS_SETTINGS_BASE* viewer_settings() const;
 
     // Drawing functions for various types of PCB-specific items
     void draw( const PCB_TRACK* aTrack, int aLayer );
@@ -272,8 +287,8 @@ protected:
      */
     virtual int getViaDrillSize( const PCB_VIA* aVia ) const;
 
-    void strokeText( const wxString& aText, const VECTOR2I& aPosition,
-                     const TEXT_ATTRIBUTES& aAttrs, const KIFONT::METRICS& aFontMetrics );
+    void strokeText( const wxString& aText, const VECTOR2I& aPosition, const TEXT_ATTRIBUTES& aAttrs,
+                     const KIFONT::METRICS& aFontMetrics );
 
     void renderNetNameForSegment( const SHAPE_SEGMENT& aSeg, const COLOR4D& aColor, const wxString& aNetName ) const;
 
@@ -286,9 +301,8 @@ protected:
      * @param aStartLayer layer where backdrill starts
      * @param aEndLayer layer where backdrill ends
      */
-    void drawBackdrillIndicator( const BOARD_ITEM* aItem, const VECTOR2D& aCenter,
-                                 int aDrillSize, PCB_LAYER_ID aStartLayer,
-                                 PCB_LAYER_ID aEndLayer );
+    void drawBackdrillIndicator( const BOARD_ITEM* aItem, const VECTOR2D& aCenter, int aDrillSize,
+                                 PCB_LAYER_ID aStartLayer, PCB_LAYER_ID aEndLayer );
 
     /**
      * Draw post-machining indicator (dashed circle) at the given center point.
@@ -303,9 +317,9 @@ protected:
     PCB_RENDER_SETTINGS m_pcbSettings;
     FRAME_T             m_frameType;
 
-    int                 m_maxError;
-    int                 m_holePlatingThickness;
-    int                 m_lockedShadowMargin;
+    int m_maxError;
+    int m_holePlatingThickness;
+    int m_lockedShadowMargin;
 };
 
 

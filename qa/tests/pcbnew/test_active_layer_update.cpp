@@ -67,6 +67,11 @@ BOOST_AUTO_TEST_CASE( GeometryChangesRequireRecache )
     PCB_DISPLAY_OPTIONS flip = base;
     flip.m_FlipBoardView = true;
     BOOST_CHECK( PCB_BASE_FRAME::displayOptionsRequireRecache( base, flip ) );
+
+    // net color style change (e.g. solid to spine or outline) regenerates two-tone geometry
+    PCB_DISPLAY_OPTIONS spineStyle = base;
+    spineStyle.m_NetColorStyle = NET_COLOR_STYLE::SPINE;
+    BOOST_CHECK( PCB_BASE_FRAME::displayOptionsRequireRecache( base, spineStyle ) );
 }
 
 

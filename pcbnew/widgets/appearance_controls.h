@@ -49,9 +49,9 @@ struct NET_GRID_ENTRY
 {
     NET_GRID_ENTRY( int aCode, const wxString& aName, const COLOR4D& aColor, bool aVisible )
     {
-        code    = aCode;
-        name    = aName;
-        color   = aColor;
+        code = aCode;
+        name = aName;
+        color = aColor;
         visible = aVisible;
     }
 
@@ -73,29 +73,17 @@ public:
         COL_SIZE
     };
 
-    static void* ColorToVoid( COLOR4D& aColor )
-    {
-        return static_cast<void*>( &aColor );
-    }
+    static void* ColorToVoid( COLOR4D& aColor ) { return static_cast<void*>( &aColor ); }
 
-    static COLOR4D VoidToColor( void* aColor )
-    {
-        return *static_cast<COLOR4D*>( aColor );
-    }
+    static COLOR4D VoidToColor( void* aColor ) { return *static_cast<COLOR4D*>( aColor ); }
 
 public:
     NET_GRID_TABLE( PCB_BASE_FRAME* aFrame, wxColor aBackgroundColor );
     ~NET_GRID_TABLE();
 
-    int GetNumberRows() override
-    {
-        return m_nets.size();
-    }
+    int GetNumberRows() override { return m_nets.size(); }
 
-    int GetNumberCols() override
-    {
-        return COL_SIZE;
-    }
+    int GetNumberCols() override { return COL_SIZE; }
 
     wxGridCellAttr* GetAttr( int aRow, int aCol, wxGridCellAttr::wxAttrKind ) override;
 
@@ -138,11 +126,9 @@ private:
 };
 
 
-
 class APPEARANCE_CONTROLS : public APPEARANCE_CONTROLS_BASE, public BOARD_LISTENER
 {
 public:
-
     /**
      * Container for an appearance setting (can control a single board layer, or GAL layer, etc)
      */
@@ -163,10 +149,8 @@ public:
         wxStaticText*   ctl_text;
         wxSlider*       ctl_opacity;
 
-        APPEARANCE_SETTING( const wxString& aLabel, int aId,
-                            const wxString& aTooltip = wxEmptyString,
-                            bool aCanControlOpacity = false,
-                            bool aCanControlVisibility = true ) :
+        APPEARANCE_SETTING( const wxString& aLabel, int aId, const wxString& aTooltip = wxEmptyString,
+                            bool aCanControlOpacity = false, bool aCanControlVisibility = true ) :
                 id( aId ),
                 label( aLabel ),
                 tooltip( aTooltip ),
@@ -376,6 +360,8 @@ private:
 
     void onNetColorMode( wxCommandEvent& aEvent );
 
+    void onNetColorStyle( wxCommandEvent& aEvent );
+
     void onRatsnestMode( wxCommandEvent& aEvent );
 
     void onNetclassContextMenu( wxCommandEvent& aEvent );
@@ -428,11 +414,13 @@ private:
     LAYER_PRESET*                    m_lastSelectedUserPreset;
     wxArrayString                    m_presetMRU;
 
-    std::map<wxString, VIEWPORT>     m_viewports;
-    VIEWPORT*                        m_lastSelectedViewport;
-    wxArrayString                    m_viewportMRU;
+    std::map<wxString, VIEWPORT> m_viewports;
+    VIEWPORT*                    m_lastSelectedViewport;
+    wxArrayString                m_viewportMRU;
 
-    wxMenu*                          m_layerContextMenu;
+    wxMenu* m_layerContextMenu;
+
+    bool m_togglingNetclassRatsnestVisibility;
 
     /// Stores wxIDs for each netclass for control event mapping
     std::map<int, wxString> m_netclassIdMap;
@@ -475,14 +463,16 @@ private:
     wxRadioButton*       m_rbNetColorAll;
     wxRadioButton*       m_rbNetColorRatsnest;
     wxRadioButton*       m_rbNetColorOff;
+    wxStaticText*        m_txtNetStyleTitle;
+    wxChoice*            m_choiceNetColorStyle;
     wxStaticText*        m_txtRatsnestVisibility;
     wxRadioButton*       m_rbRatsnestAllLayers;
     wxRadioButton*       m_rbRatsnestVisLayers;
     wxRadioButton*       m_rbRatsnestNone;
 
     // Bitmap caches
-    wxBitmapBundle      m_visibleBitmapBundle;
-    wxBitmapBundle      m_notVisibileBitmapBundle;
+    wxBitmapBundle m_visibleBitmapBundle;
+    wxBitmapBundle m_notVisibileBitmapBundle;
 
     enum POPUP_ID
     {
@@ -509,8 +499,6 @@ private:
         ID_SHOW_ALL_NON_COPPER,
         ID_LAST_VALUE
     };
-
-    bool m_togglingNetclassRatsnestVisibility;
 };
 
 #endif

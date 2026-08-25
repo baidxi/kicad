@@ -68,21 +68,20 @@
 #include <tool/grid_menu.h>
 #include <ratsnest/ratsnest_view_item.h>
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined( __linux__ ) || defined( __FreeBSD__ )
 #include <spacenav/spnav_2d_plugin.h>
 #else
 #include <navlib/nl_pcbnew_plugin.h>
 #endif
 
-using KIGFX::RENDER_SETTINGS;
 using KIGFX::PCB_RENDER_SETTINGS;
+using KIGFX::RENDER_SETTINGS;
 
 wxDEFINE_EVENT( EDA_EVT_BOARD_CHANGING, wxCommandEvent );
 wxDEFINE_EVENT( EDA_EVT_BOARD_CHANGED, wxCommandEvent );
 
-PCB_BASE_FRAME::PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType,
-                                const wxString& aTitle, const wxPoint& aPos, const wxSize& aSize,
-                                long aStyle, const wxString& aFrameName ) :
+PCB_BASE_FRAME::PCB_BASE_FRAME( KIWAY* aKiway, wxWindow* aParent, FRAME_T aFrameType, const wxString& aTitle,
+                                const wxPoint& aPos, const wxSize& aSize, long aStyle, const wxString& aFrameName ) :
         EDA_DRAW_FRAME( aKiway, aParent, aFrameType, aTitle, aPos, aSize, aStyle, aFrameName, pcbIUScale ),
         m_pcb( nullptr ),
         m_originTransforms( *this ),
@@ -292,7 +291,7 @@ void PCB_BASE_FRAME::FocusOnItems( std::vector<BOARD_ITEM*> aItems, PCB_LAYER_ID
 
     for( wxWindow* dialog : findDialogs() )
     {
-        wxPoint dialogPos = GetCanvas()->ScreenToClient( dialog->GetScreenPosition() );
+        wxPoint        dialogPos = GetCanvas()->ScreenToClient( dialog->GetScreenPosition() );
         SHAPE_POLY_SET dialogPoly( BOX2D( view->ToWorld( ToVECTOR2D( dialogPos ), true ),
                                           view->ToWorld( ToVECTOR2D( dialog->GetSize() ), false ) ) );
 
@@ -383,8 +382,7 @@ void PCB_BASE_FRAME::FocusOnItems( std::vector<BOARD_ITEM*> aItems, PCB_LAYER_ID
                 itemPoly.Append( item_bbox.GetOrigin() );
                 itemPoly.Append( item_bbox.GetOrigin() + VECTOR2I( item_bbox.GetWidth(), 0 ) );
                 itemPoly.Append( item_bbox.GetOrigin() + VECTOR2I( 0, item_bbox.GetHeight() ) );
-                itemPoly.Append( item_bbox.GetOrigin() + VECTOR2I( item_bbox.GetWidth(),
-                                                                   item_bbox.GetHeight() ) );
+                itemPoly.Append( item_bbox.GetOrigin() + VECTOR2I( item_bbox.GetWidth(), item_bbox.GetHeight() ) );
                 break;
             }
             }
@@ -416,8 +414,8 @@ void PCB_BASE_FRAME::FocusOnItems( std::vector<BOARD_ITEM*> aItems, PCB_LAYER_ID
         return;
     }
 
-    BOX2I    bbox = itemPoly.BBox();
-    int      step = std::min( bbox.GetWidth(), bbox.GetHeight() ) / 10;
+    BOX2I bbox = itemPoly.BBox();
+    int   step = std::min( bbox.GetWidth(), bbox.GetHeight() ) / 10;
 
     // Tiny shapes can quantize to a zero deflate step
     if( step <= 0 )
@@ -518,10 +516,10 @@ const VECTOR2I PCB_BASE_FRAME::GetUserOrigin() const
 
     switch( GetPcbNewSettings()->m_Display.m_DisplayOrigin )
     {
-    case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_PAGE:                           break;
-    case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_AUX:  origin = GetAuxOrigin();  break;
+    case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_PAGE: break;
+    case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_AUX: origin = GetAuxOrigin(); break;
     case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_GRID: origin = GetGridOrigin(); break;
-    default:                                  wxASSERT( false );        break;
+    default: wxASSERT( false ); break;
     }
 
     return origin;
@@ -553,7 +551,7 @@ BOARD_DESIGN_SETTINGS& PCB_BASE_FRAME::GetDesignSettings() const
 
 void PCB_BASE_FRAME::SetDrawBgColor( const COLOR4D& aColor )
 {
-    m_drawBgColor= aColor;
+    m_drawBgColor = aColor;
     m_auimgr.Update();
 }
 
@@ -688,7 +686,7 @@ EDA_3D_VIEWER_FRAME* PCB_BASE_FRAME::CreateAndShow3D_Frame()
     // Raising the window does not show the window on Windows if iconized. This should work
     // on any platform.
     if( draw3DFrame->IsIconized() )
-         draw3DFrame->Iconize( false );
+        draw3DFrame->Iconize( false );
 
     draw3DFrame->Raise();
     draw3DFrame->Show( true );
@@ -713,7 +711,7 @@ EDA_3D_VIEWER_FRAME* PCB_BASE_FRAME::CreateAndShow3D_Frame()
 void PCB_BASE_FRAME::SwitchLayer( PCB_LAYER_ID layer )
 {
     PCB_LAYER_ID preslayer = GetActiveLayer();
-    auto& displ_opts = GetDisplayOptions();
+    auto&        displ_opts = GetDisplayOptions();
 
     // Check if the specified layer matches the present layer
     if( layer == preslayer )
@@ -740,21 +738,20 @@ void PCB_BASE_FRAME::SwitchLayer( PCB_LAYER_ID layer )
 
 GENERAL_COLLECTORS_GUIDE PCB_BASE_FRAME::GetCollectorsGuide()
 {
-    GENERAL_COLLECTORS_GUIDE guide( m_pcb->GetVisibleLayers(), GetActiveLayer(),
-                                    GetCanvas()->GetView() );
+    GENERAL_COLLECTORS_GUIDE guide( m_pcb->GetVisibleLayers(), GetActiveLayer(), GetCanvas()->GetView() );
 
     // account for the globals
     guide.SetIgnoreFPTextOnBack( !m_pcb->IsElementVisible( LAYER_FP_TEXT ) );
     guide.SetIgnoreFPTextOnFront( !m_pcb->IsElementVisible( LAYER_FP_TEXT ) );
     guide.SetIgnoreFootprintsOnBack( !m_pcb->IsElementVisible( LAYER_FOOTPRINTS_BK ) );
     guide.SetIgnoreFootprintsOnFront( !m_pcb->IsElementVisible( LAYER_FOOTPRINTS_FR ) );
-    guide.SetIgnoreThroughHolePads( ! m_pcb->IsElementVisible( LAYER_PADS ) );
+    guide.SetIgnoreThroughHolePads( !m_pcb->IsElementVisible( LAYER_PADS ) );
     guide.SetIgnoreFPValues( !m_pcb->IsElementVisible( LAYER_FP_VALUES ) );
     guide.SetIgnoreFPReferences( !m_pcb->IsElementVisible( LAYER_FP_REFERENCES ) );
-    guide.SetIgnoreThroughVias( ! m_pcb->IsElementVisible( LAYER_VIAS ) );
-    guide.SetIgnoreBlindBuriedVias( ! m_pcb->IsElementVisible( LAYER_VIAS ) );
-    guide.SetIgnoreMicroVias( ! m_pcb->IsElementVisible( LAYER_VIAS ) );
-    guide.SetIgnoreTracks( ! m_pcb->IsElementVisible( LAYER_TRACKS ) );
+    guide.SetIgnoreThroughVias( !m_pcb->IsElementVisible( LAYER_VIAS ) );
+    guide.SetIgnoreBlindBuriedVias( !m_pcb->IsElementVisible( LAYER_VIAS ) );
+    guide.SetIgnoreMicroVias( !m_pcb->IsElementVisible( LAYER_VIAS ) );
+    guide.SetIgnoreTracks( !m_pcb->IsElementVisible( LAYER_TRACKS ) );
 
     return guide;
 }
@@ -772,16 +769,14 @@ void PCB_BASE_FRAME::UpdateStatusBar()
     wxString line;
     VECTOR2D cursorPos = GetCanvas()->GetViewControls()->GetCursorPosition();
 
-    if( GetShowPolarCoords() )  // display polar coordinates
+    if( GetShowPolarCoords() ) // display polar coordinates
     {
-        double   dx = cursorPos.x - screen->m_LocalOrigin.x;
-        double   dy = cursorPos.y - screen->m_LocalOrigin.y;
-        double   theta = RAD2DEG( atan2( -dy, dx ) );
-        double   ro = hypot( dx, dy );
+        double dx = cursorPos.x - screen->m_LocalOrigin.x;
+        double dy = cursorPos.y - screen->m_LocalOrigin.y;
+        double theta = RAD2DEG( atan2( -dy, dx ) );
+        double ro = hypot( dx, dy );
 
-        line.Printf( wxT( "r %s  theta %.3f" ),
-                     MessageTextFromValue( ro, false ),
-                     theta );
+        line.Printf( wxT( "r %s  theta %.3f" ), MessageTextFromValue( ro, false ), theta );
 
         SetStatusText( line, 3 );
     }
@@ -791,12 +786,11 @@ void PCB_BASE_FRAME::UpdateStatusBar()
     double userYpos = m_originTransforms.ToDisplayAbsY( static_cast<double>( cursorPos.y ) );
 
     // Display absolute coordinates:
-    line.Printf( wxT( "X %s  Y %s" ),
-                 MessageTextFromValue( userXpos, false ),
+    line.Printf( wxT( "X %s  Y %s" ), MessageTextFromValue( userXpos, false ),
                  MessageTextFromValue( userYpos, false ) );
     SetStatusText( line, 2 );
 
-    if( !GetShowPolarCoords() )  // display relative cartesian coordinates
+    if( !GetShowPolarCoords() ) // display relative cartesian coordinates
     {
         // Calculate relative coordinates
         double relXpos = cursorPos.x - screen->m_LocalOrigin.x;
@@ -806,8 +800,7 @@ void PCB_BASE_FRAME::UpdateStatusBar()
         userXpos = m_originTransforms.ToDisplayRelX( relXpos );
         userYpos = m_originTransforms.ToDisplayRelY( relYpos );
 
-        line.Printf( wxT( "dx %s  dy %s  dist %s" ),
-                     MessageTextFromValue( userXpos, false ),
+        line.Printf( wxT( "dx %s  dy %s  dist %s" ), MessageTextFromValue( userXpos, false ),
                      MessageTextFromValue( userYpos, false ),
                      MessageTextFromValue( hypot( userXpos, userYpos ), false ) );
         SetStatusText( line, 3 );
@@ -819,7 +812,7 @@ void PCB_BASE_FRAME::UpdateStatusBar()
 
 void PCB_BASE_FRAME::unitsChangeRefresh()
 {
-    EDA_DRAW_FRAME::unitsChangeRefresh();    // Update the status bar.
+    EDA_DRAW_FRAME::unitsChangeRefresh(); // Update the status bar.
 
     if( GetBoard() )
         GetBoard()->SetUserUnits( GetUserUnits() );
@@ -835,8 +828,8 @@ void PCB_BASE_FRAME::LoadSettings( APP_SETTINGS_BASE* aCfg )
     // Move legacy user grids to grid list
     if( !aCfg->m_Window.grid.user_grid_x.empty() )
     {
-        aCfg->m_Window.grid.grids.emplace_back( GRID{ "User Grid", aCfg->m_Window.grid.user_grid_x,
-                                                      aCfg->m_Window.grid.user_grid_y } );
+        aCfg->m_Window.grid.grids.emplace_back(
+                GRID{ "User Grid", aCfg->m_Window.grid.user_grid_x, aCfg->m_Window.grid.user_grid_y } );
         aCfg->m_Window.grid.user_grid_x = wxEmptyString;
         aCfg->m_Window.grid.user_grid_y = wxEmptyString;
     }
@@ -855,7 +848,7 @@ void PCB_BASE_FRAME::LoadSettings( APP_SETTINGS_BASE* aCfg )
         {
             rs->SetHighlightFactor( aCfg->m_Graphics.highlight_factor );
             rs->SetSelectFactor( aCfg->m_Graphics.select_factor );
-            rs->SetDefaultFont( wxEmptyString );    // Always the KiCad font for PCBs
+            rs->SetDefaultFont( wxEmptyString ); // Always the KiCad font for PCBs
         }
     }
 }
@@ -868,7 +861,7 @@ SEVERITY PCB_BASE_FRAME::GetSeverity( int aErrorCode ) const
 
     BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
 
-    return bds.m_DRCSeverities[ aErrorCode ];
+    return bds.m_DRCSeverities[aErrorCode];
 }
 
 
@@ -904,8 +897,7 @@ PCB_VIEWERS_SETTINGS_BASE* PCB_BASE_FRAME::GetViewerSettingsBase() const
     case FRAME_PCB_DISPLAY3D:
     case FRAME_FOOTPRINT_CHOOSER:
     case FRAME_FOOTPRINT_VIEWER:
-    default:
-        return Pgm().GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
+    default: return Pgm().GetSettingsManager().GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
 
     case FRAME_FOOTPRINT_EDITOR:
     case FRAME_FOOTPRINT_WIZARD:
@@ -913,8 +905,7 @@ PCB_VIEWERS_SETTINGS_BASE* PCB_BASE_FRAME::GetViewerSettingsBase() const
 
     case FRAME_FOOTPRINT_PREVIEW:
     case FRAME_CVPCB:
-    case FRAME_CVPCB_DISPLAY:
-        return Pgm().GetSettingsManager().GetAppSettings<CVPCB_SETTINGS>( "cvpcb" );
+    case FRAME_CVPCB_DISPLAY: return Pgm().GetSettingsManager().GetAppSettings<CVPCB_SETTINGS>( "cvpcb" );
     }
 }
 
@@ -952,15 +943,15 @@ void PCB_BASE_FRAME::CommonSettingsChanged( int aFlags )
             {
                 if( dynamic_cast<RATSNEST_VIEW_ITEM*>( aItem ) )
                 {
-                    return KIGFX::ALL;        // ratsnest display
+                    return KIGFX::ALL; // ratsnest display
                 }
                 else if( dynamic_cast<PCB_TRACK*>( aItem ) )
                 {
-                    return KIGFX::REPAINT;    // track, arc & via clearance display
+                    return KIGFX::REPAINT; // track, arc & via clearance display
                 }
                 else if( dynamic_cast<PAD*>( aItem ) )
                 {
-                    return KIGFX::REPAINT;    // pad clearance display
+                    return KIGFX::REPAINT; // pad clearance display
                 }
                 else if( EDA_TEXT* text = dynamic_cast<EDA_TEXT*>( aItem ) )
                 {
@@ -1046,7 +1037,7 @@ void PCB_BASE_FRAME::ActivateGalCanvas()
     {
         if( !m_spaceMouse )
         {
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined( __linux__ ) || defined( __FreeBSD__ )
             m_spaceMouse = std::make_unique<SPNAV_2D_PLUGIN>( GetCanvas() );
             m_spaceMouse->SetScale( 0.01 );
 #else
@@ -1060,29 +1051,26 @@ void PCB_BASE_FRAME::ActivateGalCanvas()
     }
     catch( ... )
     {
-        wxLogTrace( wxT( "KI_TRACE_NAVLIB" ),
-                    wxT( "Unknown exception during SpaceMouse initialization" ) );
+        wxLogTrace( wxT( "KI_TRACE_NAVLIB" ), wxT( "Unknown exception during SpaceMouse initialization" ) );
     }
 }
 
 
-bool PCB_BASE_FRAME::displayOptionsRequireRecache( const PCB_DISPLAY_OPTIONS& aOld,
-                                                   const PCB_DISPLAY_OPTIONS& aNew )
+bool PCB_BASE_FRAME::displayOptionsRequireRecache( const PCB_DISPLAY_OPTIONS& aOld, const PCB_DISPLAY_OPTIONS& aNew )
 {
-    // only zone mode and board flip change geometry
-    // colour opacity contrast are recolour only
-    return aOld.m_ZoneDisplayMode != aNew.m_ZoneDisplayMode
-           || aOld.m_FlipBoardView != aNew.m_FlipBoardView;
+    // zone mode, board flip, and multi-tone net color styling change vertex geometry
+    return aOld.m_ZoneDisplayMode != aNew.m_ZoneDisplayMode || aOld.m_FlipBoardView != aNew.m_FlipBoardView
+           || aOld.m_NetColorStyle != aNew.m_NetColorStyle;
 }
 
 
 void PCB_BASE_FRAME::SetDisplayOptions( const PCB_DISPLAY_OPTIONS& aOptions, bool aRefresh )
 {
     bool needsRecache = displayOptionsRequireRecache( m_displayOptions, aOptions );
-    m_displayOptions  = aOptions;
+    m_displayOptions = aOptions;
 
     EDA_DRAW_PANEL_GAL* canvas = GetCanvas();
-    KIGFX::PCB_VIEW*    view   = static_cast<KIGFX::PCB_VIEW*>( canvas->GetView() );
+    KIGFX::PCB_VIEW*    view = static_cast<KIGFX::PCB_VIEW*>( canvas->GetView() );
 
     view->UpdateDisplayOptions( aOptions );
     view->SetMirror( aOptions.m_FlipBoardView, view->IsMirroredY() );
@@ -1107,13 +1095,13 @@ void PCB_BASE_FRAME::setFPWatcher( FOOTPRINT* aFootprint )
 
     if( m_watcher )
     {
-    wxLogTrace( traceLibWatch, "Remove watch" );
+        wxLogTrace( traceLibWatch, "Remove watch" );
         m_watcher->RemoveAll();
         m_watcher->SetOwner( nullptr );
         m_watcher.reset();
     }
 
-    wxString libfullname;
+    wxString                   libfullname;
     FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
 
     if( !aFootprint || !adapter )
@@ -1173,7 +1161,7 @@ void PCB_BASE_FRAME::OnFPChange( wxFileSystemWatcherEvent& aEvent )
     // Start the debounce timer (set to 1 second)
     if( !m_watcherDebounceTimer.StartOnce( 1000 ) )
     {
-    wxLogTrace( traceLibWatch, "Failed to start the debounce timer" );
+        wxLogTrace( traceLibWatch, "Failed to start the debounce timer" );
         return;
     }
 }
@@ -1230,7 +1218,7 @@ void PCB_BASE_FRAME::OnFpChangeDebounceTimer( wxTimerEvent& aEvent )
 
     m_watcherLastModified = lastModified;
 
-    FOOTPRINT* fp = GetBoard()->GetFirstFootprint();
+    FOOTPRINT*                 fp = GetBoard()->GetFirstFootprint();
     FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( &Prj() );
 
     // When loading a footprint from a library in the footprint editor

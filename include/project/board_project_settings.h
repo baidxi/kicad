@@ -38,35 +38,35 @@
  */
 struct KICOMMON_API PCB_SELECTION_FILTER_OPTIONS
 {
-    bool lockedItems;   ///< Allow selecting locked items
-    bool footprints;    ///< Allow selecting entire footprints
-    bool text;          ///< Text (free or attached to a footprint)
-    bool tracks;        ///< Copper tracks
-    bool vias;          ///< Vias (all types>
-    bool pads;          ///< Footprint pads
-    bool graphics;      ///< Graphic lines, shapes, polygons
-    bool zones;         ///< Copper zones
-    bool keepouts;      ///< Keepout zones
-    bool dimensions;    ///< Dimension items
-    bool points;        ///< Points
-    bool gridItems;     ///< Grid Items
-    bool otherItems;    ///< Anything not fitting one of the above categories
+    bool lockedItems; ///< Allow selecting locked items
+    bool footprints;  ///< Allow selecting entire footprints
+    bool text;        ///< Text (free or attached to a footprint)
+    bool tracks;      ///< Copper tracks
+    bool vias;        ///< Vias (all types>
+    bool pads;        ///< Footprint pads
+    bool graphics;    ///< Graphic lines, shapes, polygons
+    bool zones;       ///< Copper zones
+    bool keepouts;    ///< Keepout zones
+    bool dimensions;  ///< Dimension items
+    bool points;      ///< Points
+    bool gridItems;   ///< Grid Items
+    bool otherItems;  ///< Anything not fitting one of the above categories
 
     PCB_SELECTION_FILTER_OPTIONS()
     {
         lockedItems = true;
-        footprints  = true;
-        text        = true;
-        tracks      = true;
-        vias        = true;
-        pads        = true;
-        graphics    = true;
-        zones       = true;
-        keepouts    = true;
-        dimensions  = true;
-        points      = true;
-        gridItems   = true;
-        otherItems  = true;
+        footprints = true;
+        text = true;
+        tracks = true;
+        vias = true;
+        pads = true;
+        graphics = true;
+        zones = true;
+        keepouts = true;
+        dimensions = true;
+        points = true;
+        gridItems = true;
+        otherItems = true;
     }
 
     /**
@@ -74,8 +74,8 @@ struct KICOMMON_API PCB_SELECTION_FILTER_OPTIONS
      */
     bool Any()
     {
-        return ( footprints || text || tracks || vias || pads || graphics || zones
-                 || keepouts || dimensions || points || gridItems || otherItems );
+        return ( footprints || text || tracks || vias || pads || graphics || zones || keepouts || dimensions || points
+                 || gridItems || otherItems );
     }
 
     /**
@@ -83,24 +83,24 @@ struct KICOMMON_API PCB_SELECTION_FILTER_OPTIONS
      */
     bool All()
     {
-        return ( footprints && text && tracks && vias && pads && graphics && zones
-                 && keepouts && dimensions && points && gridItems && otherItems );
+        return ( footprints && text && tracks && vias && pads && graphics && zones && keepouts && dimensions && points
+                 && gridItems && otherItems );
     }
 
     void SetAll( bool aState )
     {
-        footprints  = aState;
-        text        = aState;
-        tracks      = aState;
-        vias        = aState;
-        pads        = aState;
-        graphics    = aState;
-        zones       = aState;
-        keepouts    = aState;
-        dimensions  = aState;
-        points      = aState;
-        gridItems   = aState;
-        otherItems  = aState;
+        footprints = aState;
+        text = aState;
+        tracks = aState;
+        vias = aState;
+        pads = aState;
+        graphics = aState;
+        zones = aState;
+        keepouts = aState;
+        dimensions = aState;
+        points = aState;
+        gridItems = aState;
+        otherItems = aState;
         lockedItems = aState;
     }
 };
@@ -110,9 +110,9 @@ struct KICOMMON_API PCB_SELECTION_FILTER_OPTIONS
  */
 enum class HIGH_CONTRAST_MODE
 {
-    NORMAL = 0,     ///< Inactive layers are shown normally (no high-contrast mode)
-    DIMMED,         ///< Inactive layers are dimmed (old high-contrast mode)
-    HIDDEN          ///< Inactive layers are hidden
+    NORMAL = 0, ///< Inactive layers are shown normally (no high-contrast mode)
+    DIMMED,     ///< Inactive layers are dimmed (old high-contrast mode)
+    HIDDEN      ///< Inactive layers are hidden
 };
 
 ///< Determine how zones should be displayed.
@@ -130,28 +130,36 @@ enum class ZONE_DISPLAY_MODE
 ///< Determine how net color overrides should be applied.
 enum class NET_COLOR_MODE
 {
-    OFF,        ///< Net (and netclass) colors are not shown
-    RATSNEST,   ///< Net/netclass colors are shown on ratsnest lines only
-    ALL         ///< Net/netclass colors are shown on all net copper
+    OFF,      ///< Net (and netclass) colors are not shown
+    RATSNEST, ///< Net/netclass colors are shown on ratsnest lines only
+    ALL       ///< Net/netclass colors are shown on all net copper
+};
+
+///< Determine how net color overrides should be styled on copper items.
+enum class NET_COLOR_STYLE
+{
+    SOLID = 0,    ///< Entire object takes net color (legacy)
+    OUTLINE_HALO, ///< Layer color body with Net color border outline
+    SPINE         ///< Layer color body with Net color centerline spine
 };
 
 ///< Determine how ratsnest lines are drawn.
 enum class RATSNEST_MODE
 {
-    ALL,        ///< Ratsnest lines are drawn to items on all layers (default)
-    VISIBLE     ///< Ratsnest lines are drawn to items on visible layers only
+    ALL,    ///< Ratsnest lines are drawn to items on all layers (default)
+    VISIBLE ///< Ratsnest lines are drawn to items on visible layers only
 };
 
 ///< BOM Data choices for IPC2581 export
 struct KICOMMON_API IP2581_BOM
 {
-    wxString mfg;       ///< Manufacturer name column
-    wxString MPN;       ///< Manufacturer part number column
-    wxString dist;      ///< Distributor name column
-    wxString distPN;    ///< Distributor part number column
-    wxString id;        ///< Internal ID column
-    wxString bomRev;       ///< Explicit BOM revision override set by user
-    wxString schRevision;  ///< Auto-propagated schematic title block revision
+    wxString mfg;         ///< Manufacturer name column
+    wxString MPN;         ///< Manufacturer part number column
+    wxString dist;        ///< Distributor name column
+    wxString distPN;      ///< Distributor part number column
+    wxString id;          ///< Internal ID column
+    wxString bomRev;      ///< Explicit BOM revision override set by user
+    wxString schRevision; ///< Auto-propagated schematic title block revision
 };
 
 /**
@@ -166,7 +174,7 @@ struct KICOMMON_API LAYER_PRESET
             flipBoard( false ),
             activeLayer( UNSELECTED_LAYER )
     {
-        readOnly     = false;
+        readOnly = false;
     }
 
     LAYER_PRESET( const wxString& aName, const LSET& aVisibleLayers, bool aFlipBoard ) :
@@ -176,7 +184,7 @@ struct KICOMMON_API LAYER_PRESET
             flipBoard( aFlipBoard ),
             activeLayer( UNSELECTED_LAYER )
     {
-        readOnly     = false;
+        readOnly = false;
     }
 
     LAYER_PRESET( const wxString& aName, const LSET& aVisibleLayers, const GAL_SET& aVisibleObjects,
@@ -187,7 +195,7 @@ struct KICOMMON_API LAYER_PRESET
             flipBoard( aFlipBoard ),
             activeLayer( aActiveLayer )
     {
-        readOnly  = false;
+        readOnly = false;
     }
 
     bool LayersMatch( const LAYER_PRESET& aOther )
@@ -195,12 +203,12 @@ struct KICOMMON_API LAYER_PRESET
         return aOther.layers == layers && aOther.renderLayers == renderLayers;
     }
 
-    wxString     name;          ///< A name for this layer set
-    LSET         layers;        ///< Board layers that are visible
-    GAL_SET      renderLayers;  ///< Render layers (e.g. object types) that are visible
-    bool         flipBoard;     ///< True if the flip board is enabled
-    PCB_LAYER_ID activeLayer;   ///< Optional layer to set active when this preset is loaded
-    bool         readOnly;      ///< True if this is a read-only (built-in) preset
+    wxString     name;         ///< A name for this layer set
+    LSET         layers;       ///< Board layers that are visible
+    GAL_SET      renderLayers; ///< Render layers (e.g. object types) that are visible
+    bool         flipBoard;    ///< True if the flip board is enabled
+    PCB_LAYER_ID activeLayer;  ///< Optional layer to set active when this preset is loaded
+    bool         readOnly;     ///< True if this is a read-only (built-in) preset
 };
 
 
@@ -208,12 +216,14 @@ struct KICOMMON_API VIEWPORT
 {
     VIEWPORT( const wxString& aName = wxEmptyString ) :
             name( aName )
-    { }
+    {
+    }
 
     VIEWPORT( const wxString& aName, const BOX2D& aRect ) :
             name( aName ),
             rect( aRect )
-    { }
+    {
+    }
 
     wxString name;
     BOX2D    rect;
@@ -224,12 +234,14 @@ struct KICOMMON_API VIEWPORT3D
 {
     VIEWPORT3D( const wxString& aName = wxEmptyString ) :
             name( aName )
-    { }
+    {
+    }
 
     VIEWPORT3D( const wxString& aName, glm::mat4 aViewMatrix ) :
             name( aName ),
             matrix( std::move( aViewMatrix ) )
-    { }
+    {
+    }
 
     wxString  name;
     glm::mat4 matrix;
@@ -240,12 +252,14 @@ class KICOMMON_API LAYER_PAIR
 {
 public:
     LAYER_PAIR() :
-            m_layerA( UNDEFINED_LAYER ), m_layerB( UNDEFINED_LAYER )
+            m_layerA( UNDEFINED_LAYER ),
+            m_layerB( UNDEFINED_LAYER )
     {
     }
 
     LAYER_PAIR( PCB_LAYER_ID a, PCB_LAYER_ID b ) :
-            m_layerA( a ), m_layerB( b )
+            m_layerA( a ),
+            m_layerB( b )
     {
     }
 
@@ -277,7 +291,9 @@ class KICOMMON_API LAYER_PAIR_INFO
 {
 public:
     LAYER_PAIR_INFO( LAYER_PAIR aPair, bool aEnabled, std::optional<wxString> aName ) :
-            m_pair( std::move( aPair ) ), m_enabled( aEnabled), m_name( std::move( aName ) )
+            m_pair( std::move( aPair ) ),
+            m_enabled( aEnabled ),
+            m_name( std::move( aName ) )
     {
     }
 

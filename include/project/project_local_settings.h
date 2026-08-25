@@ -33,8 +33,8 @@ class PROJECT;
 
 struct KICOMMON_API PROJECT_FILE_STATE
 {
-    wxString fileName;
-    bool open;
+    wxString            fileName;
+    bool                open;
     struct WINDOW_STATE window;
 };
 
@@ -80,18 +80,11 @@ public:
     bool ShouldAutoSave() const { return !m_wasMigrated && !m_isFutureFormat; }
 
 protected:
-    wxString getFileExt() const override
-    {
-        return FILEEXT::ProjectLocalSettingsFileExtension;
-    }
+    wxString getFileExt() const override { return FILEEXT::ProjectLocalSettingsFileExtension; }
 
-    wxString getLegacyFileExt() const override
-    {
-        return wxT( "NO_SUCH_FILE_EXTENSION" );
-    }
+    wxString getLegacyFileExt() const override { return wxT( "NO_SUCH_FILE_EXTENSION" ); }
 
 public:
-
     /**
      * Project scope
      */
@@ -99,7 +92,7 @@ public:
     /// File based state
     std::vector<PROJECT_FILE_STATE> m_files;
 
-    std::vector<wxString>           m_OpenJobSets;
+    std::vector<wxString> m_OpenJobSets;
 
     /**
      * Board settings
@@ -123,6 +116,9 @@ public:
     /// The current net color mode
     NET_COLOR_MODE m_NetColorMode;
 
+    /// The current net color display style
+    NET_COLOR_STYLE m_NetColorStyle;
+
     /// The state of the net inspector panel
     PANEL_NET_INSPECTOR_SETTINGS m_NetInspectorPanel;
 
@@ -135,19 +131,19 @@ public:
     /// Whether Zone fill should always be solid for performance with large boards.
     bool m_PrototypeZoneFill;
 
-    double m_TrackOpacity;     ///< Opacity override for all tracks
-    double m_ViaOpacity;       ///< Opacity override for all types of via
-    double m_PadOpacity;       ///< Opacity override for SMD pads and PTH
-    double m_ZoneOpacity;      ///< Opacity override for filled zones
-    double m_ShapeOpacity;     ///< Opacity override for graphic shapes
-    double m_ImageOpacity;     ///< Opacity override for user images
+    double m_TrackOpacity; ///< Opacity override for all tracks
+    double m_ViaOpacity;   ///< Opacity override for all types of via
+    double m_PadOpacity;   ///< Opacity override for SMD pads and PTH
+    double m_ZoneOpacity;  ///< Opacity override for filled zones
+    double m_ShapeOpacity; ///< Opacity override for graphic shapes
+    double m_ImageOpacity; ///< Opacity override for user images
 
     /**
      * A list of netnames that have been manually hidden in the board editor.
      * Currently, hiding nets means hiding the ratsnest for those nets.
      */
     std::vector<wxString> m_HiddenNets;
-    std::set<wxString> m_HiddenNetclasses;
+    std::set<wxString>    m_HiddenNetclasses;
 
     /// State of the selection filter widgets
     PCB_SELECTION_FILTER_OPTIONS m_PcbSelectionFilter;

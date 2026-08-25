@@ -37,6 +37,7 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
         m_ActiveLayer( UNDEFINED_LAYER ),
         m_ContrastModeDisplay( HIGH_CONTRAST_MODE::NORMAL ),
         m_NetColorMode( NET_COLOR_MODE::RATSNEST ),
+        m_NetColorStyle( NET_COLOR_STYLE::OUTLINE_HALO ),
         m_AutoTrackWidth( true ),
         m_ZoneDisplayMode( ZONE_DISPLAY_MODE::SHOW_FILLED ),
         m_PrototypeZoneFill( false ),
@@ -55,7 +56,8 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
     // Keep old files around
     m_deleteLegacyAfterMigration = false;
 
-    m_params.emplace_back( new PARAM_LAMBDA<std::string>( "board.visible_layers",
+    m_params.emplace_back( new PARAM_LAMBDA<std::string>(
+            "board.visible_layers",
             [&]() -> std::string
             {
                 return m_VisibleLayers.FmtHex();
@@ -66,7 +68,8 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
             },
             LSET::AllLayersMask().FmtHex() ) );
 
-    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "board.visible_items",
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "board.visible_items",
             [&]() -> nlohmann::json
             {
                 nlohmann::json ret = nlohmann::json::array();
@@ -93,7 +96,7 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
 
                 m_VisibleItems &= ~UserVisbilityLayers();
                 GAL_SET visible;
-                bool none = false;
+                bool    none = false;
 
                 for( const nlohmann::json& entry : aVal )
                 {
@@ -121,23 +124,24 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
             },
             {} ) );
 
-    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "board.selection_filter",
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "board.selection_filter",
             [&]() -> nlohmann::json
             {
                 nlohmann::json ret;
 
                 ret["lockedItems"] = m_PcbSelectionFilter.lockedItems;
-                ret["footprints"]  = m_PcbSelectionFilter.footprints;
-                ret["text"]        = m_PcbSelectionFilter.text;
-                ret["tracks"]      = m_PcbSelectionFilter.tracks;
-                ret["vias"]        = m_PcbSelectionFilter.vias;
-                ret["pads"]        = m_PcbSelectionFilter.pads;
-                ret["graphics"]    = m_PcbSelectionFilter.graphics;
-                ret["zones"]       = m_PcbSelectionFilter.zones;
-                ret["keepouts"]    = m_PcbSelectionFilter.keepouts;
-                ret["dimensions"]  = m_PcbSelectionFilter.dimensions;
-                ret["gridItems"]   = m_PcbSelectionFilter.gridItems;
-                ret["otherItems"]  = m_PcbSelectionFilter.otherItems;
+                ret["footprints"] = m_PcbSelectionFilter.footprints;
+                ret["text"] = m_PcbSelectionFilter.text;
+                ret["tracks"] = m_PcbSelectionFilter.tracks;
+                ret["vias"] = m_PcbSelectionFilter.vias;
+                ret["pads"] = m_PcbSelectionFilter.pads;
+                ret["graphics"] = m_PcbSelectionFilter.graphics;
+                ret["zones"] = m_PcbSelectionFilter.zones;
+                ret["keepouts"] = m_PcbSelectionFilter.keepouts;
+                ret["dimensions"] = m_PcbSelectionFilter.dimensions;
+                ret["gridItems"] = m_PcbSelectionFilter.gridItems;
+                ret["otherItems"] = m_PcbSelectionFilter.otherItems;
 
                 return ret;
             },
@@ -159,30 +163,27 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
                 SetIfPresent( aVal, "gridItems", m_PcbSelectionFilter.gridItems );
                 SetIfPresent( aVal, "otherItems", m_PcbSelectionFilter.otherItems );
             },
-            {
-                { "lockedItems", false },
-                { "footprints", true },
-                { "text", true },
-                { "tracks", true },
-                { "vias", true },
-                { "pads", true },
-                { "graphics", true },
-                { "zones", true },
-                { "keepouts", true },
-                { "dimensions", true },
-                { "gridItems", true },
-                { "otherItems", true }
-            } ) );
+            { { "lockedItems", false },
+              { "footprints", true },
+              { "text", true },
+              { "tracks", true },
+              { "vias", true },
+              { "pads", true },
+              { "graphics", true },
+              { "zones", true },
+              { "keepouts", true },
+              { "dimensions", true },
+              { "gridItems", true },
+              { "otherItems", true } } ) );
 
-    m_params.emplace_back( new PARAM_ENUM<PCB_LAYER_ID>( "board.active_layer",
-                           &m_ActiveLayer, F_Cu, PCBNEW_LAYER_ID_START, F_Fab ) );
+    m_params.emplace_back(
+            new PARAM_ENUM<PCB_LAYER_ID>( "board.active_layer", &m_ActiveLayer, F_Cu, PCBNEW_LAYER_ID_START, F_Fab ) );
 
-    m_params.emplace_back( new PARAM<wxString>( "board.active_layer_preset",
-                           &m_ActiveLayerPreset, "" ) );
+    m_params.emplace_back( new PARAM<wxString>( "board.active_layer_preset", &m_ActiveLayerPreset, "" ) );
 
-    m_params.emplace_back( new PARAM_ENUM<HIGH_CONTRAST_MODE>( "board.high_contrast_mode",
-                           &m_ContrastModeDisplay, HIGH_CONTRAST_MODE::NORMAL,
-                           HIGH_CONTRAST_MODE::NORMAL, HIGH_CONTRAST_MODE::HIDDEN ) );
+    m_params.emplace_back( new PARAM_ENUM<HIGH_CONTRAST_MODE>( "board.high_contrast_mode", &m_ContrastModeDisplay,
+                                                               HIGH_CONTRAST_MODE::NORMAL, HIGH_CONTRAST_MODE::NORMAL,
+                                                               HIGH_CONTRAST_MODE::HIDDEN ) );
 
     m_params.emplace_back( new PARAM<double>( "board.opacity.tracks", &m_TrackOpacity, 1.0 ) );
     m_params.emplace_back( new PARAM<double>( "board.opacity.vias", &m_ViaOpacity, 1.0 ) );
@@ -193,20 +194,21 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
 
     m_params.emplace_back( new PARAM_LIST<wxString>( "board.hidden_nets", &m_HiddenNets, {} ) );
 
-    m_params.emplace_back( new PARAM_SET<wxString>( "board.hidden_netclasses",
-                                                     &m_HiddenNetclasses, {} ) );
+    m_params.emplace_back( new PARAM_SET<wxString>( "board.hidden_netclasses", &m_HiddenNetclasses, {} ) );
 
-    m_params.emplace_back( new PARAM_ENUM<NET_COLOR_MODE>( "board.net_color_mode",
-                           &m_NetColorMode, NET_COLOR_MODE::RATSNEST, NET_COLOR_MODE::OFF,
-                           NET_COLOR_MODE::ALL ) );
+    m_params.emplace_back( new PARAM_ENUM<NET_COLOR_MODE>( "board.net_color_mode", &m_NetColorMode,
+                                                           NET_COLOR_MODE::RATSNEST, NET_COLOR_MODE::OFF,
+                                                           NET_COLOR_MODE::ALL ) );
 
-    m_params.emplace_back( new PARAM<bool>( "board.auto_track_width",
-                           &m_AutoTrackWidth, true ) );
+    m_params.emplace_back( new PARAM_ENUM<NET_COLOR_STYLE>( "board.net_color_style", &m_NetColorStyle,
+                                                            NET_COLOR_STYLE::OUTLINE_HALO, NET_COLOR_STYLE::SOLID,
+                                                            NET_COLOR_STYLE::SPINE ) );
 
-    m_params.emplace_back( new PARAM_ENUM<ZONE_DISPLAY_MODE>( "board.zone_display_mode",
-                           &m_ZoneDisplayMode,
-                           ZONE_DISPLAY_MODE::SHOW_FILLED, ZONE_DISPLAY_MODE::SHOW_FILLED,
-                           ZONE_DISPLAY_MODE::SHOW_TRIANGULATION ) );
+    m_params.emplace_back( new PARAM<bool>( "board.auto_track_width", &m_AutoTrackWidth, true ) );
+
+    m_params.emplace_back( new PARAM_ENUM<ZONE_DISPLAY_MODE>(
+            "board.zone_display_mode", &m_ZoneDisplayMode, ZONE_DISPLAY_MODE::SHOW_FILLED,
+            ZONE_DISPLAY_MODE::SHOW_FILLED, ZONE_DISPLAY_MODE::SHOW_TRIANGULATION ) );
 
     m_params.emplace_back( new PARAM<bool>( "board.prototype_zone_fills", &m_PrototypeZoneFill, false ) );
 
@@ -218,43 +220,42 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
 
     m_params.emplace_back( new PARAM<bool>( "git.integration_disabled", &m_GitIntegrationDisabled, false ) );
 
-    m_params.emplace_back( new PARAM<wxString>( "net_inspector_panel.filter_text",
-                                                &m_NetInspectorPanel.filter_text, "" ) );
+    m_params.emplace_back(
+            new PARAM<wxString>( "net_inspector_panel.filter_text", &m_NetInspectorPanel.filter_text, "" ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.filter_by_net_name",
                                             &m_NetInspectorPanel.filter_by_net_name, true ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.filter_by_netclass",
                                             &m_NetInspectorPanel.filter_by_netclass, true ) );
-    m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.group_by_netclass",
-                                            &m_NetInspectorPanel.group_by_netclass, false ) );
+    m_params.emplace_back(
+            new PARAM<bool>( "net_inspector_panel.group_by_netclass", &m_NetInspectorPanel.group_by_netclass, false ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.group_by_net_chain",
                                             &m_NetInspectorPanel.group_by_net_chain, false ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.group_by_constraint",
                                             &m_NetInspectorPanel.group_by_constraint, false ) );
     m_params.emplace_back( new PARAM_LIST<wxString>( "net_inspector_panel.custom_group_rules",
-                                                     &m_NetInspectorPanel.custom_group_rules,
-                                                     {} ) );
+                                                     &m_NetInspectorPanel.custom_group_rules, {} ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.show_zero_pad_nets",
                                             &m_NetInspectorPanel.show_zero_pad_nets, false ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.show_unconnected_nets",
                                             &m_NetInspectorPanel.show_unconnected_nets, false ) );
     m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.show_time_domain_details",
                                             &m_NetInspectorPanel.show_time_domain_details, false ) );
-    m_params.emplace_back( new PARAM<int>( "net_inspector_panel.sorting_column",
-                                           &m_NetInspectorPanel.sorting_column, -1 ) );
-    m_params.emplace_back( new PARAM<bool>( "net_inspector_panel.sort_ascending",
-                                            &m_NetInspectorPanel.sort_order_asc, true ) );
-    m_params.emplace_back( new PARAM_LIST<int>( "net_inspector_panel.col_order",
-                                                &m_NetInspectorPanel.col_order, {} ) );
-    m_params.emplace_back( new PARAM_LIST<int>( "net_inspector_panel.col_widths",
-                                                &m_NetInspectorPanel.col_widths, {} ) );
-    m_params.emplace_back( new PARAM_LIST<bool>( "net_inspector_panel.col_hidden",
-                                                 &m_NetInspectorPanel.col_hidden, {} ) );
-    m_params.emplace_back( new PARAM_LIST<wxString>( "net_inspector_panel.expanded_rows",
-                                                     &m_NetInspectorPanel.expanded_rows, {} ) );
+    m_params.emplace_back(
+            new PARAM<int>( "net_inspector_panel.sorting_column", &m_NetInspectorPanel.sorting_column, -1 ) );
+    m_params.emplace_back(
+            new PARAM<bool>( "net_inspector_panel.sort_ascending", &m_NetInspectorPanel.sort_order_asc, true ) );
+    m_params.emplace_back( new PARAM_LIST<int>( "net_inspector_panel.col_order", &m_NetInspectorPanel.col_order, {} ) );
+    m_params.emplace_back(
+            new PARAM_LIST<int>( "net_inspector_panel.col_widths", &m_NetInspectorPanel.col_widths, {} ) );
+    m_params.emplace_back(
+            new PARAM_LIST<bool>( "net_inspector_panel.col_hidden", &m_NetInspectorPanel.col_hidden, {} ) );
+    m_params.emplace_back(
+            new PARAM_LIST<wxString>( "net_inspector_panel.expanded_rows", &m_NetInspectorPanel.expanded_rows, {} ) );
 
     m_params.emplace_back( new PARAM_LIST<wxString>( "open_jobsets", &m_OpenJobSets, {} ) );
 
-    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "project.files",
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "project.files",
             [&]() -> nlohmann::json
             {
                 nlohmann::json ret = nlohmann::json::array();
@@ -267,11 +268,11 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
 
                     nlohmann::json window;
                     window["maximized"] = fileState.window.maximized;
-                    window["size_x"]    = fileState.window.size_x;
-                    window["size_y"]    = fileState.window.size_y;
-                    window["pos_x"]     = fileState.window.pos_x;
-                    window["pos_y"]     = fileState.window.pos_y;
-                    window["display"]   = fileState.window.display;
+                    window["size_x"] = fileState.window.size_x;
+                    window["size_y"] = fileState.window.size_y;
+                    window["pos_x"] = fileState.window.pos_x;
+                    window["pos_y"] = fileState.window.pos_y;
+                    window["display"] = fileState.window.display;
 
                     file["window"] = window;
 
@@ -309,26 +310,25 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
                         // Non-integer or out of range entry in the array; ignore
                     }
                 }
-
             },
-            {
-            } ) );
+            {} ) );
 
-    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>( "schematic.selection_filter",
+    m_params.emplace_back( new PARAM_LAMBDA<nlohmann::json>(
+            "schematic.selection_filter",
             [&]() -> nlohmann::json
             {
                 nlohmann::json ret;
 
                 ret["lockedItems"] = m_SchSelectionFilter.lockedItems;
-                ret["symbols"]     = m_SchSelectionFilter.symbols;
-                ret["text"]        = m_SchSelectionFilter.text;
-                ret["wires"]       = m_SchSelectionFilter.wires;
-                ret["labels"]      = m_SchSelectionFilter.labels;
-                ret["pins"]        = m_SchSelectionFilter.pins;
-                ret["graphics"]    = m_SchSelectionFilter.graphics;
-                ret["images"]      = m_SchSelectionFilter.images;
-                ret["ruleAreas"]   = m_SchSelectionFilter.ruleAreas;
-                ret["otherItems"]  = m_SchSelectionFilter.otherItems;
+                ret["symbols"] = m_SchSelectionFilter.symbols;
+                ret["text"] = m_SchSelectionFilter.text;
+                ret["wires"] = m_SchSelectionFilter.wires;
+                ret["labels"] = m_SchSelectionFilter.labels;
+                ret["pins"] = m_SchSelectionFilter.pins;
+                ret["graphics"] = m_SchSelectionFilter.graphics;
+                ret["images"] = m_SchSelectionFilter.images;
+                ret["ruleAreas"] = m_SchSelectionFilter.ruleAreas;
+                ret["otherItems"] = m_SchSelectionFilter.otherItems;
 
                 return ret;
             },
@@ -348,228 +348,224 @@ PROJECT_LOCAL_SETTINGS::PROJECT_LOCAL_SETTINGS( PROJECT* aProject, const wxStrin
                 SetIfPresent( aVal, "ruleAreas", m_SchSelectionFilter.ruleAreas );
                 SetIfPresent( aVal, "otherItems", m_SchSelectionFilter.otherItems );
             },
-            {
-                { "lockedItems", false },
-                { "symbols", true },
-                { "text", true },
-                { "wires", true },
-                { "labels", true },
-                { "pins", true },
-                { "graphics", true },
-                { "images", true },
-                { "ruleAreas", true },
-                { "otherItems", true }
-            } ) );
+            { { "lockedItems", false },
+              { "symbols", true },
+              { "text", true },
+              { "wires", true },
+              { "labels", true },
+              { "pins", true },
+              { "graphics", true },
+              { "images", true },
+              { "ruleAreas", true },
+              { "otherItems", true } } ) );
 
-    m_params.emplace_back( new PARAM_LIST<wxString>( "schematic.hierarchy_collapsed",
-                                                    &m_SchHierarchyCollapsed, {} ) );
+    m_params.emplace_back( new PARAM_LIST<wxString>( "schematic.hierarchy_collapsed", &m_SchHierarchyCollapsed, {} ) );
 
     registerMigration( 1, 2,
-            [&]()
-            {
-                /**
+                       [&]()
+                       {
+                           /**
                  * Schema version 1 to 2:
                  * LAYER_PADS and LAYER_ZONES added to visibility controls
                  */
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) )
-                {
-                    if( At( ptr ).is_array() )
-                    {
-                        At( ptr ).push_back( LAYER_PADS - GAL_LAYER_ID_START );
-                        At( ptr ).push_back( LAYER_ZONES - GAL_LAYER_ID_START );
-                    }
-                    else
-                    {
-                        At( "board" ).erase( "visible_items" );
-                    }
+                           if( Contains( ptr ) )
+                           {
+                               if( At( ptr ).is_array() )
+                               {
+                                   At( ptr ).push_back( LAYER_PADS - GAL_LAYER_ID_START );
+                                   At( ptr ).push_back( LAYER_ZONES - GAL_LAYER_ID_START );
+                               }
+                               else
+                               {
+                                   At( "board" ).erase( "visible_items" );
+                               }
 
-                    m_wasMigrated = true;
-                }
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 
     registerMigration( 2, 3,
-            [&]()
-            {
-                /**
+                       [&]()
+                       {
+                           /**
                  * Schema version 2 to 3:
                  * Fix issue with object visibility not migrating from legacy, which required
                  * remapping of GAL_LAYER_ID to match the legacy bitmask ordering.
                  */
 
-                /// Stores a mapping from old to new enum offset
-                const std::map<int, int> offsets = {
-                        { 22, 34 },    // LAYER_PAD_HOLEWALLS
-                        { 23, 22 },    // LAYER_VIA_HOLES
-                        { 24, 35 },    // LAYER_VIA_HOLEWALLS
-                        { 25, 23 },    // LAYER_DRC_ERROR
-                        { 26, 36 },    // LAYER_DRC_WARNING
-                        { 27, 37 },    // LAYER_DRC_EXCLUSION
-                        { 28, 38 },    // LAYER_MARKER_SHADOWS
-                        { 29, 24 },    // LAYER_DRAWINGSHEET
-                        { 30, 25 },    // LAYER_GP_OVERLAY
-                        { 31, 26 },    // LAYER_SELECT_OVERLAY
-                        { 32, 27 },    // LAYER_PCB_BACKGROUND
-                        { 33, 28 },    // LAYER_CURSOR
-                        { 34, 29 },    // LAYER_AUX_ITEM
-                        { 35, 30 },    // LAYER_DRAW_BITMAPS
-                        { 39, 32 },    // LAYER_PADS
-                        { 40, 33 },    // LAYER_ZONES
-                    };
+                           /// Stores a mapping from old to new enum offset
+                           const std::map<int, int> offsets = {
+                               { 22, 34 }, // LAYER_PAD_HOLEWALLS
+                               { 23, 22 }, // LAYER_VIA_HOLES
+                               { 24, 35 }, // LAYER_VIA_HOLEWALLS
+                               { 25, 23 }, // LAYER_DRC_ERROR
+                               { 26, 36 }, // LAYER_DRC_WARNING
+                               { 27, 37 }, // LAYER_DRC_EXCLUSION
+                               { 28, 38 }, // LAYER_MARKER_SHADOWS
+                               { 29, 24 }, // LAYER_DRAWINGSHEET
+                               { 30, 25 }, // LAYER_GP_OVERLAY
+                               { 31, 26 }, // LAYER_SELECT_OVERLAY
+                               { 32, 27 }, // LAYER_PCB_BACKGROUND
+                               { 33, 28 }, // LAYER_CURSOR
+                               { 34, 29 }, // LAYER_AUX_ITEM
+                               { 35, 30 }, // LAYER_DRAW_BITMAPS
+                               { 39, 32 }, // LAYER_PADS
+                               { 40, 33 }, // LAYER_ZONES
+                           };
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) && At( ptr ).is_array() )
-                {
-                    nlohmann::json visible = nlohmann::json::array();
+                           if( Contains( ptr ) && At( ptr ).is_array() )
+                           {
+                               nlohmann::json visible = nlohmann::json::array();
 
-                    for( const nlohmann::json& val : At( ptr ) )
-                    {
-                        try
-                        {
-                            int layer = val.get<int>();
+                               for( const nlohmann::json& val : At( ptr ) )
+                               {
+                                   try
+                                   {
+                                       int layer = val.get<int>();
 
-                            if( offsets.count( layer ) )
-                                visible.push_back( offsets.at( layer ) );
-                            else
-                                visible.push_back( layer );
-                        }
-                        catch( ... )
-                        {
-                            // skip invalid value
-                        }
-                    }
+                                       if( offsets.count( layer ) )
+                                           visible.push_back( offsets.at( layer ) );
+                                       else
+                                           visible.push_back( layer );
+                                   }
+                                   catch( ... )
+                                   {
+                                       // skip invalid value
+                                   }
+                               }
 
-                    At( "board" )["visible_items"] = visible;
-                    m_wasMigrated = true;
-                }
+                               At( "board" )["visible_items"] = visible;
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 
     registerMigration( 3, 4,
-            [&]()
-            {
-                // Schema version 3 to 4: LAYER_FILLED_SHAPES added to visibility controls
+                       [&]()
+                       {
+                           // Schema version 3 to 4: LAYER_FILLED_SHAPES added to visibility controls
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) )
-                {
-                    if( At( ptr ).is_array() && !At( ptr ).empty() )
-                        At( ptr ).push_back( LAYER_FILLED_SHAPES - GAL_LAYER_ID_START );
-                    else
-                        At( "board" ).erase( "visible_items" );
+                           if( Contains( ptr ) )
+                           {
+                               if( At( ptr ).is_array() && !At( ptr ).empty() )
+                                   At( ptr ).push_back( LAYER_FILLED_SHAPES - GAL_LAYER_ID_START );
+                               else
+                                   At( "board" ).erase( "visible_items" );
 
-                    m_wasMigrated = true;
-                }
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 
     registerMigration( 4, 5,
-            [&]()
-            {
-                // Pre-v5 ids are offsets from GAL_LAYER_ID_START in the enum current when the
-                // file was written.  Commit 43e327b6 split LAYER_VIA_BBLIND and shifted later
-                // offsets (LAYER_FP_TEXT 5->6), so the live enum can no longer decode them; map
-                // the historical offsets directly.  Offsets without a VISIBILITY_LAYER are
-                // dropped, as before.
-                static const std::map<int, VISIBILITY_LAYER> legacyOffsetToVisibility = {
-                        { 5,  VISIBILITY_LAYER::FOOTPRINT_TEXT },
-                        { 8,  VISIBILITY_LAYER::FOOTPRINT_ANCHORS },
-                        { 11, VISIBILITY_LAYER::RATSNEST },
-                        { 12, VISIBILITY_LAYER::GRID },
-                        { 15, VISIBILITY_LAYER::FOOTPRINTS_FRONT },
-                        { 16, VISIBILITY_LAYER::FOOTPRINTS_BACK },
-                        { 17, VISIBILITY_LAYER::FOOTPRINT_VALUES },
-                        { 18, VISIBILITY_LAYER::FOOTPRINT_REFERENCES },
-                        { 19, VISIBILITY_LAYER::TRACKS },
-                        { 23, VISIBILITY_LAYER::DRC_ERRORS },
-                        { 24, VISIBILITY_LAYER::DRAWING_SHEET },
-                        { 30, VISIBILITY_LAYER::BITMAPS },
-                        { 32, VISIBILITY_LAYER::PADS },
-                        { 33, VISIBILITY_LAYER::ZONES },
-                        { 36, VISIBILITY_LAYER::DRC_WARNINGS },
-                        { 37, VISIBILITY_LAYER::DRC_EXCLUSIONS },
-                        { 39, VISIBILITY_LAYER::LOCKED_ITEM_SHADOWS },
-                        { 40, VISIBILITY_LAYER::CONFLICT_SHADOWS },
-                        { 41, VISIBILITY_LAYER::SHAPES },
-                        { 0,  VISIBILITY_LAYER::VIAS },
-                };
+                       [&]()
+                       {
+                           // Pre-v5 ids are offsets from GAL_LAYER_ID_START in the enum current when the
+                           // file was written.  Commit 43e327b6 split LAYER_VIA_BBLIND and shifted later
+                           // offsets (LAYER_FP_TEXT 5->6), so the live enum can no longer decode them; map
+                           // the historical offsets directly.  Offsets without a VISIBILITY_LAYER are
+                           // dropped, as before.
+                           static const std::map<int, VISIBILITY_LAYER> legacyOffsetToVisibility = {
+                               { 5, VISIBILITY_LAYER::FOOTPRINT_TEXT },
+                               { 8, VISIBILITY_LAYER::FOOTPRINT_ANCHORS },
+                               { 11, VISIBILITY_LAYER::RATSNEST },
+                               { 12, VISIBILITY_LAYER::GRID },
+                               { 15, VISIBILITY_LAYER::FOOTPRINTS_FRONT },
+                               { 16, VISIBILITY_LAYER::FOOTPRINTS_BACK },
+                               { 17, VISIBILITY_LAYER::FOOTPRINT_VALUES },
+                               { 18, VISIBILITY_LAYER::FOOTPRINT_REFERENCES },
+                               { 19, VISIBILITY_LAYER::TRACKS },
+                               { 23, VISIBILITY_LAYER::DRC_ERRORS },
+                               { 24, VISIBILITY_LAYER::DRAWING_SHEET },
+                               { 30, VISIBILITY_LAYER::BITMAPS },
+                               { 32, VISIBILITY_LAYER::PADS },
+                               { 33, VISIBILITY_LAYER::ZONES },
+                               { 36, VISIBILITY_LAYER::DRC_WARNINGS },
+                               { 37, VISIBILITY_LAYER::DRC_EXCLUSIONS },
+                               { 39, VISIBILITY_LAYER::LOCKED_ITEM_SHADOWS },
+                               { 40, VISIBILITY_LAYER::CONFLICT_SHADOWS },
+                               { 41, VISIBILITY_LAYER::SHAPES },
+                               { 0, VISIBILITY_LAYER::VIAS },
+                           };
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) && At( ptr ).is_array() )
-                {
-                    std::vector<std::string> newLayers;
+                           if( Contains( ptr ) && At( ptr ).is_array() )
+                           {
+                               std::vector<std::string> newLayers;
 
-                    for( nlohmann::json& entry : At( ptr ) )
-                    {
-                        if( !entry.is_number_integer() )
-                            continue;
+                               for( nlohmann::json& entry : At( ptr ) )
+                               {
+                                   if( !entry.is_number_integer() )
+                                       continue;
 
-                        auto it = legacyOffsetToVisibility.find( entry.get<int>() );
+                                   auto it = legacyOffsetToVisibility.find( entry.get<int>() );
 
-                        if( it != legacyOffsetToVisibility.end() )
-                            newLayers.emplace_back( VisibilityLayerToString( it->second ) );
-                    }
+                                   if( it != legacyOffsetToVisibility.end() )
+                                       newLayers.emplace_back( VisibilityLayerToString( it->second ) );
+                               }
 
-                    At( ptr ) = newLayers;
-                    m_wasMigrated = true;
-                }
+                               At( ptr ) = newLayers;
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 
     registerMigration( 5, 6,
-            [&]()
-            {
-                // Schema version 5 to 6: LAYER_GRIDITEMS added to visibility controls
+                       [&]()
+                       {
+                           // Schema version 5 to 6: LAYER_GRIDITEMS added to visibility controls
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) )
-                {
-                    if( At( ptr ).is_array() && !At( ptr ).empty() )
-                        At( ptr ).push_back( VisibilityLayerToString( VISIBILITY_LAYER::GRID_ITEMS ) );
-                    else
-                        At( "board" ).erase( "visible_items" );
+                           if( Contains( ptr ) )
+                           {
+                               if( At( ptr ).is_array() && !At( ptr ).empty() )
+                                   At( ptr ).push_back( VisibilityLayerToString( VISIBILITY_LAYER::GRID_ITEMS ) );
+                               else
+                                   At( "board" ).erase( "visible_items" );
 
-                    m_wasMigrated = true;
-                }
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 
     registerMigration( 6, 7,
-            [&]()
-            {
-                // Schema version 6 to 7: LAYER_VIA_STITCHING added to visibility controls
+                       [&]()
+                       {
+                           // Schema version 6 to 7: LAYER_VIA_STITCHING added to visibility controls
 
-                std::string ptr( "board.visible_items" );
+                           std::string ptr( "board.visible_items" );
 
-                if( Contains( ptr ) )
-                {
-                    if( At( ptr ).is_array() && !At( ptr ).empty() )
-                    {
-                        At( ptr ).push_back(
-                                VisibilityLayerToString( VISIBILITY_LAYER::VIA_STITCHING ) );
-                    }
-                    else
-                    {
-                        At( "board" ).erase( "visible_items" );
-                    }
+                           if( Contains( ptr ) )
+                           {
+                               if( At( ptr ).is_array() && !At( ptr ).empty() )
+                               {
+                                   At( ptr ).push_back( VisibilityLayerToString( VISIBILITY_LAYER::VIA_STITCHING ) );
+                               }
+                               else
+                               {
+                                   At( "board" ).erase( "visible_items" );
+                               }
 
-                    m_wasMigrated = true;
-                }
+                               m_wasMigrated = true;
+                           }
 
-                return true;
-            } );
+                           return true;
+                       } );
 }
 
 
@@ -588,8 +584,7 @@ bool PROJECT_LOCAL_SETTINGS::SaveToFile( const wxString& aDirectory, bool aForce
 {
     wxASSERT( m_project );
 
-    Set( "meta.filename",
-         m_project->GetProjectName() + "." + FILEEXT::ProjectLocalSettingsFileExtension );
+    Set( "meta.filename", m_project->GetProjectName() + "." + FILEEXT::ProjectLocalSettingsFileExtension );
 
     // Even if parameters were not modified, we should resave after migration
     bool force = aForce || m_wasMigrated;
@@ -618,7 +613,7 @@ bool PROJECT_LOCAL_SETTINGS::SaveAs( const wxString& aDirectory, const wxString&
 const PROJECT_FILE_STATE* PROJECT_LOCAL_SETTINGS::GetFileState( const wxString& aFileName )
 {
     auto it = std::find_if( m_files.begin(), m_files.end(),
-                            [&aFileName]( const PROJECT_FILE_STATE &a )
+                            [&aFileName]( const PROJECT_FILE_STATE& a )
                             {
                                 return a.fileName == aFileName;
                             } );
@@ -632,8 +627,7 @@ const PROJECT_FILE_STATE* PROJECT_LOCAL_SETTINGS::GetFileState( const wxString& 
 }
 
 
-void PROJECT_LOCAL_SETTINGS::SaveFileState( const wxString& aFileName,
-                                            const WINDOW_SETTINGS* aWindowCfg, bool aOpen )
+void PROJECT_LOCAL_SETTINGS::SaveFileState( const wxString& aFileName, const WINDOW_SETTINGS* aWindowCfg, bool aOpen )
 {
     auto it = std::find_if( m_files.begin(), m_files.end(),
                             [&aFileName]( const PROJECT_FILE_STATE& a )
@@ -659,7 +653,7 @@ void PROJECT_LOCAL_SETTINGS::SaveFileState( const wxString& aFileName,
     }
 
     ( *it ).window = aWindowCfg->state;
-    ( *it ).open   = aOpen;
+    ( *it ).open = aOpen;
 }
 
 
