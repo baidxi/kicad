@@ -419,6 +419,8 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
     }
     else if( IsViaCopperLayer( aLayer ) )
         aLayer = aLayer - LAYER_VIA_COPPER_START;
+    else if( IsZoneFillLayer( aLayer ) )
+        aLayer = aLayer - LAYER_ZONE_START;
     else if( IsClearanceLayer( aLayer ) )
         aLayer = aLayer - LAYER_CLEARANCE_START;
     else if( IsNetColorLayer( aLayer ) )
@@ -531,6 +533,20 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
                     color = netColor;
             }
         }
+        else if( aItem->Type() == PCB_ZONE_T )
+        {
+            // Copper zones: Layer color fill with net color border in Outline/Halo and Spine modes
+            if( IsNetColorLayer( originalLayer ) )
+            {
+                if( GetItemNetColor( aItem, aLayer, netColor ) )
+                    color = netColor;
+            }
+            else if( m_netColorStyle == NET_COLOR_STYLE::SOLID )
+            {
+                if( GetItemNetColor( aItem, aLayer, netColor ) )
+                    color = netColor;
+            }
+        }
         else if( IsNetColorLayer( originalLayer ) )
         {
             if( m_netColorStyle == NET_COLOR_STYLE::OUTLINE_HALO )
@@ -544,7 +560,7 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
                     color = netColor;
             }
         }
-        else // Base copper layer (F_Cu, InX_Cu, B_Cu, PAD_COPPER, VIA_COPPER, ZONE)
+        else // Base copper layer (F_Cu, InX_Cu, B_Cu, PAD_COPPER, VIA_COPPER)
         {
             if( m_netColorStyle == NET_COLOR_STYLE::OUTLINE_HALO )
             {
@@ -3570,13 +3586,15 @@ void PCB_PAINTER::draw( const ZONE* aZone, int aLayer )
 
     if( IsZoneFillLayer( aLayer ) )
         layer = ToLAYER_ID( aLayer - LAYER_ZONE_START );
+    else if( IsNetColorLayer( aLayer ) )
+        layer = ToLAYER_ID( aLayer - LAYER_NETCOLOR_START );
     else
         layer = ToLAYER_ID( aLayer );
 
     if( !aZone->IsOnLayer( layer ) )
         return;
 
-    COLOR4D              color = m_pcbSettings.GetColor( aZone, layer );
+    COLOR4D              color = m_pcbSettings.GetColor( aZone, aLayer );
     std::deque<VECTOR2D> corners;
     ZONE_DISPLAY_MODE    displayMode = m_pcbSettings.m_ZoneDisplayMode;
 
@@ -3625,6 +3643,46 @@ void PCB_PAINTER::draw( const ZONE* aZone, int aLayer )
             for( const SEG& hatchLine : aZone->GetHatchLines() )
                 m_gal->DrawLine( hatchLine.A, hatchLine.B );
         }
+    }
+
+    if( IsNetColorLayer( aLayer ) )
+    {
+        if( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SOLID
+            || m_pcbSettings.GetNetColorMode() != NET_COLOR_MODE::ALL )
+        {
+            return;
+        }
+
+        COLOR4D netColor;
+        bool    hasNetColor = IsCopperLayer( layer ) && m_pcbSettings.GetItemNetColor( aZone, layer, netColor );
+
+        if( !hasNetColor )
+            return;
+
+        const std::shared_ptr<SHAPE_POLY_SET>& polySet = aZone->GetFilledPolysList( layer );
+
+        if( !polySet || polySet->OutlineCount() == 0 )
+            return;
+
+        if( displayMode == ZONE_DISPLAY_MODE::SHOW_FILLED
+            && ( m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::OUTLINE_HALO
+                 || m_pcbSettings.GetNetColorStyle() == NET_COLOR_STYLE::SPINE ) )
+        {
+            m_gal->SetIsFill( false );
+            m_gal->SetIsStroke( true );
+            m_gal->SetStrokeColor( color ); // Net color for overlay pass
+            m_gal->SetLineWidth( m_pcbSettings.m_outlineWidth * 2 );
+
+            for( int i = 0; i < polySet->OutlineCount(); ++i )
+            {
+                m_gal->DrawPolyline( polySet->COutline( i ) );
+
+                for( int j = 0; j < polySet->HoleCount( i ); ++j )
+                    m_gal->DrawPolyline( polySet->CHole( i, j ) );
+            }
+        }
+
+        return;
     }
 
     // Draw the filling

@@ -237,6 +237,10 @@ public:
         record();
     }
 
+    void DrawPolyline( const SHAPE_LINE_CHAIN& ) override { record(); }
+    void DrawPolyline( const std::deque<VECTOR2D>& ) override { record(); }
+    void DrawPolyline( const std::vector<VECTOR2D>& ) override { record(); }
+    void DrawPolyline( const VECTOR2D[], int ) override { record(); }
     void DrawPolygon( const SHAPE_POLY_SET&, bool = false ) override { record(); }
     void DrawPolygon( const SHAPE_LINE_CHAIN& ) override { record(); }
     void DrawPolygon( const std::deque<VECTOR2D>& ) override { record(); }
@@ -645,6 +649,54 @@ BOOST_AUTO_TEST_CASE( TestPadPaintingColorsSpine )
 
     BOOST_CHECK_MESSAGE( gal.HasGroup( fcuLayerColor ) && gal.HasGroup( netCustomColor ),
                          "Recolouring must preserve two-tone colors on pad spine passes without flattening" );
+}
+
+
+BOOST_AUTO_TEST_CASE( TestZonePaintingColors )
+{
+    KIGFX::GAL_DISPLAY_OPTIONS options;
+    RECORDING_GAL              gal( options );
+    KIGFX::PCB_VIEW            view;
+    KIGFX::PCB_PAINTER         painter( &gal, FRAME_PCB_EDITOR );
+
+    view.SetGAL( &gal );
+    view.SetPainter( &painter );
+
+    const KIGFX::COLOR4D fcuLayerColor( 0.8, 0.2, 0.2, 1.0 );
+    const KIGFX::COLOR4D netCustomColor( 0.2, 0.9, 0.3, 1.0 );
+
+    painter.GetSettings()->SetLayerColor( F_Cu, fcuLayerColor );
+    painter.GetSettings()->GetNetColorMap()[1] = netCustomColor;
+    painter.GetSettings()->SetNetColorMode( NET_COLOR_MODE::ALL );
+    painter.GetSettings()->SetNetColorStyle( NET_COLOR_STYLE::OUTLINE_HALO );
+
+    BOARD         board;
+    NETINFO_ITEM* netinfo = new NETINFO_ITEM( &board, "TEST_NET", 1 );
+    board.Add( netinfo );
+
+    ZONE* zone = new ZONE( &board );
+    zone->SetLayerSet( LSET( { F_Cu } ) );
+    zone->SetNet( netinfo );
+
+    SHAPE_POLY_SET poly;
+    poly.NewOutline();
+    poly.Append( 0, 0 );
+    poly.Append( 2000000, 0 );
+    poly.Append( 2000000, 2000000 );
+    poly.Append( 0, 2000000 );
+    zone->SetFilledPolysList( F_Cu, poly );
+    board.Add( zone );
+
+    view.Add( zone );
+    view.UpdateItems();
+
+    BOOST_REQUIRE_MESSAGE( gal.HasGroup( fcuLayerColor ) && gal.HasGroup( netCustomColor ),
+                           "Painter should emit both layer color and net color passes for zone halo" );
+
+    view.UpdateAllLayersColor();
+
+    BOOST_CHECK_MESSAGE( gal.HasGroup( fcuLayerColor ) && gal.HasGroup( netCustomColor ),
+                         "Recolouring must preserve two-tone colors on zone halo passes without flattening" );
 }
 
 
