@@ -278,6 +278,10 @@ private:
     void createNets();
     void createTracks();
     void createBoardShapes();
+
+    /// Decode the Allegro drawing-format title block (revision/date) into KiCad's
+    /// native title block. Imported graphics are left in place.
+    void decodeDrawingSheet();
     void createBoardText();
     void createZones();
     void createTables();
@@ -305,6 +309,9 @@ private:
     REPORTER&             m_reporter;
     PROGRESS_REPORTER*    m_progressReporter;
     LAYER_MAPPING_HANDLER m_layerMappingHandler;
+
+    // Count of documentation-layer footprint graphics dropped as exact Fab duplicates
+    int m_docDupRemoved = 0;
 
     // Cached list of font defs in the 0x36 node
     std::vector<const BLK_0x36_DEF_TABLE::FontDef_X08*> m_fontDefList;
