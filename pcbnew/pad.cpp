@@ -21,7 +21,7 @@
 
 #include <base_units.h>
 #include <bitmaps.h>
-#include <math/util.h>      // for KiROUND
+#include <math/util.h> // for KiROUND
 #include <eda_draw_frame.h>
 #include <geometry/shape_circle.h>
 #include <geometry/shape_segment.h>
@@ -80,7 +80,7 @@ PAD::PAD( FOOTPRINT* parent ) :
     VECTOR2I& drill = m_padStack.Drill().size;
     m_padStack.SetSize( { EDA_UNIT_UTILS::Mils2IU( pcbIUScale, 60 ), EDA_UNIT_UTILS::Mils2IU( pcbIUScale, 60 ) },
                         PADSTACK::ALL_LAYERS );
-    drill.x = drill.y = EDA_UNIT_UTILS::Mils2IU( pcbIUScale, 30 );       // Default drill size 30 mils.
+    drill.x = drill.y = EDA_UNIT_UTILS::Mils2IU( pcbIUScale, 30 ); // Default drill size 30 mils.
     m_lengthPadToDie = 0;
     m_delayPadToDie = 0;
 
@@ -91,7 +91,7 @@ PAD::PAD( FOOTPRINT* parent ) :
     SetProperty( PAD_PROP::NONE );                // no special fabrication property
 
     // Parameters for round rect only:
-    m_padStack.SetRoundRectRadiusRatio( 0.25, F_Cu );  // from IPC-7351C standard
+    m_padStack.SetRoundRectRadiusRatio( 0.25, F_Cu ); // from IPC-7351C standard
 
     // Parameters for chamfered rect only:
     m_padStack.SetChamferRatio( 0.2, F_Cu );
@@ -100,14 +100,13 @@ PAD::PAD( FOOTPRINT* parent ) :
     // Set layers mask to default for a standard thru hole pad.
     m_padStack.SetLayerSet( PTHMask() );
 
-    SetSubRatsnest( 0 );                       // used in ratsnest calculations
+    SetSubRatsnest( 0 ); // used in ratsnest calculations
 
     SetDirty();
     m_effectiveBoundingRadius = 0;
 
     for( PCB_LAYER_ID layer : LAYER_RANGE( F_Cu, B_Cu, BoardCopperLayerCount() ) )
         m_zoneLayerOverrides[layer] = ZLO_NONE;
-
 }
 
 
@@ -334,7 +333,7 @@ int PAD::GetSizeY() const
 }
 
 
-PAD& PAD::operator=( const PAD &aOther )
+PAD& PAD::operator=( const PAD& aOther )
 {
     BOARD_CONNECTED_ITEM::operator=( aOther );
 
@@ -364,20 +363,19 @@ void PAD::CopyFrom( const BOARD_ITEM* aOther )
 std::optional<std::pair<ELECTRICAL_PINTYPE, bool>> parsePinType( const wxString& aPinTypeString )
 {
     // The netlister formats the pin type as "<canonical_name>[+no_connect]"
-    static std::map<wxString, ELECTRICAL_PINTYPE> map = {
-        { wxT( "input" ), ELECTRICAL_PINTYPE::PT_INPUT },
-        { wxT( "output" ), ELECTRICAL_PINTYPE::PT_OUTPUT },
-        { wxT( "bidirectional" ), ELECTRICAL_PINTYPE::PT_BIDI },
-        { wxT( "tri_state" ), ELECTRICAL_PINTYPE::PT_TRISTATE },
-        { wxT( "passive" ), ELECTRICAL_PINTYPE::PT_PASSIVE },
-        { wxT( "free" ), ELECTRICAL_PINTYPE::PT_NIC },
-        { wxT( "unspecified" ), ELECTRICAL_PINTYPE::PT_UNSPECIFIED },
-        { wxT( "power_in" ), ELECTRICAL_PINTYPE::PT_POWER_IN },
-        { wxT( "power_out" ), ELECTRICAL_PINTYPE::PT_POWER_OUT },
-        { wxT( "open_collector" ), ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR },
-        { wxT( "open_emitter" ), ELECTRICAL_PINTYPE::PT_OPENEMITTER },
-        { wxT( "no_connect" ), ELECTRICAL_PINTYPE::PT_NC }
-    };
+    static std::map<wxString, ELECTRICAL_PINTYPE> map = { { wxT( "input" ), ELECTRICAL_PINTYPE::PT_INPUT },
+                                                          { wxT( "output" ), ELECTRICAL_PINTYPE::PT_OUTPUT },
+                                                          { wxT( "bidirectional" ), ELECTRICAL_PINTYPE::PT_BIDI },
+                                                          { wxT( "tri_state" ), ELECTRICAL_PINTYPE::PT_TRISTATE },
+                                                          { wxT( "passive" ), ELECTRICAL_PINTYPE::PT_PASSIVE },
+                                                          { wxT( "free" ), ELECTRICAL_PINTYPE::PT_NIC },
+                                                          { wxT( "unspecified" ), ELECTRICAL_PINTYPE::PT_UNSPECIFIED },
+                                                          { wxT( "power_in" ), ELECTRICAL_PINTYPE::PT_POWER_IN },
+                                                          { wxT( "power_out" ), ELECTRICAL_PINTYPE::PT_POWER_OUT },
+                                                          { wxT( "open_collector" ),
+                                                            ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR },
+                                                          { wxT( "open_emitter" ), ELECTRICAL_PINTYPE::PT_OPENEMITTER },
+                                                          { wxT( "no_connect" ), ELECTRICAL_PINTYPE::PT_NC } };
 
     bool hasNoConnect = aPinTypeString.EndsWith( wxT( "+no_connect" ) );
 
@@ -388,7 +386,7 @@ std::optional<std::pair<ELECTRICAL_PINTYPE, bool>> parsePinType( const wxString&
 }
 
 
-void PAD::Serialize( google::protobuf::Any &aContainer ) const
+void PAD::Serialize( google::protobuf::Any& aContainer ) const
 {
     using namespace kiapi::board::types;
     using namespace kiapi::common::types;
@@ -396,8 +394,7 @@ void PAD::Serialize( google::protobuf::Any &aContainer ) const
 
     pad.mutable_id()->set_value( m_Uuid.AsStdString() );
     kiapi::common::PackVector2( *pad.mutable_position(), GetPosition() );
-    pad.set_locked( IsLocked() ? LockedState::LS_LOCKED
-                               : LockedState::LS_UNLOCKED );
+    pad.set_locked( IsLocked() ? LockedState::LS_LOCKED : LockedState::LS_UNLOCKED );
     PackNet( pad.mutable_net() );
     pad.set_number( GetNumber().ToUTF8() );
     pad.set_type( ToProtoEnum<PAD_ATTRIB, PadType>( GetAttribute() ) );
@@ -428,7 +425,7 @@ void PAD::Serialize( google::protobuf::Any &aContainer ) const
 }
 
 
-bool PAD::Deserialize( const google::protobuf::Any &aContainer )
+bool PAD::Deserialize( const google::protobuf::Any& aContainer )
 {
     kiapi::board::types::Pad pad;
 
@@ -486,7 +483,7 @@ const ZONE_LAYER_OVERRIDE& PAD::GetZoneLayerOverride( PCB_LAYER_ID aLayer ) cons
     std::unique_lock<std::mutex> cacheLock( m_dataMutex );
 
     static const ZONE_LAYER_OVERRIDE defaultOverride = ZLO_NONE;
-    auto it = m_zoneLayerOverrides.find( aLayer );
+    auto                             it = m_zoneLayerOverrides.find( aLayer );
     return it != m_zoneLayerOverrides.end() ? it->second : defaultOverride;
 }
 
@@ -558,8 +555,8 @@ bool PAD::SharesNetTieGroup( const PAD* aOther ) const
     if( parentFp && parentFp->IsNetTie() && aOther->GetParentFootprint() == parentFp )
     {
         std::map<wxString, int> padToNetTieGroupMap = parentFp->MapPadNumbersToNetTieGroups();
-        int thisNetTieGroup = padToNetTieGroupMap[ GetNumber() ];
-        int otherNetTieGroup = padToNetTieGroupMap[ aOther->GetNumber() ];
+        int                     thisNetTieGroup = padToNetTieGroupMap[GetNumber()];
+        int                     otherNetTieGroup = padToNetTieGroupMap[aOther->GetNumber()];
 
         return thisNetTieGroup >= 0 && thisNetTieGroup == otherNetTieGroup;
     }
@@ -635,7 +632,6 @@ PCB_LAYER_ID PAD::GetPrincipalLayer() const
         return m_layer;
     else
         return GetLayerSet().Seq().front();
-
 }
 
 
@@ -672,12 +668,10 @@ bool PAD::FlashLayer( int aLayer, bool aOnlyCheckIfPermitted ) const
             if( GetOffset( layer ) == VECTOR2I( 0, 0 ) && GetDrillSize().x >= GetSize( layer ).x )
                 return false;
         }
-        else if( GetShape( layer ) == PAD_SHAPE::OVAL
-                 && GetDrillShape() == PAD_DRILL_SHAPE::OBLONG )
+        else if( GetShape( layer ) == PAD_SHAPE::OVAL && GetDrillShape() == PAD_DRILL_SHAPE::OBLONG )
         {
-            if( GetOffset( layer ) == VECTOR2I( 0, 0 )
-                    && GetDrillSize().x >= GetSize( layer ).x
-                    && GetDrillSize().y >= GetSize( layer ).y )
+            if( GetOffset( layer ) == VECTOR2I( 0, 0 ) && GetDrillSize().x >= GetSize( layer ).x
+                && GetDrillSize().y >= GetSize( layer ).y )
             {
                 return false;
             }
@@ -706,8 +700,7 @@ bool PAD::FlashLayer( int aLayer, bool aOnlyCheckIfPermitted ) const
             return aLayer == m_padStack.Drill().start || aLayer == m_padStack.Drill().end;
         }
 
-        if( mode == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END
-            && IsExternalCopperLayer( aLayer ) )
+        if( mode == UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END && IsExternalCopperLayer( aLayer ) )
         {
             return true;
         }
@@ -725,8 +718,7 @@ bool PAD::FlashLayer( int aLayer, bool aOnlyCheckIfPermitted ) const
             else
             {
                 // Must be static to keep from raising its ugly head in performance profiles
-                static std::initializer_list<KICAD_T> nonZoneTypes = { PCB_TRACE_T, PCB_ARC_T,
-                                                                       PCB_VIA_T, PCB_PAD_T };
+                static std::initializer_list<KICAD_T> nonZoneTypes = { PCB_TRACE_T, PCB_ARC_T, PCB_VIA_T, PCB_PAD_T };
 
                 return board->GetConnectivity()->IsConnectedOnLayer( this, aLayer, nonZoneTypes );
             }
@@ -852,21 +844,23 @@ bool PAD::IsBackdrilledOrPostMachined( PCB_LAYER_ID aLayer ) const
     {
         // Secondary drill goes from start to end layer, removing copper on those layers
         int startOrdinal = board->IsLayerEnabled( secondaryDrill.start )
-                ? board->IsLayerEnabled( F_Cu ) ? ( secondaryDrill.start == F_Cu ? 0
-                                                                                 : secondaryDrill.start / 2 + 1 )
-                                                 : secondaryDrill.start / 2
-                : -1;
+                                   ? board->IsLayerEnabled( F_Cu )
+                                             ? ( secondaryDrill.start == F_Cu ? 0 : secondaryDrill.start / 2 + 1 )
+                                             : secondaryDrill.start / 2
+                                   : -1;
         int endOrdinal = board->IsLayerEnabled( secondaryDrill.end )
-                ? board->IsLayerEnabled( F_Cu ) ? ( secondaryDrill.end == B_Cu ? board->GetCopperLayerCount() - 1
-                                                                               : secondaryDrill.end / 2 + 1 )
-                                                : secondaryDrill.end / 2
-                : -1;
+                                 ? board->IsLayerEnabled( F_Cu )
+                                           ? ( secondaryDrill.end == B_Cu ? board->GetCopperLayerCount() - 1
+                                                                          : secondaryDrill.end / 2 + 1 )
+                                           : secondaryDrill.end / 2
+                                 : -1;
         int layerOrdinal = board->IsLayerEnabled( aLayer )
-                ? board->IsLayerEnabled( F_Cu ) ? ( aLayer == F_Cu ? 0
-                                                                   : aLayer == B_Cu ? board->GetCopperLayerCount() - 1
-                                                                                    : aLayer / 2 + 1 )
-                                                : aLayer / 2
-                : -1;
+                                   ? board->IsLayerEnabled( F_Cu )
+                                             ? ( aLayer == F_Cu   ? 0
+                                                 : aLayer == B_Cu ? board->GetCopperLayerCount() - 1
+                                                                  : aLayer / 2 + 1 )
+                                             : aLayer / 2
+                                   : -1;
 
         if( layerOrdinal >= 0 && startOrdinal >= 0 && endOrdinal >= 0 )
         {
@@ -884,21 +878,23 @@ bool PAD::IsBackdrilledOrPostMachined( PCB_LAYER_ID aLayer ) const
     if( tertiaryDrill.size.x > 0 && tertiaryDrill.start != UNDEFINED_LAYER && tertiaryDrill.end != UNDEFINED_LAYER )
     {
         int startOrdinal = board->IsLayerEnabled( tertiaryDrill.start )
-                ? board->IsLayerEnabled( F_Cu ) ? ( tertiaryDrill.start == F_Cu ? 0
-                                                                                : tertiaryDrill.start / 2 + 1 )
-                                                : tertiaryDrill.start / 2
-                : -1;
+                                   ? board->IsLayerEnabled( F_Cu )
+                                             ? ( tertiaryDrill.start == F_Cu ? 0 : tertiaryDrill.start / 2 + 1 )
+                                             : tertiaryDrill.start / 2
+                                   : -1;
         int endOrdinal = board->IsLayerEnabled( tertiaryDrill.end )
-                ? board->IsLayerEnabled( F_Cu ) ? ( tertiaryDrill.end == B_Cu ? board->GetCopperLayerCount() - 1
-                                                                              : tertiaryDrill.end / 2 + 1 )
-                                                : tertiaryDrill.end / 2
-                : -1;
+                                 ? board->IsLayerEnabled( F_Cu )
+                                           ? ( tertiaryDrill.end == B_Cu ? board->GetCopperLayerCount() - 1
+                                                                         : tertiaryDrill.end / 2 + 1 )
+                                           : tertiaryDrill.end / 2
+                                 : -1;
         int layerOrdinal = board->IsLayerEnabled( aLayer )
-                ? board->IsLayerEnabled( F_Cu ) ? ( aLayer == F_Cu ? 0
-                                                                   : aLayer == B_Cu ? board->GetCopperLayerCount() - 1
-                                                                                    : aLayer / 2 + 1 )
-                                                : aLayer / 2
-                : -1;
+                                   ? board->IsLayerEnabled( F_Cu )
+                                             ? ( aLayer == F_Cu   ? 0
+                                                 : aLayer == B_Cu ? board->GetCopperLayerCount() - 1
+                                                                  : aLayer / 2 + 1 )
+                                             : aLayer / 2
+                                   : -1;
 
         if( layerOrdinal >= 0 && startOrdinal >= 0 && endOrdinal >= 0 )
         {
@@ -934,7 +930,7 @@ int PAD::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
     const PADSTACK::POST_MACHINING_PROPS& frontPM = m_padStack.FrontPostMachining();
 
     if( frontPM.mode.has_value() && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
-            && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && frontPM.size > 0 )
+        && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && frontPM.size > 0 )
     {
         int pmDepth = frontPM.depth;
 
@@ -956,7 +952,7 @@ int PAD::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
                 if( *frontPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && frontPM.angle > 0 )
                 {
                     double halfAngleRad = ( frontPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
-                    int diameterAtLayer = frontPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
+                    int    diameterAtLayer = frontPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
                     return std::max( 0, diameterAtLayer );
                 }
                 else
@@ -972,7 +968,7 @@ int PAD::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
     const PADSTACK::POST_MACHINING_PROPS& backPM = m_padStack.BackPostMachining();
 
     if( backPM.mode.has_value() && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
-            && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && backPM.size > 0 )
+        && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && backPM.size > 0 )
     {
         int pmDepth = backPM.depth;
 
@@ -994,7 +990,7 @@ int PAD::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
                 if( *backPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && backPM.angle > 0 )
                 {
                     double halfAngleRad = ( backPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
-                    int diameterAtLayer = backPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
+                    int    diameterAtLayer = backPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
                     return std::max( 0, diameterAtLayer );
                 }
                 else
@@ -1204,14 +1200,14 @@ void PAD::SetChamferRectRatio( PCB_LAYER_ID aLayer, double aChamferScale )
 
 const std::shared_ptr<SHAPE_POLY_SET>& PAD::GetEffectivePolygon( PCB_LAYER_ID aLayer, ERROR_LOC aErrorLoc ) const
 {
-    if( m_polyDirty[ aErrorLoc ] )
+    if( m_polyDirty[aErrorLoc] )
         BuildEffectivePolygon( aErrorLoc );
 
     aLayer = Padstack().EffectiveLayerFor( aLayer );
 
     const PAD_DRAW_CACHE_DATA& drawCache = getDrawCache();
 
-    return drawCache.m_effectivePolygons.at( aLayer )[ aErrorLoc ];
+    return drawCache.m_effectivePolygons.at( aLayer )[aErrorLoc];
 }
 
 
@@ -1235,7 +1231,7 @@ std::shared_ptr<SHAPE> PAD::GetEffectiveShape( PCB_LAYER_ID aLayer, FLASHING aFl
 
     if( GetAttribute() == PAD_ATTRIB::PTH )
     {
-        bool flash;
+        bool                            flash;
         std::shared_ptr<SHAPE_COMPOUND> effective_compund = std::make_shared<SHAPE_COMPOUND>();
 
         if( aFlash == FLASHING::NEVER_FLASHED )
@@ -1278,7 +1274,7 @@ std::shared_ptr<SHAPE> PAD::GetEffectiveShape( PCB_LAYER_ID aLayer, FLASHING aFl
 
     // In some cases we want to add in any backdrill or post-machining
     if( ( aUsage == PHYSICAL_CLEARANCE_CONSTRAINT || aUsage == SILK_CLEARANCE_CONSTRAINT )
-            && IsBackdrilledOrPostMachined( aLayer ) )
+        && IsBackdrilledOrPostMachined( aLayer ) )
     {
         std::shared_ptr<SHAPE_COMPOUND> effective_compound = std::make_shared<SHAPE_COMPOUND>();
         effective_compound->AddShape( drawCache.m_effectiveShapes.at( effectiveLayer ) );
@@ -1296,10 +1292,10 @@ std::shared_ptr<SHAPE_SEGMENT> PAD::GetEffectiveHoleShape( PCB_LAYER_ID aLayer, 
         BuildEffectiveShapes();
 
     if( aUsage == HOLE_TO_HOLE_CONSTRAINT
-            || ( aUsage == HOLE_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == ANNULAR_WIDTH_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == PHYSICAL_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == SILK_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) ) )
+        || ( aUsage == HOLE_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == ANNULAR_WIDTH_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == PHYSICAL_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == SILK_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) ) )
     {
         int maxHoleSize = Padstack().GetMaxHoleSize();
 
@@ -1314,7 +1310,7 @@ std::shared_ptr<SHAPE_SEGMENT> PAD::GetEffectiveHoleShape( PCB_LAYER_ID aLayer, 
 
 int PAD::GetBoundingRadius() const
 {
-    if( m_polyDirty[ ERROR_OUTSIDE ] )
+    if( m_polyDirty[ERROR_OUTSIDE] )
         BuildEffectivePolygon( ERROR_OUTSIDE );
 
     return m_effectiveBoundingRadius;
@@ -1393,12 +1389,12 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
     drawCache.m_effectiveShapes[aLayer] = std::make_shared<SHAPE_COMPOUND>();
 
     auto add = [this, aLayer]( SHAPE* aShape )
-               {
-                   getDrawCache().m_effectiveShapes[aLayer]->AddShape( aShape );
-               };
+    {
+        getDrawCache().m_effectiveShapes[aLayer]->AddShape( aShape );
+    };
 
-    VECTOR2I  shapePos = ShapePos( aLayer ); // Fetch only once; rotation involves trig
-    PAD_SHAPE effectiveShape = GetShape( aLayer );
+    VECTOR2I       shapePos = ShapePos( aLayer ); // Fetch only once; rotation involves trig
+    PAD_SHAPE      effectiveShape = GetShape( aLayer );
     const VECTOR2I size = GetSize( aLayer );
 
     if( effectiveShape == PAD_SHAPE::CUSTOM )
@@ -1406,9 +1402,7 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
 
     switch( effectiveShape )
     {
-    case PAD_SHAPE::CIRCLE:
-        add( new SHAPE_CIRCLE( shapePos, size.x / 2 ) );
-        break;
+    case PAD_SHAPE::CIRCLE: add( new SHAPE_CIRCLE( shapePos, size.x / 2 ) ); break;
 
     case PAD_SHAPE::OVAL:
         if( size.x == size.y ) // the oval pad is in fact a circle
@@ -1418,7 +1412,7 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
         else
         {
             VECTOR2I half_size = size / 2;
-            int     half_width = std::min( half_size.x, half_size.y );
+            int      half_width = std::min( half_size.x, half_size.y );
             VECTOR2I half_len( half_size.x - half_width, half_size.y - half_width );
             RotatePoint( half_len, GetOrientation() );
             add( new SHAPE_SEGMENT( shapePos - half_len, shapePos + half_len, half_width * 2 ) );
@@ -1430,7 +1424,7 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
     case PAD_SHAPE::TRAPEZOID:
     case PAD_SHAPE::ROUNDRECT:
     {
-        int r = ( effectiveShape == PAD_SHAPE::ROUNDRECT ) ? GetRoundRectCornerRadius( aLayer ) : 0;
+        int      r = ( effectiveShape == PAD_SHAPE::ROUNDRECT ) ? GetRoundRectCornerRadius( aLayer ) : 0;
         VECTOR2I half_size( size.x / 2, size.y / 2 );
         VECTOR2I trap_delta( 0, 0 );
 
@@ -1455,9 +1449,9 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
 
         SHAPE_LINE_CHAIN corners;
 
-        corners.Append( -half_size.x - trap_delta.y,  half_size.y + trap_delta.x );
-        corners.Append(  half_size.x + trap_delta.y,  half_size.y - trap_delta.x );
-        corners.Append(  half_size.x - trap_delta.y, -half_size.y + trap_delta.x );
+        corners.Append( -half_size.x - trap_delta.y, half_size.y + trap_delta.x );
+        corners.Append( half_size.x + trap_delta.y, half_size.y - trap_delta.x );
+        corners.Append( half_size.x - trap_delta.y, -half_size.y + trap_delta.x );
         corners.Append( -half_size.x + trap_delta.y, -half_size.y - trap_delta.x );
 
         corners.Rotate( GetOrientation() );
@@ -1466,21 +1460,14 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
         // GAL renders rectangles faster than 4-point polygons so it's worth checking if our
         // body shape is a rectangle.
         if( corners.PointCount() == 4
-                &&
-                ( ( corners.CPoint( 0 ).y == corners.CPoint( 1 ).y
-                    && corners.CPoint( 1 ).x == corners.CPoint( 2 ).x
-                    && corners.CPoint( 2 ).y == corners.CPoint( 3 ).y
-                    && corners.CPoint( 3 ).x == corners.CPoint( 0 ).x )
-                    ||
-                ( corners.CPoint( 0 ).x == corners.CPoint( 1 ).x
-                    && corners.CPoint( 1 ).y == corners.CPoint( 2 ).y
-                    && corners.CPoint( 2 ).x == corners.CPoint( 3 ).x
-                    && corners.CPoint( 3 ).y == corners.CPoint( 0 ).y )
-                )
-            )
+            && ( ( corners.CPoint( 0 ).y == corners.CPoint( 1 ).y && corners.CPoint( 1 ).x == corners.CPoint( 2 ).x
+                   && corners.CPoint( 2 ).y == corners.CPoint( 3 ).y && corners.CPoint( 3 ).x == corners.CPoint( 0 ).x )
+                 || ( corners.CPoint( 0 ).x == corners.CPoint( 1 ).x && corners.CPoint( 1 ).y == corners.CPoint( 2 ).y
+                      && corners.CPoint( 2 ).x == corners.CPoint( 3 ).x
+                      && corners.CPoint( 3 ).y == corners.CPoint( 0 ).y ) ) )
         {
-            int width  = std::abs( corners.CPoint( 2 ).x - corners.CPoint( 0 ).x );
-            int height = std::abs( corners.CPoint( 2 ).y - corners.CPoint( 0 ).y );
+            int      width = std::abs( corners.CPoint( 2 ).x - corners.CPoint( 0 ).x );
+            int      height = std::abs( corners.CPoint( 2 ).y - corners.CPoint( 0 ).y );
             VECTOR2I pos( std::min( corners.CPoint( 2 ).x, corners.CPoint( 0 ).x ),
                           std::min( corners.CPoint( 2 ).y, corners.CPoint( 0 ).y ) );
 
@@ -1499,21 +1486,19 @@ const SHAPE_COMPOUND& PAD::buildEffectiveShape( PCB_LAYER_ID aLayer ) const
             add( new SHAPE_SEGMENT( corners.CPoint( 3 ), corners.CPoint( 0 ), r * 2 ) );
         }
     }
-        break;
+    break;
 
     case PAD_SHAPE::CHAMFERED_RECT:
     {
         SHAPE_POLY_SET outline;
 
-        TransformRoundChamferedRectToPolygon( outline, shapePos, GetSize( aLayer ),
-                                              GetOrientation(), GetRoundRectCornerRadius( aLayer ),
-                                              GetChamferRectRatio( aLayer ),
-                                              GetChamferPositions( aLayer ), 0, GetMaxError(),
-                                              ERROR_INSIDE );
+        TransformRoundChamferedRectToPolygon( outline, shapePos, GetSize( aLayer ), GetOrientation(),
+                                              GetRoundRectCornerRadius( aLayer ), GetChamferRectRatio( aLayer ),
+                                              GetChamferPositions( aLayer ), 0, GetMaxError(), ERROR_INSIDE );
 
         add( new SHAPE_SIMPLE( outline.COutline( 0 ) ) );
     }
-        break;
+    break;
 
     default:
         wxFAIL_MSG( wxT( "PAD::buildEffectiveShapes: Unsupported pad shape: PAD_SHAPE::" )
@@ -1550,50 +1535,49 @@ void PAD::BuildEffectivePolygon( ERROR_LOC aErrorLoc ) const
 
     // If we had to wait for the lock then we were probably waiting for someone else to
     // finish rebuilding the shapes.  So check to see if they're clean now.
-    if( !m_polyDirty[ aErrorLoc ] )
+    if( !m_polyDirty[aErrorLoc] )
         return;
 
     PAD_DRAW_CACHE_DATA& drawCache = getDrawCache();
 
     Padstack().ForEachUniqueLayer(
-        [&]( PCB_LAYER_ID aLayer )
-        {
-            // Polygon
-            std::shared_ptr<SHAPE_POLY_SET>& effectivePolygon =
-                    drawCache.m_effectivePolygons[ aLayer ][ aErrorLoc ];
+            [&]( PCB_LAYER_ID aLayer )
+            {
+                // Polygon
+                std::shared_ptr<SHAPE_POLY_SET>& effectivePolygon = drawCache.m_effectivePolygons[aLayer][aErrorLoc];
 
-            effectivePolygon = std::make_shared<SHAPE_POLY_SET>();
-            TransformShapeToPolygon( *effectivePolygon, aLayer, 0, GetMaxError(), aErrorLoc );
-        } );
+                effectivePolygon = std::make_shared<SHAPE_POLY_SET>();
+                TransformShapeToPolygon( *effectivePolygon, aLayer, 0, GetMaxError(), aErrorLoc );
+            } );
 
     if( doBoundingRadius )
     {
         m_effectiveBoundingRadius = 0;
 
         Padstack().ForEachUniqueLayer(
-            [&]( PCB_LAYER_ID aLayer )
-            {
-                std::shared_ptr<SHAPE_POLY_SET>& effectivePolygon =
-                        drawCache.m_effectivePolygons[ aLayer ][ aErrorLoc ];
-
-                for( int cnt = 0; cnt < effectivePolygon->OutlineCount(); ++cnt )
+                [&]( PCB_LAYER_ID aLayer )
                 {
-                    const SHAPE_LINE_CHAIN& poly = effectivePolygon->COutline( cnt );
+                    std::shared_ptr<SHAPE_POLY_SET>& effectivePolygon =
+                            drawCache.m_effectivePolygons[aLayer][aErrorLoc];
 
-                    for( int ii = 0; ii < poly.PointCount(); ++ii )
+                    for( int cnt = 0; cnt < effectivePolygon->OutlineCount(); ++cnt )
                     {
-                        int dist = KiROUND( ( poly.CPoint( ii ) - GetPosition() ).EuclideanNorm() );
-                        m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, dist );
+                        const SHAPE_LINE_CHAIN& poly = effectivePolygon->COutline( cnt );
+
+                        for( int ii = 0; ii < poly.PointCount(); ++ii )
+                        {
+                            int dist = KiROUND( ( poly.CPoint( ii ) - GetPosition() ).EuclideanNorm() );
+                            m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, dist );
+                        }
                     }
-                }
-            } );
+                } );
 
         m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSizeX() / 2.0 ) );
         m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSizeY() / 2.0 ) );
     }
 
     // All done
-    m_polyDirty[ aErrorLoc ] = false;
+    m_polyDirty[aErrorLoc] = false;
 }
 
 
@@ -1761,19 +1745,19 @@ void PAD::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
     SetFPRelativeOrientation( -GetFPRelativeOrientation() );
 
     auto mirrorBitFlags = []( int& aBitfield, int a, int b )
-                          {
-                              bool temp = aBitfield & a;
+    {
+        bool temp = aBitfield & a;
 
-                              if( aBitfield & b )
-                                  aBitfield |= a;
-                              else
-                                  aBitfield &= ~a;
+        if( aBitfield & b )
+            aBitfield |= a;
+        else
+            aBitfield &= ~a;
 
-                              if( temp )
-                                  aBitfield |= b;
-                              else
-                                  aBitfield &= ~b;
-                          };
+        if( temp )
+            aBitfield |= b;
+        else
+            aBitfield &= ~b;
+    };
 
     Padstack().ForEachUniqueLayer(
             [&]( PCB_LAYER_ID aLayer )
@@ -1814,16 +1798,16 @@ void PAD::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
 void PAD::FlipPrimitives( FLIP_DIRECTION aFlipDirection )
 {
     Padstack().ForEachUniqueLayer(
-        [&]( PCB_LAYER_ID aLayer )
-        {
-            for( std::shared_ptr<PCB_SHAPE>& primitive : m_padStack.Primitives( aLayer ) )
+            [&]( PCB_LAYER_ID aLayer )
             {
-                // Ensure the primitive parent is up to date. Flip uses GetBoard() that
-                // imply primitive parent is valid
-                primitive->SetParent(this);
-                primitive->Flip( VECTOR2I( 0, 0 ), aFlipDirection );
-            }
-        } );
+                for( std::shared_ptr<PCB_SHAPE>& primitive : m_padStack.Primitives( aLayer ) )
+                {
+                    // Ensure the primitive parent is up to date. Flip uses GetBoard() that
+                    // imply primitive parent is valid
+                    primitive->SetParent( this );
+                    primitive->Flip( VECTOR2I( 0, 0 ), aFlipDirection );
+                }
+            } );
 
     SetDirty();
 }
@@ -1870,38 +1854,38 @@ bool PAD::IsOnCopperLayer() const
         bool hasAnnularRing = true;
 
         Padstack().ForEachUniqueLayer(
-            [&]( PCB_LAYER_ID aLayer )
-            {
-                switch( GetShape( aLayer ) )
+                [&]( PCB_LAYER_ID aLayer )
                 {
-                case PAD_SHAPE::CIRCLE:
-                    if( m_padStack.Offset( aLayer ) == VECTOR2I( 0, 0 )
-                        && m_padStack.Size( aLayer ).x <= m_padStack.Drill().size.x )
+                    switch( GetShape( aLayer ) )
                     {
-                        hasAnnularRing = false;
+                    case PAD_SHAPE::CIRCLE:
+                        if( m_padStack.Offset( aLayer ) == VECTOR2I( 0, 0 )
+                            && m_padStack.Size( aLayer ).x <= m_padStack.Drill().size.x )
+                        {
+                            hasAnnularRing = false;
+                        }
+
+                        break;
+
+                    case PAD_SHAPE::OVAL:
+                        if( m_padStack.Offset( aLayer ) == VECTOR2I( 0, 0 )
+                            && m_padStack.Size( aLayer ).x <= m_padStack.Drill().size.x
+                            && m_padStack.Size( aLayer ).y <= m_padStack.Drill().size.y )
+                        {
+                            hasAnnularRing = false;
+                        }
+
+                        break;
+
+                    default:
+                        // We could subtract the hole polygon from the shape polygon for these, but it
+                        // would be expensive and we're probably well out of the common use cases....
+                        break;
                     }
+                } );
 
-                    break;
-
-                case PAD_SHAPE::OVAL:
-                    if( m_padStack.Offset( aLayer ) == VECTOR2I( 0, 0 )
-                        && m_padStack.Size( aLayer ).x <= m_padStack.Drill().size.x
-                        && m_padStack.Size( aLayer ).y <= m_padStack.Drill().size.y )
-                    {
-                        hasAnnularRing = false;
-                    }
-
-                    break;
-
-                default:
-                    // We could subtract the hole polygon from the shape polygon for these, but it
-                    // would be expensive and we're probably well out of the common use cases....
-                    break;
-                }
-            } );
-
-            if( !hasAnnularRing )
-                return false;
+        if( !hasAnnularRing )
+            return false;
     }
 
     return ( m_padStack.LayerSet() & LSET::AllCuMask() ).any();
@@ -1967,8 +1951,7 @@ int PAD::GetSolderMaskExpansion( PCB_LAYER_ID aLayer ) const
     std::optional<int> margin;
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine
-        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType(
-                   SOLDER_MASK_EXPANSION_CONSTRAINT ) )
+        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType( SOLDER_MASK_EXPANSION_CONSTRAINT ) )
     {
         DRC_CONSTRAINT              constraint;
         std::shared_ptr<DRC_ENGINE> drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine;
@@ -2035,10 +2018,8 @@ VECTOR2I PAD::GetSolderPasteMargin( PCB_LAYER_ID aLayer ) const
     if( GetBoard() )
         drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine;
 
-    bool hasAbsRules = drcEngine
-                       && drcEngine->HasRulesForConstraintType( SOLDER_PASTE_ABS_MARGIN_CONSTRAINT );
-    bool hasRelRules = drcEngine
-                       && drcEngine->HasRulesForConstraintType( SOLDER_PASTE_REL_MARGIN_CONSTRAINT );
+    bool hasAbsRules = drcEngine && drcEngine->HasRulesForConstraintType( SOLDER_PASTE_ABS_MARGIN_CONSTRAINT );
+    bool hasRelRules = drcEngine && drcEngine->HasRulesForConstraintType( SOLDER_PASTE_REL_MARGIN_CONSTRAINT );
 
     if( hasAbsRules || hasRelRules )
     {
@@ -2046,8 +2027,7 @@ VECTOR2I PAD::GetSolderPasteMargin( PCB_LAYER_ID aLayer ) const
 
         if( hasAbsRules )
         {
-            constraint = drcEngine->EvalRules( SOLDER_PASTE_ABS_MARGIN_CONSTRAINT, this, nullptr,
-                                               aLayer );
+            constraint = drcEngine->EvalRules( SOLDER_PASTE_ABS_MARGIN_CONSTRAINT, this, nullptr, aLayer );
 
             if( constraint.m_Value.HasOpt() )
                 margin = constraint.m_Value.Opt();
@@ -2055,8 +2035,7 @@ VECTOR2I PAD::GetSolderPasteMargin( PCB_LAYER_ID aLayer ) const
 
         if( hasRelRules )
         {
-            constraint = drcEngine->EvalRules( SOLDER_PASTE_REL_MARGIN_CONSTRAINT, this, nullptr,
-                                               aLayer );
+            constraint = drcEngine->EvalRules( SOLDER_PASTE_REL_MARGIN_CONSTRAINT, this, nullptr, aLayer );
 
             if( constraint.m_Value.HasOpt() )
                 mratio = constraint.m_Value.Opt() / 1000.0;
@@ -2204,7 +2183,6 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
             // TOOD(JE) padstacks
             const std::shared_ptr<SHAPE_POLY_SET>& poly = GetEffectivePolygon( PADSTACK::TEMP_ALL_LAYERS );
             double area = poly->Area();
-
             aList.emplace_back( _( "Area" ), aFrame->MessageTextFromValue( area, true, EDA_DATA_TYPE::AREA ) );
         }
     }
@@ -2217,15 +2195,15 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
 
     switch( GetProperty() )
     {
-    case PAD_PROP::NONE:                                            break;
-    case PAD_PROP::BGA:            props += _( "BGA" );             break;
-    case PAD_PROP::FIDUCIAL_GLBL:  props += _( "Fiducial global" ); break;
-    case PAD_PROP::FIDUCIAL_LOCAL: props += _( "Fiducial local" );  break;
-    case PAD_PROP::TESTPOINT:      props += _( "Test point" );      break;
-    case PAD_PROP::HEATSINK:       props += _( "Heat sink" );       break;
-    case PAD_PROP::CASTELLATED:    props += _( "Castellated" );     break;
-    case PAD_PROP::MECHANICAL:     props += _( "Mechanical" );      break;
-    case PAD_PROP::PRESSFIT:       props += _( "Press-fit" );       break;
+    case PAD_PROP::NONE: break;
+    case PAD_PROP::BGA: props += _( "BGA" ); break;
+    case PAD_PROP::FIDUCIAL_GLBL: props += _( "Fiducial global" ); break;
+    case PAD_PROP::FIDUCIAL_LOCAL: props += _( "Fiducial local" ); break;
+    case PAD_PROP::TESTPOINT: props += _( "Test point" ); break;
+    case PAD_PROP::HEATSINK: props += _( "Heat sink" ); break;
+    case PAD_PROP::CASTELLATED: props += _( "Castellated" ); break;
+    case PAD_PROP::MECHANICAL: props += _( "Mechanical" ); break;
+    case PAD_PROP::PRESSFIT: props += _( "Press-fit" ); break;
     }
 
     std::set<bool>      circles;
@@ -2247,8 +2225,7 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
 
     aList.emplace_back( shapes.size() == 1 ? ShowPadShape( *shapes.begin() ) : _( "(mixed shapes)" ), props );
 
-    if( circles.size() == 1 && *circles.begin() )
-    {
+    if( circles.size() == 1 && *circles.begin() )    {
         aList.emplace_back( _( "Diameter" ), widths.size() == 1 ? aFrame->MessageTextFromValue( *widths.begin() )
                                                                 : _( "(mixed)" ) );
     }
@@ -2273,22 +2250,18 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
 
     if( GetPadToDieLength() )
         aList.emplace_back( _( "Length in Package" ), aFrame->MessageTextFromValue( GetPadToDieLength() ) );
-
     const VECTOR2I drill = GetDrillSize();
 
     if( drill.x > 0 || drill.y > 0 )
     {
         if( GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE )
         {
-            aList.emplace_back( _( "Hole" ),
-                                wxString::Format( wxT( "%s" ),
-                                                  aFrame->MessageTextFromValue( drill.x ) ) );
+            aList.emplace_back( _( "Hole" ), wxString::Format( wxT( "%s" ), aFrame->MessageTextFromValue( drill.x ) ) );
         }
         else
         {
             aList.emplace_back( _( "Hole X / Y" ),
-                                wxString::Format( wxT( "%s / %s" ),
-                                                  aFrame->MessageTextFromValue( drill.x ),
+                                wxString::Format( wxT( "%s / %s" ), aFrame->MessageTextFromValue( drill.x ),
                                                   aFrame->MessageTextFromValue( drill.y ) ) );
         }
     }
@@ -2298,10 +2271,8 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
 
     if( !source.IsEmpty() )
     {
-        aList.emplace_back( wxString::Format( _( "Min Clearance: %s" ),
-                                              aFrame->MessageTextFromValue( clearance ) ),
-                            wxString::Format( _( "(from %s)" ),
-                                              source ) );
+        aList.emplace_back( wxString::Format( _( "Min Clearance: %s" ), aFrame->MessageTextFromValue( clearance ) ),
+                            wxString::Format( _( "(from %s)" ), source ) );
     }
 #if 0
     // useful for debug only
@@ -2514,14 +2485,14 @@ wxString PAD::ShowPadShape( PAD_SHAPE aShape )
 {
     switch( aShape )
     {
-    case PAD_SHAPE::CIRCLE:         return _( "Circle" );
-    case PAD_SHAPE::OVAL:           return _( "Oval" );
-    case PAD_SHAPE::RECTANGLE:      return _( "Rectangle" );
-    case PAD_SHAPE::TRAPEZOID:      return _( "Trapezoid" );
-    case PAD_SHAPE::ROUNDRECT:      return _( "Rounded rectangle" );
+    case PAD_SHAPE::CIRCLE: return _( "Circle" );
+    case PAD_SHAPE::OVAL: return _( "Oval" );
+    case PAD_SHAPE::RECTANGLE: return _( "Rectangle" );
+    case PAD_SHAPE::TRAPEZOID: return _( "Trapezoid" );
+    case PAD_SHAPE::ROUNDRECT: return _( "Rounded rectangle" );
     case PAD_SHAPE::CHAMFERED_RECT: return _( "Chamfered rectangle" );
-    case PAD_SHAPE::CUSTOM:         return _( "Custom shape" );
-    default:                        return wxT( "???" );
+    case PAD_SHAPE::CUSTOM: return _( "Custom shape" );
+    default: return wxT( "???" );
     }
 }
 
@@ -2536,14 +2507,14 @@ wxString PAD::ShowLegacyPadShape( PCB_LAYER_ID aLayer ) const
 {
     switch( GetShape( aLayer ) )
     {
-    case PAD_SHAPE::CIRCLE:         return _( "Circle" );
-    case PAD_SHAPE::OVAL:           return _( "Oval" );
-    case PAD_SHAPE::RECTANGLE:      return _( "Rect" );
-    case PAD_SHAPE::TRAPEZOID:      return _( "Trap" );
-    case PAD_SHAPE::ROUNDRECT:      return _( "Roundrect" );
+    case PAD_SHAPE::CIRCLE: return _( "Circle" );
+    case PAD_SHAPE::OVAL: return _( "Oval" );
+    case PAD_SHAPE::RECTANGLE: return _( "Rect" );
+    case PAD_SHAPE::TRAPEZOID: return _( "Trap" );
+    case PAD_SHAPE::ROUNDRECT: return _( "Roundrect" );
     case PAD_SHAPE::CHAMFERED_RECT: return _( "Chamferedrect" );
-    case PAD_SHAPE::CUSTOM:         return _( "CustomShape" );
-    default:                        return wxT( "???" );
+    case PAD_SHAPE::CUSTOM: return _( "CustomShape" );
+    default: return wxT( "???" );
     }
 }
 
@@ -2552,11 +2523,11 @@ wxString PAD::ShowPadAttr() const
 {
     switch( GetAttribute() )
     {
-    case PAD_ATTRIB::PTH:    return _( "PTH" );
-    case PAD_ATTRIB::SMD:    return _( "SMD" );
-    case PAD_ATTRIB::CONN:   return _( "Conn" );
-    case PAD_ATTRIB::NPTH:   return _( "NPTH" );
-    default:                 return wxT( "???" );
+    case PAD_ATTRIB::PTH: return _( "PTH" );
+    case PAD_ATTRIB::SMD: return _( "SMD" );
+    case PAD_ATTRIB::CONN: return _( "Conn" );
+    case PAD_ATTRIB::NPTH: return _( "NPTH" );
+    default: return wxT( "???" );
     }
 }
 
@@ -2582,24 +2553,19 @@ wxString PAD::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) c
         {
             if( parentFP )
             {
-                return wxString::Format( _( "Pad %s of %s on %s" ),
-                                         GetNetnameMsg(),
-                                         parentFP->GetReference(),
+                return wxString::Format( _( "Pad %s of %s on %s" ), GetNetnameMsg(), parentFP->GetReference(),
                                          LayerMaskDescribe() );
             }
             else
             {
-                return wxString::Format( _( "Pad on %s" ),
-                                         LayerMaskDescribe() );
+                return wxString::Format( _( "Pad on %s" ), LayerMaskDescribe() );
             }
         }
         else
         {
             if( parentFP )
             {
-                return wxString::Format( _( "PTH pad %s of %s" ),
-                                         GetNetnameMsg(),
-                                         parentFP->GetReference() );
+                return wxString::Format( _( "PTH pad %s of %s" ), GetNetnameMsg(), parentFP->GetReference() );
             }
             else
             {
@@ -2613,32 +2579,24 @@ wxString PAD::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) c
         {
             if( parentFP )
             {
-                return wxString::Format( _( "Pad %s %s of %s on %s" ),
-                                         GetNumber(),
-                                         GetNetnameMsg(),
-                                         parentFP->GetReference(),
-                                         LayerMaskDescribe() );
+                return wxString::Format( _( "Pad %s %s of %s on %s" ), GetNumber(), GetNetnameMsg(),
+                                         parentFP->GetReference(), LayerMaskDescribe() );
             }
             else
             {
-                return wxString::Format( _( "Pad %s on %s" ),
-                                         GetNumber(),
-                                         LayerMaskDescribe() );
+                return wxString::Format( _( "Pad %s on %s" ), GetNumber(), LayerMaskDescribe() );
             }
         }
         else
         {
             if( parentFP )
             {
-                return wxString::Format( _( "PTH pad %s %s of %s" ),
-                                         GetNumber(),
-                                         GetNetnameMsg(),
+                return wxString::Format( _( "PTH pad %s %s of %s" ), GetNumber(), GetNetnameMsg(),
                                          parentFP->GetReference() );
             }
             else
             {
-                return wxString::Format( _( "PTH pad %s" ),
-                                         GetNumber() );
+                return wxString::Format( _( "PTH pad %s" ), GetNumber() );
             }
         }
     }
@@ -2698,6 +2656,7 @@ std::vector<int> PAD::ViewGetLayers() const
         for( PCB_LAYER_ID layer : cuLayers.Seq() )
         {
             layers.push_back( LAYER_PAD_COPPER_START + layer );
+            layers.push_back( NETCOLOR_LAYER_FOR( layer ) );
             layers.push_back( LAYER_CLEARANCE_START + layer );
         }
 
@@ -2706,6 +2665,7 @@ std::vector<int> PAD::ViewGetLayers() const
     else if( IsOnLayer( F_Cu ) )
     {
         layers.push_back( LAYER_PAD_COPPER_START );
+        layers.push_back( NETCOLOR_LAYER_FOR( F_Cu ) );
         layers.push_back( LAYER_CLEARANCE_START );
 
         // Is this a PTH pad that has only front copper?  If so, we need to also display the
@@ -2718,6 +2678,7 @@ std::vector<int> PAD::ViewGetLayers() const
     else if( IsOnLayer( B_Cu ) )
     {
         layers.push_back( LAYER_PAD_COPPER_START + B_Cu );
+        layers.push_back( NETCOLOR_LAYER_FOR( B_Cu ) );
         layers.push_back( LAYER_CLEARANCE_START + B_Cu );
 
         // Is this a PTH pad that has only back copper?  If so, we need to also display the
@@ -2732,14 +2693,15 @@ std::vector<int> PAD::ViewGetLayers() const
         PCB_LAYER_ID layer = cuLayers.Seq().front();
 
         layers.push_back( LAYER_PAD_COPPER_START + layer );
+        layers.push_back( NETCOLOR_LAYER_FOR( layer ) );
         layers.push_back( LAYER_CLEARANCE_START + layer );
         layers.push_back( LAYER_PAD_NETNAMES );
     }
 
     // Check non-copper layers. This list should include all the layers that the
     // footprint editor allows a pad to be placed on.
-    static const PCB_LAYER_ID layers_mech[] = { F_Mask, B_Mask, F_Paste, B_Paste,
-        F_Adhes, B_Adhes, F_SilkS, B_SilkS, Dwgs_User, Eco1_User, Eco2_User };
+    static const PCB_LAYER_ID layers_mech[] = { F_Mask,  B_Mask,  F_Paste,   B_Paste,   F_Adhes,  B_Adhes,
+                                                F_SilkS, B_SilkS, Dwgs_User, Eco1_User, Eco2_User };
 
     for( PCB_LAYER_ID each_layer : layers_mech )
     {
@@ -2839,8 +2801,8 @@ const BOX2I PAD::ViewBBox() const
                 solderPasteMargin.y = std::max( solderPasteMargin.y, layerMargin.y );
             } );
 
-    BOX2I    bbox              = GetBoundingBox();
-    int      clearance                                 = 0;
+    BOX2I bbox = GetBoundingBox();
+    int   clearance = 0;
 
     // If we're drawing clearance lines then get the biggest possible clearance
     if( PCBNEW_SETTINGS* cfg = dynamic_cast<PCBNEW_SETTINGS*>( Kiface().KifaceSettings() ) )
@@ -2907,8 +2869,7 @@ void PAD::ImportSettingsFrom( const PAD& aMasterPad )
         SetDrillSize( VECTOR2I( 0, 0 ) );
         break;
 
-    default:
-        ;
+    default:;
     }
 
     // copy also local settings:
@@ -2938,8 +2899,7 @@ void PAD::swapData( BOARD_ITEM* aImage )
 }
 
 
-bool PAD::TransformHoleToPolygon( SHAPE_POLY_SET& aBuffer, int aClearance, int aError,
-                                  ERROR_LOC aErrorLoc ) const
+bool PAD::TransformHoleToPolygon( SHAPE_POLY_SET& aBuffer, int aClearance, int aError, ERROR_LOC aErrorLoc ) const
 {
     VECTOR2I drillsize = GetDrillSize();
 
@@ -2948,15 +2908,15 @@ bool PAD::TransformHoleToPolygon( SHAPE_POLY_SET& aBuffer, int aClearance, int a
 
     std::shared_ptr<SHAPE_SEGMENT> slot = GetEffectiveHoleShape();
 
-    TransformOvalToPolygon( aBuffer, slot->GetSeg().A, slot->GetSeg().B, slot->GetWidth() + aClearance * 2,
-                            aError, aErrorLoc );
+    TransformOvalToPolygon( aBuffer, slot->GetSeg().A, slot->GetSeg().B, slot->GetWidth() + aClearance * 2, aError,
+                            aErrorLoc );
 
     return true;
 }
 
 
-void PAD::TransformShapeToPolygon( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
-                                   int aMaxError, ERROR_LOC aErrorLoc, bool ignoreLineWidth ) const
+void PAD::TransformShapeToPolygon( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance, int aMaxError,
+                                   ERROR_LOC aErrorLoc, bool ignoreLineWidth ) const
 {
     wxASSERT_MSG( aLayer != UNDEFINED_LAYER,
                   wxT( "UNDEFINED_LAYER is no longer allowed for PAD::TransformShapeToPolygon" ) );
@@ -2989,9 +2949,8 @@ void PAD::TransformShapeToPolygon( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer,
 
             RotatePoint( delta, GetOrientation() );
 
-            TransformOvalToPolygon( aBuffer, padShapePos - delta, padShapePos + delta,
-                                    ( half_width + aClearance ) * 2, aMaxError, aErrorLoc,
-                                    pad_min_seg_per_circle_count );
+            TransformOvalToPolygon( aBuffer, padShapePos - delta, padShapePos + delta, ( half_width + aClearance ) * 2,
+                                    aMaxError, aErrorLoc, pad_min_seg_per_circle_count );
         }
 
         break;
@@ -3000,8 +2959,8 @@ void PAD::TransformShapeToPolygon( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer,
     case PAD_SHAPE::RECTANGLE:
     {
         const VECTOR2I& trapDelta = m_padStack.TrapezoidDeltaSize( aLayer );
-        int  ddx = shape == PAD_SHAPE::TRAPEZOID ? trapDelta.x / 2 : 0;
-        int  ddy = shape == PAD_SHAPE::TRAPEZOID ? trapDelta.y / 2 : 0;
+        int             ddx = shape == PAD_SHAPE::TRAPEZOID ? trapDelta.x / 2 : 0;
+        int             ddy = shape == PAD_SHAPE::TRAPEZOID ? trapDelta.y / 2 : 0;
 
         SHAPE_POLY_SET outline;
         TransformTrapezoidToPolygon( outline, padShapePos, padSize, GetOrientation(), ddx, ddy, aClearance, aMaxError,
@@ -3068,54 +3027,52 @@ std::vector<PCB_SHAPE*> PAD::Recombine( bool aIsDryRun, int maxError )
     for( BOARD_ITEM* item : footprint->GraphicalItems() )
         item->ClearFlags( SKIP_STRUCT );
 
-    auto findNext =
-            [&]( PCB_LAYER_ID aLayer ) -> PCB_SHAPE*
-            {
-                SHAPE_POLY_SET padPoly;
-                TransformShapeToPolygon( padPoly, aLayer, 0, maxError, ERROR_INSIDE );
+    auto findNext = [&]( PCB_LAYER_ID aLayer ) -> PCB_SHAPE*
+    {
+        SHAPE_POLY_SET padPoly;
+        TransformShapeToPolygon( padPoly, aLayer, 0, maxError, ERROR_INSIDE );
 
-                for( BOARD_ITEM* item : footprint->GraphicalItems() )
-                {
-                    PCB_SHAPE* shape = dynamic_cast<PCB_SHAPE*>( item );
+        for( BOARD_ITEM* item : footprint->GraphicalItems() )
+        {
+            PCB_SHAPE* shape = dynamic_cast<PCB_SHAPE*>( item );
 
-                    if( !shape || ( shape->GetFlags() & SKIP_STRUCT ) )
-                        continue;
+            if( !shape || ( shape->GetFlags() & SKIP_STRUCT ) )
+                continue;
 
-                    if( shape->GetLayer() != aLayer )
-                        continue;
+            if( shape->GetLayer() != aLayer )
+                continue;
 
-                    if( shape->IsProxyItem() )    // Pad number (and net name) box
-                        return shape;
+            if( shape->IsProxyItem() ) // Pad number (and net name) box
+                return shape;
 
-                    SHAPE_POLY_SET drawPoly;
-                    shape->TransformShapeToPolygon( drawPoly, aLayer, 0, maxError, ERROR_INSIDE );
-                    drawPoly.BooleanIntersection( padPoly );
+            SHAPE_POLY_SET drawPoly;
+            shape->TransformShapeToPolygon( drawPoly, aLayer, 0, maxError, ERROR_INSIDE );
+            drawPoly.BooleanIntersection( padPoly );
 
-                    if( !drawPoly.IsEmpty() )
-                        return shape;
-                }
+            if( !drawPoly.IsEmpty() )
+                return shape;
+        }
 
-                return nullptr;
-            };
+        return nullptr;
+    };
 
-    auto findMatching =
-            [&]( PCB_SHAPE* aShape ) -> std::vector<PCB_SHAPE*>
-            {
-                std::vector<PCB_SHAPE*> matching;
+    auto findMatching = [&]( PCB_SHAPE* aShape ) -> std::vector<PCB_SHAPE*>
+    {
+        std::vector<PCB_SHAPE*> matching;
 
-                for( BOARD_ITEM* item : footprint->GraphicalItems() )
-                {
-                    PCB_SHAPE* other = dynamic_cast<PCB_SHAPE*>( item );
+        for( BOARD_ITEM* item : footprint->GraphicalItems() )
+        {
+            PCB_SHAPE* other = dynamic_cast<PCB_SHAPE*>( item );
 
-                    if( !other || ( other->GetFlags() & SKIP_STRUCT ) )
-                        continue;
+            if( !other || ( other->GetFlags() & SKIP_STRUCT ) )
+                continue;
 
-                    if( GetLayerSet().test( other->GetLayer() ) && aShape->Compare( other ) == 0 )
-                        matching.push_back( other );
-                }
+            if( GetLayerSet().test( other->GetLayer() ) && aShape->Compare( other ) == 0 )
+                matching.push_back( other );
+        }
 
-                return matching;
-            };
+        return matching;
+    };
 
     PCB_LAYER_ID            layer;
     std::vector<PCB_SHAPE*> mergedShapes;
@@ -3154,8 +3111,8 @@ std::vector<PCB_SHAPE*> PAD::Recombine( bool aIsDryRun, int maxError )
             shape->SetFilled( true );
             shape->SetStroke( STROKE_PARAMS( 0, LINE_STYLE::SOLID ) );
             shape->SetPolyShape( existingOutline );
-            shape->Move( - ShapePos( layer ) );
-            shape->Rotate( VECTOR2I( 0, 0 ), - GetOrientation() );
+            shape->Move( -ShapePos( layer ) );
+            shape->Rotate( VECTOR2I( 0, 0 ), -GetOrientation() );
             AddPrimitive( layer, shape );
         }
     }
@@ -3182,8 +3139,8 @@ std::vector<PCB_SHAPE*> PAD::Recombine( bool aIsDryRun, int maxError )
             if( primitive->IsAnyFill() )
                 primitive->SetFillMode( FILL_T::FILLED_SHAPE );
 
-            primitive->Move( - ShapePos( layer ) );
-            primitive->Rotate( VECTOR2I( 0, 0 ), - GetOrientation() );
+            primitive->Move( -ShapePos( layer ) );
+            primitive->Rotate( VECTOR2I( 0, 0 ), -GetOrientation() );
 
             AddPrimitive( layer, primitive );
         }
@@ -3216,7 +3173,7 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider, bool aForPadProperties,
                 doCheckPad( aLayer, aUnitsProvider, aForPadProperties, aErrorHandler );
             } );
 
-    LSET padlayers_mask = GetLayerSet();
+    LSET     padlayers_mask = GetLayerSet();
     VECTOR2I drill_size = GetDrillSize();
 
     if( !padlayers_mask[F_Cu] && !padlayers_mask[B_Cu] )
@@ -3229,7 +3186,7 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider, bool aForPadProperties,
     }
 
     if( ( GetProperty() == PAD_PROP::FIDUCIAL_GLBL || GetProperty() == PAD_PROP::FIDUCIAL_LOCAL )
-            && GetAttribute() == PAD_ATTRIB::NPTH )
+        && GetAttribute() == PAD_ATTRIB::NPTH )
     {
         aErrorHandler( DRCE_PADSTACK, _( "('fiducial' pads are normally plated)" ) );
     }
@@ -3249,24 +3206,22 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider, bool aForPadProperties,
     if( GetProperty() == PAD_PROP::MECHANICAL && GetAttribute() != PAD_ATTRIB::PTH )
         aErrorHandler( DRCE_PADSTACK, _( "('mechanical' pads are normally PTH)" ) );
 
-    if( GetProperty() == PAD_PROP::PRESSFIT
-            && ( GetAttribute() != PAD_ATTRIB::PTH || !HasDrilledHole() ) )
+    if( GetProperty() == PAD_PROP::PRESSFIT && ( GetAttribute() != PAD_ATTRIB::PTH || !HasDrilledHole() ) )
     {
         aErrorHandler( DRCE_PADSTACK, _( "('press-fit' pads are normally PTH with round holes)" ) );
     }
 
     switch( GetAttribute() )
     {
-    case PAD_ATTRIB::NPTH:   // Not plated, but through hole, a hole is expected
-    case PAD_ATTRIB::PTH:    // Pad through hole, a hole is also expected
-        if( drill_size.x <= 0
-            || ( drill_size.y <= 0 && GetDrillShape() == PAD_DRILL_SHAPE::OBLONG ) )
+    case PAD_ATTRIB::NPTH: // Not plated, but through hole, a hole is expected
+    case PAD_ATTRIB::PTH:  // Pad through hole, a hole is also expected
+        if( drill_size.x <= 0 || ( drill_size.y <= 0 && GetDrillShape() == PAD_DRILL_SHAPE::OBLONG ) )
         {
             aErrorHandler( DRCE_PAD_TH_WITH_NO_HOLE, wxEmptyString );
         }
         break;
 
-    case PAD_ATTRIB::CONN:      // Connector pads are smd pads, just they do not have solder paste.
+    case PAD_ATTRIB::CONN: // Connector pads are smd pads, just they do not have solder paste.
         if( padlayers_mask[B_Paste] || padlayers_mask[F_Paste] )
         {
             aErrorHandler( DRCE_PADSTACK, _( "(connector pads normally have no solder paste; use a "
@@ -3274,7 +3229,7 @@ void PAD::CheckPad( UNITS_PROVIDER* aUnitsProvider, bool aForPadProperties,
         }
         KI_FALLTHROUGH;
 
-    case PAD_ATTRIB::SMD:       // SMD and Connector pads (One external copper layer only)
+    case PAD_ATTRIB::SMD: // SMD and Connector pads (One external copper layer only)
     {
         if( drill_size.x > 0 || drill_size.y > 0 )
             aErrorHandler( DRCE_PADSTACK_INVALID, _( "(SMD pad has a hole)" ) );
@@ -3358,8 +3313,8 @@ void PAD::doCheckPad( PCB_LAYER_ID aLayer, UNITS_PROVIDER* aUnitsProvider, bool 
             std::shared_ptr<SHAPE_SEGMENT> hole = GetEffectiveHoleShape();
             SHAPE_POLY_SET                 holeOutline;
 
-            TransformOvalToPolygon( holeOutline, hole->GetSeg().A, hole->GetSeg().B, hole->GetWidth(),
-                                    GetMaxError(), ERROR_OUTSIDE );
+            TransformOvalToPolygon( holeOutline, hole->GetSeg().A, hole->GetSeg().B, hole->GetWidth(), GetMaxError(),
+                                    ERROR_OUTSIDE );
 
             SHAPE_POLY_SET copper = padOutline;
             copper.BooleanSubtract( holeOutline );
@@ -3456,7 +3411,7 @@ void PAD::doCheckPad( PCB_LAYER_ID aLayer, UNITS_PROVIDER* aUnitsProvider, bool 
     }
     else if( GetShape( aLayer ) == PAD_SHAPE::TRAPEZOID )
     {
-        if(    ( GetDelta( aLayer ).x < 0 && GetDelta( aLayer ).x < -GetSize( aLayer ).y )
+        if( ( GetDelta( aLayer ).x < 0 && GetDelta( aLayer ).x < -GetSize( aLayer ).y )
             || ( GetDelta( aLayer ).x > 0 && GetDelta( aLayer ).x > GetSize( aLayer ).y )
             || ( GetDelta( aLayer ).y < 0 && GetDelta( aLayer ).y < -GetSize( aLayer ).x )
             || ( GetDelta( aLayer ).y > 0 && GetDelta( aLayer ).y > GetSize( aLayer ).x ) )
@@ -3529,8 +3484,7 @@ double PAD::Similarity( const BOARD_ITEM& aOther ) const
 }
 
 
-void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const SHAPE_POLY_SET& aPoly, int aThickness,
-                            bool aFilled )
+void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const SHAPE_POLY_SET& aPoly, int aThickness, bool aFilled )
 {
     // If aPoly has holes, convert it to a polygon with no holes.
     SHAPE_POLY_SET poly_no_hole;
@@ -3544,7 +3498,7 @@ void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const SHAPE_POLY_SET& aPoly, in
     for( int ii = 0; ii < poly_no_hole.OutlineCount(); ++ii )
     {
         SHAPE_POLY_SET poly_outline( poly_no_hole.COutline( ii ) );
-        PCB_SHAPE* item = new PCB_SHAPE();
+        PCB_SHAPE*     item = new PCB_SHAPE();
         item->SetShape( SHAPE_T::POLY );
         item->SetFilled( aFilled );
         item->SetPolyShape( poly_outline );
@@ -3556,8 +3510,7 @@ void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const SHAPE_POLY_SET& aPoly, in
 }
 
 
-void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const std::vector<VECTOR2I>& aPoly, int aThickness,
-                            bool aFilled )
+void PAD::AddPrimitivePoly( PCB_LAYER_ID aLayer, const std::vector<VECTOR2I>& aPoly, int aThickness, bool aFilled )
 {
     PCB_SHAPE* item = new PCB_SHAPE( nullptr, SHAPE_T::POLY );
     item->SetFilled( aFilled );
@@ -3628,15 +3581,14 @@ void PAD::DeletePrimitivesList( PCB_LAYER_ID aLayer )
     }
     else
     {
-        m_padStack.ClearPrimitives( aLayer);
+        m_padStack.ClearPrimitives( aLayer );
     }
 
     SetDirty();
 }
 
 
-void PAD::MergePrimitivesAsPolygon( PCB_LAYER_ID aLayer, SHAPE_POLY_SET* aMergedPolygon,
-                                    ERROR_LOC aErrorLoc ) const
+void PAD::MergePrimitivesAsPolygon( PCB_LAYER_ID aLayer, SHAPE_POLY_SET* aMergedPolygon, ERROR_LOC aErrorLoc ) const
 {
     aMergedPolygon->RemoveAllContours();
 
@@ -3683,35 +3635,35 @@ static struct PAD_DESC
     PAD_DESC()
     {
         ENUM_MAP<PAD_ATTRIB>::Instance()
-                .Map( PAD_ATTRIB::PTH,             _HKI( "Through-hole" ) )
-                .Map( PAD_ATTRIB::SMD,             _HKI( "SMD" ) )
-                .Map( PAD_ATTRIB::CONN,            _HKI( "Edge connector" ) )
-                .Map( PAD_ATTRIB::NPTH,            _HKI( "NPTH, mechanical" ) );
+                .Map( PAD_ATTRIB::PTH, _HKI( "Through-hole" ) )
+                .Map( PAD_ATTRIB::SMD, _HKI( "SMD" ) )
+                .Map( PAD_ATTRIB::CONN, _HKI( "Edge connector" ) )
+                .Map( PAD_ATTRIB::NPTH, _HKI( "NPTH, mechanical" ) );
 
         ENUM_MAP<PAD_SHAPE>::Instance()
-                .Map( PAD_SHAPE::CIRCLE,           _HKI( "Circle" ) )
-                .Map( PAD_SHAPE::RECTANGLE,        _HKI( "Rectangle" ) )
-                .Map( PAD_SHAPE::OVAL,             _HKI( "Oval" ) )
-                .Map( PAD_SHAPE::TRAPEZOID,        _HKI( "Trapezoid" ) )
-                .Map( PAD_SHAPE::ROUNDRECT,        _HKI( "Rounded rectangle" ) )
-                .Map( PAD_SHAPE::CHAMFERED_RECT,   _HKI( "Chamfered rectangle" ) )
-                .Map( PAD_SHAPE::CUSTOM,           _HKI( "Custom" ) );
+                .Map( PAD_SHAPE::CIRCLE, _HKI( "Circle" ) )
+                .Map( PAD_SHAPE::RECTANGLE, _HKI( "Rectangle" ) )
+                .Map( PAD_SHAPE::OVAL, _HKI( "Oval" ) )
+                .Map( PAD_SHAPE::TRAPEZOID, _HKI( "Trapezoid" ) )
+                .Map( PAD_SHAPE::ROUNDRECT, _HKI( "Rounded rectangle" ) )
+                .Map( PAD_SHAPE::CHAMFERED_RECT, _HKI( "Chamfered rectangle" ) )
+                .Map( PAD_SHAPE::CUSTOM, _HKI( "Custom" ) );
 
         ENUM_MAP<PAD_PROP>::Instance()
-                .Map( PAD_PROP::NONE,              _HKI( "None" ) )
-                .Map( PAD_PROP::BGA,               _HKI( "BGA pad" ) )
-                .Map( PAD_PROP::FIDUCIAL_GLBL,     _HKI( "Fiducial, global to board" ) )
-                .Map( PAD_PROP::FIDUCIAL_LOCAL,    _HKI( "Fiducial, local to footprint" ) )
-                .Map( PAD_PROP::TESTPOINT,         _HKI( "Test point pad" ) )
-                .Map( PAD_PROP::HEATSINK,          _HKI( "Heatsink pad" ) )
-                .Map( PAD_PROP::CASTELLATED,       _HKI( "Castellated pad" ) )
-                .Map( PAD_PROP::MECHANICAL,        _HKI( "Mechanical pad" ) )
-                .Map( PAD_PROP::PRESSFIT,          _HKI( "Press-fit pad" ) );
+                .Map( PAD_PROP::NONE, _HKI( "None" ) )
+                .Map( PAD_PROP::BGA, _HKI( "BGA pad" ) )
+                .Map( PAD_PROP::FIDUCIAL_GLBL, _HKI( "Fiducial, global to board" ) )
+                .Map( PAD_PROP::FIDUCIAL_LOCAL, _HKI( "Fiducial, local to footprint" ) )
+                .Map( PAD_PROP::TESTPOINT, _HKI( "Test point pad" ) )
+                .Map( PAD_PROP::HEATSINK, _HKI( "Heatsink pad" ) )
+                .Map( PAD_PROP::CASTELLATED, _HKI( "Castellated pad" ) )
+                .Map( PAD_PROP::MECHANICAL, _HKI( "Mechanical pad" ) )
+                .Map( PAD_PROP::PRESSFIT, _HKI( "Press-fit pad" ) );
 
         ENUM_MAP<PAD_DRILL_SHAPE>::Instance()
-                .Map( PAD_DRILL_SHAPE::UNDEFINED,  _HKI( "Undefined" ) )
-                .Map( PAD_DRILL_SHAPE::CIRCLE,     _HKI( "Round" ) )
-                .Map( PAD_DRILL_SHAPE::OBLONG,     _HKI( "Oblong" ) );
+                .Map( PAD_DRILL_SHAPE::UNDEFINED, _HKI( "Undefined" ) )
+                .Map( PAD_DRILL_SHAPE::CIRCLE, _HKI( "Round" ) )
+                .Map( PAD_DRILL_SHAPE::OBLONG, _HKI( "Oblong" ) );
 
         ENUM_MAP<PAD_SIM_ELECTRICAL_TYPE>::Instance()
                 .Map( PAD_SIM_ELECTRICAL_TYPE::NONE, _HKI( "None" ) )
@@ -3720,15 +3672,14 @@ static struct PAD_DESC
 
         // Ensure post-machining mode enum choices are defined before properties use them
         {
-            ENUM_MAP<PAD_DRILL_POST_MACHINING_MODE>& pmMap =
-                    ENUM_MAP<PAD_DRILL_POST_MACHINING_MODE>::Instance();
+            ENUM_MAP<PAD_DRILL_POST_MACHINING_MODE>& pmMap = ENUM_MAP<PAD_DRILL_POST_MACHINING_MODE>::Instance();
 
             if( pmMap.Choices().GetCount() == 0 )
             {
                 pmMap.Undefined( PAD_DRILL_POST_MACHINING_MODE::UNKNOWN )
-                    .Map( PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED, _HKI( "Not post-machined" ) )
-                    .Map( PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE,       _HKI( "Counterbore" ) )
-                    .Map( PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK,       _HKI( "Countersink" ) );
+                        .Map( PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED, _HKI( "Not post-machined" ) )
+                        .Map( PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE, _HKI( "Counterbore" ) )
+                        .Map( PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK, _HKI( "Countersink" ) );
             }
         }
 
@@ -3739,10 +3690,10 @@ static struct PAD_DESC
             if( bdMap.Choices().GetCount() == 0 )
             {
                 bdMap.Undefined( BACKDRILL_MODE::NO_BACKDRILL )
-                    .Map( BACKDRILL_MODE::NO_BACKDRILL,     _HKI( "No backdrill" ) )
-                    .Map( BACKDRILL_MODE::BACKDRILL_BOTTOM, _HKI( "Backdrill bottom" ) )
-                    .Map( BACKDRILL_MODE::BACKDRILL_TOP,    _HKI( "Backdrill top" ) )
-                    .Map( BACKDRILL_MODE::BACKDRILL_BOTH,   _HKI( "Backdrill both" ) );
+                        .Map( BACKDRILL_MODE::NO_BACKDRILL, _HKI( "No backdrill" ) )
+                        .Map( BACKDRILL_MODE::BACKDRILL_BOTTOM, _HKI( "Backdrill bottom" ) )
+                        .Map( BACKDRILL_MODE::BACKDRILL_TOP, _HKI( "Backdrill top" ) )
+                        .Map( BACKDRILL_MODE::BACKDRILL_BOTH, _HKI( "Backdrill both" ) );
             }
         }
 
@@ -3751,18 +3702,18 @@ static struct PAD_DESC
         if( zcMap.Choices().GetCount() == 0 )
         {
             zcMap.Undefined( ZONE_CONNECTION::INHERITED );
-            zcMap.Map( ZONE_CONNECTION::INHERITED,   _HKI( "Inherited" ) )
-                 .Map( ZONE_CONNECTION::NONE,        _HKI( "None" ) )
-                 .Map( ZONE_CONNECTION::THERMAL,     _HKI( "Thermal reliefs" ) )
-                 .Map( ZONE_CONNECTION::FULL,        _HKI( "Solid" ) )
-                 .Map( ZONE_CONNECTION::THT_THERMAL, _HKI( "Thermal reliefs for PTH" ) );
+            zcMap.Map( ZONE_CONNECTION::INHERITED, _HKI( "Inherited" ) )
+                    .Map( ZONE_CONNECTION::NONE, _HKI( "None" ) )
+                    .Map( ZONE_CONNECTION::THERMAL, _HKI( "Thermal reliefs" ) )
+                    .Map( ZONE_CONNECTION::FULL, _HKI( "Solid" ) )
+                    .Map( ZONE_CONNECTION::THT_THERMAL, _HKI( "Thermal reliefs for PTH" ) );
         }
 
         ENUM_MAP<UNCONNECTED_LAYER_MODE>::Instance()
-                .Map( UNCONNECTED_LAYER_MODE::KEEP_ALL,                    _HKI( "All copper layers" ) )
-                .Map( UNCONNECTED_LAYER_MODE::REMOVE_ALL,                  _HKI( "Connected layers only" ) )
+                .Map( UNCONNECTED_LAYER_MODE::KEEP_ALL, _HKI( "All copper layers" ) )
+                .Map( UNCONNECTED_LAYER_MODE::REMOVE_ALL, _HKI( "Connected layers only" ) )
                 .Map( UNCONNECTED_LAYER_MODE::REMOVE_EXCEPT_START_AND_END, _HKI( "Front, back and connected layers" ) )
-                .Map( UNCONNECTED_LAYER_MODE::START_END_ONLY,              _HKI( "Start and end layers only" ) );
+                .Map( UNCONNECTED_LAYER_MODE::START_END_ONLY, _HKI( "Start and end layers only" ) );
 
         PROPERTY_MANAGER& propMgr = PROPERTY_MANAGER::Instance();
         REGISTER_TYPE( PAD );
@@ -3774,38 +3725,34 @@ static struct PAD_DESC
         propMgr.Mask( TYPE_HASH( PAD ), TYPE_HASH( BOARD_CONNECTED_ITEM ), _HKI( "Layer" ) );
         propMgr.Mask( TYPE_HASH( PAD ), TYPE_HASH( BOARD_ITEM ), _HKI( "Locked" ) );
 
-        propMgr.AddProperty( new PROPERTY<PAD, double>( _HKI( "Orientation" ),
-                    &PAD::SetOrientationDegrees, &PAD::GetOrientationDegrees, PROPERTY_DISPLAY::PT_DEGREE ) );
+        propMgr.AddProperty( new PROPERTY<PAD, double>( _HKI( "Orientation" ), &PAD::SetOrientationDegrees,
+                                                        &PAD::GetOrientationDegrees, PROPERTY_DISPLAY::PT_DEGREE ) );
 
-        auto isCopperPad =
-                []( INSPECTABLE* aItem ) -> bool
-                {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                        return pad->GetAttribute() != PAD_ATTRIB::NPTH;
+        auto isCopperPad = []( INSPECTABLE* aItem ) -> bool
+        {
+            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                return pad->GetAttribute() != PAD_ATTRIB::NPTH;
 
-                    return false;
-                };
+            return false;
+        };
 
-        auto padCanHaveHole =
-                []( INSPECTABLE* aItem ) -> bool
-                {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                        return pad->GetAttribute() == PAD_ATTRIB::PTH || pad->GetAttribute() == PAD_ATTRIB::NPTH;
+        auto padCanHaveHole = []( INSPECTABLE* aItem ) -> bool
+        {
+            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                return pad->GetAttribute() == PAD_ATTRIB::PTH || pad->GetAttribute() == PAD_ATTRIB::NPTH;
 
-                    return false;
-                };
+            return false;
+        };
 
-        auto hasNormalPadstack =
-                []( INSPECTABLE* aItem ) -> bool
-                {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                        return pad->Padstack().Mode() == PADSTACK::MODE::NORMAL;
+        auto hasNormalPadstack = []( INSPECTABLE* aItem ) -> bool
+        {
+            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                return pad->Padstack().Mode() == PADSTACK::MODE::NORMAL;
 
-                    return true;
-                };
+            return true;
+        };
 
-        propMgr.OverrideAvailability( TYPE_HASH( PAD ), TYPE_HASH( BOARD_CONNECTED_ITEM ), _HKI( "Net" ),
-                                      isCopperPad );
+        propMgr.OverrideAvailability( TYPE_HASH( PAD ), TYPE_HASH( BOARD_CONNECTED_ITEM ), _HKI( "Net" ), isCopperPad );
         propMgr.OverrideAvailability( TYPE_HASH( PAD ), TYPE_HASH( BOARD_CONNECTED_ITEM ), _HKI( "Net Class" ),
                                       isCopperPad );
 
@@ -3813,375 +3760,415 @@ static struct PAD_DESC
         const wxString groupPostMachining = _HKI( "Post-machining Properties" );
         const wxString groupBackdrill = _HKI( "Backdrill Properties" );
 
-        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_ATTRIB>( _HKI( "Pad Type" ),
-                    &PAD::SetAttribute, &PAD::GetAttribute ),
-                    groupPad );
+        propMgr.AddProperty(
+                new PROPERTY_ENUM<PAD, PAD_ATTRIB>( _HKI( "Pad Type" ), &PAD::SetAttribute, &PAD::GetAttribute ),
+                groupPad );
 
-        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_SHAPE>( _HKI( "Pad Shape" ),
-                    &PAD::SetFrontShape, &PAD::GetFrontShape ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_SHAPE>( _HKI( "Pad Shape" ), &PAD::SetFrontShape,
+                                                                &PAD::GetFrontShape ),
+                             groupPad )
                 .SetAvailableFunc( hasNormalPadstack );
 
-        propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pad Number" ),
-                    &PAD::SetNumber, &PAD::GetNumber ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pad Number" ), &PAD::SetNumber, &PAD::GetNumber ),
+                             groupPad )
                 .SetAvailableFunc( isCopperPad );
 
-        propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pin Name" ),
-                    &PAD::SetPinFunction, &PAD::GetPinFunction ),
-                    groupPad )
+        propMgr.AddProperty(
+                       new PROPERTY<PAD, wxString>( _HKI( "Pin Name" ), &PAD::SetPinFunction, &PAD::GetPinFunction ),
+                       groupPad )
                 .SetIsHiddenFromLibraryEditors();
 
-        propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pin Type" ),
-                    &PAD::SetPinType, &PAD::GetPinType ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, wxString>( _HKI( "Pin Type" ), &PAD::SetPinType, &PAD::GetPinType ),
+                             groupPad )
                 .SetIsHiddenFromLibraryEditors()
-                .SetChoicesFunc( []( INSPECTABLE* aItem )
-                    {
-                        wxPGChoices choices;
+                .SetChoicesFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            wxPGChoices choices;
 
-                        for( int ii = 0; ii < ELECTRICAL_PINTYPES_TOTAL; ii++ )
-                            choices.Add( GetCanonicalElectricalTypeName( (ELECTRICAL_PINTYPE) ii ) );
+                            for( int ii = 0; ii < ELECTRICAL_PINTYPES_TOTAL; ii++ )
+                                choices.Add( GetCanonicalElectricalTypeName( (ELECTRICAL_PINTYPE) ii ) );
 
-                        return choices;
-                    } );
+                            return choices;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_SIM_ELECTRICAL_TYPE>( _HKI( "Simulation Electrical Type" ),
                                                                               &PAD::SetSimElectricalType,
                                                                               &PAD::GetSimElectricalType ),
                              groupPad );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size X" ),
-                    &PAD::SetSizeX, &PAD::GetSizeX, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size X" ), &PAD::SetSizeX, &PAD::GetSizeX,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
                 .SetAvailableFunc( hasNormalPadstack );
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size Y" ),
-                    &PAD::SetSizeY, &PAD::GetSizeY, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size Y" ), &PAD::SetSizeY, &PAD::GetSizeY,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
                         {
-                            // Custom padstacks can't have size modified through panel
-                            if( pad->Padstack().Mode() != PADSTACK::MODE::NORMAL )
-                                return false;
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                // Custom padstacks can't have size modified through panel
+                                if( pad->Padstack().Mode() != PADSTACK::MODE::NORMAL )
+                                    return false;
 
-                            // Circle pads have no usable y-size
-                            return pad->GetShape( PADSTACK::ALL_LAYERS ) != PAD_SHAPE::CIRCLE;
-                        }
+                                // Circle pads have no usable y-size
+                                return pad->GetShape( PADSTACK::ALL_LAYERS ) != PAD_SHAPE::CIRCLE;
+                            }
 
-                        return true;
-                    } );
+                            return true;
+                        } );
 
-        const auto hasRoundRadius =
-                []( INSPECTABLE* aItem ) -> bool
-                {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        // Custom padstacks can't have this property modified through panel
-                        if( pad->Padstack().Mode() != PADSTACK::MODE::NORMAL )
-                            return false;
-
-                        return PAD_UTILS::PadHasMeaningfulRoundingRadius( *pad, F_Cu );
-                    }
-
+        const auto hasRoundRadius = []( INSPECTABLE* aItem ) -> bool
+        {
+            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+            {
+                // Custom padstacks can't have this property modified through panel
+                if( pad->Padstack().Mode() != PADSTACK::MODE::NORMAL )
                     return false;
-                };
+
+                return PAD_UTILS::PadHasMeaningfulRoundingRadius( *pad, F_Cu );
+            }
+
+            return false;
+        };
 
         propMgr.AddProperty( new PROPERTY<PAD, double>( _HKI( "Corner Radius Ratio" ),
-                    &PAD::SetFrontRoundRectRadiusRatio, &PAD::GetFrontRoundRectRadiusRatio ),
-                    groupPad )
+                                                        &PAD::SetFrontRoundRectRadiusRatio,
+                                                        &PAD::GetFrontRoundRectRadiusRatio ),
+                             groupPad )
                 .SetAvailableFunc( hasRoundRadius );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Corner Radius Size" ),
-                    &PAD::SetFrontRoundRectRadiusSize, &PAD::GetFrontRoundRectRadiusSize, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Corner Radius Size" ), &PAD::SetFrontRoundRectRadiusSize,
+                                                     &PAD::GetFrontRoundRectRadiusSize, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
                 .SetAvailableFunc( hasRoundRadius );
 
-        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_DRILL_SHAPE>( _HKI( "Hole Shape" ),
-                    &PAD::SetDrillShape, &PAD::GetDrillShape ), groupPad )
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_DRILL_SHAPE>( _HKI( "Hole Shape" ), &PAD::SetDrillShape,
+                                                                      &PAD::GetDrillShape ),
+                             groupPad )
                 .SetWriteableFunc( padCanHaveHole );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size X" ),
-                    &PAD::SetDrillSizeX, &PAD::GetDrillSizeX, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size X" ), &PAD::SetDrillSizeX, &PAD::GetDrillSizeX,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
                 .SetWriteableFunc( padCanHaveHole )
                 .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size Y" ),
-                    &PAD::SetDrillSizeY, &PAD::GetDrillSizeY, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size Y" ), &PAD::SetDrillSizeY, &PAD::GetDrillSizeY,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
                 .SetWriteableFunc( padCanHaveHole )
                 .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        // Circle holes have no usable y-size
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                            return pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE;
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
+                        {
+                            // Circle holes have no usable y-size
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                                return pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE;
 
-                        return true;
-                    } );
+                            return true;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_DRILL_POST_MACHINING_MODE>( _HKI( "Top Post-machining" ),
-                    &PAD::SetFrontPostMachiningMode, &PAD::GetFrontPostMachiningMode ),
-                    groupPostMachining )
+                                                                                    &PAD::SetFrontPostMachiningMode,
+                                                                                    &PAD::GetFrontPostMachiningMode ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        return pad->GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE;
-                    }
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                return pad->GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE;
+                            }
 
-                    return false;
-                } );
-
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Post-machining Size" ),
-                    &PAD::SetFrontPostMachiningSize, &PAD::GetFrontPostMachiningSize, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPostMachining )
-                .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
                             return false;
+                        } );
 
-                        auto mode = pad->GetFrontPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE
-                                || mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
-                    }
-
-                    return false;
-                } );
-
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Counterbore Depth" ),
-                    &PAD::SetFrontPostMachiningDepth, &PAD::GetFrontPostMachiningDepth, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPostMachining )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Post-machining Size" ), &PAD::SetFrontPostMachiningSize,
+                                                     &PAD::GetFrontPostMachiningSize, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
+
+                                auto mode = pad->GetFrontPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE
+                                       || mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
+                            }
+
                             return false;
+                        } );
 
-                        auto mode = pad->GetFrontPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE;
-                    }
-
-                    return false;
-                } );
-
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Countersink Angle" ),
-                    &PAD::SetFrontPostMachiningAngle, &PAD::GetFrontPostMachiningAngle, PROPERTY_DISPLAY::PT_DECIDEGREE ),
-                    groupPostMachining )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Counterbore Depth" ), &PAD::SetFrontPostMachiningDepth,
+                                                     &PAD::GetFrontPostMachiningDepth, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
+
+                                auto mode = pad->GetFrontPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE;
+                            }
+
                             return false;
+                        } );
 
-                        auto mode = pad->GetFrontPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
-                    }
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Top Countersink Angle" ), &PAD::SetFrontPostMachiningAngle,
+                                                     &PAD::GetFrontPostMachiningAngle,
+                                                     PROPERTY_DISPLAY::PT_DECIDEGREE ),
+                             groupPostMachining )
+                .SetWriteableFunc( padCanHaveHole )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
 
-                    return false;
-                } );
+                                auto mode = pad->GetFrontPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
+                            }
+
+                            return false;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_DRILL_POST_MACHINING_MODE>( _HKI( "Bottom Post-machining" ),
-                    &PAD::SetBackPostMachiningMode, &PAD::GetBackPostMachiningMode ),
-                    groupPostMachining )
+                                                                                    &PAD::SetBackPostMachiningMode,
+                                                                                    &PAD::GetBackPostMachiningMode ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        return pad->GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE;
-                    }
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                return pad->GetDrillShape() == PAD_DRILL_SHAPE::CIRCLE;
+                            }
 
-                    return false;
-                } );
+                            return false;
+                        } );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Bottom Post-machining Size" ),
-                    &PAD::SetBackPostMachiningSize, &PAD::GetBackPostMachiningSize, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPostMachining )
+                                                     &PAD::SetBackPostMachiningSize, &PAD::GetBackPostMachiningSize,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
+
+                                auto mode = pad->GetBackPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE
+                                       || mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
+                            }
+
                             return false;
-
-                        auto mode = pad->GetBackPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE
-                                || mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
-                    }
-
-                    return false;
-                } );
+                        } );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Bottom Counterbore Depth" ),
-                    &PAD::SetBackPostMachiningDepth, &PAD::GetBackPostMachiningDepth, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPostMachining )
+                                                     &PAD::SetBackPostMachiningDepth, &PAD::GetBackPostMachiningDepth,
+                                                     PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
+
+                                auto mode = pad->GetBackPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE;
+                            }
+
                             return false;
-
-                        auto mode = pad->GetBackPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE;
-                    }
-
-                    return false;
-                } );
+                        } );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Bottom Countersink Angle" ),
-                    &PAD::SetBackPostMachiningAngle, &PAD::GetBackPostMachiningAngle, PROPERTY_DISPLAY::PT_DECIDEGREE ),
-                    groupPostMachining )
+                                                     &PAD::SetBackPostMachiningAngle, &PAD::GetBackPostMachiningAngle,
+                                                     PROPERTY_DISPLAY::PT_DECIDEGREE ),
+                             groupPostMachining )
                 .SetWriteableFunc( padCanHaveHole )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) {
-                    if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
-                    {
-                        if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
-                            return false;
-
-                        auto mode = pad->GetBackPostMachining();
-                        return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
-                    }
-
-                    return false;
-                } );
-
-        propMgr.AddProperty( new PROPERTY_ENUM<PAD, BACKDRILL_MODE>( _HKI( "Backdrill Mode" ),
-                    &PAD::SetBackdrillMode, &PAD::GetBackdrillMode ), groupBackdrill );
-
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Bottom Backdrill Size" ),
-                    &PAD::SetBottomBackdrillSize, &PAD::GetBottomBackdrillSize, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupBackdrill )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem )
                         {
-                            if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
-                                return false;
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
 
-                            auto mode = pad->GetBackdrillMode();
-                            return mode == BACKDRILL_MODE::BACKDRILL_BOTTOM || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
-                        }
+                                auto mode = pad->GetBackPostMachining();
+                                return mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK;
+                            }
 
-                        return false;
-                    } );
+                            return false;
+                        } );
+
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, BACKDRILL_MODE>( _HKI( "Backdrill Mode" ), &PAD::SetBackdrillMode,
+                                                                     &PAD::GetBackdrillMode ),
+                             groupBackdrill );
+
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>(
+                                     _HKI( "Bottom Backdrill Size" ), &PAD::SetBottomBackdrillSize,
+                                     &PAD::GetBottomBackdrillSize, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupBackdrill )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
+                        {
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
+
+                                auto mode = pad->GetBackdrillMode();
+                                return mode == BACKDRILL_MODE::BACKDRILL_BOTTOM
+                                       || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
+                            }
+
+                            return false;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PCB_LAYER_ID>( _HKI( "Bottom Backdrill Must-Cut" ),
-                    &PAD::SetBottomBackdrillLayer, &PAD::GetBottomBackdrillLayer ),
-                    groupBackdrill )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                                                                   &PAD::SetBottomBackdrillLayer,
+                                                                   &PAD::GetBottomBackdrillLayer ),
+                             groupBackdrill )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
                         {
-                            if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
-                                return false;
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
 
-                            auto mode = pad->GetBackdrillMode();
-                            return mode == BACKDRILL_MODE::BACKDRILL_BOTTOM || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
-                        }
+                                auto mode = pad->GetBackdrillMode();
+                                return mode == BACKDRILL_MODE::BACKDRILL_BOTTOM
+                                       || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
+                            }
 
-                        return false;
-                    } );
+                            return false;
+                        } );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Top Backdrill Size" ),
-                    &PAD::SetTopBackdrillSize, &PAD::GetTopBackdrillSize, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupBackdrill )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+        propMgr.AddProperty(
+                       new PROPERTY<PAD, std::optional<int>>( _HKI( "Top Backdrill Size" ), &PAD::SetTopBackdrillSize,
+                                                              &PAD::GetTopBackdrillSize, PROPERTY_DISPLAY::PT_SIZE ),
+                       groupBackdrill )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
                         {
-                            if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
-                                return false;
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
 
-                            auto mode = pad->GetBackdrillMode();
-                            return mode == BACKDRILL_MODE::BACKDRILL_TOP || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
-                        }
+                                auto mode = pad->GetBackdrillMode();
+                                return mode == BACKDRILL_MODE::BACKDRILL_TOP || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
+                            }
 
-                        return false;
-                    } );
+                            return false;
+                        } );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, PCB_LAYER_ID>( _HKI( "Top Backdrill Must-Cut" ),
-                    &PAD::SetTopBackdrillLayer, &PAD::GetTopBackdrillLayer ),
-                    groupBackdrill )
-                .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
-                    {
-                        if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                                                                   &PAD::SetTopBackdrillLayer,
+                                                                   &PAD::GetTopBackdrillLayer ),
+                             groupBackdrill )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
                         {
-                            if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
-                                return false;
+                            if( PAD* pad = dynamic_cast<PAD*>( aItem ) )
+                            {
+                                if( pad->GetDrillShape() != PAD_DRILL_SHAPE::CIRCLE )
+                                    return false;
 
-                            auto mode = pad->GetBackdrillMode();
-                            return mode == BACKDRILL_MODE::BACKDRILL_TOP || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
-                        }
+                                auto mode = pad->GetBackdrillMode();
+                                return mode == BACKDRILL_MODE::BACKDRILL_TOP || mode == BACKDRILL_MODE::BACKDRILL_BOTH;
+                            }
 
-                        return false;
-                    } );
+                            return false;
+                        } );
 
 
-        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_PROP>( _HKI( "Fabrication Property" ),
-                    &PAD::SetProperty, &PAD::GetProperty ),
-                    groupPad );
+        propMgr.AddProperty( new PROPERTY_ENUM<PAD, PAD_PROP>( _HKI( "Fabrication Property" ), &PAD::SetProperty,
+                                                               &PAD::GetProperty ),
+                             groupPad );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, UNCONNECTED_LAYER_MODE>( _HKI( "Copper Layers" ),
-                    &PAD::SetUnconnectedLayerMode, &PAD::GetUnconnectedLayerMode ),
-                    groupPad );
+                                                                             &PAD::SetUnconnectedLayerMode,
+                                                                             &PAD::GetUnconnectedLayerMode ),
+                             groupPad );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Pad To Die Length" ),
-                    &PAD::SetPadToDieLength, &PAD::GetPadToDieLength, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Pad To Die Length" ), &PAD::SetPadToDieLength,
+                                                     &PAD::GetPadToDieLength, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupPad )
                 .SetAvailableFunc( isCopperPad );
 
-        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Pad To Die Delay" ),
-                    &PAD::SetPadToDieDelay, &PAD::GetPadToDieDelay, PROPERTY_DISPLAY::PT_TIME ),
-                    groupPad )
+        propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Pad To Die Delay" ), &PAD::SetPadToDieDelay,
+                                                     &PAD::GetPadToDieDelay, PROPERTY_DISPLAY::PT_TIME ),
+                             groupPad )
                 .SetAvailableFunc( isCopperPad );
 
         const wxString groupOverrides = _HKI( "Overrides" );
 
         propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Clearance Override" ),
-                    &PAD::SetLocalClearance, &PAD::GetLocalClearance, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupOverrides );
+                                                                    &PAD::SetLocalClearance, &PAD::GetLocalClearance,
+                                                                    PROPERTY_DISPLAY::PT_SIZE ),
+                             groupOverrides );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Soldermask Margin Override" ),
-                    &PAD::SetLocalSolderMaskMargin, &PAD::GetLocalSolderMaskMargin, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupOverrides );
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>(
+                                     _HKI( "Soldermask Margin Override" ), &PAD::SetLocalSolderMaskMargin,
+                                     &PAD::GetLocalSolderMaskMargin, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupOverrides );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Solderpaste Margin Override" ),
-                    &PAD::SetLocalSolderPasteMargin, &PAD::GetLocalSolderPasteMargin, PROPERTY_DISPLAY::PT_SIZE ),
-                    groupOverrides );
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>(
+                                     _HKI( "Solderpaste Margin Override" ), &PAD::SetLocalSolderPasteMargin,
+                                     &PAD::GetLocalSolderPasteMargin, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupOverrides );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<double>>( _HKI( "Solderpaste Margin Ratio Override" ),
-                    &PAD::SetLocalSolderPasteMarginRatio, &PAD::GetLocalSolderPasteMarginRatio,
-                    PROPERTY_DISPLAY::PT_RATIO ),
-                    groupOverrides );
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<double>>(
+                                     _HKI( "Solderpaste Margin Ratio Override" ), &PAD::SetLocalSolderPasteMarginRatio,
+                                     &PAD::GetLocalSolderPasteMarginRatio, PROPERTY_DISPLAY::PT_RATIO ),
+                             groupOverrides );
 
         propMgr.AddProperty( new PROPERTY_ENUM<PAD, ZONE_CONNECTION>( _HKI( "Zone Connection Style" ),
-                    &PAD::SetLocalZoneConnection, &PAD::GetLocalZoneConnection ),
-                    groupOverrides );
+                                                                      &PAD::SetLocalZoneConnection,
+                                                                      &PAD::GetLocalZoneConnection ),
+                             groupOverrides );
 
         constexpr int minZoneWidth = pcbIUScale.mmToIU( ZONE_THICKNESS_MIN_VALUE_MM );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Thermal Relief Spoke Width" ),
-                    &PAD::SetLocalThermalSpokeWidthOverride, &PAD::GetLocalThermalSpokeWidthOverride,
-                    PROPERTY_DISPLAY::PT_SIZE ),
-                    groupOverrides )
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>(
+                                     _HKI( "Thermal Relief Spoke Width" ), &PAD::SetLocalThermalSpokeWidthOverride,
+                                     &PAD::GetLocalThermalSpokeWidthOverride, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupOverrides )
                 .SetValidator( PROPERTY_VALIDATORS::RangeIntValidator<minZoneWidth, INT_MAX> );
 
-        propMgr.AddProperty( new PROPERTY<PAD, double>( _HKI( "Thermal Relief Spoke Angle" ),
-                    &PAD::SetThermalSpokeAngleDegrees, &PAD::GetThermalSpokeAngleDegrees,
-                    PROPERTY_DISPLAY::PT_DEGREE ),
-                    groupOverrides );
+        propMgr.AddProperty(
+                new PROPERTY<PAD, double>( _HKI( "Thermal Relief Spoke Angle" ), &PAD::SetThermalSpokeAngleDegrees,
+                                           &PAD::GetThermalSpokeAngleDegrees, PROPERTY_DISPLAY::PT_DEGREE ),
+                groupOverrides );
 
-        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>( _HKI( "Thermal Relief Gap" ),
-                    &PAD::SetLocalThermalGapOverride, &PAD::GetLocalThermalGapOverride,
-                    PROPERTY_DISPLAY::PT_SIZE ),
-                    groupOverrides )
+        propMgr.AddProperty( new PROPERTY<PAD, std::optional<int>>(
+                                     _HKI( "Thermal Relief Gap" ), &PAD::SetLocalThermalGapOverride,
+                                     &PAD::GetLocalThermalGapOverride, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupOverrides )
                 .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator );
 
         // TODO delta, drill shape offset, layer set

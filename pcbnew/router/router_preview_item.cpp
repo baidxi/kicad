@@ -46,8 +46,8 @@
 using namespace KIGFX;
 
 
-ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IFACE* aIface,
-                                          KIGFX::VIEW* aView, int aFlags ) :
+ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IFACE* aIface, KIGFX::VIEW* aView,
+                                          int aFlags ) :
         EDA_ITEM( NOT_USED ),
         m_view( aView ),
         m_iface( aIface ),
@@ -65,10 +65,10 @@ ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IF
 
         switch( m_shape->Type() )
         {
-        case SH_SEGMENT:    static_cast<SHAPE_SEGMENT*>( m_shape )->SetWidth( 0 );    break;
-        case SH_ARC:        static_cast<SHAPE_ARC*>( m_shape )->SetWidth( 0 );        break;
+        case SH_SEGMENT: static_cast<SHAPE_SEGMENT*>( m_shape )->SetWidth( 0 ); break;
+        case SH_ARC: static_cast<SHAPE_ARC*>( m_shape )->SetWidth( 0 ); break;
         case SH_LINE_CHAIN: static_cast<SHAPE_LINE_CHAIN*>( m_shape )->SetWidth( 0 ); break;
-        default:            /* remaining shapes don't have width */                   break;
+        default: /* remaining shapes don't have width */ break;
         }
     }
     else if( aItem )
@@ -81,7 +81,7 @@ ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IF
     }
 
     m_clearance = -1;
-    m_originLayer = m_layer = LAYER_SELECT_OVERLAY ;
+    m_originLayer = m_layer = LAYER_SELECT_OVERLAY;
 
     m_showClearance = false;
 
@@ -95,8 +95,7 @@ ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const PNS::ITEM* aItem, PNS::ROUTER_IF
 }
 
 
-ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const SHAPE& aShape, PNS::ROUTER_IFACE* aIface,
-                                          KIGFX::VIEW* aView ) :
+ROUTER_PREVIEW_ITEM::ROUTER_PREVIEW_ITEM( const SHAPE& aShape, PNS::ROUTER_IFACE* aIface, KIGFX::VIEW* aView ) :
         EDA_ITEM( NOT_USED ),
         m_view( aView ),
         m_iface( aIface ),
@@ -142,15 +141,61 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS::ITEM* aItem )
     if( m_originLayer < 0 )
         m_originLayer = 0;
 
+    auto settings = static_cast<PCB_RENDER_SETTINGS*>( m_view->GetPainter()->GetSettings() );
+    m_netColorStyle = settings->GetNetColorStyle();
+    m_netColor = COLOR4D::UNSPECIFIED;
+
     m_layer = m_originLayer;
-    m_color = getLayerColor( m_originLayer, aItem );
+    m_color = settings->GetLayerColor( m_originLayer );
+
+    if( aItem && aItem->Net() && settings->GetNetColorMode() == NET_COLOR_MODE::ALL && IsCopperLayer( m_originLayer ) )
+    {
+        NETINFO_ITEM* ni = static_cast<NETINFO_ITEM*>( aItem->Net() );
+        auto          ii = settings->GetNetColorMap().find( ni->GetNetCode() );
+
+        if( ii != settings->GetNetColorMap().end() && ii->second != COLOR4D::UNSPECIFIED )
+        {
+            m_netColor = ii->second;
+        }
+        else
+        {
+            NETCLASS* nc = ni->GetNetClass();
+
+            if( nc && nc->HasPcbColor() )
+                m_netColor = nc->GetPcbColor();
+        }
+
+        if( m_netColor != COLOR4D::UNSPECIFIED )
+        {
+            if( m_netColorStyle == NET_COLOR_STYLE::SOLID )
+            {
+                m_color = m_netColor;
+                m_netColor = COLOR4D::UNSPECIFIED;
+            }
+            else
+            {
+                if( m_flags & PNS_HEAD_TRACE )
+                    m_netColor = m_netColor.Saturate( 1.0 );
+                else if( m_flags & PNS_HOVER_ITEM )
+                    m_netColor = m_netColor.Brightened( 0.7 );
+
+                m_netColor.a = 0.8;
+            }
+        }
+    }
+
+    if( m_flags & PNS_HEAD_TRACE )
+        m_color = m_color.Saturate( 1.0 );
+    else if( m_flags & PNS_HOVER_ITEM )
+        m_color = m_color.Brightened( 0.7 );
+
     m_color.a = 0.8;
     m_depth = m_originDepth - ( ( aItem->Layers().Start() + 1 ) * LayerDepthFactor );
 
     switch( aItem->Kind() )
     {
     case PNS::ITEM::LINE_T:
-        m_type  = PR_SHAPE;
+        m_type = PR_SHAPE;
         m_width = static_cast<const PNS::LINE*>( aItem )->Width();
         break;
 
@@ -160,7 +205,7 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS::ITEM* aItem )
         break;
 
     case PNS::ITEM::SEGMENT_T:
-        m_type  = PR_SHAPE;
+        m_type = PR_SHAPE;
         m_width = static_cast<const PNS::SEGMENT*>( aItem )->Width();
         break;
 
@@ -176,8 +221,8 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS::ITEM* aItem )
         m_shape = nullptr;
 
         auto via = static_cast<const PNS::VIA*>( aItem );
-        int shapeLayer = -1;
-        int largestDiameter = 0;
+        int  shapeLayer = -1;
+        int  largestDiameter = 0;
 
         for( int layer : via->UniqueShapeLayers() )
         {
@@ -200,12 +245,9 @@ void ROUTER_PREVIEW_ITEM::Update( const PNS::ITEM* aItem )
         break;
     }
 
-    case PNS::ITEM::SOLID_T:
-        m_type = PR_SHAPE;
-        break;
+    case PNS::ITEM::SOLID_T: m_type = PR_SHAPE; break;
 
-    default:
-        break;
+    default: break;
     }
 
     if( aItem->Marker() & PNS::MK_VIOLATION )
@@ -237,12 +279,9 @@ const BOX2I ROUTER_PREVIEW_ITEM::ViewBBox() const
 
         return bbox;
 
-    case PR_POINT:
-        bbox = BOX2I ( m_pos - VECTOR2I( 100000, 100000 ), VECTOR2I( 200000, 200000 ) );
-        return bbox;
+    case PR_POINT: bbox = BOX2I( m_pos - VECTOR2I( 100000, 100000 ), VECTOR2I( 200000, 200000 ) ); return bbox;
 
-    default:
-        break;
+    default: break;
     }
 
     return bbox;
@@ -281,7 +320,7 @@ void ROUTER_PREVIEW_ITEM::drawLineChain( const SHAPE_LINE_CHAIN_BASE* aL, KIGFX:
         EDA_ANGLE        start_angle = arc.GetStartAngle();
         EDA_ANGLE        angle = arc.GetCentralAngle();
 
-        gal->DrawArc( arc.GetCenter(), arc.GetRadius(), start_angle, angle);
+        gal->DrawArc( arc.GetCenter(), arc.GetRadius(), start_angle, angle );
     }
 
     if( aL->IsClosed() )
@@ -330,10 +369,44 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
         }
 
         gal->SetLayerDepth( m_depth );
-        gal->SetLineWidth( w );
-        gal->SetStrokeColor( m_color );
-        gal->SetFillColor( m_color );
-        drawLineChain( l, gal );
+
+        if( m_netColor != COLOR4D::UNSPECIFIED && m_netColorStyle == NET_COLOR_STYLE::OUTLINE_HALO )
+        {
+            gal->SetLayerDepth( m_depth );
+            gal->SetLineWidth( w );
+            gal->SetStrokeColor( m_netColor );
+            gal->SetFillColor( m_netColor );
+            drawLineChain( l, gal );
+
+            double core_w = std::max( 1.0, w * 0.70 );
+            gal->SetLayerDepth( m_depth - 0.5 );
+            gal->SetLineWidth( core_w );
+            gal->SetStrokeColor( m_color );
+            gal->SetFillColor( m_color );
+            drawLineChain( l, gal );
+        }
+        else if( m_netColor != COLOR4D::UNSPECIFIED && m_netColorStyle == NET_COLOR_STYLE::SPINE )
+        {
+            gal->SetLayerDepth( m_depth );
+            gal->SetLineWidth( w );
+            gal->SetStrokeColor( m_color );
+            gal->SetFillColor( m_color );
+            drawLineChain( l, gal );
+
+            double spine_w = std::max( 1.0, w * 0.25 );
+            gal->SetLayerDepth( m_depth - 0.5 );
+            gal->SetLineWidth( spine_w );
+            gal->SetStrokeColor( m_netColor );
+            gal->SetFillColor( m_netColor );
+            drawLineChain( l, gal );
+        }
+        else
+        {
+            gal->SetLineWidth( w );
+            gal->SetStrokeColor( m_color );
+            gal->SetFillColor( m_color );
+            drawLineChain( l, gal );
+        }
         break;
     }
 
@@ -351,9 +424,35 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
         }
 
         gal->SetLayerDepth( m_depth );
-        gal->SetLineWidth( w );
-        gal->SetFillColor( m_color );
-        gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
+
+        if( m_netColor != COLOR4D::UNSPECIFIED && m_netColorStyle == NET_COLOR_STYLE::OUTLINE_HALO )
+        {
+            gal->SetLayerDepth( m_depth );
+            gal->SetFillColor( m_netColor );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
+
+            double core_w = std::max( 1.0, w * 0.70 );
+            gal->SetLayerDepth( m_depth - 0.5 );
+            gal->SetFillColor( m_color );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, core_w );
+        }
+        else if( m_netColor != COLOR4D::UNSPECIFIED && m_netColorStyle == NET_COLOR_STYLE::SPINE )
+        {
+            gal->SetLayerDepth( m_depth );
+            gal->SetFillColor( m_color );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
+
+            double spine_w = std::max( 1.0, w * 0.25 );
+            gal->SetLayerDepth( m_depth - 0.5 );
+            gal->SetFillColor( m_netColor );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, spine_w );
+        }
+        else
+        {
+            gal->SetLineWidth( w );
+            gal->SetFillColor( m_color );
+            gal->DrawSegment( s->GetSeg().A, s->GetSeg().B, s->GetWidth() );
+        }
         break;
     }
 
@@ -405,13 +504,13 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
             gal->SetLineWidth( 2 * m_clearance );
             gal->DrawLine( p0, VECTOR2I( p0.x + s.x, p0.y ) );
             gal->DrawLine( p0, VECTOR2I( p0.x, p0.y + s.y ) );
-            gal->DrawLine( p0 + s , VECTOR2I( p0.x + s.x, p0.y ) );
+            gal->DrawLine( p0 + s, VECTOR2I( p0.x + s.x, p0.y ) );
             gal->DrawLine( p0 + s, VECTOR2I( p0.x, p0.y + s.y ) );
         }
 
         gal->SetLayerDepth( m_depth );
         gal->SetIsStroke( m_width ? true : false );
-        gal->SetLineWidth( m_width);
+        gal->SetLineWidth( m_width );
         gal->SetStrokeColor( m_color );
         gal->DrawRectangle( r->GetPosition(), r->GetPosition() + r->GetSize() );
 
@@ -508,16 +607,11 @@ void ROUTER_PREVIEW_ITEM::drawShape( const SHAPE* aShape, KIGFX::GAL* gal ) cons
         break;
     }
 
-    case SH_COMPOUND:
-        wxFAIL_MSG( wxT( "Router preview item: nested compound shapes not supported" ) );
-        break;
+    case SH_COMPOUND: wxFAIL_MSG( wxT( "Router preview item: nested compound shapes not supported" ) ); break;
 
-    case SH_POLY_SET:
-        wxFAIL_MSG( wxT( "Router preview item: SHAPE_POLY_SET not supported" ) );
-        break;
+    case SH_POLY_SET: wxFAIL_MSG( wxT( "Router preview item: SHAPE_POLY_SET not supported" ) ); break;
 
-    case SH_NULL:
-        break;
+    case SH_NULL: break;
     }
 
     if( m_hole && !holeDrawn )

@@ -59,9 +59,9 @@ using KIGFX::PCB_PAINTER;
 using KIGFX::PCB_RENDER_SETTINGS;
 
 PCB_TRACK::PCB_TRACK( BOARD_ITEM* aParent, KICAD_T idtype ) :
-    BOARD_CONNECTED_ITEM( aParent, idtype )
+        BOARD_CONNECTED_ITEM( aParent, idtype )
 {
-    m_width = pcbIUScale.mmToIU( 0.2 );     // Gives a reasonable default width
+    m_width = pcbIUScale.mmToIU( 0.2 ); // Gives a reasonable default width
     m_hasSolderMask = false;
 }
 
@@ -80,7 +80,7 @@ void PCB_TRACK::CopyFrom( const BOARD_ITEM* aOther )
 
 
 PCB_ARC::PCB_ARC( BOARD_ITEM* aParent, const SHAPE_ARC* aArc ) :
-    PCB_TRACK( aParent, PCB_ARC_T )
+        PCB_TRACK( aParent, PCB_ARC_T )
 {
     m_Start = aArc->GetP0();
     m_End = aArc->GetP1();
@@ -136,7 +136,7 @@ PCB_VIA::PCB_VIA( const PCB_VIA& aOther ) :
 }
 
 
-PCB_VIA& PCB_VIA::operator=( const PCB_VIA &aOther )
+PCB_VIA& PCB_VIA::operator=( const PCB_VIA& aOther )
 {
     BOARD_CONNECTED_ITEM::operator=( aOther );
 
@@ -170,10 +170,10 @@ wxString PCB_VIA::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull
 
     switch( GetViaType() )
     {
-    case VIATYPE::BLIND:    formatStr = _( "Blind via %s on %s" );  break;
-    case VIATYPE::BURIED:   formatStr = _( "Buried via %s on %s" ); break;
-    case VIATYPE::MICROVIA: formatStr = _( "Micro via %s on %s" );  break;
-    default:                formatStr = _( "Via %s on %s" );        break;
+    case VIATYPE::BLIND: formatStr = _( "Blind via %s on %s" ); break;
+    case VIATYPE::BURIED: formatStr = _( "Buried via %s on %s" ); break;
+    case VIATYPE::MICROVIA: formatStr = _( "Micro via %s on %s" ); break;
+    default: formatStr = _( "Via %s on %s" ); break;
     }
 
     return wxString::Format( formatStr, GetNetnameMsg(), LayerMaskDescribe() );
@@ -199,12 +199,8 @@ bool PCB_TRACK::operator==( const BOARD_ITEM& aBoardItem ) const
 
 bool PCB_TRACK::operator==( const PCB_TRACK& aOther ) const
 {
-    return m_Start == aOther.m_Start
-            && m_End == aOther.m_End
-            && m_layer == aOther.m_layer
-            && m_width == aOther.m_width
-            && m_hasSolderMask == aOther.m_hasSolderMask
-            && m_solderMaskMargin == aOther.m_solderMaskMargin;
+    return m_Start == aOther.m_Start && m_End == aOther.m_End && m_layer == aOther.m_layer && m_width == aOther.m_width
+           && m_hasSolderMask == aOther.m_hasSolderMask && m_solderMaskMargin == aOther.m_solderMaskMargin;
 }
 
 
@@ -263,13 +259,9 @@ bool PCB_ARC::operator==( const PCB_TRACK& aOther ) const
 
 bool PCB_ARC::operator==( const PCB_ARC& aOther ) const
 {
-    return m_Start == aOther.m_Start
-            && m_End == aOther.m_End
-            && m_Mid == aOther.m_Mid
-            && m_layer == aOther.m_layer
-            && GetWidth() == aOther.GetWidth()
-            && m_hasSolderMask == aOther.m_hasSolderMask
-            && m_solderMaskMargin == aOther.m_solderMaskMargin;
+    return m_Start == aOther.m_Start && m_End == aOther.m_End && m_Mid == aOther.m_Mid && m_layer == aOther.m_layer
+           && GetWidth() == aOther.GetWidth() && m_hasSolderMask == aOther.m_hasSolderMask
+           && m_solderMaskMargin == aOther.m_solderMaskMargin;
 }
 
 
@@ -331,12 +323,9 @@ bool PCB_VIA::operator==( const PCB_TRACK& aOther ) const
 
 bool PCB_VIA::operator==( const PCB_VIA& aOther ) const
 {
-    return m_Start == aOther.m_Start
-            && m_End == aOther.m_End
-            && m_layer == aOther.m_layer
-            && m_padStack == aOther.m_padStack
-            && m_viaType == aOther.m_viaType
-            && m_zoneLayerOverrides == aOther.m_zoneLayerOverrides;
+    return m_Start == aOther.m_Start && m_End == aOther.m_End && m_layer == aOther.m_layer
+           && m_padStack == aOther.m_padStack && m_viaType == aOther.m_viaType
+           && m_zoneLayerOverrides == aOther.m_zoneLayerOverrides;
 }
 
 
@@ -382,8 +371,7 @@ int PCB_VIA::GetWidth() const
 {
     // This is present because of the parent class.  It should never be actually called on a via.
     wxCHECK_MSG( false, m_padStack.Size( PADSTACK::ALL_LAYERS ).x,
-                 wxT( "Warning: PCB_VIA::GetWidth() called without a layer argument" ) );
-}
+                 wxT( "Warning: PCB_VIA::GetWidth() called without a layer argument" ) );}
 
 
 void PCB_VIA::SetWidth( PCB_LAYER_ID aLayer, int aWidth )
@@ -398,7 +386,7 @@ int PCB_VIA::GetWidth( PCB_LAYER_ID aLayer ) const
 }
 
 
-void PCB_TRACK::Serialize( google::protobuf::Any &aContainer ) const
+void PCB_TRACK::Serialize( google::protobuf::Any& aContainer ) const
 {
     kiapi::board::types::Track track;
 
@@ -429,7 +417,7 @@ void PCB_TRACK::Serialize( google::protobuf::Any &aContainer ) const
 }
 
 
-bool PCB_TRACK::Deserialize( const google::protobuf::Any &aContainer )
+bool PCB_TRACK::Deserialize( const google::protobuf::Any& aContainer )
 {
     kiapi::board::types::Track track;
 
@@ -463,7 +451,7 @@ bool PCB_TRACK::Deserialize( const google::protobuf::Any &aContainer )
 }
 
 
-void PCB_ARC::Serialize( google::protobuf::Any &aContainer ) const
+void PCB_ARC::Serialize( google::protobuf::Any& aContainer ) const
 {
     kiapi::board::types::Arc arc;
 
@@ -496,7 +484,7 @@ void PCB_ARC::Serialize( google::protobuf::Any &aContainer ) const
 }
 
 
-bool PCB_ARC::Deserialize( const google::protobuf::Any &aContainer )
+bool PCB_ARC::Deserialize( const google::protobuf::Any& aContainer )
 {
     kiapi::board::types::Arc arc;
 
@@ -531,7 +519,7 @@ bool PCB_ARC::Deserialize( const google::protobuf::Any &aContainer )
 }
 
 
-void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
+void PCB_VIA::Serialize( google::protobuf::Any& aContainer ) const
 {
     kiapi::board::types::Via via;
 
@@ -561,7 +549,7 @@ void PCB_VIA::Serialize( google::protobuf::Any &aContainer ) const
 }
 
 
-bool PCB_VIA::Deserialize( const google::protobuf::Any &aContainer )
+bool PCB_VIA::Deserialize( const google::protobuf::Any& aContainer )
 {
     kiapi::board::types::Via via;
 
@@ -866,9 +854,7 @@ bool PCB_VIA::IsBackdrilledOrPostMachined( PCB_LAYER_ID aLayer ) const
     // Check secondary drill (backdrill from top)
     const PADSTACK::DRILL_PROPS& secondaryDrill = m_padStack.SecondaryDrill();
 
-    if( secondaryDrill.size.x > 0
-            && secondaryDrill.start != UNDEFINED_LAYER
-            && secondaryDrill.end != UNDEFINED_LAYER )
+    if( secondaryDrill.size.x > 0 && secondaryDrill.start != UNDEFINED_LAYER && secondaryDrill.end != UNDEFINED_LAYER )
     {
         // Contains honours copper Z-order; the range iterator instead walks PCB_LAYER_ID enum
         // order, which for a bottom-anchored span spans the wrong (top inner) layers.
@@ -879,9 +865,7 @@ bool PCB_VIA::IsBackdrilledOrPostMachined( PCB_LAYER_ID aLayer ) const
     // Check tertiary drill (backdrill from bottom)
     const PADSTACK::DRILL_PROPS& tertiaryDrill = m_padStack.TertiaryDrill();
 
-    if( tertiaryDrill.size.x > 0
-            && tertiaryDrill.start != UNDEFINED_LAYER
-            && tertiaryDrill.end != UNDEFINED_LAYER )
+    if( tertiaryDrill.size.x > 0 && tertiaryDrill.start != UNDEFINED_LAYER && tertiaryDrill.end != UNDEFINED_LAYER )
     {
         if( LAYER_RANGE::Contains( tertiaryDrill.start, tertiaryDrill.end, aLayer ) )
             return true;
@@ -910,17 +894,13 @@ int PCB_VIA::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
     // Check front post-machining (counterbore/countersink from top)
     const PADSTACK::POST_MACHINING_PROPS& frontPM = m_padStack.FrontPostMachining();
 
-    if( frontPM.mode.has_value()
-            && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
-            && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN
-            && frontPM.size > 0 )
+    if( frontPM.mode.has_value() && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
+        && *frontPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && frontPM.size > 0 )
     {
         int pmDepth = frontPM.depth;
 
         // For countersink without explicit depth, calculate from diameter and angle
-        if( pmDepth <= 0
-                && *frontPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK
-                && frontPM.angle > 0 )
+        if( pmDepth <= 0 && *frontPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && frontPM.angle > 0 )
         {
             double halfAngleRad = ( frontPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
             pmDepth = static_cast<int>( ( frontPM.size / 2.0 ) / tan( halfAngleRad ) );
@@ -937,7 +917,7 @@ int PCB_VIA::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
                 if( *frontPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && frontPM.angle > 0 )
                 {
                     double halfAngleRad = ( frontPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
-                    int diameterAtLayer = frontPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
+                    int    diameterAtLayer = frontPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
                     return std::max( 0, diameterAtLayer );
                 }
                 else
@@ -952,17 +932,13 @@ int PCB_VIA::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
     // Check back post-machining (counterbore/countersink from bottom)
     const PADSTACK::POST_MACHINING_PROPS& backPM = m_padStack.BackPostMachining();
 
-    if( backPM.mode.has_value()
-            && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
-            && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN
-            && backPM.size > 0 )
+    if( backPM.mode.has_value() && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::NOT_POST_MACHINED
+        && *backPM.mode != PAD_DRILL_POST_MACHINING_MODE::UNKNOWN && backPM.size > 0 )
     {
         int pmDepth = backPM.depth;
 
         // For countersink without explicit depth, calculate from diameter and angle
-        if( pmDepth <= 0
-                && *backPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK
-                && backPM.angle > 0 )
+        if( pmDepth <= 0 && *backPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && backPM.angle > 0 )
         {
             double halfAngleRad = ( backPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
             pmDepth = static_cast<int>( ( backPM.size / 2.0 ) / tan( halfAngleRad ) );
@@ -979,7 +955,7 @@ int PCB_VIA::GetPostMachiningKnockout( PCB_LAYER_ID aLayer ) const
                 if( *backPM.mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK && backPM.angle > 0 )
                 {
                     double halfAngleRad = ( backPM.angle / 10.0 ) * M_PI / 180.0 / 2.0;
-                    int diameterAtLayer = backPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
+                    int    diameterAtLayer = backPM.size - static_cast<int>( 2.0 * layerDist * tan( halfAngleRad ) );
                     return std::max( 0, diameterAtLayer );
                 }
                 else
@@ -1004,7 +980,7 @@ EDA_ITEM_FLAGS PCB_TRACK::IsPointOnEnds( const VECTOR2I& point, int min_dist ) c
 
     if( min_dist == 0 )
     {
-        if( m_Start == point  )
+        if( m_Start == point )
             result |= STARTPOINT;
 
         if( m_End == point )
@@ -1036,7 +1012,7 @@ const BOX2I PCB_TRACK::GetBoundingBox() const
     if( Type() == PCB_ARC_T )
     {
         std::shared_ptr<SHAPE> arc = GetEffectiveShape();
-        BOX2I bbox = arc->BBox();
+        BOX2I                  bbox = arc->BBox();
 
         xmin = bbox.GetLeft();
         xmax = bbox.GetRight();
@@ -1059,8 +1035,7 @@ const BOX2I PCB_TRACK::GetBoundingBox() const
     xmin -= radius;
 
     // return a rectangle which is [pos,dim) in nature.  therefore the +1
-    return BOX2ISafe( VECTOR2I( xmin, ymin ),
-                      VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
+    return BOX2ISafe( VECTOR2I( xmin, ymin ), VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
 }
 
 
@@ -1086,8 +1061,7 @@ const BOX2I PCB_VIA::GetBoundingBox() const
     int xmin = m_Start.x - radius;
 
     // return a rectangle which is [pos,dim) in nature.  therefore the +1
-    return BOX2ISafe( VECTOR2I( xmin, ymin ),
-                      VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
+    return BOX2ISafe( VECTOR2I( xmin, ymin ), VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
 }
 
 
@@ -1108,8 +1082,7 @@ const BOX2I PCB_VIA::GetBoundingBox( PCB_LAYER_ID aLayer ) const
     int xmin = m_Start.x - radius;
 
     // return a rectangle which is [pos,dim) in nature.  therefore the +1
-    return BOX2ISafe( VECTOR2I( xmin, ymin ),
-                      VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
+    return BOX2ISafe( VECTOR2I( xmin, ymin ), VECTOR2L( (int64_t) xmax - xmin + 1, (int64_t) ymax - ymin + 1 ) );
 }
 
 
@@ -1128,11 +1101,9 @@ double PCB_TRACK::GetDelay() const
 
     const LENGTH_DELAY_CALCULATION*            calc = board->GetLengthCalculation();
     std::vector<LENGTH_DELAY_CALCULATION_ITEM> items{ calc->GetLengthCalculationItem( this ) };
-    constexpr PATH_OPTIMISATIONS               opts = { .OptimiseVias = false,
-                                                        .MergeTracks = false,
-                                                        .OptimiseTracesInPads = false,
-                                                        .InferViaInPad = false
-                                                      };
+    constexpr PATH_OPTIMISATIONS               opts = {
+        .OptimiseVias = false, .MergeTracks = false, .OptimiseTracesInPads = false, .InferViaInPad = false
+    };
 
     return (double) calc->CalculateDelay( items, opts );
 }
@@ -1173,12 +1144,12 @@ void PCB_TRACK::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
     if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
     {
         m_Start.x = aCentre.x - ( m_Start.x - aCentre.x );
-        m_End.x   = aCentre.x - ( m_End.x - aCentre.x );
+        m_End.x = aCentre.x - ( m_End.x - aCentre.x );
     }
     else
     {
         m_Start.y = aCentre.y - ( m_Start.y - aCentre.y );
-        m_End.y   = aCentre.y - ( m_End.y - aCentre.y );
+        m_End.y = aCentre.y - ( m_End.y - aCentre.y );
     }
 
     SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
@@ -1190,13 +1161,13 @@ void PCB_ARC::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
     if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
     {
         m_Start.x = aCentre.x - ( m_Start.x - aCentre.x );
-        m_End.x   = aCentre.x - ( m_End.x - aCentre.x );
+        m_End.x = aCentre.x - ( m_End.x - aCentre.x );
         m_Mid.x = aCentre.x - ( m_Mid.x - aCentre.x );
     }
     else
     {
         m_Start.y = aCentre.y - ( m_Start.y - aCentre.y );
-        m_End.y   = aCentre.y - ( m_End.y - aCentre.y );
+        m_End.y = aCentre.y - ( m_End.y - aCentre.y );
         m_Mid.y = aCentre.y - ( m_Mid.y - aCentre.y );
     }
 
@@ -1219,12 +1190,12 @@ void PCB_VIA::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
     if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
     {
         m_Start.x = aCentre.x - ( m_Start.x - aCentre.x );
-        m_End.x   = aCentre.x - ( m_End.x - aCentre.x );
+        m_End.x = aCentre.x - ( m_End.x - aCentre.x );
     }
     else
     {
         m_Start.y = aCentre.y - ( m_Start.y - aCentre.y );
-        m_End.y   = aCentre.y - ( m_End.y - aCentre.y );
+        m_End.y = aCentre.y - ( m_End.y - aCentre.y );
     }
 
     if( GetViaType() != VIATYPE::THROUGH )
@@ -1232,7 +1203,7 @@ void PCB_VIA::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         PCB_LAYER_ID top_layer;
         PCB_LAYER_ID bottom_layer;
         LayerPair( &top_layer, &bottom_layer );
-        top_layer    = GetBoard()->FlipLayer( top_layer );
+        top_layer = GetBoard()->FlipLayer( top_layer );
         bottom_layer = GetBoard()->FlipLayer( bottom_layer );
         SetLayerPair( top_layer, bottom_layer );
     }
@@ -1261,10 +1232,10 @@ std::shared_ptr<SHAPE_SEGMENT> PCB_VIA::GetEffectiveHoleShape( PCB_LAYER_ID aLay
 
     // See if we want to include a larger backdrill or post-machining hole
     if( aUsage == HOLE_TO_HOLE_CONSTRAINT
-            || ( aUsage == HOLE_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == ANNULAR_WIDTH_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == PHYSICAL_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
-            || ( aUsage == SILK_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) ) )
+        || ( aUsage == HOLE_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == ANNULAR_WIDTH_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == PHYSICAL_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) )
+        || ( aUsage == SILK_CLEARANCE_CONSTRAINT && IsBackdrilledOrPostMachined( aLayer ) ) )
     {
         holeSize = std::max( holeSize, Padstack().GetMaxHoleSize() );
     }
@@ -2128,6 +2099,7 @@ std::vector<int> PCB_TRACK::ViewGetLayers() const
     const PCB_LAYER_ID layer = GetLayer();
     std::vector<int>   layers{
         layer,
+        NETCOLOR_LAYER_FOR( layer ),
         GetNetnameLayer( layer ),
         LAYER_CLEARANCE_START + layer,
     };
@@ -2249,6 +2221,7 @@ std::vector<int> PCB_VIA::ViewGetLayers() const
             continue;
 
         ret_layers.push_back( LAYER_VIA_COPPER_START + layer );
+        ret_layers.push_back( NETCOLOR_LAYER_FOR( layer ) );
         ret_layers.push_back( LAYER_CLEARANCE_START + layer );
     }
 
@@ -2975,207 +2948,199 @@ static struct TRACK_VIA_DESC
                 layerEnum.Map( layer, LSET::Name( layer ) );
         }
 
-        auto viaDiameterPropertyValidator =
-                []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
-                {
-                    if( !aItem || aItem->Type() != PCB_VIA_T )
-                        return std::nullopt;
+        auto viaDiameterPropertyValidator = []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
+        {
+            if( !aItem || aItem->Type() != PCB_VIA_T )
+                return std::nullopt;
 
-                    if( !aValue.CheckType<int>() )
-                        return std::nullopt;
+            if( !aValue.CheckType<int>() )
+                return std::nullopt;
 
-                    PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
+            PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
 
-                    std::optional<int> diameter = aValue.As<int>();
-                    std::optional<int> drill = via->GetDrillValue();
+            std::optional<int> diameter = aValue.As<int>();
+            std::optional<int> drill = via->GetDrillValue();
 
-                    std::optional<PCB_LAYER_ID> startLayer;
+            std::optional<PCB_LAYER_ID> startLayer;
 
-                    if( via->Padstack().Drill().start != UNDEFINED_LAYER )
-                        startLayer = via->Padstack().Drill().start;
+            if( via->Padstack().Drill().start != UNDEFINED_LAYER )
+                startLayer = via->Padstack().Drill().start;
 
-                    std::optional<PCB_LAYER_ID> endLayer;
+            std::optional<PCB_LAYER_ID> endLayer;
 
-                    if( via->Padstack().Drill().end != UNDEFINED_LAYER )
-                        endLayer = via->Padstack().Drill().end;
+            if( via->Padstack().Drill().end != UNDEFINED_LAYER )
+                endLayer = via->Padstack().Drill().end;
 
-                    int copperLayerCount = via->BoardCopperLayerCount();
+            int copperLayerCount = via->BoardCopperLayerCount();
 
-                    if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error =
-                                PCB_VIA::ValidateViaParameters( diameter, drill, startLayer, endLayer,
-                                                                std::nullopt, std::nullopt, std::nullopt, // secondary drill
-                                                                std::nullopt, std::nullopt, std::nullopt, // tertiary drill
-                                                                copperLayerCount ) )
-                    {
-                        return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
-                    }
+            if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error =
+                        PCB_VIA::ValidateViaParameters( diameter, drill, startLayer, endLayer, std::nullopt,
+                                                        std::nullopt, std::nullopt,               // secondary drill
+                                                        std::nullopt, std::nullopt, std::nullopt, // tertiary drill
+                                                        copperLayerCount ) )
+            {
+                return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
+            }
 
-                    return std::nullopt;
-                };
+            return std::nullopt;
+        };
 
-        auto viaDrillPropertyValidator =
-                []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
-                {
-                    if( !aItem || aItem->Type() != PCB_VIA_T )
-                        return std::nullopt;
+        auto viaDrillPropertyValidator = []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
+        {
+            if( !aItem || aItem->Type() != PCB_VIA_T )
+                return std::nullopt;
 
-                    if( !aValue.CheckType<int>() )
-                        return std::nullopt;
+            if( !aValue.CheckType<int>() )
+                return std::nullopt;
 
-                    PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
+            PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
 
-                    std::optional<int> diameter = via->GetFrontWidth();
-                    std::optional<int> drill = aValue.As<int>();
+            std::optional<int> diameter = via->GetFrontWidth();
+            std::optional<int> drill = aValue.As<int>();
 
-                    std::optional<PCB_LAYER_ID> startLayer;
+            std::optional<PCB_LAYER_ID> startLayer;
 
-                    if( via->Padstack().Drill().start != UNDEFINED_LAYER )
-                        startLayer = via->Padstack().Drill().start;
+            if( via->Padstack().Drill().start != UNDEFINED_LAYER )
+                startLayer = via->Padstack().Drill().start;
 
-                    std::optional<PCB_LAYER_ID> endLayer;
+            std::optional<PCB_LAYER_ID> endLayer;
 
-                    if( via->Padstack().Drill().end != UNDEFINED_LAYER )
-                        endLayer = via->Padstack().Drill().end;
+            if( via->Padstack().Drill().end != UNDEFINED_LAYER )
+                endLayer = via->Padstack().Drill().end;
 
-                    std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
+            std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
 
-                    std::optional<PCB_LAYER_ID> secondaryStart;
+            std::optional<PCB_LAYER_ID> secondaryStart;
 
-                    if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
-                        secondaryStart = via->GetSecondaryDrillStartLayer();
+            if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
+                secondaryStart = via->GetSecondaryDrillStartLayer();
 
-                    std::optional<PCB_LAYER_ID> secondaryEnd;
+            std::optional<PCB_LAYER_ID> secondaryEnd;
 
-                    if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
-                        secondaryEnd = via->GetSecondaryDrillEndLayer();
+            if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
+                secondaryEnd = via->GetSecondaryDrillEndLayer();
 
-                    std::optional<int> tertiaryDrill = via->GetTertiaryDrillSize();
+            std::optional<int> tertiaryDrill = via->GetTertiaryDrillSize();
 
-                    std::optional<PCB_LAYER_ID> tertiaryStart;
+            std::optional<PCB_LAYER_ID> tertiaryStart;
 
-                    if( via->GetTertiaryDrillStartLayer() != UNDEFINED_LAYER )
-                        tertiaryStart = via->GetTertiaryDrillStartLayer();
+            if( via->GetTertiaryDrillStartLayer() != UNDEFINED_LAYER )
+                tertiaryStart = via->GetTertiaryDrillStartLayer();
 
-                    std::optional<PCB_LAYER_ID> tertiaryEnd;
+            std::optional<PCB_LAYER_ID> tertiaryEnd;
 
-                    if( via->GetTertiaryDrillEndLayer() != UNDEFINED_LAYER )
-                        tertiaryEnd = via->GetTertiaryDrillEndLayer();
+            if( via->GetTertiaryDrillEndLayer() != UNDEFINED_LAYER )
+                tertiaryEnd = via->GetTertiaryDrillEndLayer();
 
-                    int copperLayerCount = via->BoardCopperLayerCount();
+            int copperLayerCount = via->BoardCopperLayerCount();
 
-                    if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error =
-                                PCB_VIA::ValidateViaParameters( diameter, drill, startLayer, endLayer,
-                                                                secondaryDrill, secondaryStart, secondaryEnd,
-                                                                tertiaryDrill, tertiaryStart, tertiaryEnd,
-                                                                copperLayerCount ) )
-                    {
-                        return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
-                    }
+            if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error = PCB_VIA::ValidateViaParameters(
+                        diameter, drill, startLayer, endLayer, secondaryDrill, secondaryStart, secondaryEnd,
+                        tertiaryDrill, tertiaryStart, tertiaryEnd, copperLayerCount ) )
+            {
+                return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
+            }
 
-                    return std::nullopt;
-                };
+            return std::nullopt;
+        };
 
-        auto viaStartLayerPropertyValidator =
-                []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
-                {
-                    if( !aItem || aItem->Type() != PCB_VIA_T )
-                        return std::nullopt;
+        auto viaStartLayerPropertyValidator = []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
+        {
+            if( !aItem || aItem->Type() != PCB_VIA_T )
+                return std::nullopt;
 
-                    PCB_LAYER_ID layer;
+            PCB_LAYER_ID layer;
 
-                    if( aValue.CheckType<PCB_LAYER_ID>() )
-                        layer = aValue.As<PCB_LAYER_ID>();
-                    else if( aValue.CheckType<int>() )
-                        layer = static_cast<PCB_LAYER_ID>( aValue.As<int>() );
-                    else
-                        return std::nullopt;
+            if( aValue.CheckType<PCB_LAYER_ID>() )
+                layer = aValue.As<PCB_LAYER_ID>();
+            else if( aValue.CheckType<int>() )
+                layer = static_cast<PCB_LAYER_ID>( aValue.As<int>() );
+            else
+                return std::nullopt;
 
-                    PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
+            PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
 
-                    std::optional<int> diameter = via->GetFrontWidth();
-                    std::optional<int> drill = via->GetDrillValue();
+            std::optional<int> diameter = via->GetFrontWidth();
+            std::optional<int> drill = via->GetDrillValue();
 
-                    std::optional<PCB_LAYER_ID> endLayer;
+            std::optional<PCB_LAYER_ID> endLayer;
 
-                    if( via->BottomLayer() != UNDEFINED_LAYER )
-                        endLayer = via->BottomLayer();
+            if( via->BottomLayer() != UNDEFINED_LAYER )
+                endLayer = via->BottomLayer();
 
-                    std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
+            std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
 
-                    std::optional<PCB_LAYER_ID> secondaryStart;
+            std::optional<PCB_LAYER_ID> secondaryStart;
 
-                    if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
-                        secondaryStart = via->GetSecondaryDrillStartLayer();
+            if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
+                secondaryStart = via->GetSecondaryDrillStartLayer();
 
-                    std::optional<PCB_LAYER_ID> secondaryEnd;
+            std::optional<PCB_LAYER_ID> secondaryEnd;
 
-                    if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
-                        secondaryEnd = via->GetSecondaryDrillEndLayer();
+            if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
+                secondaryEnd = via->GetSecondaryDrillEndLayer();
 
-                    int copperLayerCount = via->BoardCopperLayerCount();
+            int copperLayerCount = via->BoardCopperLayerCount();
 
-                    if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error =
-                                PCB_VIA::ValidateViaParameters( diameter, drill, layer, endLayer,
-                                                                secondaryDrill, secondaryStart, secondaryEnd,
-                                                                std::nullopt, std::nullopt, std::nullopt, // tertiary drill
-                                                                copperLayerCount ) )
-                    {
-                        return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
-                    }
+            if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error = PCB_VIA::ValidateViaParameters(
+                        diameter, drill, layer, endLayer, secondaryDrill, secondaryStart, secondaryEnd, std::nullopt,
+                        std::nullopt, std::nullopt, // tertiary drill
+                        copperLayerCount ) )
+            {
+                return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
+            }
 
-                    return std::nullopt;
-                };
+            return std::nullopt;
+        };
 
-        auto viaEndLayerPropertyValidator =
-                []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
-                {
-                    if( !aItem || aItem->Type() != PCB_VIA_T )
-                        return std::nullopt;
+        auto viaEndLayerPropertyValidator = []( const wxAny&& aValue, EDA_ITEM* aItem ) -> VALIDATOR_RESULT
+        {
+            if( !aItem || aItem->Type() != PCB_VIA_T )
+                return std::nullopt;
 
-                    PCB_LAYER_ID layer;
+            PCB_LAYER_ID layer;
 
-                    if( aValue.CheckType<PCB_LAYER_ID>() )
-                        layer = aValue.As<PCB_LAYER_ID>();
-                    else if( aValue.CheckType<int>() )
-                        layer = static_cast<PCB_LAYER_ID>( aValue.As<int>() );
-                    else
-                        return std::nullopt;
+            if( aValue.CheckType<PCB_LAYER_ID>() )
+                layer = aValue.As<PCB_LAYER_ID>();
+            else if( aValue.CheckType<int>() )
+                layer = static_cast<PCB_LAYER_ID>( aValue.As<int>() );
+            else
+                return std::nullopt;
 
-                    PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
+            PCB_VIA* via = static_cast<PCB_VIA*>( aItem );
 
-                    std::optional<int> diameter = via->GetFrontWidth();
-                    std::optional<int> drill = via->GetDrillValue();
+            std::optional<int> diameter = via->GetFrontWidth();
+            std::optional<int> drill = via->GetDrillValue();
 
-                    std::optional<PCB_LAYER_ID> startLayer;
+            std::optional<PCB_LAYER_ID> startLayer;
 
-                    if( via->TopLayer() != UNDEFINED_LAYER )
-                        startLayer = via->TopLayer();
+            if( via->TopLayer() != UNDEFINED_LAYER )
+                startLayer = via->TopLayer();
 
-                    std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
+            std::optional<int> secondaryDrill = via->GetSecondaryDrillSize();
 
-                    std::optional<PCB_LAYER_ID> secondaryStart;
+            std::optional<PCB_LAYER_ID> secondaryStart;
 
-                    if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
-                        secondaryStart = via->GetSecondaryDrillStartLayer();
+            if( via->GetSecondaryDrillStartLayer() != UNDEFINED_LAYER )
+                secondaryStart = via->GetSecondaryDrillStartLayer();
 
-                    std::optional<PCB_LAYER_ID> secondaryEnd;
+            std::optional<PCB_LAYER_ID> secondaryEnd;
 
-                    if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
-                        secondaryEnd = via->GetSecondaryDrillEndLayer();
+            if( via->GetSecondaryDrillEndLayer() != UNDEFINED_LAYER )
+                secondaryEnd = via->GetSecondaryDrillEndLayer();
 
-                    int copperLayerCount = via->BoardCopperLayerCount();
+            int copperLayerCount = via->BoardCopperLayerCount();
 
-                    if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error =
-                                PCB_VIA::ValidateViaParameters( diameter, drill, startLayer, layer,
-                                                                secondaryDrill, secondaryStart, secondaryEnd,
-                                                                std::nullopt, std::nullopt, std::nullopt, // tertiary drill
-                                                                copperLayerCount ) )
-                    {
-                        return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
-                    }
+            if( std::optional<PCB_VIA::VIA_PARAMETER_ERROR> error = PCB_VIA::ValidateViaParameters(
+                        diameter, drill, startLayer, layer, secondaryDrill, secondaryStart, secondaryEnd, std::nullopt,
+                        std::nullopt, std::nullopt, // tertiary drill
+                        copperLayerCount ) )
+            {
+                return std::make_unique<VALIDATION_ERROR_MSG>( error->m_Message );
+            }
 
-                    return std::nullopt;
-                };
+            return std::nullopt;
+        };
 
         PROPERTY_MANAGER& propMgr = PROPERTY_MANAGER::Instance();
 
@@ -3183,41 +3148,42 @@ static struct TRACK_VIA_DESC
         REGISTER_TYPE( PCB_TRACK );
         propMgr.InheritsAfter( TYPE_HASH( PCB_TRACK ), TYPE_HASH( BOARD_CONNECTED_ITEM ) );
 
-        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "Width" ),
-            &PCB_TRACK::SetWidth, &PCB_TRACK::GetWidth, PROPERTY_DISPLAY::PT_SIZE ) );
+        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "Width" ), &PCB_TRACK::SetWidth, &PCB_TRACK::GetWidth,
+                                                           PROPERTY_DISPLAY::PT_SIZE ) );
         propMgr.ReplaceProperty( TYPE_HASH( BOARD_ITEM ), _HKI( "Position X" ),
-            new PROPERTY<PCB_TRACK, int>( _HKI( "Start X" ),
-            &PCB_TRACK::SetStartX, &PCB_TRACK::GetStartX, PROPERTY_DISPLAY::PT_COORD,
-            ORIGIN_TRANSFORMS::ABS_X_COORD) );
+                                 new PROPERTY<PCB_TRACK, int>( _HKI( "Start X" ), &PCB_TRACK::SetStartX,
+                                                               &PCB_TRACK::GetStartX, PROPERTY_DISPLAY::PT_COORD,
+                                                               ORIGIN_TRANSFORMS::ABS_X_COORD ) );
         propMgr.ReplaceProperty( TYPE_HASH( BOARD_ITEM ), _HKI( "Position Y" ),
-            new PROPERTY<PCB_TRACK, int>( _HKI( "Start Y" ),
-            &PCB_TRACK::SetStartY, &PCB_TRACK::GetStartY, PROPERTY_DISPLAY::PT_COORD,
-            ORIGIN_TRANSFORMS::ABS_Y_COORD ) );
-        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "End X" ),
-            &PCB_TRACK::SetEndX, &PCB_TRACK::GetEndX, PROPERTY_DISPLAY::PT_COORD,
-            ORIGIN_TRANSFORMS::ABS_X_COORD) );
-        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "End Y" ),
-            &PCB_TRACK::SetEndY, &PCB_TRACK::GetEndY, PROPERTY_DISPLAY::PT_COORD,
-            ORIGIN_TRANSFORMS::ABS_Y_COORD) );
+                                 new PROPERTY<PCB_TRACK, int>( _HKI( "Start Y" ), &PCB_TRACK::SetStartY,
+                                                               &PCB_TRACK::GetStartY, PROPERTY_DISPLAY::PT_COORD,
+                                                               ORIGIN_TRANSFORMS::ABS_Y_COORD ) );
+        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "End X" ), &PCB_TRACK::SetEndX, &PCB_TRACK::GetEndX,
+                                                           PROPERTY_DISPLAY::PT_COORD,
+                                                           ORIGIN_TRANSFORMS::ABS_X_COORD ) );
+        propMgr.AddProperty( new PROPERTY<PCB_TRACK, int>( _HKI( "End Y" ), &PCB_TRACK::SetEndY, &PCB_TRACK::GetEndY,
+                                                           PROPERTY_DISPLAY::PT_COORD,
+                                                           ORIGIN_TRANSFORMS::ABS_Y_COORD ) );
 
         const wxString groupTechLayers = _HKI( "Technical Layers" );
 
-        auto isExternalLayerTrack =
-            []( INSPECTABLE* aItem )
-            {
-                if( PCB_TRACK* track = dynamic_cast<PCB_TRACK*>( aItem ) )
-                    return IsExternalCopperLayer( track->GetLayer() );
+        auto isExternalLayerTrack = []( INSPECTABLE* aItem )
+        {
+            if( PCB_TRACK* track = dynamic_cast<PCB_TRACK*>( aItem ) )
+                return IsExternalCopperLayer( track->GetLayer() );
 
-                return false;
-            };
+            return false;
+        };
 
-        propMgr.AddProperty( new PROPERTY<PCB_TRACK, bool>( _HKI( "Soldermask" ),
-            &PCB_TRACK::SetHasSolderMask, &PCB_TRACK::HasSolderMask ), groupTechLayers )
-            .SetAvailableFunc( isExternalLayerTrack );
-        propMgr.AddProperty( new PROPERTY<PCB_TRACK, std::optional<int>>( _HKI( "Soldermask Margin Override" ),
-            &PCB_TRACK::SetLocalSolderMaskMargin, &PCB_TRACK::GetLocalSolderMaskMargin,
-            PROPERTY_DISPLAY::PT_SIZE ), groupTechLayers )
-            .SetAvailableFunc( isExternalLayerTrack );
+        propMgr.AddProperty( new PROPERTY<PCB_TRACK, bool>( _HKI( "Soldermask" ), &PCB_TRACK::SetHasSolderMask,
+                                                            &PCB_TRACK::HasSolderMask ),
+                             groupTechLayers )
+                .SetAvailableFunc( isExternalLayerTrack );
+        propMgr.AddProperty( new PROPERTY<PCB_TRACK, std::optional<int>>(
+                                     _HKI( "Soldermask Margin Override" ), &PCB_TRACK::SetLocalSolderMaskMargin,
+                                     &PCB_TRACK::GetLocalSolderMaskMargin, PROPERTY_DISPLAY::PT_SIZE ),
+                             groupTechLayers )
+                .SetAvailableFunc( isExternalLayerTrack );
 
         // Arc
         REGISTER_TYPE( PCB_ARC );
