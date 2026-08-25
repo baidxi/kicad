@@ -52,7 +52,7 @@
  * The PCB layer types are fixed at value 0 through #LAYER_ID_COUNT to ensure compatibility
  * with legacy board files.
  */
-enum PCB_LAYER_ID: int
+enum PCB_LAYER_ID : int
 {
     UNDEFINED_LAYER = -1,
     UNSELECTED_LAYER = -2,
@@ -169,7 +169,7 @@ enum PCB_LAYER_ID: int
 
 constexpr PCB_LAYER_ID PCBNEW_LAYER_ID_START = F_Cu;
 
-#define MAX_CU_LAYERS           32
+#define MAX_CU_LAYERS 32
 #define MAX_USER_DEFINED_LAYERS 45
 
 /**
@@ -178,13 +178,13 @@ constexpr PCB_LAYER_ID PCBNEW_LAYER_ID_START = F_Cu;
  */
 enum class FLASHING
 {
-    DEFAULT,                ///< Flashing follows connectivity.
-    ALWAYS_FLASHED,         ///< Always flashed for connectivity.
-    NEVER_FLASHED,          ///< Never flashed for connectivity.
+    DEFAULT,        ///< Flashing follows connectivity.
+    ALWAYS_FLASHED, ///< Always flashed for connectivity.
+    NEVER_FLASHED,  ///< Never flashed for connectivity.
 };
 
 /// Dedicated layers for net names used in Pcbnew.
-enum NETNAMES_LAYER_ID: int
+enum NETNAMES_LAYER_ID : int
 {
 
     NETNAMES_LAYER_ID_START = PCB_LAYER_ID_COUNT,
@@ -202,7 +202,7 @@ enum NETNAMES_LAYER_ID: int
 };
 
 /// Macro for obtaining netname layer for a given PCB layer
-#define NETNAMES_LAYER_INDEX( layer )   ( static_cast<int>( NETNAMES_LAYER_ID_START ) + layer )
+#define NETNAMES_LAYER_INDEX( layer ) ( static_cast<int>( NETNAMES_LAYER_ID_START ) + layer )
 
 #define GAL_UI_LAYER_COUNT 10
 
@@ -220,64 +220,64 @@ enum NETNAMES_LAYER_ID: int
  *  #GAL_LAYER_ID_START is not that sensitive, but the offsets should never be changed or else any
  *  existing visibility settings will be disrupted.
  */
-enum GAL_LAYER_ID: int
+enum GAL_LAYER_ID : int
 {
     GAL_LAYER_ID_START = NETNAMES_LAYER_ID_END,
 
-     /// Meta control for all vias opacity/visibility.
-    LAYER_VIAS               = GAL_LAYER_ID_START +  0,
-    LAYER_VIA_MICROVIA       = GAL_LAYER_ID_START +  1, /// Draw micro vias.
-    LAYER_VIA_BLIND          = GAL_LAYER_ID_START +  2, /// Draw blind vias.
-    LAYER_VIA_BURIED         = GAL_LAYER_ID_START +  3, /// Draw buried vias.
-    LAYER_VIA_THROUGH        = GAL_LAYER_ID_START +  4, /// Draw usual through hole vias.
+    /// Meta control for all vias opacity/visibility.
+    LAYER_VIAS = GAL_LAYER_ID_START + 0,
+    LAYER_VIA_MICROVIA = GAL_LAYER_ID_START + 1, /// Draw micro vias.
+    LAYER_VIA_BLIND = GAL_LAYER_ID_START + 2,    /// Draw blind vias.
+    LAYER_VIA_BURIED = GAL_LAYER_ID_START + 3,   /// Draw buried vias.
+    LAYER_VIA_THROUGH = GAL_LAYER_ID_START + 4,  /// Draw usual through hole vias.
 
     /// Handle color for not plated holes (holes, not pads).
-    LAYER_NON_PLATEDHOLES    = GAL_LAYER_ID_START +  5,
-    LAYER_FP_TEXT            = GAL_LAYER_ID_START +  6,
+    LAYER_NON_PLATEDHOLES = GAL_LAYER_ID_START + 5,
+    LAYER_FP_TEXT = GAL_LAYER_ID_START + 6,
 
-//  LAYER_MOD_TEXT_BK deprecated                  +  6,
+    //  LAYER_MOD_TEXT_BK deprecated                  +  6,
 
-//  DEPRECATED, UNUSED SINCE 9.0. text marked as invisible.
-//  LAYER_HIDDEN_TEXT        = GAL_LAYER_ID_START +  7,
+    //  DEPRECATED, UNUSED SINCE 9.0. text marked as invisible.
+    //  LAYER_HIDDEN_TEXT        = GAL_LAYER_ID_START +  7,
 
     /// Anchor of items having an anchor point (texts, footprints).
-    LAYER_ANCHOR             = GAL_LAYER_ID_START +  8,
+    LAYER_ANCHOR = GAL_LAYER_ID_START + 8,
 
-//  LAYER_PADS_SMD_FR        = GAL_LAYER_ID_START +  9, // Deprecated since 9.0
-//  LAYER_PADS_SMD_BK        = GAL_LAYER_ID_START + 10, // Deprecated since 9.0
+    //  LAYER_PADS_SMD_FR        = GAL_LAYER_ID_START +  9, // Deprecated since 9.0
+    //  LAYER_PADS_SMD_BK        = GAL_LAYER_ID_START + 10, // Deprecated since 9.0
 
-    LAYER_RATSNEST           = GAL_LAYER_ID_START + 11,
-    LAYER_GRID               = GAL_LAYER_ID_START + 12,
-    LAYER_GRID_AXES          = GAL_LAYER_ID_START + 13,
+    LAYER_RATSNEST = GAL_LAYER_ID_START + 11,
+    LAYER_GRID = GAL_LAYER_ID_START + 12,
+    LAYER_GRID_AXES = GAL_LAYER_ID_START + 13,
 
-//  LAYER_NO_CONNECTS deprecated                  + 14, // show a marker on pads with no nets
+    //  LAYER_NO_CONNECTS deprecated                  + 14, // show a marker on pads with no nets
 
-    LAYER_FOOTPRINTS_FR      = GAL_LAYER_ID_START + 15, ///< Show footprints on front.
-    LAYER_FOOTPRINTS_BK      = GAL_LAYER_ID_START + 16, ///< Show footprints on back.
+    LAYER_FOOTPRINTS_FR = GAL_LAYER_ID_START + 15, ///< Show footprints on front.
+    LAYER_FOOTPRINTS_BK = GAL_LAYER_ID_START + 16, ///< Show footprints on back.
 
     /// Show footprints values (when texts are visible).
-    LAYER_FP_VALUES          = GAL_LAYER_ID_START + 17,
+    LAYER_FP_VALUES = GAL_LAYER_ID_START + 17,
 
     /// Show footprints references (when texts are visible).
-    LAYER_FP_REFERENCES      = GAL_LAYER_ID_START + 18,
-    LAYER_TRACKS             = GAL_LAYER_ID_START + 19,
+    LAYER_FP_REFERENCES = GAL_LAYER_ID_START + 18,
+    LAYER_TRACKS = GAL_LAYER_ID_START + 19,
 
-//  LAYER_PADS_TH            = GAL_LAYER_ID_START + 20, ///< Deprecated since 9.0
+    //  LAYER_PADS_TH            = GAL_LAYER_ID_START + 20, ///< Deprecated since 9.0
 
-    LAYER_PAD_PLATEDHOLES    = GAL_LAYER_ID_START + 21, ///< to draw pad holes (plated)
+    LAYER_PAD_PLATEDHOLES = GAL_LAYER_ID_START + 21, ///< to draw pad holes (plated)
 
     /// Draw via holes (pad holes do not use this layer).
-    LAYER_VIA_HOLES          = GAL_LAYER_ID_START + 22,
+    LAYER_VIA_HOLES = GAL_LAYER_ID_START + 22,
 
-     /// Layer for DRC markers with #SEVERITY_ERROR.
-    LAYER_DRC_ERROR          = GAL_LAYER_ID_START + 23,
-    LAYER_DRAWINGSHEET       = GAL_LAYER_ID_START + 24, ///< Sheet frame and title block.
-    LAYER_GP_OVERLAY         = GAL_LAYER_ID_START + 25, ///< General purpose overlay.
-    LAYER_SELECT_OVERLAY     = GAL_LAYER_ID_START + 26, ///< Selected items overlay.
-    LAYER_PCB_BACKGROUND     = GAL_LAYER_ID_START + 27, ///< PCB background color.
-    LAYER_CURSOR             = GAL_LAYER_ID_START + 28, ///< PCB cursor.
-    LAYER_AUX_ITEMS          = GAL_LAYER_ID_START + 29, ///< Auxiliary items (guides, rule, etc).
-    LAYER_DRAW_BITMAPS       = GAL_LAYER_ID_START + 30, ///< Draw images.
+    /// Layer for DRC markers with #SEVERITY_ERROR.
+    LAYER_DRC_ERROR = GAL_LAYER_ID_START + 23,
+    LAYER_DRAWINGSHEET = GAL_LAYER_ID_START + 24,   ///< Sheet frame and title block.
+    LAYER_GP_OVERLAY = GAL_LAYER_ID_START + 25,     ///< General purpose overlay.
+    LAYER_SELECT_OVERLAY = GAL_LAYER_ID_START + 26, ///< Selected items overlay.
+    LAYER_PCB_BACKGROUND = GAL_LAYER_ID_START + 27, ///< PCB background color.
+    LAYER_CURSOR = GAL_LAYER_ID_START + 28,         ///< PCB cursor.
+    LAYER_AUX_ITEMS = GAL_LAYER_ID_START + 29,      ///< Auxiliary items (guides, rule, etc).
+    LAYER_DRAW_BITMAPS = GAL_LAYER_ID_START + 30,   ///< Draw images.
 
     /// This is the end of the layers used for visibility bit masks in legacy board files
     GAL_LAYER_ID_BITMASK_END = GAL_LAYER_ID_START + 31,
@@ -285,61 +285,61 @@ enum GAL_LAYER_ID: int
     // Layers in this section have visibility controls but were not present in legacy board files.
 
     /// Meta control for all pads opacity/visibility (color ignored).
-    LAYER_PADS               = GAL_LAYER_ID_START + 32,
+    LAYER_PADS = GAL_LAYER_ID_START + 32,
 
     /// Control for copper zone opacity/visibility (color ignored).
-    LAYER_ZONES              = GAL_LAYER_ID_START + 33,
+    LAYER_ZONES = GAL_LAYER_ID_START + 33,
 
-    LAYER_PAD_HOLEWALLS      = GAL_LAYER_ID_START + 34,
-    LAYER_VIA_HOLEWALLS      = GAL_LAYER_ID_START + 35,
+    LAYER_PAD_HOLEWALLS = GAL_LAYER_ID_START + 34,
+    LAYER_VIA_HOLEWALLS = GAL_LAYER_ID_START + 35,
 
     /// Layer for DRC markers with #SEVERITY_WARNING.
-    LAYER_DRC_WARNING        = GAL_LAYER_ID_START + 36,
+    LAYER_DRC_WARNING = GAL_LAYER_ID_START + 36,
 
     /// Layer for DRC markers which have been individually excluded.
-    LAYER_DRC_EXCLUSION      = GAL_LAYER_ID_START + 37,
-    LAYER_MARKER_SHADOWS     = GAL_LAYER_ID_START + 38, ///< Shadows for DRC markers.
+    LAYER_DRC_EXCLUSION = GAL_LAYER_ID_START + 37,
+    LAYER_MARKER_SHADOWS = GAL_LAYER_ID_START + 38, ///< Shadows for DRC markers.
 
     LAYER_LOCKED_ITEM_SHADOW = GAL_LAYER_ID_START + 39, ///< Shadow layer for locked items.
 
     /// Shadow layer for items flagged conflicting.
-    LAYER_CONFLICTS_SHADOW   = GAL_LAYER_ID_START + 40,
+    LAYER_CONFLICTS_SHADOW = GAL_LAYER_ID_START + 40,
 
     /// Copper graphic shape opacity/visibility (color ignored).
-    LAYER_FILLED_SHAPES      = GAL_LAYER_ID_START + 41,
+    LAYER_FILLED_SHAPES = GAL_LAYER_ID_START + 41,
 
-//  LAYER_DRC_SHAPES         = GAL_LAYER_ID_START + 42,  ///< Deprecated since 11.0
-//  LAYER_DRC_SHAPE2         = GAL_LAYER_ID_START + 43,  ///< Deprecated since 10.0
+    //  LAYER_DRC_SHAPES         = GAL_LAYER_ID_START + 42,  ///< Deprecated since 11.0
+    //  LAYER_DRC_SHAPE2         = GAL_LAYER_ID_START + 43,  ///< Deprecated since 10.0
 
     LAYER_BOARD_OUTLINE_AREA = GAL_LAYER_ID_START + 44, ///< PCB board outline
 
     /// PCB reference/manual snap points visibility
-    LAYER_POINTS             = GAL_LAYER_ID_START + 45,
+    LAYER_POINTS = GAL_LAYER_ID_START + 45,
 
     /// Shadow layer for items bound to a constraint
-    LAYER_CONSTRAINT_SHADOW  = GAL_LAYER_ID_START + 46,
+    LAYER_CONSTRAINT_SHADOW = GAL_LAYER_ID_START + 46,
 
     /// Routing/placement grid items (PCB_GRIDITEM) visibility and color
-    LAYER_GRIDITEMS          = GAL_LAYER_ID_START + 47,
+    LAYER_GRIDITEMS = GAL_LAYER_ID_START + 47,
 
     /// Outline of via stitching generators
-    LAYER_VIA_STITCHING      = GAL_LAYER_ID_START + 48,
+    LAYER_VIA_STITCHING = GAL_LAYER_ID_START + 48,
 
     // Add layers below this point that do not have visibility controls, so don't need explicit
     // enum values
 
-    LAYER_DRAWINGSHEET_PAGE1,      ///< Sheet Editor previewing first page.
-    LAYER_DRAWINGSHEET_PAGEn,      ///< Sheet Editor previewing pages after first page.
+    LAYER_DRAWINGSHEET_PAGE1, ///< Sheet Editor previewing first page.
+    LAYER_DRAWINGSHEET_PAGEn, ///< Sheet Editor previewing pages after first page.
 
-    LAYER_PAGE_LIMITS,             ///< Color for drawing the page extents (visibility stored in
-                                   ///< PCBNEW_SETTINGS::m_ShowPageLimits)
+    LAYER_PAGE_LIMITS, ///< Color for drawing the page extents (visibility stored in
+                       ///< PCBNEW_SETTINGS::m_ShowPageLimits)
 
-    LAYER_DRC_HIGHLIGHTED,          ///< Color for highlighted DRC markers.
+    LAYER_DRC_HIGHLIGHTED, ///< Color for highlighted DRC markers.
 
     // Constraint tints themed and drawn by overlay with no visibility control of their own
-    LAYER_CONSTRAINT_UNDER,         ///< Under-constrained (free DOF remain).
-    LAYER_CONSTRAINT_WELL,          ///< Fully constrained.
-    LAYER_CONSTRAINT_OVER,          ///< Over-constrained / conflicting.
+    LAYER_CONSTRAINT_UNDER, ///< Under-constrained (free DOF remain).
+    LAYER_CONSTRAINT_WELL,  ///< Fully constrained.
+    LAYER_CONSTRAINT_OVER,  ///< Over-constrained / conflicting.
 
     /// Virtual layers for stacking zones and tracks on a given copper layer.
     LAYER_ZONE_START,
@@ -365,6 +365,10 @@ enum GAL_LAYER_ID: int
     LAYER_POINT_START,
     LAYER_POINT_END = LAYER_POINT_START + PCB_LAYER_ID_COUNT,
 
+    /// Virtual layers for net color overlays (centerline spine / inner core) per board layer.
+    LAYER_NETCOLOR_START,
+    LAYER_NETCOLOR_END = LAYER_NETCOLOR_START + PCB_LAYER_ID_COUNT,
+
     // Layers for drawing on-canvas UI
     LAYER_UI_START,
     LAYER_UI_END = LAYER_UI_START + GAL_UI_LAYER_COUNT,
@@ -382,6 +386,7 @@ enum GAL_LAYER_ID: int
 #define VIA_COPPER_LAYER_FOR( boardLayer ) ( LAYER_VIA_COPPER_START + boardLayer )
 #define CLEARANCE_LAYER_FOR( boardLayer ) ( LAYER_CLEARANCE_START + boardLayer )
 #define POINT_LAYER_FOR( boardLayer ) ( LAYER_POINT_START + boardLayer )
+#define NETCOLOR_LAYER_FOR( boardLayer ) ( LAYER_NETCOLOR_START + boardLayer )
 
 constexpr int GAL_LAYER_ID_COUNT = GAL_LAYER_ID_END - GAL_LAYER_ID_START;
 
@@ -413,16 +418,17 @@ typedef std::bitset<GAL_LAYER_ID_COUNT> GAL_BASE_SET;
 /// Helper for storing and iterating over GAL_LAYER_IDs.
 class KICOMMON_API GAL_SET : public GAL_BASE_SET
 {
-
 private:
     static constexpr int start = static_cast<int>( GAL_LAYER_ID_START );
 
 public:
-    GAL_SET() : std::bitset<GAL_LAYER_ID_COUNT>()
+    GAL_SET() :
+            std::bitset<GAL_LAYER_ID_COUNT>()
     {
     }
 
-    GAL_SET( const GAL_SET& aOther ) : std::bitset<GAL_LAYER_ID_COUNT>( aOther )
+    GAL_SET( const GAL_SET& aOther ) :
+            std::bitset<GAL_LAYER_ID_COUNT>( aOther )
     {
     }
 
@@ -446,10 +452,7 @@ public:
         return *this;
     }
 
-    bool Contains( GAL_LAYER_ID aPos )
-    {
-        return test( static_cast<std::size_t>( aPos ) - start );
-    }
+    bool Contains( GAL_LAYER_ID aPos ) { return test( static_cast<std::size_t>( aPos ) - start ); }
 
     std::vector<GAL_LAYER_ID> Seq() const;
 
@@ -531,7 +534,7 @@ inline SCH_LAYER_ID operator++( SCH_LAYER_ID& a )
 #define GERBER_DRAWLAYERS_COUNT static_cast<int>( PCB_LAYER_ID_COUNT )
 
 /// Gerbview draw layers.
-enum GERBVIEW_LAYER_ID: int
+enum GERBVIEW_LAYER_ID : int
 {
     GERBVIEW_LAYER_ID_START = SCH_LAYER_ID_END,
 
@@ -559,79 +562,79 @@ enum GERBVIEW_LAYER_ID: int
 /// 3D Viewer virtual layers for color settings
 enum LAYER_3D_ID : int
 {
-        LAYER_3D_START = GERBVIEW_LAYER_ID_END,
+    LAYER_3D_START = GERBVIEW_LAYER_ID_END,
 
-        LAYER_3D_BACKGROUND_BOTTOM,
-        LAYER_3D_BACKGROUND_TOP,
-        LAYER_3D_BOARD,
-        LAYER_3D_COPPER_TOP,
-        LAYER_3D_COPPER_BOTTOM,
-        LAYER_3D_SILKSCREEN_BOTTOM,
-        LAYER_3D_SILKSCREEN_TOP,
-        LAYER_3D_SOLDERMASK_BOTTOM,
-        LAYER_3D_SOLDERMASK_TOP,
-        LAYER_3D_SOLDERPASTE,
-        LAYER_3D_ADHESIVE,
-        LAYER_3D_USER_COMMENTS,
-        LAYER_3D_USER_DRAWINGS,
-        LAYER_3D_USER_ECO1,
-        LAYER_3D_USER_ECO2,
-        LAYER_3D_USER_1,
-        LAYER_3D_USER_2,
-        LAYER_3D_USER_3,
-        LAYER_3D_USER_4,
-        LAYER_3D_USER_5,
-        LAYER_3D_USER_6,
-        LAYER_3D_USER_7,
-        LAYER_3D_USER_8,
-        LAYER_3D_USER_9,
-        LAYER_3D_USER_10,
-        LAYER_3D_USER_11,
-        LAYER_3D_USER_12,
-        LAYER_3D_USER_13,
-        LAYER_3D_USER_14,
-        LAYER_3D_USER_15,
-        LAYER_3D_USER_16,
-        LAYER_3D_USER_17,
-        LAYER_3D_USER_18,
-        LAYER_3D_USER_19,
-        LAYER_3D_USER_20,
-        LAYER_3D_USER_21,
-        LAYER_3D_USER_22,
-        LAYER_3D_USER_23,
-        LAYER_3D_USER_24,
-        LAYER_3D_USER_25,
-        LAYER_3D_USER_26,
-        LAYER_3D_USER_27,
-        LAYER_3D_USER_28,
-        LAYER_3D_USER_29,
-        LAYER_3D_USER_30,
-        LAYER_3D_USER_31,
-        LAYER_3D_USER_32,
-        LAYER_3D_USER_33,
-        LAYER_3D_USER_34,
-        LAYER_3D_USER_35,
-        LAYER_3D_USER_36,
-        LAYER_3D_USER_37,
-        LAYER_3D_USER_38,
-        LAYER_3D_USER_39,
-        LAYER_3D_USER_40,
-        LAYER_3D_USER_41,
-        LAYER_3D_USER_42,
-        LAYER_3D_USER_43,
-        LAYER_3D_USER_44,
-        LAYER_3D_USER_45,
-        LAYER_3D_TH_MODELS,
-        LAYER_3D_SMD_MODELS,
-        LAYER_3D_VIRTUAL_MODELS,
-        LAYER_3D_MODELS_NOT_IN_POS,
-        LAYER_3D_MODELS_MARKED_DNP,
-        LAYER_3D_NAVIGATOR,
-        LAYER_3D_BOUNDING_BOXES,
-        LAYER_3D_OFF_BOARD_SILK,
-        LAYER_3D_PLATED_BARRELS,
+    LAYER_3D_BACKGROUND_BOTTOM,
+    LAYER_3D_BACKGROUND_TOP,
+    LAYER_3D_BOARD,
+    LAYER_3D_COPPER_TOP,
+    LAYER_3D_COPPER_BOTTOM,
+    LAYER_3D_SILKSCREEN_BOTTOM,
+    LAYER_3D_SILKSCREEN_TOP,
+    LAYER_3D_SOLDERMASK_BOTTOM,
+    LAYER_3D_SOLDERMASK_TOP,
+    LAYER_3D_SOLDERPASTE,
+    LAYER_3D_ADHESIVE,
+    LAYER_3D_USER_COMMENTS,
+    LAYER_3D_USER_DRAWINGS,
+    LAYER_3D_USER_ECO1,
+    LAYER_3D_USER_ECO2,
+    LAYER_3D_USER_1,
+    LAYER_3D_USER_2,
+    LAYER_3D_USER_3,
+    LAYER_3D_USER_4,
+    LAYER_3D_USER_5,
+    LAYER_3D_USER_6,
+    LAYER_3D_USER_7,
+    LAYER_3D_USER_8,
+    LAYER_3D_USER_9,
+    LAYER_3D_USER_10,
+    LAYER_3D_USER_11,
+    LAYER_3D_USER_12,
+    LAYER_3D_USER_13,
+    LAYER_3D_USER_14,
+    LAYER_3D_USER_15,
+    LAYER_3D_USER_16,
+    LAYER_3D_USER_17,
+    LAYER_3D_USER_18,
+    LAYER_3D_USER_19,
+    LAYER_3D_USER_20,
+    LAYER_3D_USER_21,
+    LAYER_3D_USER_22,
+    LAYER_3D_USER_23,
+    LAYER_3D_USER_24,
+    LAYER_3D_USER_25,
+    LAYER_3D_USER_26,
+    LAYER_3D_USER_27,
+    LAYER_3D_USER_28,
+    LAYER_3D_USER_29,
+    LAYER_3D_USER_30,
+    LAYER_3D_USER_31,
+    LAYER_3D_USER_32,
+    LAYER_3D_USER_33,
+    LAYER_3D_USER_34,
+    LAYER_3D_USER_35,
+    LAYER_3D_USER_36,
+    LAYER_3D_USER_37,
+    LAYER_3D_USER_38,
+    LAYER_3D_USER_39,
+    LAYER_3D_USER_40,
+    LAYER_3D_USER_41,
+    LAYER_3D_USER_42,
+    LAYER_3D_USER_43,
+    LAYER_3D_USER_44,
+    LAYER_3D_USER_45,
+    LAYER_3D_TH_MODELS,
+    LAYER_3D_SMD_MODELS,
+    LAYER_3D_VIRTUAL_MODELS,
+    LAYER_3D_MODELS_NOT_IN_POS,
+    LAYER_3D_MODELS_MARKED_DNP,
+    LAYER_3D_NAVIGATOR,
+    LAYER_3D_BOUNDING_BOXES,
+    LAYER_3D_OFF_BOARD_SILK,
+    LAYER_3D_PLATED_BARRELS,
 
-        LAYER_3D_END
+    LAYER_3D_END
 };
 
 /// Must update this if you add any enums after Gerbview!
@@ -650,11 +653,10 @@ KICOMMON_API wxString LayerName( int aLayer );
 // from a dialog, but have a visibility control flag.
 // Here is a mask to set them visible, to be sure they are displayed
 // after loading a board for instance
-#define MIN_VISIBILITY_MASK int( ( 1 << GAL_LAYER_INDEX( LAYER_PAD_PLATEDHOLES ) ) +\
-                                 ( 1 << GAL_LAYER_INDEX( LAYER_VIA_HOLES ) ) +\
-                                 ( 1 << GAL_LAYER_INDEX( LAYER_SELECT_OVERLAY ) ) +\
-                                 ( 1 << GAL_LAYER_INDEX( LAYER_GP_OVERLAY ) ) +\
-                                 ( 1 << GAL_LAYER_INDEX( LAYER_RATSNEST ) ) )
+#define MIN_VISIBILITY_MASK                                                                                            \
+    int( ( 1 << GAL_LAYER_INDEX( LAYER_PAD_PLATEDHOLES ) ) + ( 1 << GAL_LAYER_INDEX( LAYER_VIA_HOLES ) )               \
+         + ( 1 << GAL_LAYER_INDEX( LAYER_SELECT_OVERLAY ) ) + ( 1 << GAL_LAYER_INDEX( LAYER_GP_OVERLAY ) )             \
+         + ( 1 << GAL_LAYER_INDEX( LAYER_RATSNEST ) ) )
 
 
 /**
@@ -742,19 +744,14 @@ inline bool IsCopperLayer( int aLayerId, bool aIncludeSyntheticCopperLayers )
 
 inline bool IsViaPadLayer( int aLayer )
 {
-    return aLayer == LAYER_VIA_THROUGH
-            || aLayer == LAYER_VIA_MICROVIA
-            || aLayer == LAYER_VIA_BLIND
-            || aLayer == LAYER_VIA_BURIED;
+    return aLayer == LAYER_VIA_THROUGH || aLayer == LAYER_VIA_MICROVIA || aLayer == LAYER_VIA_BLIND
+           || aLayer == LAYER_VIA_BURIED;
 }
 
 inline bool IsHoleLayer( int aLayer )
 {
-    return aLayer == LAYER_VIA_HOLES
-            || aLayer == LAYER_VIA_HOLEWALLS
-            || aLayer == LAYER_PAD_PLATEDHOLES
-            || aLayer == LAYER_PAD_HOLEWALLS
-            || aLayer == LAYER_NON_PLATEDHOLES;
+    return aLayer == LAYER_VIA_HOLES || aLayer == LAYER_VIA_HOLEWALLS || aLayer == LAYER_PAD_PLATEDHOLES
+           || aLayer == LAYER_PAD_HOLEWALLS || aLayer == LAYER_NON_PLATEDHOLES;
 }
 
 inline bool IsSolderMaskLayer( int aLayer )
@@ -770,8 +767,8 @@ inline bool IsSolderMaskLayer( int aLayer )
  */
 inline bool IsUserLayer( PCB_LAYER_ID aLayerId )
 {
-    return aLayerId == Dwgs_User || aLayerId == Cmts_User || aLayerId == Eco1_User
-           || aLayerId == Eco2_User || ( aLayerId >= User_1 && !IsCopperLayer( aLayerId ) );
+    return aLayerId == Dwgs_User || aLayerId == Cmts_User || aLayerId == Eco1_User || aLayerId == Eco2_User
+           || ( aLayerId >= User_1 && !IsCopperLayer( aLayerId ) );
 }
 
 
@@ -799,10 +796,8 @@ inline bool IsFrontLayer( PCB_LAYER_ID aLayerId )
     case F_SilkS:
     case F_Mask:
     case F_CrtYd:
-    case F_Fab:
-        return true;
-    default:
-        ;
+    case F_Fab: return true;
+    default:;
     }
 
     return false;
@@ -822,10 +817,8 @@ inline bool IsBackLayer( PCB_LAYER_ID aLayerId )
     case B_SilkS:
     case B_Mask:
     case B_CrtYd:
-    case B_Fab:
-        return true;
-    default:
-        return false;
+    case B_Fab: return true;
+    default: return false;
     }
 }
 
@@ -914,10 +907,16 @@ inline bool IsPointsLayer( int aLayer )
 }
 
 
+inline bool IsNetColorLayer( int aLayer )
+{
+    return aLayer >= LAYER_NETCOLOR_START && aLayer <= LAYER_NETCOLOR_END;
+}
+
+
 inline bool IsDCodeLayer( int aLayer )
 {
     return aLayer >= ( GERBVIEW_LAYER_ID_START + GERBER_DRAWLAYERS_COUNT )
-            && aLayer < ( GERBVIEW_LAYER_ID_START + ( 2 * GERBER_DRAWLAYERS_COUNT ) );
+           && aLayer < ( GERBVIEW_LAYER_ID_START + ( 2 * GERBER_DRAWLAYERS_COUNT ) );
 }
 
 
@@ -928,9 +927,9 @@ inline size_t CopperLayerToOrdinal( PCB_LAYER_ID aLayer )
 
     switch( aLayer )
     {
-    case F_Cu:  return 0;
-    case B_Cu:  return MAX_CU_LAYERS - 1;
-    default:    return ( aLayer - B_Cu ) / 2;
+    case F_Cu: return 0;
+    case B_Cu: return MAX_CU_LAYERS - 1;
+    default: return ( aLayer - B_Cu ) / 2;
     }
 }
 
@@ -942,7 +941,7 @@ KICOMMON_API PCB_LAYER_ID BoardLayerFromLegacyId( int aLegacyId );
 
 
 KICOMMON_API PCB_LAYER_ID Map3DLayerToPCBLayer( int aLayer );
-KICOMMON_API int MapPCBLayerTo3DLayer( PCB_LAYER_ID aLayer );
+KICOMMON_API int          MapPCBLayerTo3DLayer( PCB_LAYER_ID aLayer );
 
 
 KICOMMON_API PCB_LAYER_ID ToLAYER_ID( int aLayer );

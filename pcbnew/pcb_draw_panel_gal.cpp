@@ -70,11 +70,10 @@ const int GAL_LAYER_ORDER[] = {
 
     LAYER_PAD_NETNAMES, LAYER_VIA_NETNAMES,
 
-    Dwgs_User, ZONE_LAYER_FOR( Dwgs_User ),
-    POINT_LAYER_FOR( Dwgs_User ), Cmts_User, ZONE_LAYER_FOR( Cmts_User ), POINT_LAYER_FOR( Cmts_User ), Eco1_User,
-    ZONE_LAYER_FOR( Eco1_User ), POINT_LAYER_FOR( Eco1_User ), Eco2_User, ZONE_LAYER_FOR( Eco2_User ),
-    POINT_LAYER_FOR( Eco2_User ), Edge_Cuts, ZONE_LAYER_FOR( Edge_Cuts ), POINT_LAYER_FOR( Edge_Cuts ), Margin,
-    ZONE_LAYER_FOR( Margin ), POINT_LAYER_FOR( Margin ),
+    Dwgs_User, ZONE_LAYER_FOR( Dwgs_User ), POINT_LAYER_FOR( Dwgs_User ), Cmts_User, ZONE_LAYER_FOR( Cmts_User ),
+    POINT_LAYER_FOR( Cmts_User ), Eco1_User, ZONE_LAYER_FOR( Eco1_User ), POINT_LAYER_FOR( Eco1_User ), Eco2_User,
+    ZONE_LAYER_FOR( Eco2_User ), POINT_LAYER_FOR( Eco2_User ), Edge_Cuts, ZONE_LAYER_FOR( Edge_Cuts ),
+    POINT_LAYER_FOR( Edge_Cuts ), Margin, ZONE_LAYER_FOR( Margin ), POINT_LAYER_FOR( Margin ),
 
     User_1, ZONE_LAYER_FOR( User_1 ), POINT_LAYER_FOR( User_1 ), User_2, ZONE_LAYER_FOR( User_2 ),
     POINT_LAYER_FOR( User_2 ), User_3, ZONE_LAYER_FOR( User_3 ), POINT_LAYER_FOR( User_3 ), User_4,
@@ -114,81 +113,90 @@ const int GAL_LAYER_ORDER[] = {
     LAYER_GRIDITEMS,
 
     LAYER_RATSNEST, LAYER_ANCHOR, LAYER_POINTS, LAYER_VIA_STITCHING, LAYER_LOCKED_ITEM_SHADOW, LAYER_CONSTRAINT_SHADOW,
-    LAYER_VIA_HOLES, LAYER_VIA_HOLEWALLS,
-    LAYER_PAD_PLATEDHOLES, LAYER_PAD_HOLEWALLS, LAYER_NON_PLATEDHOLES, LAYER_VIA_THROUGH, LAYER_VIA_BLIND,
-    LAYER_VIA_BURIED, LAYER_VIA_MICROVIA,
+    LAYER_VIA_HOLES, LAYER_VIA_HOLEWALLS, LAYER_PAD_PLATEDHOLES, LAYER_PAD_HOLEWALLS, LAYER_NON_PLATEDHOLES,
+    LAYER_VIA_THROUGH, LAYER_VIA_BLIND, LAYER_VIA_BURIED, LAYER_VIA_MICROVIA,
 
-    LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu ), PAD_COPPER_LAYER_FOR( F_Cu ), VIA_COPPER_LAYER_FOR( F_Cu ),
-    CLEARANCE_LAYER_FOR( F_Cu ),
+    LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu ), CLEARANCE_LAYER_FOR( F_Cu ), NETCOLOR_LAYER_FOR( F_Cu ),
+    PAD_COPPER_LAYER_FOR( F_Cu ), VIA_COPPER_LAYER_FOR( F_Cu ),
     // POINT_LAYER_FOR( F_Cu ),
     F_Cu, ZONE_LAYER_FOR( F_Cu ), F_Mask, ZONE_LAYER_FOR( F_Mask ), F_SilkS, ZONE_LAYER_FOR( F_SilkS ), F_Paste,
     ZONE_LAYER_FOR( F_Paste ), F_Adhes, ZONE_LAYER_FOR( F_Adhes ), F_CrtYd, ZONE_LAYER_FOR( F_CrtYd ), F_Fab,
     ZONE_LAYER_FOR( F_Fab ),
 
-    NETNAMES_LAYER_INDEX( In1_Cu ), PAD_COPPER_LAYER_FOR( In1_Cu ), VIA_COPPER_LAYER_FOR( In1_Cu ),
-    CLEARANCE_LAYER_FOR( In1_Cu ), POINT_LAYER_FOR( In1_Cu ), In1_Cu, ZONE_LAYER_FOR( In1_Cu ),
-    NETNAMES_LAYER_INDEX( In2_Cu ), PAD_COPPER_LAYER_FOR( In2_Cu ), VIA_COPPER_LAYER_FOR( In2_Cu ),
-    CLEARANCE_LAYER_FOR( In2_Cu ), POINT_LAYER_FOR( In2_Cu ), In2_Cu, ZONE_LAYER_FOR( In2_Cu ),
-    NETNAMES_LAYER_INDEX( In3_Cu ), PAD_COPPER_LAYER_FOR( In3_Cu ), VIA_COPPER_LAYER_FOR( In3_Cu ),
-    CLEARANCE_LAYER_FOR( In3_Cu ), POINT_LAYER_FOR( In3_Cu ), In3_Cu, ZONE_LAYER_FOR( In3_Cu ),
-    NETNAMES_LAYER_INDEX( In4_Cu ), PAD_COPPER_LAYER_FOR( In4_Cu ), VIA_COPPER_LAYER_FOR( In4_Cu ),
-    CLEARANCE_LAYER_FOR( In4_Cu ), POINT_LAYER_FOR( In4_Cu ), In4_Cu, ZONE_LAYER_FOR( In4_Cu ),
-    NETNAMES_LAYER_INDEX( In5_Cu ), PAD_COPPER_LAYER_FOR( In5_Cu ), VIA_COPPER_LAYER_FOR( In5_Cu ),
-    CLEARANCE_LAYER_FOR( In5_Cu ), POINT_LAYER_FOR( In5_Cu ), In5_Cu, ZONE_LAYER_FOR( In5_Cu ),
-    NETNAMES_LAYER_INDEX( In6_Cu ), PAD_COPPER_LAYER_FOR( In6_Cu ), VIA_COPPER_LAYER_FOR( In6_Cu ),
-    CLEARANCE_LAYER_FOR( In6_Cu ), POINT_LAYER_FOR( In6_Cu ), In6_Cu, ZONE_LAYER_FOR( In6_Cu ),
-    NETNAMES_LAYER_INDEX( In7_Cu ), PAD_COPPER_LAYER_FOR( In7_Cu ), VIA_COPPER_LAYER_FOR( In7_Cu ),
-    CLEARANCE_LAYER_FOR( In7_Cu ), POINT_LAYER_FOR( In7_Cu ), In7_Cu, ZONE_LAYER_FOR( In7_Cu ),
-    NETNAMES_LAYER_INDEX( In8_Cu ), PAD_COPPER_LAYER_FOR( In8_Cu ), VIA_COPPER_LAYER_FOR( In8_Cu ),
-    CLEARANCE_LAYER_FOR( In8_Cu ), POINT_LAYER_FOR( In8_Cu ), In8_Cu, ZONE_LAYER_FOR( In8_Cu ),
-    NETNAMES_LAYER_INDEX( In9_Cu ), PAD_COPPER_LAYER_FOR( In9_Cu ), VIA_COPPER_LAYER_FOR( In9_Cu ),
-    CLEARANCE_LAYER_FOR( In9_Cu ), POINT_LAYER_FOR( In9_Cu ), In9_Cu, ZONE_LAYER_FOR( In9_Cu ),
-    NETNAMES_LAYER_INDEX( In10_Cu ), PAD_COPPER_LAYER_FOR( In10_Cu ), VIA_COPPER_LAYER_FOR( In10_Cu ),
-    CLEARANCE_LAYER_FOR( In10_Cu ), POINT_LAYER_FOR( In10_Cu ), In10_Cu, ZONE_LAYER_FOR( In10_Cu ),
-    NETNAMES_LAYER_INDEX( In11_Cu ), PAD_COPPER_LAYER_FOR( In11_Cu ), VIA_COPPER_LAYER_FOR( In11_Cu ),
-    CLEARANCE_LAYER_FOR( In11_Cu ), POINT_LAYER_FOR( In11_Cu ), In11_Cu, ZONE_LAYER_FOR( In11_Cu ),
-    NETNAMES_LAYER_INDEX( In12_Cu ), PAD_COPPER_LAYER_FOR( In12_Cu ), VIA_COPPER_LAYER_FOR( In12_Cu ),
-    CLEARANCE_LAYER_FOR( In12_Cu ), POINT_LAYER_FOR( In12_Cu ), In12_Cu, ZONE_LAYER_FOR( In12_Cu ),
-    NETNAMES_LAYER_INDEX( In13_Cu ), PAD_COPPER_LAYER_FOR( In13_Cu ), VIA_COPPER_LAYER_FOR( In13_Cu ),
-    CLEARANCE_LAYER_FOR( In13_Cu ), POINT_LAYER_FOR( In13_Cu ), In13_Cu, ZONE_LAYER_FOR( In13_Cu ),
-    NETNAMES_LAYER_INDEX( In14_Cu ), PAD_COPPER_LAYER_FOR( In14_Cu ), VIA_COPPER_LAYER_FOR( In14_Cu ),
-    CLEARANCE_LAYER_FOR( In14_Cu ), POINT_LAYER_FOR( In14_Cu ), In14_Cu, ZONE_LAYER_FOR( In14_Cu ),
-    NETNAMES_LAYER_INDEX( In15_Cu ), PAD_COPPER_LAYER_FOR( In15_Cu ), VIA_COPPER_LAYER_FOR( In15_Cu ),
-    CLEARANCE_LAYER_FOR( In15_Cu ), POINT_LAYER_FOR( In15_Cu ), In15_Cu, ZONE_LAYER_FOR( In15_Cu ),
-    NETNAMES_LAYER_INDEX( In16_Cu ), PAD_COPPER_LAYER_FOR( In16_Cu ), VIA_COPPER_LAYER_FOR( In16_Cu ),
-    CLEARANCE_LAYER_FOR( In16_Cu ), POINT_LAYER_FOR( In16_Cu ), In16_Cu, ZONE_LAYER_FOR( In16_Cu ),
-    NETNAMES_LAYER_INDEX( In17_Cu ), PAD_COPPER_LAYER_FOR( In17_Cu ), VIA_COPPER_LAYER_FOR( In17_Cu ),
-    CLEARANCE_LAYER_FOR( In17_Cu ), POINT_LAYER_FOR( In17_Cu ), In17_Cu, ZONE_LAYER_FOR( In17_Cu ),
-    NETNAMES_LAYER_INDEX( In18_Cu ), PAD_COPPER_LAYER_FOR( In18_Cu ), VIA_COPPER_LAYER_FOR( In18_Cu ),
-    CLEARANCE_LAYER_FOR( In18_Cu ), POINT_LAYER_FOR( In18_Cu ), In18_Cu, ZONE_LAYER_FOR( In18_Cu ),
-    NETNAMES_LAYER_INDEX( In19_Cu ), PAD_COPPER_LAYER_FOR( In19_Cu ), VIA_COPPER_LAYER_FOR( In19_Cu ),
-    CLEARANCE_LAYER_FOR( In19_Cu ), POINT_LAYER_FOR( In19_Cu ), In19_Cu, ZONE_LAYER_FOR( In19_Cu ),
-    NETNAMES_LAYER_INDEX( In20_Cu ), PAD_COPPER_LAYER_FOR( In20_Cu ), VIA_COPPER_LAYER_FOR( In20_Cu ),
-    CLEARANCE_LAYER_FOR( In20_Cu ), POINT_LAYER_FOR( In20_Cu ), In20_Cu, ZONE_LAYER_FOR( In20_Cu ),
-    NETNAMES_LAYER_INDEX( In21_Cu ), PAD_COPPER_LAYER_FOR( In21_Cu ), VIA_COPPER_LAYER_FOR( In21_Cu ),
-    CLEARANCE_LAYER_FOR( In21_Cu ), POINT_LAYER_FOR( In21_Cu ), In21_Cu, ZONE_LAYER_FOR( In21_Cu ),
-    NETNAMES_LAYER_INDEX( In22_Cu ), PAD_COPPER_LAYER_FOR( In22_Cu ), VIA_COPPER_LAYER_FOR( In22_Cu ),
-    CLEARANCE_LAYER_FOR( In22_Cu ), POINT_LAYER_FOR( In22_Cu ), In22_Cu, ZONE_LAYER_FOR( In22_Cu ),
-    NETNAMES_LAYER_INDEX( In23_Cu ), PAD_COPPER_LAYER_FOR( In23_Cu ), VIA_COPPER_LAYER_FOR( In23_Cu ),
-    CLEARANCE_LAYER_FOR( In23_Cu ), POINT_LAYER_FOR( In23_Cu ), In23_Cu, ZONE_LAYER_FOR( In23_Cu ),
-    NETNAMES_LAYER_INDEX( In24_Cu ), PAD_COPPER_LAYER_FOR( In24_Cu ), VIA_COPPER_LAYER_FOR( In24_Cu ),
-    CLEARANCE_LAYER_FOR( In24_Cu ), POINT_LAYER_FOR( In24_Cu ), In24_Cu, ZONE_LAYER_FOR( In24_Cu ),
-    NETNAMES_LAYER_INDEX( In25_Cu ), PAD_COPPER_LAYER_FOR( In25_Cu ), VIA_COPPER_LAYER_FOR( In25_Cu ),
-    CLEARANCE_LAYER_FOR( In25_Cu ), POINT_LAYER_FOR( In25_Cu ), In25_Cu, ZONE_LAYER_FOR( In25_Cu ),
-    NETNAMES_LAYER_INDEX( In26_Cu ), PAD_COPPER_LAYER_FOR( In26_Cu ), VIA_COPPER_LAYER_FOR( In26_Cu ),
-    CLEARANCE_LAYER_FOR( In26_Cu ), POINT_LAYER_FOR( In26_Cu ), In26_Cu, ZONE_LAYER_FOR( In26_Cu ),
-    NETNAMES_LAYER_INDEX( In27_Cu ), PAD_COPPER_LAYER_FOR( In27_Cu ), VIA_COPPER_LAYER_FOR( In27_Cu ),
-    CLEARANCE_LAYER_FOR( In27_Cu ), POINT_LAYER_FOR( In27_Cu ), In27_Cu, ZONE_LAYER_FOR( In27_Cu ),
-    NETNAMES_LAYER_INDEX( In28_Cu ), PAD_COPPER_LAYER_FOR( In28_Cu ), VIA_COPPER_LAYER_FOR( In28_Cu ),
-    CLEARANCE_LAYER_FOR( In28_Cu ), POINT_LAYER_FOR( In28_Cu ), In28_Cu, ZONE_LAYER_FOR( In28_Cu ),
-    NETNAMES_LAYER_INDEX( In29_Cu ), PAD_COPPER_LAYER_FOR( In29_Cu ), VIA_COPPER_LAYER_FOR( In29_Cu ),
-    CLEARANCE_LAYER_FOR( In29_Cu ), POINT_LAYER_FOR( In29_Cu ), In29_Cu, ZONE_LAYER_FOR( In29_Cu ),
-    NETNAMES_LAYER_INDEX( In30_Cu ), PAD_COPPER_LAYER_FOR( In30_Cu ), VIA_COPPER_LAYER_FOR( In30_Cu ),
-    CLEARANCE_LAYER_FOR( In30_Cu ), POINT_LAYER_FOR( In30_Cu ), In30_Cu, ZONE_LAYER_FOR( In30_Cu ),
+    NETNAMES_LAYER_INDEX( In1_Cu ), CLEARANCE_LAYER_FOR( In1_Cu ), NETCOLOR_LAYER_FOR( In1_Cu ),
+    PAD_COPPER_LAYER_FOR( In1_Cu ), VIA_COPPER_LAYER_FOR( In1_Cu ), POINT_LAYER_FOR( In1_Cu ), In1_Cu,
+    ZONE_LAYER_FOR( In1_Cu ), NETNAMES_LAYER_INDEX( In2_Cu ), CLEARANCE_LAYER_FOR( In2_Cu ),
+    NETCOLOR_LAYER_FOR( In2_Cu ), PAD_COPPER_LAYER_FOR( In2_Cu ), VIA_COPPER_LAYER_FOR( In2_Cu ),
+    POINT_LAYER_FOR( In2_Cu ), In2_Cu, ZONE_LAYER_FOR( In2_Cu ), NETNAMES_LAYER_INDEX( In3_Cu ),
+    CLEARANCE_LAYER_FOR( In3_Cu ), NETCOLOR_LAYER_FOR( In3_Cu ), PAD_COPPER_LAYER_FOR( In3_Cu ),
+    VIA_COPPER_LAYER_FOR( In3_Cu ), POINT_LAYER_FOR( In3_Cu ), In3_Cu, ZONE_LAYER_FOR( In3_Cu ),
+    NETNAMES_LAYER_INDEX( In4_Cu ), CLEARANCE_LAYER_FOR( In4_Cu ), NETCOLOR_LAYER_FOR( In4_Cu ),
+    PAD_COPPER_LAYER_FOR( In4_Cu ), VIA_COPPER_LAYER_FOR( In4_Cu ), POINT_LAYER_FOR( In4_Cu ), In4_Cu,
+    ZONE_LAYER_FOR( In4_Cu ), NETNAMES_LAYER_INDEX( In5_Cu ), CLEARANCE_LAYER_FOR( In5_Cu ),
+    NETCOLOR_LAYER_FOR( In5_Cu ), PAD_COPPER_LAYER_FOR( In5_Cu ), VIA_COPPER_LAYER_FOR( In5_Cu ),
+    POINT_LAYER_FOR( In5_Cu ), In5_Cu, ZONE_LAYER_FOR( In5_Cu ), NETNAMES_LAYER_INDEX( In6_Cu ),
+    CLEARANCE_LAYER_FOR( In6_Cu ), NETCOLOR_LAYER_FOR( In6_Cu ), PAD_COPPER_LAYER_FOR( In6_Cu ),
+    VIA_COPPER_LAYER_FOR( In6_Cu ), POINT_LAYER_FOR( In6_Cu ), In6_Cu, ZONE_LAYER_FOR( In6_Cu ),
+    NETNAMES_LAYER_INDEX( In7_Cu ), CLEARANCE_LAYER_FOR( In7_Cu ), NETCOLOR_LAYER_FOR( In7_Cu ),
+    PAD_COPPER_LAYER_FOR( In7_Cu ), VIA_COPPER_LAYER_FOR( In7_Cu ), POINT_LAYER_FOR( In7_Cu ), In7_Cu,
+    ZONE_LAYER_FOR( In7_Cu ), NETNAMES_LAYER_INDEX( In8_Cu ), CLEARANCE_LAYER_FOR( In8_Cu ),
+    NETCOLOR_LAYER_FOR( In8_Cu ), PAD_COPPER_LAYER_FOR( In8_Cu ), VIA_COPPER_LAYER_FOR( In8_Cu ),
+    POINT_LAYER_FOR( In8_Cu ), In8_Cu, ZONE_LAYER_FOR( In8_Cu ), NETNAMES_LAYER_INDEX( In9_Cu ),
+    CLEARANCE_LAYER_FOR( In9_Cu ), NETCOLOR_LAYER_FOR( In9_Cu ), PAD_COPPER_LAYER_FOR( In9_Cu ),
+    VIA_COPPER_LAYER_FOR( In9_Cu ), POINT_LAYER_FOR( In9_Cu ), In9_Cu, ZONE_LAYER_FOR( In9_Cu ),
+    NETNAMES_LAYER_INDEX( In10_Cu ), CLEARANCE_LAYER_FOR( In10_Cu ), NETCOLOR_LAYER_FOR( In10_Cu ),
+    PAD_COPPER_LAYER_FOR( In10_Cu ), VIA_COPPER_LAYER_FOR( In10_Cu ), POINT_LAYER_FOR( In10_Cu ), In10_Cu,
+    ZONE_LAYER_FOR( In10_Cu ), NETNAMES_LAYER_INDEX( In11_Cu ), CLEARANCE_LAYER_FOR( In11_Cu ),
+    NETCOLOR_LAYER_FOR( In11_Cu ), PAD_COPPER_LAYER_FOR( In11_Cu ), VIA_COPPER_LAYER_FOR( In11_Cu ),
+    POINT_LAYER_FOR( In11_Cu ), In11_Cu, ZONE_LAYER_FOR( In11_Cu ), NETNAMES_LAYER_INDEX( In12_Cu ),
+    CLEARANCE_LAYER_FOR( In12_Cu ), NETCOLOR_LAYER_FOR( In12_Cu ), PAD_COPPER_LAYER_FOR( In12_Cu ),
+    VIA_COPPER_LAYER_FOR( In12_Cu ), POINT_LAYER_FOR( In12_Cu ), In12_Cu, ZONE_LAYER_FOR( In12_Cu ),
+    NETNAMES_LAYER_INDEX( In13_Cu ), CLEARANCE_LAYER_FOR( In13_Cu ), NETCOLOR_LAYER_FOR( In13_Cu ),
+    PAD_COPPER_LAYER_FOR( In13_Cu ), VIA_COPPER_LAYER_FOR( In13_Cu ), POINT_LAYER_FOR( In13_Cu ), In13_Cu,
+    ZONE_LAYER_FOR( In13_Cu ), NETNAMES_LAYER_INDEX( In14_Cu ), CLEARANCE_LAYER_FOR( In14_Cu ),
+    NETCOLOR_LAYER_FOR( In14_Cu ), PAD_COPPER_LAYER_FOR( In14_Cu ), VIA_COPPER_LAYER_FOR( In14_Cu ),
+    POINT_LAYER_FOR( In14_Cu ), In14_Cu, ZONE_LAYER_FOR( In14_Cu ), NETNAMES_LAYER_INDEX( In15_Cu ),
+    CLEARANCE_LAYER_FOR( In15_Cu ), NETCOLOR_LAYER_FOR( In15_Cu ), PAD_COPPER_LAYER_FOR( In15_Cu ),
+    VIA_COPPER_LAYER_FOR( In15_Cu ), POINT_LAYER_FOR( In15_Cu ), In15_Cu, ZONE_LAYER_FOR( In15_Cu ),
+    NETNAMES_LAYER_INDEX( In16_Cu ), CLEARANCE_LAYER_FOR( In16_Cu ), NETCOLOR_LAYER_FOR( In16_Cu ),
+    PAD_COPPER_LAYER_FOR( In16_Cu ), VIA_COPPER_LAYER_FOR( In16_Cu ), POINT_LAYER_FOR( In16_Cu ), In16_Cu,
+    ZONE_LAYER_FOR( In16_Cu ), NETNAMES_LAYER_INDEX( In17_Cu ), CLEARANCE_LAYER_FOR( In17_Cu ),
+    NETCOLOR_LAYER_FOR( In17_Cu ), PAD_COPPER_LAYER_FOR( In17_Cu ), VIA_COPPER_LAYER_FOR( In17_Cu ),
+    POINT_LAYER_FOR( In17_Cu ), In17_Cu, ZONE_LAYER_FOR( In17_Cu ), NETNAMES_LAYER_INDEX( In18_Cu ),
+    CLEARANCE_LAYER_FOR( In18_Cu ), NETCOLOR_LAYER_FOR( In18_Cu ), PAD_COPPER_LAYER_FOR( In18_Cu ),
+    VIA_COPPER_LAYER_FOR( In18_Cu ), POINT_LAYER_FOR( In18_Cu ), In18_Cu, ZONE_LAYER_FOR( In18_Cu ),
+    NETNAMES_LAYER_INDEX( In19_Cu ), CLEARANCE_LAYER_FOR( In19_Cu ), NETCOLOR_LAYER_FOR( In19_Cu ),
+    PAD_COPPER_LAYER_FOR( In19_Cu ), VIA_COPPER_LAYER_FOR( In19_Cu ), POINT_LAYER_FOR( In19_Cu ), In19_Cu,
+    ZONE_LAYER_FOR( In19_Cu ), NETNAMES_LAYER_INDEX( In20_Cu ), CLEARANCE_LAYER_FOR( In20_Cu ),
+    NETCOLOR_LAYER_FOR( In20_Cu ), PAD_COPPER_LAYER_FOR( In20_Cu ), VIA_COPPER_LAYER_FOR( In20_Cu ),
+    POINT_LAYER_FOR( In20_Cu ), In20_Cu, ZONE_LAYER_FOR( In20_Cu ), NETNAMES_LAYER_INDEX( In21_Cu ),
+    CLEARANCE_LAYER_FOR( In21_Cu ), NETCOLOR_LAYER_FOR( In21_Cu ), PAD_COPPER_LAYER_FOR( In21_Cu ),
+    VIA_COPPER_LAYER_FOR( In21_Cu ), POINT_LAYER_FOR( In21_Cu ), In21_Cu, ZONE_LAYER_FOR( In21_Cu ),
+    NETNAMES_LAYER_INDEX( In22_Cu ), CLEARANCE_LAYER_FOR( In22_Cu ), NETCOLOR_LAYER_FOR( In22_Cu ),
+    PAD_COPPER_LAYER_FOR( In22_Cu ), VIA_COPPER_LAYER_FOR( In22_Cu ), POINT_LAYER_FOR( In22_Cu ), In22_Cu,
+    ZONE_LAYER_FOR( In22_Cu ), NETNAMES_LAYER_INDEX( In23_Cu ), CLEARANCE_LAYER_FOR( In23_Cu ),
+    NETCOLOR_LAYER_FOR( In23_Cu ), PAD_COPPER_LAYER_FOR( In23_Cu ), VIA_COPPER_LAYER_FOR( In23_Cu ),
+    POINT_LAYER_FOR( In23_Cu ), In23_Cu, ZONE_LAYER_FOR( In23_Cu ), NETNAMES_LAYER_INDEX( In24_Cu ),
+    CLEARANCE_LAYER_FOR( In24_Cu ), NETCOLOR_LAYER_FOR( In24_Cu ), PAD_COPPER_LAYER_FOR( In24_Cu ),
+    VIA_COPPER_LAYER_FOR( In24_Cu ), POINT_LAYER_FOR( In24_Cu ), In24_Cu, ZONE_LAYER_FOR( In24_Cu ),
+    NETNAMES_LAYER_INDEX( In25_Cu ), CLEARANCE_LAYER_FOR( In25_Cu ), NETCOLOR_LAYER_FOR( In25_Cu ),
+    PAD_COPPER_LAYER_FOR( In25_Cu ), VIA_COPPER_LAYER_FOR( In25_Cu ), POINT_LAYER_FOR( In25_Cu ), In25_Cu,
+    ZONE_LAYER_FOR( In25_Cu ), NETNAMES_LAYER_INDEX( In26_Cu ), CLEARANCE_LAYER_FOR( In26_Cu ),
+    NETCOLOR_LAYER_FOR( In26_Cu ), PAD_COPPER_LAYER_FOR( In26_Cu ), VIA_COPPER_LAYER_FOR( In26_Cu ),
+    POINT_LAYER_FOR( In26_Cu ), In26_Cu, ZONE_LAYER_FOR( In26_Cu ), NETNAMES_LAYER_INDEX( In27_Cu ),
+    CLEARANCE_LAYER_FOR( In27_Cu ), NETCOLOR_LAYER_FOR( In27_Cu ), PAD_COPPER_LAYER_FOR( In27_Cu ),
+    VIA_COPPER_LAYER_FOR( In27_Cu ), POINT_LAYER_FOR( In27_Cu ), In27_Cu, ZONE_LAYER_FOR( In27_Cu ),
+    NETNAMES_LAYER_INDEX( In28_Cu ), CLEARANCE_LAYER_FOR( In28_Cu ), NETCOLOR_LAYER_FOR( In28_Cu ),
+    PAD_COPPER_LAYER_FOR( In28_Cu ), VIA_COPPER_LAYER_FOR( In28_Cu ), POINT_LAYER_FOR( In28_Cu ), In28_Cu,
+    ZONE_LAYER_FOR( In28_Cu ), NETNAMES_LAYER_INDEX( In29_Cu ), CLEARANCE_LAYER_FOR( In29_Cu ),
+    NETCOLOR_LAYER_FOR( In29_Cu ), PAD_COPPER_LAYER_FOR( In29_Cu ), VIA_COPPER_LAYER_FOR( In29_Cu ),
+    POINT_LAYER_FOR( In29_Cu ), In29_Cu, ZONE_LAYER_FOR( In29_Cu ), NETNAMES_LAYER_INDEX( In30_Cu ),
+    CLEARANCE_LAYER_FOR( In30_Cu ), NETCOLOR_LAYER_FOR( In30_Cu ), PAD_COPPER_LAYER_FOR( In30_Cu ),
+    VIA_COPPER_LAYER_FOR( In30_Cu ), POINT_LAYER_FOR( In30_Cu ), In30_Cu, ZONE_LAYER_FOR( In30_Cu ),
 
-    LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu ), PAD_COPPER_LAYER_FOR( B_Cu ), VIA_COPPER_LAYER_FOR( B_Cu ),
-    CLEARANCE_LAYER_FOR( B_Cu ), POINT_LAYER_FOR( B_Cu ), B_Cu, ZONE_LAYER_FOR( B_Cu ), B_Mask,
-    ZONE_LAYER_FOR( B_Mask ), B_SilkS, ZONE_LAYER_FOR( B_SilkS ), B_Paste, ZONE_LAYER_FOR( B_Paste ), B_Adhes,
+    LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu ), CLEARANCE_LAYER_FOR( B_Cu ), NETCOLOR_LAYER_FOR( B_Cu ),
+    PAD_COPPER_LAYER_FOR( B_Cu ), VIA_COPPER_LAYER_FOR( B_Cu ), POINT_LAYER_FOR( B_Cu ), B_Cu, ZONE_LAYER_FOR( B_Cu ),
+    B_Mask, ZONE_LAYER_FOR( B_Mask ), B_SilkS, ZONE_LAYER_FOR( B_SilkS ), B_Paste, ZONE_LAYER_FOR( B_Paste ), B_Adhes,
     ZONE_LAYER_FOR( B_Adhes ), B_CrtYd, ZONE_LAYER_FOR( B_CrtYd ), B_Fab, ZONE_LAYER_FOR( B_Fab ),
 
     BITMAP_LAYER_FOR( Dwgs_User ), BITMAP_LAYER_FOR( Cmts_User ), BITMAP_LAYER_FOR( Eco1_User ),
@@ -228,9 +236,8 @@ const int GAL_LAYER_ORDER[] = {
 };
 
 
-PCB_DRAW_PANEL_GAL::PCB_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
-                                        const wxPoint& aPosition, const wxSize& aSize,
-                                        KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
+PCB_DRAW_PANEL_GAL::PCB_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId, const wxPoint& aPosition,
+                                        const wxSize& aSize, KIGFX::GAL_DISPLAY_OPTIONS& aOptions, GAL_TYPE aGalType ) :
         EDA_DRAW_PANEL_GAL( aParentWindow, aWindowId, aPosition, aSize, aOptions, aGalType )
 {
     m_view = new KIGFX::PCB_VIEW();
@@ -423,26 +430,37 @@ void PCB_DRAW_PANEL_GAL::SetHighContrastLayer( PCB_LAYER_ID aLayer )
         // Bring some other layers to the front in case of copper layers and make them colored
         // fixme do not like the idea of storing the list of layers here,
         // should be done in some other way I guess..
-        int layers[] = {
-                LAYER_CONFLICTS_SHADOW,
-                GetNetnameLayer( aLayer ),
-                LAYER_PAD_FR_NETNAMES, LAYER_PAD_BK_NETNAMES, LAYER_PAD_NETNAMES,
-                LAYER_VIA_NETNAMES,
-                PAD_COPPER_LAYER_FOR( aLayer ),
-                VIA_COPPER_LAYER_FOR( aLayer ),
-                ZONE_LAYER_FOR( aLayer ),
-                BITMAP_LAYER_FOR( aLayer ),
-                POINT_LAYER_FOR( aLayer ),
-                LAYER_PAD_PLATEDHOLES, LAYER_PAD_HOLEWALLS, LAYER_NON_PLATEDHOLES,
-                LAYER_VIA_THROUGH, LAYER_VIA_BLIND, LAYER_VIA_BURIED, LAYER_VIA_MICROVIA, LAYER_VIA_HOLES,
-                LAYER_VIA_HOLEWALLS,
-                LAYER_DRC_ERROR, LAYER_DRC_WARNING, LAYER_DRC_EXCLUSION, LAYER_MARKER_SHADOWS,
-                LAYER_SELECT_OVERLAY, LAYER_GP_OVERLAY,
-                LAYER_RATSNEST, LAYER_CURSOR,
-                LAYER_ANCHOR,
-                LAYER_LOCKED_ITEM_SHADOW,
-                LAYER_CONSTRAINT_SHADOW
-        };
+        int layers[] = { LAYER_CONFLICTS_SHADOW,
+                         GetNetnameLayer( aLayer ),
+                         LAYER_PAD_FR_NETNAMES,
+                         LAYER_PAD_BK_NETNAMES,
+                         LAYER_PAD_NETNAMES,
+                         LAYER_VIA_NETNAMES,
+                         PAD_COPPER_LAYER_FOR( aLayer ),
+                         VIA_COPPER_LAYER_FOR( aLayer ),
+                         ZONE_LAYER_FOR( aLayer ),
+                         BITMAP_LAYER_FOR( aLayer ),
+                         POINT_LAYER_FOR( aLayer ),
+                         LAYER_PAD_PLATEDHOLES,
+                         LAYER_PAD_HOLEWALLS,
+                         LAYER_NON_PLATEDHOLES,
+                         LAYER_VIA_THROUGH,
+                         LAYER_VIA_BLIND,
+                         LAYER_VIA_BURIED,
+                         LAYER_VIA_MICROVIA,
+                         LAYER_VIA_HOLES,
+                         LAYER_VIA_HOLEWALLS,
+                         LAYER_DRC_ERROR,
+                         LAYER_DRC_WARNING,
+                         LAYER_DRC_EXCLUSION,
+                         LAYER_MARKER_SHADOWS,
+                         LAYER_SELECT_OVERLAY,
+                         LAYER_GP_OVERLAY,
+                         LAYER_RATSNEST,
+                         LAYER_CURSOR,
+                         LAYER_ANCHOR,
+                         LAYER_LOCKED_ITEM_SHADOW,
+                         LAYER_CONSTRAINT_SHADOW };
 
         for( int i : layers )
             rSettings->SetLayerIsHighContrast( i );
@@ -472,13 +490,14 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
     m_view->SetTopLayer( aLayer );
 
     // Layers that should always have on-top attribute enabled
-    const std::vector<int> layers = {
-        LAYER_VIA_THROUGH,     LAYER_VIA_BLIND,        LAYER_VIA_BURIED,    LAYER_VIA_MICROVIA,    LAYER_VIA_HOLES,
-        LAYER_VIA_HOLEWALLS,   LAYER_PAD_PLATEDHOLES,  LAYER_PAD_HOLEWALLS, LAYER_NON_PLATEDHOLES, LAYER_PAD_NETNAMES,
-        LAYER_VIA_NETNAMES,    LAYER_SELECT_OVERLAY,   LAYER_GP_OVERLAY,    LAYER_RATSNEST,        LAYER_ANCHOR,
-        LAYER_DRC_HIGHLIGHTED, LAYER_DRC_ERROR,        LAYER_DRC_WARNING,   LAYER_DRC_EXCLUSION,   LAYER_MARKER_SHADOWS,
-        LAYER_CONFLICTS_SHADOW, LAYER_CONSTRAINT_SHADOW
-    };
+    const std::vector<int> layers = { LAYER_VIA_THROUGH,      LAYER_VIA_BLIND,      LAYER_VIA_BURIED,
+                                      LAYER_VIA_MICROVIA,     LAYER_VIA_HOLES,      LAYER_VIA_HOLEWALLS,
+                                      LAYER_PAD_PLATEDHOLES,  LAYER_PAD_HOLEWALLS,  LAYER_NON_PLATEDHOLES,
+                                      LAYER_PAD_NETNAMES,     LAYER_VIA_NETNAMES,   LAYER_SELECT_OVERLAY,
+                                      LAYER_GP_OVERLAY,       LAYER_RATSNEST,       LAYER_ANCHOR,
+                                      LAYER_DRC_HIGHLIGHTED,  LAYER_DRC_ERROR,      LAYER_DRC_WARNING,
+                                      LAYER_DRC_EXCLUSION,    LAYER_MARKER_SHADOWS, LAYER_CONFLICTS_SHADOW,
+                                      LAYER_CONSTRAINT_SHADOW };
 
     for( auto layer : layers )
         m_view->SetTopLayer( layer );
@@ -488,13 +507,11 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
 
     // Extra layers that are brought to the top if a F.* or B.* is selected
     const std::vector<int> frontLayers = {
-        F_Cu, F_Adhes, F_Paste, F_SilkS, F_Mask, F_Fab, F_CrtYd,
-        LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu )
+        F_Cu, F_Adhes, F_Paste, F_SilkS, F_Mask, F_Fab, F_CrtYd, LAYER_PAD_FR_NETNAMES, NETNAMES_LAYER_INDEX( F_Cu )
     };
 
     const std::vector<int> backLayers = {
-        B_Cu, B_Adhes, B_Paste, B_SilkS, B_Mask, B_Fab, B_CrtYd,
-        LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu )
+        B_Cu, B_Adhes, B_Paste, B_SilkS, B_Mask, B_Fab, B_CrtYd, LAYER_PAD_BK_NETNAMES, NETNAMES_LAYER_INDEX( B_Cu )
     };
 
     const std::vector<int>* extraLayers = nullptr;
@@ -517,6 +534,7 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
                 m_view->SetTopLayer( PAD_COPPER_LAYER_FOR( layer ) );
                 m_view->SetTopLayer( VIA_COPPER_LAYER_FOR( layer ) );
                 m_view->SetTopLayer( CLEARANCE_LAYER_FOR( layer ) );
+                m_view->SetTopLayer( NETCOLOR_LAYER_FOR( layer ) );
                 m_view->SetTopLayer( POINT_LAYER_FOR( layer ) );
             }
         }
@@ -525,17 +543,13 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
         if( !IsCopperLayer( aLayer ) )
         {
             m_view->SetLayerOrder( aLayer, m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 1 );
-            m_view->SetLayerOrder( ZONE_LAYER_FOR( aLayer ),
-                                   m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 2 );
-            m_view->SetLayerOrder( POINT_LAYER_FOR( aLayer ),
-                                   m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 3 );
+            m_view->SetLayerOrder( ZONE_LAYER_FOR( aLayer ), m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 2 );
+            m_view->SetLayerOrder( POINT_LAYER_FOR( aLayer ), m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 3 );
 
             // Fix up pad and via netnames to be below.  This is hacky, we need a rethink
             // of layer ordering...
-            m_view->SetLayerOrder( LAYER_PAD_NETNAMES,
-                                   m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 4 );
-            m_view->SetLayerOrder( LAYER_VIA_NETNAMES,
-                                   m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 5 );
+            m_view->SetLayerOrder( LAYER_PAD_NETNAMES, m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 4 );
+            m_view->SetLayerOrder( LAYER_VIA_NETNAMES, m_view->GetLayerOrder( LAYER_MARKER_SHADOWS ) + 5 );
         }
     }
 
@@ -545,6 +559,7 @@ void PCB_DRAW_PANEL_GAL::SetTopLayer( PCB_LAYER_ID aLayer )
         m_view->SetTopLayer( PAD_COPPER_LAYER_FOR( aLayer ) );
         m_view->SetTopLayer( VIA_COPPER_LAYER_FOR( aLayer ) );
         m_view->SetTopLayer( CLEARANCE_LAYER_FOR( aLayer ) );
+        m_view->SetTopLayer( NETCOLOR_LAYER_FOR( aLayer ) );
 
         // Display labels for copper layers on the top
         m_view->SetTopLayer( GetNetnameLayer( aLayer ) );
@@ -594,6 +609,9 @@ void PCB_DRAW_PANEL_GAL::SyncLayersVisibility( const BOARD* aBoard )
     for( int i = LAYER_BITMAP_START; i < LAYER_BITMAP_END; i++ )
         m_view->SetLayerVisible( i, true );
 
+    for( int i = LAYER_NETCOLOR_START; i < LAYER_NETCOLOR_END; i++ )
+        m_view->SetLayerVisible( i, true );
+
     for( int i = LAYER_UI_START; i < LAYER_UI_END; i++ )
         m_view->SetLayerVisible( i, true );
 
@@ -611,8 +629,7 @@ void PCB_DRAW_PANEL_GAL::SyncLayersVisibility( const BOARD* aBoard )
 }
 
 
-void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame,
-                                          std::vector<MSG_PANEL_ITEM>& aList )
+void PCB_DRAW_PANEL_GAL::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList )
 {
     BOARD*        board = static_cast<PCB_BASE_FRAME*>( GetParentEDAFrame() )->GetBoard();
     int           padCount = 0;
@@ -681,11 +698,12 @@ void PCB_DRAW_PANEL_GAL::OnShow()
     {
         SetTopLayer( frame->GetActiveLayer() );
 
-        KIGFX::PCB_PAINTER* painter = static_cast<KIGFX::PCB_PAINTER*>( m_view->GetPainter() );
+        KIGFX::PCB_PAINTER*         painter = static_cast<KIGFX::PCB_PAINTER*>( m_view->GetPainter() );
         KIGFX::PCB_RENDER_SETTINGS* settings = painter->GetSettings();
 
         settings->LoadDisplayOptions( frame->GetDisplayOptions() );
-        settings->m_ForceShowFieldsWhenFPSelected = frame->GetPcbNewSettings()->m_Display.m_ForceShowFieldsWhenFPSelected;
+        settings->m_ForceShowFieldsWhenFPSelected =
+                frame->GetPcbNewSettings()->m_Display.m_ForceShowFieldsWhenFPSelected;
     }
 }
 
@@ -760,6 +778,7 @@ void PCB_DRAW_PANEL_GAL::setDefaultLayerDeps()
             m_view->SetRequired( PAD_COPPER_LAYER_FOR( layer ), layer );
             m_view->SetRequired( VIA_COPPER_LAYER_FOR( layer ), layer );
             m_view->SetRequired( CLEARANCE_LAYER_FOR( layer ), layer );
+            m_view->SetRequired( NETCOLOR_LAYER_FOR( layer ), layer );
             m_view->SetRequired( POINT_LAYER_FOR( layer ), layer );
 
             m_view->SetRequired( BITMAP_LAYER_FOR( layer ), layer );
@@ -811,9 +830,9 @@ void PCB_DRAW_PANEL_GAL::setDefaultLayerDeps()
     m_view->SetRequired( LAYER_VIA_NETNAMES, LAYER_VIAS );
 
     m_view->SetLayerTarget( LAYER_SELECT_OVERLAY, KIGFX::TARGET_OVERLAY );
-    m_view->SetLayerDisplayOnly( LAYER_SELECT_OVERLAY ) ;
+    m_view->SetLayerDisplayOnly( LAYER_SELECT_OVERLAY );
     m_view->SetLayerTarget( LAYER_GP_OVERLAY, KIGFX::TARGET_OVERLAY );
-    m_view->SetLayerDisplayOnly( LAYER_GP_OVERLAY ) ;
+    m_view->SetLayerDisplayOnly( LAYER_GP_OVERLAY );
     m_view->SetLayerTarget( LAYER_RATSNEST, KIGFX::TARGET_OVERLAY );
     m_view->SetLayerDisplayOnly( LAYER_RATSNEST );
 
@@ -824,8 +843,8 @@ void PCB_DRAW_PANEL_GAL::setDefaultLayerDeps()
     m_view->SetLayerDisplayOnly( LAYER_MARKER_SHADOWS );
 
     m_view->SetLayerTarget( LAYER_DRAWINGSHEET, KIGFX::TARGET_NONCACHED );
-    m_view->SetLayerDisplayOnly( LAYER_DRAWINGSHEET ) ; // drawing sheet can't be selected
-    m_view->SetLayerDisplayOnly( LAYER_GRID );          // grid can't be selected
+    m_view->SetLayerDisplayOnly( LAYER_DRAWINGSHEET ); // drawing sheet can't be selected
+    m_view->SetLayerDisplayOnly( LAYER_GRID );         // grid can't be selected
 
     for( int i = LAYER_UI_START; i < LAYER_UI_END; ++i )
     {

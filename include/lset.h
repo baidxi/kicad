@@ -36,13 +36,18 @@ class LAYER_RANGE;
 class KICOMMON_API LSET : public BASE_SET
 {
 public:
-
     /**
      * Create an empty (cleared) set.
      */
-    LSET() : BASE_SET( PCB_LAYER_ID_COUNT ) {} // all bits are set to zero in BASE_SET()
+    LSET() :
+            BASE_SET( PCB_LAYER_ID_COUNT )
+    {
+    } // all bits are set to zero in BASE_SET()
 
-    LSET( const BASE_SET& aOther ) : BASE_SET( aOther ) {}
+    LSET( const BASE_SET& aOther ) :
+            BASE_SET( aOther )
+    {
+    }
 
     LSET( std::initializer_list<PCB_LAYER_ID> aList );
 
@@ -62,18 +67,11 @@ public:
      */
     bool Contains( PCB_LAYER_ID aLayer ) const
     {
-        // At the moment, LSET cannot store negative layers, but PCB_LAYER_ID can contain them
-        if( aLayer < 0 )
-           return false;
-
-        try
-        {
-            return test( aLayer );
-        }
-        catch( std::out_of_range& )
-        {
+        // At the moment, LSET cannot store negative layers or virtual/GAL layers
+        if( aLayer < 0 || static_cast<size_t>( aLayer ) >= size() )
             return false;
-        }
+
+        return test( aLayer );
     }
 
     /**
@@ -82,10 +80,7 @@ public:
      * @param aLayers is the set to check.
      * @return true if every layer in @a aLayers is included in this set.
      */
-    bool ContainsAll( const LSET& aLayers ) const
-    {
-        return aLayers.is_subset_of( *this );
-    }
+    bool ContainsAll( const LSET& aLayers ) const { return aLayers.is_subset_of( *this ); }
 
     /**
      * Return the fixed name association with @a aLayerId.
@@ -318,10 +313,7 @@ public:
         {
         }
 
-        PCB_LAYER_ID operator*() const
-        {
-            return PCB_LAYER_ID( BASE_SET::set_bits_iterator::operator*() );
-        }
+        PCB_LAYER_ID operator*() const { return PCB_LAYER_ID( BASE_SET::set_bits_iterator::operator*() ); }
 
         all_set_layers_iterator& operator++()
         {
@@ -357,10 +349,9 @@ public:
         void advance_to_next_set_non_copper_bit();
     };
 
-    copper_layers_iterator copper_layers_begin() const;
-    copper_layers_iterator copper_layers_end() const;
+    copper_layers_iterator     copper_layers_begin() const;
+    copper_layers_iterator     copper_layers_end() const;
     non_copper_layers_iterator non_copper_layers_begin() const;
     non_copper_layers_iterator non_copper_layers_end() const;
-
 };
 #endif // LSET_H
