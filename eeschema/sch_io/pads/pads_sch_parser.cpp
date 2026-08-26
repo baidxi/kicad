@@ -436,7 +436,7 @@ size_t PADS_SCH_PARSER::parseSectionSCH( const std::vector<std::string>& aLines,
                 else if( sizeCode == "A4" )
                 {
                     m_parameters.sheet_size.width = 11693.0;
-                    m_parameters.sheet_size.height = .0;
+                    m_parameters.sheet_size.height = 8268.0;
                 }
             }
         }
