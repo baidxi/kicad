@@ -19,6 +19,7 @@
 
 #include "reference_image.h"
 
+#include <cstring>
 #include <string>
 
 #include <wx/debug.h>
@@ -36,28 +37,48 @@ static bool compareImages( const BITMAP_BASE& aLeft, const BITMAP_BASE& aRight )
     if( !leftImage || !rightImage )
         return leftImage == rightImage;
 
-    wxMemoryOutputStream leftStream;
-    wxMemoryOutputStream rightStream;
-
-    if( !aLeft.SaveImageData( leftStream ) || !aRight.SaveImageData( rightStream ) )
+    if( leftImage->GetSize() != rightImage->GetSize() )
         return false;
 
-    size_t leftSize = leftStream.GetSize();
-    size_t rightSize = rightStream.GetSize();
+    const unsigned char* leftData = leftImage->GetData();
+    const unsigned char* rightData = rightImage->GetData();
 
-    if( leftSize != rightSize )
+    if( !leftData || !rightData )
+        return leftData == rightData;
+
+    const size_t pixelCount =
+            static_cast<size_t>( leftImage->GetWidth() ) * static_cast<size_t>( leftImage->GetHeight() );
+
+    if( std::memcmp( leftData, rightData, pixelCount * 3 ) != 0 )
         return false;
 
-    if( leftSize == 0 )
-        return true;
+    if( leftImage->HasAlpha() != rightImage->HasAlpha() )
+        return false;
 
-    std::string leftData( leftSize, '\0' );
-    std::string rightData( rightSize, '\0' );
+    if( leftImage->HasAlpha() )
+    {
+        const unsigned char* leftAlpha = leftImage->GetAlpha();
+        const unsigned char* rightAlpha = rightImage->GetAlpha();
 
-    leftStream.CopyTo( leftData.data(), leftSize );
-    rightStream.CopyTo( rightData.data(), rightSize );
+        if( !leftAlpha || !rightAlpha )
+            return leftAlpha == rightAlpha;
 
-    return leftData == rightData;
+        if( std::memcmp( leftAlpha, rightAlpha, pixelCount ) != 0 )
+            return false;
+    }
+
+    if( leftImage->HasMask() != rightImage->HasMask() )
+        return false;
+
+    if( leftImage->HasMask()
+        && ( leftImage->GetMaskRed() != rightImage->GetMaskRed()
+             || leftImage->GetMaskGreen() != rightImage->GetMaskGreen()
+             || leftImage->GetMaskBlue() != rightImage->GetMaskBlue() ) )
+    {
+        return false;
+    }
+
+    return true;
 }
 
 
@@ -118,9 +139,6 @@ bool REFERENCE_IMAGE::operator==( const REFERENCE_IMAGE& aOther ) const
         return false;
 
     if( m_bitmapBase->GetSize() != aOther.m_bitmapBase->GetSize() )
-        return false;
-
-    if( m_bitmapBase->GetPPI() != aOther.m_bitmapBase->GetPPI() )
         return false;
 
     if( m_bitmapBase->GetScale() != aOther.m_bitmapBase->GetScale() )

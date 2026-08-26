@@ -269,11 +269,6 @@ private:
 
     void updatePPI();
 
-    /**
-     * Mirror the wxImage pixel data in-place without allocating a new image.
-     */
-    static void mirrorImageInPlace( wxImage& aImage, FLIP_DIRECTION aFlipDirection );
-
     double    m_scale;              ///< The scaling factor of the bitmap
                                     ///< with #m_pixelSizeIu, controls the actual draw size.
     mutable wxMemoryBuffer m_imageData; ///< Cached encoded image data (PNG/JPEG).

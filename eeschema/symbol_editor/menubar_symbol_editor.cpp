@@ -162,6 +162,7 @@ void SYMBOL_EDIT_FRAME::doReCreateMenuBar()
     placeMenu->Add( SCH_ACTIONS::drawBezier );
     placeMenu->Add( SCH_ACTIONS::drawSymbolLines );
     placeMenu->Add( SCH_ACTIONS::drawSymbolPolygon );
+    placeMenu->Add( SCH_ACTIONS::placeSymbolImage );
 
 
     //-- Inspect menu -----------------------------------------------

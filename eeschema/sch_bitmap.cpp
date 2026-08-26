@@ -37,8 +37,97 @@
 #include <api/api_utils.h>
 #include <api/schematic/schematic_types.pb.h>
 
+#include <cstring>
+
 #include <properties/property.h>
 #include <properties/property_mgr.h>
+
+
+static int compareInts( int aLeft, int aRight )
+{
+    if( aLeft == aRight )
+        return 0;
+
+    return aLeft < aRight ? -1 : 1;
+}
+
+
+static int compareBools( bool aLeft, bool aRight )
+{
+    return compareInts( static_cast<int>( aLeft ), static_cast<int>( aRight ) );
+}
+
+
+static int compareByteData( const unsigned char* aLeft, const unsigned char* aRight, size_t aSize )
+{
+    if( !aLeft || !aRight )
+    {
+        if( aLeft == aRight )
+            return 0;
+
+        return aLeft ? 1 : -1;
+    }
+
+    int retv = std::memcmp( aLeft, aRight, aSize );
+
+    if( retv )
+        return retv < 0 ? -1 : 1;
+
+    return 0;
+}
+
+
+static int compareDecodedImages( const BITMAP_BASE& aLeft, const BITMAP_BASE& aRight )
+{
+    const wxImage* leftImage = aLeft.GetImageData();
+    const wxImage* rightImage = aRight.GetImageData();
+
+    if( !leftImage || !rightImage )
+    {
+        if( leftImage == rightImage )
+            return 0;
+
+        return leftImage ? 1 : -1;
+    }
+
+    if( int retv = compareInts( leftImage->GetWidth(), rightImage->GetWidth() ) )
+        return retv;
+
+    if( int retv = compareInts( leftImage->GetHeight(), rightImage->GetHeight() ) )
+        return retv;
+
+    const size_t pixelCount =
+            static_cast<size_t>( leftImage->GetWidth() ) * static_cast<size_t>( leftImage->GetHeight() );
+
+    if( int retv = compareByteData( leftImage->GetData(), rightImage->GetData(), pixelCount * 3 ) )
+        return retv;
+
+    if( int retv = compareBools( leftImage->HasAlpha(), rightImage->HasAlpha() ) )
+        return retv;
+
+    if( leftImage->HasAlpha() )
+    {
+        if( int retv = compareByteData( leftImage->GetAlpha(), rightImage->GetAlpha(), pixelCount ) )
+            return retv;
+    }
+
+    if( int retv = compareBools( leftImage->HasMask(), rightImage->HasMask() ) )
+        return retv;
+
+    if( leftImage->HasMask() )
+    {
+        if( int retv = compareInts( leftImage->GetMaskRed(), rightImage->GetMaskRed() ) )
+            return retv;
+
+        if( int retv = compareInts( leftImage->GetMaskGreen(), rightImage->GetMaskGreen() ) )
+            return retv;
+
+        if( int retv = compareInts( leftImage->GetMaskBlue(), rightImage->GetMaskBlue() ) )
+            return retv;
+    }
+
+    return 0;
+}
 
 
 SCH_BITMAP::SCH_BITMAP( const VECTOR2I& pos ) :
@@ -217,11 +306,75 @@ void SCH_BITMAP::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS&
 {
     if( aBackground )
     {
-        RENDER_SETTINGS* cfg = aPlotter->RenderSettings();
+        SCH_RENDER_SETTINGS* renderSettings = getRenderSettings( aPlotter );
+        RENDER_SETTINGS*     cfg = aPlotter->RenderSettings();
 
-        m_referenceImage.GetImage().PlotImage( aPlotter, GetPosition(),
-                                               cfg->GetLayerColor( GetLayer() ),
-                                               cfg->GetDefaultPenWidth() );
+        // Symbol-contained bitmaps are stored in symbol-local coordinates.
+        // Apply transform and offset so plot/print outputs match the symbol instance placement.
+        const TRANSFORM& transform = renderSettings->m_Transform;
+        VECTOR2I         pos = transform.TransformCoordinate( GetPosition() ) + aOffset;
+
+        // A raster image cannot be reoriented by a coordinate matrix, so when the symbol
+        // instance is rotated/mirrored the transform is reproduced on a copy of the image.
+        // Match the canvas path's OrientAndMirrorSymbolItems() sequence: rotate first, then
+        // mirror using the canonical orientation returned for the symbol transform matrix.
+        // Some mirror+rotation combinations have equivalent matrices, so this mapping follows
+        // SCH_SYMBOL::GetOrientation() ordering rather than factoring every reflection through
+        // the same mirror axis.
+        if( transform != TRANSFORM() )
+        {
+            BITMAP_BASE    oriented( m_referenceImage.GetImage() );
+            int            rotations = 0;
+            bool           mirror = false;
+            FLIP_DIRECTION mirrorDirection = FLIP_DIRECTION::LEFT_RIGHT;
+
+            if( transform == TRANSFORM( 0, 1, -1, 0 ) )
+                rotations = 1;
+            else if( transform == TRANSFORM( -1, 0, 0, -1 ) )
+                rotations = 2;
+            else if( transform == TRANSFORM( 0, -1, 1, 0 ) )
+                rotations = 3;
+            else if( transform == TRANSFORM( 1, 0, 0, -1 ) )
+            {
+                mirror = true;
+                mirrorDirection = FLIP_DIRECTION::TOP_BOTTOM;
+            }
+            else if( transform == TRANSFORM( 0, -1, -1, 0 ) )
+            {
+                rotations = 3;
+                mirror = true;
+                mirrorDirection = FLIP_DIRECTION::TOP_BOTTOM;
+            }
+            else if( transform == TRANSFORM( 0, 1, 1, 0 ) )
+            {
+                rotations = 1;
+                mirror = true;
+                mirrorDirection = FLIP_DIRECTION::TOP_BOTTOM;
+            }
+            else if( transform == TRANSFORM( -1, 0, 0, 1 ) )
+            {
+                mirror = true;
+                mirrorDirection = FLIP_DIRECTION::LEFT_RIGHT;
+            }
+            else
+            {
+                wxFAIL_MSG( wxString::Format( wxT( "Unhandled symbol bitmap transform [%d %d; %d %d]" ), transform.x1,
+                                              transform.y1, transform.x2, transform.y2 ) );
+            }
+
+            for( int ii = 0; ii < rotations; ++ii )
+                oriented.Rotate( true );
+
+            if( mirror )
+                oriented.Mirror( mirrorDirection );
+
+            oriented.PlotImage( aPlotter, pos, cfg->GetLayerColor( GetLayer() ), cfg->GetDefaultPenWidth() );
+        }
+        else
+        {
+            m_referenceImage.GetImage().PlotImage( aPlotter, pos, cfg->GetLayerColor( GetLayer() ),
+                                                   cfg->GetDefaultPenWidth() );
+        }
     }
 }
 
@@ -261,6 +414,39 @@ bool SCH_BITMAP::operator==( const SCH_ITEM& aItem ) const
 
     const SCH_BITMAP& bitmap = static_cast<const SCH_BITMAP&>( aItem );
     return m_referenceImage == bitmap.m_referenceImage;
+}
+
+
+int SCH_BITMAP::compare( const SCH_ITEM& aOther, int aCompareFlags ) const
+{
+    // No same-type assert here: LIB_SYMBOL::Compare sorts shapes and bitmaps in a single
+    // set, so cross-type comparisons are legitimate and resolved by the type check below.
+    int retv = SCH_ITEM::compare( aOther, aCompareFlags );
+
+    if( retv )
+        return retv;
+
+    const SCH_BITMAP& tmp = static_cast<const SCH_BITMAP&>( aOther );
+
+    if( GetImageScale() != tmp.GetImageScale() )
+        return GetImageScale() > tmp.GetImageScale() ? 1 : -1;
+
+    if( int tmp2 = LexicographicalCompare( m_referenceImage.GetTransformOriginOffset(),
+                                           tmp.m_referenceImage.GetTransformOriginOffset() ) )
+    {
+        return tmp2;
+    }
+
+    VECTOR2I size = m_referenceImage.GetSize();
+    VECTOR2I otherSize = tmp.m_referenceImage.GetSize();
+
+    if( int tmp2 = LexicographicalCompare( size, otherSize ) )
+        return tmp2;
+
+    if( int tmp2 = compareDecodedImages( m_referenceImage.GetImage(), tmp.m_referenceImage.GetImage() ) )
+        return tmp2;
+
+    return 0;
 }
 
 

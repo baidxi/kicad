@@ -109,6 +109,7 @@ public:
     static TOOL_ACTION drawSymbolLines;
     static TOOL_ACTION drawSymbolPolygon;
     static TOOL_ACTION placeSymbolAnchor;
+    static TOOL_ACTION placeSymbolImage;
 
     // Interactive Editing
     static TOOL_ACTION alignToGrid;

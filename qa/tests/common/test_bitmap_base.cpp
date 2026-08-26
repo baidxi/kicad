@@ -304,6 +304,54 @@ BOOST_AUTO_TEST_CASE( MirrorImage )
     }
 }
 
+
+/**
+ * Check that mirroring a copied bitmap does not mutate the source bitmap.
+ */
+BOOST_AUTO_TEST_CASE( MirrorCopiedImageDoesNotMutateSource )
+{
+    BITMAP_BASE copied = m_4tile;
+
+    copied.Mirror( FLIP_DIRECTION::TOP_BOTTOM );
+
+    const wxImage* src_img_data = m_4tile.GetImageData();
+    BOOST_REQUIRE_NE( src_img_data, nullptr );
+
+    // Original remains unchanged:
+    //   green, black
+    //   red,   blue
+    const std::vector<TEST_PIXEL_CASE> exp_src_pixels = {
+        { 1, 1, col_green },
+        { 6, 1, col_black },
+        { 1, 6, col_red },
+        { 6, 6, col_blue },
+    };
+
+    for( const auto& c : exp_src_pixels )
+    {
+        BOOST_CHECK_PREDICATE( KI_TEST::IsImagePixelOfColor, ( *src_img_data )( c.m_x )( c.m_y )( c.m_color ) );
+    }
+
+    const wxImage* copied_img_data = copied.GetImageData();
+    BOOST_REQUIRE_NE( copied_img_data, nullptr );
+
+    // Copied image is mirrored:
+    //   red,   blue
+    //   green, black
+    const std::vector<TEST_PIXEL_CASE> exp_copied_pixels = {
+        { 1, 1, col_red },
+        { 6, 1, col_blue },
+        { 1, 6, col_green },
+        { 6, 6, col_black },
+    };
+
+    for( const auto& c : exp_copied_pixels )
+    {
+        BOOST_CHECK_PREDICATE( KI_TEST::IsImagePixelOfColor, ( *copied_img_data )( c.m_x )( c.m_y )( c.m_color ) );
+    }
+}
+
+
 /**
  * Check setting image data by SetImage produces saveable data
  * via SaveImageData.

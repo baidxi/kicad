@@ -24,7 +24,7 @@
 #include <widgets/unit_binder.h>
 
 
-class SCH_EDIT_FRAME;
+class EDA_DRAW_FRAME;
 class SCH_BITMAP;
 class PANEL_IMAGE_EDITOR;
 
@@ -32,7 +32,7 @@ class PANEL_IMAGE_EDITOR;
 class DIALOG_IMAGE_PROPERTIES : public DIALOG_IMAGE_PROPERTIES_BASE
 {
 public:
-    DIALOG_IMAGE_PROPERTIES( SCH_EDIT_FRAME* aParent, SCH_BITMAP& aBitmap );
+    DIALOG_IMAGE_PROPERTIES( EDA_DRAW_FRAME* aParent, SCH_BITMAP& aBitmap );
     ~DIALOG_IMAGE_PROPERTIES() override {}
 
 private:
@@ -40,7 +40,7 @@ private:
     bool TransferDataFromWindow() override;
 
 private:
-    SCH_EDIT_FRAME*     m_frame;
+    EDA_DRAW_FRAME*     m_frame;
     SCH_BITMAP&         m_bitmap;
     PANEL_IMAGE_EDITOR* m_imageEditor;
 

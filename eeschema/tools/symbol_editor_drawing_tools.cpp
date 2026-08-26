@@ -28,6 +28,7 @@
 #include <tools/symbol_editor_pin_tool.h>
 #include <tools/ee_grid_helper.h>
 #include <dialogs/dialog_text_properties.h>
+#include <sch_bitmap.h>
 #include <sch_shape.h>
 #include <sch_textbox.h>
 #include <pgm_base.h>
@@ -36,7 +37,7 @@
 #include <settings/settings_manager.h>
 #include <string_utils.h>
 #include <wx/msgdlg.h>
-#include <import_gfx/dialog_import_gfx_sch.h>
+#include <wildcards_and_files_ext.h>
 
 
 KIID SYMBOL_EDITOR_DRAWING_TOOLS::g_lastPin;
@@ -50,7 +51,8 @@ SYMBOL_EDITOR_DRAWING_TOOLS::SYMBOL_EDITOR_DRAWING_TOOLS() :
         m_lastTextJust( GR_TEXT_H_ALIGN_LEFT ),
         m_inDrawShape( false ),
         m_inPlaceAnchor( false ),
-        m_inTwoClickPlace( false )
+        m_inTwoClickPlace( false ),
+        m_inPlaceImage( false )
 {
 }
 
@@ -449,12 +451,246 @@ int SYMBOL_EDITOR_DRAWING_TOOLS::RepeatDrawItem( const TOOL_EVENT& aEvent )
 }
 
 
+int SYMBOL_EDITOR_DRAWING_TOOLS::PlaceImage( const TOOL_EVENT& aEvent )
+{
+    if( m_inPlaceImage )
+        return 0;
+
+    REENTRANCY_GUARD guard( &m_inPlaceImage );
+
+    KIGFX::VIEW_CONTROLS* controls = getViewControls();
+    EE_GRID_HELPER        grid( m_toolMgr );
+    SCH_BITMAP*           image = nullptr;
+    bool                  ignorePrimePosition = false;
+    COMMON_SETTINGS*      common_settings = Pgm().GetCommonSettings();
+
+    m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+    m_frame->PushTool( aEvent );
+
+    auto setCursor = [&]()
+    {
+        if( image )
+            m_frame->GetCanvas()->SetCurrentCursor( KICURSOR::MOVING );
+        else
+            m_frame->GetCanvas()->SetCurrentCursor( KICURSOR::ARROW );
+    };
+
+    auto cleanup = [&]()
+    {
+        m_toolMgr->RunAction( ACTIONS::selectionClear );
+        m_view->ClearPreview();
+        delete image;
+        image = nullptr;
+    };
+
+    Activate();
+    getViewControls()->ShowCursor( true );
+    setCursor();
+
+    if( aEvent.HasPosition() )
+    {
+        m_toolMgr->PrimeTool( aEvent.Position() );
+    }
+    else if( common_settings->m_Input.immediate_actions && !aEvent.IsReactivate() )
+    {
+        m_toolMgr->PrimeTool( { 0, 0 } );
+        ignorePrimePosition = true;
+    }
+
+    while( TOOL_EVENT* evt = Wait() )
+    {
+        setCursor();
+        grid.SetSnap( !evt->Modifier( MD_SHIFT ) );
+        grid.SetUseGrid( getView()->GetGAL()->GetGridSnapping() && !evt->DisableGridSnapping() );
+
+        VECTOR2I cursorPos = grid.Align( controls->GetMousePosition(), GRID_HELPER_GRIDS::GRID_GRAPHICS );
+        controls->ForceCursorPosition( true, cursorPos );
+
+        // The tool hotkey is interpreted as a click when placing the preview image.
+        bool isSyntheticClick = image && evt->IsActivate() && evt->HasPosition() && evt->Matches( aEvent );
+
+        if( evt->IsCancelInteractive() || ( image && evt->IsAction( &ACTIONS::undo ) ) )
+        {
+            m_frame->GetInfoBar()->Dismiss();
+
+            if( image )
+            {
+                cleanup();
+            }
+            else
+            {
+                m_frame->PopTool( aEvent );
+                break;
+            }
+        }
+        else if( evt->IsActivate() && !isSyntheticClick )
+        {
+            if( image && evt->IsMoveTool() )
+            {
+                evt->SetPassEvent( false );
+                continue;
+            }
+
+            if( image )
+            {
+                m_frame->ShowInfoBarMsg( _( "Press <ESC> to cancel image creation." ) );
+                evt->SetPassEvent( false );
+                continue;
+            }
+
+            if( evt->IsMoveTool() )
+            {
+                break;
+            }
+            else
+            {
+                m_frame->PopTool( aEvent );
+                break;
+            }
+        }
+        else if( evt->IsClick( BUT_LEFT ) || evt->IsDblClick( BUT_LEFT ) || isSyntheticClick
+                 || evt->IsAction( &ACTIONS::cursorClick ) || evt->IsAction( &ACTIONS::cursorDblClick ) )
+        {
+            LIB_SYMBOL* symbol = m_frame->GetCurSymbol();
+
+            if( !symbol )
+                continue;
+
+            if( !image )
+            {
+                m_toolMgr->RunAction( ACTIONS::selectionClear );
+
+                wxFileDialog dlg( m_frame, _( "Choose Image" ), wxEmptyString, wxEmptyString,
+                                  FILEEXT::ImageFileWildcard(), wxFD_OPEN );
+
+                bool cancelled = false;
+
+                RunMainStack(
+                        [&]()
+                        {
+                            cancelled = dlg.ShowModal() != wxID_OK;
+                        } );
+
+                if( cancelled )
+                    continue;
+
+                if( evt->IsPrime() && !ignorePrimePosition )
+                {
+                    cursorPos = grid.Align( evt->Position() );
+                    getViewControls()->WarpMouseCursor( cursorPos, true );
+                }
+                else
+                {
+                    getViewControls()->PinCursorInsideNonAutoscrollArea( true );
+                    cursorPos = getViewControls()->GetMousePosition();
+                }
+
+                wxString fullFilename = dlg.GetPath();
+
+                image = new SCH_BITMAP( cursorPos );
+
+                if( !image->GetReferenceImage().ReadImageFile( fullFilename ) )
+                {
+                    wxMessageBox( wxString::Format( _( "Could not load image from '%s'." ), fullFilename ) );
+                    delete image;
+                    image = nullptr;
+                    continue;
+                }
+
+                image->SetPosition( cursorPos );
+                image->SetFlags( IS_NEW | IS_MOVING );
+
+                if( m_frame->GetDrawSpecificUnit() )
+                    image->SetUnit( m_frame->GetUnit() );
+
+                if( m_frame->GetDrawSpecificBodyStyle() )
+                    image->SetBodyStyle( m_frame->GetBodyStyle() );
+
+                m_view->ClearPreview();
+                m_view->AddToPreview( image, false );
+
+                m_selectionTool->AddItemToSel( image );
+                controls->SetCursorPosition( cursorPos, false );
+                setCursor();
+            }
+            else
+            {
+                SCH_COMMIT commit( m_toolMgr );
+                commit.Modify( symbol, m_frame->GetScreen() );
+
+                image->SetPosition( cursorPos );
+                symbol->AddDrawItem( image );
+                image->ClearEditFlags();
+
+                commit.Push( _( "Place Image" ) );
+
+                image = nullptr;
+                m_view->ClearPreview();
+                m_frame->RebuildView();
+                m_toolMgr->PostAction( ACTIONS::activatePointEditor );
+            }
+        }
+        else if( evt->IsClick( BUT_RIGHT ) )
+        {
+            if( !image )
+                m_toolMgr->VetoContextMenuMouseWarp();
+
+            m_menu->ShowContextMenu( m_selectionTool->GetSelection() );
+        }
+        else if( evt->IsAction( &ACTIONS::duplicate ) || evt->IsAction( &SCH_ACTIONS::repeatDrawItem )
+                 || evt->IsAction( &ACTIONS::paste ) )
+        {
+            if( image )
+            {
+                wxBell();
+                continue;
+            }
+
+            m_frame->PopTool( aEvent );
+            evt->SetPassEvent();
+            break;
+        }
+        else if( image && ( evt->IsAction( &ACTIONS::refreshPreview ) || evt->IsMotion() ) )
+        {
+            image->SetPosition( cursorPos );
+            m_view->ClearPreview();
+            m_view->AddToPreview( image, false );
+        }
+        else if( image && evt->IsAction( &ACTIONS::doDelete ) )
+        {
+            cleanup();
+        }
+        else if( image && evt->IsAction( &ACTIONS::redo ) )
+        {
+            wxBell();
+        }
+        else
+        {
+            evt->SetPassEvent();
+        }
+
+        controls->SetAutoPan( image != nullptr );
+        controls->CaptureCursor( image != nullptr );
+    }
+
+    controls->SetAutoPan( false );
+    controls->CaptureCursor( false );
+    controls->ForceCursorPosition( false );
+    m_view->ClearPreview();
+    m_frame->GetCanvas()->SetCurrentCursor( KICURSOR::ARROW );
+
+    return 0;
+}
+
+
 void SYMBOL_EDITOR_DRAWING_TOOLS::setTransitions()
 {
     // clang-format off
     Go( &SYMBOL_EDITOR_DRAWING_TOOLS::TwoClickPlace,     SCH_ACTIONS::placeSymbolPin.MakeEvent() );
     Go( &SYMBOL_EDITOR_DRAWING_TOOLS::TwoClickPlace,     SCH_ACTIONS::placeSymbolText.MakeEvent() );
     Go( &SYMBOL_EDITOR_DRAWING_TOOLS::PlaceAnchor,       SCH_ACTIONS::placeSymbolAnchor.MakeEvent() );
+    Go( &SYMBOL_EDITOR_DRAWING_TOOLS::PlaceImage,        SCH_ACTIONS::placeSymbolImage.MakeEvent() );
     Go( &SYMBOL_EDITOR_DRAWING_TOOLS::RepeatDrawItem,    SCH_ACTIONS::repeatDrawItem.MakeEvent() );
     // clang-format on
 }

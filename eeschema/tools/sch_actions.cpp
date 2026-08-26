@@ -464,6 +464,15 @@ TOOL_ACTION SCH_ACTIONS::placeSymbolAnchor( TOOL_ACTION_ARGS()
         .Icon( BITMAPS::anchor  )
         .Flags( AF_ACTIVATE ) );
 
+TOOL_ACTION SCH_ACTIONS::placeSymbolImage( TOOL_ACTION_ARGS()
+        .Name( "eeschema.SymbolDrawing.placeSymbolImage" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Place Image" ) )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Icon( BITMAPS::image )
+        .Flags( AF_ACTIVATE )
+        .Parameter<SCH_BITMAP*>( nullptr ) );
+
 // SYMBOL_EDITOR_PIN_TOOL
 //
 TOOL_ACTION SCH_ACTIONS::pushPinLength( TOOL_ACTION_ARGS()

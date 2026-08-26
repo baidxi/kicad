@@ -24,10 +24,13 @@
 
 #include <wx/log.h>
 #include <wx/dir.h>
+#include <wx/mstream.h>
 
 #include <base_units.h>
 #include <build_version.h>
 #include <common.h>
+#include <bitmap_base.h>
+#include <sch_bitmap.h>
 #include <sch_shape.h>
 #include <lib_symbol.h>
 #include <sch_textbox.h>
@@ -724,6 +727,34 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::saveSymbolDrawItem( SCH_ITEM* aItem, OUTPUTFO
     case SCH_TEXTBOX_T:
         saveTextBox( static_cast<SCH_TEXTBOX*>( aItem ), aFormatter );
         break;
+
+    case SCH_BITMAP_T:
+    {
+        const SCH_BITMAP*      bitmap = static_cast<const SCH_BITMAP*>( aItem );
+        const REFERENCE_IMAGE& refImage = bitmap->GetReferenceImage();
+        const BITMAP_BASE&     bitmapBase = refImage.GetImage();
+
+        wxCHECK_RET( bitmapBase.GetImageData() != nullptr, "wxImage* is NULL" );
+
+        aFormatter.Print( "(image (at %s %s)",
+                          EDA_UNIT_UTILS::FormatInternalUnits( schIUScale, refImage.GetPosition().x ).c_str(),
+                          EDA_UNIT_UTILS::FormatInternalUnits( schIUScale, -refImage.GetPosition().y ).c_str() );
+
+        if( refImage.GetImageScale() != 1.0 )
+        {
+            aFormatter.Print( "%s", fmt::format( "(scale {:g})", refImage.GetImageScale() ).c_str() );
+        }
+
+        KICAD_FORMAT::FormatUuid( &aFormatter, bitmap->m_Uuid );
+
+        wxMemoryOutputStream stream;
+        bitmapBase.SaveImageData( stream );
+
+        KICAD_FORMAT::FormatStreamData( aFormatter, *stream.GetOutputStreamBuffer() );
+
+        aFormatter.Print( ")" );
+        break;
+    }
 
     default:
         UNIMPLEMENTED_FOR( aItem->GetClass() );
