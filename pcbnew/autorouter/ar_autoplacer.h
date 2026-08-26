@@ -54,7 +54,7 @@ class AR_AUTOPLACER
 public:
     AR_AUTOPLACER( BOARD* aBoard );
 
-    AR_RESULT AutoplaceFootprints( std::vector<FOOTPRINT*>& aFootprints, BOARD_COMMIT* aCommit,
+    virtual AR_RESULT AutoplaceFootprints( std::vector<FOOTPRINT*>& aFootprints, BOARD_COMMIT* aCommit,
                                    bool aPlaceOffboardModules = false );
 
     /**
@@ -78,9 +78,14 @@ public:
         m_progressReporter = aReporter;
     }
 
+protected:
+    int genPlacementRoutingMatrix();
+    virtual double computePlacementRatsnestCost( FOOTPRINT* aFootprint, const VECTOR2I& aOffset );
+    const PAD* nearestPad( FOOTPRINT* aRefFP, PAD* aRefPad, const VECTOR2I& aOffset );
+    int testFootprintOnBoard( FOOTPRINT* aFootprint, bool TstOtherSide, const VECTOR2I& aOffset );
+
 private:
     void drawPlacementRoutingMatrix();  // draw the working area (shows free and occupied areas)
-    int genPlacementRoutingMatrix();
 
     /**
      * Fill m_matrix cells from m_boardShape.
@@ -92,9 +97,7 @@ private:
 
     int testRectangle( const BOX2I& aRect, int side );
     unsigned int calculateKeepOutArea( const  BOX2I& aRect, int side );
-    int testFootprintOnBoard( FOOTPRINT* aFootprint, bool TstOtherSide, const VECTOR2I& aOffset );
     int getOptimalFPPlacement( FOOTPRINT* aFootprint );
-    double computePlacementRatsnestCost( FOOTPRINT* aFootprint, const VECTOR2I& aOffset );
 
     /**
      * Find the "best" footprint place. The criteria are:
@@ -104,8 +107,6 @@ private:
     FOOTPRINT* pickFootprint();
 
     void placeFootprint( FOOTPRINT* aFootprint, bool aDoNotRecreateRatsnest, const VECTOR2I& aPos );
-
-    const PAD* nearestPad( FOOTPRINT* aRefFP, PAD* aRefPad, const VECTOR2I& aOffset );
 
     // Add a polygonal shape (rectangle) to m_fpAreaFront and/or m_fpAreaBack
     void addFpBody( const VECTOR2I& aStart, const VECTOR2I& aEnd, const LSET& aLayerMask );
@@ -117,7 +118,14 @@ private:
     // aFpClearance is a mechanical clearance.
     void buildFpAreas( FOOTPRINT* aFootprint, int aFpClearance );
 
+protected:
     AR_MATRIX m_matrix;
+    BOARD* m_board;
+    int      m_gridSize;
+    std::unique_ptr<CONNECTIVITY_DATA>          m_connectivity;
+    PROGRESS_REPORTER*                          m_progressReporter;
+
+private:
     SHAPE_POLY_SET m_topFreeArea;       // The polygonal description of the top side free areas;
     SHAPE_POLY_SET m_bottomFreeArea;    // The polygonal description of the bottom side free areas;
     SHAPE_POLY_SET m_boardShape;        // The polygonal description of the board;
@@ -126,16 +134,11 @@ private:
     SHAPE_POLY_SET m_fpAreaBottom;      // The polygonal description of the footprint to place,
                                         // bottom side;
 
-    BOARD* m_board;
-
     VECTOR2I m_curPosition;
     double   m_minCost;
-    int      m_gridSize;
 
     std::shared_ptr<KIGFX::VIEW_OVERLAY>        m_overlay;
-    std::unique_ptr<CONNECTIVITY_DATA>          m_connectivity;
     std::function<int( FOOTPRINT* aFootprint )> m_refreshCallback;
-    PROGRESS_REPORTER*                          m_progressReporter;
 };
 
 #endif
