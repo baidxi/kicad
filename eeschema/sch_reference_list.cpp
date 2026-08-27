@@ -615,9 +615,16 @@ int SCH_REFERENCE_LIST::CheckAnnotation( ANNOTATION_ERROR_HANDLER aHandler )
     SortByRefAndValue();
 
     // Split reference designators into name (prefix) and number: IC1 becomes IC, and 1.
+    // We don't treat 'IC' alone as un-annotated. Instead, we set m_numRef to -1 for these items.
+    // If however we find two items with the same refText and unit (by which we are sorted, so that should be easy),
+    // we *do* decide that we need to annotate. Of course if we find something with a '?' at the end
+    // that's also a trigger for annotation.
     SplitReferences();
 
     // count not yet annotated items or annotation error.
+    wxString last_refText;
+    int last_unit = -1;
+    int last_numRef = -1;
     for( unsigned ii = 0; ii < m_flatList.size(); ii++ )
     {
         msg.Empty();
@@ -647,6 +654,36 @@ int SCH_REFERENCE_LIST::CheckAnnotation( ANNOTATION_ERROR_HANDLER aHandler )
             error++;
             break;
         }
+        else if( last_refText == m_flatList[ii].GetRef() &&
+                 last_unit == m_flatList[ii].m_unit &&
+                 last_numRef == m_flatList[ii].m_numRef )
+        {
+            // Duplicate annotation
+            if( m_flatList[ii].m_numRef >= 0 )
+                tmp << m_flatList[ii].m_numRef;
+            else
+                tmp = wxT( "?" );
+
+            if( ( m_flatList[ii].m_unit > 0 ) && ( m_flatList[ii].m_unit < 0x7FFFFFFF )
+                && m_flatList[ii].GetLibPart()->GetUnitCount() > 1 )
+            {
+                msg.Printf( _( "Duplicate annotation for item: %s%s (unit %d)" ),
+                            m_flatList[ii].GetRef(),
+                            tmp,
+                            m_flatList[ii].m_unit );
+            }
+            else
+            {
+                msg.Printf( _( "Duplicate annotation for item: %s%s" ), m_flatList[ii].GetRef(), tmp );
+            }
+
+            aHandler( ERCE_UNANNOTATED, msg, &m_flatList[ii], nullptr );
+            error++;
+            break;
+        }
+        last_refText = m_flatList[ii].GetRef();
+        last_unit = m_flatList[ii].m_unit;
+        last_numRef = m_flatList[ii].m_numRef;
 
         // Error if unit number selected does not exist (greater than the  number of units in
         // the symbol).  This can happen if a symbol has changed in a library after a
@@ -845,10 +882,6 @@ void SCH_REFERENCE::Split()
         refText.erase( ll );  // delete last char
 
         SetRefStr( refText );
-    }
-    else if( isdigit( refText[ll] ) == 0 )
-    {
-        m_isNew = true;
     }
     else
     {
