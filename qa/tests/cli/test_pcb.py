@@ -23,6 +23,7 @@ import utils
 from pathlib import Path
 import pytest
 import re
+import shutil
 from typing import List, Tuple
 from conftest import KiTestFixture
 import sys
@@ -56,6 +57,29 @@ def run_and_check_export_command(kitest: KiTestFixture,
     assert expected_output_file.exists()
 
     kitest.add_attachment( expected_output_file )
+
+
+def test_pcb_export_pdf_multipage_output_file( kitest: KiTestFixture ):
+    input_file = kitest.get_data_file_path( "cli/basic_test/basic_test.kicad_pcb" )
+    output_dir = kitest.get_output_path( "cli/export_pdf/multipage/" )
+    output_file = output_dir / "pcb.pdf"
+
+    # The regression created this path as a directory, so handle both possible file types.
+    if output_file.is_dir():
+        shutil.rmtree( output_file )
+    elif output_file.exists():
+        output_file.unlink()
+
+    command = [utils.kicad_cli(), "pcb", "export", "pdf", str( input_file ),
+               "-l", "F.Cu,B.Cu", "--mode-multipage", "-o", str( output_file )]
+
+    run_and_check_export_command( kitest, command, output_file )
+
+    assert output_file.is_file()
+
+    # Match page objects, but not the page-tree object whose type is /Pages.
+    page_count = len( re.findall( rb"/Type\s*/Page\b", output_file.read_bytes() ) )
+    assert page_count == 2
 
 
 @pytest.mark.parametrize("test_file,layers_to_test",
@@ -118,7 +142,6 @@ def test_pcb_export_png( kitest: KiTestFixture,
                 input_file.stem, layer_name.replace( ".", "_" ) ) )
 
         if output_dir.exists():
-            import shutil
             shutil.rmtree( output_dir )
 
         output_dir.mkdir( parents=True, exist_ok=True )
