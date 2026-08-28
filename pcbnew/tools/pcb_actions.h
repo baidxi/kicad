@@ -175,6 +175,15 @@ public:
     /// Activation of the edit tool
     static TOOL_ACTION properties;
 
+    /// Activation of MATCHPROP tool
+    static TOOL_ACTION matchProperties;
+
+    /// Activation of EXTEND tool
+    static TOOL_ACTION extendTrack;
+
+    /// Activation of TRIM tool
+    static TOOL_ACTION trimTrack;
+
     /// Activation of the exact move tool
     static TOOL_ACTION moveExact;
 

@@ -81,6 +81,21 @@ public:
     int Properties( const TOOL_EVENT& aEvent );
 
     /**
+     * MatchProp command
+     */
+    int MatchProperties( const TOOL_EVENT& aEvent );
+
+    /**
+     * Extend command
+     */
+    int ExtendTrack( const TOOL_EVENT& aEvent );
+
+    /**
+    * Trim command
+    */
+    int TrimTrack( const TOOL_EVENT& aEvent );
+
+    /**
      * Rotate currently selected items.
      */
     int Rotate( const TOOL_EVENT& aEvent );

@@ -1106,6 +1106,34 @@ TOOL_ACTION PCB_ACTIONS::properties( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Properties..." ) )
         .Icon( BITMAPS::edit ) );
 
+
+TOOL_ACTION PCB_ACTIONS::matchProperties( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.matchProperties" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( MD_SHIFT + 'Q' )
+        .FriendlyName( _( "Match Properties" ) )
+        .Tooltip( _( "Copy properties from one board item to other items" ) )
+        .Flags( AF_ACTIVATE ) );
+
+// EXTEND command
+TOOL_ACTION PCB_ACTIONS::extendTrack( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.extendTrack" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( MD_SHIFT + 'E' )
+        .FriendlyName( _( "Extend Track" ) )
+        .Tooltip( _( "Extend a straight track to the nearest intersecting track" ) )
+        .Flags( AF_ACTIVATE ) );
+
+// TRIM command
+TOOL_ACTION PCB_ACTIONS::trimTrack( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveEdit.trimTrack" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( MD_SHIFT + 'T' )
+        .FriendlyName( _( "Trim Track" ) )
+        .Tooltip( _( "Trim a straight track back to the nearest intersecting track or graphic line" ) )
+        .Flags( AF_ACTIVATE ) );
+
+
 // ARRAY
 //
 TOOL_ACTION PCB_ACTIONS::createArray( TOOL_ACTION_ARGS()
