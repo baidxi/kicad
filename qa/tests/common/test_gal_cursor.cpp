@@ -19,6 +19,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+#include <eda_cursor_broadcaster.h>
 #include <gal/gal_display_options.h>
 #include <gal/graphics_abstraction_layer.h>
 
@@ -29,6 +30,24 @@ public:
     TEST_GAL( KIGFX::GAL_DISPLAY_OPTIONS& aOptions ) : GAL( aOptions ) {}
 
     void ForceDisplayCursor( bool aEnabled ) { m_forceDisplayCursor = aEnabled; }
+};
+
+
+class TEST_CURSOR_OWNER : public EDA_CURSOR_OWNER
+{
+public:
+    TEST_CURSOR_OWNER() { EDA_CURSOR_BROADCASTER::Instance().Register( this ); }
+
+    ~TEST_CURSOR_OWNER() override { EDA_CURSOR_BROADCASTER::Instance().Unregister( this ); }
+
+    bool IsCursorInCanvas() const override { return m_inCanvas; }
+
+    void HideCursorInCanvas() override { m_inCanvas = false; }
+
+    void Enter() { m_inCanvas = true; }
+
+private:
+    bool m_inCanvas = false;
 };
 
 
@@ -67,6 +86,59 @@ BOOST_AUTO_TEST_CASE( ForcedCursorHiddenOutsideCanvas )
 
     gal.SetCursorInCanvas( false );
     BOOST_CHECK( !gal.IsCursorEnabled() );
+}
+
+
+BOOST_AUTO_TEST_CASE( CanvasOwnershipDoesNotChangeToolState )
+{
+    KIGFX::GAL_DISPLAY_OPTIONS options;
+    TEST_GAL                   gal( options );
+
+    gal.SetCursorEnabled( false );
+    gal.SetCursorInCanvas( true );
+    BOOST_CHECK( !gal.IsCursorEnabled() );
+
+    gal.SetCursorInCanvas( false );
+    gal.SetCursorInCanvas( true );
+    BOOST_CHECK( !gal.IsCursorEnabled() );
+
+    gal.SetCursorEnabled( true );
+    BOOST_CHECK( gal.IsCursorEnabled() );
+}
+
+
+BOOST_AUTO_TEST_CASE( BroadcastClearsEveryOtherOwner )
+{
+    TEST_CURSOR_OWNER first;
+    TEST_CURSOR_OWNER second;
+    TEST_CURSOR_OWNER third;
+
+    first.Enter();
+    second.Enter();
+    third.Enter();
+
+    EDA_CURSOR_BROADCASTER::Instance().NotifyCursorEntered( &second );
+
+    BOOST_CHECK( !first.IsCursorInCanvas() );
+    BOOST_CHECK( second.IsCursorInCanvas() );
+    BOOST_CHECK( !third.IsCursorInCanvas() );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnregisteredOwnerIsNotNotified )
+{
+    TEST_CURSOR_OWNER survivor;
+    survivor.Enter();
+
+    {
+        TEST_CURSOR_OWNER destroyed;
+        destroyed.Enter();
+    }
+
+    TEST_CURSOR_OWNER entering;
+    EDA_CURSOR_BROADCASTER::Instance().NotifyCursorEntered( &entering );
+
+    BOOST_CHECK( !survivor.IsCursorInCanvas() );
 }
 
 

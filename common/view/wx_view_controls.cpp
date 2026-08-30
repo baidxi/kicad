@@ -227,9 +227,14 @@ void WX_VIEW_CONTROLS::onMotion( wxMouseEvent& aEvent )
 
     ( *m_MotionEventCounter )++;
 
-    // Without a capture, motion events go only to the window below the cursor.
-    if( !m_parentPanel->HasCapture() )
+    // Motion proves the pointer is here, unless captured (motion keeps coming after leaving)
+    // or this is onLeave()'s own reentrant call.
+    if( !aEvent.Leaving() && !m_parentPanel->HasCapture()
+            && !m_parentPanel->IsCursorInCanvas() )
+    {
         m_parentPanel->SetCursorInCanvas( true );
+        m_parentPanel->NotifyOtherCanvasesCursorEntered();
+    }
 
     // Because Weston sends a motion event to previous location after warping the pointer
     wxPoint mouseRel = m_parentPanel->ScreenToClient( KIPLATFORM::UI::GetMousePosition() );
@@ -608,11 +613,11 @@ void WX_VIEW_CONTROLS::onButton( wxMouseEvent& aEvent )
 #if defined USE_MOUSE_CAPTURE
             if( !m_settings.m_cursorCaptured && m_parentPanel->HasCapture() )
                 m_parentPanel->ReleaseMouse();
-#endif
 
             // Leave events were ignored during the capture, so set the state here.
             m_parentPanel->SetCursorInCanvas(
                     m_parentPanel->GetClientRect().Contains( aEvent.GetPosition() ) );
+#endif
         }
 
         break;
@@ -657,6 +662,11 @@ void WX_VIEW_CONTROLS::onLeave( wxMouseEvent& aEvent )
     // MSW sends a leave event when the capture starts, but no enter event follows.
     if( m_parentPanel->HasCapture() )
         return;
+
+#if !defined USE_MOUSE_CAPTURE
+    if( m_parentPanel->IsSuspiciousLeaveAfterEnter( aEvent.GetPosition() ) )
+        return;
+#endif
 
     m_parentPanel->SetCursorInCanvas( false );
 
