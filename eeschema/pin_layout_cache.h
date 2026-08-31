@@ -88,6 +88,11 @@ public:
     OPT_BOX2I GetAltIconBBox();
 
     /**
+     * Get the box of the stacked-pin indicator, if the number as drawn hides part of the stack.
+     */
+    OPT_BOX2I GetStackIconBBox();
+
+    /**
      * Gets the dangling indicator geometry for this pin, if the
      * pin were to be dangling.
      */
@@ -177,6 +182,7 @@ private:
     OPT_BOX2I getUntransformedPinNumberBox() const;
     OPT_BOX2I getUntransformedPinTypeBox() const;
     OPT_BOX2I getUntransformedAltIconBox() const;
+    OPT_BOX2I getUntransformedStackIconBox() const;
 
     /// Pin type decoration if any
     OPT_BOX2I getUntransformedDecorationBox() const;
@@ -201,6 +207,9 @@ private:
     int      m_numSourceLength = -1;
 
     // Various cache members
+
+    /// The number as drawn, which is not the authored number for an abbreviated stack.
+    wxString           m_displayNumber;
     TEXT_EXTENTS_CACHE m_numExtentsCache;
     TEXT_EXTENTS_CACHE m_nameExtentsCache;
     TEXT_EXTENTS_CACHE m_typeExtentsCache;

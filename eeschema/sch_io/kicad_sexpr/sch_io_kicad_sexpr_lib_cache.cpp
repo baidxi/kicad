@@ -789,6 +789,9 @@ void SCH_IO_KICAD_SEXPR_LIB_CACHE::savePin( SCH_PIN* aPin, OUTPUTFORMATTER& aFor
                       EDA_UNIT_UTILS::FormatInternalUnits( schIUScale, aPin->GetNumberTextSize() ).c_str(),
                       EDA_UNIT_UTILS::FormatInternalUnits( schIUScale, aPin->GetNumberTextSize() ).c_str() );
 
+    // Omitted at the default so symbols that never opted in keep byte-identical output
+    if( aPin->GetNumberDisplay() != PIN_NUMBER_DISPLAY::ALL )
+        aFormatter.Print( "(number_display %s)", getPinNumberDisplayToken( aPin->GetNumberDisplay() ) );
 
     for( const std::pair<const wxString, SCH_PIN::ALT>& alt : aPin->GetAlternates() )
     {

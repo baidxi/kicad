@@ -906,6 +906,32 @@ static void drawAltPinModesIcon( GAL& aGal, const VECTOR2D& aPos, double aSize, 
 };
 
 
+/**
+ * Draw the stacked-pin indicator icon, three bars standing in for the numbers not shown.
+ */
+static void drawStackedPinIcon( GAL& aGal, const VECTOR2D& aPos, double aSize, bool aRotate,
+                                int aExtraLineWidth, const COLOR4D& aColor )
+{
+    aGal.Save();
+    aGal.Translate( aPos );
+
+    if( aRotate )
+        aGal.Rotate( ANGLE_270.AsRadians() );
+
+    aGal.SetIsFill( true );
+    aGal.SetIsStroke( false );
+    aGal.SetFillColor( aColor );
+
+    BuildStackedPinIconDots( KiROUND( aSize ), false,
+            [&]( const VECTOR2I& aCentre, int aRadius )
+            {
+                aGal.DrawCircle( aCentre, aRadius + aExtraLineWidth / 2.0 );
+            } );
+
+    aGal.Restore();
+}
+
+
 void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
 {
     // Don't draw pins from a selection view-group.  Pins in a schematic must always be drawn
@@ -1552,6 +1578,14 @@ void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
 
             drawTextInfo( *origInfo, dimmed );
         }
+    }
+
+    // Not nested in the number block above, since NONE draws no number and that is exactly the
+    // case where the stack would otherwise go unmarked
+    if( OPT_BOX2I stackIconBox = cache.GetStackIconBBox() )
+    {
+        drawStackedPinIcon( *m_gal, stackIconBox->GetCenter(), stackIconBox->GetWidth(), dir.y != 0,
+                            shadowWidth, getColorForLayer( LAYER_PINNUM ) );
     }
 
     if( std::optional<PIN_LAYOUT_CACHE::TEXT_INFO> nameInfo = cache.GetPinNameInfo( shadowWidth ) )

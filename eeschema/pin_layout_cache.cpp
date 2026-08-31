@@ -34,12 +34,16 @@ std::optional<PIN_LAYOUT_CACHE::TEXT_INFO> PIN_LAYOUT_CACHE::GetPinNumberInfo( i
 {
     recomputeCaches();
 
-    if( m_pin.GetShownNumber().IsEmpty() || !m_pin.GetParentSymbol()->GetShowPinNumbers() )
+    if( !m_pin.GetParentSymbol()->GetShowPinNumbers() )
         return std::nullopt;
 
     // Draw the string recomputeCaches() measured, so the box always matches the text.
-    const wxString& formatted = m_numExtentsCache.m_Text;
-    const int       num_size = m_pin.GetNumberTextSize();
+    const wxString& formatted = m_displayNumber;
+
+    if( formatted.IsEmpty() )
+        return std::nullopt;
+
+    const int num_size = m_pin.GetNumberTextSize();
 
     std::optional<TEXT_INFO> info = TEXT_INFO();
     info->m_Text = formatted;
@@ -279,9 +283,10 @@ void PIN_LAYOUT_CACHE::recomputeCaches()
             m_numSource = number;
             m_numSourceLength = length;
 
-            recomputeExtentsCache( true, font, numSize,
-                                   FormatStackedPinForDisplay( number, length, numSize, font, metrics ),
-                                   metrics, m_numExtentsCache );
+            m_displayNumber = FormatStackedPinForDisplay( number, length, numSize, font, metrics,
+                                                          m_pin.GetNumberDisplay() );
+
+            recomputeExtentsCache( true, font, numSize, m_displayNumber, metrics, m_numExtentsCache );
         }
     }
 
@@ -460,6 +465,11 @@ BOX2I PIN_LAYOUT_CACHE::GetPinBoundingBox( bool aIncludeLabelsOnInvisiblePins,
         if( OPT_BOX2I numBox = getUntransformedPinNumberBox() )
         {
             bbox.Merge( *numBox );
+        }
+
+        if( OPT_BOX2I stackIconBox = getUntransformedStackIconBox() )
+        {
+            bbox.Merge( *stackIconBox );
         }
     }
 
@@ -653,6 +663,30 @@ OPT_BOX2I PIN_LAYOUT_CACHE::getUntransformedAltIconBox() const
 }
 
 
+OPT_BOX2I PIN_LAYOUT_CACHE::getUntransformedStackIconBox() const
+{
+    if( !m_pin.HasAbbreviatedNumber() || !m_pin.GetParentSymbol()->GetShowPinNumbers() )
+        return std::nullopt;
+
+    const OPT_BOX2I numBox = getUntransformedPinNumberBox();
+
+    if( !numBox )
+        return std::nullopt;
+
+    const int iconSize = StackedPinIconSize( m_pin );
+    const int dotSpan = iconSize / 4;
+    const int gap = iconSize / 2;
+
+    // The dots sit outboard of the number, on the far side from the pin line.  A hidden number
+    // collapses its box onto the pin, so fall back to the icon's own clearance.
+    const int below = numBox->GetCenter().y > 0;
+    const int edge = below ? std::max( numBox->GetBottom(), gap ) : std::min( numBox->GetTop(), -gap );
+    const int centreY = below ? edge + gap + dotSpan : edge - gap - dotSpan;
+
+    return BOX2I::ByCenter( { numBox->GetCenter().x, centreY }, { iconSize, dotSpan * 2 } );
+}
+
+
 OPT_BOX2I PIN_LAYOUT_CACHE::getUntransformedDecorationBox() const
 {
     const GRAPHIC_PINSHAPE shape = m_pin.GetShape();
@@ -752,6 +786,22 @@ OPT_BOX2I PIN_LAYOUT_CACHE::GetPinNumberBBox()
 OPT_BOX2I PIN_LAYOUT_CACHE::GetAltIconBBox()
 {
     OPT_BOX2I box = getUntransformedAltIconBox();
+
+    if( box )
+        transformBoxForPin( *box );
+
+    return box;
+}
+
+
+OPT_BOX2I PIN_LAYOUT_CACHE::GetStackIconBBox()
+{
+    if( !m_pin.HasAbbreviatedNumber() )
+        return std::nullopt;
+
+    recomputeCaches();
+
+    OPT_BOX2I box = getUntransformedStackIconBox();
 
     if( box )
         transformBoxForPin( *box );
