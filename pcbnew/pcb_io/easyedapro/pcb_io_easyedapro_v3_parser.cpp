@@ -177,6 +177,21 @@ wxString PCB_IO_EASYEDAPRO_V3_PARSER::GenerateSafeSpacingRules( const nlohmann::
 
 static const int SHAPE_JOIN_DISTANCE = pcbIUScale.mmToIU( 1.5 );
 
+static void RegenerateFootprintUuids( FOOTPRINT* aFootprint )
+{
+    // FOOTPRINT::Clone() preserves its UUIDs.  Imported footprints are templates, so each
+    // placed instance and all of its children must receive new identities.
+    aFootprint->SetUuid( KIID() );
+    aFootprint->RunOnChildren(
+            []( BOARD_ITEM* aItem )
+            {
+                aItem->SetUuid( KIID() );
+            },
+            RECURSE_MODE::RECURSE );
+}
+
+
+
 
 PCB_IO_EASYEDAPRO_V3_PARSER::PCB_IO_EASYEDAPRO_V3_PARSER( BOARD*             aBoard,
                                                             PROGRESS_REPORTER* aProgressReporter ) :
@@ -1680,6 +1695,7 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
         std::unique_ptr<FOOTPRINT>& footprintOrig = it->second;
         std::unique_ptr<FOOTPRINT>  footprint(
                 static_cast<FOOTPRINT*>( footprintOrig->Clone() ) );
+        RegenerateFootprintUuids( footprint.get() );
 
         footprint->SetParent( aBoard );
 

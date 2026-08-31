@@ -167,6 +167,42 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
     BOOST_CHECK_EQUAL( padsWithNet, 2 );
 }
 
+BOOST_AUTO_TEST_CASE( PlacedFootprintsReceiveUniqueUuids )
+{
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+
+    auto templateFootprint = std::make_unique<FOOTPRINT>( &board );
+    auto templatePad = std::make_unique<PAD>( templateFootprint.get() );
+    templatePad->SetNumber( wxS( "1" ) );
+    templateFootprint->Add( templatePad.release(), ADD_MODE::APPEND );
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprintMap;
+    footprintMap[wxS( "fp1" )] = std::move( templateFootprint );
+
+    nlohmann::json project = {
+        { "devices", { { "device1", { { "attributes", { { "Footprint", "fp1" } } } } } } }
+    };
+    std::vector<nlohmann::json> boardLines = {
+        { "COMPONENT", "component1", 0, 1, 0, 0, 0, nlohmann::json::object() },
+        { "COMPONENT", "component2", 0, 1, 10, 0, 0, nlohmann::json::object() },
+        { "ATTR", "attr1", 0, "component1", 3, nullptr, nullptr, "Device", "device1", 0, 0, "default", 0, 0, 0, 0, 0, 0, 0 },
+        { "ATTR", "attr2", 0, "component2", 3, nullptr, nullptr, "Device", "device1", 0, 0, "default", 0, 0, 0, 0, 0, 0, 0 }
+    };
+
+    parser.ParseBoard( &board, project, footprintMap, {}, {}, boardLines, wxS( "lib" ) );
+
+    BOOST_REQUIRE_EQUAL( board.Footprints().size(), 2 );
+
+    FOOTPRINT* first = board.Footprints()[0];
+    FOOTPRINT* second = board.Footprints()[1];
+
+    BOOST_CHECK( first->m_Uuid != second->m_Uuid );
+    BOOST_CHECK( first->Pads()[0]->m_Uuid != second->Pads()[0]->m_Uuid );
+}
+
+
+
 BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
 {
     BOARD                    board;

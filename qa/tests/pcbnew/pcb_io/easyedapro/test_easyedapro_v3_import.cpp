@@ -222,6 +222,41 @@ BOOST_AUTO_TEST_CASE( DuplicatePadNumbersReceiveNets )
     BOOST_CHECK_EQUAL( pad2WithNet, 2 );
 }
 
+BOOST_AUTO_TEST_CASE( PlacedFootprintsReceiveUniqueUuids )
+{
+    EASYEDAPRO::V3_DOC_RAW fpDoc;
+    fpDoc.rows = {
+        { wxS( "PAD" ), wxEmptyString, 0, {}, { { "num", "1" }, { "layerId", 1 } } }
+    };
+
+    BOARD                       board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+    std::unique_ptr<FOOTPRINT>  footprint( parser.ParseFootprint( {}, fpDoc ) );
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprintMap;
+    footprintMap[wxS( "fp1" )] = std::move( footprint );
+
+    EASYEDAPRO::V3_DOC_RAW boardDoc;
+    boardDoc.rows = {
+        { wxS( "COMPONENT" ), wxS( "c1" ), 0, {}, { { "layerId", 1 }, { "x", 0 }, { "y", 0 } } },
+        { wxS( "COMPONENT" ), wxS( "c2" ), 0, {}, { { "layerId", 1 }, { "x", 10 }, { "y", 0 } } },
+        { wxS( "ATTR" ), wxEmptyString, 0, {}, { { "parentId", "c1" }, { "key", "Footprint" }, { "value", "fp1" } } },
+        { wxS( "ATTR" ), wxEmptyString, 0, {}, { { "parentId", "c2" }, { "key", "Footprint" }, { "value", "fp1" } } }
+    };
+
+    parser.ParseBoard( &board, nlohmann::json::object(), footprintMap, {}, {}, boardDoc, wxS( "lib" ) );
+
+    BOOST_REQUIRE_EQUAL( board.Footprints().size(), 2 );
+
+    FOOTPRINT* first = board.Footprints()[0];
+    FOOTPRINT* second = board.Footprints()[1];
+
+    BOOST_CHECK( first->m_Uuid != second->m_Uuid );
+    BOOST_CHECK( first->Pads()[0]->m_Uuid != second->Pads()[0]->m_Uuid );
+}
+
+
+
 
 BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
 {
