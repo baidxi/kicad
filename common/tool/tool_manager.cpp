@@ -39,6 +39,7 @@
 #include <view/view.h>
 #include <view/view_controls.h>
 #include <eda_base_frame.h>
+#include <pgm_base.h>
 #include <tool/tool_base.h>
 #include <tool/tool_interactive.h>
 #include <tool/tool_manager.h>
@@ -319,17 +320,23 @@ VECTOR2D TOOL_MANAGER::GetMousePosition() const
 {
     if( m_viewControls )
         return m_viewControls->GetMousePosition();
-    else
-        return ToVECTOR2D( KIPLATFORM::UI::GetMousePosition() );
+
+    if( !Pgm().IsGUI() )
+        return VECTOR2D( 0, 0 );
+
+    return ToVECTOR2D( KIPLATFORM::UI::GetMousePosition() );
 }
 
 
 VECTOR2D TOOL_MANAGER::GetCursorPosition() const
 {
-   if( m_viewControls )
-       return m_viewControls->GetCursorPosition();
-   else
-       return ToVECTOR2D( KIPLATFORM::UI::GetMousePosition() );
+    if( m_viewControls )
+        return m_viewControls->GetCursorPosition();
+
+    if( !Pgm().IsGUI() )
+        return VECTOR2D( 0, 0 );
+
+    return ToVECTOR2D( KIPLATFORM::UI::GetMousePosition() );
 }
 
 

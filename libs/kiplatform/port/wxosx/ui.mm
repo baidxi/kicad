@@ -206,6 +206,9 @@ bool KIPLATFORM::UI::AllowIconsInMenus()
 
 wxPoint KIPLATFORM::UI::GetMousePosition()
 {
+    if( [[NSScreen screens] count] == 0 )
+        return wxPoint( 0, 0 );
+
     return wxGetMousePosition();
 }
 
