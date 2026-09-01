@@ -156,10 +156,11 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<GetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleGetPageSettings );
     registerHandler<SetPageSettings, types::PageSettings>( &API_HANDLER_SCH::handleSetPageSettings );
     registerHandler<GetSchematicNetlist, SchematicNetlistResponse>( &API_HANDLER_SCH::handleGetSchematicNetlist );
-
     registerHandler<CrossProbeAnnounce, CrossProbeAnnounceResponse>( &API_HANDLER_SCH::handleCrossProbeAnnounce );
     registerHandler<SyncSelection, SyncSelectionResponse>( &API_HANDLER_SCH::handleSyncSelection );
     registerHandler<HighlightNets, HighlightNetsResponse>( &API_HANDLER_SCH::handleHighlightNets );
+    registerHandler<GetSchematicVariants, SchematicVariantsResponse>(
+            &API_HANDLER_SCH::handleGetSchematicVariants );
 }
 
 
@@ -917,15 +918,18 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
         bool unpacked = false;
 
+        // Retained past the unpack: the placement data they carry is applied once the item is
+        // in the schematic.
+        kiapi::schematic::types::SchematicSymbolInstance symbolProto;
+        kiapi::schematic::types::SheetSymbol            sheetProto;
+
         if( *type == SCH_SYMBOL_T )
         {
-            kiapi::schematic::types::SchematicSymbolInstance symbol;
-            unpacked = anyItem.UnpackTo( &symbol )
-                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
+            unpacked = anyItem.UnpackTo( &symbolProto )
+                       && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbolProto );
         }
         else if( *type == SCH_SHEET_T )
         {
-            kiapi::schematic::types::SheetSymbol sheetProto;
             unpacked = anyItem.UnpackTo( &sheetProto );
 
             if( unpacked )
@@ -936,22 +940,6 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                     result.has_value() )
                 {
                     unpacked = *result;
-                    SCH_SHEET_INSTANCE instance;
-
-                    if( !sheet->GetInstances().empty() )
-                        instance = *sheet->GetInstances().begin();
-
-                    if( instance.m_PageNumber.IsEmpty() )
-                        instance.m_PageNumber = hierarchy.GetNextPageNumber();
-
-                    if( instance.m_Path.empty() )
-                    {
-                        SCH_SHEET_PATH newPath( targetPath );
-                        newPath.push_back( sheet );
-                        instance.m_Path = newPath.Path();
-                    }
-
-                    sheet->AddInstance( instance );
                 }
                 else
                 {
@@ -1076,17 +1064,26 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( createdItem->Type() == SCH_SYMBOL_T )
             {
-                kiapi::schematic::types::SchematicSymbolInstance symbol;
+                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( createdItem );
+                kiapi::schematic::types::SchematicSymbolInstance packed;
 
-                if( PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( createdItem ), targetPath ) )
-                    newItem.PackFrom( symbol );
+                ApplySymbolInstance( symbol, symbolProto, targetPath, schematic() );
+
+                if( PackSymbol( &packed, symbol, targetPath ) )
+                    newItem.PackFrom( packed );
             }
             else if( createdItem->Type() == SCH_SHEET_T )
             {
-                kiapi::schematic::types::SheetSymbol sheet;
+                SCH_SHEET* sheet = static_cast<SCH_SHEET*>( createdItem );
+                kiapi::schematic::types::SheetSymbol packed;
 
-                if( PackSheet( &sheet, static_cast<SCH_SHEET*>( createdItem ), targetPath ) )
-                    newItem.PackFrom( sheet );
+                if( sheetProto.page_number().empty() )
+                    sheetProto.set_page_number( hierarchy.GetNextPageNumber().ToUTF8() );
+
+                ApplySheetInstance( sheet, sheetProto, targetPath, schematic() );
+
+                if( PackSheet( &packed, sheet, targetPath ) )
+                    newItem.PackFrom( packed );
             }
             else
             {
@@ -1095,6 +1092,16 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
         }
         else
         {
+            // SwapItemData hands the item the temporary's (empty) instance list, so keep the
+            // placements to restore afterwards.
+            std::vector<SCH_SYMBOL_INSTANCE> symbolPlacements;
+            std::vector<SCH_SHEET_INSTANCE>  sheetPlacements;
+
+            if( existingItem->Type() == SCH_SYMBOL_T )
+                symbolPlacements = static_cast<SCH_SYMBOL*>( existingItem )->GetInstances();
+            else if( existingItem->Type() == SCH_SHEET_T )
+                sheetPlacements = static_cast<SCH_SHEET*>( existingItem )->GetInstances();
+
             commit->Modify( existingItem, targetScreen );
             existingItem->SwapItemData( static_cast<SCH_ITEM*>( item.get() ) );
 
@@ -1106,19 +1113,29 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
             if( existingItem->Type() == SCH_SYMBOL_T )
             {
-                SCH_SHEET_PATH path = existingPath;
-                kiapi::schematic::types::SchematicSymbolInstance symbol;
+                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( existingItem );
+                kiapi::schematic::types::SchematicSymbolInstance packed;
 
-                if( PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( existingItem ), path ) )
-                    newItem.PackFrom( symbol );
+                for( const SCH_SYMBOL_INSTANCE& placement : symbolPlacements )
+                    symbol->AddHierarchicalReference( placement );
+
+                ApplySymbolInstance( symbol, symbolProto, existingPath, schematic() );
+
+                if( PackSymbol( &packed, symbol, existingPath ) )
+                    newItem.PackFrom( packed );
             }
             else if( existingItem->Type() == SCH_SHEET_T )
             {
-                SCH_SHEET_PATH path = existingPath;
-                kiapi::schematic::types::SheetSymbol sheet;
+                SCH_SHEET* sheet = static_cast<SCH_SHEET*>( existingItem );
+                kiapi::schematic::types::SheetSymbol packed;
 
-                if( PackSheet( &sheet, static_cast<SCH_SHEET*>( existingItem ), path ) )
-                    newItem.PackFrom( sheet );
+                for( const SCH_SHEET_INSTANCE& placement : sheetPlacements )
+                    sheet->AddInstance( placement );
+
+                ApplySheetInstance( sheet, sheetProto, existingPath, schematic() );
+
+                if( PackSheet( &packed, sheet, existingPath ) )
+                    newItem.PackFrom( packed );
             }
             else
             {
@@ -2171,5 +2188,31 @@ HANDLER_RESULT<HighlightNetsResponse> API_HANDLER_SCH::handleHighlightNets(
     m_frame->HandleRemoteNetHighlight( net );
 
     response.set_status( CPS_OK );
+    return response;
+}
+
+
+
+HANDLER_RESULT<kiapi::schematic::commands::SchematicVariantsResponse>
+API_HANDLER_SCH::handleGetSchematicVariants(
+        const HANDLER_CONTEXT<kiapi::schematic::commands::GetSchematicVariants>& aCtx )
+{
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    kiapi::schematic::commands::SchematicVariantsResponse response;
+    response.mutable_document()->CopyFrom( aCtx.Request.document() );
+
+    for( const wxString& name : schematic()->GetVariantNames() )
+    {
+        kiapi::schematic::commands::SchematicVariant* variant = response.add_variants();
+        variant->set_name( name.ToUTF8() );
+        variant->set_description( schematic()->GetVariantDescription( name ).ToUTF8() );
+    }
+
+    response.set_current_variant( schematic()->GetCurrentVariant().ToUTF8() );
+
     return response;
 }
