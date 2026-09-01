@@ -917,13 +917,13 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
 
         bool unpacked = false;
 
-        if( *type == SCH_SYMBOL_T )
+        if( type == SCH_SYMBOL_T )
         {
             kiapi::schematic::types::SchematicSymbolInstance symbol;
             unpacked = anyItem.UnpackTo( &symbol )
                        && UnpackSymbol( static_cast<SCH_SYMBOL*>( item.get() ), symbol );
         }
-        else if( *type == SCH_SHEET_T )
+        else if( type == SCH_SHEET_T )
         {
             kiapi::schematic::types::SheetSymbol sheetProto;
             unpacked = anyItem.UnpackTo( &sheetProto );
@@ -958,6 +958,10 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                     return tl::unexpected( result.error() );
                 }
             }
+        }
+        else if( SCH_GROUP* group = dynamic_cast<SCH_GROUP*>( item.get() ) )
+        {
+            unpacked = group->DeserializeGroup( anyItem, commit );
         }
         else
         {
@@ -1028,7 +1032,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
             }
         }
 
-        if( *type == SCH_SHEET_T )
+        if( type == SCH_SHEET_T )
         {
             SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item.get() );
 
