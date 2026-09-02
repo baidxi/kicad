@@ -21,6 +21,7 @@
 #include <widgets/lib_tree.h>
 #include <project.h>
 #include <kiway.h>
+#include <algorithm>
 #include "wx/generic/textdlgg.h"
 #include "library_editor_control.h"
 
@@ -40,44 +41,52 @@ void LIBRARY_EDITOR_CONTROL::Reset( RESET_REASON aReason )
 
 void LIBRARY_EDITOR_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 {
-    auto checkPinnedStatus = [this]( bool aPin )
+    auto hasUnpinnedLibs = [this]( const SELECTION& aSel )
     {
-        bool      result = true;
         LIB_TREE* libTree = m_frame->GetLibTree();
-        if( libTree )
-        {
-            std::vector<LIB_TREE_NODE*> selection;
-            libTree->GetSelectedTreeNodes( selection );
+        if( !libTree )
+            return false;
 
-            for( const LIB_TREE_NODE* lib : selection )
-            {
-                if( lib && lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && lib->m_Pinned != aPin )
-                {
-                    result = false;
-                    break;
-                }
-            }
-        }
-        else
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
         {
-            result = false;
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && !libraryNode->m_Pinned )
+                return true;
         }
 
-        return result;
+        return false;
     };
 
-    auto pinnedLibSelectedCondition = [checkPinnedStatus]( const SELECTION& aSel )
+    auto hasPinnedLibs = [this]( const SELECTION& aSel )
     {
-        return checkPinnedStatus( true );
+        LIB_TREE* libTree = m_frame->GetLibTree();
+        if( !libTree )
+            return false;
+
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && libraryNode->m_Pinned )
+                return true;
+        }
+
+        return false;
     };
 
-    auto unpinnedLibSelectedCondition = [checkPinnedStatus]( const SELECTION& aSel )
-    {
-        return checkPinnedStatus( false );
-    };
-
-    aMenu->AddItem( ACTIONS::pinLibrary,        unpinnedLibSelectedCondition, 1 );
-    aMenu->AddItem( ACTIONS::unpinLibrary,      pinnedLibSelectedCondition, 1 );
+    aMenu->AddItem( ACTIONS::pinLibrary,        hasUnpinnedLibs, 1 );
+    aMenu->AddItem( ACTIONS::unpinLibrary,      hasPinnedLibs, 1 );
     aMenu->AddSeparator( 1 );
 
     aMenu->AddSeparator( 400 );
@@ -96,44 +105,67 @@ void LIBRARY_EDITOR_CONTROL::regenerateLibraryTree()
         libTree->CenterLibId( target );
 }
 
-void LIBRARY_EDITOR_CONTROL::changeSelectedPinStatus( const bool aPin )
+
+std::vector<LIB_TREE_NODE*> LIBRARY_EDITOR_CONTROL::getUniqueLibrariesFromSelection()
 {
+    std::vector<LIB_TREE_NODE*> uniqueLibraries;
     LIB_TREE* libTree = m_frame->GetLibTree();
-    if( libTree )
+
+    if( !libTree )
+        return uniqueLibraries;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    for( LIB_TREE_NODE* node : selection )
     {
-        std::vector<LIB_TREE_NODE*> selection;
-        libTree->GetSelectedTreeNodes( selection );
+        if( !node )
+            continue;
 
-        for( LIB_TREE_NODE* lib : selection )
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+
+        if( libraryNode )
         {
-            if( lib && lib->m_Type == LIB_TREE_NODE::TYPE::LIBRARY && lib->m_Pinned != aPin )
+            // Add library node if not already in the list
+            if( std::find( uniqueLibraries.begin(), uniqueLibraries.end(), libraryNode )
+                == uniqueLibraries.end() )
             {
-                const KIWAY::FACE_T kifaceType = KIWAY::KifaceType( m_frame->GetFrameType() );
-
-                if( kifaceType == KIWAY::FACE_SCH || kifaceType == KIWAY::FACE_PCB )
-                {
-                    if( aPin )
-                        m_frame->Prj().PinLibrary( lib->m_LibId.GetLibNickname(),
-                                                   kifaceType == KIWAY::FACE_SCH
-                                                           ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
-                                                           : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB );
-                    else
-                        m_frame->Prj().UnpinLibrary( lib->m_LibId.GetLibNickname(),
-                                                     kifaceType == KIWAY::FACE_SCH
-                                                             ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
-                                                             : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB );
-
-                    lib->m_Pinned = aPin;
-                }
-                else
-                {
-                    wxFAIL_MSG( wxT( "Unsupported frame type for library pinning." ) );
-                }
+                uniqueLibraries.push_back( libraryNode );
             }
         }
-
-        regenerateLibraryTree();
     }
+
+    return uniqueLibraries;
+}
+
+
+void LIBRARY_EDITOR_CONTROL::changeSelectedPinStatus( const bool aPin )
+{
+    std::vector<LIB_TREE_NODE*> libraryNodes = getUniqueLibrariesFromSelection();
+
+    const KIWAY::FACE_T kifaceType = KIWAY::KifaceType( m_frame->GetFrameType() );
+
+    if( kifaceType != KIWAY::FACE_SCH && kifaceType != KIWAY::FACE_PCB )
+    {
+        wxFAIL_MSG( wxT( "Unsupported frame type for library pinning." ) );
+        return;
+    }
+
+    PROJECT::LIB_TYPE_T libType = ( kifaceType == KIWAY::FACE_SCH )
+                                          ? PROJECT::LIB_TYPE_T::SYMBOL_LIB
+                                          : PROJECT::LIB_TYPE_T::FOOTPRINT_LIB;
+
+    for( LIB_TREE_NODE* lib : libraryNodes )
+    {
+        if( aPin )
+            m_frame->Prj().PinLibrary( lib->m_LibId.GetLibNickname(), libType );
+        else
+            m_frame->Prj().UnpinLibrary( lib->m_LibId.GetLibNickname(), libType );
+
+        lib->m_Pinned = aPin;
+    }
+
+    regenerateLibraryTree();
 }
 
 int LIBRARY_EDITOR_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )

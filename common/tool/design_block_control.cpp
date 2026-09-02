@@ -24,6 +24,7 @@
 #include <dialog_design_block_properties.h>
 #include <mail_type.h>
 #include <kiway.h>
+#include <algorithm>
 
 
 DESIGN_BLOCK_CONTROL::~DESIGN_BLOCK_CONTROL()
@@ -43,25 +44,52 @@ void DESIGN_BLOCK_CONTROL::Reset( RESET_REASON aReason )
 
 void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 {
-    auto pinnedLib =
-            [this]( const SELECTION& aSel )
-            {
-                //
-                LIB_TREE_NODE* current = getCurrentTreeNode();
-                return current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY
-                       && current->m_Pinned;
-            };
+     auto hasUnpinnedLibs = [this]( const SELECTION& aSel )
+    {
+        LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
+        if( !libTree )
+            return false;
 
-    auto unpinnedLib =
-            [this](const SELECTION& aSel )
-            {
-                LIB_TREE_NODE* current = getCurrentTreeNode();
-                return current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY
-                       && !current->m_Pinned;
-            };
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
 
-    aMenu->AddItem( ACTIONS::pinLibrary, unpinnedLib, 1 );
-    aMenu->AddItem( ACTIONS::unpinLibrary, pinnedLib, 1 );
+        for( const LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && !libraryNode->m_Pinned )
+                return true;
+        }
+
+        return false;
+    };
+
+    auto hasPinnedLibs = [this]( const SELECTION& aSel )
+    {
+        LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
+        if( !libTree )
+            return false;
+
+        std::vector<LIB_TREE_NODE*> selection;
+        libTree->GetSelectedTreeNodes( selection );
+
+        for( const LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            const LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+            if( libraryNode && libraryNode->m_Pinned )
+                return true;
+        }
+
+        return false;
+    };
+
+    aMenu->AddItem( ACTIONS::pinLibrary, hasUnpinnedLibs, 1 );
+    aMenu->AddItem( ACTIONS::unpinLibrary, hasPinnedLibs, 1 );
     aMenu->AddItem( ACTIONS::newLibrary, SELECTION_CONDITIONS::ShowAlways, 1 );
     aMenu->AddSeparator( 2 );
 
@@ -72,15 +100,47 @@ void DESIGN_BLOCK_CONTROL::AddContextMenuItems( CONDITIONAL_MENU* aMenu )
 
 int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
 {
-    LIB_TREE_NODE* current = getCurrentTreeNode();
+    LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
 
-    if( current && !current->m_Pinned )
+    if( !libTree )
+        return -1;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    // Collect unique library nodes (or parent libraries of child items)
+    std::vector<LIB_TREE_NODE*> libraryNodes;
+
+    for( LIB_TREE_NODE* node : selection )
     {
-        m_frame->Prj().PinLibrary( current->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-        current->m_Pinned = true;
+        if( !node )
+            continue;
+
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+
+        // Add library node if found and not already in the list
+        if( libraryNode && !libraryNode->m_Pinned )
+        {
+            if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
+            {
+                libraryNodes.push_back( libraryNode );
+            }
+        }
+    }
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : libraryNodes )
+    {
+        m_frame->Prj().PinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+        node->m_Pinned = true;
+        changed = true;
+    }
+
+    if( changed )
+    {
         getDesignBlockPane()->RefreshLibs();
         notifyOtherFrames();
-
         return 0;
     }
 
@@ -90,15 +150,47 @@ int DESIGN_BLOCK_CONTROL::PinLibrary( const TOOL_EVENT& aEvent )
 
 int DESIGN_BLOCK_CONTROL::UnpinLibrary( const TOOL_EVENT& aEvent )
 {
-    LIB_TREE_NODE* current = getCurrentTreeNode();
+    LIB_TREE* libTree = getDesignBlockPane() ? getDesignBlockPane()->GetDesignBlockPanel()->GetLibTree() : nullptr;
 
-    if( current && current->m_Pinned )
+    if( !libTree )
+        return -1;
+
+    std::vector<LIB_TREE_NODE*> selection;
+    libTree->GetSelectedTreeNodes( selection );
+
+    // Collect unique library nodes (or parent libraries of child items)
+    std::vector<LIB_TREE_NODE*> libraryNodes;
+
+    for( LIB_TREE_NODE* node : selection )
     {
-        m_frame->Prj().UnpinLibrary( current->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
-        current->m_Pinned = false;
+        if( !node )
+            continue;
+
+        LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+
+        // Add library node if found and not already in the list
+        if( libraryNode && libraryNode->m_Pinned )
+        {
+            if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
+            {
+                libraryNodes.push_back( libraryNode );
+            }
+        }
+    }
+
+    bool changed = false;
+
+    for( LIB_TREE_NODE* node : libraryNodes )
+    {
+        m_frame->Prj().UnpinLibrary( node->m_LibId.GetLibNickname(), PROJECT::LIB_TYPE_T::DESIGN_BLOCK_LIB );
+        node->m_Pinned = false;
+        changed = true;
+    }
+
+    if( changed )
+    {
         getDesignBlockPane()->RefreshLibs();
         notifyOtherFrames();
-
         return 0;
     }
 

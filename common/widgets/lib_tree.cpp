@@ -1060,25 +1060,82 @@ void LIB_TREE::onItemContextMenu( wxDataViewEvent& aEvent )
     }
     else
     {
-        LIB_TREE_NODE* current = GetCurrentTreeNode();
+        std::vector<LIB_TREE_NODE*> selection;
+        GetSelectedTreeNodes( selection );
 
-        if( current && current->m_Type == LIB_TREE_NODE::TYPE::LIBRARY )
+        // Collect library nodes (or parent libraries of child items)
+        std::vector<LIB_TREE_NODE*> libraryNodes;
+        bool allPinned = true;
+        bool allUnpinned = true;
+
+        for( LIB_TREE_NODE* node : selection )
+        {
+            if( !node )
+                continue;
+
+            LIB_TREE_NODE* libraryNode = node->GetLibraryNode();
+
+            // Add library node if found and not already in the list
+            if( libraryNode )
+            {
+                if( std::find( libraryNodes.begin(), libraryNodes.end(), libraryNode ) == libraryNodes.end() )
+                {
+                    libraryNodes.push_back( libraryNode );
+
+                    if( libraryNode->m_Pinned )
+                        allUnpinned = false;
+                    else
+                        allPinned = false;
+                }
+            }
+        }
+
+        if( !libraryNodes.empty() )
         {
             ACTION_MENU menu( true, nullptr );
 
-            if( current->m_Pinned )
+            // If all are pinned, show unpin option
+            if( allPinned )
             {
                 menu.Add( ACTIONS::unpinLibrary );
 
                 if( GetPopupMenuSelectionFromUser( menu ) != wxID_NONE )
-                    m_adapter->UnpinLibrary( current );
+                {
+                    for( LIB_TREE_NODE* node : libraryNodes )
+                        m_adapter->UnpinLibrary( node );
+                }
             }
-            else
+            // If all are unpinned, show pin option
+            else if( allUnpinned )
             {
                 menu.Add( ACTIONS::pinLibrary );
 
                 if( GetPopupMenuSelectionFromUser( menu ) != wxID_NONE )
-                    m_adapter->PinLibrary( current );
+                {
+                    for( LIB_TREE_NODE* node : libraryNodes )
+                        m_adapter->PinLibrary( node );
+                }
+            }
+            // If mixed, show both options
+            else
+            {
+                menu.Add( ACTIONS::pinLibrary );
+                menu.Add( ACTIONS::unpinLibrary );
+
+                int result = GetPopupMenuSelectionFromUser( menu );
+
+                if( result != wxID_NONE )
+                {
+                    bool shouldPin = ( result == ACTIONS::pinLibrary.GetUIId() );
+
+                    for( LIB_TREE_NODE* node : libraryNodes )
+                    {
+                        if( shouldPin && !node->m_Pinned )
+                            m_adapter->PinLibrary( node );
+                        else if( !shouldPin && node->m_Pinned )
+                            m_adapter->UnpinLibrary( node );
+                    }
+                }
             }
         }
     }

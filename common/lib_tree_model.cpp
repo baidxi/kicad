@@ -156,6 +156,40 @@ LIB_TREE_NODE::LIB_TREE_NODE() :
 {}
 
 
+LIB_TREE_NODE* LIB_TREE_NODE::GetLibraryNode()
+{
+    if( m_Type == TYPE::LIBRARY )
+        return this;
+
+    LIB_TREE_NODE* parent = m_Parent;
+    while( parent )
+    {
+        if( parent->m_Type == TYPE::LIBRARY )
+            return parent;
+        parent = parent->m_Parent;
+    }
+
+    return nullptr;
+}
+
+
+const LIB_TREE_NODE* LIB_TREE_NODE::GetLibraryNode() const
+{
+    if( m_Type == TYPE::LIBRARY )
+        return this;
+
+    const LIB_TREE_NODE* parent = m_Parent;
+    while( parent )
+    {
+        if( parent->m_Type == TYPE::LIBRARY )
+            return parent;
+        parent = parent->m_Parent;
+    }
+
+    return nullptr;
+}
+
+
 LIB_TREE_NODE_UNIT::LIB_TREE_NODE_UNIT( LIB_TREE_NODE* aParent, LIB_TREE_ITEM* aItem, int aUnit )
 {
     m_Parent = aParent;
