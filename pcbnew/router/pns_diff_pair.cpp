@@ -384,7 +384,11 @@ bool DP_GATEWAYS::checkDiagonalAlignment( const VECTOR2I& a, const VECTOR2I& b )
 {
     VECTOR2I dir( std::abs (a.x - b.x), std::abs ( a.y - b.y ) );
 
-    return (dir.x == 0 && dir.y != 0) || (dir.x == dir.y) || (dir.y == 0 && dir.x != 0);
+    int epsilon = 10000;
+
+    return ( dir.x < epsilon && dir.y > epsilon ) ||
+           ( std::abs( dir.x - dir.y ) < epsilon ) ||
+           ( dir.y < epsilon && dir.x > epsilon );
 }
 
 
@@ -516,9 +520,16 @@ void DP_GATEWAYS::BuildFromPrimitivePair( const DP_PRIMITIVE_PAIR& aPair, bool a
             else
                 dir = makeGapVector( majorDirection, diagFanDistance );
 
-            int d = std::max( 0, padDist - m_gap );
-            dp = makeGapVector( dir, d );
-            dv = makeGapVector( p0_n - p0_p, d );
+            int d = padDist - m_gap;
+
+            // We want 'dp' to always be forward-facing (positive length relative to 'dir')
+            dp = makeGapVector( dir, std::abs( d ) );
+
+            // We want 'dv' to be transverse, but flipped if we are spreading (d < 0)
+            dv = makeGapVector( p0_n - p0_p, std::abs( d ) );
+
+            if( d < 0 )
+                dv = -dv;
 
             for( int i = 0; i < 2; i++ )
             {
@@ -634,6 +645,49 @@ void DP_GATEWAYS::buildDpContinuation( const DP_PRIMITIVE_PAIR& aPair, bool aIsD
             };
 
     VECTOR2I delta = aPair.AnchorP() - aPair.AnchorN();
+    int currentGap = delta.EuclideanNorm();
+    int d = currentGap - m_gap;
+
+    if( std::abs( d ) > m_gap / 10 ) // Significant mismatch?
+    {
+        // Vector along the pair centerline
+        VECTOR2I dir0 = ( aPair.DirP().ToVector() + aPair.DirN().ToVector() );
+
+        if( dir0.EuclideanNorm() != 0 )
+        {
+             // Normalized direction along the track
+             VECTOR2I dir = makeGapVector( dir0, m_gap );
+
+             // Spread per side (half the total gap difference)
+             int spread = std::abs( d ) / 2;
+             
+             // Vectors for 45-degree movement
+             // Note: makeGapVector returns L/2, so we use Resize explicitly to get full 'spread' length
+             VECTOR2I fwd_vec = dir.Resize( spread ); 
+             VECTOR2I side_vec = ( aPair.AnchorN() - aPair.AnchorP() ).Resize( spread );
+             
+             if( d < 0 ) // Expand: inward becomes outward
+                 side_vec = -side_vec;
+
+             // Projected endpoints (Immediate 45-degree turn, no stub)
+             VECTOR2I p_new = aPair.AnchorP() + fwd_vec + side_vec;
+             VECTOR2I n_new = aPair.AnchorN() + fwd_vec - side_vec;
+             
+             // Add entry lines
+             SHAPE_LINE_CHAIN entryP;
+             entryP.Append( aPair.AnchorP() );
+             entryP.Append( p_new );  // Single diagonal segment (45 deg)
+             
+             SHAPE_LINE_CHAIN entryN;
+             entryN.Append( aPair.AnchorN() );
+             entryN.Append( n_new );
+             
+             DP_GATEWAY gwExp( p_new, n_new, aIsDiagonal );
+             gwExp.SetEntryLines( entryP, entryN );
+             gwExp.SetPriority( 200 ); // High priority to encourage using this valid transition
+             m_gateways.push_back( gwExp );
+        }
+    }
 
     if( abs( delta.x ) < EPSILON || abs( delta.y ) < EPSILON || abs( delta.x - delta.y ) < EPSILON )
     {
