@@ -307,6 +307,8 @@ private:
 
     void addShape( wxXmlNode* aContentNode, const PCB_SHAPE& aShape, bool aInline = false );
 
+    void addFootprintGraphic( wxXmlNode* aContentNode, const PCB_SHAPE& aShape, const FOOTPRINT& aFootprint );
+
     void addShape( wxXmlNode* aContentNode, const PAD& aPad, PCB_LAYER_ID aLayer );
 
     void addSlotCavity( wxXmlNode* aContentNode, const PAD& aPad, const wxString& aName );

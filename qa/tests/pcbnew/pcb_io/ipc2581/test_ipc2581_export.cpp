@@ -1205,6 +1205,131 @@ BOOST_AUTO_TEST_CASE( GrRectCornerRadius_Issue24754 )
 }
 
 
+BOOST_AUTO_TEST_CASE( FootprintGraphicsUseLocalCoordinates )
+{
+    BOARD board;
+    board.SetCopperLayerCount( 2 );
+
+    auto addRectFootprint = [&]( const wxString& aReference, const VECTOR2I& aPosition,
+                                 double aOrientation ) -> FOOTPRINT*
+    {
+        FOOTPRINT* fp = new FOOTPRINT( &board );
+        fp->SetReference( aReference );
+        fp->SetPosition( aPosition );
+        board.Add( fp );
+
+        PCB_SHAPE* rect = new PCB_SHAPE( fp, SHAPE_T::RECTANGLE );
+        rect->SetStart( aPosition + VECTOR2I( pcbIUScale.mmToIU( -0.5 ), pcbIUScale.mmToIU( -1.0 ) ) );
+        rect->SetEnd( aPosition + VECTOR2I( pcbIUScale.mmToIU( 0.5 ), pcbIUScale.mmToIU( 1.0 ) ) );
+        rect->SetLayer( F_Fab );
+        rect->SetStroke( STROKE_PARAMS( pcbIUScale.mmToIU( 0.1 ), LINE_STYLE::SOLID ) );
+        rect->SetFilled( false );
+        fp->Add( rect );
+
+        PCB_SHAPE* line = new PCB_SHAPE( fp, SHAPE_T::SEGMENT );
+        line->SetStart( aPosition + VECTOR2I( pcbIUScale.mmToIU( 1.0 ), 0 ) );
+        line->SetEnd( aPosition + VECTOR2I( pcbIUScale.mmToIU( 2.0 ), 0 ) );
+        line->SetLayer( F_Fab );
+        line->SetStroke( STROKE_PARAMS( pcbIUScale.mmToIU( 0.1 ), LINE_STYLE::SOLID ) );
+        fp->Add( line );
+
+        fp->SetOrientationDegrees( aOrientation );
+        return fp;
+    };
+
+    addRectFootprint( wxT( "R1" ), VECTOR2I( pcbIUScale.mmToIU( 10 ), pcbIUScale.mmToIU( 10 ) ), 0.0 );
+    addRectFootprint( wxT( "R2" ), VECTOR2I( pcbIUScale.mmToIU( 20 ), pcbIUScale.mmToIU( 20 ) ), 90.0 );
+    addRectFootprint( wxT( "R4" ), VECTOR2I( pcbIUScale.mmToIU( 40 ), pcbIUScale.mmToIU( 40 ) ), 30.0 );
+    FOOTPRINT* flipped =
+            addRectFootprint( wxT( "R3" ), VECTOR2I( pcbIUScale.mmToIU( 30 ), pcbIUScale.mmToIU( 30 ) ), 0.0 );
+    flipped->Flip( flipped->GetPosition(), FLIP_DIRECTION::TOP_BOTTOM );
+
+    wxString                    tempPath = CreateTempFile();
+    std::map<std::string, UTF8> props;
+    props["units"] = "mm";
+    props["version"] = "C";
+    props["sigfig"] = "4";
+
+    BOOST_REQUIRE_NO_THROW( m_ipc2581Plugin.SaveBoard( tempPath, &board, &props ) );
+    BOOST_REQUIRE( wxFileExists( tempPath ) );
+
+    std::string xml = ReadFile( tempPath );
+
+    const std::string rectGeometry = "width=\"1.0\" height=\"2.0\"";
+    size_t            geometryPos = xml.find( rectGeometry );
+    BOOST_REQUIRE_MESSAGE( geometryPos != std::string::npos, "Export should contain the local 1 x 2 mm rectangle" );
+
+    const std::string entryPrefix = "<EntryUser id=\"URECT_";
+    size_t            rectEntry = xml.rfind( entryPrefix, geometryPos );
+    BOOST_REQUIRE_MESSAGE( rectEntry != std::string::npos, "Local rectangle should be stored as a reusable primitive" );
+
+    size_t rectEntryEnd = xml.find( "</EntryUser>", rectEntry );
+    BOOST_REQUIRE( rectEntryEnd != std::string::npos && geometryPos < rectEntryEnd );
+    std::string rectPrimitive = xml.substr( rectEntry, rectEntryEnd - rectEntry );
+    BOOST_CHECK( rectPrimitive.find( "<RectRound " ) != std::string::npos );
+
+    size_t idStart = rectEntry + std::string( "<EntryUser id=\"" ).size();
+    size_t idEnd = xml.find( '"', idStart );
+    BOOST_REQUIRE( idEnd != std::string::npos && idEnd < geometryPos );
+    std::string rectId = xml.substr( idStart, idEnd - idStart );
+    std::string rectRef = "<UserPrimitiveRef id=\"" + rectId + "\"";
+
+    BOOST_CHECK_MESSAGE( rectPrimitive.find( rectGeometry ) != std::string::npos,
+                         "Shared footprint rectangle must use its local 1 x 2 mm geometry" );
+    BOOST_CHECK_MESSAGE( xml.find( rectGeometry, geometryPos + rectGeometry.size() ) == std::string::npos,
+                         "Local rectangle geometry should appear in the dictionary only once" );
+
+    std::string fab = LayerFeatureRegion( xml, "F.Fab" );
+    auto        componentSetWith = []( const std::string& aRegion, const std::string& aReference,
+                                const std::string& aNeedle ) -> std::string
+    {
+        const std::string component = "componentRef=\"" + aReference + "\"";
+        size_t            pos = 0;
+
+        while( ( pos = aRegion.find( component, pos ) ) != std::string::npos )
+        {
+            size_t end = aRegion.find( "</Set>", pos );
+
+            if( end == std::string::npos )
+                return std::string();
+
+            if( aRegion.find( aNeedle, pos ) < end )
+                return aRegion.substr( pos, end - pos );
+
+            pos = end;
+        }
+
+        return std::string();
+    };
+
+    std::string r2Feature = componentSetWith( fab, "R2", "<UserPrimitiveRef" );
+    BOOST_REQUIRE_MESSAGE( !r2Feature.empty(), "R2 rectangle feature should be present" );
+
+    BOOST_CHECK_MESSAGE( r2Feature.find( "<Xform rotation=\"90.0\"" ) != std::string::npos,
+                         "Rotated footprint graphic must carry its placement rotation" );
+    BOOST_CHECK_MESSAGE( r2Feature.find( "<Location x=\"20.0\" y=\"-20.0\"" ) != std::string::npos,
+                         "Rotated footprint graphic must retain its board-space center" );
+    BOOST_CHECK_MESSAGE( r2Feature.find( rectRef ) != std::string::npos,
+                         "Rotated footprint graphic must reuse the local primitive" );
+
+    std::string r2LineFeature = componentSetWith( fab, "R2", "<Line " );
+    BOOST_REQUIRE_MESSAGE( !r2LineFeature.empty(), "R2 line feature should be present" );
+
+    const std::string localLine = "<Line startX=\"1.0\" startY=\"0.0\" endX=\"2.0\" endY=\"0.0\"";
+    BOOST_CHECK_MESSAGE( r2LineFeature.find( localLine ) != std::string::npos,
+                         "Rotated line geometry must be converted back to local coordinates" );
+
+    std::string backFab = LayerFeatureRegion( xml, "B.Fab" );
+    std::string r3Feature = componentSetWith( backFab, "R3", "<UserPrimitiveRef" );
+    BOOST_REQUIRE_MESSAGE( !r3Feature.empty(), "R3 rectangle feature should be present" );
+
+    BOOST_CHECK_MESSAGE( r3Feature.find( "<Xform rotation=\"180.0\" mirror=\"true\"" ) != std::string::npos,
+                         "Flipped footprint graphic must carry its placement mirror and rotation" );
+    BOOST_CHECK_MESSAGE( r3Feature.find( rectRef ) != std::string::npos,
+                         "Flipped footprint graphic must reuse the local primitive" );
+}
+
+
 /**
  * Test that a back-only masked through-hole pad gets no F.Mask opening (Issue #24753).
  *
