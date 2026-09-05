@@ -1740,6 +1740,53 @@ void PCB_IO_IPC2581::addShape( wxXmlNode* aContentNode, const PCB_SHAPE& aShape,
 }
 
 
+void PCB_IO_IPC2581::addFootprintGraphic( wxXmlNode* aContentNode, const PCB_SHAPE& aShape,
+                                          const FOOTPRINT& aFootprint )
+{
+    PCB_SHAPE localShape( aShape );
+    localShape.SetParent( nullptr );
+    VECTOR2I featureLocation = aFootprint.GetPosition();
+
+    if( aShape.GetShape() == SHAPE_T::CIRCLE )
+    {
+        featureLocation = aShape.GetPosition();
+    }
+    else if( aShape.GetShape() == SHAPE_T::RECTANGLE )
+    {
+        featureLocation =
+                aShape.GetPosition() + VECTOR2I( aShape.GetRectangleWidth() / 2.0, aShape.GetRectangleHeight() / 2.0 );
+    }
+
+    localShape.Move( -featureLocation );
+    localShape.Rotate( VECTOR2I( 0, 0 ), -aFootprint.GetOrientation() );
+
+    if( aFootprint.IsFlipped() )
+        localShape.Mirror( VECTOR2I( 0, 0 ), FLIP_DIRECTION::TOP_BOTTOM );
+
+    if( localShape.GetShape() == SHAPE_T::RECTANGLE )
+        localShape.Normalize();
+
+    EDA_ANGLE footprintAngle = aFootprint.GetOrientation().Normalize();
+
+    if( aFootprint.IsFlipped() )
+        footprintAngle = ( footprintAngle.Invert() - ANGLE_180 ).Normalize();
+
+    if( footprintAngle != ANGLE_0 || aFootprint.IsFlipped() )
+    {
+        wxXmlNode* xformNode = appendNode( aContentNode, "Xform" );
+
+        if( footprintAngle != ANGLE_0 )
+            addAttribute( xformNode, "rotation", floatVal( footprintAngle.AsDegrees(), 2 ) );
+
+        if( aFootprint.IsFlipped() )
+            addAttribute( xformNode, "mirror", "true" );
+    }
+
+    addLocationNode( aContentNode, featureLocation.x, featureLocation.y );
+    addShape( aContentNode, localShape );
+}
+
+
 void PCB_IO_IPC2581::addSlotCavity( wxXmlNode* aNode, const PAD& aPad, const wxString& aName )
 {
     wxXmlNode* slotNode = appendNode( aNode, "SlotCavity" );
@@ -4488,9 +4535,7 @@ void PCB_IO_IPC2581::generateLayerSetNet( wxXmlNode* aLayerNode, PCB_LAYER_ID aL
                             addAttribute( tempSetNode,  "componentRef", componentName( fp ) );
 
                     wxXmlNode* tempFeature = appendNode( tempSetNode, "Features" );
-
-                    addLocationNode( tempFeature, *shape );
-                    addShape( tempFeature, *shape );
+                    addFootprintGraphic( tempFeature, *shape, *fp );
                 }
                 else if( shape->GetShape() == SHAPE_T::CIRCLE
                         || shape->GetShape() == SHAPE_T::RECTANGLE
