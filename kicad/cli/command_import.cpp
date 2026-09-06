@@ -22,6 +22,9 @@
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_sch_import.h>
 #include <jobs/job_import_utils.h>
+#include <io/easyedapro/easyedapro_import_utils.h>
+#include <io/easyedapro/easyedapro_v3_parser.h>
+#include <ki_exception.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
 #include <project.h>
@@ -35,6 +38,8 @@
 #include <wx/filename.h>
 
 #include <memory>
+#include <string>
+#include <set>
 #include <vector>
 
 
@@ -54,9 +59,10 @@ CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
 
     m_argParser.add_argument( "-o", ARG_OUTPUT )
             .default_value( std::string() )
-            .help( UTF8STDSTR( _( "Output project path stem; produces <stem>.kicad_pro plus the "
-                                  "imported <stem>.kicad_pcb and/or <stem>.kicad_sch beside it. "
-                                  "Defaults to the first input's name in the current directory." ) ) )
+            .help( UTF8STDSTR( _( "Output project path stem; produces <stem>.kicad_pro plus "
+                                  "imported board and/or schematic files beside it. EasyEDA (JLCEDA) "
+                                  "Pro project boards keep their source names. Defaults to the first "
+                                  "input's name in the current directory." ) ) )
             .metavar( "PROJECT" );
 
     m_argParser.add_argument( ARG_LAYER_MAP )
@@ -143,6 +149,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
     bool haveBoard = false;
     bool haveSch = false;
+    std::vector<FILE_INFO_PAIR> boards;
     int  retCode = EXIT_CODES::SUCCESS;
 
     std::map<wxString, wxString> netNameMap;
@@ -153,6 +160,80 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
     {
         if( !haveBoard )
         {
+            if( EASYEDAPRO::V3_DOC_PARSER::IsV3Archive( input ) )
+            {
+                try
+                {
+                    EASYEDAPRO::V3_DOC_PARSER parser( input );
+                    parser.Load();
+
+                    const auto& pcbDocs = parser.GetRawDocs( wxS( "PCB" ) );
+
+                    if( !pcbDocs.empty() )
+                    {
+                        const nlohmann::json sourceProject =
+                                EASYEDAPRO::BuildV3ProjectIndexFromRawDocs( parser, false );
+                        const nlohmann::json& sourcePcbs = sourceProject.at( "pcbs" );
+                        std::set<wxString>    usedBoardNames;
+
+                        for( const auto& pcbDoc : pcbDocs )
+                        {
+                            wxString boardName = pcbDoc.first;
+                            auto pcbIt = sourcePcbs.find( std::string( pcbDoc.first.ToUTF8() ) );
+
+                            if( pcbIt != sourcePcbs.end() )
+                                boardName = EASYEDAPRO::V3GetString( pcbIt.value(), "title", boardName );
+
+                            boardName = EscapeString( boardName, CTX_FILENAME );
+
+                            if( boardName.empty() )
+                                boardName = pcbDoc.first;
+
+                            wxString uniqueBoardName = boardName;
+                            unsigned duplicate = 2;
+
+                            while( !usedBoardNames.insert( uniqueBoardName ).second )
+                            {
+                                uniqueBoardName = wxString::Format( wxS( "%s-%u" ), boardName, duplicate );
+                                ++duplicate;
+                            }
+
+                            wxFileName outputFn( dir, uniqueBoardName, FILEEXT::KiCadPcbFileExtension );
+
+                            std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
+                            pcbJob->m_inputFile = input;
+                            pcbJob->m_importPcbId = pcbDoc.first;
+                            pcbJob->SetConfiguredOutputPath( outputFn.GetFullPath() );
+
+                            int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );
+
+                            if( pcbResult != EXIT_CODES::SUCCESS )
+                            {
+                                retCode = pcbResult;
+                                break;
+                            }
+
+                            boards.emplace_back( KIID(), outputFn.GetFullName() );
+                            haveBoard = true;
+                        }
+
+                        if( retCode != EXIT_CODES::SUCCESS )
+                            break;
+
+                        continue;
+                    }
+                }
+                catch( const IO_ERROR& ioe )
+                {
+                    reporter.Report( wxString::Format( _( "Error reading EasyEDA (JLCEDA) Pro v3 "
+                                                          "project '%s': %s\n" ),
+                                                       input, ioe.What() ),
+                                     RPT_SEVERITY_ERROR );
+                    retCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
+                    break;
+                }
+            }
+
             JOB_PCB_IMPORT probe;
             probe.m_inputFile = input;
             probe.m_probeOnly = true;
@@ -161,6 +242,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
             if( pcbResult == EXIT_CODES::SUCCESS )
             {
+                boards.emplace_back( KIID(), boardFn.GetFullName() );
                 haveBoard = true;
                 boardInput = input;
                 continue;
@@ -230,9 +312,8 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
         // The schematic handler already registered any sheets; link the board here.
         if( haveBoard )
         {
-            std::vector<FILE_INFO_PAIR>& boards = project->GetProjectFile().GetBoards();
-            boards.clear();
-            boards.emplace_back( std::make_pair( KIID(), boardFn.GetFullName() ) );
+            std::vector<FILE_INFO_PAIR>& projectBoards = project->GetProjectFile().GetBoards();
+            projectBoards = boards;
         }
 
         if( mgr.SaveProject( projectFn.GetFullPath() ) )

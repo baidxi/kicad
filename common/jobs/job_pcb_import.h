@@ -63,6 +63,8 @@ public:
 
     std::map<wxString, wxString> m_netNameMap;
     bool m_probeOnly = false;
+    /// EasyEDA Pro PCB document identifier selected by project-level import.
+    wxString m_importPcbId;
 };
 
 #endif

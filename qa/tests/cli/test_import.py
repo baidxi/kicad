@@ -74,6 +74,14 @@ def get_eagle_test_file() -> str:
     return eagle_file if os.path.exists( eagle_file ) else None
 
 
+def get_easyedapro_v3_test_file() -> str:
+    """Get an EasyEDA Pro v3 project fixture with multiple boards."""
+    archive = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                            "easyedapro", "ProProject_LS2K0300Core_2025-11-14.epro2" )
+
+    return archive if os.path.exists( archive ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -152,6 +160,40 @@ class TestImportBoardOnly:
         assert stem.with_suffix( ".kicad_pro" ).exists()
         assert stem.with_suffix( ".kicad_pcb" ).exists()
 
+
+
+@pytest.mark.skipif( get_easyedapro_v3_test_file() is None,
+                     reason="EasyEDA Pro v3 test file not available" )
+class TestImportEasyEdaProProject:
+    """Test importing every board in an EasyEDA Pro v3 project."""
+
+    def test_import_all_project_boards( self, kitest: KiTestFixture ):
+        """Each PCB document becomes a linked KiCad board."""
+        archive = get_easyedapro_v3_test_file()
+        stem = get_project_stem( kitest, "easyedapro", "project" )
+        first_board = stem.parent / "PCB1.kicad_pcb"
+        second_board = stem.parent / "PCB1_1.kicad_pcb"
+
+        for board in ( first_board, second_board ):
+            if board.exists():
+                board.unlink()
+
+        command = [ utils.kicad_cli(), "import", archive, "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+        assert first_board.exists()
+        assert ( stem.parent / "PCB1-import-fps.pretty" ).is_dir()
+        assert ( stem.parent / "PCB1_1-import-fps.pretty" ).is_dir()
+        assert second_board.exists()
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        assert sorted( filename for _, filename in project.get( "boards", [] ) ) == [
+            "PCB1.kicad_pcb",
+            "PCB1_1.kicad_pcb"
+        ]
 
 @pytest.mark.skipif( get_eagle_test_file() is None,
                      reason="Eagle schematic test file not available" )

@@ -3489,7 +3489,13 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         // LoadBoard reports load failures and user cancellations by throwing.
         try
         {
-            board = pi->LoadBoard( job->m_inputFile, nullptr, projectPtr );
+            std::map<std::string, UTF8> importProperties;
+
+            if( !job->m_importPcbId.empty() )
+                importProperties.emplace( "pcb_id", std::string( job->m_importPcbId.ToUTF8() ) );
+
+            board = pi->LoadBoard( job->m_inputFile,
+                                   importProperties.empty() ? nullptr : &importProperties, projectPtr );
         }
         catch( const IO_CANCELLED& ioce )
         {
@@ -3512,11 +3518,14 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         if( !ApplyImportedNetNameMap( *board, job->m_netNameMap, *m_reporter ) )
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
-        // Extract a project footprint library and re-link FPIDs, as the board editor's import
-        // does; without it the saved board references a nickname no library table row resolves.
+        // Extract a project footprint library and re-link FPIDs, as the board editor does.
+        // Each EasyEDA Pro project board needs a distinct cache; using the archive name makes
+        // every board compete to publish the same .pretty directory.
         if( PCB_IO_MGR::ImportGeneratesProjectLibrary( fileType ) )
         {
-            ReconcileImportedFootprints( *pi, *board, *projectPtr, job->m_inputFile, nullptr,
+            const wxString reconciliationPath =
+                    job->m_importPcbId.empty() ? job->m_inputFile : outputPath;
+            ReconcileImportedFootprints( *pi, *board, *projectPtr, reconciliationPath, nullptr,
                                          *m_reporter );
         }
 
