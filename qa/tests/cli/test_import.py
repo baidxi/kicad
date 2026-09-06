@@ -82,6 +82,14 @@ def get_easyedapro_v3_test_file() -> str:
     return archive if os.path.exists( archive ) else None
 
 
+def get_easyedapro_v2_test_file() -> str:
+    """Get an EasyEDA Pro v2 project fixture with multiple boards."""
+    archive = os.path.join( os.path.dirname( __file__ ), "..", "..", "data", "pcbnew", "plugins",
+                            "easyedapro", "ProProject_Yuzuki Chameleon_2023-09-02.epro" )
+
+    return archive if os.path.exists( archive ) else None
+
+
 class TestImportHelp:
     """Test help output for the top-level import command"""
 
@@ -194,6 +202,43 @@ class TestImportEasyEdaProProject:
             "PCB1.kicad_pcb",
             "PCB1_1.kicad_pcb"
         ]
+
+
+@pytest.mark.skipif( get_easyedapro_v2_test_file() is None,
+                     reason="EasyEDA Pro v2 test file not available" )
+class TestImportEasyEdaProV2Project:
+    """Test importing every board in an EasyEDA Pro v2 project."""
+
+    def test_import_all_project_boards( self, kitest: KiTestFixture ):
+        """Each PCB document becomes a source-named, linked KiCad board."""
+        archive = get_easyedapro_v2_test_file()
+        stem = get_project_stem( kitest, "easyedapro_v2", "project" )
+
+        expected_boards = [
+            "PCB.kicad_pcb",
+            "树莓派A版形状.kicad_pcb",
+            "点位图.kicad_pcb",
+            "100ASK.kicad_pcb",
+            "散热器外形.kicad_pcb"
+        ]
+
+        for board in ( stem.parent / name for name in expected_boards ):
+            if board.exists():
+                board.unlink()
+
+        command = [ utils.kicad_cli(), "import", archive, "-o", str( stem ) ]
+        stdout, stderr, return_code = utils.run_and_capture( command )
+
+        assert return_code == 0
+
+        for name in expected_boards:
+            assert ( stem.parent / name ).exists()
+
+        with open( stem.with_suffix( ".kicad_pro" ), "r" ) as f:
+            project = json.load( f )
+
+        assert sorted( filename for _, filename in project.get( "boards", [] ) ) == sorted( expected_boards )
+
 
 @pytest.mark.skipif( get_eagle_test_file() is None,
                      reason="Eagle schematic test file not available" )

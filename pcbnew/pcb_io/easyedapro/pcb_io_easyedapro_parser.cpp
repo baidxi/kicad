@@ -1078,7 +1078,8 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard(
             safeSpacingProfiles[line.at( 2 ).get<wxString>()] = line.at( 4 ).at( 1 );
         }
         else if( type == wxS( "RULE_SELECTOR" ) && line.size() > 3 && line.at( 1 ).is_array() && line.at( 1 ).size() > 1
-                 && line.at( 1 ).at( 0 ).get<wxString>() == wxS( "POUR" ) && line.at( 3 ).is_object()
+                 && line.at( 1 ).at( 0 ).is_string() && line.at( 1 ).at( 0 ).get<wxString>() == wxS( "POUR" )
+                 && line.at( 1 ).at( 1 ).is_string() && line.at( 3 ).is_object()
                  && line.at( 3 ).contains( "1" ) && line.at( 3 ).at( "1" ).is_string() )
         {
             pourSafeSpacingProfiles[line.at( 1 ).at( 1 ).get<wxString>()] = line.at( 3 ).at( "1" ).get<wxString>();
