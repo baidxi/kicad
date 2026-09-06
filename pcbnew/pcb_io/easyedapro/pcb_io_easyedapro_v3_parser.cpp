@@ -983,7 +983,25 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard(
     {
         if( row.type == wxS( "LAYER" ) )
         {
-            int          layer = V3GetInt( row.inner, "layerId", 1 );
+            int layer = V3GetInt( row.inner, "layerId", -1 );
+
+            if( layer < 0 )
+            {
+                nlohmann::json id = V3ParseIdArray( row.id );
+
+                if( id.is_array() && id.size() > 1 )
+                {
+                    wxString layerId = V3JsonToString( id.at( 1 ) );
+                    long     parsedLayer;
+
+                    if( layerId.ToLong( &parsedLayer ) )
+                        layer = parsedLayer;
+                }
+            }
+
+            if( layer < 0 )
+                continue;
+
             PCB_LAYER_ID klayer = m_v2Parser.LayerToKi( layer );
 
             bool use = V3GetBool( row.inner, "use", true );

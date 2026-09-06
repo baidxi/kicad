@@ -374,6 +374,33 @@ BOOST_AUTO_TEST_CASE( BoardLoadImportsInnerLayers )
     BOOST_CHECK_EQUAL( board->GetLayerName( B_Cu ), wxString( wxS( "Bottom Layer" ) ) );
 }
 
+BOOST_AUTO_TEST_CASE( BoardEnablesInnerLayersNamedByRowId )
+{
+    EASYEDAPRO::V3_DOC_RAW boardDoc;
+    boardDoc.rows = {
+        { wxS( "LAYER" ),
+          wxS( "[\"LAYER\",15]" ),
+          0,
+          {},
+          { { "layerType", "SIGNAL" }, { "layerName", "Inner1" }, { "use", true } } },
+        { wxS( "LAYER" ),
+          wxS( "[\"LAYER\",16]" ),
+          0,
+          {},
+          { { "layerType", "SIGNAL" }, { "layerName", "Inner2" }, { "use", true } } }
+    };
+
+    BOARD                        board;
+    PCB_IO_EASYEDAPRO_V3_PARSER parser( &board, nullptr );
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
+
+    parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
+
+    BOOST_CHECK_EQUAL( board.GetCopperLayerCount(), 4 );
+    BOOST_CHECK_EQUAL( board.GetLayerName( In1_Cu ), wxString( wxS( "Inner1" ) ) );
+    BOOST_CHECK_EQUAL( board.GetLayerName( In2_Cu ), wxString( wxS( "Inner2" ) ) );
+}
+
 
 BOOST_AUTO_TEST_CASE( ParseContourClampsRoundedRectangleRadius )
 {
