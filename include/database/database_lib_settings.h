@@ -29,6 +29,7 @@
 enum class DATABASE_SOURCE_TYPE
 {
     ODBC,
+    CSV,
     INVALID
 };
 
@@ -41,6 +42,7 @@ struct KICOMMON_API DATABASE_SOURCE
     std::string          password;
     int                  timeout;
     std::string          connection_string;
+    std::string          path;    ///< For DATABASE_SOURCE_TYPE::CSV: directory containing .csv files
 };
 
 

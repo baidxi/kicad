@@ -62,8 +62,7 @@ SCH_IO_DATABASE::~SCH_IO_DATABASE()
 }
 
 
-void SCH_IO_DATABASE::EnumerateSymbolLib( wxArrayString&    aSymbolNameList,
-                                          const wxString&   aLibraryPath,
+void SCH_IO_DATABASE::EnumerateSymbolLib( wxArrayString& aSymbolNameList, const wxString& aLibraryPath,
                                           const std::map<std::string, UTF8>* aProperties )
 {
     std::vector<LIB_SYMBOL*> symbols;
@@ -77,9 +76,8 @@ void SCH_IO_DATABASE::EnumerateSymbolLib( wxArrayString&    aSymbolNameList,
 }
 
 
-void SCH_IO_DATABASE::EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList,
-                                          const wxString&           aLibraryPath,
-                                          const std::map<std::string, UTF8>*         aProperties )
+void SCH_IO_DATABASE::EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList, const wxString& aLibraryPath,
+                                          const std::map<std::string, UTF8>* aProperties )
 {
     wxCHECK_RET( m_adapter, "Database plugin missing library manager adapter handle!" );
     ensureSettings( aLibraryPath );
@@ -103,16 +101,14 @@ void SCH_IO_DATABASE::EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList,
 }
 
 
-void SCH_IO_DATABASE::CheckLibrary( const wxString& aLibraryPath,
-                                    const std::map<std::string, UTF8>* aProperties )
+void SCH_IO_DATABASE::CheckLibrary( const wxString& aLibraryPath, const std::map<std::string, UTF8>* aProperties )
 {
     ensureSettings( aLibraryPath );
     ensureConnection();
 }
 
 
-LIB_SYMBOL* SCH_IO_DATABASE::LoadSymbol( const wxString&   aLibraryPath,
-                                         const wxString&   aAliasName,
+LIB_SYMBOL* SCH_IO_DATABASE::LoadSymbol( const wxString& aLibraryPath, const wxString& aAliasName,
                                          const std::map<std::string, UTF8>* aProperties )
 {
     wxCHECK_MSG( m_adapter, nullptr, "Database plugin missing library manager adapter handle!" );
@@ -176,20 +172,20 @@ LIB_SYMBOL* SCH_IO_DATABASE::LoadSymbol( const wxString&   aLibraryPath,
     }
 
     const DATABASE_LIB_TABLE* foundTable = nullptr;
-    DATABASE_CONNECTION::ROW result;
+    DATABASE_CONNECTION::ROW  result;
 
     for( const DATABASE_LIB_TABLE* table : tablesToTry )
     {
         if( m_conn->SelectOne( table->table, std::make_pair( table->key_col, symbolName ), result ) )
         {
             foundTable = table;
-            wxLogTrace( traceDatabase, wxT( "LoadSymbol: SelectOne (%s, %s) found in %s" ),
-                        table->key_col, symbolName, table->table );
+            wxLogTrace( traceDatabase, wxT( "LoadSymbol: SelectOne (%s, %s) found in %s" ), table->key_col, symbolName,
+                        table->table );
         }
         else
         {
-            wxLogTrace( traceDatabase, wxT( "LoadSymbol: SelectOne (%s, %s) failed for table %s" ),
-                        table->key_col, symbolName, table->table );
+            wxLogTrace( traceDatabase, wxT( "LoadSymbol: SelectOne (%s, %s) failed for table %s" ), table->key_col,
+                        symbolName, table->table );
         }
     }
 
@@ -293,9 +289,9 @@ size_t SCH_IO_DATABASE::computeSignature( const TABLE_RESULT_LIST& aTableResults
 }
 
 
-bool SCH_IO_DATABASE::materializeCache( const TABLE_RESULT_LIST& aTableResults,
-        std::map<wxString, std::unique_ptr<LIB_SYMBOL>>& aSymbolCache,
-        std::map<wxString, std::pair<std::string, std::string>>& aSanitizedNameMap )
+bool SCH_IO_DATABASE::materializeCache( const TABLE_RESULT_LIST&                                 aTableResults,
+                                        std::map<wxString, std::unique_ptr<LIB_SYMBOL>>&         aSymbolCache,
+                                        std::map<wxString, std::pair<std::string, std::string>>& aSanitizedNameMap )
 {
     for( const auto& [table, results] : aTableResults )
     {
@@ -384,7 +380,7 @@ void SCH_IO_DATABASE::cacheLib()
         }
     }
 
-    std::map<wxString, std::unique_ptr<LIB_SYMBOL>> newSymbolCache;
+    std::map<wxString, std::unique_ptr<LIB_SYMBOL>>         newSymbolCache;
     std::map<wxString, std::pair<std::string, std::string>> newSanitizedNameMap;
 
     materializeCache( tableResults, newSymbolCache, newSanitizedNameMap );
@@ -491,7 +487,7 @@ void SCH_IO_DATABASE::backgroundRefreshWorker()
 
                     if( dataChanged )
                     {
-                        std::map<wxString, std::unique_ptr<LIB_SYMBOL>> newSymbolCache;
+                        std::map<wxString, std::unique_ptr<LIB_SYMBOL>>         newSymbolCache;
                         std::map<wxString, std::pair<std::string, std::string>> newSanitizedNameMap;
 
                         materializeCache( tableResults, newSymbolCache, newSanitizedNameMap );
@@ -540,15 +536,14 @@ void SCH_IO_DATABASE::backgroundRefreshWorker()
 
 void SCH_IO_DATABASE::ensureSettings( const wxString& aSettingsPath )
 {
-    auto tryLoad =
-            [&]()
-            {
-                if( !m_settings->LoadFromFile() )
-                {
-                    THROW_IO_ERRORF( _( "Could not load database library: settings file %s missing or invalid" ),
-                                     aSettingsPath );
-                }
-            };
+    auto tryLoad = [&]()
+    {
+        if( !m_settings->LoadFromFile() )
+        {
+            THROW_IO_ERRORF( _( "Could not load database library: settings file %s missing or invalid" ),
+                             aSettingsPath );
+        }
+    };
 
     if( !m_settings && !aSettingsPath.IsEmpty() )
     {
@@ -584,7 +579,9 @@ void SCH_IO_DATABASE::ensureConnection()
     if( !m_conn || !m_conn->IsConnected() )
     {
         THROW_IO_ERRORF( _( "Could not load database library: could not connect to database %s (%s)" ),
-                         m_settings->m_Source.dsn, m_lastError );
+                         m_settings->m_Source.type == DATABASE_SOURCE_TYPE::CSV ? m_settings->m_Source.path
+                                                                                : m_settings->m_Source.dsn,
+                         m_lastError );
     }
 }
 
@@ -602,12 +599,21 @@ void SCH_IO_DATABASE::connect()
 
     if( !m_conn )
     {
-        std::unique_ptr<DATABASE_CONNECTION> newConn;
+        std::unique_ptr<DATABASE_CONNECTION_BASE> newConn;
 
-        if( m_settings->m_Source.connection_string.empty() )
+        if( m_settings->m_Source.type == DATABASE_SOURCE_TYPE::CSV )
         {
-            newConn = std::make_unique<DATABASE_CONNECTION>( m_settings->m_Source.dsn,
-                                                             m_settings->m_Source.username,
+            std::string path = m_settings->m_Source.path;
+            std::string basePath( wxFileName( m_settings->GetFilename() ).GetPath().ToUTF8() );
+
+            // Reuse the existing mechanism for paths relative to the .kicad_dbl file
+            boost::replace_all( path, "${CWD}", basePath );
+
+            newConn = std::make_unique<CSV_DB_CONNECTION>( path );
+        }
+        else if( m_settings->m_Source.connection_string.empty() )
+        {
+            newConn = std::make_unique<DATABASE_CONNECTION>( m_settings->m_Source.dsn, m_settings->m_Source.username,
                                                              m_settings->m_Source.password,
                                                              m_settings->m_Source.timeout );
         }
@@ -632,9 +638,7 @@ void SCH_IO_DATABASE::connect()
         for( const DATABASE_LIB_TABLE& tableIter : m_settings->m_Tables )
         {
             // Trusted even if unreported by the driver, to support generated columns (#16952)
-            std::set<std::string> requiredColumns{ tableIter.key_col,
-                                                   tableIter.footprints_col,
-                                                   tableIter.symbols_col };
+            std::set<std::string> requiredColumns{ tableIter.key_col, tableIter.footprints_col, tableIter.symbols_col };
 
             for( const DATABASE_FIELD_MAPPING& field : tableIter.fields )
                 requiredColumns.insert( field.column );
@@ -643,12 +647,11 @@ void SCH_IO_DATABASE::connect()
                 requiredColumns.insert( tableIter.pins_col );
 
             // Only used if confirmed present, so a misconfigured mapping can't break the table (#23532)
-            std::set<std::string> optionalColumns{ tableIter.properties.description,
-                                                   tableIter.properties.footprint_filters,
-                                                   tableIter.properties.keywords,
-                                                   tableIter.properties.exclude_from_sim,
-                                                   tableIter.properties.exclude_from_bom,
-                                                   tableIter.properties.exclude_from_board };
+            std::set<std::string> optionalColumns{
+                tableIter.properties.description,      tableIter.properties.footprint_filters,
+                tableIter.properties.keywords,         tableIter.properties.exclude_from_sim,
+                tableIter.properties.exclude_from_bom, tableIter.properties.exclude_from_board
+            };
 
             newConn->CacheTableInfo( tableIter.table, requiredColumns, optionalColumns );
         }
@@ -710,16 +713,16 @@ std::optional<bool> SCH_IO_DATABASE::boolFromAny( const std::any& aVal )
 }
 
 
-std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString& aSymbolName,
-                                                const DATABASE_LIB_TABLE& aTable,
-                                                const DATABASE_CONNECTION::ROW& aRow )
+std::unique_ptr<LIB_SYMBOL> SCH_IO_DATABASE::loadSymbolFromRow( const wxString&                 aSymbolName,
+                                                                const DATABASE_LIB_TABLE&       aTable,
+                                                                const DATABASE_CONNECTION::ROW& aRow )
 {
     std::unique_ptr<LIB_SYMBOL> symbol = nullptr;
 
     if( aRow.contains( aTable.symbols_col ) )
     {
-        std::string symbols = std::any_cast<std::string>( aRow.at( aTable.symbols_col ) );
-        wxString    symbolsStr = wxString( symbols.c_str(), wxConvUTF8 );
+        std::string       symbols = std::any_cast<std::string>( aRow.at( aTable.symbols_col ) );
+        wxString          symbolsStr = wxString( symbols.c_str(), wxConvUTF8 );
         wxStringTokenizer tokenizer( symbolsStr, ";\t\r\n", wxTOKEN_STRTOK );
 
         std::vector<LIB_ID> symbolIds;
@@ -747,8 +750,9 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
 
             if( !m_inProgressLoads.insert( symbolIdStr ).second )
             {
-                wxLogTrace( traceDatabase, wxT( "loadSymbolFromRow: cycle detected resolving '%s' "
-                                                "(row '%s' in table '%s'); skipping recursive load" ),
+                wxLogTrace( traceDatabase,
+                            wxT( "loadSymbolFromRow: cycle detected resolving '%s' "
+                                 "(row '%s' in table '%s'); skipping recursive load" ),
                             symbolIdStr, aSymbolName, aTable.name );
                 continue;
             }
@@ -817,8 +821,8 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
             }
 
             std::vector<wxString> bodyStyleNames;
-            std::vector<int> sourceBodyStyleCounts;
-            std::vector<int> compositeBodyStyleBase;
+            std::vector<int>      sourceBodyStyleCounts;
+            std::vector<int>      compositeBodyStyleBase;
 
             int nextBodyStyle = 1;
 
@@ -854,8 +858,8 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
             for( size_t i = 0; i < sourceSymbols.size(); ++i )
             {
                 std::unique_ptr<LIB_SYMBOL> srcSymbol = sourceSymbols[i]->Flatten();
-                int srcCount = sourceBodyStyleCounts[i];
-                int base = compositeBodyStyleBase[i];
+                int                         srcCount = sourceBodyStyleCounts[i];
+                int                         base = compositeBodyStyleBase[i];
 
                 for( SCH_ITEM& item : srcSymbol->GetDrawItems() )
                 {
@@ -924,7 +928,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
     {
         std::string footprints = std::any_cast<std::string>( aRow.at( aTable.footprints_col ) );
 
-        wxString footprintsStr = wxString( footprints.c_str(), wxConvUTF8 );
+        wxString          footprintsStr = wxString( footprints.c_str(), wxConvUTF8 );
         wxStringTokenizer tokenizer( footprintsStr, ";\t\r\n", wxTOKEN_STRTOK );
 
         while( tokenizer.HasMoreTokens() )
@@ -986,40 +990,34 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         {
             // Surface a malformed pin-map payload to the user instead of silently dropping it; the
             // symbol still loads without the map (issue #2282).
-            Report( wxString::Format( _( "Error parsing pin map for database symbol '%s': %s" ),
-                                      aSymbolName, e.what() ),
+            Report( wxString::Format( _( "Error parsing pin map for database symbol '%s': %s" ), aSymbolName,
+                                      e.what() ),
                     RPT_SEVERITY_ERROR );
         }
     }
 
     if( !aTable.properties.description.empty() && aRow.count( aTable.properties.description ) )
     {
-        wxString value(
-                std::any_cast<std::string>( aRow.at( aTable.properties.description ) ).c_str(),
-                wxConvUTF8 );
+        wxString value( std::any_cast<std::string>( aRow.at( aTable.properties.description ) ).c_str(), wxConvUTF8 );
         symbol->SetDescription( value );
     }
 
     if( !aTable.properties.keywords.empty() && aRow.count( aTable.properties.keywords ) )
     {
-        wxString value( std::any_cast<std::string>( aRow.at( aTable.properties.keywords ) ).c_str(),
-                        wxConvUTF8 );
+        wxString value( std::any_cast<std::string>( aRow.at( aTable.properties.keywords ) ).c_str(), wxConvUTF8 );
         symbol->SetKeyWords( value );
     }
 
-    if( !aTable.properties.footprint_filters.empty()
-        && aRow.count( aTable.properties.footprint_filters ) )
+    if( !aTable.properties.footprint_filters.empty() && aRow.count( aTable.properties.footprint_filters ) )
     {
-        wxString value( std::any_cast<std::string>( aRow.at( aTable.properties.footprint_filters ) )
-                                .c_str(),
+        wxString value( std::any_cast<std::string>( aRow.at( aTable.properties.footprint_filters ) ).c_str(),
                         wxConvUTF8 );
         footprintsList.push_back( value );
     }
 
     symbol->SetFPFilters( footprintsList );
 
-    if( !aTable.properties.exclude_from_sim.empty()
-        && aRow.count( aTable.properties.exclude_from_sim ) )
+    if( !aTable.properties.exclude_from_sim.empty() && aRow.count( aTable.properties.exclude_from_sim ) )
     {
         std::optional<bool> val = boolFromAny( aRow.at( aTable.properties.exclude_from_sim ) );
 
@@ -1029,13 +1027,14 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         }
         else
         {
-            wxLogTrace( traceDatabase, wxT( "loadSymbolFromRow: exclude_from_sim value for %s "
-                                            "could not be cast to a boolean" ), aSymbolName );
+            wxLogTrace( traceDatabase,
+                        wxT( "loadSymbolFromRow: exclude_from_sim value for %s "
+                             "could not be cast to a boolean" ),
+                        aSymbolName );
         }
     }
 
-    if( !aTable.properties.exclude_from_board.empty()
-        && aRow.count( aTable.properties.exclude_from_board ) )
+    if( !aTable.properties.exclude_from_board.empty() && aRow.count( aTable.properties.exclude_from_board ) )
     {
         std::optional<bool> val = boolFromAny( aRow.at( aTable.properties.exclude_from_board ) );
 
@@ -1045,13 +1044,14 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         }
         else
         {
-            wxLogTrace( traceDatabase, wxT( "loadSymbolFromRow: exclude_from_board value for %s "
-                                            "could not be cast to a boolean" ), aSymbolName );
+            wxLogTrace( traceDatabase,
+                        wxT( "loadSymbolFromRow: exclude_from_board value for %s "
+                             "could not be cast to a boolean" ),
+                        aSymbolName );
         }
     }
 
-    if( !aTable.properties.exclude_from_bom.empty()
-        && aRow.count( aTable.properties.exclude_from_bom ) )
+    if( !aTable.properties.exclude_from_bom.empty() && aRow.count( aTable.properties.exclude_from_bom ) )
     {
         std::optional<bool> val = boolFromAny( aRow.at( aTable.properties.exclude_from_bom ) );
 
@@ -1061,8 +1061,10 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         }
         else
         {
-            wxLogTrace( traceDatabase, wxT( "loadSymbolFromRow: exclude_from_bom value for %s "
-                                            "could not be cast to a boolean" ), aSymbolName );
+            wxLogTrace( traceDatabase,
+                        wxT( "loadSymbolFromRow: exclude_from_bom value for %s "
+                             "could not be cast to a boolean" ),
+                        aSymbolName );
         }
     }
 
@@ -1140,7 +1142,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         }
 
         SCH_FIELD* field;
-        bool isNew = false;
+        bool       isNew = false;
 
         if( fieldsMap.count( mapping.name_wx ) )
         {
