@@ -22,6 +22,7 @@
 #define SCH_IO_DATABASE_H_
 
 #include <database/database_connection.h>
+#include <database/csv_db_connection.h>
 #include <sch_io/sch_io.h>
 #include <sch_io/sch_io_mgr.h>
 #include <wildcards_and_files_ext.h>
@@ -51,7 +52,6 @@ class SCH_IO_DATABASE : public SCH_IO
     friend class SCH_IO_DATABASE_CYCLE_DETECTION_FIXTURE;
 
 public:
-
     SCH_IO_DATABASE();
     virtual ~SCH_IO_DATABASE();
 
@@ -63,15 +63,13 @@ public:
 
     int GetModifyHash() const override { return m_modifyHash; }
 
-    void EnumerateSymbolLib( wxArrayString&    aSymbolNameList,
-                             const wxString&   aLibraryPath,
+    void EnumerateSymbolLib( wxArrayString& aSymbolNameList, const wxString& aLibraryPath,
                              const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
-    void EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList,
-                             const wxString&           aLibraryPath,
-                             const std::map<std::string, UTF8>*         aProperties = nullptr ) override;
+    void EnumerateSymbolLib( std::vector<LIB_SYMBOL*>& aSymbolList, const wxString& aLibraryPath,
+                             const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
-    void CheckLibrary( const wxString& aLibraryPath,
+    void CheckLibrary( const wxString&                    aLibraryPath,
                        const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
     LIB_SYMBOL* LoadSymbol( const wxString& aLibraryPath, const wxString& aAliasName,
@@ -88,10 +86,7 @@ public:
     // Database libraries can never be written using the symbol editing API
     bool IsLibraryWritable( const wxString& aLibraryPath ) override { return false; }
 
-    void SetLibraryManagerAdapter( SYMBOL_LIBRARY_ADAPTER* aAdapter ) override
-    {
-        m_adapter = aAdapter;
-    }
+    void SetLibraryManagerAdapter( SYMBOL_LIBRARY_ADAPTER* aAdapter ) override { m_adapter = aAdapter; }
 
     bool SupportsConfigurationDialog() const override { return true; }
 
@@ -108,9 +103,9 @@ private:
 
     size_t computeSignature( const TABLE_RESULT_LIST& aTableResults ) const;
 
-    bool  materializeCache( const TABLE_RESULT_LIST& aTableResults,
-                            std::map<wxString, std::unique_ptr<LIB_SYMBOL>>& aSymbolCache,
-                            std::map<wxString, std::pair<std::string, std::string>>& aSanitizedNameMap );
+    bool materializeCache( const TABLE_RESULT_LIST&                                 aTableResults,
+                           std::map<wxString, std::unique_ptr<LIB_SYMBOL>>&         aSymbolCache,
+                           std::map<wxString, std::pair<std::string, std::string>>& aSanitizedNameMap );
 
     void ensureSettings( const wxString& aSettingsPath );
 
@@ -118,8 +113,7 @@ private:
 
     void connect();
 
-    std::unique_ptr<LIB_SYMBOL> loadSymbolFromRow( const wxString& aSymbolName,
-                                                   const DATABASE_LIB_TABLE& aTable,
+    std::unique_ptr<LIB_SYMBOL> loadSymbolFromRow( const wxString& aSymbolName, const DATABASE_LIB_TABLE& aTable,
                                                    const DATABASE_CONNECTION::ROW& aRow );
 
     static std::optional<bool> boolFromAny( const std::any& aVal );
@@ -129,13 +123,13 @@ private:
     std::unique_ptr<DATABASE_LIB_SETTINGS> m_settings;
 
     /// Generally will be null if no valid connection is established
-    std::unique_ptr<DATABASE_CONNECTION> m_conn;
+    std::unique_ptr<DATABASE_CONNECTION_BASE> m_conn;
 
     std::set<wxString> m_customFields;
 
     std::set<wxString> m_defaultShownFields;
 
-    std::map<wxString, std::unique_ptr<LIB_SYMBOL>> m_nameToSymbolcache;
+    std::map<wxString, std::unique_ptr<LIB_SYMBOL>>         m_nameToSymbolcache;
     std::map<wxString, std::pair<std::string, std::string>> m_sanitizedNameMap;
 
     long long m_cacheTimestamp;

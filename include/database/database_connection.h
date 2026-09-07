@@ -29,40 +29,37 @@
 #include <vector>
 
 #include <database/database_cache.h>
+#include <database/database_connection_base.h>
 
 extern const char* const traceDatabase;
 
 
 namespace nanodbc
 {
-    class connection;
+class connection;
 }
 
 
-class DATABASE_CONNECTION
+class DATABASE_CONNECTION : public DATABASE_CONNECTION_BASE
 {
 public:
     static const long DEFAULT_TIMEOUT = 10;
 
-    typedef std::map<std::string, std::any> ROW;
+    DATABASE_CONNECTION( const std::string& aDataSourceName, const std::string& aUsername, const std::string& aPassword,
+                         int aTimeoutSeconds = DEFAULT_TIMEOUT, bool aConnectNow = true );
 
-    DATABASE_CONNECTION( const std::string& aDataSourceName, const std::string& aUsername,
-                         const std::string& aPassword, int aTimeoutSeconds = DEFAULT_TIMEOUT,
+    DATABASE_CONNECTION( const std::string& aConnectionString, int aTimeoutSeconds = DEFAULT_TIMEOUT,
                          bool aConnectNow = true );
 
-    DATABASE_CONNECTION( const std::string& aConnectionString,
-                         int aTimeoutSeconds = DEFAULT_TIMEOUT,
-                         bool aConnectNow = true );
+    ~DATABASE_CONNECTION() override;
 
-    ~DATABASE_CONNECTION();
+    void SetCacheParams( int aMaxSize, int aMaxAge ) override;
 
-    void SetCacheParams( int aMaxSize, int aMaxAge );
+    bool Connect() override;
 
-    bool Connect();
+    bool Disconnect() override;
 
-    bool Disconnect();
-
-    bool IsConnected() const;
+    bool IsConnected() const override;
 
     /**
      * Caches schema information for a table so that subsequent queries know which columns exist.
@@ -78,7 +75,7 @@ public:
      * @return true on success
      */
     bool CacheTableInfo( const std::string& aTable, const std::set<std::string>& aRequiredColumns,
-                         const std::set<std::string>& aOptionalColumns = {} );
+                         const std::set<std::string>& aOptionalColumns = {} ) override;
 
     /**
      * Retrieves a single row from a database table.  Table and column names are cached when the
@@ -90,7 +87,7 @@ public:
      * @return true if aResult was filled; false otherwise
      */
     bool SelectOne( const std::string& aTable, const std::pair<std::string, std::string>& aWhere,
-                    ROW& aResult );
+                    ROW& aResult ) override;
 
     /**
      * Retrieves all rows from a database table.
@@ -99,16 +96,13 @@ public:
      * @param aResults will be filled with all rows in the table
      * @return true if the query succeeded and at least one ROW was found, false otherwise
      */
-    bool SelectAll( const std::string& aTable, const std::string& aKey,
-                    std::vector<ROW>& aResults );
+    bool SelectAll( const std::string& aTable, const std::string& aKey, std::vector<ROW>& aResults ) override;
 
-    void ClearCache( const std::string& aTable )
+    void ClearCache( const std::string& aTable ) override
     {
         if( m_cache )
             m_cache->Clear( aTable );
     }
-
-    std::string GetLastError() const { return m_lastError; }
 
 private:
     void init();
@@ -126,8 +120,6 @@ private:
     std::string m_user;
     std::string m_pass;
     std::string m_connectionString;
-
-    std::string m_lastError;
 
     std::map<std::string, std::string> m_tables;
 

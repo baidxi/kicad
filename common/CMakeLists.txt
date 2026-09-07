@@ -918,6 +918,7 @@ set( COMMON_SRCS
     properties/property_mgr.cpp
     properties/std_optional_variants.cpp
 
+    database/csv_db_connection.cpp
     database/database_connection.cpp
 
     http_lib/http_lib_connection.cpp

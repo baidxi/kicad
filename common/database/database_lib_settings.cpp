@@ -31,8 +31,8 @@ const int dblibSchemaVersion = 1;
 
 
 DATABASE_FIELD_MAPPING::DATABASE_FIELD_MAPPING( const std::string& aColumn, const std::string& aName,
-                                                bool aVisibleOnAdd, bool aVisibleInChooser,
-                                                bool aShowName, bool aInheritProperties ) :
+                                                bool aVisibleOnAdd, bool aVisibleInChooser, bool aShowName,
+                                                bool aInheritProperties ) :
         column( aColumn ),
         name( aName ),
         name_wx( aName.c_str(), wxConvUTF8 ),
@@ -47,6 +47,33 @@ DATABASE_FIELD_MAPPING::DATABASE_FIELD_MAPPING( const std::string& aColumn, cons
 DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
         JSON_SETTINGS( aFilename, SETTINGS_LOC::NONE, dblibSchemaVersion )
 {
+    m_params.emplace_back( new PARAM_LAMBDA<std::string>(
+            "source.type",
+            [&]() -> std::string
+            {
+                switch( m_Source.type )
+                {
+                case DATABASE_SOURCE_TYPE::CSV: return "csv";
+                default: return "odbc";
+                }
+            },
+            [&]( const std::string& aType )
+            {
+                std::string lower( aType );
+                std::transform( lower.begin(), lower.end(), lower.begin(),
+                                []( unsigned char c )
+                                {
+                                    return std::tolower( c );
+                                } );
+
+                if( lower == "csv" )
+                    m_Source.type = DATABASE_SOURCE_TYPE::CSV;
+                else
+                    m_Source.type = DATABASE_SOURCE_TYPE::ODBC;
+            },
+            "odbc" ) );
+
+    m_params.emplace_back( new PARAM<std::string>( "source.path", &m_Source.path, "" ) );
 
     m_params.emplace_back( new PARAM<std::string>( "source.dsn", &m_Source.dsn, "" ) );
 
@@ -54,8 +81,7 @@ DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
 
     m_params.emplace_back( new PARAM<std::string>( "source.password", &m_Source.password, "" ) );
 
-    m_params.emplace_back( new PARAM<std::string>( "source.connection_string",
-                                                   &m_Source.connection_string, "" ) );
+    m_params.emplace_back( new PARAM<std::string>( "source.connection_string", &m_Source.connection_string, "" ) );
 
     m_params.emplace_back( new PARAM<int>( "source.timeout_seconds", &m_Source.timeout, 2 ) );
 
@@ -81,10 +107,10 @@ DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
 
                     DATABASE_LIB_TABLE table;
 
-                    table.name           = entry["name"].get<std::string>();
-                    table.table          = entry["table"].get<std::string>();
-                    table.key_col        = entry["key"].get<std::string>();
-                    table.symbols_col    = entry["symbols"].get<std::string>();
+                    table.name = entry["name"].get<std::string>();
+                    table.table = entry["table"].get<std::string>();
+                    table.key_col = entry["key"].get<std::string>();
+                    table.symbols_col = entry["symbols"].get<std::string>();
                     table.footprints_col = entry["footprints"].get<std::string>();
                     table.pins_col = fetchOrDefault<std::string>( entry, "pins" );
 
@@ -96,23 +122,19 @@ DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
                     {
                         const nlohmann::json& propJson = entry["properties"];
 
-                        table.properties.description =
-                                    fetchOrDefault<std::string>( propJson, "description" );
+                        table.properties.description = fetchOrDefault<std::string>( propJson, "description" );
 
                         table.properties.footprint_filters =
-                                    fetchOrDefault<std::string>( propJson, "footprint_filters" );
+                                fetchOrDefault<std::string>( propJson, "footprint_filters" );
 
-                        table.properties.keywords =
-                                    fetchOrDefault<std::string>( propJson, "keywords" );
+                        table.properties.keywords = fetchOrDefault<std::string>( propJson, "keywords" );
 
-                        table.properties.exclude_from_bom =
-                                    fetchOrDefault<std::string>( propJson, "exclude_from_bom" );
+                        table.properties.exclude_from_bom = fetchOrDefault<std::string>( propJson, "exclude_from_bom" );
 
                         table.properties.exclude_from_board =
-                                    fetchOrDefault<std::string>( propJson, "exclude_from_board" );
+                                fetchOrDefault<std::string>( propJson, "exclude_from_board" );
 
-                        table.properties.exclude_from_sim =
-                                    fetchOrDefault<std::string>( propJson, "exclude_from_sim" );
+                        table.properties.exclude_from_sim = fetchOrDefault<std::string>( propJson, "exclude_from_sim" );
                     }
 
                     if( entry.contains( "fields" ) && entry["fields"].is_array() )
@@ -122,13 +144,13 @@ DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
                             if( fieldJson.empty() || !fieldJson.is_object() )
                                 continue;
 
-                            table.fields.emplace_back( DATABASE_FIELD_MAPPING(
-                                    fetchOrDefault<std::string>( fieldJson, "column" ),
-                                    fetchOrDefault<std::string>( fieldJson, "name" ),
-                                    fetchOrDefault<bool>( fieldJson, "visible_on_add" ),
-                                    fetchOrDefault<bool>( fieldJson, "visible_in_chooser" ),
-                                    fetchOrDefault<bool>( fieldJson, "show_name" ),
-                                    fetchOrDefault<bool>( fieldJson, "inherit_properties" ) ) );
+                            table.fields.emplace_back(
+                                    DATABASE_FIELD_MAPPING( fetchOrDefault<std::string>( fieldJson, "column" ),
+                                                            fetchOrDefault<std::string>( fieldJson, "name" ),
+                                                            fetchOrDefault<bool>( fieldJson, "visible_on_add" ),
+                                                            fetchOrDefault<bool>( fieldJson, "visible_in_chooser" ),
+                                                            fetchOrDefault<bool>( fieldJson, "show_name" ),
+                                                            fetchOrDefault<bool>( fieldJson, "inherit_properties" ) ) );
                         }
                     }
 
@@ -151,28 +173,28 @@ DATABASE_LIB_SETTINGS::DATABASE_LIB_SETTINGS( const std::string& aFilename ) :
                             * Move internal symbol properties from fields with special names to
                             * a separate place in the schema.
                             */
-                            if( !Contains( "libraries" ) || !At( "libraries" ).is_array() )
-                                return true;
+                           if( !Contains( "libraries" ) || !At( "libraries" ).is_array() )
+                               return true;
 
-                            for( nlohmann::json& library : At( "libraries" ) )
-                            {
-                                if( !library.contains( "fields" ) )
-                                    continue;
+                           for( nlohmann::json& library : At( "libraries" ) )
+                           {
+                               if( !library.contains( "fields" ) )
+                                   continue;
 
-                                for( const nlohmann::json& field : library["fields"] )
-                                {
-                                    if( !field.contains( "name" ) || !field.contains( "column" ) )
-                                        continue;
+                               for( const nlohmann::json& field : library["fields"] )
+                               {
+                                   if( !field.contains( "name" ) || !field.contains( "column" ) )
+                                       continue;
 
-                                    std::string name = field["name"].get<std::string>();
-                                    std::string col  = field["column"].get<std::string>();
+                                   std::string name = field["name"].get<std::string>();
+                                   std::string col = field["column"].get<std::string>();
 
-                                    if( name == "ki_description" )
-                                        library["properties"]["description"] = col;
-                                    else if( name == "ki_fp_filters" )
-                                        library["properties"]["footprint_filters"] = col;
-                                }
-                            }
+                                   if( name == "ki_description" )
+                                       library["properties"]["description"] = col;
+                                   else if( name == "ki_fp_filters" )
+                                       library["properties"]["footprint_filters"] = col;
+                               }
+                           }
 
                            return true;
                        } );
