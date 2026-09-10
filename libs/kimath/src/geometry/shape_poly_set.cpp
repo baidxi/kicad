@@ -49,6 +49,7 @@
 #include <geometry/shape_line_chain.h>
 #include <geometry/shape_poly_set.h>
 #include <geometry/rtree/dynamic_rtree.h>
+#include <geometry/shape_poly_tri_index.h>
 #include <math/box2.h>                       // for BOX2I
 #include <math/util.h>                       // for KiROUND, rescale
 #include <math/vector2d.h>                   // for VECTOR2I, VECTOR2D, VECTOR2
@@ -71,6 +72,10 @@
     #define ENABLECACHEFRIENDLYFRACTURE ADVANCED_CFG::GetCfg().m_EnableCacheFriendlyFracture
     #define ENABLEFRACTUREEDGEINDEX ADVANCED_CFG::GetCfg().m_EnableFractureEdgeIndex
 #endif
+
+// Below this many elements a direct scan beats building and querying a spatial index.
+static constexpr int RTREE_THRESHOLD = 32;
+
 
 SHAPE_POLY_SET::SHAPE_POLY_SET() :
     SHAPE( SH_POLY_SET )
@@ -2397,9 +2402,6 @@ void SHAPE_POLY_SET::splitSelfTouchingOutlines()
             int insertSegIdx = -1;
             int insertVertIdx = -1;
 
-            // For small polygons, direct O(n²) search is faster than R-tree overhead
-            constexpr int RTREE_THRESHOLD = 32;
-
             if( count < RTREE_THRESHOLD )
             {
                 for( int vertIdx = 0; vertIdx < count && insertSegIdx < 0; ++vertIdx )
@@ -2805,54 +2807,32 @@ bool SHAPE_POLY_SET::Collide( const SHAPE* aShape, int aClearance, int* aActual,
         return false;
     }
 
-    const_cast<SHAPE_POLY_SET*>( this )->CacheTriangulation();
+    const_cast<SHAPE_POLY_SET*>( this )->CacheTriangulation( false, {}, true );
 
-    int      actual = INT_MAX;
+    if( !aActual && !aLocation )
+        return AnyTriangleHit( m_triIndex.get(), m_triangulatedPolys, aShape, aClearance );
+
+    int      actual;
     VECTOR2I location;
 
-    for( const std::unique_ptr<TRIANGULATED_POLYGON>& tpoly : m_triangulatedPolys )
-    {
-        for( const TRIANGULATED_POLYGON::TRI& tri : tpoly->Triangles() )
-        {
-            if( aActual || aLocation )
-            {
-                int      triActual;
-                VECTOR2I triLocation;
+    if( !AnyTriangleHit( m_triIndex.get(), m_triangulatedPolys, aShape, aClearance,
+                         &actual, &location ) )
+        return false;
 
-                if( aShape->Collide( &tri, aClearance, &triActual, &triLocation ) )
-                {
-                    if( triActual < actual )
-                    {
-                        actual = triActual;
-                        location = triLocation;
-                    }
-                }
-            }
-            else    // A much faster version of above
-            {
-                if( aShape->Collide( &tri, aClearance ) )
-                    return true;
-            }
-        }
-    }
+    if( aActual )
+        *aActual = std::max( 0, actual );
 
-    if( actual < INT_MAX )
-    {
-        if( aActual )
-            *aActual = std::max( 0, actual );
+    if( aLocation )
+        *aLocation = location;
 
-        if( aLocation )
-            *aLocation = location;
-
-        return true;
-    }
-
-    return false;
+    return true;
 }
 
 
 void SHAPE_POLY_SET::RemoveAllContours()
 {
+    m_triIndex.reset();
+
     m_polys.clear();
     m_triangulatedPolys.clear();
     m_triangulationValid = false;
@@ -2942,6 +2922,8 @@ void SHAPE_POLY_SET::DeletePolygon( int aIdx )
 
 void SHAPE_POLY_SET::DeletePolygonAndTriangulationData( int aIdx, bool aUpdateHash )
 {
+    m_triIndex.reset();
+
     m_polys.erase( m_polys.begin() + aIdx );
 
     if( m_triangulationValid )
@@ -3151,6 +3133,8 @@ bool SHAPE_POLY_SET::containsSingle( const VECTOR2I& aP, int aSubpolyIndex, int 
 
 void SHAPE_POLY_SET::Move( const VECTOR2I& aVector )
 {
+    m_triIndex.reset();
+
     for( POLYGON& poly : m_polys )
     {
         for( SHAPE_LINE_CHAIN& path : poly )
@@ -3384,8 +3368,30 @@ SHAPE_POLY_SET SHAPE_POLY_SET::Fillet( int aRadius, int aErrorMax )
 }
 
 
+SHAPE_POLY_SET& SHAPE_POLY_SET::operator=( SHAPE_POLY_SET&& aOther ) noexcept
+{
+    if( this != &aOther )
+    {
+        SHAPE::operator=( aOther );
+
+        m_polys = std::move( aOther.m_polys );
+        m_triangulatedPolys = std::move( aOther.m_triangulatedPolys );
+
+        m_triIndex = std::move( aOther.m_triIndex );
+
+        m_hash = aOther.m_hash;
+        m_hashValid.store( aOther.m_hashValid.load() );
+        m_triangulationValid.store( aOther.m_triangulationValid );
+    }
+
+    return *this;
+}
+
+
 SHAPE_POLY_SET &SHAPE_POLY_SET::operator=( const SHAPE_POLY_SET& aOther )
 {
+    m_triIndex.reset();
+
     SHAPE::operator=( aOther );
     m_polys = aOther.m_polys;
 
@@ -3444,8 +3450,25 @@ bool SHAPE_POLY_SET::IsTriangulationUpToDate() const
 
 void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
                                          std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
-                                         const TASK_SUBMITTER& aSubmitter )
+                                         const TASK_SUBMITTER& aSubmitter, bool aBuildIndexes )
 {
+    auto buildIndexes =
+            [this]()
+            {
+                if( m_triIndex )
+                    return;
+
+                int triCount = 0;
+
+                for( const std::unique_ptr<TRIANGULATED_POLYGON>& tpoly : m_triangulatedPolys )
+                    triCount += static_cast<int>( tpoly->GetTriangleCount() );
+
+                if( triCount < RTREE_THRESHOLD )
+                    return;
+
+                m_triIndex = std::make_unique<TRIANGULATION_INDEX>( m_triangulatedPolys );
+            };
+
     // if( m_triangulationValid && m_hashValid && m_hash == checksum() )
     //     return;
     // if( m_failedHashValid && m_failedHash == checksum() )
@@ -3454,11 +3477,17 @@ void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
     std::unique_lock<std::mutex> lock( m_triangulationMutex );
 
     if( m_triangulationValid && m_hashValid && m_hash == checksum() )
+    {
+        if( aBuildIndexes )
+            buildIndexes();
+
         return;
+    }
     if( m_failedHashValid && m_failedHash == checksum() )
         return;
 
     // Invalidate, in case anything goes wrong below
+    m_triIndex.reset();
     m_triangulationValid = false;
     m_hashValid = false;
     m_failedHashValid = false;
@@ -3805,6 +3834,9 @@ void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
             m_failedHashValid = true;
         }
     }
+
+    if( aBuildIndexes && m_triangulationValid )
+        buildIndexes();
 }
 
 

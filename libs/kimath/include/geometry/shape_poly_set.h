@@ -47,6 +47,8 @@
 #include <hash_128.h>
 
 
+class TRIANGULATION_INDEX;
+
 /**
  * Represent a set of closed polygons. Polygons may be nonconvex, self-intersecting
  * and have holes. Provides boolean operations (using Clipper library as the backend).
@@ -59,7 +61,7 @@
  *      outline or a hole.
  *      - Vertex (or corner): each one of the points that define a contour.
  *
- * TODO: add convex partitioning & spatial index
+ * TODO: add convex partitioning
  */
 class SHAPE_POLY_SET : public SHAPE
 {
@@ -556,34 +558,20 @@ public:
 
     SHAPE_POLY_SET& operator=( const SHAPE_POLY_SET& aOther );
 
-    // Move assignment operator
-    SHAPE_POLY_SET& operator=( SHAPE_POLY_SET&& aOther ) noexcept
-    {
-        if (this != &aOther)
-        {
-            SHAPE::operator=( aOther );
-
-            m_polys = std::move( aOther.m_polys );
-            m_triangulatedPolys = std::move( aOther.m_triangulatedPolys );
-
-            m_hash = aOther.m_hash;
-            m_hashValid.store( aOther.m_hashValid.load() );
-            m_triangulationValid.store( aOther.m_triangulationValid );
-        }
-
-        return *this;
-    }
+    SHAPE_POLY_SET& operator=( SHAPE_POLY_SET&& aOther ) noexcept;
 
     /**
      * Build a polygon triangulation, needed to draw a polygon on OpenGL and in some
      * other calculations.
      * @param aSimplify when true, simplify the polygon set before triangulating
      * @param aSubmitter optional callback for parallel triangulation of partition leaves
+     * @param aBuildIndexes when true, also build the spatial index over the triangles
      */
     virtual void CacheTriangulation( bool aSimplify = false,
-                                     const TASK_SUBMITTER& aSubmitter = {} )
+                                     const TASK_SUBMITTER& aSubmitter = {},
+                                     bool aBuildIndexes = false )
     {
-        cacheTriangulation( aSimplify, nullptr, aSubmitter );
+        cacheTriangulation( aSimplify, nullptr, aSubmitter, aBuildIndexes );
     }
     bool IsTriangulationUpToDate() const;
 
@@ -734,6 +722,9 @@ public:
 
     /// Return the number of triangulated polygons
     unsigned int TriangulatedPolyCount() const { return m_triangulatedPolys.size(); }
+
+    /// The spatial index over the cached triangulation, or nullptr when none was built.
+    const TRIANGULATION_INDEX* TriangulationIndex() const { return m_triIndex.get(); }
 
     /// Return the number of outlines in the set
     int OutlineCount() const { return m_polys.size(); }
@@ -1493,7 +1484,7 @@ public:
 protected:
     void cacheTriangulation( bool aSimplify,
                              std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
-                             const TASK_SUBMITTER& aSubmitter = {} );
+                             const TASK_SUBMITTER& aSubmitter = {}, bool aBuildIndexes = false );
 
 private:
     enum DROP_TRIANGULATION_FLAG { SINGLETON };
@@ -1602,6 +1593,11 @@ private:
 protected:
     std::vector<POLYGON>                               m_polys;
     std::vector<std::unique_ptr<TRIANGULATED_POLYGON>> m_triangulatedPolys;
+
+    /// One index over every triangle of every polygon above.  Built lazily inside
+    /// cacheTriangulation(); dropped by anything that rebuilds, discards or moves the
+    /// triangles.  Never copied.
+    std::unique_ptr<TRIANGULATION_INDEX> m_triIndex;
 
     std::atomic<bool> m_triangulationValid = false;
     std::mutex  m_triangulationMutex;

@@ -80,7 +80,8 @@ public:
                                           const VECTOR2I& aPt3 )> aCallback ) const;
 
     void CacheTriangulation( bool aSimplify = false,
-                             const TASK_SUBMITTER& aSubmitter = {} ) override;
+                             const TASK_SUBMITTER& aSubmitter = {},
+                             bool aBuildIndexes = false ) override;
 
     /**
      * @return a set of triangulated polygons from the glyph.  CacheTriangulation() will use this

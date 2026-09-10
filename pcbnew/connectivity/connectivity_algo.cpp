@@ -584,7 +584,7 @@ void CN_CONNECTIVITY_ALGO::Build( BOARD* aBoard, PROGRESS_REPORTER* aReporter )
                 if( aReporter && aReporter->IsCancelled() )
                     return 0;
 
-                aZoneLayer->BuildRTree();
+                aZoneLayer->BuildIndexes();
 
                 if( aReporter )
                     aReporter->AdvanceProgress();
