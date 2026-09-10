@@ -616,6 +616,7 @@ public:
     static TOOL_ACTION compareBoardWithFile;
     static TOOL_ACTION compareBoardWithHistory;
     static TOOL_ACTION showFootprintAssociations;
+    static TOOL_ACTION importIDX;
     static TOOL_ACTION collect3DModels;
 
     // Appearance controls

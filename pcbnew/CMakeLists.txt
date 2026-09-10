@@ -397,6 +397,28 @@ set( ZONE_MANAGER_SRCS
     zone_manager/zone_preview_canvas.cpp
     )
 
+
+set( PCBNEW_IDX
+     idx/kidx/schema/administration.cpp
+     idx/kidx/schema/annotation.cpp
+     idx/kidx/schema/computational.cpp
+     idx/kidx/schema/external.cpp
+     idx/kidx/schema/foundation.cpp
+     idx/kidx/schema/grouping.cpp
+     idx/kidx/schema/geometry.cpp
+     idx/kidx/schema/idx_base.cpp
+     idx/kidx/schema/material.cpp
+     idx/kidx/schema/pdm.cpp
+     idx/kidx/schema/text.cpp
+     idx/kidx/sync/sync.cpp
+     idx/CAD_software.cpp
+     idx/kidx/schema/property.cpp
+     idx/dialog_idx_review_base.cpp
+     idx/dialog_idx_review.cpp
+     idx/idx_reader.cpp
+     idx/kicad_idx.cpp
+    )
+
 set( PCBNEW_CLASS_SRCS
     ${PCBNEW_DIALOGS}
     ${PCBNEW_EXPORTERS}
@@ -406,6 +428,7 @@ set( PCBNEW_CLASS_SRCS
     ${PCBNEW_NETLIST_SRCS}
     ${ZONE_MANAGER_SRCS}
     ${PCBNEW_BRDSTACKUP_MGR}
+    ${PCBNEW_IDX}
 
     autorouter/spread_footprints.cpp
     autorouter/ar_autoplacer.cpp

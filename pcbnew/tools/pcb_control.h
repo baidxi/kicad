@@ -101,6 +101,7 @@ public:
     // Miscellaneous
     int InteractiveDelete( const TOOL_EVENT& aEvent );
     int Paste( const TOOL_EVENT& aEvent );
+    int ImportIDX( const TOOL_EVENT& aEvent );
     int AppendBoardFromFile( const TOOL_EVENT& aEvent );
     int AppendDesignBlock( const TOOL_EVENT& aEvent );
     int ApplyDesignBlockLayout( const TOOL_EVENT& aEvent );

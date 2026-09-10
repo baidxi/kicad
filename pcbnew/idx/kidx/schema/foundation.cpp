@@ -1,0 +1,1638 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * @author Fabien Corona <f.corona<at>laposte.net>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+#include "foundation.h"
+#include <idx/kidx/schema/property.h>
+#include <idx/kidx/schema/computational.h>
+#include <idx/kidx/schema/geometry.h>
+#include <idx/kidx/schema/administration.h>
+#include <idx/kidx/schema/annotation.h>
+#include <iostream>
+
+
+namespace idx_foundation
+{
+
+// -----------------------------------------------------
+// EDMD_OBJECT
+// -----------------------------------------------------
+
+EDMD_OBJECT::EDMD_OBJECT() :
+        IDX_BASE()
+{
+}
+
+EDMD_OBJECT::EDMD_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        IDX_BASE()
+{
+    std::string isAttributeChanged;
+    m_id = aNode.GetAttribute( "id", "" );
+
+    isAttributeChanged = aNode.GetAttribute( "IsAttributeChanged", "" );
+
+    if( !isAttributeChanged.empty() )
+        m_isAttributeChanged = parseBool( isAttributeChanged );
+}
+
+bool EDMD_OBJECT::Parse( IDX_XML_NODE& aNode )
+{
+    return false;
+}
+
+bool EDMD_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return IDX_BASE::Resolve( aRegistry );
+}
+
+bool EDMD_OBJECT::operator==( const EDMD_OBJECT& rhs )
+{
+    return m_id == rhs.m_id;
+}
+
+
+void EDMD_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    if( !m_id.empty() )
+        aNode.SetAttribute( "id", m_id );
+
+    if( m_isAttributeChanged.has_value() )
+        aNode.SetAttribute( "IsAttributeChanged", m_isAttributeChanged.value() );
+}
+
+void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName, const std::string aValue ) const
+{
+    if( !aValue.empty() )
+        aNode.AppendChild( aChildName )->SetText( aValue );
+}
+
+void EDMD_OBJECT::WriteValueChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                                   const std::optional<std::string> aValue ) const
+{
+    if( aValue.has_value() )
+        WriteValueChild( aNode, aChildName, aValue.value() );
+}
+
+
+void EDMD_OBJECT::WriteChild( IDX_XML_NODE& aNode, const std::string aChildName, const EDMD_OBJECT& aChild ) const
+{
+    aChild.Write( *( aNode.AppendChild( aChildName ) ) );
+}
+
+void EDMD_OBJECT::WriteChild( IDX_XML_NODE& aNode, const std::string aChildName,
+                              const std::optional<EDMD_OBJECT>& aChild ) const
+{
+    if( aChild.has_value() )
+        aChild.value().Write( *( aNode.AppendChild( aChildName ) ) );
+}
+
+// -----------------------------------------------------
+// EDMD_EXTENSIBLE_OBJECT
+// -----------------------------------------------------
+
+EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT() :
+        EDMD_OBJECT()
+{
+}
+
+EDMD_EXTENSIBLE_OBJECT::EDMD_EXTENSIBLE_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+bool EDMD_EXTENSIBLE_OBJECT::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "foundation:Name" ) )
+        m_name = content;
+    else if( IDX_keyword_compare( name, "foundation:Description" ) )
+        m_description = content;
+    else if( IDX_keyword_compare( name, "foundation:DisplayName" ) )
+        m_displayName.emplace_back( std::make_shared<EDMD_NAME>( aNode, true ) );
+    else if( IDX_keyword_compare( name, "foundation:DisplayDescription" ) )
+        m_displayName.emplace_back( std::make_shared<EDMD_NAME>( aNode, true ) );
+    else if( IDX_keyword_compare( name, "foundation:UserProperty" ) )
+        m_userProperty.emplace_back( std::make_shared<idx_property::EDMD_USER_PROPERTY>( aNode, true ) );
+    else
+        return this->EDMD_OBJECT::Parse( aNode );
+    return true;
+}
+
+
+std::shared_ptr<idx_property::EDMD_USER_PROPERTY>
+EDMD_EXTENSIBLE_OBJECT::GetUserProperty( const std::string& aKey ) const
+{
+    for( auto prop : m_userProperty )
+    {
+        for( const auto& key : prop->m_keys )
+        {
+            if( key->m_objectName == aKey )
+                return prop;
+        }
+    }
+    return nullptr;
+}
+
+bool EDMD_EXTENSIBLE_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_OBJECT::Resolve( aRegistry );
+}
+
+void EDMD_EXTENSIBLE_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:Name", m_name );
+    WriteValueChild( aNode, "foundation:Description", m_description );
+
+    for( auto name : m_displayName )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:DisplayName", *name );
+    }
+    for( auto name : m_displayDescription )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:DisplayDescription", *name );
+    }
+    for( auto name : m_userProperty )
+    {
+        if( name )
+            WriteChild( aNode, "foundation:UserProperty", *name );
+    }
+}
+
+// -----------------------------------------------------
+// EDMD_COLLABORATION_OBJECT
+// -----------------------------------------------------
+
+EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT() :
+        EDMD_EXTENSIBLE_OBJECT()
+{
+}
+
+EDMD_COLLABORATION_OBJECT::EDMD_COLLABORATION_OBJECT( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_EXTENSIBLE_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+bool EDMD_COLLABORATION_OBJECT::Parse( IDX_XML_NODE& aNode )
+{
+    return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+}
+
+bool EDMD_COLLABORATION_OBJECT::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry );
+}
+
+
+void EDMD_COLLABORATION_OBJECT::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+}
+
+
+// -----------------------------------------------------
+// EDMD_SYSTEM
+// -----------------------------------------------------
+
+EDMD_SYSTEM::EDMD_SYSTEM( IDX_XML_NODE& aNode ) :
+        EDMD_COLLABORATION_OBJECT( aNode, false )
+{
+    auto child = aNode.GetChildren();
+
+    while( child )
+    {
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
+
+        if( IDX_keyword_compare( name, "foundation:GlobalName" ) )
+            m_globalName = content;
+        else if( IDX_keyword_compare( name, "foundation:WebServiceURI" ) )
+            m_webServiceURI = content;
+        else if( IDX_keyword_compare( name, "foundation:Revision" ) )
+            m_revision = content;
+        else if( IDX_keyword_compare( name, "foundation:SystemName" ) )
+            m_systemName = content;
+        else if( IDX_keyword_compare( name, "foundation:InstanceName" ) )
+            m_instanceName = content;
+        else if( IDX_keyword_compare( name, "foundation:systemOwner" ) )
+            m_systemOwner = content;
+        else if( IDX_keyword_compare( name, "foundation:NeedsSelfContainedMessages" ) )
+            m_needsSelfContainedMessages = ( IDX_keyword_compare( content, "true" ) );
+
+        child = child->GetNext();
+    }
+}
+
+bool EDMD_SYSTEM::Resolve( IDX_REGISTRY& aRegistry )
+{
+    return EDMD_COLLABORATION_OBJECT::Resolve( aRegistry );
+}
+
+bool EDMD_SYSTEM::Parse( IDX_XML_NODE& aNode )
+{
+    auto child = aNode.GetChildren();
+
+    while( child )
+    {
+        const std::string content = child->GetNodeContent();
+        const std::string name = child->GetName();
+
+        if( IDX_keyword_compare( name, "foundation:SystemType" ) )
+        {
+            if( IDX_keyword_compare( content, "MANUFACTURER" ) )
+                m_systemType = SYSTEM_TYPE::MANUFACTURER;
+            else if( IDX_keyword_compare( content, "PLM" ) )
+                m_systemType = SYSTEM_TYPE::PLM;
+            else if( IDX_keyword_compare( content, "ECAD" ) )
+                m_systemType = SYSTEM_TYPE::ECAD;
+            else if( IDX_keyword_compare( content, "MCAD" ) )
+                m_systemType = SYSTEM_TYPE::MCAD;
+            else if( IDX_keyword_compare( content, "PROXY" ) )
+                m_systemType = SYSTEM_TYPE::PROXY;
+            else if( IDX_keyword_compare( content, "LIBRARY" ) )
+                m_systemType = SYSTEM_TYPE::LIBRARY;
+            else if( IDX_keyword_compare( content, "COMMONSTANDARD" ) )
+                m_systemType = SYSTEM_TYPE::COMMONSTANDARD;
+            else if( IDX_keyword_compare( content, "FACTORYSTANDARD" ) )
+                m_systemType = SYSTEM_TYPE::FACTORYSTANDARD;
+        }
+        else if( IDX_keyword_compare( name, "foundation:GlobalName" ) )
+            m_globalName = content;
+        else if( IDX_keyword_compare( name, "foundation:WebServiceURI" ) )
+            m_webServiceURI = content;
+        else if( IDX_keyword_compare( name, "foundation:Revision" ) )
+            m_revision = content;
+        else if( IDX_keyword_compare( name, "foundation:SystemName" ) )
+            m_systemName = content;
+        else if( IDX_keyword_compare( name, "foundation:InstanceName" ) )
+            m_instanceName = content;
+        else if( IDX_keyword_compare( name, "foundation:systemOwner" ) )
+            m_systemOwner = content;
+        else if( IDX_keyword_compare( name, "foundation:NeedsSelfContainedMessages" ) )
+            m_needsSelfContainedMessages = ( IDX_keyword_compare( content, "true" ) );
+        else
+            return this->EDMD_COLLABORATION_OBJECT::Parse( aNode );
+
+        child = child->GetNext();
+    }
+
+    return true;
+}
+
+void EDMD_SYSTEM::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_COLLABORATION_OBJECT::Write( aNode );
+
+    switch( m_systemType )
+    {
+    case SYSTEM_TYPE::MANUFACTURER: aNode.AppendChild( "foundation:SystemType" )->SetText( "MANUFACTURER" ); break;
+    case SYSTEM_TYPE::PLM: aNode.AppendChild( "foundation:SystemType" )->SetText( "PLM" ); break;
+    case SYSTEM_TYPE::ECAD: aNode.AppendChild( "foundation:SystemType" )->SetText( "ECAD" ); break;
+    case SYSTEM_TYPE::MCAD: aNode.AppendChild( "foundation:SystemType" )->SetText( "MCAD" ); break;
+    case SYSTEM_TYPE::PROXY: aNode.AppendChild( "foundation:SystemType" )->SetText( "PROXY" ); break;
+    case SYSTEM_TYPE::LIBRARY: aNode.AppendChild( "foundation:SystemType" )->SetText( "LIBRARY" ); break;
+    case SYSTEM_TYPE::COMMONSTANDARD: aNode.AppendChild( "foundation:SystemType" )->SetText( "COMMONSTANDARD" ); break;
+    case SYSTEM_TYPE::FACTORYSTANDARD:
+        aNode.AppendChild( "foundation:SystemType" )->SetText( "FACTORYSTANDARD" );
+        break;
+    default: break;
+    }
+
+    if( !m_globalName.empty() )
+        aNode.AppendChild( "foundation:GlobalName" )->SetText( m_globalName );
+    if( !m_webServiceURI.empty() )
+        aNode.AppendChild( "foundation:WebServiceURI" )->SetText( m_webServiceURI );
+    if( !m_revision.empty() )
+        aNode.AppendChild( "foundation:Revision" )->SetText( m_revision );
+    if( !m_systemName.empty() )
+        aNode.AppendChild( "foundation:SystemName" )->SetText( m_systemName );
+    if( !m_instanceName.empty() )
+        aNode.AppendChild( "foundation:InstanceName" )->SetText( m_instanceName );
+    if( !m_systemOwner.empty() )
+        aNode.AppendChild( "foundation:systemOwner" )->SetText( m_systemOwner );
+    aNode.AppendChild( "foundation:NeedsSelfContainedMessages" )
+            ->SetText( m_needsSelfContainedMessages ? "true" : "false" );
+}
+
+// -----------------------------------------------------
+// EDMD_HEADER
+// -----------------------------------------------------
+
+EDMD_HEADER::EDMD_HEADER( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_EXTENSIBLE_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+bool EDMD_HEADER::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+
+    if( IDX_keyword_compare( name, "foundation:Description" ) )
+        m_description = content;
+    else if( IDX_keyword_compare( name, "foundation:CreatorName" ) )
+        m_creatorName = content;
+    else if( IDX_keyword_compare( name, "foundation:CreatorCompany" ) )
+        m_creatorCompany = content;
+    else if( IDX_keyword_compare( name, "foundation:CreatorSystem" ) )
+        m_creatorSystem = content;
+    else if( IDX_keyword_compare( name, "foundation:CreationDateTime" ) )
+        m_creationDateTime = content;
+    else if( IDX_keyword_compare( name, "foundation:ModifiedDateTime" ) )
+        m_modifiedDateTime = content;
+    else if( IDX_keyword_compare( name, "foundation:PostProcessor" ) )
+        m_postProcessor = content;
+    else if( IDX_keyword_compare( name, "foundation:PostProcessorVersion" ) )
+        m_postProcessorVersion = content;
+    else if( IDX_keyword_compare( name, "foundation:Creator" ) )
+        m_creatorRef = content;
+    else if( IDX_keyword_compare( name, "foundation:System" ) )
+        m_systemRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitLength" ) )
+        m_globalUnitLengthRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitAmperage" ) )
+        m_globalUnitAmperageRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitAngle" ) )
+        m_globalUnitAngleRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitCapacitance" ) )
+        m_globalUnitCapacitanceRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitPower" ) )
+        m_globalUnitPowerRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitResistance" ) )
+        m_globalUnitResistanceRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitVoltage" ) )
+        m_globalUnitVoltageRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitWeight" ) )
+        m_globalUnitWeightRef = content;
+    else if( IDX_keyword_compare( name, "foundation:GlobalUnitWork" ) )
+        m_globalUnitWorkRef = content;
+    else if( IDX_keyword_compare( name, "foundation:IsSelfContained" )
+             || IDX_keyword_compare( name, "IsSelfContained" ) )
+    {
+        isSelfContained = ( content == "true" || content == "1" );
+        return true;
+    }
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+void EDMD_HEADER::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:CreatorName", m_creatorName );
+    WriteValueChild( aNode, "foundation:CreatorCompany", m_creatorCompany );
+    WriteValueChild( aNode, "foundation:CreatorSystem", m_creatorSystem );
+    WriteValueChild( aNode, "foundation:PostProcessor", m_postProcessor );
+    WriteValueChild( aNode, "foundation:PostProcessorVersion", m_postProcessorVersion );
+    WriteValueChild( aNode, "foundation:CreationDateTime", m_creationDateTime );
+    WriteValueChild( aNode, "foundation:ModifiedDateTime", m_modifiedDateTime );
+    WriteValueChild( aNode, "foundation:Creator", m_creatorRef );
+    WriteValueChild( aNode, "foundation:System", m_systemRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitLength", m_globalUnitLengthRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitAmperage", m_globalUnitAmperageRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitAngle", m_globalUnitAngleRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitCapacitance", m_globalUnitCapacitanceRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitPower", m_globalUnitPowerRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitResistance", m_globalUnitResistanceRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitVoltage", m_globalUnitVoltageRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitWeight", m_globalUnitWeightRef );
+    WriteValueChild( aNode, "foundation:GlobalUnitWork", m_globalUnitWorkRef );
+}
+
+bool EDMD_HEADER::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve creator reference
+    if( !m_creatorRef.empty() && !m_creator )
+        resolve<EDMD_HEADER, idx_administration::EDMD_PERSON>( m_creatorRef, &m_creator, aRegistry );
+
+    return true;
+}
+
+// -----------------------------------------------------
+// EDMD_DATA_SET_BODY
+// -----------------------------------------------------
+
+EDMD_DATA_SET_BODY::EDMD_DATA_SET_BODY( IDX_XML_NODE& aNode ) :
+        IDX_BASE()
+{
+    ParseChildren( aNode );
+}
+
+bool EDMD_DATA_SET_BODY::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "foundation:System" ) )
+    {
+        std::shared_ptr<idx_foundation::EDMD_SYSTEM> s = std::make_shared<idx_foundation::EDMD_SYSTEM>( aNode );
+        m_registry.registerObject<idx_foundation::EDMD_SYSTEM>( s->m_id, s );
+        m_systems.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:History" ) )
+    {
+        std::shared_ptr<idx_annotation::EDMD_HISTORY> history = std::make_shared<idx_annotation::EDMD_HISTORY>( aNode );
+        m_history.push_back( history );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Person" ) )
+    {
+        std::shared_ptr<idx_administration::EDMD_PERSON> s = std::make_shared<idx_administration::EDMD_PERSON>( aNode );
+        m_actors.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:UnitLength" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:CartesianPoint" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
+                std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:PolyLine" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_POLY_LINE> s = std::make_shared<idx_geometry::EDMD_POLY_LINE>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:CircleCenter" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CIRCLE_CENTER> s =
+                std::make_shared<idx_geometry::EDMD_CIRCLE_CENTER>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Arc" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_ARC> s = std::make_shared<idx_geometry::EDMD_ARC>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:CurveSet2d" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> s = std::make_shared<idx_geometry::EDMD_CURVE_SET2D>( aNode );
+        m_registry.registerObject<idx_pdm::EDMD_SHAPE_DESCRIPTION>( s->m_id, s );
+        m_curvesets.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:ShapeElement" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_SHAPE_ELEMENT> s = std::make_shared<idx_pdm::EDMD_SHAPE_ELEMENT>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_SHAPE_ELEMENT>( s->m_id, s );
+        m_shapeElements.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Stratum" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_STRATUM> s = std::make_shared<idx_pdm::EDMD_STRATUM>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_stratums.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:KeepOut" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_KEEP_OUT> s = std::make_shared<idx_pdm::EDMD_KEEP_OUT>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_keeps.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:KeepIn" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_KEEP_IN> s = std::make_shared<idx_pdm::EDMD_KEEP_IN>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_keeps.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Item" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_ITEM> s = std::make_shared<idx_pdm::EDMD_ITEM>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM>( s->m_id, s );
+        m_items.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:AssemblyComponent" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_ASSEMBLY_COMPONENT> s =
+                std::make_shared<idx_pdm::EDMD_ASSEMBLY_COMPONENT>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_assemblies.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "foundation:InterStratumFeature" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_INTER_STRATUM_FEATURE> s =
+                std::make_shared<idx_pdm::EDMD_INTER_STRATUM_FEATURE>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_interStratums.push_back( s );
+    }
+    /*
+    else if( IDX_keyword_compare( name, "foundation:ExternalSource" ) )
+    {
+        // TODO
+    }
+        */
+    else if( IDX_keyword_compare( name, "foundation:FunctionalItemShape" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE> s =
+                std::make_shared<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( aNode );
+        m_registry.registerObject<idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE>( s->m_id, s );
+        m_functionalItemShapes.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:PackagePin" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_PACKAGE_PIN> s = std::make_shared<idx_pdm::EDMD_PACKAGE_PIN>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_PACKAGE_PIN>( s->m_id, s );
+        m_packagePins.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:3DModel" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_3D_MODEL> s = std::make_shared<idx_pdm::EDMD_3D_MODEL>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_3D_MODEL>( s->m_id, s );
+        m_3dModels.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:Bend" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_BEND> s = std::make_shared<idx_pdm::EDMD_BEND>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        m_bends.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:BendType" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_BEND_TYPE> s = std::make_shared<idx_pdm::EDMD_BEND_TYPE>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_BEND_TYPE>( s->m_id, s );
+        m_bendTypes.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "pdm:CircularBendType" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_CIRCULAR_BEND_TYPE> s =
+                std::make_shared<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( aNode );
+        m_registry.registerObject<idx_pdm::EDMD_CIRCULAR_BEND_TYPE>( s->m_id, s );
+        m_circularBendTypes.push_back( s );
+    }
+    // Geometry elements
+    else if( IDX_keyword_compare( name, "d2:Ellipse" ) || IDX_keyword_compare( name, "Ellipse" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_ELLIPSE> s = std::make_shared<idx_geometry::EDMD_ELLIPSE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:BSplineCurve" ) || IDX_keyword_compare( name, "BSplineCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_B_SPLINE_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_B_SPLINE_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Circle3Point" ) || IDX_keyword_compare( name, "Circle3Point" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CIRCLE3_POINT> s =
+                std::make_shared<idx_geometry::EDMD_CIRCLE3_POINT>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Hyperbola" ) || IDX_keyword_compare( name, "Hyperbola" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_HYPERBOLA> s = std::make_shared<idx_geometry::EDMD_HYPERBOLA>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Line" ) || IDX_keyword_compare( name, "Line" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_LINE> s = std::make_shared<idx_geometry::EDMD_LINE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:OffsetCurve" ) || IDX_keyword_compare( name, "OffsetCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_OFFSET_CURVE> s = std::make_shared<idx_geometry::EDMD_OFFSET_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:Parabola" ) || IDX_keyword_compare( name, "Parabola" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_PARABOLA> s = std::make_shared<idx_geometry::EDMD_PARABOLA>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:TrimmedCurve" ) || IDX_keyword_compare( name, "TrimmedCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_TRIMMED_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_TRIMMED_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:CompositeCurve" ) || IDX_keyword_compare( name, "CompositeCurve" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_COMPOSITE_CURVE> s =
+                std::make_shared<idx_geometry::EDMD_COMPOSITE_CURVE>( aNode );
+        m_registry.registerObject<idx_geometry::EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT>( s->m_id, s );
+        m_curves.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "d2:CartesianPoint" ) || IDX_keyword_compare( name, "CartesianPoint" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CARTESIAN_POINT> s =
+                std::make_shared<idx_geometry::EDMD_CARTESIAN_POINT>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    // PDM elements
+    else if( IDX_keyword_compare( name, "NonFeatureItemShape" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_NON_FEATURE_ITEM_SHAPE> s =
+                std::make_shared<idx_pdm::EDMD_NON_FEATURE_ITEM_SHAPE>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_ITEM_SHAPE>( s->m_id, s );
+        // TODO: add to appropriate vector
+    }
+    else if( IDX_keyword_compare( name, "MasterPart" ) )
+    {
+        // TODO: EDMD_MASTER_PART not yet implemented
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "Material" ) )
+    {
+        // TODO: EDMD_MATERIAL not yet parsed
+        return true;
+    }
+    // Annotation
+    else if( IDX_keyword_compare( name, "Annotation" ) )
+    {
+        std::shared_ptr<idx_annotation::EDMD_ANNOTATION> s = std::make_shared<idx_annotation::EDMD_ANNOTATION>( aNode, false );
+        // TODO: add to appropriate vector
+        return true;
+    }
+    // Grouping
+    else if( IDX_keyword_compare( name, "GeneralClassification" ) )
+    {
+        // TODO: EDMD_GENERAL_CLASSIFICATION not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "ItemConstraint" ) )
+    {
+        // TODO: EDMD_ITEM_CONSTRAINT not yet parsed
+        return true;
+    }
+    // Roles
+    else if( IDX_keyword_compare( name, "RoleInOrganisation" ) )
+    {
+        // TODO: EDMD_ROLE_IN_ORGANISATION not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "RoleOnItem" ) )
+    {
+        // TODO: EDMD_ROLE_ON_ITEM not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "RoleOnItemInstance" ) )
+    {
+        // TODO: EDMD_ROLE_ON_ITEM_INSTANCE not yet parsed
+        return true;
+    }
+    // Text
+    else if( IDX_keyword_compare( name, "SimpleText" ) )
+    {
+        // TODO: EDMD_SIMPLE_TEXT not yet parsed
+        return true;
+    }
+    // Administration
+    else if( IDX_keyword_compare( name, "Organisation" ) )
+    {
+        std::shared_ptr<idx_administration::EDMD_ORGANISATION> s =
+                std::make_shared<idx_administration::EDMD_ORGANISATION>( aNode, true );
+        // TODO: add to appropriate vector
+        return true;
+    }
+    // External
+    else if( IDX_keyword_compare( name, "ExternalGeometricModel" ) )
+    {
+        // TODO: EDMD_EXTERNAL_GEOMETRIC_MODEL not yet parsed
+        return true;
+    }
+    else if( IDX_keyword_compare( name, "ExternalSource" ) )
+    {
+        // TODO: EDMD_EXTERNAL_SOURCE not yet parsed
+        return true;
+    }
+    // Properties
+    else if( IDX_keyword_compare( name, "UnitAmperage" ) || IDX_keyword_compare( name, "foundation:UnitAmperage" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitCapacitance" )
+             || IDX_keyword_compare( name, "foundation:UnitCapacitance" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitPower" ) || IDX_keyword_compare( name, "foundation:UnitPower" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitResistance" ) || IDX_keyword_compare( name, "foundation:UnitResistance" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitSurface" ) || IDX_keyword_compare( name, "foundation:UnitSurface" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitVoltage" ) || IDX_keyword_compare( name, "foundation:UnitVoltage" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitVolume" ) || IDX_keyword_compare( name, "foundation:UnitVolume" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitWeight" ) || IDX_keyword_compare( name, "foundation:UnitWeight" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "UnitWork" ) || IDX_keyword_compare( name, "foundation:UnitWork" ) )
+    {
+        std::shared_ptr<idx_property::EDMD_UNIT> s = std::make_shared<idx_property::EDMD_UNIT>( aNode, true );
+        m_units.push_back( s );
+    }
+    // Points on curves
+    else if( IDX_keyword_compare( name, "PointOnCurveDistance" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_POINT_ON_CURVE_DISTANCE> s =
+                std::make_shared<idx_geometry::EDMD_POINT_ON_CURVE_DISTANCE>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    else if( IDX_keyword_compare( name, "PointOnCurveIntersection" ) )
+    {
+        std::shared_ptr<idx_geometry::EDMD_POINT_ON_CURVE_INTERSECTION> s =
+                std::make_shared<idx_geometry::EDMD_POINT_ON_CURVE_INTERSECTION>( aNode, true );
+        m_registry.registerObject<idx_geometry::EDMD_POINT>( s->m_id, s );
+        m_points.push_back( s );
+    }
+    // HistoryEntry
+    else if( IDX_keyword_compare( name, "HistoryEntry" ) )
+    {
+        // TODO: EDMD_HISTORY_ENTRY not yet parsed
+        return true;
+    }
+    // Model3D
+    else if( IDX_keyword_compare( name, "Model3D" ) || IDX_keyword_compare( name, "foundation:Model3D" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_3D_MODEL> s = std::make_shared<idx_pdm::EDMD_3D_MODEL>( aNode, true );
+        m_registry.registerObject<idx_pdm::EDMD_3D_MODEL>( s->m_id, s );
+        m_3dModels.push_back( s );
+    }
+    // AngleLength
+    else if( IDX_keyword_compare( name, "AngleLength" ) || IDX_keyword_compare( name, "foundation:AngleLength" ) )
+    {
+        // TODO: EDMD_ANGLE_LENGTH not yet implemented, parse as property
+        return true;
+    }
+    // Stratum Technology
+    else if( IDX_keyword_compare( name, "StratumTechnology" ) )
+    {
+        std::shared_ptr<idx_pdm::EDMD_STRATUM_TECHNOLOGY> s =
+                std::make_shared<idx_pdm::EDMD_STRATUM_TECHNOLOGY>( aNode );
+        // TODO: add to appropriate vector
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
+void EDMD_DATA_SET_BODY::BuildXML( std::shared_ptr<IDX_XML_NODE> aNode )
+{
+    if( !aNode )
+        return;
+
+    aNode->SetName( "foundation:Body" );
+}
+
+
+void EDMD_DATA_SET_BODY::Write( IDX_XML_NODE& aNode ) const
+{
+    // Write systems
+    for( const auto& system : m_systems )
+    {
+        if( system )
+        {
+            std::shared_ptr<IDX_XML_NODE> systemNode = aNode.AppendChild( "foundation:System" );
+            system->Write( *systemNode );
+        }
+    }
+
+    // Write history
+    for( const auto& history : m_history )
+    {
+        if( history )
+        {
+            std::shared_ptr<IDX_XML_NODE> historyNode = aNode.AppendChild( "foundation:History" );
+            history->Write( *historyNode );
+        }
+    }
+
+    // Write actors
+    for( const auto& actor : m_actors )
+    {
+        if( actor )
+        {
+            std::shared_ptr<IDX_XML_NODE> actorNode = aNode.AppendChild( "foundation:Person" );
+            actor->Write( *actorNode );
+        }
+    }
+
+    // Write units - EDMD_UNIT now has Write method
+    for( const auto& unit : m_units )
+    {
+        if( unit )
+        {
+            // Use a generic Unit node name for now, or determine from xsiType if available
+            std::string unitNodeName = "foundation:Unit";
+            if( !unit->m_xsiType.empty() )
+            {
+                // Convert xsiType to node name
+                if( unit->m_xsiType.find( "UnitLength" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitLength";
+                else if( unit->m_xsiType.find( "UnitAmperage" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitAmperage";
+                else if( unit->m_xsiType.find( "UnitAngle" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitAngle";
+                else if( unit->m_xsiType.find( "UnitCapacitance" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitCapacitance";
+                else if( unit->m_xsiType.find( "UnitPower" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitPower";
+                else if( unit->m_xsiType.find( "UnitResistance" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitResistance";
+                else if( unit->m_xsiType.find( "UnitVoltage" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitVoltage";
+                else if( unit->m_xsiType.find( "UnitWeight" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitWeight";
+                else if( unit->m_xsiType.find( "UnitWork" ) != std::string::npos )
+                    unitNodeName = "foundation:UnitWork";
+            }
+
+            std::shared_ptr<IDX_XML_NODE> unitNode = aNode.AppendChild( unitNodeName );
+            unit->Write( *unitNode );
+        }
+    }
+
+
+    // Write curve sets
+    for( const auto& curveSet : m_curvesets )
+    {
+        if( curveSet )
+        {
+            std::shared_ptr<IDX_XML_NODE> curveSetNode = aNode.AppendChild( "foundation:CurveSet2d" );
+            curveSet->Write( *curveSetNode );
+        }
+    }
+
+    // Write points
+    for( const auto& point : m_points )
+    {
+        if( point )
+        {
+            std::shared_ptr<IDX_XML_NODE> pointNode = aNode.AppendChild( "foundation:CartesianPoint" );
+            point->Write( *pointNode );
+        }
+    }
+
+    // Write curves - EDMD_POLY_LINE inherits from EDMD_CURVE which inherits from EDMD_DETAILED_GEOMETRIC_MODEL_ELEMENT
+    for( const auto& curve : m_curves )
+    {
+        if( curve )
+        {
+            std::shared_ptr<IDX_XML_NODE> curveNode = aNode.AppendChild( "foundation:PolyLine" );
+            curve->Write( *curveNode );
+        }
+    }
+
+    // Write items
+    for( const auto& item : m_items )
+    {
+        if( !item )
+            continue;
+
+        std::shared_ptr<IDX_XML_NODE> itemNode = aNode.AppendChild( "pdm:EDMDItem" );
+        item->Write( *itemNode );
+    }
+
+    // Write assemblies
+    for( const auto& assembly : m_assemblies )
+    {
+        if( assembly )
+        {
+            std::shared_ptr<IDX_XML_NODE> assemblyNode = aNode.AppendChild( "pdm:EDMDAssemblyComponent" );
+            assembly->Write( *assemblyNode );
+        }
+    }
+
+    // Write package pins
+    for( const auto& packagePin : m_packagePins )
+    {
+        if( packagePin )
+        {
+            std::shared_ptr<IDX_XML_NODE> pinNode = aNode.AppendChild( "pdm:EDMPackagePin" );
+            packagePin->Write( *pinNode );
+        }
+    }
+
+    // Write 3D models
+    for( const auto& model3d : m_3dModels )
+    {
+        if( model3d )
+        {
+            std::shared_ptr<IDX_XML_NODE> modelNode = aNode.AppendChild( "pdm:EDMD3DModel" );
+            model3d->Write( *modelNode );
+        }
+    }
+
+
+    // Write stratums
+    for( const auto& stratum : m_stratums )
+    {
+        if( stratum )
+        {
+            std::shared_ptr<IDX_XML_NODE> stratumNode = aNode.AppendChild( "foundation:Stratum" );
+            stratum->Write( *stratumNode );
+        }
+    }
+
+    // Write inter stratums
+    for( const auto& interStratum : m_interStratums )
+    {
+        if( interStratum )
+        {
+            std::shared_ptr<IDX_XML_NODE> interStratumNode = aNode.AppendChild( "foundation:InterStratumFeature" );
+            interStratum->Write( *interStratumNode );
+        }
+    }
+
+    // Write keep constraints
+    for( const auto& keep : m_keeps )
+    {
+        if( keep )
+        {
+            std::shared_ptr<IDX_XML_NODE> keepNode = aNode.AppendChild( "foundation:KeepOut" );
+            keep->Write( *keepNode );
+        }
+    }
+}
+
+
+bool EDMD_DATA_SET_BODY::Resolve( IDX_REGISTRY& aRegistry )
+{
+    bool result = true;
+
+    for( auto& curve : m_curves )
+        result &= curve->Resolve( aRegistry );
+
+    for( auto& curveset : m_curvesets )
+        result &= curveset->Resolve( aRegistry );
+
+    for( auto& shapeE : m_shapeElements )
+        result &= shapeE->Resolve( aRegistry );
+
+    for( auto& assembly : m_assemblies )
+        result &= assembly->Resolve( aRegistry );
+
+    for( auto& stratum : m_stratums )
+        result &= stratum->Resolve( aRegistry );
+
+    for( auto& interstratum : m_interStratums )
+        result &= interstratum->Resolve( aRegistry );
+
+    for( auto& keep : m_keeps )
+        result &= keep->Resolve( aRegistry );
+
+    for( auto& item : m_items )
+        result &= item->Resolve( aRegistry );
+
+    for( auto& fs : m_functionalItemShapes )
+        result &= fs->Resolve( aRegistry );
+
+    for( auto& packagePin : m_packagePins )
+        result &= packagePin->Resolve( aRegistry );
+
+    for( auto& model3d : m_3dModels )
+        result &= model3d->Resolve( aRegistry );
+
+    for( auto& bend : m_bends )
+        result &= bend->Resolve( aRegistry );
+
+    for( auto& bendType : m_bendTypes )
+        result &= bendType->Resolve( aRegistry );
+
+    for( auto& circularBendType : m_circularBendTypes )
+        result &= circularBendType->Resolve( aRegistry );
+
+    return result;
+}
+
+// -----------------------------------------------------
+// EDMD_DATA_SET
+// -----------------------------------------------------
+
+EDMD_DATA_SET::EDMD_DATA_SET() :
+        EDMD_OBJECT()
+{
+    // Default constructor - initialize members
+    m_baseline = false;
+    m_headerOnly = false;
+}
+
+
+EDMD_DATA_SET::EDMD_DATA_SET( IDX_XML_NODE& aNode, bool aHeaderOnly ) :
+        EDMD_OBJECT( aNode, false )
+{
+    m_headerOnly = aHeaderOnly;
+    ParseChildren( aNode );
+}
+
+
+bool EDMD_DATA_SET::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( m_headerOnly && !IDX_keyword_compare( name, "foundation:Header" )
+        && !IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
+        return true;
+
+
+    if( IDX_keyword_compare( name, "foundation:Header" ) )
+        m_header = idx_foundation::EDMD_HEADER( aNode, true );
+    else if( IDX_keyword_compare( name, "foundation:Body" ) )
+        m_body = idx_foundation::EDMD_DATA_SET_BODY( aNode );
+    else if( IDX_keyword_compare( name, "foundation:ProcessInstruction" ) )
+    {
+        std::string type = aNode.GetAttribute( "xsi:type", "" );
+
+        // Check for full namespace URI or prefix-based type
+        bool isSendInfo = ( type.find( "SendInformation" ) != std::string::npos )
+                          || IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendInformation" );
+        bool isSendChanges = ( type.find( "SendChanges" ) != std::string::npos )
+                             || IDX_keyword_compare( type, "computational:EDMDProcessInstructionSendChanges" );
+        bool isRequestInfo =
+                ( type.find( "RequestForInformation" ) != std::string::npos )
+                || IDX_keyword_compare( type, "computational:EDMDProcessInstructionRequestForInformation" );
+
+        if( isSendInfo )
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION>( aNode, true ) );
+            }
+            m_baseline = true;
+        }
+        else if( isSendChanges )
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( aNode, true ) );
+            }
+        }
+        else if( isRequestInfo )
+        {
+            if( !m_headerOnly )
+            {
+                m_processInstruction.push_back(
+                        std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_REQUEST_FOR_INFORMATION>( aNode,
+                                                                                                               true ) );
+            }
+        }
+        else if( !type.empty() )
+            invalidValueIDX( name, type );
+    }
+    else
+        return this->EDMD_OBJECT::Parse( aNode );
+    return true;
+}
+
+
+void EDMD_DATA_SET::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_OBJECT::Write( aNode );
+
+    // Set XML namespaces and schema location
+    aNode.SetAttribute( "xmlns", "http://www.prostep.org/IDX/4.5" );
+    aNode.SetAttribute( "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance" );
+    aNode.SetAttribute( "xsi:schemaLocation", "http://www.prostep.org/IDX/4.5 IDX_4-5.xsd" );
+
+    // Set additional namespaces for geometric elements and properties
+    aNode.SetAttribute( "xmlns:foundation", "http://www.prostep.org/ecad-mcad/edmd/3.5/foundation" );
+    aNode.SetAttribute( "xmlns:d2", "http://www.prostep.org/ecad-mcad/edmd/3.5/geometry.d2" );
+    aNode.SetAttribute( "xmlns:property", "http://www.prostep.org/ecad-mcad/edmd/3.5/property" );
+    aNode.SetAttribute( "xmlns:pdm", "http://www.prostep.org/ecad-mcad/edmd/3.5/pdm" );
+
+    // Write header
+    if( true ) // Always write header for now
+    {
+        std::shared_ptr<IDX_XML_NODE> headerNode = aNode.AppendChild( "foundation:Header" );
+        m_header.Write( *headerNode );
+    }
+
+    // Write process instructions
+    for( const auto& pi : m_processInstruction )
+    {
+        if( pi )
+        {
+            // Determine the correct node name based on process type
+            std::string nodeName;
+            switch( pi->m_processType )
+            {
+            case EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION:
+                nodeName = "computational:EDMDProcessInstructionSendInformation";
+                break;
+            case EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES:
+                nodeName = "computational:EDMDProcessInstructionSendChanges";
+                break;
+            default: nodeName = "computational:EDMDProcessInstruction"; break;
+            }
+
+            std::shared_ptr<IDX_XML_NODE> piNode = aNode.AppendChild( nodeName );
+            pi->Write( *piNode );
+
+            // Add ProcessType attribute
+            piNode->SetAttribute( "ProcessType",
+                                  pi->m_processType == EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION
+                                          ? "SendInformation"
+                                          : "SendChanges" );
+        }
+    }
+
+    // Write body
+    std::shared_ptr<IDX_XML_NODE> bodyNode = aNode.AppendChild( "foundation:Body" );
+    m_body.Write( *bodyNode );
+}
+
+
+bool EDMD_DATA_SET::ResolveAll()
+{
+    return m_body.Resolve( m_body.m_registry );
+}
+
+bool EDMD_DATA_SET::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve header
+    if( !m_header.Resolve( aRegistry ) )
+        return false;
+
+    // Resolve body
+    if( !m_body.Resolve( aRegistry ) )
+        return false;
+
+    // Resolve process instructions
+    for( auto& processInstruction : m_processInstruction )
+    {
+        if( processInstruction && !processInstruction->Resolve( aRegistry ) )
+            return false;
+    }
+
+    return true;
+}
+
+
+void EDMD_DATA_SET::Prepare()
+{
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& i : m_body.m_items )
+    {
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& inst : i->m_itemInstance )
+        {
+            if( auto type = inst->GetUserProperty( "TYPE" ) )
+            {
+                if( type->m_value == "BOARDOUTLINE" )
+                {
+                    m_body.m_boardOutline.push_back( inst );
+                    continue;
+                }
+            }
+
+            auto interstratum = std::dynamic_pointer_cast<idx_pdm::EDMD_INTER_STRATUM_FEATURE>( inst->m_item->m_shape );
+            if( interstratum )
+            {
+                using FT = idx_pdm::INTERSTRATUM_FEATURE_TYPE;
+                switch( interstratum->m_interstratumFeatureType )
+                {
+                case FT::BOARD_CUTOUT: m_body.m_boardOutline.push_back( inst ); continue;
+                case FT::CUTOUT: m_body.m_NPTH.push_back( inst ); continue;
+                case FT::PLATED_CUTOUT: m_body.m_PTH.push_back( inst ); continue;
+                default: break;
+                }
+            }
+
+            if( inst->m_item && inst->m_item->m_shape )
+            {
+                auto keep = std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( inst->m_item->m_shape );
+                if( keep )
+                {
+                    m_body.m_keepZones.push_back( inst );
+                    continue;
+                }
+            }
+
+            if( !inst->m_name.empty() )
+            {
+                m_body.m_components.push_back( inst );
+                continue;
+            }
+
+            m_body.m_others.push_back( inst );
+        }
+    }
+}
+
+
+bool EDMD_DATA_SET::IsBaseline()
+{
+    return m_baseline;
+}
+
+double EDMD_DATA_SET::GetBoardThickness() const
+{
+    double result = 0;
+
+    for( auto inst : GetBoardOutlineElements() )
+    {
+        // Check for board outline
+        if( auto prop = inst->GetUserProperty( "THICKNESS" ) )
+        {
+            try
+            {
+                double thickness = prop->parseDouble( prop->m_value );
+
+                if( thickness < 0.0 )
+                    // Solid Edge uses 0 for incremental changes when thickness does not change
+                    Report( "Invalid board thickness - negative", IDX_REPORT_LEVEL::IDX_ERROR );
+                else
+                    result += thickness;
+            }
+            catch( const std::invalid_argument& )
+            {
+                Report( "Invalid board thickness - nan", IDX_REPORT_LEVEL::IDX_ERROR );
+            }
+            catch( const std::out_of_range& )
+            {
+                Report( "Invalid board thickness - out of range", IDX_REPORT_LEVEL::IDX_ERROR );
+            }
+        }
+    }
+
+    return result;
+}
+
+
+std::shared_ptr<idx_pdm::EDMD_ITEM> EDMD_DATA_SET::GetItem( const idx_foundation::EDMD_IDENTIFIER& aId ) const
+{
+    for( const auto& item : m_body.m_items )
+    {
+        for( const auto& identifier : item->m_identifier )
+        {
+            if( identifier == aId )
+            {
+                return item;
+            }
+        }
+    }
+    return nullptr;
+}
+// -----------------------------------------------------
+// EDMD_DESIGNATOR
+// -----------------------------------------------------
+
+EDMD_DESIGNATOR::EDMD_DESIGNATOR() :
+        EDMD_EXTENSIBLE_OBJECT()
+{
+}
+
+EDMD_DESIGNATOR::EDMD_DESIGNATOR( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_EXTENSIBLE_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+bool EDMD_DESIGNATOR::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+
+    if( IDX_keyword_compare( name, "foundation:SystemScope" ) )
+        m_systemScopeRef = content;
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+void EDMD_DESIGNATOR::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    // Write Persistant and IsOriginator attributes if they have values
+    if( m_persistant.has_value() )
+        aNode.SetAttributeBool( "Persistant", m_persistant );
+
+    if( m_isOriginator.has_value() )
+        aNode.SetAttributeBool( "IsOriginator", m_isOriginator );
+
+    if( !m_originatorId.empty() )
+        aNode.SetAttribute( "OriginatorId", m_originatorId );
+
+    WriteValueChild( aNode, "foundation:SystemScope", m_systemScopeRef );
+}
+
+bool EDMD_DESIGNATOR::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_DESIGNATOR doesn't have any object references to resolve
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_IDENTIFIER
+// -----------------------------------------------------
+
+EDMD_IDENTIFIER::EDMD_IDENTIFIER( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_DESIGNATOR( aNode, false )
+{
+    m_xsiType = "foundation:EDMDIdentifier";
+
+    std::string value;
+    value = aNode.GetAttribute( "Persistant", "" );
+
+    if( !value.empty() )
+        m_persistant = parseBool( value );
+
+    value = aNode.GetAttribute( "IsOriginator", "" );
+
+    if( !value.empty() )
+        m_isOriginator = parseBool( value );
+
+
+    if( aTopLevel )
+        ParseChildren( aNode );
+}
+
+
+bool EDMD_IDENTIFIER::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+
+    if( IDX_keyword_compare( name, "foundation:Number" ) )
+        m_number = content;
+    else if( IDX_keyword_compare( name, "foundation:Version" ) )
+        m_version = content;
+    else if( IDX_keyword_compare( name, "foundation:Revision" ) )
+        m_revision = content;
+    else if( IDX_keyword_compare( name, "foundation:Sequence" ) )
+        m_sequence = content;
+    else
+        return this->EDMD_DESIGNATOR::Parse( aNode );
+    return true;
+}
+
+
+void EDMD_IDENTIFIER::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DESIGNATOR::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:Number", m_number );
+    WriteValueChild( aNode, "foundation:Version", m_version );
+    WriteValueChild( aNode, "foundation:Revision", m_revision );
+    WriteValueChild( aNode, "foundation:Sequence", m_sequence );
+}
+
+bool EDMD_IDENTIFIER::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_DESIGNATOR::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_IDENTIFIER has name and displayName vectors that need resolving
+    for( auto& name : m_name )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            return false;
+    }
+    
+    for( auto& name : m_displayName )
+    {
+        if( name && !name->Resolve( aRegistry ) )
+            return false;
+    }
+
+    return true;
+}
+
+
+// -----------------------------------------------------
+// EDMD_NAME
+// -----------------------------------------------------
+
+EDMD_NAME::EDMD_NAME() :
+        EDMD_DESIGNATOR()
+{
+}
+
+EDMD_NAME::EDMD_NAME( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_DESIGNATOR( aNode, false )
+{
+    m_xsiType = "foundation:EDMDName";
+    std::string value;
+
+    value = aNode.GetAttribute( "Persistant", "" );
+
+    if( !value.empty() )
+        m_persistant = parseBool( value );
+
+
+    value = aNode.GetAttribute( "IsOriginator", "" );
+
+    if( !value.empty() )
+        m_isOriginator = parseBool( value );
+
+    m_originatorId = aNode.GetAttribute( "OriginatorId", "" );
+
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+void EDMD_NAME::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_DESIGNATOR::Write( aNode );
+
+    WriteValueChild( aNode, "foundation:ObjectName", m_objectName );
+}
+
+bool EDMD_NAME::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_DESIGNATOR::Resolve( aRegistry ) )
+        return false;
+
+    // EDMD_NAME doesn't have additional references to resolve
+    return true;
+}
+
+
+bool EDMD_NAME::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+
+    if( IDX_keyword_compare( name, "foundation:ObjectName" ) )
+    {
+        m_objectName = content;
+        return true;
+    }
+    return this->EDMD_DESIGNATOR::Parse( aNode );
+}
+
+
+// -----------------------------------------------------
+// EDMD_DESIGNATOR
+// -----------------------------------------------------
+
+
+EDMD_PROCESS_INSTRUCTION::EDMD_PROCESS_INSTRUCTION( IDX_XML_NODE& aNode, bool aTopLevel ) :
+        EDMD_EXTENSIBLE_OBJECT( aNode, false )
+{
+    if( aTopLevel )
+        ParseChildren( aNode );
+};
+
+
+bool EDMD_PROCESS_INSTRUCTION::Parse( IDX_XML_NODE& aNode )
+{
+    const std::string name = aNode.GetName();
+    const std::string content = aNode.GetNodeContent();
+
+    if( IDX_keyword_compare( name, "foundation:Subject" ) )
+    {
+        m_subject = std::make_shared<EDMD_OBJECT>( aNode, true );
+    }
+    else if( IDX_keyword_compare( name, "foundation:Object" ) )
+    {
+        m_object = std::make_shared<EDMD_OBJECT>( aNode, true );
+    }
+    else if( IDX_keyword_compare( name, "foundation:TargetSystem" ) )
+    {
+        m_targetSystem = std::make_shared<EDMD_SYSTEM>( aNode );
+    }
+    else if( IDX_keyword_compare( name, "foundation:ProcessType" ) )
+    {
+        if( IDX_keyword_compare( content, "SEND_INFORMATION" ) )
+            m_processType = PROCESS_TYPE::SEND_INFORMATION;
+        else if( IDX_keyword_compare( content, "SEND_CHANGES" ) )
+            m_processType = PROCESS_TYPE::SEND_CHANGES;
+    }
+    else
+        return this->EDMD_EXTENSIBLE_OBJECT::Parse( aNode );
+
+    return true;
+}
+
+
+void EDMD_PROCESS_INSTRUCTION::Write( IDX_XML_NODE& aNode ) const
+{
+    this->EDMD_EXTENSIBLE_OBJECT::Write( aNode );
+
+    if( m_subject )
+    {
+        std::shared_ptr<IDX_XML_NODE> subjectNode = aNode.AppendChild( "foundation:Subject" );
+        m_subject->Write( *subjectNode );
+    }
+
+    if( m_object )
+    {
+        std::shared_ptr<IDX_XML_NODE> objectNode = aNode.AppendChild( "foundation:Object" );
+        m_object->Write( *objectNode );
+    }
+
+    if( m_targetSystem )
+    {
+        std::shared_ptr<IDX_XML_NODE> targetNode = aNode.AppendChild( "foundation:TargetSystem" );
+        m_targetSystem->Write( *targetNode );
+    }
+}
+
+bool EDMD_PROCESS_INSTRUCTION::Resolve( IDX_REGISTRY& aRegistry )
+{
+    if( !EDMD_EXTENSIBLE_OBJECT::Resolve( aRegistry ) )
+        return false;
+
+    // Resolve references
+    if( m_subject && !m_subject->Resolve( aRegistry ) )
+        return false;
+    
+    if( m_object && !m_object->Resolve( aRegistry ) )
+        return false;
+    
+    if( m_targetSystem && !m_targetSystem->Resolve( aRegistry ) )
+        return false;
+
+    return true;
+}
+
+
+} // namespace idx_foundation

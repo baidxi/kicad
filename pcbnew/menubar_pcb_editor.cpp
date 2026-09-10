@@ -146,6 +146,8 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
 
     fileMenu->Add( submenuExport );
 
+    fileMenu->Add( PCB_ACTIONS::importIDX );
+
     // Fabrication Outputs submenu
     ACTION_MENU* submenuFabOutputs = new ACTION_MENU( false, selTool );
     submenuFabOutputs->SetTitle( _( "Fabrication Outputs" ) );

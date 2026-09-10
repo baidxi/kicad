@@ -1,0 +1,1135 @@
+/*
+ * This program source code file is part of KiCad, a free EDA CAD application.
+ *
+ * Copyright (C) 2024 KiCad Developers, see AUTHORS.txt for contributors.
+ * @author Fabien Corona <f.corona<at>laposte.net>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you may find one here:
+ * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * or you may search the http://www.gnu.org website for the version 2 license,
+ * or you may write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ */
+
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#include <idx/kicad_idx.h>
+#include <lset.h>
+#include <layer_ids.h>
+#include <zone.h>
+#include <tools/convert_tool.h>
+#include <board_design_settings.h>
+#include <layer_range.h>
+#include <wx/datetime.h>
+#include <wx/wfstream.h>
+
+
+#include <footprint.h>
+#include <pad.h>
+#include <pcb_track.h>
+
+KICAD_IDX::KICAD_IDX( std::shared_ptr<idx_foundation::EDMD_DATA_SET> aDataset,
+                      std::shared_ptr<KIDX_REGISTRY_KICAD> aReg, BOARD* aBoard, BOARD_COMMIT* aCommit ) :
+        m_dataset( aDataset ),
+        m_commit( aCommit ),
+        m_board( aBoard ),
+        m_reg( aReg ),
+        m_idxShapeTypeToLayer( {
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::RIGID_AREA ), User_1 },
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::FLEXIBLE_AREA ), User_2 },
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::STIFFENER ), User_3 },
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::USER_AREA ), User_4 },
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::MECHANICAL ), Eco1_User },
+                { static_cast<int>( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE::TYPE::PLACEMENT_GROUP ), User_5 },
+        } ),
+        m_idxInstanceTypeToLayer( {
+                { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE ), Edge_Cuts },
+                { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT ), User_1 },
+                { static_cast<int>( idx_pdm::EDMD_ITEM_INSTANCE::TYPE::OTHER ), User_2 },
+        } )
+{
+    // The EDMD_* classes already handle unit conversion internally
+    // GetX(), GetY(), GetRadius() etc. already return values in KiCad units (nanometers)
+    // So we don't need to do any additional unit conversion in this class.
+
+
+    BOARD_DESIGN_SETTINGS& dsnSettings = m_board->GetDesignSettings();
+    BOARD_STACKUP          stackup = dsnSettings.GetStackupDescriptor();
+    stackup.SynchronizeWithBoard( &dsnSettings );
+    std::vector<BOARD_STACKUP_ITEM*> Llist = stackup.GetList();
+    std::reverse( Llist.begin(), Llist.end() );
+
+    int currentThickness = 0;
+
+    for( BOARD_STACKUP_ITEM* bsi : Llist )
+    {
+        if( bsi )
+        {
+            if( bsi->GetBrdLayerId() == B_Cu )
+            {
+                currentThickness = 0;
+            }
+
+            if( currentThickness >= 0 && bsi->GetType() == BOARD_STACKUP_ITEM_TYPE::BS_ITEM_TYPE_COPPER )
+            {
+                m_stackup.push_back( { bsi->GetBrdLayerId(), currentThickness } );
+            }
+
+            currentThickness += bsi->GetThickness();
+        }
+    }
+
+    m_boardThickness = aDataset->GetBoardThickness();
+}
+
+void KICAD_IDX::Report( wxString aMsg, SEVERITY aSev )
+{
+    std::string prefix;
+    if( aSev == RPT_SEVERITY_INFO )
+        return;
+    switch( aSev )
+    {
+    case RPT_SEVERITY_UNDEFINED: prefix = "UNDEFINED: "; break;
+    case RPT_SEVERITY_INFO: prefix = "INFO: "; break;
+    case RPT_SEVERITY_EXCLUSION: prefix = "EXCLUSION: "; break;
+    case RPT_SEVERITY_ACTION: prefix = "ACTION: "; break;
+    case RPT_SEVERITY_WARNING: prefix = "WARNING: "; break;
+    case RPT_SEVERITY_ERROR: prefix = "ERROR: "; break;
+    default: prefix = "UNDEFINED: "; break;
+    }
+
+    std::cout << prefix << aMsg << std::endl;
+}
+
+
+void KICAD_IDX::AddSelected( std::vector<std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>>& aVector )
+{
+    for( auto instance : aVector )
+    {
+        AddElement( *instance, Eco1_User );
+    }
+}
+
+void KICAD_IDX::SetKeepRules( ZONE& aZone, idx_pdm::EDMD_KEEP_CONSTRAINT& aKeep )
+{
+    aZone.SetIsRuleArea( true );
+    aZone.SetHatchStyle( ZONE_BORDER_DISPLAY_STYLE::DIAGONAL_FULL );
+
+    aZone.SetDoNotAllowZoneFills( false );
+    aZone.SetDoNotAllowVias( false );
+    aZone.SetDoNotAllowTracks( false );
+    aZone.SetDoNotAllowFootprints( false );
+    aZone.SetDoNotAllowPads( false );
+
+    if( dynamic_cast<idx_pdm::EDMD_KEEP_OUT*>( &aKeep ) )
+    {
+        for( auto& purpose : aKeep.m_purpose )
+        {
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::COMPONENT_PLACEMENT )
+            {
+                aZone.SetDoNotAllowFootprints( true );
+            }
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::ROUTE )
+            {
+                aZone.SetDoNotAllowPads( true );
+                aZone.SetDoNotAllowTracks( true );
+                aZone.SetDoNotAllowZoneFills( true );
+            }
+            if( purpose == idx_pdm::KEEP_CONSTRAINT_PURPOSE::VIA )
+            {
+                aZone.SetDoNotAllowVias( true );
+            }
+        }
+    }
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddNPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+    std::vector<BOARD_ITEM*> m_result;
+
+    if( !CheckInstance( aInstance ) )
+        return m_result;
+
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
+
+        if( !curveset )
+        {
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ), RPT_SEVERITY_ERROR );
+            continue;
+        }
+
+        for( const auto& model : curveset->m_modelElement )
+        {
+            if( auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( model ) )
+            {
+                double   diameter = circle->GetRadius() * 2;
+                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
+                auto     npth = new FOOTPRINT( m_board );
+                auto     pad = new PAD( npth );
+
+                pad->SetDrillSize( VECTOR2I( diameter, diameter ) );
+                pad->SetPosition( { 0, 0 } );
+                pad->SetAttribute( PAD_ATTRIB::NPTH );
+
+                npth->SetPosition( center );
+                npth->Add( pad );
+
+                // Add the footprint to the board so it has proper ownership
+                m_board->Add( npth );
+
+                this->ApplyTransformation( npth, aInstance.m_transformation );
+
+                m_result.push_back( npth );
+            }
+        }
+    }
+
+    return m_result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddPTH( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+    std::vector<BOARD_ITEM*> m_result;
+
+    if( !CheckInstance( aInstance ) )
+        return m_result;
+
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
+
+        if( !curveset )
+        {
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ), RPT_SEVERITY_ERROR );
+            continue;
+        }
+
+        for( const auto& model : curveset->m_modelElement )
+        {
+            if( auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( model ) )
+            {
+                double   diameter = circle->GetRadius() * 2;
+                VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
+                auto     pth = new PCB_VIA( m_board );
+                pth->SetFrontTentingMode( TENTING_MODE::NOT_TENTED );
+                pth->SetBackTentingMode( TENTING_MODE::NOT_TENTED );
+                pth->SetDrill( diameter );
+                pth->SetPosition( center );
+
+                // Add the via to the board so it has proper ownership
+                m_board->Add( pth );
+
+                this->ApplyTransformation( pth, aInstance.m_transformation );
+                m_result.push_back( pth );
+            }
+        }
+    }
+
+    return m_result;
+}
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddZone( idx_pdm::EDMD_ITEM_INSTANCE& aInst )
+{
+    std::vector<BOARD_ITEM*>                       m_result;
+    std::shared_ptr<idx_pdm::EDMD_KEEP_CONSTRAINT> keep =
+            std::dynamic_pointer_cast<idx_pdm::EDMD_KEEP_CONSTRAINT>( aInst.m_item->m_shape );
+
+    if( !keep )
+        return {};
+
+    // Create zone once, we'll add all geometry to it
+    ZONE* zone = new ZONE( m_board );
+    zone->SetZoneName( keep->m_id );
+    zone->SetLayerSet( LSET() ); // Will be set by first valid curveset
+    this->SetKeepRules( *zone, *keep );
+    zone->SetIsRuleArea( true );
+
+    for( auto const& y : keep->m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> ptr =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( y->m_definingShape );
+
+        if( ptr )
+        {
+            // Use the first valid curveset to set the layer
+            if( zone->GetLayerSet().Seq().empty() )
+            {
+                LSET layers = GetLayers( *ptr );
+                if( layers.Seq().size() >= 1 )
+                    zone->SetLayerSet( layers );
+            }
+
+            for( auto const& z : ptr->m_modelElement )
+            {
+                auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLY_LINE>( z );
+
+                if( polyline )
+                {
+                    for( std::shared_ptr<idx_geometry::EDMD_POINT> p : polyline->m_point )
+                    {
+                        if( p )
+                        {
+                            zone->AppendCorner( VECTOR2D( VECTOR2I( p->GetX(), -p->GetY() ) ), -1 );
+                        }
+                    }
+                }
+
+
+                auto arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>( z );
+
+                if( arc )
+                {
+                    VECTOR2I start = VECTOR2I( arc->GetStart()->GetX(), -arc->GetStart()->GetY() );
+                    VECTOR2I end = VECTOR2I( arc->GetEnd()->GetX(), -arc->GetEnd()->GetY() );
+                    VECTOR2I mid = ArcMidPoint( *arc );
+
+                    SHAPE_ARC*        s = new SHAPE_ARC( start, mid, end, 0 );
+                    SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
+
+                    for( const VECTOR2I& p : buffer->CPoints() )
+                    {
+                        zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
+                    }
+
+                    delete buffer;
+                    delete s;
+                }
+
+
+                auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( z );
+
+                if( circle )
+                {
+                    VECTOR2I center = VECTOR2I( circle->GetCenter()->GetX(), -circle->GetCenter()->GetY() );
+                    int      radius = circle->GetRadius();
+
+                    VECTOR2I start = center + VECTOR2I( 0, radius );
+                    VECTOR2I mid = center - VECTOR2I( 0, radius );
+
+                    SHAPE_ARC*        s = new SHAPE_ARC( start, mid, start, 0 );
+                    SHAPE_LINE_CHAIN* buffer = new SHAPE_LINE_CHAIN( *s );
+
+                    for( const VECTOR2I& p : buffer->CPoints() )
+                    {
+                        zone->AppendCorner( VECTOR2D( p.x, p.y ), -1 );
+                    }
+
+                    delete buffer;
+                    delete s;
+                }
+            }
+        }
+    }
+
+    // Add the zone to the board and result only if it has valid layers
+    if( !zone->GetLayerSet().Seq().empty() )
+    {
+        m_board->Add( zone );
+        m_result.push_back( zone );
+    }
+    else
+    {
+        // Zone has no valid layers, clean it up
+        delete zone;
+    }
+
+    return m_result;
+}
+
+KICAD_IDX_CHANGE::ELEMENT_TYPE KICAD_IDX_CHANGE::GetType( idx_pdm::EDMD_ITEM_INSTANCE& aInst )
+{
+    switch( aInst.GetType() )
+    {
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::BOARD_OUTLINE: return KICAD_IDX_CHANGE::ELEMENT_TYPE::BOARD_OUTLINE;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_IN:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_OUT: return KICAD_IDX_CHANGE::ELEMENT_TYPE::KEEP;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::COMPONENT: return KICAD_IDX_CHANGE::ELEMENT_TYPE::COMPONENT;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH: return KICAD_IDX_CHANGE::ELEMENT_TYPE::NPTH;
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH: return KICAD_IDX_CHANGE::ELEMENT_TYPE::PTH;
+
+    default: return KICAD_IDX_CHANGE::ELEMENT_TYPE::OTHER; break;
+    }
+}
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInst, bool aPredecessor )
+{
+    idx_pdm::EDMD_ITEM_INSTANCE::TYPE type = aInst.GetType();
+
+    // Handle special cases that don't use layer mapping
+    switch( type )
+    {
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_IN:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::KEEP_OUT: return AddZone( aInst );
+
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::NPTH:
+    case idx_pdm::EDMD_ITEM_INSTANCE::TYPE::PTH: return AddNPTH( aInst );
+
+    default:
+        // Use layer mapping for types that need it
+        auto it = m_idxInstanceTypeToLayer.find( static_cast<int>( type ) );
+        if( it != m_idxInstanceTypeToLayer.end() )
+            return AddElement( aInst, it->second );
+        return {};
+    }
+}
+
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::SendInformation()
+{
+    std::cout << "processing SendInformation" << std::endl;
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
+
+    if( !m_reg || !m_dataset )
+        return {};
+
+    // SendInformation processing according to Developer Recommendations 6.4.2
+    // Items in the message are processed one after the other
+
+    for( const std::shared_ptr<idx_pdm::EDMD_ITEM>& item : m_dataset->m_body.m_items )
+    {
+        if( !item )
+            continue;
+
+        // Create a copy of the item so we can modify it during processing
+        idx_pdm::EDMD_ITEM itemCopy = *item;
+        std::cout << "Processing SendInformation item: " << itemCopy.m_id << std::endl;
+
+        // Step 1: Checking identifiers (list) - handled by SI_Process
+        // If the item does not contain any identifiers, the message is errored and the processing transaction is aborted
+        if( !m_reg->SI_1CheckIdentifiers( itemCopy ) )
+        {
+            std::cerr << "SendInformation: Item " << itemCopy.m_id << " has no identifiers - aborting transaction"
+                      << std::endl;
+            return {}; // Abort the entire transaction
+        }
+
+        // Step 2-8: Process through SI_Process which handles all adjustment steps
+        if( !m_reg->SI_Process( itemCopy ) )
+        {
+            std::cerr << "SendInformation: SI_Process failed for item " << itemCopy.m_id << " - aborting transaction"
+                      << std::endl;
+            return {}; // Abort the entire transaction
+        }
+
+        // If we reach here, the item has been successfully processed through all 8 steps
+        // Now we can convert the item instances to KiCad board items
+
+        for( const std::shared_ptr<idx_pdm::EDMD_ITEM_INSTANCE>& instance : itemCopy.m_itemInstance )
+        {
+            if( !instance )
+                continue;
+
+            std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+
+            kChange->m_name = instance->m_id;
+            kChange->m_type = kChange->GetType( *instance );
+            kChange->m_newItems = ConvertInstance( *instance );
+
+            result.push_back( kChange );
+        }
+
+        // Add the processed item to the repository
+        m_reg->GetItemRepository().push_back( itemCopy );
+    }
+
+    return result;
+}
+
+
+// ============================================================================
+// SendInformation Response File Generation
+// ============================================================================
+
+std::shared_ptr<idx_foundation::EDMD_DATA_SET>
+KICAD_IDX::CreateSendInformationResponse( const std::vector<bool>& aAcceptStatus )
+{
+    // Validate inputs
+    if( !m_dataset )
+        return nullptr;
+
+    // Create a new dataset for the response
+    auto responseDataset = std::make_shared<idx_foundation::EDMD_DATA_SET>();
+
+    // Copy header information from original dataset
+    responseDataset->m_header = m_dataset->m_header;
+
+    // Update header for response with current timestamp
+    responseDataset->m_header.m_creationDateTime = wxDateTime::Now().Format( "%Y-%m-%dT%H:%M:%S" ).ToStdString();
+
+    if( !responseDataset->m_header.m_creatorName.empty() )
+        responseDataset->m_header.m_creatorName += " (Response)";
+    else
+        responseDataset->m_header.m_creatorName = "KiCad IDX Response";
+    responseDataset->m_header.m_creatorSystem = "KiCad";
+
+    // Copy geometric elements from original dataset
+    // These are needed for proper IDX round-trip
+    responseDataset->m_body.m_points = m_dataset->m_body.m_points;
+    responseDataset->m_body.m_curves = m_dataset->m_body.m_curves;
+    responseDataset->m_body.m_curvesets = m_dataset->m_body.m_curvesets;
+    responseDataset->m_body.m_shapeElements = m_dataset->m_body.m_shapeElements;
+    responseDataset->m_body.m_assemblies = m_dataset->m_body.m_assemblies;
+    responseDataset->m_body.m_stratums = m_dataset->m_body.m_stratums;
+    responseDataset->m_body.m_interStratums = m_dataset->m_body.m_interStratums;
+    responseDataset->m_body.m_keeps = m_dataset->m_body.m_keeps;
+    responseDataset->m_body.m_functionalItemShapes = m_dataset->m_body.m_functionalItemShapes;
+    responseDataset->m_body.m_packagePins = m_dataset->m_body.m_packagePins;
+    responseDataset->m_body.m_3dModels = m_dataset->m_body.m_3dModels;
+    responseDataset->m_body.m_bends = m_dataset->m_body.m_bends;
+    responseDataset->m_body.m_bendTypes = m_dataset->m_body.m_bendTypes;
+    responseDataset->m_body.m_circularBendTypes = m_dataset->m_body.m_circularBendTypes;
+    responseDataset->m_body.m_systems = m_dataset->m_body.m_systems;
+    responseDataset->m_body.m_history = m_dataset->m_body.m_history;
+    responseDataset->m_body.m_actors = m_dataset->m_body.m_actors;
+    responseDataset->m_body.m_units = m_dataset->m_body.m_units;
+
+    // Create SendInformation process instruction
+    auto processInstruction = std::make_shared<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_INFORMATION>();
+    processInstruction->m_processType = idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION;
+    responseDataset->m_processInstruction.push_back( processInstruction );
+
+    // Create response items with item stubs containing identifier mapping and accept status
+    // According to IDX spec: "the receiver sends a mandatory message of the type SendInformation,
+    // which contains an item stub with at least two identifiers for all new items:
+    // the identifier of the original sender and the identifier of the receiver"
+
+    size_t changeIndex = 0;
+    for( const auto& originalItem : m_dataset->m_body.m_items )
+    {
+        if( !originalItem )
+            continue;
+
+        // Get accept status, default to true (accept) if not enough status values
+        bool isAccepted = ( changeIndex < aAcceptStatus.size() ) ? aAcceptStatus[changeIndex] : true;
+        changeIndex++;
+
+        // Create response item as a copy of the original
+        auto responseItem = std::make_shared<idx_pdm::EDMD_ITEM>( *originalItem );
+
+        // Update the item ID to indicate it's a response
+        responseItem->m_id = originalItem->m_id;
+
+        // Add receiver's (KiCad's) identifiers from registry
+        auto kicadIdentifier = std::make_shared<idx_foundation::EDMD_IDENTIFIER>();
+        kicadIdentifier->m_systemScopeRef = "KiCad";
+        kicadIdentifier->m_originatorId = "KiCad";
+        kicadIdentifier->m_isOriginator = true;         // KiCad is the originator of this identifier
+        kicadIdentifier->m_number = originalItem->m_id; // Use same number for mapping
+        kicadIdentifier->m_version = "1";
+        kicadIdentifier->m_revision = "0";
+
+        // Check if this identifier already exists to avoid duplicates
+        bool identifierExists = false;
+        for( const auto& existingId : responseItem->m_identifier )
+        {
+            if( existingId.m_systemScopeRef == "KiCad" && existingId.m_originatorId == "KiCad"
+                && existingId.m_number == originalItem->m_id )
+            {
+                identifierExists = true;
+                break;
+            }
+        }
+
+        if( !identifierExists )
+        {
+            responseItem->m_identifier.push_back( *kicadIdentifier );
+        }
+
+        // Set Accept-Status based on accept/reject decision
+        responseItem->m_accept.m_isChanged = true;
+        responseItem->m_accept.m_value = isAccepted ? 1.0 : 0.0; // 1.0 = true/accepted, 0.0 = false/rejected
+
+        // Add to response body
+        responseDataset->m_body.m_items.push_back( responseItem );
+    }
+
+    return responseDataset;
+}
+
+
+std::shared_ptr<idx_foundation::EDMD_DATA_SET>
+KICAD_IDX::SaveSendInformationResponse( const std::string& aFilename, const std::vector<bool>& aAcceptStatus )
+{
+    std::cout << "Saving SendInformation response to: " << aFilename << std::endl;
+
+    auto responseDataset = CreateSendInformationResponse( aAcceptStatus );
+    if( !responseDataset )
+        return nullptr;
+
+    // Save the response dataset to XML file using EDMD_DATA_SET::Write
+    wxXmlDocument doc;
+    wxXmlNode*    root = new wxXmlNode( wxXML_ELEMENT_NODE, "EDMDDataSet" );
+    doc.SetRoot( root );
+
+    // Use the Write() function to serialize the entire dataset
+    std::shared_ptr<IDX_XML_NODE_KICAD> datasetIdxNode = std::make_shared<IDX_XML_NODE_KICAD>( root );
+    responseDataset->Write( *datasetIdxNode );
+
+    // Save to file
+    wxFFileOutputStream output( aFilename );
+    if( !output.IsOk() )
+    {
+        std::cerr << "Error: Cannot open file for writing: " << aFilename << std::endl;
+        return nullptr;
+    }
+
+    if( !doc.Save( output ) )
+    {
+        std::cerr << "Error: Failed to save XML to " << aFilename << std::endl;
+        return nullptr;
+    }
+
+    std::cout << "SendInformation response saved to: " << aFilename << std::endl;
+    return responseDataset;
+}
+
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::Process()
+{
+    if( !m_dataset )
+        return {};
+
+    if( m_dataset->m_processInstruction.size() < 1 )
+        return {};
+
+    idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE type;
+    type = m_dataset->m_processInstruction[0]->m_processType;
+
+    if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_INFORMATION )
+    {
+        return SendInformation();
+    }
+    else if( type == idx_foundation::EDMD_PROCESS_INSTRUCTION::PROCESS_TYPE::SEND_CHANGES )
+    {
+        return GetChanges();
+    }
+    return {};
+}
+
+std::shared_ptr<KICAD_IDX_CHANGE> KICAD_IDX::ConvertChange( idx_computational::EDMD_CHANGE& aChange )
+{
+    std::shared_ptr<KICAD_IDX_CHANGE> kChange = std::make_shared<KICAD_IDX_CHANGE>( aChange );
+
+    // NewItem is only one that is mandatory
+    if( !aChange.m_newItem )
+        return {};
+
+    // If NewItem is already known, reject the transaction
+    // TODO, actually drop the entire IDX file
+
+    if( m_reg->isIdentifierKnown( *( aChange.m_newItem ) ) )
+        return {};
+
+    //
+
+    if( aChange.m_predecessorItem && !m_reg->isIdentifierKnown( *( aChange.m_predecessorItem ) ) )
+    {
+        // TODO: implement the RequestInformation
+    }
+
+
+    if( m_dataset->GetItem( *( aChange.m_newItem ) ) )
+    {
+        auto item = m_dataset->GetItem( *( aChange.m_newItem ) );
+
+        if( item )
+        {
+            for( auto instance : item->m_itemInstance )
+            {
+                if( !instance )
+                    continue;
+
+                kChange->m_name = instance->m_id;
+                kChange->m_type = kChange->GetType( *instance );
+                kChange->m_newItems = ConvertInstance( *instance );
+            }
+        }
+    }
+
+    if( aChange.m_predecessorItem && m_dataset->GetItem( *( aChange.m_predecessorItem ) ) )
+    {
+        auto elmt = m_dataset->GetItem( *( aChange.m_predecessorItem ) );
+
+        if( elmt )
+        {
+            for( auto instance : elmt->m_itemInstance )
+            {
+                if( !instance )
+                    continue;
+                kChange->m_predecessorItems = ConvertInstance( *instance );
+            }
+        }
+    }
+
+    return kChange;
+}
+
+std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> KICAD_IDX::GetChanges()
+{
+    std::cout << "processing changes" << std::endl;
+
+    std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> result;
+
+
+    for( auto instruction : m_dataset->m_processInstruction )
+    {
+        std::shared_ptr<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES> instr =
+                std::dynamic_pointer_cast<idx_computational::EDMD_PROCESS_INSTRUCTION_SEND_CHANGES>( instruction );
+
+        if( !instr )
+        {
+            std::cout << "Process instruction dropped" << std::endl;
+            continue;
+        }
+
+        // Process changes first
+        for( auto change : instr->m_transaction->m_changes )
+        {
+            if( !std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) )
+                continue;
+
+
+            result.push_back( ConvertChange( *std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change ) ) );
+        }
+
+        // Process unreferenced items like SendInformation messages (Dev Rec 6.4.3)
+        for( const auto& item : m_dataset->m_body.m_items )
+        {
+            if( !item )
+                continue;
+
+            bool isReferenced = false;
+
+            // Check if this item is referenced by any change as NewItem
+            for( const auto& change : instr->m_transaction->m_changes )
+            {
+                auto edmdChange = std::dynamic_pointer_cast<idx_computational::EDMD_CHANGE>( change );
+                if( edmdChange && edmdChange->m_newItem && ItemHasIdentifier( *item, *edmdChange->m_newItem ) )
+                {
+                    isReferenced = true;
+                    break;
+                }
+            }
+
+            if( !isReferenced )
+            {
+                // Process this unreferenced item using SendInformation algorithm
+                std::cout << "Processing unreferenced item: " << item->m_id << std::endl;
+
+                // Step 1: Check identifiers
+                if( !m_reg->SI_1CheckIdentifiers( *item ) )
+                {
+                    std::cerr << "GetChanges: Unreferenced item " << item->m_id << " has no identifiers - aborting"
+                              << std::endl;
+                    return {};
+                }
+
+                // Step 2-8: Process through SI_Process
+                idx_pdm::EDMD_ITEM itemCopy = *item;
+                if( !m_reg->SI_Process( itemCopy ) )
+                {
+                    std::cerr << "GetChanges: SI_Process failed for unreferenced item " << item->m_id << std::endl;
+                    return {};
+                }
+
+                // Convert instances to changes
+                for( const auto& instance : itemCopy.m_itemInstance )
+                {
+                    if( !instance )
+                        continue;
+
+                    auto kChange = std::make_shared<KICAD_IDX_CHANGE>( *instance );
+                    kChange->m_name = instance->m_id;
+                    kChange->m_type = kChange->GetType( *instance );
+                    kChange->m_newItems = ConvertInstance( *instance );
+                    result.push_back( kChange );
+                }
+
+                // Add the processed item to the repository
+                m_reg->GetItemRepository().push_back( itemCopy );
+            }
+        }
+    }
+
+    return result;
+}
+
+
+void KICAD_IDX::Apply( std::vector<std::shared_ptr<KICAD_IDX_CHANGE>> aVector )
+{
+    PCB_GROUP* group = new PCB_GROUP( nullptr );
+
+    for( auto change : aVector )
+    {
+        group->SetName( "" );
+        m_commit->Add( group );
+
+        for( BOARD_ITEM* item : change->m_newItems )
+        {
+            group->AddItem( item );
+            m_commit->Stage( item, CHT_ADD );
+            m_commit->Add( item );
+        }
+    }
+    m_commit->Push( "Import IDX" );
+}
+
+
+BOARD_ITEM* KICAD_IDX::AddElement( idx_pdm::EDMD_FUNCTIONAL_ITEM_SHAPE aShape )
+{
+    // Create a PCB group to hold the functional item shape
+    PCB_GROUP* group = new PCB_GROUP( m_board );
+    group->SetName( aShape.m_id );
+
+    // Map IDX functional item shape types to KiCad layers using the mapping
+    PCB_LAYER_ID layer = User_1; // Default layer
+    auto         it = m_idxShapeTypeToLayer.find( static_cast<int>( aShape.m_type ) );
+    if( it != m_idxShapeTypeToLayer.end() )
+        layer = it->second;
+
+    // Add the group to the board
+    m_board->Add( group );
+
+    // Process each shape element in the functional item
+    for( auto const& elt : aShape.m_shapeElement )
+    {
+        if( !elt || !elt->m_definingShape )
+            continue;
+
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( elt->m_definingShape );
+
+        if( curveset )
+        {
+            // Convert the curve set to KiCad items and add them to the group
+            for( BOARD_ITEM* item : ConvertElement( *curveset ) )
+            {
+                if( item )
+                {
+                    item->SetLayer( layer );
+                    group->AddItem( item );
+                }
+            }
+        }
+    }
+
+    return group;
+}
+
+PCB_SHAPE KICAD_IDX::ConvertToKiCadShape( idx_geometry::EDMD_ARC& aArc )
+{
+    PCB_SHAPE s( nullptr, SHAPE_T::ARC );
+    VECTOR2I  end = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I  start = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I  mid = ArcMidPoint( aArc );
+    s.SetArcGeometry( start, mid, end );
+
+    return s;
+}
+
+
+VECTOR2I KICAD_IDX::ArcMidPoint( idx_geometry::EDMD_ARC& aArc )
+{
+    VECTOR2I start = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I end = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I mid = ( start + end ) / 2;
+
+    // Convert include angle from degrees to radians
+    double theta = aArc.GetIncludeAngle().m_value * M_PI / 180.0;
+
+    double L = start.Distance( end ) / 2;
+
+    // Avoid division by zero for small angles
+    if( fabs( theta ) < 0.001 )
+        return mid;
+
+    double R = L / sin( theta / 2 );
+    double D = L / tan( theta / 2 );
+
+    mid += ( end - mid ).Perpendicular().Resize( R - D );
+
+    return mid;
+}
+
+
+VECTOR2I GetTransfoTranslation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    // m_tx and m_ty are EDMD_LENGTH_PROPERTY which store mm values
+    // Multiply by 1e6 to convert to KiCad internal units (nanometers)
+    return VECTOR2I( aTransfo.m_tx.m_value * 1e6, -aTransfo.m_ty.m_value * 1e6 );
+}
+
+
+EDA_ANGLE GetTransfoRotation( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    // Proper 2D rotation matrix decomposition
+    // R = [cosθ  -sinθ]
+    //     [sinθ   cosθ]
+    //
+    // The IDX transformation matrix is:
+    // [xx  xy]
+    // [yx  yy]
+    //
+    // For a pure rotation matrix: xx = cosθ, xy = -sinθ, yx = sinθ, yy = cosθ
+    // We can extract the angle using atan2(yx, xx) or atan2(xy, yy)
+
+    // Check if this is a valid rotation matrix (orthogonal with determinant = 1)
+    double det = aTransfo.m_xx * aTransfo.m_yy - aTransfo.m_xy * aTransfo.m_yx;
+
+    // If determinant is close to 1 (allowing for floating point precision)
+    if( fabs( det - 1.0 ) < 0.001 )
+    {
+        // Extract angle from the matrix
+        // atan2(sinθ, cosθ) gives us the angle
+        return EDA_ANGLE( atan2( aTransfo.m_yx, aTransfo.m_xx ), RADIANS_T );
+    }
+    else if( fabs( det + 1.0 ) < 0.001 )
+    {
+        // Determinant is -1, this includes a reflection
+        // We still want the rotation component
+        return EDA_ANGLE( atan2( aTransfo.m_yx, aTransfo.m_xx ), RADIANS_T );
+    }
+
+    // For non-orthogonal matrices or invalid transformations, return 0
+    return EDA_ANGLE( 0 );
+}
+
+
+bool GetTransfoFlipped( const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    double xx = aTransfo.m_xx;
+    double yy = aTransfo.m_yy;
+
+    return ( xx == -yy );
+}
+
+bool KICAD_IDX::ApplyTransformation( BOARD_ITEM* aItem, const idx_pdm::EDMD_TRANSFORMATION& aTransfo )
+{
+    if( GetTransfoFlipped( aTransfo ) )
+        aItem->Mirror( VECTOR2I( 0, 0 ), FLIP_DIRECTION::LEFT_RIGHT );
+    aItem->Rotate( { 0, 0 }, GetTransfoRotation( aTransfo ) );
+    aItem->Move( GetTransfoTranslation( aTransfo ) );
+
+    return true;
+}
+
+bool KICAD_IDX::CheckInstance( idx_pdm::EDMD_ITEM_INSTANCE& aInstance )
+{
+    if( !( aInstance.m_item ) )
+    {
+        this->Report( wxString::Format( wxT( "%s has no item" ), aInstance.m_name ), RPT_SEVERITY_ERROR );
+        return false;
+    }
+
+    if( !( aInstance.m_item->m_shape ) )
+    {
+        this->Report( wxString::Format( wxT( "%s - %s has no shape" ), aInstance.m_name, aInstance.m_item->m_id ),
+                      RPT_SEVERITY_ERROR );
+        return false;
+    }
+
+    if( aInstance.m_item->m_shape->m_shapeElement.size() < 1 )
+    {
+        this->Report( wxString::Format( wxT( "%s - %s shape has no shape element" ), aInstance.m_name,
+                                        aInstance.m_item->m_id ),
+                      RPT_SEVERITY_ERROR );
+        return false;
+    }
+    return true;
+}
+
+
+bool KICAD_IDX::ItemHasIdentifier( const idx_pdm::EDMD_ITEM& aItem, const idx_foundation::EDMD_IDENTIFIER& aId ) const
+{
+    for( const auto& itemId : aItem.m_identifier )
+    {
+        if( aId == itemId ) // Uses EDMD_IDENTIFIER::operator==
+            return true;
+    }
+    return false;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::AddElement( idx_pdm::EDMD_ITEM_INSTANCE& aInstance, PCB_LAYER_ID aLayer )
+{
+    std::vector<BOARD_ITEM*> m_result;
+
+    if( !CheckInstance( aInstance ) )
+        return m_result;
+
+    for( auto const& z : aInstance.m_item->m_shape->m_shapeElement )
+    {
+        std::shared_ptr<idx_geometry::EDMD_CURVE_SET2D> curveset =
+                std::dynamic_pointer_cast<idx_geometry::EDMD_CURVE_SET2D>( z->m_definingShape );
+
+        if( curveset )
+        {
+            for( BOARD_ITEM* item : ConvertElement( *curveset ) )
+            {
+                item->SetLayer( aLayer );
+                this->ApplyTransformation( item, aInstance.m_transformation );
+                m_result.push_back( item );
+            }
+        }
+        else
+        {
+            this->Report( wxString::Format( wxT( "%s has no valid curveset" ), aInstance.m_name ), RPT_SEVERITY_ERROR );
+        }
+    }
+
+    return m_result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CURVE_SET2D& aSet )
+{
+    std::vector<BOARD_ITEM*> result;
+
+    for( const auto& model : aSet.m_modelElement )
+    {
+        if( !model )
+            continue;
+
+        if( auto polyline = std::dynamic_pointer_cast<idx_geometry::EDMD_POLY_LINE>( model ) )
+        {
+            auto items = ConvertElement( *polyline );
+            result.insert( result.end(), std::make_move_iterator( items.begin() ),
+                           std::make_move_iterator( items.end() ) );
+        }
+        else if( auto arc = std::dynamic_pointer_cast<idx_geometry::EDMD_ARC>( model ) )
+        {
+            auto items = ConvertElement( *arc );
+            result.insert( result.end(), std::make_move_iterator( items.begin() ),
+                           std::make_move_iterator( items.end() ) );
+        }
+        else if( auto circle = std::dynamic_pointer_cast<idx_geometry::EDMD_CIRCLE>( model ) )
+        {
+            auto items = ConvertElement( *circle );
+            result.insert( result.end(), std::make_move_iterator( items.begin() ),
+                           std::make_move_iterator( items.end() ) );
+        }
+    }
+
+    return result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_POLY_LINE& aPolyline )
+{
+    const auto& points = aPolyline.m_point;
+    size_t      num_points = points.size();
+    if( num_points < 2 )
+        return {};
+
+    std::vector<BOARD_ITEM*> result;
+    result.reserve( num_points - 1 );
+
+    double width = aPolyline.m_thickness.m_value * 1e6;
+
+    for( size_t i = 0; i < num_points - 1; ++i )
+    {
+        auto& p1 = points[i];
+        auto& p2 = points[i + 1];
+        if( !p1 || !p2 )
+            continue;
+
+        PCB_SHAPE* s = new PCB_SHAPE();
+        s->SetWidth( width );
+        s->SetStart( VECTOR2I( p1->GetX(), -p1->GetY() ) );
+        s->SetEnd( VECTOR2I( p2->GetX(), -p2->GetY() ) );
+
+        result.push_back( s );
+    }
+
+    return result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_CIRCLE& aCircle )
+{
+    std::vector<BOARD_ITEM*> result;
+
+    if( auto center = aCircle.GetCenter() )
+    {
+        PCB_SHAPE* s = new PCB_SHAPE( nullptr, SHAPE_T::CIRCLE );
+        s->SetCenter( VECTOR2I( center->GetX(), -center->GetY() ) );
+        s->SetRadius( aCircle.GetRadius() );
+        result.push_back( s );
+    }
+
+    return result;
+}
+
+
+std::vector<BOARD_ITEM*> KICAD_IDX::ConvertElement( idx_geometry::EDMD_ARC& aArc )
+{
+    std::vector<BOARD_ITEM*> result;
+
+    PCB_SHAPE* s = new PCB_SHAPE( nullptr, SHAPE_T::ARC );
+
+    VECTOR2I end = VECTOR2I( aArc.GetStart()->GetX(), -aArc.GetStart()->GetY() );
+    VECTOR2I start = VECTOR2I( aArc.GetEnd()->GetX(), -aArc.GetEnd()->GetY() );
+    VECTOR2I mid = ArcMidPoint( aArc );
+    s->SetArcGeometry( start, mid, end );
+
+    result.push_back( s );
+    return result;
+}
+
+
+void KICAD_IDX::AddItem( BOARD_ITEM* aItem, LSET aLset )
+{
+    for( PCB_LAYER_ID id : aLset.Seq() )
+    {
+        aItem->SetLayer( id );
+    }
+}
+
+
+LSET KICAD_IDX::GetLayers( idx_geometry::EDMD_CURVE_SET2D& aCurveSet )
+{
+    double upper = aCurveSet.m_upperBound.m_value * 1e3;
+    double lower = aCurveSet.m_lowerBound.m_value * 1e3;
+
+    std::vector<PCB_LAYER_ID> pli;
+    LSET                      result = LSET();
+
+    for( auto& layer : m_stackup )
+    {
+        if( layer.second >= lower && layer.second <= upper )
+        {
+            pli.push_back( layer.first );
+            result.set( layer.first );
+        }
+    }
+
+    if( upper == m_boardThickness * 1e3 || lower == m_boardThickness * 1e3 )
+    {
+        result.set( F_Cu );
+    }
+
+    return result;
+}

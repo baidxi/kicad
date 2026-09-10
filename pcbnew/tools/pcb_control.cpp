@@ -93,7 +93,8 @@
 #include <widgets/wx_infobar.h>
 #include <pcb_io/pcb_io.h>
 #include <wx/hyperlink.h>
-
+#include <idx/kicad_idx.h>
+#include <idx/dialog_idx_review.h>
 
 using namespace std::placeholders;
 
@@ -1396,6 +1397,30 @@ int PCB_CONTROL::AppendBoardFromFile( const TOOL_EVENT& aEvent )
         return 1;
 
     return AppendBoard( *pi, fileName );
+}
+
+
+int PCB_CONTROL::ImportIDX( const TOOL_EVENT& aEvent )
+{
+    BOARD_COMMIT commit( frame() );
+
+
+    DIALOG_IDX_REVIEW dlg( m_frame, &commit );
+    bool              cancelled;
+
+    RunMainStack(
+            [&]()
+            {
+                cancelled = dlg.ShowModal() != wxID_OK;
+            } );
+
+    if( cancelled )
+    {
+    }
+    else
+    {
+    }
+    return 0;
 }
 
 
@@ -3200,7 +3225,7 @@ void PCB_CONTROL::setTransitions()
     Go( &PCB_CONTROL::DdAppendBoard,        PCB_ACTIONS::ddAppendBoard.MakeEvent() );
     Go( &PCB_CONTROL::PlaceCharacteristics, PCB_ACTIONS::placeCharacteristics.MakeEvent() );
     Go( &PCB_CONTROL::PlaceStackup,         PCB_ACTIONS::placeStackup.MakeEvent() );
-
+    Go( &PCB_CONTROL::ImportIDX,  PCB_ACTIONS::importIDX.MakeEvent() );
     Go( &PCB_CONTROL::Paste,                ACTIONS::paste.MakeEvent() );
     Go( &PCB_CONTROL::Paste,                ACTIONS::pasteSpecial.MakeEvent() );
 
