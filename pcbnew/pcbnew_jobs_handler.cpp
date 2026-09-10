@@ -3489,13 +3489,20 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         // LoadBoard reports load failures and user cancellations by throwing.
         try
         {
-            std::map<std::string, UTF8> importProperties;
+            // pcb_id selects a board only within an EasyEDA Pro project.  Other importers must
+            // continue receiving no properties so their existing design-settings import paths remain
+            // unchanged.
+            const std::map<std::string, UTF8>* importProperties = nullptr;
+            std::map<std::string, UTF8>        easyEdaProProperties;
 
-            if( !job->m_importPcbId.empty() )
-                importProperties.emplace( "pcb_id", std::string( job->m_importPcbId.ToUTF8() ) );
+            if( !job->m_importPcbId.empty()
+                && ( fileType == PCB_IO_MGR::EASYEDAPRO || fileType == PCB_IO_MGR::EASYEDAPRO_V3 ) )
+            {
+                easyEdaProProperties.emplace( "pcb_id", std::string( job->m_importPcbId.ToUTF8() ) );
+                importProperties = &easyEdaProProperties;
+            }
 
-            board = pi->LoadBoard( job->m_inputFile,
-                                   importProperties.empty() ? nullptr : &importProperties, projectPtr );
+            board = pi->LoadBoard( job->m_inputFile, importProperties, projectPtr );
         }
         catch( const IO_CANCELLED& ioce )
         {
@@ -3642,7 +3649,6 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             for( const wxString& warning : warnings )
                 m_reporter->Report( warning + wxS( "\n" ), RPT_SEVERITY_WARNING );
         }
-
 
     }
     catch( const IO_ERROR& ioe )

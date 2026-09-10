@@ -270,15 +270,25 @@ BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
 
     content[12] = { 6.9 };
     content[11] = { 11.811, 10.0 };
+    content[7] = { 3.0 };
 
 
     EASYEDAPRO::V3_DOC_RAW boardDoc;
-    boardDoc.rows = { { wxS( "RULE" ),
-                        wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
-                        0,
-                        {},
-                        { { "ruleState", "DEFAULT" },
-                          { "ruleContext", { { "safeSpacing", { { { "content", content } } } } } } } } };
+    boardDoc.rows = {
+        { wxS( "RULE" ),
+          wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
+          0,
+          {},
+          { { "ruleState", "DEFAULT" },
+            { "ruleContext", { { "safeSpacing", { { { "content", content } } } } } } } },
+        { wxS( "FILL" ),
+          wxS( "fill1" ),
+          0,
+          {},
+          { { "layerId", 1 },
+            { "path", nlohmann::json::array( { nlohmann::json::array(
+                    { 0, 0, "L", 100, 0, 100, 100, 0, 0 } ) } ) } } }
+    };
 
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
     parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardDoc, wxEmptyString );
@@ -287,6 +297,12 @@ BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
     BOOST_CHECK_EQUAL( board.GetDesignSettings().m_CopperEdgeClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 10.0 ) );
 
     BOOST_CHECK( board.m_LegacyDesignSettingsLoaded );
+    BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetLocalClearance().value_or( 0 ),
+                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(),
+                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
+
 
     wxString rules = parser.GenerateSafeSpacingRules();
 
@@ -324,7 +340,7 @@ BOOST_AUTO_TEST_CASE( BoardImportsTeardropCopper )
     BOOST_CHECK_EQUAL( teardrop->GetNetname(), wxS( "SIGNAL" ) );
     BOOST_CHECK( teardrop->IsFilled() );
     BOOST_CHECK_EQUAL( static_cast<int>( teardrop->GetTeardropAreaType() ),
-                       static_cast<int>( TEARDROP_TYPE::TD_UNSPECIFIED ) );
+                       static_cast<int>( TEARDROP_TYPE::TD_VIAPAD ) );
     BOOST_REQUIRE( teardrop->GetFilledPolysList( F_Cu ) );
 }
 

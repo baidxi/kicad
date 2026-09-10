@@ -32,6 +32,7 @@
 #include <board.h>
 #include <board_design_settings.h>
 
+#include <zone.h>
 #include <footprint.h>
 #include <pad.h>
 #include <pcb_shape.h>
@@ -213,11 +214,15 @@ BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
     while( activeMatrix.size() < 10 )
         activeMatrix.push_back( nlohmann::json::array() );
 
-    activeMatrix[8] = { 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811 };
-    activeMatrix[9] = { 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9 };
+    activeMatrix[7] = { 3.0 };
+    activeMatrix[8] = { 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 11.811, 18.0 };
+    activeMatrix[9] = { 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 6.9, 17.0, 19.0 };
 
-    std::vector<nlohmann::json> boardLines = { { "RULE", "1", "copperThickness1oz", 1, { "mm", activeMatrix } },
-                                               { "RULE", "1", "copperThickness2oz", 0, { "mm", { { 7.9921 } } } } };
+    std::vector<nlohmann::json> boardLines = {
+        { "RULE", "1", "copperThickness1oz", 1, { "mm", activeMatrix } },
+        { "FILL", "fill1", 0, "", 1, 0.2, 0, { { 0, 0, "L", 100, 0, 100, 100, 0, 0 } }, 0 },
+        { "RULE", "1", "copperThickness2oz", 0, { "mm", { { 7.9921 } } } }
+    };
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
 
     parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardLines, wxEmptyString );
@@ -225,6 +230,11 @@ BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
     BOOST_CHECK_EQUAL( board.GetDesignSettings().m_MinClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 4.0157 ) );
     BOOST_CHECK_EQUAL( board.GetDesignSettings().m_CopperEdgeClearance, PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 11.811 ) );
 
+    BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetLocalClearance().value_or( 0 ),
+                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(),
+                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
 
     wxString rules = parser.GetSafeSpacingRules();
 
@@ -232,6 +242,28 @@ BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
     BOOST_CHECK( !rules.Contains( wxS( "Track ↔ Track: 7.9921 mil" ) ) );
     BOOST_CHECK( rules.Contains( wxS( "EasyEDA safe spacing: SMD Pad ↔ Track" ) ) );
     BOOST_CHECK( rules.Contains( wxS( "Board Outline ↔ Track: 11.811 mil (0.3 mm)" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "Board Outline ↔ Board Outline: 18 mil" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "Hole ↔ Board Outline: 17 mil" ) ) );
+    BOOST_CHECK( rules.Contains( wxS( "Hole ↔ Hole: 19 mil" ) ) );
+}
+
+
+BOOST_AUTO_TEST_CASE( BoardImportsTeardropAsViaPad )
+{
+    BOARD                    board;
+    PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
+
+    std::vector<nlohmann::json> boardLines = {
+        { "NET", "SIGNAL" },
+        { "TEARDROP", "teardrop1", "SIGNAL", 1, { 0, 0, "L", 100, 0, 50, 100, 0, 0 } }
+    };
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
+
+    parser.ParseBoard( &board, nlohmann::json::object(), footprints, {}, {}, boardLines, wxEmptyString );
+
+    BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
+    BOOST_CHECK_EQUAL( static_cast<int>( board.Zones().front()->GetTeardropAreaType() ),
+                       static_cast<int>( TEARDROP_TYPE::TD_VIAPAD ) );
 }
 
 
