@@ -279,15 +279,13 @@ BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
           wxS( "[\"RULE\",\"SAFE\",\"safeClearance\"]" ),
           0,
           {},
-          { { "ruleState", "DEFAULT" },
-            { "ruleContext", { { "safeSpacing", { { { "content", content } } } } } } } },
+          { { "ruleState", "DEFAULT" }, { "ruleContext", { { "safeSpacing", { { { "content", content } } } } } } } },
         { wxS( "FILL" ),
           wxS( "fill1" ),
           0,
           {},
           { { "layerId", 1 },
-            { "path", nlohmann::json::array( { nlohmann::json::array(
-                    { 0, 0, "L", 100, 0, 100, 100, 0, 0 } ) } ) } } }
+            { "path", nlohmann::json::array( { nlohmann::json::array( { 0, 0, "L", 100, 0, 100, 100, 0, 0 } ) } ) } } }
     };
 
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
@@ -300,8 +298,7 @@ BOOST_AUTO_TEST_CASE( SafeClearanceUsesTrackToTrackEntry )
     BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
     BOOST_CHECK_EQUAL( board.Zones().front()->GetLocalClearance().value_or( 0 ),
                        PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
-    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(),
-                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
 
 
     wxString rules = parser.GenerateSafeSpacingRules();

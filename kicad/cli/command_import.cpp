@@ -73,7 +73,7 @@ bool IsV2EasyEdaProProject( const wxString& aFileName )
             return false;
 
         bool hasProject2 = false;
-        bool hasProject  = false;
+        bool hasProject = false;
 
         while( entry.reset( zip.GetNextEntry() ), entry.get() != nullptr )
         {
@@ -222,8 +222,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
                     EASYEDAPRO::V3_DOC_PARSER parser( input );
                     parser.Load();
 
-                    const nlohmann::json sourceProject =
-                            EASYEDAPRO::BuildV3ProjectIndexFromRawDocs( parser, false );
+                    const nlohmann::json  sourceProject = EASYEDAPRO::BuildV3ProjectIndexFromRawDocs( parser, false );
                     const nlohmann::json& pcbsIndex = sourceProject.at( "pcbs" );
 
                     for( const auto& [uuid, doc] : parser.GetRawDocs( wxS( "PCB" ) ) )

@@ -3649,7 +3649,6 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             for( const wxString& warning : warnings )
                 m_reporter->Report( warning + wxS( "\n" ), RPT_SEVERITY_WARNING );
         }
-
     }
     catch( const IO_ERROR& ioe )
     {

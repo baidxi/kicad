@@ -233,8 +233,7 @@ BOOST_AUTO_TEST_CASE( NamedDefaultSafeClearanceImports )
     BOOST_REQUIRE_EQUAL( board.Zones().size(), 1 );
     BOOST_CHECK_EQUAL( board.Zones().front()->GetLocalClearance().value_or( 0 ),
                        PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
-    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(),
-                       PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
+    BOOST_CHECK_EQUAL( board.Zones().front()->GetMinThickness(), PCB_IO_EASYEDAPRO_PARSER::ScaleSize( 3.0 ) );
 
     wxString rules = parser.GetSafeSpacingRules();
 
@@ -254,8 +253,7 @@ BOOST_AUTO_TEST_CASE( BoardImportsTeardropAsViaPad )
     PCB_IO_EASYEDAPRO_PARSER parser( &board, nullptr );
 
     std::vector<nlohmann::json> boardLines = {
-        { "NET", "SIGNAL" },
-        { "TEARDROP", "teardrop1", "SIGNAL", 1, { 0, 0, "L", 100, 0, 50, 100, 0, 0 } }
+        { "NET", "SIGNAL" }, { "TEARDROP", "teardrop1", "SIGNAL", 1, { 0, 0, "L", 100, 0, 50, 100, 0, 0 } }
     };
     std::map<wxString, std::unique_ptr<FOOTPRINT>> footprints;
 
