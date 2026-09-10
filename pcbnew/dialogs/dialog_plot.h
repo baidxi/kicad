@@ -62,6 +62,7 @@ private:
 
     void onDNPCheckbox( wxCommandEvent& event ) override;
     void onSketchPads( wxCommandEvent& event ) override;
+    void onDrillMarksChoice( wxCommandEvent& event ) override;
     void onPDFColorChoice( wxCommandEvent& event ) override;
 
     // other functions

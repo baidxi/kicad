@@ -79,6 +79,8 @@ public:
 
     void        SetDrillMarksType( DRILL_MARKS aVal ) { m_drillMarks = aVal; }
     DRILL_MARKS GetDrillMarksType() const { return m_drillMarks; }
+    void        SetDrillMarksUnderOffBoardLayers( bool aVal ) { m_drillMarksUnderOffBoardLayers = aVal; }
+    bool        GetDrillMarksUnderOffBoardLayers() const { return m_drillMarksUnderOffBoardLayers; }
 
     void        SetScale( double aVal ) { m_scale = aVal; }
     double      GetScale() const { return m_scale; }
@@ -218,6 +220,7 @@ private:
     bool             m_plotPadNumbers;  /// Plot pad numbers when sketching pads on fab layers
     DRILL_MARKS      m_drillMarks;      /// Holes can be not plotted, have a small mark, or be
                                         ///   plotted in actual size
+    bool             m_drillMarksUnderOffBoardLayers;
     PLOT_TEXT_MODE   m_textMode;
     DXF_OUTLINE_MODE m_DXFPlotMode;     /// FILLED or SKETCH for filled objects.
     DXF_UNITS        m_DXFUnits;

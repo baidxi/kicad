@@ -2084,6 +2084,7 @@ HANDLER_RESULT<Empty> API_HANDLER_PCB::handleSetBoardPlotSettings( const HANDLER
     plotOpts.SetPlotPadNumbers( settings.plot_pad_numbers() );
 
     plotOpts.SetDrillMarksType( FromProtoEnum<DRILL_MARKS>( settings.drill_marks() ) );
+    plotOpts.SetDrillMarksUnderOffBoardLayers( settings.drill_marks_under_off_board_layers() );
     plotOpts.SetUseAuxOrigin( settings.use_drill_origin() );
 
     board()->SetPlotOptions( plotOpts );
@@ -2231,6 +2232,7 @@ std::optional<ApiResponseStatus> ApplyBoardPlotSettings( const BoardPlotSettings
     aJob.m_plotPadNumbers = aSettings.plot_pad_numbers();
 
     aJob.m_drillShapeOption = FromProtoEnum<DRILL_MARKS>( aSettings.drill_marks() );
+    aJob.m_drillMarksUnderOffBoardLayers = aSettings.drill_marks_under_off_board_layers();
 
     aJob.m_useDrillOrigin = aSettings.use_drill_origin();
     aJob.m_checkZonesBeforePlot = aSettings.check_zones_before_plot();

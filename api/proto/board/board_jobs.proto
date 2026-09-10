@@ -68,8 +68,9 @@ message BoardPlotSettings
     bool plot_pad_numbers = 18;
 
     PlotDrillMarks drill_marks = 19;
-    bool use_drill_origin = 20;
-    bool check_zones_before_plot = 21;
+    bool drill_marks_under_off_board_layers = 20;
+    bool use_drill_origin = 21;
+    bool check_zones_before_plot = 22;
 }
 
 // Output format for board 3D export jobs.

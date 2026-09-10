@@ -148,6 +148,7 @@ int CLI::PCB_EXPORT_SVG_COMMAND::doPerform( KIWAY& aKiway )
     svgJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     svgJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+    svgJob->m_drillMarksUnderOffBoardLayers = m_argParser.get<bool>( ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION );
     svgJob->m_drawingSheet = m_argDrawingSheet;
     svgJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
     svgJob->m_scale = m_argParser.get<double>( ARG_SCALE );

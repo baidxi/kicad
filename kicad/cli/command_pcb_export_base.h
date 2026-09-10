@@ -43,6 +43,8 @@ namespace CLI
 
 #define ARG_DRILL_SHAPE_OPTION "--drill-shape-opt"
 #define ARG_DRILL_SHAPE_OPTION_DESC "Set pad/via drill shape option (0 = no shape, 1 = small shape, 2 = actual shape)"
+#define ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION "--drill-under-off-board-layers"
+#define ARG_DRILL_UNDER_OFF_BOARD_LAYERS_DESC "Plot drill marks under off-board layers"
 
 #define ARG_NEGATIVE "--negative"
 #define ARG_NEGATIVE_SHORT "-n"

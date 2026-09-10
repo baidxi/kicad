@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a-dirty)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -144,7 +144,7 @@ DIALOG_PLOT_BASE::DIALOG_PLOT_BASE( wxWindow* parent, wxWindowID id, const wxStr
 
 	m_zoneFillCheck = new wxCheckBox( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Check zone fills before plotting"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_zoneFillCheck->SetValue(true);
-	gbSizer1->Add( m_zoneFillCheck, wxGBPosition( 6, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+	gbSizer1->Add( m_zoneFillCheck, wxGBPosition( 7, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
 
 	drillMarksLabel = new wxStaticText( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Drill marks:"), wxDefaultPosition, wxDefaultSize, 0 );
 	drillMarksLabel->Wrap( -1 );
@@ -156,26 +156,31 @@ DIALOG_PLOT_BASE::DIALOG_PLOT_BASE( wxWindow* parent, wxWindowID id, const wxStr
 	m_drillShapeOpt->SetSelection( 2 );
 	gbSizer1->Add( m_drillShapeOpt, wxGBPosition( 0, 2 ), wxGBSpan( 1, 1 ), wxEXPAND|wxLEFT, 5 );
 
+	m_drillMarksUnderOffBoardLayers = new wxCheckBox( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Drill marks under off-board layers"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_drillMarksUnderOffBoardLayers->SetToolTip( _("Off-board layers, such as Fab and User layers, will be drawn over the drill marks") );
+
+	gbSizer1->Add( m_drillMarksUnderOffBoardLayers, wxGBPosition( 1, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+
 	scalingLabel = new wxStaticText( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Scaling:"), wxDefaultPosition, wxDefaultSize, 0 );
 	scalingLabel->Wrap( -1 );
-	gbSizer1->Add( scalingLabel, wxGBPosition( 1, 1 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+	gbSizer1->Add( scalingLabel, wxGBPosition( 2, 1 ), wxGBSpan( 1, 1 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
 
 	wxString m_scaleOptChoices[] = { _("Auto"), _("1:1"), _("3:2"), _("2:1"), _("3:1") };
 	int m_scaleOptNChoices = sizeof( m_scaleOptChoices ) / sizeof( wxString );
 	m_scaleOpt = new wxChoice( sbOptionsSizer->GetStaticBox(), wxID_ANY, wxDefaultPosition, wxDefaultSize, m_scaleOptNChoices, m_scaleOptChoices, 0 );
 	m_scaleOpt->SetSelection( 1 );
-	gbSizer1->Add( m_scaleOpt, wxGBPosition( 1, 2 ), wxGBSpan( 1, 1 ), wxEXPAND|wxLEFT, 5 );
+	gbSizer1->Add( m_scaleOpt, wxGBPosition( 2, 2 ), wxGBSpan( 1, 1 ), wxEXPAND|wxLEFT, 5 );
 
 	m_useAuxOriginCheckBox = new wxCheckBox( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Use drill/place file origin"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_useAuxOriginCheckBox->SetToolTip( _("Use the drill/place file origin as the coordinate origin for plotted files") );
 
-	gbSizer1->Add( m_useAuxOriginCheckBox, wxGBPosition( 2, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+	gbSizer1->Add( m_useAuxOriginCheckBox, wxGBPosition( 3, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
 
 	m_plotMirrorOpt = new wxCheckBox( sbOptionsSizer->GetStaticBox(), ID_MIROR_OPT, _("Mirrored plot"), wxDefaultPosition, wxDefaultSize, 0 );
-	gbSizer1->Add( m_plotMirrorOpt, wxGBPosition( 3, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+	gbSizer1->Add( m_plotMirrorOpt, wxGBPosition( 4, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
 
 	m_plotPSNegativeOpt = new wxCheckBox( sbOptionsSizer->GetStaticBox(), wxID_ANY, _("Negative plot"), wxDefaultPosition, wxDefaultSize, 0 );
-	gbSizer1->Add( m_plotPSNegativeOpt, wxGBPosition( 4, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
+	gbSizer1->Add( m_plotPSNegativeOpt, wxGBPosition( 5, 1 ), wxGBSpan( 1, 2 ), wxALIGN_CENTER_VERTICAL|wxLEFT, 30 );
 
 
 	sbOptionsSizer->Add( gbSizer1, 1, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
@@ -526,6 +531,7 @@ DIALOG_PLOT_BASE::DIALOG_PLOT_BASE( wxWindow* parent, wxWindowID id, const wxStr
 	m_openDirButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onOpenOutputDirectory ), NULL, this );
 	m_plotDNP->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onDNPCheckbox ), NULL, this );
 	m_sketchPadsOnFabLayers->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onSketchPads ), NULL, this );
+	m_drillShapeOpt->Connect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( DIALOG_PLOT_BASE::onDrillMarksChoice ), NULL, this );
 	m_boardSetup->Connect( wxEVT_COMMAND_HYPERLINK, wxHyperlinkEventHandler( DIALOG_PLOT_BASE::onBoardSetup ), NULL, this );
 	m_useGerberX2Format->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::OnGerberX2Checked ), NULL, this );
 	m_DXF_plotModeOpt->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::OnChangeDXFPlotMode ), NULL, this );
@@ -544,6 +550,7 @@ DIALOG_PLOT_BASE::~DIALOG_PLOT_BASE()
 	m_openDirButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onOpenOutputDirectory ), NULL, this );
 	m_plotDNP->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onDNPCheckbox ), NULL, this );
 	m_sketchPadsOnFabLayers->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::onSketchPads ), NULL, this );
+	m_drillShapeOpt->Disconnect( wxEVT_COMMAND_CHOICE_SELECTED, wxCommandEventHandler( DIALOG_PLOT_BASE::onDrillMarksChoice ), NULL, this );
 	m_boardSetup->Disconnect( wxEVT_COMMAND_HYPERLINK, wxHyperlinkEventHandler( DIALOG_PLOT_BASE::onBoardSetup ), NULL, this );
 	m_useGerberX2Format->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::OnGerberX2Checked ), NULL, this );
 	m_DXF_plotModeOpt->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_PLOT_BASE::OnChangeDXFPlotMode ), NULL, this );

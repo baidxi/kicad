@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6a-dirty)
+// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -76,6 +76,7 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		wxCheckBox* m_zoneFillCheck;
 		wxStaticText* drillMarksLabel;
 		wxChoice* m_drillShapeOpt;
+		wxCheckBox* m_drillMarksUnderOffBoardLayers;
 		wxStaticText* scalingLabel;
 		wxChoice* m_scaleOpt;
 		wxCheckBox* m_useAuxOriginCheckBox;
@@ -144,6 +145,7 @@ class DIALOG_PLOT_BASE : public DIALOG_SHIM
 		virtual void onOpenOutputDirectory( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onDNPCheckbox( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onSketchPads( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onDrillMarksChoice( wxCommandEvent& event ) { event.Skip(); }
 		virtual void onBoardSetup( wxHyperlinkEvent& event ) { event.Skip(); }
 		virtual void OnGerberX2Checked( wxCommandEvent& event ) { event.Skip(); }
 		virtual void OnChangeDXFPlotMode( wxCommandEvent& event ) { event.Skip(); }

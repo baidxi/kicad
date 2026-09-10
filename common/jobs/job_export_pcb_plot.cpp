@@ -49,6 +49,7 @@ JOB_EXPORT_PCB_PLOT::JOB_EXPORT_PCB_PLOT( PLOT_FORMAT aFormat, const std::string
         m_plotLayerSequence(),
         m_plotOnAllLayersSequence(),
         m_drillShapeOption( DRILL_MARKS::FULL_DRILL_SHAPE ),
+        m_drillMarksUnderOffBoardLayers( false ),
         m_useDrillOrigin( false ),
         m_checkZonesBeforePlot( false )
 {
@@ -99,6 +100,9 @@ JOB_EXPORT_PCB_PLOT::JOB_EXPORT_PCB_PLOT( PLOT_FORMAT aFormat, const std::string
 
     m_params.emplace_back( new JOB_PARAM<DRILL_MARKS>( "drill_shape",
                                                        &m_drillShapeOption, m_drillShapeOption ) );
+
+    m_params.emplace_back( new JOB_PARAM<bool>( "drill_marks_under_off_board_layers", &m_drillMarksUnderOffBoardLayers,
+                                                m_drillMarksUnderOffBoardLayers ) );
 
     m_params.emplace_back( new JOB_PARAM<wxString>( "drawing_sheet",
                                                     &m_drawingSheet, m_drawingSheet ) );
