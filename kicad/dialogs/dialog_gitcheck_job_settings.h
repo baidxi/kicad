@@ -14,29 +14,24 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #pragma once
 
-#include <dialog_shim.h>
+#include "dialog_gitcheck_job_settings_base.h"
 
 class JOB_SPECIAL_GIT_CHECK;
 
-class DIALOG_GITCHECK_JOB_SETTINGS : public DIALOG_SHIM
+class DIALOG_GITCHECK_JOB_SETTINGS : public DIALOG_GITCHECK_JOB_SETTINGS_BASE
 {
 public:
     DIALOG_GITCHECK_JOB_SETTINGS( wxWindow* aParent, JOB_SPECIAL_GIT_CHECK* aJob );
-    ~DIALOG_GITCHECK_JOB_SETTINGS();
 
     bool TransferDataToWindow() override;
     bool TransferDataFromWindow() override;
 
 private:
-    void onOK( wxCommandEvent& aEvent );
-
     JOB_SPECIAL_GIT_CHECK* m_job;
-    class wxCheckBox* m_cbRequireCommit;
-    class wxCheckBox* m_cbRequirePush;
 };

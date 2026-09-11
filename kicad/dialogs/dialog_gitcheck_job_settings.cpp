@@ -14,53 +14,20 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include "dialog_gitcheck_job_settings.h"
 #include <jobs/job_special_git_check.h>
-#include <wx/checkbox.h>
-#include <wx/sizer.h>
-#include <wx/stattext.h>
-#include <wx/button.h>
-#include <wx/string.h>
+
 
 DIALOG_GITCHECK_JOB_SETTINGS::DIALOG_GITCHECK_JOB_SETTINGS( wxWindow* aParent,
-                                                             JOB_SPECIAL_GIT_CHECK* aJob ) :
-        DIALOG_SHIM( aParent, wxID_ANY, _( "Git Check Job Settings" ) ),
-        m_job( aJob ),
-        m_cbRequireCommit( nullptr ),
-        m_cbRequirePush( nullptr )
+                                                            JOB_SPECIAL_GIT_CHECK* aJob ) :
+        DIALOG_GITCHECK_JOB_SETTINGS_BASE( aParent ),
+        m_job( aJob )
 {
-    wxBoxSizer* mainSizer = new wxBoxSizer( wxVERTICAL );
-
-    wxStaticText* infoText = new wxStaticText( this, wxID_ANY,
-            _( "Configure Git check requirements for this job:" ) );
-    mainSizer->Add( infoText, 0, wxALL, 5 );
-
-    m_cbRequireCommit = new wxCheckBox( this, wxID_ANY,
-            _( "Require commit: Check if project has uncommitted changes and show commit dialog if needed" ) );
-    mainSizer->Add( m_cbRequireCommit, 0, wxALL, 5 );
-
-    m_cbRequirePush = new wxCheckBox( this, wxID_ANY,
-            _( "Require push: Check if project has unpushed commits and push if needed" ) );
-    mainSizer->Add( m_cbRequirePush, 0, wxALL, 5 );
-
-    wxSizer* buttonSizer = CreateButtonSizer( wxOK | wxCANCEL );
-    mainSizer->Add( buttonSizer, 0, wxEXPAND | wxALL, 5 );
-
-    SetSizer( mainSizer );
-    mainSizer->SetSizeHints( this );
-
-    Bind( wxEVT_COMMAND_BUTTON_CLICKED, &DIALOG_GITCHECK_JOB_SETTINGS::onOK, this, wxID_OK );
-
-    TransferDataToWindow();
-}
-
-
-DIALOG_GITCHECK_JOB_SETTINGS::~DIALOG_GITCHECK_JOB_SETTINGS()
-{
+    SetupStandardButtons();
 }
 
 
@@ -77,13 +44,4 @@ bool DIALOG_GITCHECK_JOB_SETTINGS::TransferDataFromWindow()
     m_job->m_requireCommit = m_cbRequireCommit->GetValue();
     m_job->m_requirePush = m_cbRequirePush->GetValue();
     return true;
-}
-
-
-void DIALOG_GITCHECK_JOB_SETTINGS::onOK( wxCommandEvent& aEvent )
-{
-    if( TransferDataFromWindow() )
-    {
-        EndModal( wxID_OK );
-    }
 }

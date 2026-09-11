@@ -35,9 +35,7 @@
 #include <wx/progdlg.h>
 #include <wx/settings.h>
 
-#include <frame_type.h>
 #include <kiway.h>
-#include <mail_type.h>
 #include <settings/settings_manager.h>
 
 #include <settings/common_settings.h>
@@ -46,8 +44,9 @@
 #include <bitmap_store.h>
 #include <confirm.h>
 #include <dialogs/git/dialog_git_commit.h>
-#include <dialogs/git/dialog_git_credentials.h>
 #include <dialogs/git/dialog_git_switch.h>
+#include <dialogs/git/git_remote_prompts.h>
+#include <dialogs/git/git_unsaved_editors.h>
 #include <gestfich.h>
 #include <macros.h>
 #include <trace_helpers.h>
@@ -65,7 +64,6 @@
 #include <git/git_commit_handler.h>
 #include <git/git_config_handler.h>
 #include <git/git_pull_handler.h>
-#include <git/git_push_handler.h>
 #include <git/git_resolve_conflict_handler.h>
 #include <git/git_revert_handler.h>
 #include <git/git_remove_from_index_handler.h>
@@ -715,17 +713,11 @@ void PROJECT_TREE_PANE::ReCreateTreePrj()
             // EmptyTreePrj() sets this to true during shutdown.
             m_TreeProject->GitCommon()->SetCancelled( false );
 
-            const char* canonicalWorkDir = git_repository_workdir( m_TreeProject->GetGitRepo() );
+            KIGIT::PROJECT_GIT_UTILS::ConfigureProjectCommon(
+                    m_TreeProject->GitCommon(), fn.GetPath(),
+                    Prj().GetLocalSettings().m_GitRepoUsername,
+                    Prj().GetLocalSettings().m_GitSSHKey );
 
-            if( canonicalWorkDir )
-            {
-                wxString symlinkWorkDir = KIGIT::PROJECT_GIT_UTILS::ComputeSymlinkPreservingWorkDir(
-                        fn.GetPath(), wxString::FromUTF8( canonicalWorkDir ) );
-                m_TreeProject->GitCommon()->SetProjectDir( symlinkWorkDir );
-            }
-
-            m_TreeProject->GitCommon()->SetUsername( Prj().GetLocalSettings().m_GitRepoUsername );
-            m_TreeProject->GitCommon()->SetSSHKey( Prj().GetLocalSettings().m_GitSSHKey );
             m_TreeProject->GitCommon()->UpdateCurrentBranchInfo();
         }
     }
@@ -1881,35 +1873,6 @@ void KICAD_MANAGER_FRAME::OnChangeWatchedPaths( wxCommandEvent& aEvent )
 }
 
 
-// Prompts for git credentials after an auth failure. Returns false if cancelled.
-static bool promptForGitCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon )
-{
-    DIALOG_GIT_CREDENTIALS dlg( aParent, aCommon->GetRemote(), aCommon->GetConnType(), aCommon->GetUsername(),
-                                wxEmptyString );
-
-    if( dlg.ShowModal() != wxID_OK )
-        return false;
-
-    aCommon->SetUsername( dlg.GetUsername() );
-    aCommon->SetPassword( dlg.GetPassword() );
-
-    if( dlg.GetConnType() == KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH && !dlg.GetSSHKey().IsEmpty() )
-    {
-        aCommon->SetSSHKey( dlg.GetSSHKey() );
-    }
-
-    if( dlg.SaveCredentials() )
-    {
-        KIPLATFORM::SECRETS::StoreSecret( aCommon->GetRemote(), aCommon->GetUsername(), dlg.GetPassword() );
-    }
-
-    aCommon->ClearAuthFailure();
-    aCommon->TestedTypes() = 0;
-    aCommon->ResetNextKey();
-    return true;
-}
-
-
 void PROJECT_TREE_PANE::onGitInitializeProject( wxCommandEvent& aEvent )
 {
     PROJECT_TREE_ITEM* tree_data = GetItemIdData( m_TreeProject->GetRootItem() );
@@ -1990,7 +1953,7 @@ void PROJECT_TREE_PANE::onGitInitializeProject( wxCommandEvent& aEvent )
         if( handler.PerformFetch() )
             break;
 
-        if( common->WasAuthFailure() && promptForGitCredentials( m_parent, common ) )
+        if( common->WasAuthFailure() && PromptForGitCredentials( m_parent, common ) )
             continue;
 
         break;
@@ -2158,7 +2121,7 @@ void PROJECT_TREE_PANE::onGitPullProject( wxCommandEvent& aEvent )
             break;
         }
 
-        if( common->WasAuthFailure() && promptForGitCredentials( m_parent, common ) )
+        if( common->WasAuthFailure() && PromptForGitCredentials( m_parent, common ) )
             continue;
 
         showGitFeedback( _( "Pull failed." ) );
@@ -2178,58 +2141,26 @@ void PROJECT_TREE_PANE::onGitPushProject( wxCommandEvent& aEvent )
         return;
 
     KIGIT_COMMON* common = m_TreeProject->GitCommon();
-    bool          force = false;
+    wxString      error;
 
-    while( true )
+    auto progressFactory = [this]()
     {
-        common->ClearAuthFailure();
+        return std::make_unique<WX_PROGRESS_REPORTER>( this, _( "Fetch Remote" ), 1, PR_NO_ABORT );
+    };
 
-        GIT_PUSH_HANDLER handler( common );
-        handler.SetProgressReporter(
-                std::make_unique<WX_PROGRESS_REPORTER>( this, _( "Fetch Remote" ), 1, PR_NO_ABORT ) );
+    if( PushWithPrompts( wxGetTopLevelParent( this ), common, progressFactory, &error ) )
+    {
+        wxString upstream = common->GetUpstreamShorthand();
+        wxString branch = common->GetCurrentBranchName();
 
-        PushResult pushResult = handler.PerformPush( force );
-
-        if( pushResult == PushResult::Success )
-        {
-            wxString upstream = common->GetUpstreamShorthand();
-            wxString branch = common->GetCurrentBranchName();
-
-            showGitFeedback( upstream.empty() || branch.empty()
-                                     ? _( "Pushed to remote." )
-                                     : wxString::Format( _( "Pushed %s to %s." ), branch, upstream ) );
-            break;
-        }
-
-        if( common->WasAuthFailure() && promptForGitCredentials( m_parent, common ) )
-            continue;
-
-        if( pushResult == PushResult::NonFastForward && !force )
-        {
-            wxString upstream = common->GetUpstreamShorthand();
-
-            wxRichMessageDialog dlg(
-                    wxGetTopLevelParent( this ),
-                    wxString::Format( _( "Push rejected: your local branch and %s have diverged.\n\n"
-                                         "This usually happens after amending or rewriting a commit "
-                                         "that was already pushed.  Force push to overwrite the remote?\n\n"
-                                         "Anyone who already pulled the previous version will need to "
-                                         "reset their copy." ),
-                                      upstream.empty() ? wxString( "the remote" ) : upstream ),
-                    _( "Force Push?" ), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING | wxCENTER );
-
-            dlg.SetYesNoLabels( _( "&Force Push" ), _( "Cancel" ) );
-
-            if( dlg.ShowModal() == wxID_YES )
-            {
-                force = true;
-                continue;
-            }
-        }
-
+        showGitFeedback( upstream.empty() || branch.empty()
+                                 ? _( "Pushed to remote." )
+                                 : wxString::Format( _( "Pushed %s to %s." ), branch, upstream ) );
+    }
+    else
+    {
         showGitFeedback( _( "Push failed." ) );
-        DisplayErrorMessage( m_parent, _( "Failed to push project" ), handler.GetErrorString() );
-        break;
+        DisplayErrorMessage( m_parent, _( "Failed to push project" ), error );
     }
 
     m_gitStatusTimer.Start( 500, wxTIMER_ONE_SHOT );
@@ -2326,17 +2257,10 @@ void PROJECT_TREE_PANE::onGitRemoveVCS( wxCommandEvent& aEvent )
         {
             m_TreeProject->GitCommon()->SetCancelled( false );
 
-            const char* canonicalWorkDir = git_repository_workdir( m_TreeProject->GetGitRepo() );
-
-            if( canonicalWorkDir )
-            {
-                wxString symlinkWorkDir = KIGIT::PROJECT_GIT_UTILS::ComputeSymlinkPreservingWorkDir(
-                        fn.GetPath(), wxString::FromUTF8( canonicalWorkDir ) );
-                m_TreeProject->GitCommon()->SetProjectDir( symlinkWorkDir );
-            }
-
-            m_TreeProject->GitCommon()->SetUsername( localSettings.m_GitRepoUsername );
-            m_TreeProject->GitCommon()->SetSSHKey( localSettings.m_GitSSHKey );
+            KIGIT::PROJECT_GIT_UTILS::ConfigureProjectCommon( m_TreeProject->GitCommon(),
+                                                              fn.GetPath(),
+                                                              localSettings.m_GitRepoUsername,
+                                                              localSettings.m_GitSSHKey );
         }
     }
 
@@ -2596,79 +2520,22 @@ void PROJECT_TREE_PANE::onGitCommit( wxCommandEvent& aEvent )
 
     // Flush in-memory editor and project state so the index snapshots the user's
     // actual work instead of a stale on-disk version.
+    if( !HandleUnsavedEditors( m_Parent->Kiway(), wxGetTopLevelParent( this ),
+                               _( "The following editors have unsaved changes:%s\n\n"
+                                  "Save them before committing?" ),
+                               _( "&Save and Commit" ), _( "Commit &Anyway" ) ) )
     {
-        struct DirtyEditor
-        {
-            FRAME_T  frameType;
-            MAIL_T   saveMail;
-            wxString label;
-        };
-
-        const DirtyEditor candidates[] = {
-            { FRAME_SCH, MAIL_SCH_SAVE, _( "Schematic Editor" ) },
-            { FRAME_PCB_EDITOR, MAIL_PCB_SAVE, _( "PCB Editor" ) },
-        };
-
-        std::vector<const DirtyEditor*> dirty;
-
-        for( const DirtyEditor& d : candidates )
-        {
-            KIWAY_PLAYER* frame = m_Parent->Kiway().Player( d.frameType, false );
-
-            if( frame && frame->IsContentModified() )
-                dirty.push_back( &d );
-        }
-
-        if( !dirty.empty() )
-        {
-            wxString listed;
-
-            for( const DirtyEditor* d : dirty )
-                listed += wxString::Format( wxS( "\n    • %s" ), d->label );
-
-            wxRichMessageDialog dlg( wxGetTopLevelParent( this ),
-                                     wxString::Format( _( "The following editors have unsaved changes:%s\n\n"
-                                                          "Save them before committing?" ),
-                                                       listed ),
-                                     _( "Unsaved Changes" ),
-                                     wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxICON_WARNING | wxCENTER );
-
-            dlg.SetYesNoCancelLabels( _( "&Save and Commit" ), _( "Commit &Anyway" ), _( "Cancel" ) );
-
-            int answer = dlg.ShowModal();
-
-            if( answer == wxID_CANCEL )
-                return;
-
-            if( answer == wxID_YES )
-            {
-                for( const DirtyEditor* d : dirty )
-                {
-                    std::string payload;
-                    m_Parent->Kiway().ExpressMail( d->frameType, d->saveMail, payload );
-
-                    if( payload != "success" )
-                    {
-                        DisplayErrorMessage( wxGetTopLevelParent( this ),
-                                             wxString::Format( _( "Could not save %s." ), d->label ) );
-                        return;
-                    }
-                }
-            }
-        }
-
-        m_Parent->GetSettingsManager()->SaveProject();
+        return;
     }
+
+    m_Parent->GetSettingsManager()->SaveProject();
 
     // Get git configuration
     GIT_CONFIG_HANDLER configHandler( m_TreeProject->GitCommon() );
     GitUserConfig userConfig = configHandler.GetUserConfig();
 
     // Collect modified files in the repository
-    GIT_STATUS_HANDLER             statusHandler( m_TreeProject->GitCommon() );
-    std::map<wxString, FileStatus> fileStatusMap = statusHandler.GetFileStatus();
-
-    std::map<wxString, int> modifiedFiles;
+    GIT_STATUS_HANDLER statusHandler( m_TreeProject->GitCommon() );
     std::set<wxString> selected_files;
 
     for( PROJECT_TREE_ITEM* item : tree_data )
@@ -2683,78 +2550,10 @@ void PROJECT_TREE_PANE::onGitCommit( wxCommandEvent& aEvent )
         selected_files.emplace( itemPath );
     }
 
-    wxString repoWorkDir = statusHandler.GetWorkingDirectory();
-
-    wxString projectPath = Prj().GetProjectPath();
-#ifdef _WIN32
-    projectPath.Replace( wxS( "\\" ), wxS( "/" ) );
-#endif
-
-    for( const auto& [absPath, fileStatus] : fileStatusMap )
-    {
-        // Skip current, conflicted, or ignored files
-        if( fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CURRENT
-            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CONFLICTED
-            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_IGNORED )
-        {
-            continue;
-        }
-
-        wxFileName fn( absPath );
-
-        // Convert to relative path for the modifiedFiles map
-        wxString relativePath = absPath;
-
-        if( relativePath.StartsWith( repoWorkDir ) )
-        {
-            relativePath = relativePath.Mid( repoWorkDir.length() );
-#ifdef _WIN32
-            relativePath.Replace( wxS( "\\" ), wxS( "/" ) );
-#endif
-        }
-
-        // Do not commit files outside the project directory
-        if( !KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( absPath, projectPath ) )
-            continue;
-
-        // Skip lock files
-        if( fn.GetExt().CmpNoCase( FILEEXT::LockFileExtension ) == 0 )
-            continue;
-
-        // Skip autosave, lock, and backup files
-        if( fn.GetName().StartsWith( FILEEXT::LockFilePrefix )
-            || fn.GetName().EndsWith( FILEEXT::BackupFileSuffix ) )
-        {
-            continue;
-        }
-
-        // Skip archived project backups
-        if( fn.GetPath().Contains( Prj().GetProjectName() + wxT( "-backups" ) ) )
-            continue;
-
-        // Skip local project history (which is also a submodule, we don't support for the time)
-        if( fn.IsDir() && fn.GetDirs().Last().StartsWith( wxS( ".history" ) ) )
-        {
-            continue;
-        }
-
-        if( aEvent.GetId() == ID_GIT_COMMIT_PROJECT )
-        {
-            // Don't add an untracked project-local settings file to the repo on its own
-            // Only commit it if it's already tracked, or if the user selects it explicitly.
-            if( fn.GetExt().CmpNoCase( FILEEXT::ProjectLocalSettingsFileExtension ) == 0
-                && fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_UNTRACKED )
-            {
-                continue;
-            }
-
-            modifiedFiles.emplace( relativePath, fileStatus.gitStatus );
-        }
-        else if( selected_files.count( absPath ) )
-        {
-            modifiedFiles.emplace( relativePath, fileStatus.gitStatus );
-        }
-    }
+    std::map<wxString, int> modifiedFiles = KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles(
+            statusHandler.GetFileStatus(), statusHandler.GetWorkingDirectory(),
+            Prj().GetProjectPath(), Prj().GetProjectName(),
+            aEvent.GetId() == ID_GIT_COMMIT_PROJECT ? nullptr : &selected_files );
 
     // Create a commit dialog
     DIALOG_GIT_COMMIT dlg( wxGetTopLevelParent( this ), repo, userConfig.authorName, userConfig.authorEmail,
@@ -2882,119 +2681,32 @@ void PROJECT_TREE_PANE::onGitAmendCommit( wxCommandEvent& aEvent )
 
     // Flush in-memory editor and project state so the amend captures the user's actual
     // work instead of a stale on-disk version.
+    if( !HandleUnsavedEditors( m_Parent->Kiway(), wxGetTopLevelParent( this ),
+                               _( "The following editors have unsaved changes:%s\n\n"
+                                  "Save them before amending?" ),
+                               _( "&Save and Amend" ), _( "Amend &Anyway" ) ) )
     {
-        struct DirtyEditor
-        {
-            FRAME_T  frameType;
-            MAIL_T   saveMail;
-            wxString label;
-        };
-
-        const DirtyEditor candidates[] = {
-            { FRAME_SCH, MAIL_SCH_SAVE, _( "Schematic Editor" ) },
-            { FRAME_PCB_EDITOR, MAIL_PCB_SAVE, _( "PCB Editor" ) },
-        };
-
-        std::vector<const DirtyEditor*> dirty;
-
-        for( const DirtyEditor& d : candidates )
-        {
-            KIWAY_PLAYER* frame = m_Parent->Kiway().Player( d.frameType, false );
-
-            if( frame && frame->IsContentModified() )
-                dirty.push_back( &d );
-        }
-
-        if( !dirty.empty() )
-        {
-            wxString listed;
-
-            for( const DirtyEditor* d : dirty )
-                listed += wxString::Format( wxS( "\n    • %s" ), d->label );
-
-            wxRichMessageDialog dlg( wxGetTopLevelParent( this ),
-                                     wxString::Format( _( "The following editors have unsaved changes:%s\n\n"
-                                                          "Save them before amending?" ),
-                                                       listed ),
-                                     _( "Unsaved Changes" ),
-                                     wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxICON_WARNING | wxCENTER );
-
-            dlg.SetYesNoCancelLabels( _( "&Save and Amend" ), _( "Amend &Anyway" ), _( "Cancel" ) );
-
-            int answer = dlg.ShowModal();
-
-            if( answer == wxID_CANCEL )
-                return;
-
-            if( answer == wxID_YES )
-            {
-                for( const DirtyEditor* d : dirty )
-                {
-                    std::string payload;
-                    m_Parent->Kiway().ExpressMail( d->frameType, d->saveMail, payload );
-
-                    if( payload != "success" )
-                    {
-                        DisplayErrorMessage( wxGetTopLevelParent( this ),
-                                             wxString::Format( _( "Could not save %s." ), d->label ) );
-                        return;
-                    }
-                }
-            }
-        }
-
-        m_Parent->GetSettingsManager()->SaveProject();
+        return;
     }
+
+    m_Parent->GetSettingsManager()->SaveProject();
 
     // Collect modified files for the dialog's checklist.
     GIT_CONFIG_HANDLER configHandler( m_TreeProject->GitCommon() );
     GitUserConfig      userConfig = configHandler.GetUserConfig();
 
-    GIT_STATUS_HANDLER             statusHandler( m_TreeProject->GitCommon() );
-    std::map<wxString, FileStatus> fileStatusMap = statusHandler.GetFileStatus();
-    wxString                       repoWorkDir = statusHandler.GetWorkingDirectory();
-    wxString                       projectPath = Prj().GetProjectPath();
+    GIT_STATUS_HANDLER statusHandler( m_TreeProject->GitCommon() );
+    wxString           repoWorkDir = statusHandler.GetWorkingDirectory();
+    wxString           projectPath = Prj().GetProjectPath();
 
+    std::map<wxString, int> modifiedFiles = KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles(
+            statusHandler.GetFileStatus(), repoWorkDir, projectPath, Prj().GetProjectName() );
+
+    // The deltas below are seeded from libgit2, which reports paths with forward slashes, so
+    // the project path they are scoped against has to match
 #ifdef _WIN32
     projectPath.Replace( wxS( "\\" ), wxS( "/" ) );
 #endif
-
-    std::map<wxString, int> modifiedFiles;
-
-    for( const auto& [absPath, fileStatus] : fileStatusMap )
-    {
-        if( fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CURRENT
-            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CONFLICTED
-            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_IGNORED )
-        {
-            continue;
-        }
-
-        wxFileName fn( absPath );
-        wxString   relativePath = absPath;
-
-        if( relativePath.StartsWith( repoWorkDir ) )
-        {
-            relativePath = relativePath.Mid( repoWorkDir.length() );
-#ifdef _WIN32
-            relativePath.Replace( wxS( "\\" ), wxS( "/" ) );
-#endif
-        }
-
-        if( !KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( absPath, projectPath ) )
-            continue;
-
-        if( fn.GetExt().CmpNoCase( FILEEXT::LockFileExtension ) == 0 )
-            continue;
-
-        if( fn.GetName().StartsWith( FILEEXT::LockFilePrefix ) || fn.GetName().EndsWith( FILEEXT::BackupFileSuffix ) )
-            continue;
-
-        if( fn.GetPath().Contains( Prj().GetProjectName() + wxT( "-backups" ) ) )
-            continue;
-
-        modifiedFiles.emplace( relativePath, fileStatus.gitStatus );
-    }
 
     if( git_reference* headRefForDiff = nullptr; git_repository_head( &headRefForDiff, repo ) == GIT_OK )
     {
@@ -3153,7 +2865,7 @@ void PROJECT_TREE_PANE::onGitFetch( wxCommandEvent& aEvent )
             break;
         }
 
-        if( gitCommon->WasAuthFailure() && promptForGitCredentials( m_parent, gitCommon ) )
+        if( gitCommon->WasAuthFailure() && PromptForGitCredentials( m_parent, gitCommon ) )
             continue;
 
         showGitFeedback( _( "Fetch failed." ) );

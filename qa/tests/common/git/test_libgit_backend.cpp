@@ -328,6 +328,114 @@ BOOST_AUTO_TEST_CASE( IsWithinProjectPath_ScopesToProjectDirectory )
 
 
 /**
+ * The commit, amend and Git check job checklists are all built by CollectCommittableFiles, so
+ * the rules about what a project may commit live in one place: files belonging to another
+ * project in the repository, the files KiCad writes but never commits (lock files, autosaves,
+ * archived backups) and an untracked local settings file are all left out, and what remains is
+ * reported relative to the repository root.
+ */
+BOOST_AUTO_TEST_CASE( CollectCommittableFiles_FiltersToProjectContent )
+{
+    const wxString workDir = wxT( "/repo/" );
+    const wxString projectPath = wxT( "/repo/proj/" );
+
+    auto entry = []( const wxString& aPath, KIGIT_COMMON::GIT_STATUS aStatus )
+    {
+        FileStatus status;
+        status.filePath = aPath;
+        status.status = aStatus;
+        status.gitStatus = GIT_STATUS_WT_MODIFIED;
+        return std::make_pair( aPath, status );
+    };
+
+    const std::map<wxString, FileStatus> fileStatus{
+        entry( wxT( "/repo/proj/proj.kicad_sch" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        entry( wxT( "/repo/proj/proj.kicad_pcb" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        // Unchanged, ignored and conflicted files are not offered.
+        entry( wxT( "/repo/proj/clean.kicad_sch" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CURRENT ),
+        entry( wxT( "/repo/proj/ignored.txt" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_IGNORED ),
+        entry( wxT( "/repo/proj/conflict.kicad_sch" ),
+               KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CONFLICTED ),
+        // Another project in the same repository (issue #15910).
+        entry( wxT( "/repo/other/other.kicad_sch" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        // Transient files KiCad writes next to the design.
+        entry( wxT( "/repo/proj/proj.kicad_pcb.lck" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_ADDED ),
+        entry( wxT( "/repo/proj/~proj.kicad_sch" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_ADDED ),
+        entry( wxT( "/repo/proj/proj-backups/proj.zip" ),
+               KIGIT_COMMON::GIT_STATUS::GIT_STATUS_ADDED ),
+        // An untracked local settings file is not dragged into the repository on its own.
+        entry( wxT( "/repo/proj/proj.kicad_prl" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_UNTRACKED ),
+    };
+
+    std::map<wxString, int> committable = KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles(
+            fileStatus, workDir, projectPath, wxT( "proj" ) );
+
+    BOOST_CHECK_EQUAL( committable.size(), 2 );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_sch" ) ) );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_pcb" ) ) );
+
+    // A local settings file the user picked explicitly is committed, and a selection narrows
+    // the checklist to what was picked without loosening any of the rules above.
+    const std::set<wxString> selected{ wxT( "/repo/proj/proj.kicad_prl" ),
+                                       wxT( "/repo/proj/proj.kicad_pcb" ),
+                                       wxT( "/repo/other/other.kicad_sch" ) };
+
+    committable = KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles( fileStatus, workDir,
+                                                                     projectPath, wxT( "proj" ),
+                                                                     &selected );
+
+    BOOST_CHECK_EQUAL( committable.size(), 2 );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_prl" ) ) );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_pcb" ) ) );
+}
+
+
+#ifdef _WIN32
+/**
+ * On Windows the two paths CollectCommittableFiles compares are written differently: the
+ * status paths are built from git_repository_workdir(), which libgit2 reports with forward
+ * slashes, while PROJECT::GetProjectPath() hands back the native form with backslashes.
+ * Comparing them as they come filters out every file in the project, so the project path is
+ * normalized first.  The test is Windows-only because the normalization is: a backslash is a
+ * legal character in a POSIX file name and must not be rewritten there.
+ */
+BOOST_AUTO_TEST_CASE( CollectCommittableFiles_NormalizesWindowsProjectPath )
+{
+    // As libgit2 reports it...
+    const wxString workDir = wxT( "C:/repo/" );
+
+    // ...and as the project hands it over.
+    const wxString projectPath = wxT( "C:\\repo\\proj\\" );
+
+    auto entry = []( const wxString& aPath, KIGIT_COMMON::GIT_STATUS aStatus )
+    {
+        FileStatus status;
+        status.filePath = aPath;
+        status.status = aStatus;
+        status.gitStatus = GIT_STATUS_WT_MODIFIED;
+        return std::make_pair( aPath, status );
+    };
+
+    const std::map<wxString, FileStatus> fileStatus{
+        entry( wxT( "C:/repo/proj/proj.kicad_sch" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        entry( wxT( "C:/repo/proj/proj.kicad_pcb" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        // Scoping to the project still has to hold once the separators agree.
+        entry( wxT( "C:/repo/other/other.kicad_sch" ),
+               KIGIT_COMMON::GIT_STATUS::GIT_STATUS_MODIFIED ),
+        entry( wxT( "C:/repo/proj/proj.kicad_pcb.lck" ), KIGIT_COMMON::GIT_STATUS::GIT_STATUS_ADDED ),
+    };
+
+    const std::map<wxString, int> committable = KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles(
+            fileStatus, workDir, projectPath, wxT( "proj" ) );
+
+    BOOST_CHECK_EQUAL( committable.size(), 2 );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_sch" ) ) );
+    BOOST_CHECK( committable.count( wxT( "proj/proj.kicad_pcb" ) ) );
+}
+#endif // _WIN32
+
+
+/**
  * Regression for issue #15910: the Amend Last Commit checklist is seeded from a
  * tree diff of the previous commit.  Files that commit touched outside the
  * current project directory must be filtered out with IsWithinProjectPath,
