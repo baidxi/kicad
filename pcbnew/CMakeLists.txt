@@ -159,6 +159,12 @@ set( PCBNEW_DIALOGS
     dialogs/dialog_render_job.cpp
     dialogs/dialog_swap_layers.cpp
     dialogs/dialog_swap_layers_base.cpp
+    dialogs/dialog_drill_chart_properties.cpp
+    dialogs/dialog_drill_groups.cpp
+    dialogs/dialog_drill_groups_base.cpp
+    dialogs/panel_setup_drill_chart.cpp
+    dialogs/panel_setup_drill_chart_base.cpp
+    dialogs/dialog_drill_chart_properties_base.cpp
     dialogs/dialog_table_properties.cpp
     dialogs/dialog_table_properties_base.cpp
     dialogs/dialog_tablecell_properties.cpp
@@ -290,6 +296,7 @@ set( PCBNEW_EXPORTERS
     exporters/u3d/writer.cpp
     exporters/exporter_vrml.cpp
     exporters/place_file_exporter.cpp
+    exporters/drill_legacy_adapter.cpp
     exporters/gendrill_excellon_writer.cpp
     exporters/gendrill_writer_base.cpp
     exporters/gendrill_gerber_writer.cpp
