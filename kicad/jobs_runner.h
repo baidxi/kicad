@@ -72,6 +72,7 @@ private:
     int runSpecialCopyFiles( const JOB_SPECIAL_COPYFILES* aJob, PROJECT* aProject,
                              std::vector<wxString>& aPathsWritten );
     int runSpecialArchive( const JOBSET_JOB* aJob, REPORTER* aReporter, PROJECT* aProject );
+    int runSpecialGitCheck( const JOBSET_JOB* aJob, REPORTER* aReporter, PROJECT* aProject );
 
 private:
     KIWAY*                  m_kiway;

@@ -26,6 +26,7 @@
 #include <jobs/job_special_archive.h>
 #include <jobs/job_special_copyfiles.h>
 #include <jobs/job_special_execute.h>
+#include <jobs/job_special_git_check.h>
 #include <kiway.h>
 #include <kiway_mail.h>
 #include <project/project_archiver.h>
@@ -38,6 +39,20 @@
 #include <wx/mstream.h>
 #include <wx/tokenzr.h>
 #include <gestfich.h>
+#include <git/project_git_utils.h>
+#include <git/kicad_git_common.h>
+#include <git/kicad_git_memory.h>
+#include <git/git_status_handler.h>
+#include <git/git_config_handler.h>
+#include <git/git_commit_handler.h>
+#include <dialogs/git/dialog_git_commit.h>
+#include <dialogs/git/git_remote_prompts.h>
+#include <dialogs/git/git_unsaved_editors.h>
+#include <pgm_base.h>
+#include <settings/settings_manager.h>
+#include <wx/app.h>
+#include <project/project_local_settings.h>
+#include <string_utils.h>
 
 JOBS_RUNNER::JOBS_RUNNER( KIWAY* aKiway, JOBSET* aJobsFile, PROJECT* aProject,
                           REPORTER& aReporter, JOBS_PROGRESS_REPORTER* aProgressReporter ) :
@@ -188,6 +203,157 @@ int JOBS_RUNNER::runSpecialArchive( const JOBSET_JOB* aJob, REPORTER* aReporter,
 }
 
 
+int JOBS_RUNNER::runSpecialGitCheck( const JOBSET_JOB* aJob, REPORTER* aReporter, PROJECT* aProject )
+{
+    JOB_SPECIAL_GIT_CHECK* gitCheckJob = static_cast<JOB_SPECIAL_GIT_CHECK*>( aJob->m_job.get() );
+
+    // Get the project file path
+    wxString projectPath = aProject->GetProjectPath();
+    if( projectPath.IsEmpty() )
+    {
+        aReporter->Report( _( "Project path is empty. Cannot check Git status." ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    git_repository* repo = KIGIT::PROJECT_GIT_UTILS::GetRepositoryForFile( TO_UTF8( projectPath ) );
+
+    if( repo == nullptr )
+    {
+        aReporter->Report( _( "The project is not a Git repository." ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    KIGIT::GitRepositoryPtr repoPtr( repo );
+
+    KIGIT_COMMON gitCommon( repo );
+
+    const PROJECT_LOCAL_SETTINGS& localSettings = aProject->GetLocalSettings();
+
+    KIGIT::PROJECT_GIT_UTILS::ConfigureProjectCommon( &gitCommon, projectPath,
+                                                      localSettings.m_GitRepoUsername,
+                                                      localSettings.m_GitSSHKey );
+
+    gitCommon.UpdateCurrentBranchInfo();
+
+    GIT_STATUS_HANDLER statusHandler( &gitCommon );
+
+    bool isGUIMode = ( wxTheApp != nullptr && wxTheApp->IsGUI() && wxTheApp->GetTopWindow() != nullptr );
+
+    if( gitCheckJob->m_requireCommit )
+    {
+        if( isGUIMode )
+        {
+            if( !HandleUnsavedEditors( *m_kiway, wxTheApp->GetTopWindow(),
+                                       _( "The following editors have unsaved changes:%s\n\n"
+                                          "Save them before committing?" ),
+                                       _( "&Save and Commit" ), _( "Commit &Anyway" ) ) )
+            {
+                aReporter->Report( _( "Job execution cancelled." ), RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            Pgm().GetSettingsManager().SaveProject( wxEmptyString, aProject );
+        }
+
+        if( statusHandler.HasChangedFiles() )
+        {
+            if( !isGUIMode )
+            {
+                aReporter->Report( _( "Project has uncommitted changes. Commit dialog cannot be shown in CLI mode." ),
+                                   RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            GIT_CONFIG_HANDLER configHandler( &gitCommon );
+            GitUserConfig userConfig = configHandler.GetUserConfig();
+
+            std::map<wxString, int> modifiedFiles =
+                    KIGIT::PROJECT_GIT_UTILS::CollectCommittableFiles(
+                            statusHandler.GetFileStatus(), statusHandler.GetWorkingDirectory(),
+                            aProject->GetProjectPath(), aProject->GetProjectName() );
+
+            if( !modifiedFiles.empty() )
+            {
+                wxWindow* parent = wxTheApp->GetTopWindow();
+                DIALOG_GIT_COMMIT dlg( parent, repo, userConfig.authorName, userConfig.authorEmail,
+                                       modifiedFiles );
+                auto ret = dlg.ShowModal();
+
+                if( ret != wxID_OK )
+                {
+                    aReporter->Report( _( "Commit dialog was cancelled. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                std::vector<wxString> files = dlg.GetSelectedFiles();
+
+                if( dlg.GetCommitMessage().IsEmpty() )
+                {
+                    aReporter->Report( _( "Commit message is empty. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                if( files.empty() )
+                {
+                    aReporter->Report( _( "No files selected for commit. Job execution cancelled." ),
+                                       RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                GIT_COMMIT_HANDLER commitHandler( repo );
+                auto result = commitHandler.PerformCommit( files, dlg.GetCommitMessage(),
+                                                          dlg.GetAuthorName(), dlg.GetAuthorEmail() );
+
+                if( result != CommitResult::Success )
+                {
+                    wxString errorMsg = wxString::Format( _( "Failed to create commit: %s" ),
+                                                         commitHandler.GetErrorString() );
+                    aReporter->Report( errorMsg, RPT_SEVERITY_ERROR );
+                    return CLI::EXIT_CODES::ERR_UNKNOWN;
+                }
+
+                aReporter->Report( _( "Changes committed successfully." ), RPT_SEVERITY_INFO );
+            }
+        }
+    }
+
+    if( gitCheckJob->m_requirePush )
+    {
+        if( gitCommon.HasLocalCommits() )
+        {
+            if( !isGUIMode )
+            {
+                aReporter->Report( _( "Project has unpushed commits. Push cannot be performed in CLI mode." ),
+                                   RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            // No progress reporter: the jobs progress dialog is already up, and stacking a
+            // second one over it would leave the user with two bars for one operation.
+            wxString pushError;
+
+            if( !PushWithPrompts( wxTheApp->GetTopWindow(), &gitCommon, nullptr, &pushError ) )
+            {
+                wxString errorMsg = _( "Failed to push commits" );
+
+                if( !pushError.IsEmpty() )
+                    errorMsg += wxT( ": " ) + pushError;
+
+                aReporter->Report( errorMsg, RPT_SEVERITY_ERROR );
+                return CLI::EXIT_CODES::ERR_UNKNOWN;
+            }
+
+            aReporter->Report( _( "Commits pushed successfully." ), RPT_SEVERITY_INFO );
+        }
+    }
+
+    aReporter->Report( _( "Git check completed successfully." ), RPT_SEVERITY_INFO );
+    return CLI::EXIT_CODES::SUCCESS;
+}
+
+
 bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool aBail )
 {
     bool                    genOutputs = true;
@@ -323,6 +489,10 @@ bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool 
             else if( job.m_job->GetType() == "special_archive" )
             {
                 result = runSpecialArchive( &job, &isolatedReporter, m_project );
+            }
+            else if( job.m_job->GetType() == "special_git_check" )
+            {
+                result = runSpecialGitCheck( &job, &isolatedReporter, m_project );
             }
             else
             {

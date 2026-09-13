@@ -19,10 +19,12 @@
 
 #include "project_git_utils.h"
 #include "git_backend.h"
+#include "kicad_git_common.h"
 
 #include <wx/filename.h>
 #include <wx/string.h>
 #include <string_utils.h>
+#include <wildcards_and_files_ext.h>
 
 #ifndef __WINDOWS__
 #include <climits>
@@ -169,6 +171,105 @@ bool PROJECT_GIT_UTILS::IsWithinProjectPath( const wxString& aAbsPath, const wxS
         projectPath += wxT( "/" );
 
     return aAbsPath.StartsWith( projectPath );
+}
+
+
+void PROJECT_GIT_UTILS::ConfigureProjectCommon( KIGIT_COMMON* aCommon, const wxString& aProjectPath,
+                                                const wxString& aUsername, const wxString& aSSHKey )
+{
+    if( !aCommon || !aCommon->GetRepo() )
+        return;
+
+    if( const char* canonicalWorkDir = git_repository_workdir( aCommon->GetRepo() ) )
+    {
+        aCommon->SetProjectDir( ComputeSymlinkPreservingWorkDir(
+                aProjectPath, wxString::FromUTF8( canonicalWorkDir ) ) );
+    }
+
+    aCommon->SetUsername( aUsername );
+
+    if( !aSSHKey.IsEmpty() )
+        aCommon->SetSSHKey( aSSHKey );
+}
+
+
+std::map<wxString, int> PROJECT_GIT_UTILS::CollectCommittableFiles(
+        const std::map<wxString, FileStatus>& aFileStatus, const wxString& aWorkDir,
+        const wxString& aProjectPath, const wxString& aProjectName,
+        const std::set<wxString>* aSelectedFiles )
+{
+    std::map<wxString, int> modifiedFiles;
+
+    // libgit2 reports paths with forward slashes, so the project path has to match
+    wxString projectPath = aProjectPath;
+
+#ifdef _WIN32
+    projectPath.Replace( wxS( "\\" ), wxS( "/" ) );
+#endif
+
+    for( const auto& [absPath, fileStatus] : aFileStatus )
+    {
+        // Skip current, conflicted, or ignored files
+        if( fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CURRENT
+            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_CONFLICTED
+            || fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_IGNORED )
+        {
+            continue;
+        }
+
+        // Do not commit files outside the project directory
+        if( !IsWithinProjectPath( absPath, projectPath ) )
+            continue;
+
+        wxFileName fn( absPath );
+
+        // Skip lock files
+        if( fn.GetExt().CmpNoCase( FILEEXT::LockFileExtension ) == 0 )
+            continue;
+
+        // Skip autosave, lock, and backup files
+        if( fn.GetName().StartsWith( FILEEXT::LockFilePrefix )
+            || fn.GetName().EndsWith( FILEEXT::BackupFileSuffix ) )
+        {
+            continue;
+        }
+
+        // Skip archived project backups
+        if( fn.GetPath().Contains( aProjectName + wxT( "-backups" ) ) )
+            continue;
+
+        // Skip local project history (which is also a submodule, we don't support for the time)
+        if( fn.IsDir() && fn.GetDirs().Last().StartsWith( wxS( ".history" ) ) )
+            continue;
+
+        if( aSelectedFiles )
+        {
+            if( !aSelectedFiles->count( absPath ) )
+                continue;
+        }
+        // Don't add an untracked project-local settings file to the repo on its own.
+        // Only commit it if it's already tracked, or if the user selects it explicitly.
+        else if( fn.GetExt().CmpNoCase( FILEEXT::ProjectLocalSettingsFileExtension ) == 0
+                 && fileStatus.status == KIGIT_COMMON::GIT_STATUS::GIT_STATUS_UNTRACKED )
+        {
+            continue;
+        }
+
+        // The checklist and the commit handler work with repository relative paths
+        wxString relativePath = absPath;
+
+        if( relativePath.StartsWith( aWorkDir ) )
+        {
+            relativePath = relativePath.Mid( aWorkDir.length() );
+#ifdef _WIN32
+            relativePath.Replace( wxS( "\\" ), wxS( "/" ) );
+#endif
+        }
+
+        modifiedFiles.emplace( relativePath, fileStatus.gitStatus );
+    }
+
+    return modifiedFiles;
 }
 
 } // namespace KIGIT

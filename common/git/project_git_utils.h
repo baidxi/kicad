@@ -24,6 +24,11 @@
 #include <wx/string.h>
 #include <import_export.h>
 
+#include <map>
+#include <set>
+
+#include <git/git_status_handler.h>
+
 namespace KIGIT
 {
 
@@ -102,6 +107,47 @@ public:
      * @return True if aAbsPath is within the project directory.
      */
     static bool IsWithinProjectPath( const wxString& aAbsPath, const wxString& aProjectPath );
+
+    /**
+     * Point a KIGIT_COMMON at the project it belongs to.
+     *
+     * The working directory reported by libgit2 is symlink-resolved, while the rest of KiCad
+     * speaks in the path the project was opened with; the two have to be reconciled or the
+     * status paths never match the project's own (see ComputeSymlinkPreservingWorkDir()).
+     * Every entry point that drives a repository for a project needs the same setup, so keep
+     * it in one place.
+     *
+     * @param aCommon Common to configure; does nothing when it holds no repository.
+     * @param aProjectPath Path the project was opened with (may contain symlinks).
+     * @param aUsername Remote user name from the project local settings.
+     * @param aSSHKey SSH key from the project local settings.  An empty key is not offered to
+     *                the authentication callback, which reads an empty key as "no keys left".
+     */
+    static void ConfigureProjectCommon( KIGIT_COMMON* aCommon, const wxString& aProjectPath,
+                                        const wxString& aUsername, const wxString& aSSHKey );
+
+    /**
+     * Reduce a repository status map to the files a commit checklist should offer.
+     *
+     * The repository is often larger than the project and holds files KiCad writes but never
+     * commits (locks, backups, autosaves).  Commit, amend and the Git check job all present
+     * the same checklist, so they share this filter rather than each keeping their own copy
+     * of the rules.
+     *
+     * @param aFileStatus Status map as returned by GIT_STATUS_HANDLER::GetFileStatus().
+     * @param aWorkDir Repository working directory, used to make the returned paths relative.
+     * @param aProjectPath Absolute path of the project directory.
+     * @param aProjectName Project name, used to recognize its archived backup directory.
+     * @param aSelectedFiles When given, only these absolute paths are offered, and the project
+     *                       local settings file is included if it is one of them because the
+     *                       user picked it explicitly.  When null the whole project is offered
+     *                       and an untracked local settings file is left out.
+     * @return Map of repository relative paths to the raw git status flags of each file.
+     */
+    static std::map<wxString, int> CollectCommittableFiles(
+            const std::map<wxString, FileStatus>& aFileStatus, const wxString& aWorkDir,
+            const wxString& aProjectPath, const wxString& aProjectName,
+            const std::set<wxString>* aSelectedFiles = nullptr );
 };
 
 } // namespace KIGIT
