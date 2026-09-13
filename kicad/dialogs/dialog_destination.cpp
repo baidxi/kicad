@@ -23,6 +23,7 @@
 #include <wx/aui/auibook.h>
 #include <jobs/jobset.h>
 #include <jobs/job_registry.h>
+#include <jobs/jobs_output.h>
 #include <wx/checkbox.h>
 #include <wx/menu.h>
 #include <bitmaps.h>
@@ -83,26 +84,31 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
     isFolder = JobsetDestinationTypeInfos[m_destination->m_type].outputPathIsFolder;
     fileWildcard = JobsetDestinationTypeInfos[m_destination->m_type].fileWildcard;
 
+    wxString currentPath = m_textCtrlOutputPath->GetValue();
+
+    if( !currentPath.IsEmpty() )
+    {
+        currentPath = JOBS_OUTPUT_HANDLER::ResolveOutputPath( currentPath,
+                                                              m_jobsFile->GetFullFilename(),
+                                                              &Prj() );
+    }
+
+    wxString selectedPath;
+
     if( isFolder )
     {
-        wxFileName fn;
-        fn.AssignDir( m_textCtrlOutputPath->GetValue() );
-        fn.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS );
-        wxString currPath = fn.GetFullPath();
-
-        wxDirDialog dirDialog( this, _( "Select output directory" ), currPath,
+        wxDirDialog dirDialog( this, _( "Select output directory" ), currentPath,
                                wxDD_DEFAULT_STYLE );
 
         if( dirDialog.ShowModal() != wxID_OK )
             return;
 
-        wxFileName dirName = wxFileName::DirName( dirDialog.GetPath() );
-
-        m_textCtrlOutputPath->SetValue( dirName.GetFullPath() );
+        // Keep the trailing path separator so the stored value is unambiguously a directory.
+        selectedPath = wxFileName::DirName( dirDialog.GetPath() ).GetFullPath();
     }
     else
     {
-        wxFileName fname( m_textCtrlOutputPath->GetValue() );
+        wxFileName fname( currentPath );
 
         wxFileDialog dlg( this, _( "Select output path" ), fname.GetPath(), fname.GetFullName(),
                           fileWildcard,
@@ -113,21 +119,62 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
         if( dlg.ShowModal() != wxID_OK )
             return;
 
-        wxString path = dlg.GetPath();
+        selectedPath = dlg.GetPath();
 
         if( m_destination->m_type == JOBSET_DESTINATION_T::ARCHIVE )
         {
-            wxFileName fn( path );
+            wxFileName fn( selectedPath );
 
             if( fn.GetExt().IsEmpty() )
                 fn.SetExt( FILEEXT::ArchiveFileExtension );
 
-            path = fn.GetFullPath();
+            selectedPath = fn.GetFullPath();
         }
-
-        m_textCtrlOutputPath->SetValue( path );
     }
 
+    wxFileName selectedFn( selectedPath );
+
+    if( selectedFn.IsAbsolute() )
+    {
+        wxString jobsetDir = wxFileName( m_jobsFile->GetFullFilename() ).GetPath();
+
+        if( !jobsetDir.IsEmpty() )
+        {
+            wxFileName relativeFn( selectedPath );
+
+            if( relativeFn.MakeRelativeTo( jobsetDir ) )
+            {
+                wxString msg = wxString::Format(
+                        _( "Make this path relative to the jobset file?\n\n"
+                           "This allows the jobset to work when moved or shared with "
+                           "others.\n\n"
+                           "Absolute: %s\n"
+                           "Relative: %s" ),
+                        selectedPath, relativeFn.GetFullPath() );
+
+                KICAD_MESSAGE_DIALOG ask( this, msg, _( "Make Path Relative?" ),
+                                          wxYES_NO | wxCANCEL | wxICON_QUESTION );
+
+                int result = ask.ShowModal();
+
+                if( result == wxID_YES )
+                {
+                    // For folders, re-apply DirName() so the trailing separator survives the
+                    // MakeRelativeTo() round-trip and the path remains recognisable as a dir.
+                    selectedPath = isFolder
+                                   ? wxFileName::DirName( relativeFn.GetFullPath() ).GetFullPath()
+                                   : relativeFn.GetFullPath();
+                }
+                else if( result == wxID_CANCEL )
+                {
+                    return; // User cancelled, don't update the path
+                }
+                // If NO, keep the absolute path
+            }
+        }
+    }
+
+    m_textCtrlOutputPath->SetValue( selectedPath );
 }
 
 

@@ -31,7 +31,8 @@ public:
                         PROJECT*                       aProject,
                         const std::vector<wxString>&   aPathsWithOverwriteDisallowed,
                         const std::vector<JOB_OUTPUT>& aOutputsToHandle,
-                        std::optional<wxString>&       aResolvedOutputPath ) override;
+                        std::optional<wxString>&       aResolvedOutputPath,
+                        const wxString&                aJobsetFilePath ) override;
 
     bool OutputPrecheck() override;
 

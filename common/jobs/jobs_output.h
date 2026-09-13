@@ -47,7 +47,8 @@ public:
                                 PROJECT*                       aProject,
                                 const std::vector<wxString>&   aPathsWithOverwriteDisallowed,
                                 const std::vector<JOB_OUTPUT>& aOutputsToHandle,
-                                std::optional<wxString>&       aResolvedOutputPath ) = 0;
+                                std::optional<wxString>&       aResolvedOutputPath,
+                                const wxString&                aJobsetFilePath ) = 0;
 
     virtual void FromJson( const nlohmann::json& j ) = 0;
     virtual void ToJson( nlohmann::json& j ) const = 0;
@@ -55,6 +56,20 @@ public:
 
     void SetOutputPath( const wxString& aPath ) { m_outputPath = aPath; }
     wxString GetOutputPath() const { return m_outputPath; }
+
+    /**
+     * Expand text/environment variables and a leading '~' in @a aPath, then resolve it to an
+     * absolute path against the directory of @a aJobsetFilePath when the result is relative.
+     *
+     * @param aPath            output path as stored on the destination (may be relative).
+     * @param aJobsetFilePath  full path to the jobset file; used as the base when @a aPath is
+     *                         relative.  May be empty, in which case relative paths are returned
+     *                         unchanged (after expansion).
+     * @param aProject         project used to resolve text variables and env-var substitutions.
+     *                         May be null, in which case no variable expansion is performed.
+     */
+    static wxString ResolveOutputPath( const wxString& aPath, const wxString& aJobsetFilePath,
+                                       PROJECT* aProject );
 
     virtual wxString GetDefaultDescription() const { return wxEmptyString; }
 

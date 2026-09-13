@@ -91,7 +91,8 @@ BOOST_AUTO_TEST_CASE( NestedDestinationPathCreatesParents )
     std::vector<JOB_OUTPUT>      outputs;
     std::optional<wxString>      resolved;
 
-    bool ok = archive.HandleOutputs( srcDir, nullptr, noOverwriteList, outputs, resolved );
+    bool ok = archive.HandleOutputs( srcDir, nullptr, noOverwriteList, outputs, resolved,
+                                     wxEmptyString );
 
     BOOST_CHECK_MESSAGE( ok, "Archive job should succeed with a nested destination path." );
     BOOST_CHECK_MESSAGE( wxFileName::DirExists( nestedDir ),
@@ -128,7 +129,8 @@ BOOST_AUTO_TEST_CASE( ExistingDestinationStillWorks )
     std::vector<JOB_OUTPUT>      outputs;
     std::optional<wxString>      resolved;
 
-    bool ok = archive.HandleOutputs( srcDir, nullptr, noOverwriteList, outputs, resolved );
+    bool ok = archive.HandleOutputs( srcDir, nullptr, noOverwriteList, outputs, resolved,
+                                     wxEmptyString );
 
     BOOST_CHECK( ok );
     BOOST_REQUIRE( resolved.has_value() );

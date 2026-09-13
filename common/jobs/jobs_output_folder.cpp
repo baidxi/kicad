@@ -34,17 +34,12 @@ bool JOBS_OUTPUT_FOLDER::HandleOutputs( const wxString&                baseTempP
                                         PROJECT*                       aProject,
                                         const std::vector<wxString>&   aPathsWithOverwriteDisallowed,
                                         const std::vector<JOB_OUTPUT>& aOutputsToHandle,
-                                        std::optional<wxString>&       aResolvedOutputPath )
+                                        std::optional<wxString>&       aResolvedOutputPath,
+                                        const wxString&                aJobsetFilePath )
 {
     aResolvedOutputPath.reset();
 
-    wxString outputPath = m_outputPath;
-    outputPath.Replace( wxT( "\\" ), wxT( "/" ) );
-    outputPath = ExpandTextVars( outputPath, aProject );
-    outputPath = ExpandEnvVarSubstitutions( outputPath, aProject );
-
-    if( outputPath.StartsWith( "~" ) )
-        outputPath.Replace( "~", wxGetHomeDir(), false );
+    wxString outputPath = ResolveOutputPath( m_outputPath, aJobsetFilePath, aProject );
 
     if( !wxFileName::DirExists( outputPath ) )
     {

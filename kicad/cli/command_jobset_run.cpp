@@ -74,6 +74,15 @@ int CLI::JOBSET_RUN_COMMAND::doPerform( KIWAY& aKiway )
     projectFn.MakeAbsolute();
     projectFile = projectFn.GetFullPath();
 
+    // Resolve the jobset file path to absolute so that output paths stored relative to it
+    // can be resolved consistently regardless of the current working directory.
+    if( !jobsFilePath.IsEmpty() )
+    {
+        wxFileName jobsFn( jobsFilePath );
+        jobsFn.MakeAbsolute();
+        jobsFilePath = jobsFn.GetFullPath();
+    }
+
     if( !Pgm().GetSettingsManager().LoadProject( projectFile ) )
     {
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
