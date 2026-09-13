@@ -357,6 +357,14 @@ enum SchematicPinShape
   SPS_NONLOGIC = 9;
 }
 
+enum SchematicPinNumberDisplay
+{
+  SPND_UNKNOWN = 0;
+  SPND_ALL = 1;
+  SPND_FIRST = 2;
+  SPND_FIRST_AND_COUNT = 3;
+}
+
 message SchematicPinAlternate
 {
   string name = 1;
@@ -387,6 +395,8 @@ message SchematicPin
   optional string active_alternate = 13;
 
   repeated kiapi.common.types.CustomProperty custom_properties = 14;
+
+  SchematicPinNumberDisplay number_display = 15;
 }
 
 message SchematicSymbolUnit

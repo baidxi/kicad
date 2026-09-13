@@ -2057,6 +2057,21 @@ SCH_PIN* SCH_IO_KICAD_SEXPR_PARSER::parseSymbolPin()
                 }
             };
 
+    auto parseNumberDisplay =
+            [&]( T token ) -> PIN_NUMBER_DISPLAY
+            {
+                switch( token )
+                {
+                case T_all:             return PIN_NUMBER_DISPLAY::ALL;
+                case T_first:           return PIN_NUMBER_DISPLAY::FIRST;
+                case T_first_and_count: return PIN_NUMBER_DISPLAY::FIRST_AND_COUNT;
+
+                default:
+                    Expecting( "all, first or first_and_count" );
+                    return PIN_NUMBER_DISPLAY::ALL;
+                }
+            };
+
     wxCHECK_MSG( CurTok() == T_pin, nullptr,
                  wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as a pin token." ) );
 
@@ -2107,6 +2122,11 @@ SCH_PIN* SCH_IO_KICAD_SEXPR_PARSER::parseSymbolPin()
 
         case T_length:
             pin->SetLength( parseInternalUnits( "pin length" ) );
+            NeedRIGHT();
+            break;
+
+        case T_number_display:
+            pin->SetNumberDisplay( parseNumberDisplay( NextTok() ) );
             NeedRIGHT();
             break;
 
@@ -2226,7 +2246,7 @@ SCH_PIN* SCH_IO_KICAD_SEXPR_PARSER::parseSymbolPin()
             break;
 
         default:
-            Expecting( "at, name, number, hide, length, or alternate" );
+            Expecting( "at, name, number, number_display, hide, length, or alternate" );
         }
     }
 

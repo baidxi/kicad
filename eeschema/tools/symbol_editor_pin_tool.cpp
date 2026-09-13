@@ -171,6 +171,7 @@ int SYMBOL_EDITOR_PIN_TOOL::SynchronizeOtherUnits( LIB_SYMBOL* aSymbol, SCH_PIN*
         other->SetName( aPin->GetName() );
         other->SetNameTextSize( aPin->GetNameTextSize() );
         other->SetNumberTextSize( aPin->GetNumberTextSize() );
+        other->SetNumberDisplay( aPin->GetNumberDisplay() );
 
         markUnit( other->GetUnit() );
 

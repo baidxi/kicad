@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <set>
 #include <vector>
@@ -32,6 +33,7 @@
 
 class LIB_SYMBOL;
 class SCH_SYMBOL;
+class SCH_PIN;
 class LIB_ID;
 class SCH_SHEET_PATH;
 class PIN_LAYOUT_CACHE;
@@ -45,13 +47,28 @@ class FONT;
 #define TARGET_PIN_RADIUS   schIUScale.MilsToIU( 15 )
 
 /**
- * Break a stacked pin number of the form "[A,B,C]" into one number per line when it is too wide
- * to sit alongside the pin.  Anything else, and anything that already fits, is returned as-is.
+ * Render a pin number the way \a aDisplay asks for it.
  *
- * Everything that draws, plots or measures a pin number goes through here.
+ * Only bracketed stacked notation has anything to abbreviate; any other number is returned
+ * unchanged.  A full block that will not fit along the pin is broken onto one line per pad.
  */
 wxString FormatStackedPinForDisplay( const wxString& aPinNumber, int aPinLength, int aTextSize,
-                                     KIFONT::FONT* aFont, const KIFONT::METRICS& aFontMetrics );
+                                     KIFONT::FONT* aFont, const KIFONT::METRICS& aFontMetrics,
+                                     PIN_NUMBER_DISPLAY aDisplay );
+
+/// Overall span of the stacked-pin indicator drawn over \a aPin's number.
+int StackedPinIconSize( const SCH_PIN& aPin );
+
+/**
+ * Emit the three dots of the stacked-pin indicator, centred on the origin.
+ *
+ * The painter and the plotter place the icon in different coordinate frames, so they share the
+ * shape rather than the position.  Dots run along X unless \a aVertical, following the reading
+ * direction of the pin number they sit over.
+ */
+void BuildStackedPinIconDots( int aSize, bool aVertical,
+                              const std::function<void( const VECTOR2I&, int )>& aEmit );
+
 
 
 class SCH_PIN : public SCH_ITEM
@@ -145,6 +162,22 @@ public:
     const wxString&       GetShownNumber() const;
     std::vector<wxString> GetStackedPinNumbers( bool* aValid = nullptr ) const;
 
+    PIN_NUMBER_DISPLAY GetNumberDisplay() const;
+    void SetNumberDisplay( PIN_NUMBER_DISPLAY aDisplay );
+
+    /**
+     * Return true when the pin's number is bracketed stacked notation naming more than one pad.
+     */
+    bool IsStackedNotation() const;
+
+    /**
+     * Return true when the number as drawn does not name every pad in the stack.
+     *
+     * The painter and the plotter draw a stack indicator in this case; without it the hidden
+     * pads leave no trace on the sheet.
+     */
+    bool HasAbbreviatedNumber() const;
+
     /**
      * Return the count of logical pins represented by this pin's stacked notation.
      *
@@ -156,12 +189,6 @@ public:
      * @return The number of logical pins represented (always >= 1).
      */
     int GetStackedPinCount( bool* aValid = nullptr ) const;
-
-    /**
-     * Return the smallest logical pin number if this pin uses stacked
-     * notation and it is valid.  Otherwise returns std::nullopt.
-     */
-    std::optional<wxString> GetSmallestLogicalNumber() const;
 
     /**
      * Return the pin number to be used for deterministic operations such as
@@ -462,6 +489,7 @@ private:
      *      - Visibility (true > false)
      *      - Number text size
      *      - Name text size
+     *      - Number display
      *      - Alternates, name, type shape
      */
     int compare( const SCH_ITEM& aOther, int aCompareFlags = 0 ) const override;
@@ -484,6 +512,7 @@ protected:
     std::optional<int>      m_numTextSize;     // Pin num and Pin name sizes
     std::optional<int>      m_nameTextSize;
     wxString                m_alt;             // The current alternate for an instance
+    PIN_NUMBER_DISPLAY      m_numberDisplay;   // How much of a stacked number block is drawn
 
     wxString                m_operatingPoint;
 

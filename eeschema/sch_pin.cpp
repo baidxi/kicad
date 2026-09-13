@@ -23,6 +23,7 @@
 
 #include "sch_pin.h"
 
+#include <algorithm>
 #include <lib_id.h>
 #include <lib_symbol.h>
 #include <pin_map.h>
@@ -46,12 +47,60 @@
 #include <properties/property_mgr.h>
 #include <api/schematic/schematic_types.pb.h>
 
+int StackedPinIconSize( const SCH_PIN& aPin )
+{
+    // Zeroing the number text size is how a symbol hides one pin's number, and the indicator has
+    // to outlive that or the stack disappears with nothing to show for it
+    int size = aPin.GetNumberTextSize();
+
+    if( size <= 0 )
+        size = aPin.GetNameTextSize();
+
+    if( size <= 0 )
+        size = schIUScale.MilsToIU( DEFAULT_PINNUM_SIZE );
+
+    return std::min( size, schIUScale.mmToIU( 1.5 ) );
+}
+
+
+void BuildStackedPinIconDots( int aSize, bool aVertical,
+                              const std::function<void( const VECTOR2I&, int )>& aEmit )
+{
+    const int spacing = aSize / 3;
+    const int radius = std::max( aSize / 10, 1 );
+
+    for( int dot = -1; dot <= 1; ++dot )
+    {
+        if( aVertical )
+            aEmit( { 0, dot * spacing }, radius );
+        else
+            aEmit( { dot * spacing, 0 }, radius );
+    }
+}
+
+
 wxString FormatStackedPinForDisplay( const wxString& aPinNumber, int aPinLength, int aTextSize, KIFONT::FONT* aFont,
-                                     const KIFONT::METRICS& aFontMetrics )
+                                     const KIFONT::METRICS& aFontMetrics, PIN_NUMBER_DISPLAY aDisplay )
 {
     // Check if this is stacked pin notation: [A,B,C]
     if( !aPinNumber.StartsWith( "[" ) || !aPinNumber.EndsWith( "]" ) )
         return aPinNumber;
+
+    if( aDisplay == PIN_NUMBER_DISPLAY::FIRST || aDisplay == PIN_NUMBER_DISPLAY::FIRST_AND_COUNT )
+    {
+        // Malformed notation falls through to the full block rather than reporting a first pad
+        // and a count that the author never wrote
+        wxString first;
+        int      count = 0;
+
+        if( SummarizeStackedPinNotation( aPinNumber, &first, &count ) )
+        {
+            if( aDisplay == PIN_NUMBER_DISPLAY::FIRST )
+                return first;
+
+            return wxString::Format( wxS( "%s(%d)" ), first, count );
+        }
+    }
 
     // Escaping must never reach the user, so every display form below is built from the unescaped
     // items.  Range notation (e.g. 1-5) is preserved rather than expanded.
@@ -145,6 +194,7 @@ SCH_PIN::SCH_PIN( LIB_SYMBOL* aParentSymbol ) :
         m_hidden( false ),
         m_numTextSize( schIUScale.MilsToIU( DEFAULT_PINNUM_SIZE ) ),
         m_nameTextSize( schIUScale.MilsToIU( DEFAULT_PINNAME_SIZE ) ),
+        m_numberDisplay( PIN_NUMBER_DISPLAY::ALL ),
         m_isDangling( true )
 {
     if( SYMBOL_EDITOR_SETTINGS* cfg = GetAppSettings<SYMBOL_EDITOR_SETTINGS>( "symbol_editor" ) )
@@ -172,6 +222,7 @@ SCH_PIN::SCH_PIN( LIB_SYMBOL* aParentSymbol, const wxString& aName, const wxStri
         m_hidden( false ),
         m_numTextSize( aNumTextSize ),
         m_nameTextSize( aNameTextSize ),
+        m_numberDisplay( PIN_NUMBER_DISPLAY::ALL ),
         m_isDangling( true )
 {
     SetName( aName );
@@ -187,6 +238,7 @@ SCH_PIN::SCH_PIN( SCH_SYMBOL* aParentSymbol, SCH_PIN* aLibPin ) :
         m_orientation( PIN_ORIENTATION::INHERIT ),
         m_shape( GRAPHIC_PINSHAPE::INHERIT ),
         m_type( ELECTRICAL_PINTYPE::PT_INHERIT ),
+        m_numberDisplay( PIN_NUMBER_DISPLAY::INHERIT ),
         m_isDangling( true )
 {
     wxASSERT( aParentSymbol );
@@ -208,6 +260,7 @@ SCH_PIN::SCH_PIN( SCH_SYMBOL* aParentSymbol, const wxString& aNumber, const wxSt
         m_type( ELECTRICAL_PINTYPE::PT_INHERIT ),
         m_number( aNumber ),
         m_alt( aAlt ),
+        m_numberDisplay( PIN_NUMBER_DISPLAY::INHERIT ),
         m_isDangling( true )
 {
     wxASSERT( aParentSymbol );
@@ -230,6 +283,7 @@ SCH_PIN::SCH_PIN( const SCH_PIN& aPin ) :
         m_numTextSize( aPin.m_numTextSize ),
         m_nameTextSize( aPin.m_nameTextSize ),
         m_alt( aPin.m_alt ),
+        m_numberDisplay( aPin.m_numberDisplay ),
         m_isDangling( aPin.m_isDangling )
 {
     SetName( aPin.m_name );
@@ -261,6 +315,7 @@ SCH_PIN& SCH_PIN::operator=( const SCH_PIN& aPin )
     m_hidden = aPin.m_hidden;
     m_numTextSize = aPin.m_numTextSize;
     m_nameTextSize = aPin.m_nameTextSize;
+    m_numberDisplay = aPin.m_numberDisplay;
     m_isDangling = aPin.m_isDangling;
     m_layoutCache.reset();
 
@@ -284,6 +339,8 @@ void SCH_PIN::Serialize( google::protobuf::Any& aContainer ) const
 
     pin.set_electrical_type( ToProtoEnum<ELECTRICAL_PINTYPE, types::ElectricalPinType>( GetType() ) );
     pin.set_shape( ToProtoEnum<GRAPHIC_PINSHAPE, SchematicPinShape>( GetShape() ) );
+    pin.set_number_display(
+            ToProtoEnum<PIN_NUMBER_DISPLAY, SchematicPinNumberDisplay>( GetNumberDisplay() ) );
     pin.set_visible( IsVisible() );
 
     PackDistance( *pin.mutable_name_text_size(), GetNameTextSize(), schIUScale );
@@ -325,6 +382,11 @@ bool SCH_PIN::Deserialize( const google::protobuf::Any& aContainer )
 
     m_type = FromProtoEnum<ELECTRICAL_PINTYPE>( pin.electrical_type() );
     m_shape = FromProtoEnum<GRAPHIC_PINSHAPE>( pin.shape() );
+
+    // An older client leaves the field unset; keep the value this pin was constructed with
+    if( pin.number_display() != SchematicPinNumberDisplay::SPND_UNKNOWN )
+        SetNumberDisplay( FromProtoEnum<PIN_NUMBER_DISPLAY>( pin.number_display() ) );
+
     SetVisible( pin.visible() );
 
     m_nameTextSize = UnpackDistance( pin.name_text_size(), schIUScale );
@@ -706,24 +768,54 @@ int SCH_PIN::GetStackedPinCount( bool* aValid ) const
 }
 
 
-std::optional<wxString> SCH_PIN::GetSmallestLogicalNumber() const
+void SCH_PIN::SetNumberDisplay( PIN_NUMBER_DISPLAY aDisplay )
 {
-    bool valid = false;
-    auto numbers = GetStackedPinNumbers( &valid );
+    if( m_numberDisplay == aDisplay )
+        return;
 
-    if( valid && !numbers.empty() )
-        return numbers.front();    // Already in ascending order
+    m_numberDisplay = aDisplay;
 
-    return std::nullopt;
+    if( m_layoutCache )
+        m_layoutCache->MarkDirty( PIN_LAYOUT_CACHE::DIRTY_FLAGS::NUMBER );
+}
+
+
+PIN_NUMBER_DISPLAY SCH_PIN::GetNumberDisplay() const
+{
+    if( m_numberDisplay == PIN_NUMBER_DISPLAY::INHERIT )
+    {
+        if( !m_libPin )
+            return PIN_NUMBER_DISPLAY::ALL;
+
+        return m_libPin->GetNumberDisplay();
+    }
+
+    return m_numberDisplay;
+}
+
+
+bool SCH_PIN::IsStackedNotation() const
+{
+    bool      valid = false;
+    const int count = GetStackedPinCount( &valid );
+
+    return valid && count > 1;
+}
+
+
+bool SCH_PIN::HasAbbreviatedNumber() const
+{
+    return GetNumberDisplay() != PIN_NUMBER_DISPLAY::ALL && IsStackedNotation();
 }
 
 
 wxString SCH_PIN::GetSmallestStackedPadNumber() const
 {
-    if( auto smallest = GetSmallestLogicalNumber() )
-        return *smallest;
+    wxString smallest;
 
-    return GetShownNumber();
+    SummarizeStackedPinNotation( GetShownNumber(), &smallest );
+
+    return smallest;
 }
 
 
@@ -1083,13 +1175,18 @@ void SCH_PIN::PlotPinTexts( PLOTTER *aPlotter, const VECTOR2I &aPinPos, PIN_ORIE
     if( aDrawPinNum && !number.IsEmpty() )
     {
         const KIFONT::METRICS& metrics = GetFontMetrics();
-        number = FormatStackedPinForDisplay( number, GetLength(), GetNumberTextSize(), font, metrics );
+        number = FormatStackedPinForDisplay( number, GetLength(), GetNumberTextSize(), font, metrics,
+                                             GetNumberDisplay() );
     }
+
+    // A zeroed number text size hides the text but must not take the indicator with it, so the
+    // number branches below still have to run
+    const bool drawStackIcon = aDrawPinNum && HasAbbreviatedNumber();
 
     if( name.IsEmpty() || m_nameTextSize == 0 )
         aDrawPinName = false;
 
-    if( number.IsEmpty() || m_numTextSize == 0 )
+    if( ( number.IsEmpty() || m_numTextSize == 0 ) && !drawStackIcon )
         aDrawPinNum = false;
 
     if( !aDrawPinNum && !aDrawPinName )
@@ -1155,9 +1252,57 @@ void SCH_PIN::PlotPinTexts( PLOTTER *aPlotter, const VECTOR2I &aPinPos, PIN_ORIE
                 aPlotter->PlotText( VECTOR2I( x, y ), col, txt, attrs, font, GetFontMetrics() );
             };
 
+    auto plotStackIcon =
+            [&]( int anchorX, int anchorY, const EDA_ANGLE& angle, GR_TEXT_V_ALIGN_T vAlign )
+            {
+                const int  iconSize = StackedPinIconSize( *this );
+                const bool vertical = ( angle == ANGLE_VERTICAL );
+
+                const int textSize = GetNumberTextSize();
+
+                // Brackets and parentheses overshoot the digits, so measure the block rather than
+                // assuming glyphs fill the nominal size
+                const int blockHeight =
+                        textSize > 0 && !number.IsEmpty()
+                                ? font->StringBoundaryLimits( number, VECTOR2D( textSize, textSize ),
+                                                              GetPenSizeForNormal( textSize ), false, false,
+                                                              GetFontMetrics() ).y
+                                : 0;
+
+                // The anchor is the block's edge nearest the pin, so clear the whole block
+                const int clearance = blockHeight + iconSize / 2;
+
+                int perpendicular = 0;
+
+                if( vAlign == GR_TEXT_V_ALIGN_BOTTOM )
+                    perpendicular = -clearance;
+                else if( vAlign == GR_TEXT_V_ALIGN_TOP )
+                    perpendicular = clearance;
+
+                VECTOR2I centre( anchorX + ( vertical ? perpendicular : 0 ),
+                                 anchorY + ( vertical ? 0 : perpendicular ) );
+
+                aPlotter->SetColor( numColor );
+
+                BuildStackedPinIconDots( iconSize, vertical,
+                        [&]( const VECTOR2I& aCentre, int aRadius )
+                        {
+                            aPlotter->Circle( centre + aCentre, aRadius * 2, FILL_T::FILLED_SHAPE,
+                                              numPenWidth );
+                        } );
+            };
+
     auto plotMultiLineWithBraces =
             [&]( int anchorX, int anchorY, EDA_ANGLE angle, GR_TEXT_V_ALIGN_T vAlign, bool aAllowFlip )
     {
+        if( drawStackIcon )
+            plotStackIcon( anchorX, anchorY, angle, vAlign );
+
+        // The indicator above is the only thing a zeroed number size leaves to draw; plotting the
+        // text anyway marks the sheet with a degenerate glyph
+        if( number.IsEmpty() || GetNumberTextSize() <= 0 )
+            return;
+
         // If not multi-line formatted, just plot single line centered.
         if( !number.StartsWith( "[" ) || !number.EndsWith( "]" ) || !number.Contains( "\n" ) )
         {
@@ -1624,6 +1769,31 @@ void SCH_PIN::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITE
 
     aList.emplace_back( _( "Name" ), UnescapeString( GetShownName() ) );
     aList.emplace_back( _( "Number" ), GetShownNumber() );
+
+    bool      stackValid = false;
+    const int stackCount = GetStackedPinCount( &stackValid );
+
+    if( stackValid && stackCount > 1 )
+    {
+        // A range can name more pads than a status bar could ever show, so list a prefix of the
+        // authored items and let the count carry the rest
+        static const size_t MAX_LISTED = 32;
+
+        const wxString&             shown = GetShownNumber();
+        const std::vector<wxString> items =
+                SplitStackedPinDisplayItems( shown.Mid( 1, shown.Length() - 2 ) );
+
+        wxString listed;
+
+        for( size_t ii = 0; ii < items.size() && ii < MAX_LISTED; ++ii )
+            listed << ( ii > 0 ? wxS( ", " ) : wxS( "" ) ) << items[ii];
+
+        if( items.size() > MAX_LISTED )
+            listed << wxS( ", ..." );
+
+        aList.emplace_back( wxString::Format( _( "Stacked pins (%d)" ), stackCount ), listed );
+    }
+
     aList.emplace_back( _( "Type" ), ElectricalPinTypeGetText( GetType() ) );
     aList.emplace_back( _( "Style" ), PinShapeGetText( GetShape() ) );
 
@@ -2039,6 +2209,9 @@ int SCH_PIN::compare( const SCH_ITEM& aOther, int aCompareFlags ) const
         if( m_nameTextSize != tmp->m_nameTextSize )
             return m_nameTextSize.value_or( 0 ) - tmp->m_nameTextSize.value_or( 0 );
 
+        if( m_numberDisplay != tmp->m_numberDisplay )
+            return static_cast<int>( m_numberDisplay ) - static_cast<int>( tmp->m_numberDisplay );
+
         if( m_alternates.size() != tmp->m_alternates.size() )
             return static_cast<int>( m_alternates.size() - tmp->m_alternates.size() );
 
@@ -2213,6 +2386,15 @@ static struct SCH_PIN_DESC
                            .Map( PIN_ORIENTATION::PIN_DOWN,  _HKI( "Down" ) );
         }
 
+        auto& numberDisplayEnum = ENUM_MAP<PIN_NUMBER_DISPLAY>::Instance();
+
+        if( numberDisplayEnum.Choices().GetCount() == 0 )
+        {
+            numberDisplayEnum.Map( PIN_NUMBER_DISPLAY::ALL,             _HKI( "All numbers" ) )
+                             .Map( PIN_NUMBER_DISPLAY::FIRST,           _HKI( "First number only" ) )
+                             .Map( PIN_NUMBER_DISPLAY::FIRST_AND_COUNT, _HKI( "First number and count" ) );
+        }
+
         auto isSymbolEditor =
                 []( INSPECTABLE* aItem ) -> bool
                 {
@@ -2277,6 +2459,9 @@ static struct SCH_PIN_DESC
                     &SCH_PIN::SetVisible, &SCH_PIN::IsVisible ) )
                 .SetAvailableFunc( isSymbolEditor );
 
+        propMgr.AddProperty( new PROPERTY_ENUM<SCH_PIN, PIN_NUMBER_DISPLAY>( _HKI( "Number Display" ),
+                    &SCH_PIN::SetNumberDisplay, &SCH_PIN::GetNumberDisplay ) )
+                .SetWriteableFunc( isSymbolEditor );
     }
 } _SCH_PIN_DESC;
 
@@ -2284,3 +2469,4 @@ static struct SCH_PIN_DESC
 ENUM_TO_WXANY( PIN_ORIENTATION )
 ENUM_TO_WXANY( GRAPHIC_PINSHAPE )
 ENUM_TO_WXANY( ELECTRICAL_PINTYPE )
+ENUM_TO_WXANY( PIN_NUMBER_DISPLAY )

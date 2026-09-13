@@ -306,4 +306,47 @@ BOOST_AUTO_TEST_CASE( StackedPinNotation_EmptyIsSinglePin )
     BOOST_TEST( expanded[0] == wxEmptyString );
 }
 
+
+BOOST_AUTO_TEST_CASE( StackedPinNotation_SummarizeAgreesWithExpansion )
+{
+    // The renderers summarize where connectivity expands, so the two walkers must not drift.
+    // Malformed and escaped forms are in here because both describe them as a single pin.
+    const std::vector<wxString> notations = { wxS( "[1,2,3]" ),  wxS( "[7,3,5]" ),    wxS( "[5-9]" ),
+                                              wxS( "[A12,A2]" ), wxS( "[6,7,9-11]" ), wxS( "[B\\,2,A\\,1]" ),
+                                              wxS( "[9-1]" ),    wxS( "[1,2" ),       wxS( "[1,5-2]" ),
+                                              wxS( "9" ),        wxEmptyString };
+
+    for( const wxString& notation : notations )
+    {
+        bool                  expandValid = false;
+        std::vector<wxString> expanded = ExpandStackedPinNotation( notation, &expandValid );
+
+        wxString smallest;
+        int      count = 0;
+        bool     summaryValid = SummarizeStackedPinNotation( notation, &smallest, &count );
+
+        BOOST_TEST_CONTEXT( notation.ToStdString() )
+        {
+            BOOST_TEST( summaryValid == expandValid );
+            BOOST_TEST( count == static_cast<int>( expanded.size() ) );
+
+            StrNumSort( expanded, CASE_SENSITIVITY::SENSITIVE );
+            BOOST_TEST( smallest == expanded.front() );
+        }
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( StackedPinNotation_SummarizeNeverExpandsRanges )
+{
+    // This runs on the repaint path, so a range spanning the whole int must cost the same as a
+    // single pad; expanding it would exhaust memory
+    wxString smallest;
+    int      count = 0;
+
+    BOOST_TEST( SummarizeStackedPinNotation( wxS( "[0-2000000000]" ), &smallest, &count ) );
+    BOOST_TEST( smallest == wxString( "0" ) );
+    BOOST_TEST( count == 2000000001 );
+}
+
 BOOST_AUTO_TEST_SUITE_END()
