@@ -65,6 +65,9 @@ DIALOG_DESTINATION::DIALOG_DESTINATION( wxWindow* aParent, JOBSET* aJobsFile,
     m_buttonOutputPath->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
     m_buttonDeselectAll->Connect( wxEVT_COMMAND_BUTTON_CLICKED,
+                                  wxCommandEventHandler( DIALOG_DESTINATION::onSelectAllClicked ),
+                                  NULL, this );
+    m_buttonDeselectAll->Connect( wxEVT_COMMAND_BUTTON_CLICKED,
                                   wxCommandEventHandler( DIALOG_DESTINATION::onDeselectAllClicked ),
                                   NULL, this );
 
@@ -130,6 +133,15 @@ void DIALOG_DESTINATION::onOutputPathBrowseClicked(wxCommandEvent& event)
 
 }
 
+void DIALOG_DESTINATION::onSelectAllClicked(wxCommandEvent& event)
+{
+    for( size_t idx = 0; idx < m_includeJobs->GetCount(); ++idx )
+    {
+        m_includeJobs->Check( idx, false );
+    }
+
+    event.Skip();
+}
 
 void DIALOG_DESTINATION::onDeselectAllClicked(wxCommandEvent& event)
 {
