@@ -149,6 +149,7 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
     registerHandler<AddToSelection, SelectionResponse>( &API_HANDLER_SCH::handleAddToSelection );
     registerHandler<RemoveFromSelection, SelectionResponse>(
             &API_HANDLER_SCH::handleRemoveFromSelection );
+    registerHandler<FocusItem, Empty>( &API_HANDLER_SCH::handleFocusItem );
 
     registerHandler<RunSchematicJobExportSvg, types::RunJobResponse>(
             &API_HANDLER_SCH::handleRunSchematicJobExportSvg );
@@ -908,6 +909,41 @@ API_HANDLER_SCH::handleRemoveFromSelection( const HANDLER_CONTEXT<RemoveFromSele
     }
 
     return response;
+}
+
+
+HANDLER_RESULT<Empty>
+API_HANDLER_SCH::handleFocusItem( const HANDLER_CONTEXT<kiapi::schematic::commands::FocusItem>& aCtx )
+{
+    if( std::optional<ApiResponseStatus> headless = checkForHeadless( "FocusItem" ) )
+        return tl::unexpected( *headless );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
+
+    if( !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    SCH_SHEET_PATH path;
+    std::optional<SCH_ITEM*> item = getItemById( KIID( aCtx.Request.id().value() ), &path );
+
+    if( !item )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "the item {} is not in the schematic",
+                                          aCtx.Request.id().value() ) );
+        return tl::unexpected( e );
+    }
+
+    if( m_context->GetCurrentSheet().value_or( SCH_SHEET_PATH() ) != path )
+        m_context->GetToolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet, &path );
+
+    m_frame->FocusOnItem( *item );
+
+    return Empty();
 }
 
 

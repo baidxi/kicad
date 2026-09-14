@@ -137,6 +137,8 @@ private:
     HANDLER_RESULT<commands::SelectionResponse>
     handleRemoveFromSelection( const HANDLER_CONTEXT<commands::RemoveFromSelection>& aCtx );
 
+    HANDLER_RESULT<Empty> handleFocusItem( const HANDLER_CONTEXT<commands::FocusItem>& aCtx );
+
     HANDLER_RESULT<types::RunJobResponse>
     handleRunSchematicJobExportSvg( const HANDLER_CONTEXT<kiapi::schematic::jobs::RunSchematicJobExportSvg>& aCtx );
 
