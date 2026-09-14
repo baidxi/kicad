@@ -107,9 +107,8 @@ private:
 
 /**
  * Visit the triangles that could collide with something inside @a aBox, through @a aIndex when
- * one exists and by scanning every polygon otherwise -- skipping an un-indexed triangulation
- * would silently lose collisions.  @a aVisitor is called as bool( const TRI* ); returning false
- * stops the walk.
+ * one exists, or by scanning every polygon otherwise.  @a aVisitor is called as 
+ * bool( const TRI* ); returning false stops the walk.
  *
  * Implementation detail of the AnyTriangleHit() overloads below; call those instead.
  *
@@ -166,7 +165,10 @@ inline bool AnyTriangleHit(
     // NOT BBox( aClearance ): SHAPE_COMPOUND::BBox() ignores its argument, and inflating
     // separately keeps near-miss triangles in the candidate set.
     BOX2I qbox = aShape->BBox();
-    qbox.Inflate( aClearance );
+    if( aClearance > 0 )
+    {
+        qbox.Inflate( aClearance );
+    }
 
     if( !aActual && !aLocation )
     {
@@ -193,7 +195,7 @@ inline bool AnyTriangleHit(
                     location = triLocation;
                 }
 
-                return true;   // a minimum needs every candidate
+                return true;   // Finding a minimum needs every candidate
             } );
 
     if( actual == std::numeric_limits<int>::max() )
