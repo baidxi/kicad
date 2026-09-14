@@ -257,6 +257,8 @@ bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool 
     int successCount = 0;
 
     wxSetEnv( OUTPUT_TMP_PATH_VAR_NAME, tempDirPath );
+    wxString outputDirPath = aDestination.GetFullPath();
+    wxSetEnv( DESTINATION_PATH_VAR_NAME, outputDirPath )
 
     for( const JOBSET_JOB& job : jobsForDestination )
     {
@@ -370,6 +372,7 @@ bool JOBS_RUNNER::RunJobsForDestination( JOBSET_DESTINATION* aDestination, bool 
     }
 
     wxUnsetEnv( OUTPUT_TMP_PATH_VAR_NAME );
+    wxUnsetEnv( DESTINATION_PATH_VAR_NAME );
 
     if( genOutputs )
     {

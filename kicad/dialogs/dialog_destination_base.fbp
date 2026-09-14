@@ -721,6 +721,7 @@
                     <property name="gripper">0</property>
                     <property name="hidden">0</property>
                     <property name="id">wxID_ANY</property>
+                    <property name="label">Select All</property>
                     <property name="label">Deselect All</property>
                     <property name="margins"></property>
                     <property name="markup">0</property>
@@ -731,6 +732,7 @@
                     <property name="minimize_button">0</property>
                     <property name="minimum_size"></property>
                     <property name="moveable">1</property>
+                    <property name="name">m_buttonSelectAll</property>
                     <property name="name">m_buttonDeselectAll</property>
                     <property name="pane_border">1</property>
                     <property name="pane_position"></property>

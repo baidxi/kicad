@@ -74,6 +74,8 @@ DIALOG_DESTINATION_BASE::DIALOG_DESTINATION_BASE( wxWindow* parent, wxWindowID i
 
 	bSizer3->Add( m_includeJobs, 1, wxEXPAND, 5 );
 
+	m_buttonSelectAll = new wxButton( this, wxID_ANY, _("Select All"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer3->Add( m_buttonSelectAll, 0, wxALL, 5 );
 	m_buttonDeselectAll = new wxButton( this, wxID_ANY, _("Deselect All"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer3->Add( m_buttonDeselectAll, 0, wxALL, 5 );
 
