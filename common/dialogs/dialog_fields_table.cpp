@@ -791,6 +791,7 @@ void DIALOG_FIELDS_TABLE::OnTableCellClick( wxGridEvent& event )
 
         getDataModel()->ExpandCollapseRow( event.GetRow() );
         m_grid->SetGridCursor( event.GetRow(), event.GetCol() );
+        m_grid->SelectRow( event.GetRow() );
     }
     else
     {
@@ -1007,6 +1008,13 @@ void DIALOG_FIELDS_TABLE::OnRemoveField( wxCommandEvent& aEvent )
                     getDataModel()->RemoveColumn( col );
 
                 m_viewControlsDataModel->DeleteRow( row );
+
+                for( auto& [name, preset] : m_bomPresets )
+                    std::erase_if( preset.fieldsOrdered,
+                                   [&]( BOM_FIELD const& f )
+                                   {
+                                       return f.name == fieldName;
+                                   } );
 
                 syncBomPresetSelection();
                 OnModify();
