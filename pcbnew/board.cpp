@@ -2737,7 +2737,7 @@ BOX2I BOARD::ComputeBoundingBox( bool aBoardEdgesOnly, bool aPhysicalLayersOnly 
     // Check shapes, dimensions, texts, and fiducials
     for( BOARD_ITEM* item : m_drawings )
     {
-        if( aBoardEdgesOnly && ( item->GetLayer() != Edge_Cuts || item->Type() != PCB_SHAPE_T ) )
+        if( aBoardEdgesOnly && ( item->Type() != PCB_SHAPE_T || item->GetLayer() != Edge_Cuts ) )
             continue;
 
         if( ( item->GetLayerSet() & visible ).any() )
