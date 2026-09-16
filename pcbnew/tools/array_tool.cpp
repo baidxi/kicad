@@ -284,6 +284,7 @@ void ARRAY_TOOL::onDialogClosed( wxCloseEvent& aEvent )
                     case PCB_FOOTPRINT_T:
                     case PCB_SHAPE_T:
                     case PCB_BARCODE_T:
+                    case PCB_GRID_ITEM_T:
                     case PCB_REFERENCE_IMAGE_T:
                     case PCB_TEXT_T:
                     case PCB_TEXTBOX_T:
