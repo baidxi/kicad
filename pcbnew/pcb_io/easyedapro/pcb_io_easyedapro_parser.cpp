@@ -72,19 +72,6 @@ static const wxString MODEL_SIZE_KEY = wxS( "JLC_3D_Size" );
 
 static const int SHAPE_JOIN_DISTANCE = pcbIUScale.mmToIU( 1.5 );
 
-static void RegenerateFootprintUuids( FOOTPRINT* aFootprint )
-{
-    // FOOTPRINT::Clone() preserves its UUIDs.  Imported footprints are templates, so each
-    // placed instance and all of its children must receive new identities.
-    aFootprint->SetUuid( KIID() );
-    aFootprint->RunOnChildren(
-            []( BOARD_ITEM* aItem )
-            {
-                aItem->SetUuid( KIID() );
-            },
-            RECURSE_MODE::RECURSE );
-}
-
 
 double PCB_IO_EASYEDAPRO_PARSER::Convert( wxString aValue )
 {
@@ -1797,8 +1784,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
         }
 
         std::unique_ptr<FOOTPRINT>& footprintOrig = it->second;
-        std::unique_ptr<FOOTPRINT>  footprint( static_cast<FOOTPRINT*>( footprintOrig->Clone() ) );
-        RegenerateFootprintUuids( footprint.get() );
+        std::unique_ptr<FOOTPRINT>  footprint( static_cast<FOOTPRINT*>( footprintOrig->Duplicate( false ) ) );
 
         wxString modelUuid, modelTitle, modelTransform;
 
