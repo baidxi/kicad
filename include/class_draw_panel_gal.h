@@ -35,6 +35,7 @@
 #include <chrono>
 
 #include <gal/cursors.h>
+#include <eda_cursor_broadcaster.h>
 
 class BOARD;
 class EDA_DRAW_FRAME;
@@ -63,7 +64,7 @@ struct VC_SETTINGS;
 }
 
 
-class EDA_DRAW_PANEL_GAL : public wxScrolledCanvas
+class EDA_DRAW_PANEL_GAL : public wxScrolledCanvas, public EDA_CURSOR_OWNER
 {
 public:
     enum GAL_TYPE {
@@ -131,6 +132,36 @@ public:
      * @return The instance of GAL.
      */
     KIGFX::GAL* GetGAL() const { return m_gal; }
+
+    /**
+     * Set whether the mouse cursor is inside the drawing canvas.
+     *
+     * @param aCursorInCanvas is true if the cursor is inside the canvas.
+     */
+    void SetCursorInCanvas( bool aCursorInCanvas );
+
+    /**
+     * Check whether a leave at \a aLeavePos is a duplicate of the last enter, not a real exit.
+     *
+     * Some compositors send an extra leave right after a genuine enter, same position, no
+     * real movement in between. A real leave always has elapsed time or a moved position.
+     *
+     * @param aLeavePos is the leave event's position, in client coordinates.
+     * @return true if the leave should be ignored.
+     */
+    bool IsSuspiciousLeaveAfterEnter( const wxPoint& aLeavePos ) const;
+
+    /**
+     * Hide the cursor in every other live #EDA_DRAW_PANEL_GAL in this process.
+     *
+     * Called on a genuine enter, since the pointer can only be in one canvas: fixes any
+     * other canvas whose leave was never delivered (e.g. covered by another window).
+     */
+    void NotifyOtherCanvasesCursorEntered();
+
+    // EDA_CURSOR_OWNER interface, used by #EDA_CURSOR_BROADCASTER.
+    bool IsCursorInCanvas() const override { return m_cursorInCanvas; }
+    void HideCursorInCanvas() override { SetCursorInCanvas( false ); }
 
     /**
      * Return a pointer to the #VIEW instance used in the panel.
@@ -325,6 +356,10 @@ protected:
     std::chrono::steady_clock::time_point m_lastRepaintEnd;   ///< Timestamp of the last repaint end
     wxTimer                               m_refreshTimer;     ///< Timer to prevent too-frequent refreshing
 
+    /// Time and position of the last enter, used by #IsSuspiciousLeaveAfterEnter.
+    std::chrono::steady_clock::time_point m_lastEnterTime;
+    wxPoint                               m_lastEnterPos;
+
     std::mutex               m_refreshMutex;     ///< Blocks multiple calls to the draw
 
     /// True if GAL is currently redrawing the view
@@ -338,6 +373,9 @@ protected:
 
     /// Last cursor position sent to GAL for drawing
     VECTOR2D                 m_lastCursorPosition;
+
+    /// True while the mouse cursor is inside the drawing canvas
+    bool                     m_cursorInCanvas;
 
     /// Interface for drawing objects on a 2D-surface
     KIGFX::GAL*              m_gal;

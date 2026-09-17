@@ -74,6 +74,7 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
         m_drawing( false ),
         m_drawingEnabled( false ),
         m_needIdleRefresh( false ),
+        m_cursorInCanvas( false ),
         m_gal( nullptr ),
         m_view( nullptr ),
         m_painter( nullptr ),
@@ -161,11 +162,14 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
              nullptr, this );
 
     Connect( wxEVT_SHOW, wxShowEventHandler( EDA_DRAW_PANEL_GAL::onShowEvent ), nullptr, this );
+
+    EDA_CURSOR_BROADCASTER::Instance().Register( this );
 }
 
 
 EDA_DRAW_PANEL_GAL::~EDA_DRAW_PANEL_GAL()
 {
+    EDA_CURSOR_BROADCASTER::Instance().Unregister( this );
     m_touchpadGestureHandler.reset();
 
     // Ensure EDA_DRAW_PANEL_GAL::onShowEvent is not fired during Dtor process
@@ -186,6 +190,48 @@ void EDA_DRAW_PANEL_GAL::SetFocus()
     KIPLATFORM::UI::ImeNotifyCancelComposition( this );
     wxScrolledCanvas::SetFocus();
     m_lostFocus = false;
+}
+
+
+void EDA_DRAW_PANEL_GAL::SetCursorInCanvas( bool aCursorInCanvas )
+{
+    if( m_cursorInCanvas == aCursorInCanvas )
+        return;
+
+    m_cursorInCanvas = aCursorInCanvas;
+
+    if( m_gal )
+        m_gal->SetCursorInCanvas( m_cursorInCanvas );
+
+    ForceRefresh();
+}
+
+
+bool EDA_DRAW_PANEL_GAL::IsSuspiciousLeaveAfterEnter( const wxPoint& aLeavePos ) const
+{
+    static constexpr long long SPURIOUS_LEAVE_WINDOW_MS = 100;
+    static constexpr int       SPURIOUS_LEAVE_RADIUS_SQ = 5 * 5;
+
+    if( m_lastEnterTime == std::chrono::steady_clock::time_point() )
+        return false;
+
+    long long elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::steady_clock::now() - m_lastEnterTime )
+                                  .count();
+
+    if( elapsedMs > SPURIOUS_LEAVE_WINDOW_MS )
+        return false;
+
+    int dx = aLeavePos.x - m_lastEnterPos.x;
+    int dy = aLeavePos.y - m_lastEnterPos.y;
+
+    return ( dx * dx + dy * dy ) <= SPURIOUS_LEAVE_RADIUS_SQ;
+}
+
+
+void EDA_DRAW_PANEL_GAL::NotifyOtherCanvasesCursorEntered()
+{
+    EDA_CURSOR_BROADCASTER::Instance().NotifyCursorEntered( this );
 }
 
 
@@ -715,6 +761,7 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
 
     delete m_gal;
     m_gal = new_gal;
+    m_gal->SetCursorInCanvas( m_cursorInCanvas );
 
     wxSize clientSize = GetClientSize();
     clientSize.x = std::max( 10, clientSize.x );
@@ -801,6 +848,14 @@ void EDA_DRAW_PANEL_GAL::OnEvent( wxEvent& aEvent )
 
 void EDA_DRAW_PANEL_GAL::onEnter( wxMouseEvent& aEvent )
 {
+#if !defined __WXMSW__
+    m_lastEnterTime = std::chrono::steady_clock::now();
+    m_lastEnterPos = aEvent.GetPosition();
+
+    SetCursorInCanvas( true );
+    NotifyOtherCanvasesCursorEntered();
+#endif
+
     bool shouldSetFocus = m_stealsFocus
                           && !KIUI::IsInputControlFocused()                // Don't steal from input controls
                           && !KIUI::IsModalDialogFocused()                 // Don't steal from dialogs
@@ -850,6 +905,10 @@ void EDA_DRAW_PANEL_GAL::onRefreshTimer( wxTimerEvent& aEvent )
 
 void EDA_DRAW_PANEL_GAL::onShowEvent( wxShowEvent& aEvent )
 {
+    // A hidden canvas gets no leave event.  Only an enter event sets the state again.
+    if( !IsShownOnScreen() )
+        SetCursorInCanvas( false );
+
     if( m_gal && m_gal->IsInitialized() && m_gal->IsVisible() )
     {
         OnShow();

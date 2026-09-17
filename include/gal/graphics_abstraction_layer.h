@@ -1086,13 +1086,23 @@ public:
     }
 
     /**
+     * Set whether the cursor is inside the drawing canvas.
+     *
+     * @param aCursorInCanvas is true if the cursor is inside the canvas.
+     */
+    inline void SetCursorInCanvas( bool aCursorInCanvas )
+    {
+        m_cursorInCanvas = aCursorInCanvas;
+    }
+
+    /**
      * Return information about cursor visibility.
      *
      * @return True if cursor is visible.
      */
     bool IsCursorEnabled() const
     {
-        return m_isCursorEnabled || m_forceDisplayCursor;
+        return m_cursorInCanvas && ( m_isCursorEnabled || m_forceDisplayCursor );
     }
 
     /**
@@ -1272,6 +1282,7 @@ protected:
     // Cursor settings
     bool                 m_isCursorEnabled;    ///< Is the cursor enabled?
     bool                 m_forceDisplayCursor; ///< Always show cursor
+    bool                 m_cursorInCanvas;     ///< Is the cursor inside the drawing canvas?
     COLOR4D              m_cursorColor;        ///< Cursor color
     KIGFX::CROSS_HAIR_MODE m_crossHairMode;    ///< Crosshair drawing mode
     VECTOR2D             m_cursorPosition;     ///< Current cursor position (world coordinates)
