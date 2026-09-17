@@ -278,7 +278,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
             if( !sourcePcbs.empty() )
             {
-                const bool hasMultipleBoards = sourcePcbs.size() > 1;
+                const bool         hasMultipleBoards = sourcePcbs.size() > 1;
                 std::set<wxString> usedBoardNames;
 
                 for( const auto& [pcbId, sourceName] : sourcePcbs )

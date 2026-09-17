@@ -106,12 +106,9 @@ nlohmann::json PCB_IO_EASYEDAPRO_PARSER::NormalizeSafeSpacing( const nlohmann::j
         if( !aTable.at( sourceRow ).is_array() )
             continue;
 
-        for( size_t sourceCol = 0; sourceCol < aTable.at( sourceRow ).size()
-                                   && sourceCol < aTable.size();
-             ++sourceCol )
+        for( size_t sourceCol = 0; sourceCol < aTable.at( sourceRow ).size() && sourceCol < aTable.size(); ++sourceCol )
         {
-            normalized[legacyToV3[sourceRow]][legacyToV3[sourceCol]] =
-                    aTable.at( sourceRow ).at( sourceCol );
+            normalized[legacyToV3[sourceRow]][legacyToV3[sourceCol]] = aTable.at( sourceRow ).at( sourceCol );
         }
     }
 
@@ -1042,7 +1039,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
     m_safeSpacing = nlohmann::json();
 
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
-    auto zoneClearance = [&]() -> int
+    auto                   zoneClearance = [&]() -> int
     {
         if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7 && m_safeSpacing.at( 7 ).is_array()
             && !m_safeSpacing.at( 7 ).empty() && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
@@ -1071,8 +1068,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
             && line.at( 3 ).get<int>() != 2 && line.at( 4 ).is_array() && line.at( 4 ).size() > 1
             && line.at( 4 ).at( 1 ).is_array() )
         {
-            safeSpacingProfiles[line.at( 2 ).get<wxString>()] =
-                    NormalizeSafeSpacing( line.at( 4 ).at( 1 ) );
+            safeSpacingProfiles[line.at( 2 ).get<wxString>()] = NormalizeSafeSpacing( line.at( 4 ).at( 1 ) );
         }
         else if( type == wxS( "RULE_SELECTOR" ) && line.size() > 3 && line.at( 1 ).is_array() && line.at( 1 ).size() > 1
                  && line.at( 1 ).at( 0 ).is_string() && line.at( 1 ).at( 0 ).get<wxString>() == wxS( "POUR" )
@@ -1390,8 +1386,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
                         && profile->second.at( 7 ).is_array() && !profile->second.at( 7 ).empty()
                         && profile->second.at( 7 ).at( 0 ).is_number() )
                     {
-                        const int profileClearance =
-                                ScaleSize( profile->second.at( 7 ).at( 0 ).get<double>() );
+                        const int profileClearance = ScaleSize( profile->second.at( 7 ).at( 0 ).get<double>() );
 
                         if( profileClearance > 0 )
                             localClearance = profileClearance;

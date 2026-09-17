@@ -941,8 +941,7 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
         if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7 && m_safeSpacing.at( 7 ).is_array()
             && !m_safeSpacing.at( 7 ).empty() && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
         {
-            const int clearance =
-                    PCB_IO_EASYEDAPRO_PARSER::ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+            const int clearance = PCB_IO_EASYEDAPRO_PARSER::ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
 
             if( clearance > 0 )
                 return clearance;
