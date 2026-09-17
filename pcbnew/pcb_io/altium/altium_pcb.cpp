@@ -3350,7 +3350,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToBoardItem( const AREGION6& aElem, co
                 wxString msg;
                 msg.Printf( _( "Dashed outline found on an Altium layer (%d) with no KiCad equivalent. "
                                "It has been moved to KiCad layer Eco1_User." ), aElem.layer );
-                m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                m_reporter->Report( msg, RPT_SEVERITY_INFO );
             }
 
             klayer = Eco1_User;
@@ -3391,7 +3391,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToBoardItem( const AREGION6& aElem, co
         {
             wxString msg;
             msg.Printf( _( "Ignored polygon shape of kind %d (not yet supported)." ), aElem.kind );
-            m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+            m_reporter->Report( msg, RPT_SEVERITY_WARNING );
         }
     }
 }
@@ -3471,7 +3471,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
                               m_library,
                               m_footprintName,
                               aElem.layer );
-                    m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                    m_reporter->Report( msg, RPT_SEVERITY_INFO );
                 }
             }
             else
@@ -3482,7 +3482,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
                     msg.Printf( _( "Footprint %s contains a dashed outline on Altium layer (%d) with "
                                    "no KiCad equivalent. It has been moved to KiCad layer Eco1_User." ),
                                 buildFootprintName( aFootprint ), aElem.layer );
-                    m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                    m_reporter->Report( msg, RPT_SEVERITY_INFO );
                 }
             }
 
@@ -3536,7 +3536,7 @@ void ALTIUM_PCB::ConvertShapeBasedRegions6ToFootprintItem( FOOTPRINT*      aFoot
                 wxString msg;
                 msg.Printf( _( "Footprint %s contains polygon shape of kind %d (not yet supported)." ),
                             buildFootprintName( aFootprint ), aElem.kind );
-                m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                m_reporter->Report( msg, RPT_SEVERITY_WARNING );
             }
         }
     }
@@ -4250,7 +4250,7 @@ void ALTIUM_PCB::ConvertPads6ToFootprintItemOnCopper( FOOTPRINT* aFootprint, con
                     wxString msg;
                     msg.Printf( _( "Footprint %s pad %s is not marked as multilayer, but is a TH pad." ),
                                 buildFootprintName( aFootprint ), aElem.name );
-                    m_reporter->Report( msg, RPT_SEVERITY_ERROR );
+                    m_reporter->Report( msg, RPT_SEVERITY_INFO );
                 }
             }
         }
