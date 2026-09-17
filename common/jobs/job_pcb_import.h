@@ -65,6 +65,8 @@ public:
     bool m_probeOnly = false;
     /// EasyEDA Pro PCB document identifier selected by project-level import.
     wxString m_importPcbId;
+    /// Avoid promoting an individual board's source settings into shared project settings.
+    bool m_isPartOfMultiBoardProject = false;
 };
 
 #endif

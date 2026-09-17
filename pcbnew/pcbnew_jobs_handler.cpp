@@ -3518,7 +3518,7 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             m_reporter->Report( wxString::Format( _( "Failed to load board: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
         }
-        board->SetProject( projectPtr );
+        board->SetProject( projectPtr, job->m_isPartOfMultiBoardProject );
 
 
 

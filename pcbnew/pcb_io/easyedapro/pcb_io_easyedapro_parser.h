@@ -69,6 +69,9 @@ public:
 
     static double Convert( wxString aValue );
 
+    /// Map legacy eight- and ten-row safe-spacing matrices to the v3 category layout.
+    static nlohmann::json NormalizeSafeSpacing( const nlohmann::json& aTable );
+
     std::unique_ptr<FOOTPRINT> ParseFootprint( const nlohmann::json& aProject, const wxString& aFpUuid,
                                                const std::vector<nlohmann::json>& aLines );
 

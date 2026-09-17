@@ -929,7 +929,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
 
         if( safeSpacing.is_array() && !safeSpacing.empty() )
         {
-            m_safeSpacing = safeSpacing[0].value( "content", nlohmann::json::array() );
+            m_safeSpacing = PCB_IO_EASYEDAPRO_PARSER::NormalizeSafeSpacing(
+                    safeSpacing[0].value( "content", nlohmann::json::array() ) );
             break;
         }
     }
@@ -940,11 +941,16 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
         if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7 && m_safeSpacing.at( 7 ).is_array()
             && !m_safeSpacing.at( 7 ).empty() && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
         {
-            return PCB_IO_EASYEDAPRO_PARSER::ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+            const int clearance =
+                    PCB_IO_EASYEDAPRO_PARSER::ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+
+            if( clearance > 0 )
+                return clearance;
         }
 
         return bds.m_MinClearance;
     };
+    const int zoneMinThickness = bds.GetDefaultZoneSettings().m_ZoneMinThickness;
 
 
     for( const V3_ROW& row : aDoc.rows )
@@ -1028,7 +1034,8 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
 
                 if( safeSpacing.is_array() && !safeSpacing.empty() )
                 {
-                    nlohmann::json content = safeSpacing[0].value( "content", nlohmann::json::array() );
+                    nlohmann::json content = PCB_IO_EASYEDAPRO_PARSER::NormalizeSafeSpacing(
+                            safeSpacing[0].value( "content", nlohmann::json::array() ) );
 
                     if( m_safeSpacing.is_null() )
                         m_safeSpacing = content;
@@ -1217,7 +1224,7 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
             zone->SetNeedRefill( false );
 
             zone->SetLocalClearance( zoneClearance() );
-            zone->SetMinThickness( zoneClearance() );
+            zone->SetMinThickness( zoneMinThickness );
 
             aBoard->Add( zone.release(), ADD_MODE::APPEND );
         }
@@ -1237,7 +1244,7 @@ void PCB_IO_EASYEDAPRO_V3_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::jso
             zone->SetLayer( klayer );
             zone->SetAssignedPriority( 500 - fillOrder );
             zone->SetLocalClearance( zoneClearance() );
-            zone->SetMinThickness( zoneClearance() );
+            zone->SetMinThickness( zoneMinThickness );
 
             for( nlohmann::json& polyData : polyDataList )
             {

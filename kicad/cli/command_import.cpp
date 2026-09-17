@@ -278,31 +278,36 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
             if( !sourcePcbs.empty() )
             {
+                const bool hasMultipleBoards = sourcePcbs.size() > 1;
                 std::set<wxString> usedBoardNames;
 
                 for( const auto& [pcbId, sourceName] : sourcePcbs )
                 {
-                    wxString boardName = sourceName;
+                    wxFileName outputFn = boardFn;
 
-                    boardName = EscapeString( boardName, CTX_FILENAME );
-
-                    if( boardName.empty() )
-                        boardName = pcbId;
-
-                    wxString uniqueBoardName = boardName;
-                    unsigned duplicate = 2;
-
-                    while( !usedBoardNames.insert( uniqueBoardName ).second )
+                    if( hasMultipleBoards )
                     {
-                        uniqueBoardName = wxString::Format( wxS( "%s-%u" ), boardName, duplicate );
-                        ++duplicate;
-                    }
+                        wxString boardName = EscapeString( sourceName, CTX_FILENAME );
 
-                    wxFileName outputFn( dir, uniqueBoardName, FILEEXT::KiCadPcbFileExtension );
+                        if( boardName.empty() )
+                            boardName = pcbId;
+
+                        wxString uniqueBoardName = boardName;
+                        unsigned duplicate = 2;
+
+                        while( !usedBoardNames.insert( uniqueBoardName ).second )
+                        {
+                            uniqueBoardName = wxString::Format( wxS( "%s-%u" ), boardName, duplicate );
+                            ++duplicate;
+                        }
+
+                        outputFn.SetName( uniqueBoardName );
+                    }
 
                     std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
                     pcbJob->m_inputFile = input;
                     pcbJob->m_importPcbId = pcbId;
+                    pcbJob->m_isPartOfMultiBoardProject = hasMultipleBoards;
                     pcbJob->SetConfiguredOutputPath( outputFn.GetFullPath() );
 
                     int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );

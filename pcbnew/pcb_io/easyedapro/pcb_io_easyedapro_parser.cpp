@@ -84,6 +84,41 @@ double PCB_IO_EASYEDAPRO_PARSER::Convert( wxString aValue )
 }
 
 
+nlohmann::json PCB_IO_EASYEDAPRO_PARSER::NormalizeSafeSpacing( const nlohmann::json& aTable )
+{
+    if( !aTable.is_array() || ( aTable.size() != 8 && aTable.size() != 10 ) )
+        return aTable;
+
+    // Eight-row tables omit Copper / Plane Zone and finish with Board Outline.  Ten-row
+    // tables add Copper / Plane Zone and Hole.  Both predate v3's inserted Slot, Line,
+    // and Text / Image rows.
+    static constexpr size_t legacy8ToV3[] = { 0, 1, 2, 3, 4, 5, 6, 11 };
+    static constexpr size_t legacy10ToV3[] = { 0, 1, 2, 3, 4, 5, 6, 7, 11, 12 };
+    const size_t*           legacyToV3 = aTable.size() == 8 ? legacy8ToV3 : legacy10ToV3;
+
+    nlohmann::json normalized = nlohmann::json::array();
+
+    for( size_t i = 0; i < 13; ++i )
+        normalized.push_back( nlohmann::json::array() );
+
+    for( size_t sourceRow = 0; sourceRow < aTable.size(); ++sourceRow )
+    {
+        if( !aTable.at( sourceRow ).is_array() )
+            continue;
+
+        for( size_t sourceCol = 0; sourceCol < aTable.at( sourceRow ).size()
+                                   && sourceCol < aTable.size();
+             ++sourceCol )
+        {
+            normalized[legacyToV3[sourceRow]][legacyToV3[sourceCol]] =
+                    aTable.at( sourceRow ).at( sourceCol );
+        }
+    }
+
+    return normalized;
+}
+
+
 PCB_IO_EASYEDAPRO_PARSER::PCB_IO_EASYEDAPRO_PARSER( BOARD* aBoard, PROGRESS_REPORTER* aProgressReporter )
 {
     m_board = aBoard;
@@ -1007,16 +1042,20 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
     m_safeSpacing = nlohmann::json();
 
     BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
-    auto                   zoneClearance = [&]() -> int
+    auto zoneClearance = [&]() -> int
     {
         if( m_safeSpacing.is_array() && m_safeSpacing.size() > 7 && m_safeSpacing.at( 7 ).is_array()
             && !m_safeSpacing.at( 7 ).empty() && m_safeSpacing.at( 7 ).at( 0 ).is_number() )
         {
-            return ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+            const int clearance = ScaleSize( m_safeSpacing.at( 7 ).at( 0 ).get<double>() );
+
+            if( clearance > 0 )
+                return clearance;
         }
 
         return bds.m_MinClearance;
     };
+    const int zoneMinThickness = bds.GetDefaultZoneSettings().m_ZoneMinThickness;
 
     std::map<wxString, nlohmann::json> safeSpacingProfiles;
     std::map<wxString, wxString>       pourSafeSpacingProfiles;
@@ -1032,7 +1071,8 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
             && line.at( 3 ).get<int>() != 2 && line.at( 4 ).is_array() && line.at( 4 ).size() > 1
             && line.at( 4 ).at( 1 ).is_array() )
         {
-            safeSpacingProfiles[line.at( 2 ).get<wxString>()] = line.at( 4 ).at( 1 );
+            safeSpacingProfiles[line.at( 2 ).get<wxString>()] =
+                    NormalizeSafeSpacing( line.at( 4 ).at( 1 ) );
         }
         else if( type == wxS( "RULE_SELECTOR" ) && line.size() > 3 && line.at( 1 ).is_array() && line.at( 1 ).size() > 1
                  && line.at( 1 ).at( 0 ).is_string() && line.at( 1 ).at( 0 ).get<wxString>() == wxS( "POUR" )
@@ -1118,35 +1158,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
 
                 if( table.is_array() )
                 {
-                    m_safeSpacing = table;
-
-                    // Legacy Pro stores a ten-row matrix.  Its final two rows are Board Outline
-                    // and Hole, whereas v3 inserts Slot, Line, and Text/Image before them.  Map
-                    // both matrix axes so its lower-triangular entries retain their source labels.
-                    if( table.size() == 10 )
-                    {
-                        static constexpr size_t legacyToV3[] = { 0, 1, 2, 3, 4, 5, 6, 7, 11, 12 };
-                        nlohmann::json          normalized = nlohmann::json::array();
-
-                        for( size_t i = 0; i < 13; ++i )
-                            normalized.push_back( nlohmann::json::array() );
-
-                        for( size_t sourceRow = 0; sourceRow < table.size(); ++sourceRow )
-                        {
-                            if( !table.at( sourceRow ).is_array() )
-                                continue;
-
-                            for( size_t sourceCol = 0; sourceCol < table.at( sourceRow ).size()
-                                                       && sourceCol < sizeof( legacyToV3 ) / sizeof( legacyToV3[0] );
-                                 ++sourceCol )
-                            {
-                                normalized[legacyToV3[sourceRow]][legacyToV3[sourceCol]] =
-                                        table.at( sourceRow ).at( sourceCol );
-                            }
-                        }
-
-                        m_safeSpacing = std::move( normalized );
-                    }
+                    m_safeSpacing = NormalizeSafeSpacing( table );
                 }
 
                 // EasyEDA Pro labels this array "mm", but its values are always mils.  The
@@ -1332,7 +1344,7 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
                 zone->SetNeedRefill( false );
 
                 zone->SetLocalClearance( zoneClearance() );
-                zone->SetMinThickness( zoneClearance() );
+                zone->SetMinThickness( zoneMinThickness );
 
                 aBoard->Add( zone.release(), ADD_MODE::APPEND );
             }
@@ -1378,12 +1390,16 @@ void PCB_IO_EASYEDAPRO_PARSER::ParseBoard( BOARD* aBoard, const nlohmann::json& 
                         && profile->second.at( 7 ).is_array() && !profile->second.at( 7 ).empty()
                         && profile->second.at( 7 ).at( 0 ).is_number() )
                     {
-                        localClearance = ScaleSize( profile->second.at( 7 ).at( 0 ).get<double>() );
+                        const int profileClearance =
+                                ScaleSize( profile->second.at( 7 ).at( 0 ).get<double>() );
+
+                        if( profileClearance > 0 )
+                            localClearance = profileClearance;
                     }
                 }
 
                 zone->SetLocalClearance( localClearance );
-                zone->SetMinThickness( localClearance );
+                zone->SetMinThickness( zoneMinThickness );
 
                 for( nlohmann::json& polyData : polyDataList )
                 {
