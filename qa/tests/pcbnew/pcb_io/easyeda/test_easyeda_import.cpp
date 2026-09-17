@@ -125,6 +125,24 @@ BOOST_AUTO_TEST_CASE( CopperAreaFillHolesPreserved )
 }
 
 
+BOOST_AUTO_TEST_CASE( DegenerateSolidRegionIsDiscarded )
+{
+    BOARD                 board;
+    FOOTPRINT             footprint( &board );
+    PCB_IO_EASYEDA_PARSER parser( nullptr );
+
+    wxArrayString shapes;
+    shapes.Add( wxS( "SOLIDREGION~3~~M 0 0 L 0 10 M 0 0 L 10 0 L 0 10 Z~solid~gge1" ) );
+
+    std::map<wxString, std::unique_ptr<FOOTPRINT>> footprintMap;
+    std::map<wxString, wxString>                   paramMap;
+
+    parser.ParseToBoardItemContainer( &footprint, &board, paramMap, footprintMap, shapes );
+
+    BOOST_CHECK( footprint.GraphicalItems().empty() );
+}
+
+
 BOOST_AUTO_TEST_CASE( BoardLoadImportsDefaultClearance )
 {
     wxString dataPath = wxString::FromUTF8( KI_TEST::GetPcbnewTestDataDir()
