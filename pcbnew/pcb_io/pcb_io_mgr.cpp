@@ -287,6 +287,8 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
 
     report( wxString::Format( _( "Loading footprints..." ) ), RPT_SEVERITY_ACTION );
 
+    int convertedCount = 0;
+
     try
     {
         bool bestEfforts = false; // throw on first error
@@ -308,6 +310,7 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
                 }
 
                 kicadPI->FootprintSave( aNewFilePath, fp.get(), &props );
+                convertedCount++;
             }
             catch( const IO_ERROR& io_err )
             {
@@ -336,7 +339,7 @@ bool PCB_IO_MGR::ConvertLibrary( const std::map<std::string, UTF8>& aOldFileProp
         return false;
     }
 
-    return true;
+    return convertedCount > 0;
 }
 
 
