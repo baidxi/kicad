@@ -48,6 +48,8 @@ set( QA_EESCHEMA_SRCS
 
     # Base internal units (1=100nm) testing.
     test_connectivity_export.cpp
+    test_connectivity_engine.cpp
+    test_connectivity_publish.cpp
     test_sch_biu.cpp
     test_diff_canvas_context.cpp
     test_mathplot_layers.cpp
@@ -80,13 +82,25 @@ set( QA_EESCHEMA_SRCS
     erc/test_erc_label_names.cpp
 	erc/test_erc_global_labels.cpp
 	erc/test_erc_no_connect.cpp
+    erc/test_erc_unconnected_pins.cpp
+    erc/test_erc_label_connectivity.cpp
+    erc/test_erc_connectivity_refresh.cpp
+    erc/test_erc_hierarchy_connectivity.cpp
     erc/test_erc_hierarchical_schematics.cpp
     erc/test_erc_label_multiple_wires.cpp
     erc/test_erc_marker_counts.cpp
     erc/test_erc_shared_pin_multiunit.cpp
     erc/test_erc_unconnected_wire_endpoints.cpp
+    erc/test_erc_bus_conflicts.cpp
     erc/test_erc_wire_bus_entry.cpp
     erc/test_erc_ground_pins.cpp
+    erc/test_erc_netclasses.cpp
+    erc/test_erc_field_names.cpp
+    erc/test_erc_footprint_paths.cpp
+    erc/test_erc_pin_map_capture.cpp
+    erc/test_erc_off_grid.cpp
+    erc/test_erc_pin_syntax.cpp
+    erc/test_erc_implicit_power.cpp
     erc/test_erc_bus_member_label_local_pins.cpp
     erc/test_erc_marker_deduplication.cpp
     erc/test_erc_net_chain_pin_to_pin.cpp
@@ -103,9 +117,20 @@ set( QA_EESCHEMA_SRCS
     test_issue24314_power_flag_designators.cpp
     test_annotation_units_integration.cpp
     test_connectivity_algo.cpp
+    test_connectivity_bus.cpp
+    test_connectivity_facade.cpp
+    test_connectivity_navigation.cpp
     test_connectivity_pin_name.cpp
+    test_connectivity_claims.cpp
+    test_connectivity_dump.cpp
+    test_connectivity_facts.cpp
+    test_connectivity_text.cpp
+    test_connectivity_reference.cpp
+    test_connectivity_loader.cpp
+    test_connectivity_revision.cpp
     test_bus_migration_gate.cpp
     test_bus_migration_precondition.cpp
+    test_issue15792_bus_breakout_hierarchy.cpp
     test_issue18119_bus_hierarchy.cpp
     test_issue18299_bus_member_rename.cpp
     test_issue23840_bus_group_to_vector.cpp

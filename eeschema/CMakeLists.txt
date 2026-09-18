@@ -421,10 +421,33 @@ set( EESCHEMA_SRCS
     bom_plugins.cpp
     bus-wire-junction.cpp
     connection_graph.cpp
+    connectivity/conn_bus.cpp
+    connectivity/conn_bindings.cpp
+    connectivity/conn_facade.cpp
     connectivity/conn_netchain_manager.cpp
+    connectivity/conn_engine.cpp
+    connectivity/conn_engine_erc.cpp
+    connectivity/conn_preview.cpp
+    connectivity/conn_signals.cpp
+    connectivity/conn_publish.cpp
+    connectivity/conn_rows.cpp
+    connectivity/conn_indexes.cpp
+    connectivity/conn_auxiliary.cpp
+    connectivity/conn_text.cpp
+    connectivity/conn_keys.cpp
+    connectivity/conn_claims.cpp
+    connectivity/conn_records.cpp
+    connectivity/conn_partition.cpp
+    connectivity/conn_components.cpp
+    connectivity/conn_summary.cpp
     connectivity/conn_navigation.cpp
     connectivity/conn_presentation.cpp
     connectivity/conn_pin_name.cpp
+    connectivity/conn_dump.cpp
+    connectivity/conn_facts.cpp
+    connectivity/conn_frame.cpp
+    connectivity/conn_inputs.cpp
+    connectivity/conn_islands.cpp
     cross-probing.cpp
     sch_design_block_utils.cpp
     eeschema_config.cpp

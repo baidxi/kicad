@@ -56,6 +56,7 @@ class PICKED_ITEMS_LIST;
 
 namespace SCH_CONNECTIVITY
 {
+class FACADE;
 class NETCHAIN_MANAGER;
 }
 
@@ -312,6 +313,7 @@ public:
 
     SCH_SCREEN* GetCurrentScreen() const { return CurrentSheet().LastScreen(); }
 
+    SCH_CONNECTIVITY::FACADE& Connectivity() const { return *m_connectivity; }
     SCH_CONNECTIVITY::NETCHAIN_MANAGER& NetChains() const { return *m_netChains; }
 
     CONNECTION_GRAPH* ConnectionGraph() const
@@ -340,6 +342,9 @@ public:
     void AddBusAlias( std::shared_ptr<BUS_ALIAS> aAlias );
 
     void SetBusAliases( const std::vector<std::shared_ptr<BUS_ALIAS>>& aAliases );
+
+    // An explicit project table, including an empty one, supersedes legacy sheet definitions.
+    bool HasProjectBusAliases() const;
 
     const std::vector<std::shared_ptr<BUS_ALIAS>>& GetAllBusAliases() const
     {
@@ -542,11 +547,11 @@ public:
      */
     void CleanUp( SCH_COMMIT* aCommit, SCH_SCREEN* aScreen = nullptr );
 
-    /** Prepare source geometry and intersheet references before rebuilding connectivity. */
+    // Prepare source geometry and intersheet references before rebuilding connectivity.
     void CleanUpConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS aCleanupFlags,
                              const std::set<SCH_SCREEN*>& aLocalScreens = {} );
 
-    /** Fully rebuild connectivity without changing source geometry. */
+    // Fully rebuild the selected connectivity backend without changing source geometry.
     void RebuildConnectivity( std::function<void( SCH_ITEM* )>* aChangedItemHandler = nullptr,
                               PROGRESS_REPORTER* aProgressReporter = nullptr,
                               KIGFX::SCH_VIEW* aSchView = nullptr );
@@ -670,11 +675,6 @@ public:
      */
     void LoadVariants();
 
-    /**
-     * True if a SCHEMATIC exists, false if not
-     */
-    static bool m_IsSchematicExists;
-
 #if defined(DEBUG)
     void Show( int nestLevel, std::ostream& os ) const override {}
 #endif
@@ -738,6 +738,7 @@ private:
 
     /// Hold and calculate connectivity information of this schematic.
     CONNECTION_GRAPH* m_connectionGraph;
+    std::unique_ptr<SCH_CONNECTIVITY::FACADE> m_connectivity;
     std::unique_ptr<SCH_CONNECTIVITY::NETCHAIN_MANAGER> m_netChains;
 
     wxString m_highlightedNetChain;

@@ -571,9 +571,11 @@ bool SCH_PIN::IsDangling() const
 }
 
 
-void SCH_PIN::SetIsDangling( bool aIsDangling )
+bool SCH_PIN::SetIsDangling( bool aIsDangling )
 {
+    const bool changed = m_isDangling != aIsDangling;
     m_isDangling = aIsDangling;
+    return changed;
 }
 
 
@@ -612,18 +614,9 @@ bool SCH_PIN::Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) cons
         return true;
     }
 
-    SCH_CONNECTION* connection = nullptr;
     SCH_SHEET_PATH* sheetPath = reinterpret_cast<SCH_SHEET_PATH*>( aAuxData );
 
-    if( schSearchData.searchNetNames && sheetPath && ( connection = Connection( sheetPath ) ) )
-    {
-        wxString netName = connection->GetNetName();
-
-        if( EDA_ITEM::Matches( netName, aSearchData ) )
-            return true;
-    }
-
-    return false;
+    return schSearchData.searchNetNames && sheetPath && MatchesNetName( aSearchData, sheetPath );
 }
 
 

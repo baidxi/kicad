@@ -532,6 +532,17 @@ public:
     bool m_IncrementalConnectivity;
 
     /**
+     * Use the schematic connectivity engine instead of CONNECTION_GRAPH.
+     *
+     * See @ref schematic_connectivity.
+     *
+     * Setting name: "ConnectivityEngine"
+     * Valid values: 0 or 1
+     * Default value: 1
+     */
+    bool m_ConnectivityEngine;
+
+    /**
      * The number of milliseconds to wait in a click before showing a disambiguation menu.
      *
      * Setting name: "DisambiguationTime"

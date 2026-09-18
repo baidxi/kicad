@@ -676,6 +676,7 @@ public:
 
 
     std::vector<std::unique_ptr<SCH_PIN>>& GetRawPins() { return m_pins; }
+    const std::vector<std::unique_ptr<SCH_PIN>>& GetRawPins() const { return m_pins; }
 
     /**
      * Set the reference for the given sheet path for this symbol.
@@ -1077,11 +1078,17 @@ protected:
     void swapData( SCH_ITEM* aItem ) override;
 
 private:
+    // Copy construction must relink pins without invalidating the live source screen.
+    void updatePins();
+
     BOX2I doGetBoundingBox( bool aIncludePins, bool aIncludeFields ) const;
 
     bool doIsConnected( const VECTOR2I& aPosition ) const override;
 
     void Init( const VECTOR2I& pos = VECTOR2I( 0, 0 ) );
+
+    void setVariantAttribute( bool aEnable, const SCH_SHEET_PATH* aInstance, const wxString& aVariantName,
+                              bool SCH_SYMBOL::*aBase, bool SCH_SYMBOL_VARIANT::*aOverride );
 
     SCH_SYMBOL_INSTANCE* getInstance( const KIID_PATH& aPath );
     const SCH_SYMBOL_INSTANCE* getInstance( const KIID_PATH& aPath ) const;
