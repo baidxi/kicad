@@ -607,7 +607,9 @@ ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
         }
 
         if( !sheet )
+        {
             sheet = itemSheet;
+        }
         else if( !aSheetPath && itemSheet != *sheet )
         {
             return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST,

@@ -668,11 +668,11 @@ HANDLER_RESULT<SelectionResponse> API_HANDLER_BOARD::handleAddToSelection(
 
 HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleFocusOnItems( const HANDLER_CONTEXT<FocusOnItems>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> headless = checkForHeadless( "FocusOnItems" ) )
-        return tl::unexpected( *headless );
-
     if( std::optional<ApiResponseStatus> busy = checkForBusy() )
         return tl::unexpected( *busy );
+
+    if( std::optional<ApiResponseStatus> headless = checkForHeadless( "FocusOnItems" ) )
+        return tl::unexpected( *headless );
 
     if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
         return tl::unexpected( documentValidation.error() );
