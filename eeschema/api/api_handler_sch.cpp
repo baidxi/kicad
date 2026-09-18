@@ -926,14 +926,14 @@ API_HANDLER_SCH::handleRemoveFromSelection( const HANDLER_CONTEXT<RemoveFromSele
 
 HANDLER_RESULT<Empty> API_HANDLER_SCH::handleFocusOnItems( const HANDLER_CONTEXT<FocusOnItems>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "FocusOnItems" ) )
         return tl::unexpected( *headless );
 
     if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
         return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     std::vector<KIID> ids;
 
