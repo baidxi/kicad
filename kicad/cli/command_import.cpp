@@ -384,7 +384,7 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
         break;
     }
 
-    if( retCode == EXIT_CODES::SUCCESS && haveBoard )
+    if( retCode == EXIT_CODES::SUCCESS && !boardInput.empty() )
     {
         JOB_PCB_IMPORT pcbJob;
         pcbJob.m_inputFile = boardInput;
