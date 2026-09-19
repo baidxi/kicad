@@ -237,7 +237,12 @@ void DIALOG_EXECUTECOMMAND_JOB_SETTINGS::populateEnvironReadOnlyTable()
 
         if( evName.IsSameAs( OUTPUT_TMP_PATH_VAR_NAME ) )
         {
-            evValue = _( "<value set at runtime>" );
+            evValue = _( "<temporary folder set at runtime>" );
+            m_path_subs_grid->SetCellFont( row, 1, m_path_subs_grid->GetCellFont( row, 1 ).Italic() );
+        }
+        else if(evName.IsSameAs( DESTINATION_PATH_VAR_NAME ))
+        {
+            evValue = _( "<destination path set at runtime>" );
             m_path_subs_grid->SetCellFont( row, 1, m_path_subs_grid->GetCellFont( row, 1 ).Italic() );
         }
         else
