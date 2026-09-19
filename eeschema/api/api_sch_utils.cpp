@@ -569,8 +569,7 @@ void PackSheetPath( types::SheetPath& aOutput, const SCH_SHEET_PATH& aInput )
 
 
 tl::expected<SCH_FOCUS_TARGET, ApiResponseStatus>
-ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
-                   const std::optional<KIID_PATH>& aSheetPath )
+ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds, const std::optional<KIID_PATH>& aSheetPath )
 {
     if( aIds.empty() )
         return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST, "no items were given to focus on" ) );
@@ -586,8 +585,8 @@ ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
 
         if( !sheet )
         {
-            return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST,
-                    "the requested sheet path is not valid for this schematic" ) );
+            return tl::unexpected(
+                    MakeResponseStatus( AS_BAD_REQUEST, "the requested sheet path is not valid for this schematic" ) );
         }
     }
 
@@ -597,8 +596,7 @@ ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
     for( const KIID& id : aIds )
     {
         SCH_SHEET_PATH itemSheet;
-        SCH_ITEM*      item = aSheetPath ? sheet->ResolveItem( id )
-                                         : aSchematic.ResolveItem( id, &itemSheet, true );
+        SCH_ITEM*      item = aSheetPath ? sheet->ResolveItem( id ) : aSchematic.ResolveItem( id, &itemSheet, true );
 
         if( !item )
         {
@@ -612,9 +610,9 @@ ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
         }
         else if( !aSheetPath && itemSheet != *sheet )
         {
-            return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST,
-                    "the items are not all on one sheet; set the document's sheet path to choose "
-                    "the sheet to focus" ) );
+            return tl::unexpected( MakeResponseStatus(
+                    AS_BAD_REQUEST, "the items are not all on one sheet; set the document's sheet path to choose "
+                                    "the sheet to focus" ) );
         }
 
         if( bbox )
@@ -625,9 +623,9 @@ ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
 
     if( !missing.empty() )
     {
-        return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST,
-                fmt::format( "the items {} are not in the requested document",
-                             fmt::join( missing, ", " ) ) ) );
+        return tl::unexpected(
+                MakeResponseStatus( AS_BAD_REQUEST, fmt::format( "the items {} are not in the requested document",
+                                                                 fmt::join( missing, ", " ) ) ) );
     }
 
     return SCH_FOCUS_TARGET{ *sheet, *bbox };

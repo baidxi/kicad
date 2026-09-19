@@ -701,9 +701,9 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleFocusOnItems( const HANDLER_CONTE
 
     if( !missing.empty() )
     {
-        return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST,
-                fmt::format( "the items {} are not in the requested document",
-                             fmt::join( missing, ", " ) ) ) );
+        return tl::unexpected(
+                MakeResponseStatus( AS_BAD_REQUEST, fmt::format( "the items {} are not in the requested document",
+                                                                 fmt::join( missing, ", " ) ) ) );
     }
 
     if( aCtx.Request.has_margin() )

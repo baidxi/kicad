@@ -99,7 +99,6 @@ struct SCH_FOCUS_TARGET
  * sheet the items resolve to.  Unknown or off-sheet items and an empty list are bad requests.
  */
 tl::expected<SCH_FOCUS_TARGET, kiapi::common::ApiResponseStatus>
-ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds,
-                   const std::optional<KIID_PATH>& aSheetPath );
+ResolveFocusItems( SCHEMATIC& aSchematic, const std::vector<KIID>& aIds, const std::optional<KIID_PATH>& aSheetPath );
 
 #endif //KICAD_API_SCH_UTILS_H

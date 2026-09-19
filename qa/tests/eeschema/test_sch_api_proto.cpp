@@ -523,10 +523,8 @@ BOOST_AUTO_TEST_CASE( FocusItemsResolution )
 
     // Items on one sheet resolve to that sheet and their merged box
     {
-        auto target = ResolveFocusItems( *m_schematic, { subSymbols[0]->m_Uuid, subSymbols[1]->m_Uuid },
-                                         std::nullopt );
-        BOOST_REQUIRE_MESSAGE( target.has_value(),
-                               ( target ? std::string() : target.error().error_message() ) );
+        auto target = ResolveFocusItems( *m_schematic, { subSymbols[0]->m_Uuid, subSymbols[1]->m_Uuid }, std::nullopt );
+        BOOST_REQUIRE_MESSAGE( target.has_value(), ( target ? std::string() : target.error().error_message() ) );
         BOOST_CHECK( target->Sheet == subPath );
 
         BOX2I expected = subSymbols[0]->GetBoundingBox();
@@ -536,16 +534,14 @@ BOOST_AUTO_TEST_CASE( FocusItemsResolution )
 
     // Items spread over sheets need a sheet path to pick one
     {
-        auto target = ResolveFocusItems( *m_schematic, { rootSheet->m_Uuid, subSymbols[0]->m_Uuid },
-                                         std::nullopt );
+        auto target = ResolveFocusItems( *m_schematic, { rootSheet->m_Uuid, subSymbols[0]->m_Uuid }, std::nullopt );
         BOOST_CHECK( !target );
     }
 
     // A sheet path pins the placement and rejects items that are not on that sheet
     {
         auto target = ResolveFocusItems( *m_schematic, { subSymbols[0]->m_Uuid }, subPath.Path() );
-        BOOST_REQUIRE_MESSAGE( target.has_value(),
-                               ( target ? std::string() : target.error().error_message() ) );
+        BOOST_REQUIRE_MESSAGE( target.has_value(), ( target ? std::string() : target.error().error_message() ) );
         BOOST_CHECK( target->Sheet == subPath );
 
         auto offSheet = ResolveFocusItems( *m_schematic, { subSymbols[0]->m_Uuid }, rootPath.Path() );
