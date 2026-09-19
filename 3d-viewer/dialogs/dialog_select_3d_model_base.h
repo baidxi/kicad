@@ -10,6 +10,8 @@
 #include <wx/artprov.h>
 #include <wx/xrc/xmlres.h>
 #include <wx/intl.h>
+class FAST_3D_MODEL_DIR_CTRL;
+
 #include "dialog_shim.h"
 #include <wx/string.h>
 #include <wx/dirctrl.h>
@@ -41,7 +43,7 @@ class DIALOG_SELECT_3D_MODEL_BASE : public DIALOG_SHIM
 	protected:
 		wxSplitterWindow* m_splitterWin;
 		wxPanel* m_panelLeft;
-		wxGenericDirCtrl* m_FileTree;
+		FAST_3D_MODEL_DIR_CTRL* m_FileTree;
 		wxPanel* m_pane3Dviewer;
 		wxBoxSizer* m_Sizer3Dviewer;
 		wxStaticText* m_stDirChoice;

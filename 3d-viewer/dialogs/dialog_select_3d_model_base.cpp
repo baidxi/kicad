@@ -5,6 +5,8 @@
 // PLEASE DO *NOT* EDIT THIS FILE!
 ///////////////////////////////////////////////////////////////////////////
 
+#include "fast_3d_model_dir_ctrl.h"
+
 #include "dialog_select_3d_model_base.h"
 
 ///////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,7 @@ DIALOG_SELECT_3D_MODEL_BASE::DIALOG_SELECT_3D_MODEL_BASE( wxWindow* parent, wxWi
 	wxBoxSizer* bSizerLeft;
 	bSizerLeft = new wxBoxSizer( wxVERTICAL );
 
-	m_FileTree = new wxGenericDirCtrl( m_panelLeft, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxDIRCTRL_3D_INTERNAL|wxDIRCTRL_EDIT_LABELS|wxDIRCTRL_SHOW_FILTERS|wxBORDER_DEFAULT, wxEmptyString, 0 );
+	m_FileTree = new FAST_3D_MODEL_DIR_CTRL( m_panelLeft, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxDIRCTRL_3D_INTERNAL|wxDIRCTRL_EDIT_LABELS|wxDIRCTRL_SHOW_FILTERS|wxBORDER_DEFAULT, wxEmptyString, 0 );
 
 	m_FileTree->ShowHidden( false );
 	m_FileTree->SetMinSize( wxSize( 300,-1 ) );

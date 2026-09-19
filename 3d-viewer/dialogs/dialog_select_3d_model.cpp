@@ -22,6 +22,7 @@
 
 #include <set>
 #include "dialog_select_3d_model.h"
+#include "fast_3d_model_dir_ctrl.h"
 #include "project.h"
 #include "3d_cache/3d_info.h"
 #include "3d_cache/3d_cache.h"
