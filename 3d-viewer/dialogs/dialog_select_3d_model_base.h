@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.2.1-0-g80c4cb6)
+// C++ code generated with wxFormBuilder (version 4.2.1-80c4cb6-0-g80c4cb6)
 // http://www.wxformbuilder.org/
 //
 // PLEASE DO *NOT* EDIT THIS FILE!
@@ -47,6 +47,7 @@ class DIALOG_SELECT_3D_MODEL_BASE : public DIALOG_SHIM
 		wxStaticText* m_stDirChoice;
 		wxChoice* m_dirChoices;
 		wxButton* m_cfgPathsButt;
+		wxCheckBox* m_ShowHiddenCb;
 		wxCheckBox* m_EmbedModelCb;
 		wxStdDialogButtonSizer* m_sdbSizer;
 		wxButton* m_sdbSizerOK;
@@ -57,6 +58,7 @@ class DIALOG_SELECT_3D_MODEL_BASE : public DIALOG_SHIM
 		virtual void OnSelectionChanged( wxCommandEvent& event ) { event.Skip(); }
 		virtual void SetRootDir( wxCommandEvent& event ) { event.Skip(); }
 		virtual void Cfg3DPaths( wxCommandEvent& event ) { event.Skip(); }
+		virtual void OnShowHidden( wxCommandEvent& event ) { event.Skip(); }
 
 
 	public:
@@ -72,4 +74,3 @@ class DIALOG_SELECT_3D_MODEL_BASE : public DIALOG_SHIM
 		}
 
 };
-
