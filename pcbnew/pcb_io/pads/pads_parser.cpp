@@ -272,6 +272,9 @@ void PARSER::Parse( const wxString& aFileName )
     int majorVer = parseMajorVersion();
     m_has_font_lines = ( majorVer == 0 || majorVer >= 9 );
 
+    // A *REMARK* naming the piece header fields overrides this; see readLine().
+    m_piece_has_linestyle = versionHasPieceLineStyle();
+
     while( readLine( file, line ) )
     {
         if( line.empty() ) continue;
@@ -371,7 +374,18 @@ bool PARSER::readLine( std::ifstream& aStream, std::string& aLine )
         aLine.erase( aLine.find_last_not_of( " \t\r\n" ) + 1 );
 
         if( aLine.empty() ) continue;
-        if( aLine.rfind( "*REMARK*", 0 ) == 0 ) continue;
+
+        if( aLine.rfind( "*REMARK*", 0 ) == 0 )
+        {
+            // The remarks above a section spell out its record layout. The one for piece
+            // headers tells us whether this file writes LINESTYLE ahead of LEVEL, which is
+            // more reliable than inferring it from the release.
+            if( aLine.find( "PIECETYPE" ) != std::string::npos )
+                m_piece_has_linestyle = ( aLine.find( "LINESTYLE" ) != std::string::npos );
+
+            continue;
+        }
+
         return true;
     }
     return false;
@@ -406,6 +420,101 @@ int PARSER::parseMajorVersion() const
         return 0;
     }
 }
+
+
+int PARSER::parseMinorVersion() const
+{
+    const std::string& ver = m_file_header.version;
+
+    size_t start = 0;
+
+    if( !ver.empty() && ( ver[0] == 'V' || ver[0] == 'v' ) )
+        start = 1;
+
+    size_t dot = ver.find( '.', start );
+
+    if( dot == std::string::npos )
+        return 0;
+
+    try
+    {
+        return std::stoi( ver.substr( dot + 1 ) );
+    }
+    catch( const std::exception& )
+    {
+        return 0;
+    }
+}
+
+
+bool PARSER::versionHasPieceLineStyle() const
+{
+    int major = parseMajorVersion();
+
+    // The year releases V2003..V2007 sit between V5 and V9 in the sequence, so they are
+    // older than the change despite the larger number.
+    if( major >= 2000 )
+        return false;
+
+    if( major > 9 )
+        return true;
+
+    if( major == 9 )
+    {
+        // Library headers name the release without a minor ("*PADS-LIBRARY-PCB-DECALS-V9*")
+        // and cover the whole 9.x line, so they get the layout the later releases write.
+        if( m_file_header.version.find( '.' ) == std::string::npos )
+            return true;
+
+        return parseMinorVersion() >= 4;
+    }
+
+    // V3..V5 predate the field; an unreadable header gets the modern layout, which is what
+    // the rest of the header handling assumes as well.
+    return major == 0;
+}
+
+
+bool PARSER::parsePieceHeader( const std::string& aLine, std::string& aType, int& aCorners,
+                               double& aWidth, int& aLevel, std::string& aRest ) const
+{
+    aType.clear();
+    aCorners = 0;
+    aWidth = 0.0;
+    aLevel = 0;
+    aRest.clear();
+
+    std::istringstream iss( aLine );
+
+    if( !( iss >> aType >> aCorners >> aWidth ) )
+        return false;
+
+    int first = 0;
+
+    if( !( iss >> first ) )
+        return true;
+
+    if( m_piece_has_linestyle )
+    {
+        int second = 0;
+
+        // A truncated line that stops after LINESTYLE leaves the level at that field
+        // rather than at zero, which would be a copper layer.
+        if( iss >> second )
+            aLevel = second;
+        else
+            aLevel = first;
+    }
+    else
+    {
+        aLevel = first;
+    }
+
+    std::getline( iss >> std::ws, aRest );
+
+    return true;
+}
+
 
 void PARSER::parseSectionPCB( std::ifstream& aStream )
 {
@@ -1440,33 +1549,17 @@ void PARSER::parseSectionPARTDECAL( std::ifstream& aStream )
         {
             if( !readLine( aStream, line ) ) break;
 
-            // PIECETYPE CORNERS WIDTHHGHT LINESTYLE LEVEL [RESTRICTIONS]
-            std::stringstream iss2( line );
+            // PIECETYPE CORNERS WIDTHHGHT [LINESTYLE] LEVEL [RESTRICTIONS]
             std::string type;
             int corners = 0;
             double width = 0;
             int level = 0;
+            std::string piece_rest;
 
-            if( !( iss2 >> type >> corners >> width ) )
+            if( !parsePieceHeader( line, type, corners, width, level, piece_rest ) )
             {
                 // Should not happen if line is valid
                 continue;
-            }
-
-            // Try to read optional fields
-            // Some formats have LINESTYLE LEVEL, others just LEVEL
-            int val1 = 0;
-            if( iss2 >> val1 )
-            {
-                int val2 = 0;
-                if( iss2 >> val2 )
-                {
-                    level = val2;
-                }
-                else
-                {
-                    level = val1;
-                }
             }
 
             DECAL_ITEM item;
@@ -1488,11 +1581,7 @@ void PARSER::parseSectionPARTDECAL( std::ifstream& aStream )
             // Format includes [pinnum] at the end for copper associated with a pin
             if( type.find( "COP" ) == 0 )
             {
-                std::string remaining;
-                std::getline( iss2, remaining );
-
-                // Check for pinnum in remaining tokens
-                std::istringstream rem_ss( remaining );
+                std::istringstream rem_ss( piece_rest );
                 int pinnum_val = -1;
 
                 if( rem_ss >> pinnum_val )
@@ -1502,9 +1591,10 @@ void PARSER::parseSectionPARTDECAL( std::ifstream& aStream )
             // Parse restrictions for keepout pieces (KPTCLS, KPTCIR)
             if( type.find( "KPT" ) == 0 )
             {
+                std::istringstream rest_ss( piece_rest );
                 std::string restrictions;
 
-                if( iss2 >> restrictions )
+                if( rest_ss >> restrictions )
                     item.restrictions = restrictions;
             }
 
@@ -2649,12 +2739,12 @@ void PARSER::parseSectionBOARD( std::ifstream& aStream )
                 return;
             }
 
-            std::istringstream piss( line );
             std::string shape_type;
             int corners = 0;
             double width = 0.0;
-            int linestyle = 0, level = 0;
-            piss >> shape_type >> corners >> width >> linestyle >> level;
+            int level = 0;
+            std::string piece_rest;
+            parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
 
             // Handle CLOSED, OPEN, CIRCLE, BRDCLS (board cutout), BRDCIR (circular cutout)
             if( shape_type == "CLOSED" || shape_type == "OPEN" || shape_type == "BRDCLS" )
@@ -2861,13 +2951,12 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                 if( !readLine( aStream, line ) ) break;
                 if( line[0] == '*' ) { pushBackLine( line ); return; }
 
-                std::istringstream piss( line );
                 std::string shape_type;
                 int corners = 0;
                 double width = 0.0;
-                int piece_flags = 0;
                 int level = 0;
-                piss >> shape_type >> corners >> width >> piece_flags >> level;
+                std::string piece_rest;
+                parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
 
                 if( shape_type == "CLOSED" || shape_type == "OPEN" || shape_type == "BRDCLS" )
                 {
@@ -3019,13 +3108,12 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                     break;
                 }
 
-                std::istringstream piss( line );
                 std::string shape_type;
                 int corners = 0;
                 double width = 0;
-                int piece_flags = 0;
                 int level = 0;
-                piss >> shape_type >> corners >> width >> piece_flags >> level;
+                std::string piece_rest;
+                parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
 
                 dim.layer = level;
 
@@ -3206,16 +3294,18 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                     break;
                 }
 
-                // Piece format: PIECETYPE CORNERS WIDTH FLAGS LEVEL [RESTRICTIONS]
+                // Piece format: PIECETYPE CORNERS WIDTHHGHT [LINESTYLE] LEVEL [RESTRICTIONS]
                 // RESTRICTIONS is a string containing: P H R C V T A
-                std::istringstream piss( line );
                 std::string shape_type;
                 int corners = 0;
                 double width = 0;
-                int piece_flags = 0;
                 int level = 0;
+                std::string piece_rest;
+                parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
+
+                std::istringstream rest_ss( piece_rest );
                 std::string restrictions;
-                piss >> shape_type >> corners >> width >> piece_flags >> level >> restrictions;
+                rest_ss >> restrictions;
 
                 if( level > 0 )
                     keepout.layers.push_back( level );
@@ -3402,16 +3492,15 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                     return;
                 }
 
-                // Piece format: PIECETYPE CORNERS WIDTH FLAGS LEVEL
+                // Piece format: PIECETYPE CORNERS WIDTHHGHT [LINESTYLE] LEVEL
                 // PIECETYPE: COPOPN (polyline), COPCLS (filled polygon), COPCIR (filled circle),
                 //            COPCUT (polygon void), COPCCO (circle void), CIRCUR (circle void for COPCUT)
-                std::istringstream piss( line );
                 std::string shape_type;
                 int corners = 0;
                 double width = 0;
-                int piece_flags = 0;
                 int level = 0;
-                piss >> shape_type >> corners >> width >> piece_flags >> level;
+                std::string piece_rest;
+                parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
 
                 COPPER_SHAPE copper;
                 copper.name = name;
@@ -3531,14 +3620,13 @@ void PARSER::parseSectionLINES( std::ifstream& aStream )
                     return;
                 }
 
-                // Piece format: PIECETYPE CORNERS WIDTH FLAGS LEVEL
-                std::istringstream piss( line );
+                // Piece format: PIECETYPE CORNERS WIDTHHGHT [LINESTYLE] LEVEL
                 std::string shape_type;
                 int corners = 0;
                 double width = 0;
-                int piece_flags = 0;
                 int level = 0;
-                piss >> shape_type >> corners >> width >> piece_flags >> level;
+                std::string piece_rest;
+                parsePieceHeader( line, shape_type, corners, width, level, piece_rest );
 
                 GRAPHIC_LINE graphic;
                 graphic.name = name;

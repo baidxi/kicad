@@ -739,6 +739,37 @@ private:
      */
     int parseMajorVersion() const;
 
+    /**
+     * Parse the minor version number from the file header version string.
+     *
+     * "V9.4" yields 4; a version with no minor part yields 0.
+     */
+    int parseMinorVersion() const;
+
+    /**
+     * True when the file's release writes a LINESTYLE field ahead of LEVEL in a piece
+     * header.  PADS 9.4 added the field; every earlier release goes straight to LEVEL.
+     */
+    bool versionHasPieceLineStyle() const;
+
+    /**
+     * Parse the fixed head of a piece header line from a *LINES*, *BOARD* or *PARTDECAL*
+     * entry.
+     *
+     * Two layouts exist, and they differ only by one field:
+     *   PADS < 9.4:  PIECETYPE CORNERS WIDTHHGHT LEVEL [RESTRICTIONS]
+     *   PADS >= 9.4: PIECETYPE CORNERS WIDTHHGHT LINESTYLE LEVEL [RESTRICTIONS]
+     * Reading the newer layout out of an older file silently drops the level to zero,
+     * which lands every graphic on the first inner copper layer, so the layout is taken
+     * from the section's *REMARK* when the file carries one and from the release
+     * otherwise.
+     *
+     * @param aRest receives whatever follows the level (restriction codes, pin number).
+     * @return false if the line does not even carry a type, corner count and width.
+     */
+    bool parsePieceHeader( const std::string& aLine, std::string& aType, int& aCorners,
+                           double& aWidth, int& aLevel, std::string& aRest ) const;
+
     PARAMETERS m_parameters;
     std::vector<PART> m_parts;
     std::vector<NET> m_nets;
@@ -768,6 +799,7 @@ private:
     FILE_HEADER m_file_header;
     bool m_is_basic_units = false;
     bool m_has_font_lines = true;            ///< True if text/label entries include a font line
+    bool m_piece_has_linestyle = true;       ///< True if piece headers carry LINESTYLE before LEVEL
 
     std::string m_current_section;
     std::optional<std::string> m_pushed_line;
