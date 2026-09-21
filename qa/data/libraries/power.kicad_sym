@@ -8776,7 +8776,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Power symbol creates a global label with name \"GND\", chassis / hatched earth ground")
+		(property "Description" "Power symbol creates a global label with name \"GND\", chassis / hatched earth ground"
 			(at 0 0 0)
 			(effects
 				(font
