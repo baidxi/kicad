@@ -378,6 +378,49 @@ BOOST_AUTO_TEST_CASE( ImportNonCopperTrackSkipped )
 }
 
 
+BOOST_AUTO_TEST_CASE( ImportPieceLevelWithoutLineStyle )
+{
+    // PADS 9.4 inserted a LINESTYLE field ahead of LEVEL in piece headers. Reading that
+    // layout out of an older file leaves the level at zero, which the layer mapper reads as
+    // the pad stack's inner-layer marker and resolves to In1.Cu -- so every graphic on the
+    // board lands on copper.
+    PCB_IO_PADS plugin;
+
+    wxString filename = KI_TEST::GetPcbnewTestDataDir()
+                        + "plugins/pads/synthetic_piece_level_v5.asc";
+
+    std::unique_ptr<BOARD> board = plugin.LoadBoard( filename, nullptr, nullptr );
+
+    BOOST_REQUIRE( board != nullptr );
+
+    int silkscreenShapes = 0;
+
+    for( BOARD_ITEM* item : board->Drawings() )
+    {
+        PCB_SHAPE* shape = dynamic_cast<PCB_SHAPE*>( item );
+
+        if( !shape )
+            continue;
+
+        BOOST_CHECK_MESSAGE( !IsCopperLayer( shape->GetLayer() ),
+                "graphic landed on copper layer " << shape->GetLayer() );
+
+        if( shape->GetLayer() == F_SilkS )
+            silkscreenShapes++;
+    }
+
+    // Two OPEN pieces name level 26: a three-corner one, and a two-corner one that also
+    // carries the numeric RESTRICTIONS field. Reading the latter as LINESTYLE LEVEL takes
+    // 2048 for the level, which maps to nothing and drops the segment.
+    BOOST_CHECK_EQUAL( silkscreenShapes, 3 );
+
+    // The COPCLS piece names level 1, so the pour belongs to the top copper layer.
+    BOOST_REQUIRE_EQUAL( board->Zones().size(), 1 );
+    BOOST_CHECK( board->Zones().front()->GetLayerSet().Contains( F_Cu ) );
+    BOOST_CHECK( !board->Zones().front()->GetLayerSet().Contains( In1_Cu ) );
+}
+
+
 BOOST_AUTO_TEST_CASE( ImportTextOnUnmappedLayer )
 {
     // Test that text on unmapped layers is assigned to Comments layer without crashing
