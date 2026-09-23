@@ -1459,8 +1459,11 @@ void KICAD_MANAGER_FRAME::OnIdle( wxIdleEvent& aEvent )
             pcbFrame->OnModify();
     }
 
+#if defined( KICAD_PCM_UPDATE_CHECK ) || defined( KICAD_UPDATE_CHECK )
     KICAD_SETTINGS* settings = kicadSettings();
+#endif
 
+#ifdef KICAD_PCM_UPDATE_CHECK
     if( KIPLATFORM::POLICY::GetPolicyBool( POLICY_KEY_PCM ) != KIPLATFORM::POLICY::PBOOL::DISABLED
         && settings->m_PcmUpdateCheck )
     {
@@ -1469,6 +1472,7 @@ void KICAD_MANAGER_FRAME::OnIdle( wxIdleEvent& aEvent )
 
         m_pcm->RunBackgroundUpdate();
     }
+#endif
 
 #ifdef KICAD_UPDATE_CHECK
     if( !m_updateManager && settings->m_KiCadUpdateCheck )

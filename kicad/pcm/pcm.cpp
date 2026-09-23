@@ -1297,6 +1297,9 @@ struct UPDATE_CANCELLER
 
 void PLUGIN_CONTENT_MANAGER::RunBackgroundUpdate()
 {
+#ifndef KICAD_PCM_UPDATE_CHECK
+    return;
+#else
     // If the thread is already running don't create it again
     if( m_updateThread.joinable() )
         return;
@@ -1367,6 +1370,7 @@ void PLUGIN_CONTENT_MANAGER::RunBackgroundUpdate()
                 // Update the badge on PCM button
                 m_availableUpdateCallback( availableUpdateCount );
             } );
+#endif
 }
 
 
