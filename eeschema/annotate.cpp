@@ -301,14 +301,14 @@ void SCH_EDIT_FRAME::AnnotateSymbols( SCH_COMMIT* aCommit, ANNOTATE_SCOPE_T aAnn
         switch( aAnnotateScope )
         {
         case ANNOTATE_ALL:
-            sheets.GetMultiUnitSymbols( lockedSymbols, SYMBOL_FILTER_ALL );
+            sheets.GetMultiUnitSymbols( lockedSymbols, aSymbolFilter );
             break;
 
         case ANNOTATE_CURRENT_SHEET:
-            currentSheet.GetMultiUnitSymbols( lockedSymbols, SYMBOL_FILTER_ALL );
+            currentSheet.GetMultiUnitSymbols( lockedSymbols, aSymbolFilter );
 
             if( aRecursive )
-                subSheets.GetMultiUnitSymbols( lockedSymbols, SYMBOL_FILTER_ALL );
+                subSheets.GetMultiUnitSymbols( lockedSymbols, aSymbolFilter );
 
             break;
 
@@ -363,23 +363,23 @@ void SCH_EDIT_FRAME::AnnotateSymbols( SCH_COMMIT* aCommit, ANNOTATE_SCOPE_T aAnn
     switch( aAnnotateScope )
     {
     case ANNOTATE_ALL:
-        sheets.GetSymbols( references, SYMBOL_FILTER_ALL );
+        sheets.GetSymbols( references, aSymbolFilter );
         break;
 
     case ANNOTATE_CURRENT_SHEET:
-        currentSheet.GetSymbols( references, SYMBOL_FILTER_ALL );
+        currentSheet.GetSymbols( references, aSymbolFilter );
 
         if( aRecursive )
-            subSheets.GetSymbolsWithinPath( references, currentSheet, SYMBOL_FILTER_NON_POWER, true );
+            subSheets.GetSymbolsWithinPath( references, currentSheet, aSymbolFilter );
 
         break;
 
     case ANNOTATE_SELECTION:
         for( SCH_SYMBOL* symbol : selectedSymbols )
-            currentSheet.AppendSymbol( references, symbol, aSymbolFilter, true );
+            currentSheet.AppendSymbol( references, symbol, aSymbolFilter );
 
         if( aRecursive )
-            selectedSheets.GetSymbolsWithinPath( references, currentSheet, aSymbolFilter, true );
+            selectedSheets.GetSymbolsWithinPath( references, currentSheet, aSymbolFilter );
 
         break;
     }
@@ -398,7 +398,7 @@ void SCH_EDIT_FRAME::AnnotateSymbols( SCH_COMMIT* aCommit, ANNOTATE_SCOPE_T aAnn
     if( aAnnotateScope != ANNOTATE_ALL )
     {
         SCH_REFERENCE_LIST allRefs;
-        sheets.GetSymbols( allRefs, SYMBOL_FILTER_ALL );
+        sheets.GetSymbols( allRefs, aSymbolFilter );
 
         for( size_t i = 0; i < allRefs.GetCount(); i++ )
         {
@@ -414,8 +414,7 @@ void SCH_EDIT_FRAME::AnnotateSymbols( SCH_COMMIT* aCommit, ANNOTATE_SCOPE_T aAnn
     references.SplitReferences();
 
     // Annotate all of the references we've collected by our options
-    references.AnnotateByOptions( aSortOption, aAlgoOption, aStartNumber, lockedSymbols,
-                                  additionalRefs, false );
+    references.AnnotateByOptions( aSortOption, aAlgoOption, aStartNumber, lockedSymbols, additionalRefs, false );
 
     for( size_t i = 0; i < references.GetCount(); i++ )
     {
@@ -518,11 +517,11 @@ int SCH_EDIT_FRAME::CheckAnnotate( ANNOTATION_ERROR_HANDLER aErrorHandler, ANNOT
     switch( aAnnotateScope )
     {
     case ANNOTATE_ALL:
-        sheets.GetSymbols( referenceList, SYMBOL_FILTER_ALL );
+        sheets.GetSymbols( referenceList, aSymbolFilter, true );
         break;
 
     case ANNOTATE_CURRENT_SHEET:
-        GetCurrentSheet().GetSymbols( referenceList, SYMBOL_FILTER_NON_POWER );
+        GetCurrentSheet().GetSymbols( referenceList, aSymbolFilter, true );
 
         if( aRecursive )
         {
@@ -539,8 +538,8 @@ int SCH_EDIT_FRAME::CheckAnnotate( ANNOTATION_ERROR_HANDLER aErrorHandler, ANNOT
                 sheets.GetSheetsWithinPath( subSheets, subSheetPath );
             }
 
-            for( SCH_SHEET_PATH sheet : subSheets )
-                sheet.GetSymbols( referenceList, SYMBOL_FILTER_NON_POWER );
+            for( const SCH_SHEET_PATH& sheet : subSheets )
+                sheet.GetSymbols( referenceList, aSymbolFilter, true );
         }
 
         break;
@@ -568,7 +567,7 @@ int SCH_EDIT_FRAME::CheckAnnotate( ANNOTATION_ERROR_HANDLER aErrorHandler, ANNOT
             }
 
             for( SCH_SHEET_PATH sheet : selectedSheets )
-                sheet.GetSymbols( referenceList, aSymbolFilter );
+                sheet.GetSymbols( referenceList, aSymbolFilter, true );
         }
 
         break;

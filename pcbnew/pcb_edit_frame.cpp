@@ -778,6 +778,12 @@ PCB_EDIT_FRAME::~PCB_EDIT_FRAME()
     // every cached TEXT_VAR_TRACKER* before the tracker is freed.
     detachTextVarTracker();
 
+    if( Kiface().IsSingle() )
+    {
+        Pgm().GetApiServer().DeregisterHandler( m_apiHandlerCommon.get() );
+        Pgm().GetApiServer().DeregisterHandler( m_apiLibrariesHandler.get() );
+    }
+
     if( ADVANCED_CFG::GetCfg().m_ShowEventCounters )
     {
         // Stop the timer during destruction early to avoid potential event race conditions (that
@@ -1492,7 +1498,7 @@ void PCB_EDIT_FRAME::setupUIConditions()
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drillOrigin );
     CURRENT_EDIT_TOOL( ACTIONS::gridSetOrigin );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::createArray );
-    CURRENT_EDIT_TOOL( PCB_ACTIONS::placeGridItem );
+    CURRENT_EDIT_TOOL( PCB_ACTIONS::placeSubGrid );
 
     CURRENT_EDIT_TOOL( PCB_ACTIONS::addConstraintCoincident );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::addConstraintPointOnLine );

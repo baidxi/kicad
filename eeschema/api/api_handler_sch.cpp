@@ -56,6 +56,7 @@
 #include <sch_sheet_pin.h>
 #include <sch_symbol.h>
 #include <schematic.h>
+#include <variant_proxy_undo_item.h>
 #include <tool/actions.h>
 #include <tool/common_tools.h>
 #include <tool/tool_manager.h>
@@ -1781,6 +1782,7 @@ HANDLER_RESULT<types::RunJobResponse> API_HANDLER_SCH::handleRunSchematicJobExpo
 
     // Unknown -> default AA on
     plotJob->m_antialias = aCtx.Request.antialiasing() != types::AntialiasingMode::AAM_NONE;
+    plotJob->m_useBackgroundColor = aCtx.Request.plot_background_color();
 
     return ExecuteSchematicJob( m_context->GetKiway(), *plotJob );
 }
@@ -2752,6 +2754,8 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleAddVariant( const HANDLER_CONTEXT<A
         return tl::unexpected( e );
     }
 
+    VARIANT_PROXY_UNDO_ITEM* undoItem = m_frame ? new VARIANT_PROXY_UNDO_ITEM( schematic ) : nullptr;
+
     if( std::optional<wxString> canonical = findVariantNoCase( schematic, name ) )
         name = *canonical;
 
@@ -2763,7 +2767,15 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleAddVariant( const HANDLER_CONTEXT<A
     onModified();
 
     if( m_frame )
+    {
+        PICKED_ITEMS_LIST* undoCmd = new PICKED_ITEMS_LIST();
+
+        undoCmd->PushItem( ITEM_PICKER( frame()->GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+        undoCmd->SetDescription( _( "Add Variant" ) );
+        frame()->PushCommandToUndoList( undoCmd );
+
         frame()->UpdateVariantSelectionCtrl( frame()->Schematic().GetVariantNamesForUI() );
+    }
 
     return Empty();
 }
@@ -2779,8 +2791,6 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleDeleteVariant( const HANDLER_CONTEX
 
     if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
         return tl::unexpected( documentValidation.error() );
-
-    SCH_COMMIT commit( m_frame ? frame()->GetToolManager() : toolManager() );
 
     SCHEMATIC* schematic = this->schematic();
     wxString   name = wxString::FromUTF8( aCtx.Request.name() );
@@ -2801,18 +2811,32 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleDeleteVariant( const HANDLER_CONTEX
         return tl::unexpected( e );
     }
 
+    VARIANT_PROXY_UNDO_ITEM* undoItem = m_frame ? new VARIANT_PROXY_UNDO_ITEM( schematic ) : nullptr;
+    SCH_COMMIT               commit( m_frame ? frame()->GetToolManager() : toolManager() );
+    bool                     pushedCommit = false;
+
     if( std::optional<wxString> canonical = findVariantNoCase( schematic, name ) )
         name = *canonical;
 
     schematic->DeleteVariant( name, &commit );
 
     if( !commit.Empty() )
-        commit.Push( wxString::Format( _( "Delete variant '%s'" ), name ) );
+    {
+        commit.Push();
+        pushedCommit = true;
+    }
 
     onModified();
 
     if( m_frame )
     {
+        PICKED_ITEMS_LIST* undoCmd = pushedCommit ? frame()->PopCommandFromUndoList()
+                                                  : new PICKED_ITEMS_LIST();
+
+        undoCmd->PushItem( ITEM_PICKER( frame()->GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+        undoCmd->SetDescription( _( "Delete Variant" ) );
+        frame()->PushCommandToUndoList( undoCmd );
+
         if( frame()->Schematic().GetCurrentVariant().CmpNoCase( name ) == 0 )
             frame()->SetCurrentVariant( wxEmptyString );
 
@@ -2835,8 +2859,6 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleRenameVariant( const HANDLER_CONTEX
     if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
         return tl::unexpected( documentValidation.error() );
 
-    SCH_COMMIT commit( m_frame ? frame()->GetToolManager() : toolManager() );
-
     SCHEMATIC* schematic = this->schematic();
     wxString   oldName = wxString::FromUTF8( aCtx.Request.old_name() );
     wxString   newName = wxString::FromUTF8( aCtx.Request.new_name() );
@@ -2873,18 +2895,34 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleRenameVariant( const HANDLER_CONTEX
         return tl::unexpected( e );
     }
 
+    VARIANT_PROXY_UNDO_ITEM* undoItem = m_frame ? new VARIANT_PROXY_UNDO_ITEM( schematic ) : nullptr;
+    SCH_COMMIT               commit( m_frame ? frame()->GetToolManager() : toolManager() );
+    bool                     pushedCommit = false;
+
     if( std::optional<wxString> canonicalOld = findVariantNoCase( schematic, oldName ) )
         oldName = *canonicalOld;
 
     schematic->RenameVariant( oldName, newName, &commit );
 
     if( !commit.Empty() )
-        commit.Push( wxString::Format( _( "Rename variant '%s' to '%s'" ), oldName, newName ) );
+    {
+        commit.Push();
+        pushedCommit = true;
+    }
 
     onModified();
 
     if( m_frame )
+    {
+        PICKED_ITEMS_LIST* undoCmd = pushedCommit ? frame()->PopCommandFromUndoList()
+                                                  : new PICKED_ITEMS_LIST();
+
+        undoCmd->PushItem( ITEM_PICKER( frame()->GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+        undoCmd->SetDescription( _( "Rename Variant" ) );
+        frame()->PushCommandToUndoList( undoCmd );
+
         frame()->UpdateVariantSelectionCtrl( frame()->Schematic().GetVariantNamesForUI() );
+    }
 
     return Empty();
 }
@@ -2901,8 +2939,6 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleCopyVariant( const HANDLER_CONTEXT<
     if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
         return tl::unexpected( documentValidation.error() );
 
-    SCH_COMMIT commit( m_frame ? frame()->GetToolManager() : toolManager() );
-
     SCHEMATIC* schematic = this->schematic();
     wxString   oldName = wxString::FromUTF8( aCtx.Request.old_name() );
     wxString   newName = wxString::FromUTF8( aCtx.Request.new_name() );
@@ -2939,6 +2975,10 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleCopyVariant( const HANDLER_CONTEXT<
         return tl::unexpected( e );
     }
 
+    VARIANT_PROXY_UNDO_ITEM* undoItem = m_frame ? new VARIANT_PROXY_UNDO_ITEM( schematic ) : nullptr;
+    SCH_COMMIT               commit( m_frame ? frame()->GetToolManager() : toolManager() );
+    bool                     pushedCommit = false;
+
     if( std::optional<wxString> canonicalOld = findVariantNoCase( schematic, oldName ) )
         oldName = *canonicalOld;
 
@@ -2948,12 +2988,24 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleCopyVariant( const HANDLER_CONTEXT<
         schematic->SetVariantDescription( newName, wxString::FromUTF8( aCtx.Request.new_description() ) );
 
     if( !commit.Empty() )
-        commit.Push( wxString::Format( _( "Copy variant '%s' to '%s'" ), oldName, newName ) );
+    {
+        commit.Push();
+        pushedCommit = true;
+    }
 
     onModified();
 
     if( m_frame )
+    {
+        PICKED_ITEMS_LIST* undoCmd = pushedCommit ? frame()->PopCommandFromUndoList()
+                                                  : new PICKED_ITEMS_LIST();
+
+        undoCmd->PushItem( ITEM_PICKER( frame()->GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+        undoCmd->SetDescription( _( "Copy Variant" ) );
+        frame()->PushCommandToUndoList( undoCmd );
+
         frame()->UpdateVariantSelectionCtrl( frame()->Schematic().GetVariantNamesForUI() );
+    }
 
     return Empty();
 }
@@ -2981,10 +3033,21 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleSetVariantDescription( const HANDLE
         return tl::unexpected( e );
     }
 
+    VARIANT_PROXY_UNDO_ITEM* undoItem = m_frame ? new VARIANT_PROXY_UNDO_ITEM( schematic ) : nullptr;
+
     if( std::optional<wxString> canonical = findVariantNoCase( schematic, name ) )
         name = *canonical;
 
     schematic->SetVariantDescription( name, wxString::FromUTF8( aCtx.Request.description() ) );
+
+    if( m_frame )
+    {
+        PICKED_ITEMS_LIST* undoCmd = new PICKED_ITEMS_LIST();
+
+        undoCmd->PushItem( ITEM_PICKER( frame()->GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+        undoCmd->SetDescription( _( "Edit Variant Description" ) );
+        frame()->PushCommandToUndoList( undoCmd );
+    }
 
     return Empty();
 }

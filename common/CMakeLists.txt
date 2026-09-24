@@ -687,6 +687,7 @@ set( COMMON_WIDGET_SRCS
     widgets/wx_busy_indicator.cpp
     widgets/wx_combobox.cpp
     widgets/wx_dataviewctrl.cpp
+    widgets/wx_debounced_action.cpp
     widgets/wx_ellipsized_static_text.cpp
     widgets/wx_listbox.cpp
     widgets/wx_panel.cpp
@@ -838,6 +839,7 @@ set( COMMON_SRCS
     filter_reader.cpp
     footprint_filter.cpp
     footprint_info.cpp
+    footprint_library_query.cpp
     gbr_metadata.cpp
     gr_basic.cpp
     hotkey_store.cpp

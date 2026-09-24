@@ -29,7 +29,10 @@
 #include <sch_symbol.h>
 #include <sch_text.h>
 #include <sch_field.h>
+#include <sch_sheet_pin.h>
 #include <text_var_dependency.h>
+
+#include "sch_table.h"
 
 
 /**
@@ -60,8 +63,7 @@ BOOST_AUTO_TEST_CASE( SchTextItemRegistersOnAdded )
     sch.GetTextVarAdapter()->OnSchItemsAdded( sch, added );
 
     const TEXT_VAR_DEPENDENCY_INDEX& index = sch.GetTextVarAdapter()->Tracker().Index();
-    BOOST_CHECK_EQUAL(
-            index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "U1:Value" ) ) ), 1u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "U1:Value" ) ) ), 1u );
 }
 
 
@@ -77,8 +79,7 @@ BOOST_AUTO_TEST_CASE( SchSymbolFieldsRegisterAsDependents )
     sch.GetTextVarAdapter()->OnSchItemsAdded( sch, added );
 
     const TEXT_VAR_DEPENDENCY_INDEX& index = sch.GetTextVarAdapter()->Tracker().Index();
-    BOOST_CHECK_EQUAL(
-            index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "SHEETNAME" ) ) ), 1u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "SHEETNAME" ) ) ), 1u );
 }
 
 
@@ -105,19 +106,48 @@ BOOST_AUTO_TEST_CASE( RetextReRegisters )
     SCH_TEXT  text;
     text.SetText( wxT( "${OLD}" ) );
 
-    std::vector<SCH_ITEM*> items{ &text };
+    SCH_SHEET sheet;
+    SCH_SHEET_PIN* pin = new SCH_SHEET_PIN( &sheet );
+    sheet.AddPin( pin );
+    pin->SetText( wxT( "${OLD}" ) );
+
+    SCH_TABLE table;
+    SCH_TABLECELL cell;
+    table.AddCell( &cell );
+    cell.SetText( wxT( "${OLD}" ) );
+
+    std::vector<SCH_ITEM*> items{ &text, &sheet, &table };
+    std::vector<SCH_ITEM*> just_text{ &text };
+    std::vector<SCH_ITEM*> just_sheet{ &sheet };
+    std::vector<SCH_ITEM*> just_table{ &table };
     sch.GetTextVarAdapter()->OnSchItemsAdded( sch, items );
 
     const TEXT_VAR_DEPENDENCY_INDEX& index = sch.GetTextVarAdapter()->Tracker().Index();
-    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "OLD" ) ) ), 1u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "OLD" ) ) ), 3u );
 
     // Edit the text and fire a change notification — the adapter must drop
     // the old edge and register the new one.
     text.SetText( wxT( "${NEW}" ) );
-    sch.GetTextVarAdapter()->OnSchItemsChanged( sch, items );
+    sch.GetTextVarAdapter()->OnSchItemsChanged( sch, just_text );
+
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "OLD" ) ) ), 2u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "NEW" ) ) ), 1u );
+
+    // Edit the pin and fire a change notification — the adapter must drop
+    // the old edge and register the new one.
+    pin->SetText( wxT( "${NEW}" ) );
+    sch.GetTextVarAdapter()->OnSchItemsChanged( sch, just_sheet );
+
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "OLD" ) ) ), 1u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "NEW" ) ) ), 2u );
+
+    // Edit the cell text and fire a change notification — the adapter must drop
+    // the old edge and register the new one.
+    cell.SetText( wxT( "${NEW}" ) );
+    sch.GetTextVarAdapter()->OnSchItemsChanged( sch, just_table );
 
     BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "OLD" ) ) ), 0u );
-    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "NEW" ) ) ), 1u );
+    BOOST_CHECK_EQUAL( index.DependentCount( TEXT_VAR_REF_KEY::FromToken( wxT( "NEW" ) ) ), 3u );
 }
 
 

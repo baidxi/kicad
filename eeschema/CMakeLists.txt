@@ -221,6 +221,7 @@ set( EESCHEMA_DLGS
     dialogs/panel_eeschema_annotation_options_base.cpp
     dialogs/panel_eeschema_editing_options.cpp
     dialogs/panel_eeschema_editing_options_base.cpp
+    dialogs/panel_footprint_filters.cpp
     dialogs/panel_setup_buses.cpp
     dialogs/panel_setup_buses_base.cpp
     dialogs/panel_setup_net_chains.cpp
@@ -517,6 +518,7 @@ set( EESCHEMA_SRCS
     symbol.cpp
     symbol_checker.cpp
     symbol_chooser_frame.cpp
+    variant_proxy_undo_item.cpp
     variant_symbol_utils.cpp
     symbol_import_manager.cpp
     symbol_import_reconciler.cpp

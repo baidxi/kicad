@@ -849,6 +849,7 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
                 EDA_ITEMS newItems;
                 bool      keepAnnotations = cfg->m_DesignBlockChooserPanel.keep_annotations;
                 bool      placeAsGroup = cfg->m_DesignBlockChooserPanel.place_as_group;
+                bool      screenWasModified = screen->IsContentModified();
 
                 selectionTool->ClearSelection();
 
@@ -1012,6 +1013,7 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
                 else
                 {
                     commit.Revert();
+                    screen->SetContentModified( screenWasModified );
                 }
 
                 selectionTool->RebuildSelection();
@@ -3205,13 +3207,13 @@ int SCH_DRAWING_TOOLS::doSyncSheetsPins( std::list<SCH_SHEET_PATH> sheetPaths, S
                         {
                             commit.Modify( pin->GetParent(), aPath.LastScreen() );
                             aModify();
-                            commit.Push( _( "Modify sheet pin" ) );
+                            commit.Push( _( "Modify Sheet Pin" ) );
                         }
                         else
                         {
                             commit.Modify( aItem, aPath.LastScreen() );
                             aModify();
-                            commit.Push( _( "Modify schematic item" ) );
+                            commit.Push( _( "Modify Schematic Item" ) );
                         }
 
                         // The push already updated the R-tree and republished connectivity

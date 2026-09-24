@@ -361,6 +361,63 @@ BOOST_AUTO_TEST_CASE( ValidateViaStyleInvalidNegativeValues )
     BOOST_CHECK( foundNegativeError );
 }
 
+// Deleting one entry of a rule the loader split must not bring it back on save.
+BOOST_AUTO_TEST_CASE( DeletedSplitEntryStaysDeleted )
+{
+    wxString rules = wxS( "(version 1)\n"
+                          "(rule \"Combo\"\n"
+                          "  (condition \"A.NetClass == 'HV'\")\n"
+                          "  (constraint clearance (min 0.5mm))\n"
+                          "  (constraint track_width (opt 0.3mm)))\n" );
+
+    DRC_RULE_LOADER loader;
+
+    std::vector<DRC_RE_LOADED_PANEL_ENTRY> entries = loader.LoadFromString( rules );
+
+    BOOST_REQUIRE_EQUAL( entries.size(), 2 );
+
+    // The user deletes the sibling that does not hold the original rule text.
+    auto deleted = std::find_if( entries.begin(), entries.end(),
+                                 []( const DRC_RE_LOADED_PANEL_ENTRY& aEntry )
+                                 {
+                                     return aEntry.originalRuleText.IsEmpty();
+                                 } );
+
+    BOOST_REQUIRE( deleted != entries.end() );
+    entries.erase( deleted );
+
+    DRC_RULE_SAVER saver;
+    wxString       saved = saver.GenerateRulesText( entries, nullptr );
+
+    int constraints = 0;
+
+    for( size_t pos = saved.find( wxS( "(constraint" ) ); pos != wxString::npos;
+         pos = saved.find( wxS( "(constraint" ), pos + 1 ) )
+    {
+        constraints++;
+    }
+
+    BOOST_CHECK_EQUAL( constraints, 1 );
+}
+
+
+// A negative optimum is an error, not an absent field.
+BOOST_AUTO_TEST_CASE( ValidateDiffPairRejectsNegativeOptimums )
+{
+    DRC_RE_ROUTING_DIFF_PAIR_CONSTRAINT_DATA negWidth( 0, 0, "NegWidth", -0.2, 0.0, 0.2, 0.02, 0.0 );
+
+    BOOST_CHECK( !negWidth.Validate().isValid );
+
+    DRC_RE_ROUTING_DIFF_PAIR_CONSTRAINT_DATA negGap( 0, 0, "NegGap", 0.2, 0.02, -0.2, 0.0, 0.0 );
+
+    BOOST_CHECK( !negGap.Validate().isValid );
+
+    // Zero still means the field was left empty.
+    DRC_RE_ROUTING_DIFF_PAIR_CONSTRAINT_DATA gapOnly( 0, 0, "GapOnly", 0.0, 0.0, 0.2, 0.02, 0.0 );
+
+    BOOST_CHECK( gapOnly.Validate().isValid );
+}
+
 BOOST_AUTO_TEST_CASE( FactoryOverwrite )
 {
     // Register a parser
@@ -385,6 +442,55 @@ BOOST_AUTO_TEST_CASE( FactoryOverwrite )
     BOOST_REQUIRE_EQUAL( parsedRules.size(), 1 );
     BOOST_CHECK_EQUAL( parsedRules[0]->GetRuleName(), "Test_2" );
 }
+
+// Editing a via style rule must not delete the optimum the panel cannot show.
+BOOST_AUTO_TEST_CASE( EditedViaStyleRuleKeepsOptimums )
+{
+    wxString rules = wxS( "(version 1)\n"
+                          "(rule ViaOpt\n"
+                          "  (constraint via_diameter (min 0.4mm) (opt 0.8mm) (max 1.2mm))\n"
+                          "  (constraint hole_size (min 0.2mm) (opt 0.4mm) (max 0.6mm)))\n" );
+
+    DRC_RULE_LOADER loader;
+
+    std::vector<DRC_RE_LOADED_PANEL_ENTRY> entries = loader.LoadFromString( rules );
+
+    BOOST_REQUIRE_EQUAL( entries.size(), 1 );
+
+    entries[0].wasEdited = true;
+
+    DRC_RULE_SAVER saver;
+    wxString       saved = saver.GenerateRulesText( entries, nullptr );
+
+    BOOST_CHECK_MESSAGE( saved.find( wxS( "(opt 0.8mm)" ) ) != wxString::npos,
+                         "the via diameter optimum was dropped: " << saved.ToStdString() );
+    BOOST_CHECK_MESSAGE( saved.find( wxS( "(opt 0.4mm)" ) ) != wxString::npos,
+                         "the hole size optimum was dropped: " << saved.ToStdString() );
+
+    auto data = std::dynamic_pointer_cast<DRC_RE_VIA_STYLE_CONSTRAINT_DATA>( entries[0].constraintData );
+
+    BOOST_REQUIRE( data );
+    data->SetMinViaDiameter( 0.9 );
+
+    BOOST_CHECK( data->Validate().isValid );
+
+    saved = saver.GenerateRulesText( entries, nullptr );
+
+    BOOST_CHECK_MESSAGE( saved.find( wxS( "(constraint via_diameter (min 0.9mm) (max 1.2mm))" ) ) != wxString::npos,
+                         "the voided optimum was not dropped from the clause: " << saved.ToStdString() );
+    BOOST_CHECK_MESSAGE( saved.find( wxS( "(opt 0.4mm)" ) ) != wxString::npos,
+                         "the untouched hole size optimum must survive: " << saved.ToStdString() );
+}
+
+
+// A pair with both ends negative is an error, not an empty pair.
+BOOST_AUTO_TEST_CASE( ValidateViaStyleBothNegative )
+{
+    DRC_RE_VIA_STYLE_CONSTRAINT_DATA data( 0, 0, "BothNegative", -0.5, -0.2, 0.2, 0.4 );
+
+    BOOST_CHECK( !data.Validate().isValid );
+}
+
 
 BOOST_AUTO_TEST_CASE( ValidateAbsLengthTwoValid )
 {

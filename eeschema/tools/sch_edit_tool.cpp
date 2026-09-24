@@ -1704,6 +1704,30 @@ int SCH_EDIT_TOOL::Swap( const TOOL_EVENT& aEvent )
     if( !commit )
         commit = &localCommit;
 
+    SCH_SCREEN*                               screen = m_frame->GetScreen();
+    std::map<SCH_SHEET_PIN*, SCH_NO_CONNECT*> noConnects;
+
+    if( !moving )
+    {
+        for( EDA_ITEM* item : sorted )
+        {
+            if( item->Type() == SCH_SHEET_T )
+            {
+                std::map<SCH_SHEET_PIN*, SCH_NO_CONNECT*> sheetNoConnects =
+                        static_cast<SCH_SHEET*>( item )->GetNoConnects();
+
+                noConnects.insert( sheetNoConnects.begin(), sheetNoConnects.end() );
+            }
+            else if( item->Type() == SCH_SHEET_PIN_T )
+            {
+                SCH_SHEET_PIN* pin = static_cast<SCH_SHEET_PIN*>( item );
+
+                for( SCH_ITEM* ncItem : screen->Items().Overlapping( SCH_NO_CONNECT_T, pin->GetTextPos() ) )
+                    noConnects[pin] = static_cast<SCH_NO_CONNECT*>( ncItem );
+            }
+        }
+    }
+
     for( size_t i = 0; i < sorted.size() - 1; i++ )
     {
         SCH_ITEM* a = static_cast<SCH_ITEM*>( sorted[i] );
@@ -1820,6 +1844,16 @@ int SCH_EDIT_TOOL::Swap( const TOOL_EVENT& aEvent )
     }
     else
     {
+        for( auto& [sheetPin, noConnect] : noConnects )
+        {
+            if( noConnect->GetPosition() != sheetPin->GetTextPos() )
+            {
+                commit->Modify( noConnect, screen );
+                noConnect->SetPosition( sheetPin->GetTextPos() );
+                updateItem( noConnect, true );
+            }
+        }
+
         if( selection.IsHover() )
             m_toolMgr->RunAction( ACTIONS::selectionClear );
 
@@ -1852,6 +1886,7 @@ int SCH_EDIT_TOOL::SwapPins( const TOOL_EVENT& aEvent )
         return 0;
 
     SCH_SELECTION&         selection = m_selectionTool->RequestSelection( { SCH_PIN_T } );
+    m_selectionTool->FilterSelectionForLockedItems();
     std::vector<EDA_ITEM*> sorted = selection.GetItemsSortedBySelectionOrder();
 
     if( selection.Size() < 2 )
@@ -2018,7 +2053,7 @@ static SCH_LABEL_BASE* findSingleNetLabelForPin( SCH_PIN* aPin, SCHEMATIC& aSche
     }
     else if( CONNECTION_GRAPH* graph = aSchematic.ConnectionGraph() )
     {
-        if( CONNECTION_SUBGRAPH* sg = graph->GetSubgraphForItem( aPin ) )
+        if( CONNECTION_SUBGRAPH* sg = graph->GetSubgraphForItemOnSheet( aPin, aSheetPath ) )
             items.assign( sg->GetItems().begin(), sg->GetItems().end() );
     }
 

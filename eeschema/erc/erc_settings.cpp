@@ -376,7 +376,7 @@ void SHEETLIST_ERC_ITEMS_PROVIDER::visitMarkers( std::function<void( SCH_MARKER*
         if( firstTime )
             seenScreens.insert( sheet.LastScreen() );
 
-        std::map<std::tuple<int, int, std::string>, SCH_MARKER*> orderedMarkers;
+        std::map<std::tuple<int, int, std::string, wxString>, SCH_MARKER*> orderedMarkers;
 
         for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_MARKER_T ) )
         {
@@ -386,8 +386,11 @@ void SHEETLIST_ERC_ITEMS_PROVIDER::visitMarkers( std::function<void( SCH_MARKER*
                 continue;
 
             const VECTOR2I& position = marker->GetPosition();
-            orderedMarkers.emplace( std::make_tuple( position.x, position.y,
-                                                    ERC_EXCLUSION::FromMarker( *marker ).GetSortKey() ), marker );
+            orderedMarkers.emplace( std::make_tuple( position.x,
+                                                     position.y,
+                                                     ERC_EXCLUSION::FromMarker( *marker ).GetSortKey(),
+                                                     marker->GetRCItem()->GetErrorMessage( false ) ),
+                                    marker );
         }
 
         for( const auto& [key, marker] : orderedMarkers )

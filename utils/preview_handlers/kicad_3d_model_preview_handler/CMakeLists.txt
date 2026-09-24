@@ -42,6 +42,10 @@ find_library( OCC_OPENGL_LIBRARY TKOpenGl HINTS "${OCC_LIBRARY_DIR}" NO_DEFAULT_
 
 set_target_properties(kicad_3d_model_previewer PROPERTIES LINK_FLAGS "/DEF:${CMAKE_SOURCE_DIR}/utils/preview_handlers/kicad_3d_model_preview_handler/exports.def")
 
+# The .rc pulls in the generated kicad_build_version.h, which only a full build happened to
+# produce first
+add_dependencies(kicad_3d_model_previewer version_header)
+
 target_link_libraries(kicad_3d_model_previewer
     kicad_3d_import
     ${OCC_LIBRARIES}
@@ -52,23 +56,25 @@ target_link_libraries(kicad_3d_model_previewer
 # The shell loads this handler into its own surrogate process, whose application directory is
 # System32, so LOAD_WITH_ALTERED_SEARCH_PATH can only resolve KiCad's own DLLs from the directory
 # holding the handler.  An install puts them all in one bin directory; the build tree does not.
+get_filename_component( KICAD_3D_PREVIEW_VCPKG_BIN_DIR "${wxWidgets_LIB_DIR}/../bin" ABSOLUTE )
+
 add_custom_command(TARGET kicad_3d_model_previewer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:kicad_3d_import>" "$<TARGET_FILE_DIR:kicad_3d_model_previewer>"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:kicad_3dsg>" "$<TARGET_FILE_DIR:kicad_3d_model_previewer>"
+    COMMAND ${CMAKE_COMMAND}
+        "-DHANDLER=$<TARGET_FILE:kicad_3d_model_previewer>"
+        "-DKICAD_LIBS=$<TARGET_FILE:kicad_3d_import>$<SEMICOLON>$<TARGET_FILE:kicad_3dsg>"
+        "-DDEST=$<TARGET_FILE_DIR:kicad_3d_model_previewer>"
+        "-DSEARCH_DIRS=${KICAD_3D_PREVIEW_VCPKG_BIN_DIR}$<SEMICOLON>$<TARGET_FILE_DIR:kicad_3d_import>$<SEMICOLON>$<TARGET_FILE_DIR:kicad_3dsg>"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/stage_build_tree_deps.cmake"
+    VERBATIM
 )
 
+# The packager deploys the vcpkg DLLs and the MSVC runtime.  Resolving them here instead fails
+# the install on any host that cannot find one, such as a builder without VCRUNTIME140_1.dll
 install(TARGETS kicad_3d_model_previewer
-    RUNTIME_DEPENDENCY_SET kicad_3d_preview_runtime_deps
     RUNTIME DESTINATION ${KICAD_BIN}
     COMPONENT binary
 )
 
-install( RUNTIME_DEPENDENCY_SET kicad_3d_preview_runtime_deps
-    DIRECTORIES "$<TARGET_FILE_DIR:kicad_3d_model_previewer>"
-    PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*"
-    POST_EXCLUDE_REGEXES ".*[Ww][Ii][Nn][Dd][Oo][Ww][Ss][/\\\\][Ss][Yy][Ss][Tt][Ee][Mm]32[/\\\\].*"
-    RUNTIME DESTINATION ${KICAD_BIN}
-    COMPONENT binary
-)
+if( KICAD_WIN32_INSTALL_PDBS )
+    install( FILES $<TARGET_PDB_FILE:kicad_3d_model_previewer> DESTINATION ${KICAD_BIN} )
+endif()
