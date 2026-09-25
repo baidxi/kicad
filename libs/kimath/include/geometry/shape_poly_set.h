@@ -567,8 +567,7 @@ public:
      * @param aSubmitter optional callback for parallel triangulation of partition leaves
      * @param aBuildIndexes when true, also build the spatial index over the triangles
      */
-    virtual void CacheTriangulation( bool aSimplify = false,
-                                     const TASK_SUBMITTER& aSubmitter = {},
+    virtual void CacheTriangulation( bool aSimplify = false, const TASK_SUBMITTER& aSubmitter = {},
                                      bool aBuildIndexes = false )
     {
         cacheTriangulation( aSimplify, nullptr, aSubmitter, aBuildIndexes );
@@ -1482,8 +1481,7 @@ public:
     void Scale( double aScaleFactorX, double aScaleFactorY, const VECTOR2I& aCenter );
 
 protected:
-    void cacheTriangulation( bool aSimplify,
-                             std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
+    void cacheTriangulation( bool aSimplify, std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
                              const TASK_SUBMITTER& aSubmitter = {}, bool aBuildIndexes = false );
 
 private:

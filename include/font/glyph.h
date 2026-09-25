@@ -79,8 +79,7 @@ public:
                                           const VECTOR2I& aPt2,
                                           const VECTOR2I& aPt3 )> aCallback ) const;
 
-    void CacheTriangulation( bool aSimplify = false,
-                             const TASK_SUBMITTER& aSubmitter = {},
+    void CacheTriangulation( bool aSimplify = false, const TASK_SUBMITTER& aSubmitter = {},
                              bool aBuildIndexes = false ) override;
 
     /**

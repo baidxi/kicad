@@ -43,8 +43,7 @@ public:
     using TRI = SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI;
 
     /// Index every triangle of every polygon.  Immutable once constructed.
-    explicit TRIANGULATION_INDEX(
-            const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys )
+    explicit TRIANGULATION_INDEX( const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys )
     {
         size_t count = 0;
 
@@ -90,9 +89,9 @@ public:
 
         // PACKED_RTREE::Search takes its visitor by non-const reference, so name it.
         auto forward = [&]( uint32_t aIndex ) -> bool
-                       {
-                           return aVisitor( m_tris[aIndex] );
-                       };
+        {
+            return aVisitor( m_tris[aIndex] );
+        };
 
         m_tree.Search( lo, hi, forward );
     }
@@ -115,10 +114,9 @@ private:
  * @return false if the visitor stopped the walk, true if it ran to completion.
  */
 template <typename VISITOR>
-bool VisitTriangleCandidates(
-        const TRIANGULATION_INDEX* aIndex,
-        const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
-        const BOX2I& aBox, VISITOR aVisitor )
+bool VisitTriangleCandidates( const TRIANGULATION_INDEX*                                                aIndex,
+                              const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
+                              const BOX2I& aBox, VISITOR aVisitor )
 {
     if( aIndex )
     {
@@ -156,11 +154,10 @@ bool VisitTriangleCandidates(
  * With @a aActual or @a aLocation, every candidate is visited and the least collision distance
  * and where it occurs are reported; without them the walk stops at the first hit.
  */
-inline bool AnyTriangleHit(
-        const TRIANGULATION_INDEX* aIndex,
-        const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
-        const SHAPE* aShape, int aClearance = 0, int* aActual = nullptr,
-        VECTOR2I* aLocation = nullptr )
+inline bool AnyTriangleHit( const TRIANGULATION_INDEX*                                                aIndex,
+                            const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
+                            const SHAPE* aShape, int aClearance = 0, int* aActual = nullptr,
+                            VECTOR2I* aLocation = nullptr )
 {
     // NOT BBox( aClearance ): SHAPE_COMPOUND::BBox() ignores its argument, and inflating
     // separately keeps near-miss triangles in the candidate set.
@@ -173,30 +170,30 @@ inline bool AnyTriangleHit(
     if( !aActual && !aLocation )
     {
         return !VisitTriangleCandidates( aIndex, aPolys, qbox,
-                [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
-                {
-                    return !aShape->Collide( aTri, aClearance );
-                } );
+                                         [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
+                                         {
+                                             return !aShape->Collide( aTri, aClearance );
+                                         } );
     }
 
     int      actual = std::numeric_limits<int>::max();
     VECTOR2I location;
 
     VisitTriangleCandidates( aIndex, aPolys, qbox,
-            [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
-            {
-                int      triActual;
-                VECTOR2I triLocation;
+                             [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
+                             {
+                                 int      triActual;
+                                 VECTOR2I triLocation;
 
-                if( aShape->Collide( aTri, aClearance, &triActual, &triLocation )
-                    && triActual < actual )
-                {
-                    actual = triActual;
-                    location = triLocation;
-                }
+                                 if( aShape->Collide( aTri, aClearance, &triActual, &triLocation )
+                                     && triActual < actual )
+                                 {
+                                     actual = triActual;
+                                     location = triLocation;
+                                 }
 
-                return true;   // Finding a minimum needs every candidate
-            } );
+                                 return true; // Finding a minimum needs every candidate
+                             } );
 
     if( actual == std::numeric_limits<int>::max() )
         return false;
@@ -212,16 +209,15 @@ inline bool AnyTriangleHit(
 
 
 /// Return true if any candidate triangle contains @a aPt.
-inline bool AnyTriangleHit(
-        const TRIANGULATION_INDEX* aIndex,
-        const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
-        const VECTOR2I& aPt )
+inline bool AnyTriangleHit( const TRIANGULATION_INDEX*                                                aIndex,
+                            const std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aPolys,
+                            const VECTOR2I&                                                           aPt )
 {
     return !VisitTriangleCandidates( aIndex, aPolys, BOX2I( aPt, VECTOR2I( 0, 0 ) ),
-            [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
-            {
-                return !aTri->Collide( aPt );
-            } );
+                                     [&]( const SHAPE_POLY_SET::TRIANGULATED_POLYGON::TRI* aTri )
+                                     {
+                                         return !aTri->Collide( aPt );
+                                     } );
 }
 
 #endif // SHAPE_POLY_TRI_INDEX_H

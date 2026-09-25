@@ -2836,8 +2836,7 @@ bool SHAPE_POLY_SET::Collide( const SHAPE* aShape, int aClearance, int* aActual,
     int      actual;
     VECTOR2I location;
 
-    if( !AnyTriangleHit( m_triIndex.get(), m_triangulatedPolys, aShape, aClearance,
-                         &actual, &location ) )
+    if( !AnyTriangleHit( m_triIndex.get(), m_triangulatedPolys, aShape, aClearance, &actual, &location ) )
         return false;
 
     if( aActual )
@@ -3469,26 +3468,24 @@ bool SHAPE_POLY_SET::IsTriangulationUpToDate() const
 }
 
 
-void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify,
-                                         std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
+void SHAPE_POLY_SET::cacheTriangulation( bool aSimplify, std::vector<std::unique_ptr<TRIANGULATED_POLYGON>>* aHintData,
                                          const TASK_SUBMITTER& aSubmitter, bool aBuildIndexes )
 {
-    auto buildIndexes =
-            [this]()
-            {
-                if( m_triIndex )
-                    return;
+    auto buildIndexes = [this]()
+    {
+        if( m_triIndex )
+            return;
 
-                int triCount = 0;
+        int triCount = 0;
 
-                for( const std::unique_ptr<TRIANGULATED_POLYGON>& tpoly : m_triangulatedPolys )
-                    triCount += static_cast<int>( tpoly->GetTriangleCount() );
+        for( const std::unique_ptr<TRIANGULATED_POLYGON>& tpoly : m_triangulatedPolys )
+            triCount += static_cast<int>( tpoly->GetTriangleCount() );
 
-                if( triCount < RTREE_THRESHOLD )
-                    return;
+        if( triCount < RTREE_THRESHOLD )
+            return;
 
-                m_triIndex = std::make_unique<TRIANGULATION_INDEX>( m_triangulatedPolys );
-            };
+        m_triIndex = std::make_unique<TRIANGULATION_INDEX>( m_triangulatedPolys );
+    };
 
     // if( m_triangulationValid && m_hashValid && m_hash == checksum() )
     //     return;

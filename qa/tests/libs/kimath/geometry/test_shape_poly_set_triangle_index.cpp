@@ -46,8 +46,7 @@ SHAPE_LINE_CHAIN MakeNgon( const VECTOR2I& aCentre, int aRadius, int aVertices )
     for( int ii = 0; ii < aVertices; ++ii )
     {
         double angle = 2.0 * M_PI * ii / aVertices;
-        chain.Append( aCentre.x + KiROUND( aRadius * cos( angle ) ),
-                      aCentre.y + KiROUND( aRadius * sin( angle ) ) );
+        chain.Append( aCentre.x + KiROUND( aRadius * cos( angle ) ), aCentre.y + KiROUND( aRadius * sin( angle ) ) );
     }
 
     chain.SetClosed( true );
@@ -164,7 +163,6 @@ bool ReferenceScanBool( const SHAPE_POLY_SET& aPoly, const SHAPE& aShape, int aC
 }
 
 
-
 /**
  * Build the index by running one query, and assert it exists afterwards.
  *
@@ -184,13 +182,13 @@ void WarmAndRequireIndexed( SHAPE_POLY_SET& aPoly )
 
 /// Fixed probe positions, chosen to straddle the outline, both holes and empty space.
 const std::vector<VECTOR2I> g_probes = {
-    VECTOR2I( 0, 0 ),               // deep inside
-    VECTOR2I( 999000, 0 ),          // just inside the outline
-    VECTOR2I( 1001000, 0 ),         // just outside the outline
-    VECTOR2I( -400000, 0 ),         // centre of hole 1
-    VECTOR2I( -250000, 0 ),         // just outside hole 1
-    VECTOR2I( 400000, 250000 ),     // centre of hole 2
-    VECTOR2I( 3000000, 3000000 )    // far away
+    VECTOR2I( 0, 0 ),            // deep inside
+    VECTOR2I( 999000, 0 ),       // just inside the outline
+    VECTOR2I( 1001000, 0 ),      // just outside the outline
+    VECTOR2I( -400000, 0 ),      // centre of hole 1
+    VECTOR2I( -250000, 0 ),      // just outside hole 1
+    VECTOR2I( 400000, 250000 ),  // centre of hole 2
+    VECTOR2I( 3000000, 3000000 ) // far away
 };
 
 } // namespace
@@ -217,7 +215,6 @@ BOOST_AUTO_TEST_CASE( FirstColdCollideBuildsTheIndex )
     BOOST_REQUIRE( poly.TriangulatedPolyCount() > 0 );
     BOOST_REQUIRE( poly.TriangulationIndex() != nullptr );
 }
-
 
 
 /**
@@ -277,13 +274,11 @@ BOOST_AUTO_TEST_CASE( CompoundNearMissNotPruned )
     compound.AddShape( new SHAPE_SEGMENT( b, b + VECTOR2I( 50000, 0 ), 0 ) );
 
     // Comfortably clear.
-    BOOST_CHECK_EQUAL( Probe( poly, compound, gap / 2 ),
-                       ReferenceScan( poly, compound, gap / 2 ) );
+    BOOST_CHECK_EQUAL( Probe( poly, compound, gap / 2 ), ReferenceScan( poly, compound, gap / 2 ) );
 
     // Clearance large enough that the near-miss triangles matter: a pruned candidate set
     // would report no collision here while the full scan reports one.
-    BOOST_CHECK_EQUAL( Probe( poly, compound, gap * 4 ),
-                       ReferenceScan( poly, compound, gap * 4 ) );
+    BOOST_CHECK_EQUAL( Probe( poly, compound, gap * 4 ), ReferenceScan( poly, compound, gap * 4 ) );
 
     BOOST_CHECK( Probe( poly, compound, gap * 4 ).collides );
 }
@@ -300,19 +295,18 @@ BOOST_AUTO_TEST_CASE( MinDistanceMatchesFullScan )
     SHAPE_POLY_SET poly = MakeBlob();
 
     const std::vector<std::pair<VECTOR2I, int>> cases = {
-        { VECTOR2I( 1000000, 0 ), 0 },          // on the outline, between two triangles
-        { VECTOR2I( 1010000, 0 ), 10000 },      // exactly at clearance distance
-        { VECTOR2I( 1010000, 0 ), 9999 },       // one IU inside
-        { VECTOR2I( 1010000, 0 ), 10001 },      // one IU outside
-        { VECTOR2I( -400000, 0 ), 100000 },     // inside a hole, reaching its rim
-        { VECTOR2I( 0, 999000 ), 5000 }         // near the outline on another axis
+        { VECTOR2I( 1000000, 0 ), 0 },      // on the outline, between two triangles
+        { VECTOR2I( 1010000, 0 ), 10000 },  // exactly at clearance distance
+        { VECTOR2I( 1010000, 0 ), 9999 },   // one IU inside
+        { VECTOR2I( 1010000, 0 ), 10001 },  // one IU outside
+        { VECTOR2I( -400000, 0 ), 100000 }, // inside a hole, reaching its rim
+        { VECTOR2I( 0, 999000 ), 5000 }     // near the outline on another axis
     };
 
     for( const auto& [pt, clearance] : cases )
     {
         SHAPE_RECT probe( pt, 1, 1 );
-        BOOST_CHECK_EQUAL( Probe( poly, probe, clearance ),
-                           ReferenceScan( poly, probe, clearance ) );
+        BOOST_CHECK_EQUAL( Probe( poly, probe, clearance ), ReferenceScan( poly, probe, clearance ) );
     }
 }
 
@@ -325,7 +319,7 @@ BOOST_AUTO_TEST_CASE( MinDistanceMatchesFullScan )
 BOOST_AUTO_TEST_CASE( SubThresholdPolygonMatchesFullScan )
 {
     SHAPE_POLY_SET poly;
-    poly.AddOutline( MakeNgon( VECTOR2I( 0, 0 ), 1000000, 8 ) );   // 8 vertices -> ~6 triangles
+    poly.AddOutline( MakeNgon( VECTOR2I( 0, 0 ), 1000000, 8 ) ); // 8 vertices -> ~6 triangles
     poly.CacheTriangulation();
 
     size_t triangles = 0;
@@ -337,9 +331,8 @@ BOOST_AUTO_TEST_CASE( SubThresholdPolygonMatchesFullScan )
     // claims to.
     BOOST_REQUIRE( triangles < 32 );
 
-    const std::vector<VECTOR2I> probes = {
-        VECTOR2I( 0, 0 ), VECTOR2I( 900000, 0 ), VECTOR2I( 1100000, 0 ), VECTOR2I( 0, 900000 )
-    };
+    const std::vector<VECTOR2I> probes = { VECTOR2I( 0, 0 ), VECTOR2I( 900000, 0 ), VECTOR2I( 1100000, 0 ),
+                                           VECTOR2I( 0, 900000 ) };
 
     for( const VECTOR2I& pt : probes )
     {
@@ -420,10 +413,10 @@ BOOST_AUTO_TEST_CASE( CheckIndexDropped )
     BOOST_CHECK( target.TriangulationIndex() == nullptr );
 
     const std::vector<VECTOR2I> probes = {
-        VECTOR2I( 8000000, 8000000 ),        // inside the new geometry
-        VECTOR2I( 8890000, 8000000 ),        // just inside its edge
-        VECTOR2I( 8910000, 8000000 ),        // just outside its edge
-        VECTOR2I( 0, 0 )                     // where the OLD geometry used to be
+        VECTOR2I( 8000000, 8000000 ), // inside the new geometry
+        VECTOR2I( 8890000, 8000000 ), // just inside its edge
+        VECTOR2I( 8910000, 8000000 ), // just outside its edge
+        VECTOR2I( 0, 0 )              // where the OLD geometry used to be
     };
 
     for( const VECTOR2I& pt : probes )
