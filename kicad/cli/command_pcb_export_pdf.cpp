@@ -185,6 +185,7 @@ int CLI::PCB_EXPORT_PDF_COMMAND::doPerform( KIWAY& aKiway )
 
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     pdfJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+    pdfJob->m_drillMarksUnderOffBoardLayers = m_argParser.get<bool>( ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION );
 
     bool argModeMulti = m_argParser.get<bool>( ARG_MODE_MULTIPAGE );
     bool argModeSeparate = m_argParser.get<bool>( ARG_MODE_SEPARATE );

@@ -87,6 +87,7 @@ PCB_PLOT_PARAMS::PCB_PLOT_PARAMS()
     m_format                     = PLOT_FORMAT::GERBER;
     m_mirror                     = false;
     m_drillMarks                 = DRILL_MARKS::SMALL_DRILL_SHAPE;
+    m_drillMarksUnderOffBoardLayers = false;
     m_autoScale                  = false;
     m_scale                      = 1.0;
     m_scaleSelection             = 1;
@@ -205,6 +206,7 @@ void PCB_PLOT_PARAMS::Format( OUTPUTFORMATTER* aFormatter ) const
     aFormatter->Print( "(outputformat %d)", static_cast<int>( m_format ) );
     KICAD_FORMAT::FormatBool( aFormatter, "mirror", m_mirror );
     aFormatter->Print( "(drillshape %d)", (int)m_drillMarks );
+    KICAD_FORMAT::FormatBool( aFormatter, "drillunderoffboard", m_drillMarksUnderOffBoardLayers );
     aFormatter->Print( "(scaleselection %d)", m_scaleSelection );
     aFormatter->Print( "(outputdirectory %s)", aFormatter->Quotew( m_outputDirectory ).c_str() );
     aFormatter->Print( ")" );
@@ -339,6 +341,9 @@ bool PCB_PLOT_PARAMS::IsSameAs( const PCB_PLOT_PARAMS &aPcbPlotParams ) const
     if( m_format != PLOT_FORMAT::GERBER )
     {
         if( m_drillMarks != aPcbPlotParams.m_drillMarks )
+            return false;
+
+        if( m_drillMarksUnderOffBoardLayers != aPcbPlotParams.m_drillMarksUnderOffBoardLayers )
             return false;
 
         if( m_scaleSelection != aPcbPlotParams.m_scaleSelection )
@@ -813,6 +818,10 @@ void PCB_PLOT_PARAMS_PARSER::Parse( PCB_PLOT_PARAMS* aPcbPlotParams )
 
         case T_drillshape:
             aPcbPlotParams->m_drillMarks = static_cast<DRILL_MARKS> ( parseInt( 0, 2 ) );
+            break;
+
+        case T_drillunderoffboard: 
+            aPcbPlotParams->m_drillMarksUnderOffBoardLayers = parseBool();
             break;
 
         case T_scaleselection:

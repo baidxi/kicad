@@ -447,6 +447,8 @@ void PCB_PLOTTER::PlotJobToPlotOpts( PCB_PLOT_PARAMS& aOpts, JOB_EXPORT_PCB_PLOT
         default:
         case DRILL_MARKS::FULL_DRILL_SHAPE:  aOpts.SetDrillMarksType( DRILL_MARKS::FULL_DRILL_SHAPE );  break;
         }
+
+        aOpts.SetDrillMarksUnderOffBoardLayers( aJob->m_drillMarksUnderOffBoardLayers );
     }
 
     if( aJob->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::SVG )

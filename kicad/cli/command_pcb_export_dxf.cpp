@@ -159,6 +159,7 @@ int CLI::PCB_EXPORT_DXF_COMMAND::doPerform( KIWAY& aKiway )
 
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     dxfJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+    dxfJob->m_drillMarksUnderOffBoardLayers = m_argParser.get<bool>( ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION );
 
     wxString units = From_UTF8( m_argParser.get<std::string>( ARG_OUTPUT_UNITS ).c_str() );
 

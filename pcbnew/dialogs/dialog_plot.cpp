@@ -409,6 +409,7 @@ bool DIALOG_PLOT::TransferDataToWindow()
 
     // Options to plot pads and vias holes
     m_drillShapeOpt->SetSelection( (int) m_plotOpts.GetDrillMarksType() );
+    m_drillMarksUnderOffBoardLayers->SetValue( m_plotOpts.GetDrillMarksUnderOffBoardLayers() );
 
     // Scale option
     m_scaleOpt->SetSelection( m_plotOpts.GetScaleSelection() );
@@ -542,7 +543,9 @@ void DIALOG_PLOT::transferPlotParamsToJob()
     m_job->m_plotOnAllLayersSequence = m_plotOpts.GetPlotOnAllLayersSequence();
 
     if( m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::SVG ||
-        m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PDF )
+        m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PDF ||
+        m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PNG ||
+        m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::POST )
     {
         switch( m_plotOpts.GetDrillMarksType() )
         {
@@ -551,6 +554,8 @@ void DIALOG_PLOT::transferPlotParamsToJob()
         default:
         case DRILL_MARKS::FULL_DRILL_SHAPE:  m_job->m_drillShapeOption = DRILL_MARKS::FULL_DRILL_SHAPE;  break;
         }
+
+        m_job->m_drillMarksUnderOffBoardLayers = m_plotOpts.GetDrillMarksUnderOffBoardLayers();
     }
 
     m_job->SetConfiguredOutputPath( m_plotOpts.GetOutputDirectory() );
@@ -887,6 +892,8 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
     case PLOT_FORMAT::SVG:
     case PLOT_FORMAT::PDF:
         m_drillShapeOpt->Enable( true );
+        m_drillMarksUnderOffBoardLayers->Enable( static_cast<DRILL_MARKS>( m_drillShapeOpt->GetSelection() )
+                                                 != DRILL_MARKS::NO_DRILL_SHAPE );
         m_plotMirrorOpt->Enable( true );
         m_useAuxOriginCheckBox->Enable( true );
         m_scaleOpt->Enable( true );
@@ -902,6 +909,8 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
 
     case PLOT_FORMAT::POST:
         m_drillShapeOpt->Enable( true );
+        m_drillMarksUnderOffBoardLayers->Enable( static_cast<DRILL_MARKS>( m_drillShapeOpt->GetSelection() )
+                                                 != DRILL_MARKS::NO_DRILL_SHAPE );
         m_plotMirrorOpt->Enable( true );
         m_useAuxOriginCheckBox->Enable( false );
         m_useAuxOriginCheckBox->SetValue( false );
@@ -918,6 +927,8 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
     case PLOT_FORMAT::GERBER:
         m_drillShapeOpt->Enable( false );
         m_drillShapeOpt->SetSelection( 0 );
+        m_drillMarksUnderOffBoardLayers->Enable( false );
+        m_drillMarksUnderOffBoardLayers->SetValue( false );
         m_plotMirrorOpt->Enable( false );
         m_plotMirrorOpt->SetValue( false );
         m_useAuxOriginCheckBox->Enable( true );
@@ -935,7 +946,10 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         break;
 
     case PLOT_FORMAT::DXF:
-        m_drillShapeOpt->Enable( true );
+        m_drillShapeOpt->Enable( false );
+        m_drillShapeOpt->SetSelection( 0 );
+        m_drillMarksUnderOffBoardLayers->Enable( false );
+        m_drillMarksUnderOffBoardLayers->SetValue( false );
         m_plotMirrorOpt->Enable( false );
         m_plotMirrorOpt->SetValue( false );
         m_useAuxOriginCheckBox->Enable( true );
@@ -954,6 +968,8 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
 
     case PLOT_FORMAT::PNG:
         m_drillShapeOpt->Enable( true );
+        m_drillMarksUnderOffBoardLayers->Enable( static_cast<DRILL_MARKS>( m_drillShapeOpt->GetSelection() )
+                                                 != DRILL_MARKS::NO_DRILL_SHAPE );
         m_plotMirrorOpt->Enable( true );
         m_useAuxOriginCheckBox->Enable( true );
         m_scaleOpt->Enable( true );
@@ -1045,6 +1061,8 @@ void DIALOG_PLOT::applyPlotSettings()
 
     int sel = m_drillShapeOpt->GetSelection();
     tempOptions.SetDrillMarksType( static_cast<DRILL_MARKS>( sel ) );
+    tempOptions.SetDrillMarksUnderOffBoardLayers( m_drillMarksUnderOffBoardLayers->GetValue()
+                                                  && tempOptions.GetDrillMarksType() != DRILL_MARKS::NO_DRILL_SHAPE );
 
     tempOptions.SetMirror( m_plotMirrorOpt->GetValue() );
     tempOptions.SetDXFPlotPolygonMode( m_DXF_plotModeOpt->GetValue() );
@@ -1418,6 +1436,12 @@ void DIALOG_PLOT::onDNPCheckbox( wxCommandEvent& aEvent )
 void DIALOG_PLOT::onSketchPads( wxCommandEvent& aEvent )
 {
     m_plotPadNumbers->Enable( aEvent.IsChecked() );
+}
+
+
+void DIALOG_PLOT::onDrillMarksChoice( wxCommandEvent& aEvent )
+{
+    m_drillMarksUnderOffBoardLayers->Enable(aEvent.GetSelection() != 0);
 }
 
 

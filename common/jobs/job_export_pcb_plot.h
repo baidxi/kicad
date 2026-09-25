@@ -78,6 +78,7 @@ public:
 
     ///< Used by SVG & PDF
     DRILL_MARKS m_drillShapeOption;
+    bool        m_drillMarksUnderOffBoardLayers;
 
     ///< Used by SVG/DXF/PDF/Gerbers
     bool m_useDrillOrigin;

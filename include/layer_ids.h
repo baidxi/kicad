@@ -754,6 +754,13 @@ inline bool IsCopperLayer( int aLayerId, bool aIncludeSyntheticCopperLayers )
         return IsCopperLayer( aLayerId );
 }
 
+inline bool IsOnBoardLayer( int aLayerId )
+{
+    return ( aLayerId <= In30_Cu && !( aLayerId & 1 ) || aLayerId <= B_Paste && ( aLayerId & 1 )
+             || aLayerId == Edge_Cuts || aLayerId == Margin )
+           && aLayerId < PCB_LAYER_ID_COUNT;
+}
+
 inline bool IsViaPadLayer( int aLayer )
 {
     return aLayer == LAYER_VIA_THROUGH

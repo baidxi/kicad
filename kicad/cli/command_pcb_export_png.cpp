@@ -136,6 +136,7 @@ int CLI::PCB_EXPORT_PNG_COMMAND::doPerform( KIWAY& aKiway )
     pngJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     pngJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+    pngJob->m_drillMarksUnderOffBoardLayers = m_argParser.get<bool>( ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION );
     pngJob->m_drawingSheet = m_argDrawingSheet;
     pngJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
     pngJob->m_scale = m_argParser.get<double>( ARG_SCALE );

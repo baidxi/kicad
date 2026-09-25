@@ -189,6 +189,7 @@ int CLI::PCB_EXPORT_PS_COMMAND::doPerform( KIWAY& aKiway )
 
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     psJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+    psJob->m_drillMarksUnderOffBoardLayers = m_argParser.get<bool>( ARG_DRILL_UNDER_OFF_BOARD_LAYERS_OPTION );
 
     psJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
     psJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
