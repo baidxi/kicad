@@ -3322,7 +3322,31 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     }
 
     if( job->m_probeOnly )
+    {
+        IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( fileType ) );
+
+        if( !pi )
+        {
+            m_reporter->Report( wxString::Format( _( "No plugin found for file type '%s'\n" ),
+                                                  PCB_IO_MGR::ShowType( fileType ) ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        try
+        {
+            job->m_projectBoards = pi->EnumerateProjectBoards( job->m_inputFile );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            m_reporter->Report( wxString::Format( _( "Failed to inspect board project: %s\n" ), ioe.What() ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        }
+
         return CLI::EXIT_CODES::SUCCESS;
+    }
+
 
     // Determine output path
     wxString outputPath = job->GetConfiguredOutputPath();

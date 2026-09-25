@@ -23,10 +23,12 @@
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <utility>
+#include <vector>
+
 #include <io/common/plugin_common_choose_project.h>
 #include <pcb_io/pcb_io.h>
 #include <pcb_io/pcb_io_mgr.h>
-
 
 class PCB_IO_EASYEDAPRO : public PCB_IO, public PROJECT_CHOOSER_PLUGIN
 {
@@ -49,6 +51,8 @@ public:
     }
 
     bool CanReadBoard( const wxString& aFileName ) const override;
+
+    std::vector<std::pair<wxString, wxString>> EnumerateProjectBoards( const wxString& aFileName ) const override;
 
     long long GetLibraryTimestamp( const wxString& aLibraryPath ) const override;
 

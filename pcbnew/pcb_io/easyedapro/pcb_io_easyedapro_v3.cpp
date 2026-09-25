@@ -67,6 +67,33 @@ const EASYEDAPRO::V3_DOC_PARSER& PCB_IO_EASYEDAPRO_V3::getCachedLibraryParser( c
 }
 
 
+std::vector<std::pair<wxString, wxString>>
+PCB_IO_EASYEDAPRO_V3::EnumerateProjectBoards( const wxString& aFileName ) const
+{
+    EASYEDAPRO::V3_DOC_PARSER parser( aFileName );
+    parser.Load();
+
+    const nlohmann::json  sourceProject = EASYEDAPRO::BuildV3ProjectIndexFromRawDocs( parser, false );
+    const nlohmann::json& pcbsIndex = sourceProject.at( "pcbs" );
+
+    std::vector<std::pair<wxString, wxString>> result;
+    result.reserve( parser.GetRawDocs( wxS( "PCB" ) ).size() );
+
+    for( const auto& [uuid, doc] : parser.GetRawDocs( wxS( "PCB" ) ) )
+    {
+        wxString title = uuid;
+        auto     pcbIt = pcbsIndex.find( std::string( uuid.ToUTF8() ) );
+
+        if( pcbIt != pcbsIndex.end() )
+            title = EASYEDAPRO::V3GetString( pcbIt.value(), "title", title );
+
+        result.emplace_back( uuid, title );
+    }
+
+    return result;
+}
+
+
 bool PCB_IO_EASYEDAPRO_V3::CanReadBoard( const wxString& aFileName ) const
 {
     return EASYEDAPRO::V3_DOC_PARSER::IsV3Archive( aFileName );

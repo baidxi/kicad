@@ -24,9 +24,10 @@
 #include <pcb_io/pcb_io_mgr.h>
 
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include <config.h>
-#include <vector>
 #include <wx/arrstr.h>
 #include <i18n_utility.h>
 
@@ -92,6 +93,17 @@ public:
      * Check if this PCB_IO can read the specified board file.
      * If not overriden, extension check is used.
      */
+
+    /**
+     * Return the PCB document identifiers and source names in a project container.
+     *
+     * Plugins that do not support project containers return an empty list.
+     */
+    virtual std::vector<std::pair<wxString, wxString>>
+    EnumerateProjectBoards( const wxString& aFileName ) const
+    {
+        return {};
+    }
     virtual bool CanReadBoard( const wxString& aFileName ) const;
 
     /**

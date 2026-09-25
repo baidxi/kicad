@@ -22,8 +22,6 @@
 #include <jobs/job_pcb_import.h>
 #include <jobs/job_sch_import.h>
 #include <jobs/job_import_utils.h>
-#include <io/easyedapro/easyedapro_import_utils.h>
-#include <io/easyedapro/easyedapro_v3_parser.h>
 #include <ki_exception.h>
 #include <pgm_base.h>
 #include <settings/settings_manager.h>
@@ -36,67 +34,13 @@
 #include <wildcards_and_files_ext.h>
 #include <wx/crt.h>
 #include <wx/filename.h>
-#include <wx/wfstream.h>
-#include <wx/zipstrm.h>
 
-#include <memory>
 #include <string>
 #include <set>
-#include <utility>
 #include <vector>
 
 
 #define ARG_LAYER_MAP "--layer-map"
-
-
-namespace
-{
-
-// The EasyEDA Pro v2 archive is a .epro/.zip holding project.json (the v3 archive holds
-// project2.json instead).  Reading the project index is cheap, so a malformed archive simply
-// reads as an ordinary import below.
-bool IsV2EasyEdaProProject( const wxString& aFileName )
-{
-    wxFileName fn( aFileName );
-    wxString   ext = fn.GetExt().Lower();
-
-    if( ext != wxS( "epro" ) && ext != wxS( "zip" ) )
-        return false;
-
-    try
-    {
-        std::shared_ptr<wxZipEntry> entry;
-        wxFFileInputStream          in( aFileName );
-        wxZipInputStream            zip( in );
-
-        if( !zip.IsOk() )
-            return false;
-
-        bool hasProject2 = false;
-        bool hasProject = false;
-
-        while( entry.reset( zip.GetNextEntry() ), entry.get() != nullptr )
-        {
-            wxString baseName = entry->GetName().AfterLast( '\\' ).AfterLast( '/' );
-
-            if( baseName.CmpNoCase( wxS( "project2.json" ) ) == 0 )
-                hasProject2 = true;
-            else if( baseName.CmpNoCase( wxS( "project.json" ) ) == 0 )
-                hasProject = true;
-
-            if( hasProject && hasProject2 )
-                return false;
-        }
-
-        return hasProject;
-    }
-    catch( ... )
-    {
-        return false;
-    }
-}
-
-} // namespace
 
 
 CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
@@ -113,8 +57,7 @@ CLI::IMPORT_COMMAND::IMPORT_COMMAND() : COMMAND( "import" )
     m_argParser.add_argument( "-o", ARG_OUTPUT )
             .default_value( std::string() )
             .help( UTF8STDSTR( _( "Output project path stem; produces <stem>.kicad_pro plus "
-                                  "imported board and/or schematic files beside it. EasyEDA (JLCEDA) "
-                                  "Pro project boards keep their source names. Defaults to the first "
+                                  "imported board and/or schematic files beside it. Defaults to the first "
                                   "input's name in the current directory." ) ) )
             .metavar( "PROJECT" );
 
@@ -213,121 +156,6 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
     {
         if( !haveBoard )
         {
-            std::vector<std::pair<wxString, wxString>> sourcePcbs;
-
-            if( EASYEDAPRO::V3_DOC_PARSER::IsV3Archive( input ) )
-            {
-                try
-                {
-                    EASYEDAPRO::V3_DOC_PARSER parser( input );
-                    parser.Load();
-
-                    const nlohmann::json  sourceProject = EASYEDAPRO::BuildV3ProjectIndexFromRawDocs( parser, false );
-                    const nlohmann::json& pcbsIndex = sourceProject.at( "pcbs" );
-
-                    for( const auto& [uuid, doc] : parser.GetRawDocs( wxS( "PCB" ) ) )
-                    {
-                        wxString title = uuid;
-                        auto     pcbIt = pcbsIndex.find( std::string( uuid.ToUTF8() ) );
-
-                        if( pcbIt != pcbsIndex.end() )
-                            title = EASYEDAPRO::V3GetString( pcbIt.value(), "title", title );
-
-                        sourcePcbs.emplace_back( uuid, title );
-                    }
-                }
-                catch( const IO_ERROR& ioe )
-                {
-                    reporter.Report( wxString::Format( _( "Error reading EasyEDA (JLCEDA) Pro v3 "
-                                                          "project '%s': %s\n" ),
-                                                       input, ioe.What() ),
-                                     RPT_SEVERITY_ERROR );
-                    retCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
-                    break;
-                }
-            }
-            else if( IsV2EasyEdaProProject( input ) )
-            {
-                try
-                {
-                    const nlohmann::json& projectIndex = EASYEDAPRO::ReadProjectOrDeviceFile( input );
-                    const nlohmann::json& pcbsIndex = projectIndex.at( "pcbs" );
-
-                    for( const auto& [uuid, entry] : pcbsIndex.items() )
-                    {
-                        wxString title = wxString::FromUTF8( uuid );
-
-                        if( entry.is_string() && !entry.get<std::string>().empty() )
-                            title = wxString::FromUTF8( entry.get_ref<const std::string&>() );
-                        else if( entry.is_object() )
-                            title = EASYEDAPRO::V3GetString( entry, "title", title );
-
-                        sourcePcbs.emplace_back( wxString::FromUTF8( uuid ), title );
-                    }
-                }
-                catch( const IO_ERROR& ioe )
-                {
-                    reporter.Report( wxString::Format( _( "Error reading EasyEDA (JLCEDA) Pro v2 "
-                                                          "project '%s': %s\n" ),
-                                                       input, ioe.What() ),
-                                     RPT_SEVERITY_ERROR );
-                    retCode = EXIT_CODES::ERR_INVALID_INPUT_FILE;
-                    break;
-                }
-            }
-
-            if( !sourcePcbs.empty() )
-            {
-                const bool         hasMultipleBoards = sourcePcbs.size() > 1;
-                std::set<wxString> usedBoardNames;
-
-                for( const auto& [pcbId, sourceName] : sourcePcbs )
-                {
-                    wxFileName outputFn = boardFn;
-
-                    if( hasMultipleBoards )
-                    {
-                        wxString boardName = EscapeString( sourceName, CTX_FILENAME );
-
-                        if( boardName.empty() )
-                            boardName = pcbId;
-
-                        wxString uniqueBoardName = boardName;
-                        unsigned duplicate = 2;
-
-                        while( !usedBoardNames.insert( uniqueBoardName ).second )
-                        {
-                            uniqueBoardName = wxString::Format( wxS( "%s-%u" ), boardName, duplicate );
-                            ++duplicate;
-                        }
-
-                        outputFn.SetName( uniqueBoardName );
-                    }
-
-                    std::unique_ptr<JOB_PCB_IMPORT> pcbJob = std::make_unique<JOB_PCB_IMPORT>();
-                    pcbJob->m_inputFile = input;
-                    pcbJob->m_importPcbId = pcbId;
-                    pcbJob->m_isPartOfMultiBoardProject = hasMultipleBoards;
-                    pcbJob->SetConfiguredOutputPath( outputFn.GetFullPath() );
-
-                    int pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, pcbJob.get(), &reporter );
-
-                    if( pcbResult != EXIT_CODES::SUCCESS )
-                    {
-                        retCode = pcbResult;
-                        break;
-                    }
-
-                    boards.emplace_back( KIID(), outputFn.GetFullName() );
-                    haveBoard = true;
-                }
-
-                if( retCode != EXIT_CODES::SUCCESS )
-                    break;
-
-                continue;
-            }
-
             JOB_PCB_IMPORT probe;
             probe.m_inputFile = input;
             probe.m_probeOnly = true;
@@ -336,6 +164,60 @@ int CLI::IMPORT_COMMAND::doPerform( KIWAY& aKiway )
 
             if( pcbResult == EXIT_CODES::SUCCESS )
             {
+                const auto& sourcePcbs = probe.m_projectBoards;
+
+                if( !sourcePcbs.empty() )
+                {
+                    const bool         hasMultipleBoards = sourcePcbs.size() > 1;
+                    std::set<wxString> usedBoardNames;
+
+                    for( const auto& [pcbId, sourceName] : sourcePcbs )
+                    {
+                        wxFileName outputFn = boardFn;
+
+                        if( hasMultipleBoards )
+                        {
+                            wxString boardName = EscapeString( sourceName, CTX_FILENAME );
+
+                            if( boardName.empty() )
+                                boardName = pcbId;
+
+                            wxString uniqueBoardName = boardName;
+                            unsigned duplicate = 2;
+
+                            while( !usedBoardNames.insert( uniqueBoardName ).second )
+                            {
+                                uniqueBoardName = wxString::Format( wxS( "%s-%u" ), boardName, duplicate );
+                                ++duplicate;
+                            }
+
+                            outputFn.SetName( uniqueBoardName );
+                        }
+
+                        JOB_PCB_IMPORT pcbJob;
+                        pcbJob.m_inputFile = input;
+                        pcbJob.m_importPcbId = pcbId;
+                        pcbJob.m_isPartOfMultiBoardProject = hasMultipleBoards;
+                        pcbJob.SetConfiguredOutputPath( outputFn.GetFullPath() );
+
+                        pcbResult = aKiway.ProcessJob( KIWAY::FACE_PCB, &pcbJob, &reporter );
+
+                        if( pcbResult != EXIT_CODES::SUCCESS )
+                        {
+                            retCode = pcbResult;
+                            break;
+                        }
+
+                        boards.emplace_back( KIID(), outputFn.GetFullName() );
+                        haveBoard = true;
+                    }
+
+                    if( retCode != EXIT_CODES::SUCCESS )
+                        break;
+
+                    continue;
+                }
+
                 boards.emplace_back( KIID(), boardFn.GetFullName() );
                 haveBoard = true;
                 boardInput = input;
