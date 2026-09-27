@@ -402,9 +402,9 @@ protected:
 
 private:
     /**
-     * Select the drill chart row under a point, when the chart itself is what is selected.
+     * Select the generated table row under a point, when the table itself is what is selected.
      */
-    bool selectChartRow( const VECTOR2I& aPosition );
+    bool selectGeneratedTableRow( const VECTOR2I& aPosition );
 
     /**
      * Select an item pointed by the parameter \a aWhere.

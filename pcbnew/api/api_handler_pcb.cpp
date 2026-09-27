@@ -256,6 +256,8 @@ HANDLER_RESULT<Empty> API_HANDLER_PCB::handleSaveDocument(
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
 
+    prepareGeneratedTablesForSave();
+
     if( !pcbContext()->SaveBoard() )
     {
         ApiResponseStatus e;
@@ -310,6 +312,8 @@ HANDLER_RESULT<Empty> API_HANDLER_PCB::handleSaveCopyOfDocument(
     }
 
     BOARD* board = this->board();
+
+    prepareGeneratedTablesForSave();
 
     if( board->GetFileName().Matches( boardPath.GetFullPath() ) )
     {
@@ -409,6 +413,9 @@ static const std::vector<KICAD_T> s_allowedBoardTypes = {
     PCB_TEXT_T,
     PCB_TEXTBOX_T,
     PCB_TABLE_T,
+    PCB_DRILL_CHART_T,
+    PCB_STACKUP_TABLE_T,
+    PCB_DRILL_MAP_T,
     PCB_TRACE_T,
     PCB_ARC_T,
     PCB_VIA_T,
@@ -493,6 +500,9 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_PCB::handleGetItems( const HANDLER_
 
         case PCB_SHAPE_T:
         case PCB_TABLE_T:
+        case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
+        case PCB_DRILL_MAP_T:
         case PCB_TEXT_T:
         case PCB_TEXTBOX_T:
         case PCB_BARCODE_T:
@@ -1479,6 +1489,21 @@ void API_HANDLER_PCB::onModified()
         frame()->OnModify();
         frame()->UpdateUserInterface();
     }
+    else
+    {
+        // OnModify refreshes them in the editor. Headless nothing else would
+        refreshGeneratedTables();
+    }
+}
+
+
+void API_HANDLER_PCB::refreshGeneratedTables()
+{
+    // The frame also updates the view and any selection holding a rebuilt cell
+    if( frame() )
+        frame()->RefreshGeneratedTables();
+    else
+        API_HANDLER_BOARD::refreshGeneratedTables();
 }
 
 

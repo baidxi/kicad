@@ -219,6 +219,8 @@ protected:
 
     void onModified() override;
 
+    void refreshGeneratedTables() override;
+
     void onNetSettingsChanged() override;
 
     HANDLER_RESULT<commands::GetDocumentModifiedStateResponse>

@@ -297,6 +297,23 @@ public:
     }
 
     /**
+     * Return true if aObject holds several values for this property, so it has no single value to show.
+     */
+    bool IsIndeterminate( INSPECTABLE* aObject ) const
+    {
+        return m_indeterminateFunc && m_indeterminateFunc( aObject );
+    }
+
+    /**
+     * Set a callback function to determine whether an object's value for this property is mixed.
+     */
+    PROPERTY_BASE& SetIndeterminateFunc( std::function<bool(INSPECTABLE*)> aFunc )
+    {
+        m_indeterminateFunc = std::move( aFunc );
+        return *this;
+    }
+
+    /**
      * Return type-id of the Owner class.
      */
     virtual size_t OwnerHash() const = 0;
@@ -478,6 +495,8 @@ private:
     std::function<bool(INSPECTABLE*)> m_writeableFunc;   ///< Eval to determine if prop is read-only
 
     std::function<wxPGChoices(INSPECTABLE*)> m_choicesFunc;
+
+    std::function<bool(INSPECTABLE*)> m_indeterminateFunc;   ///< Eval to determine if the value is mixed
 
     PROPERTY_VALIDATOR_FN m_validator;
 
