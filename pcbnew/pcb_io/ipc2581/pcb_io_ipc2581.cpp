@@ -129,6 +129,37 @@ static size_t ipcPadstackHash( const PAD* aPad )
 
 
 /**
+ * Return the set of layers a pad is exported on.
+ *
+ * This drives both the per-layer feature generation and the padstack definition so the two
+ * always stay consistent.
+ *
+ * Some pad definitions omit the mask layer even though their copper needs a mask opening
+ * (see issue 16658), so the implicit opening is added on the flashed copper sides.  This only
+ * applies when the pad authors no mask side at all: a pad that carries a mask on one side
+ * only (e.g. *.Cu + B.Mask) has intentionally suppressed the other (see issue 24753).  Solder
+ * paste stays implicit-free: absence of F.Paste/B.Paste means "no paste" and must be
+ * respected, e.g. for thermal/exposed pads whose stencil apertures are modeled as separate
+ * paste-only pads (see issue 24318).
+ */
+static LSET padExportLayerSet( const PAD* aPad )
+{
+    LSET layers = aPad->GetLayerSet();
+
+    if( !layers.Contains( F_Mask ) && !layers.Contains( B_Mask ) )
+    {
+        if( layers.Contains( F_Cu ) && aPad->FlashLayer( F_Cu ) )
+            layers.set( F_Mask );
+
+        if( layers.Contains( B_Cu ) && aPad->FlashLayer( B_Cu ) )
+            layers.set( B_Mask );
+    }
+
+    return layers;
+}
+
+
+/**
  * Map KiCad surface finish strings to IPC-6012 surfaceFinishType enum.
  */
 static const std::map<wxString, surfaceFinishType> surfaceFinishMap =
@@ -2804,7 +2835,9 @@ void PCB_IO_IPC2581::addPadStack( wxXmlNode* aPadNode, const PAD* aPad )
         addXY( padStackHoleNode, aPad->GetOffset( aPad->Padstack().EffectiveLayerFor( F_Cu ) ) );
     }
 
-    LSEQ layer_seq = aPad->GetLayerSet().Seq();
+    // Iterate the same layer set used to generate the pad's layer features so the padstack
+    // definition and the LayerFeature sets stay consistent (e.g. implicit mask openings).
+    LSEQ layer_seq = padExportLayerSet( aPad ).Seq();
 
     for( PCB_LAYER_ID layer : layer_seq )
     {
@@ -2818,7 +2851,9 @@ void PCB_IO_IPC2581::addPadStack( wxXmlNode* aPadNode, const PAD* aPad )
         addAttribute( padStackPadDefNode,  "padUse", "REGULAR" );
         addLocationNode( padStackPadDefNode, offset.x, offset.y );
 
-        if( aPad->HasHole() || !aPad->FlashLayer( layer ) )
+        // A copper layer whose copper is unflashed only exposes the hole barrel; every other
+        // layer carries the pad's per-layer shape.
+        if( IsCopperLayer( layer ) && !aPad->FlashLayer( layer ) )
         {
             PCB_SHAPE shape( nullptr, SHAPE_T::CIRCLE );
             shape.SetStart( offset );
@@ -4133,31 +4168,15 @@ void PCB_IO_IPC2581::generateLayerFeatures( wxXmlNode* aStepNode )
 
         for( PAD* pad : fp->Pads() )
         {
-            LSEQ pad_layers = pad->GetLayerSet().Seq();
-
-            for( PCB_LAYER_ID layer : pad_layers )
+            for( PCB_LAYER_ID layer : padExportLayerSet( pad ).Seq() )
             {
-                if( pad->FlashLayer( layer ) )
-                    elements[layer][pad->GetNetCode()].push_back( pad );
-            }
+                // The flashing decision only applies to copper: mask openings and paste
+                // apertures are produced regardless of whether the copper is flashed, as in
+                // the board plotter.
+                if( IsCopperLayer( layer ) && !pad->FlashLayer( layer ) )
+                    continue;
 
-            // Some SMD pad definitions omit the mask layer even though their copper needs a
-            // mask opening. Add those implicit mask features on the corresponding copper side.
-            // This only applies when the pad authors no mask side at all. A pad that carries a
-            // mask on one side only (e.g. *.Cu + B.Mask) has intentionally suppressed the other,
-            // so it must not receive an implicit opening there.
-            // Solder paste is intentionally NOT added here. Absence of F.Paste/B.Paste in the
-            // pad's layer set means "no paste" and must be respected, e.g. for thermal/exposed
-            // pads whose stencil apertures are modeled as separate paste-only pads.
-            bool hasAuthoredMask = pad->IsOnLayer( F_Mask ) || pad->IsOnLayer( B_Mask );
-
-            if( !hasAuthoredMask )
-            {
-                if( pad->IsOnLayer( F_Cu ) && pad->FlashLayer( F_Cu ) )
-                    elements[F_Mask][pad->GetNetCode()].push_back( pad );
-
-                if( pad->IsOnLayer( B_Cu ) && pad->FlashLayer( B_Cu ) )
-                    elements[B_Mask][pad->GetNetCode()].push_back( pad );
+                elements[layer][pad->GetNetCode()].push_back( pad );
             }
         }
     }
