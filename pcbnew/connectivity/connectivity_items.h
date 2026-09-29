@@ -326,8 +326,7 @@ public:
             // Deep copy the triangulated polygon. The copy constructor copies the vertex storage
             // and updates all TRI parent pointers to reference our owned copy. This ensures the
             // triangles remain valid even if the zone is refilled on another thread.
-            m_triangulatedPolys.push_back(
-                    std::make_unique<SHAPE_POLY_SET::TRIANGULATED_POLYGON>( *triangleSet ) );
+            m_triangulatedPolys.push_back( std::make_unique<SHAPE_POLY_SET::TRIANGULATED_POLYGON>( *triangleSet ) );
         }
 
         m_triIndex = std::make_unique<TRIANGULATION_INDEX>( m_triangulatedPolys );
@@ -396,8 +395,6 @@ private:
     std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>> m_triangulatedPolys;
     std::unique_ptr<TRIANGULATION_INDEX>                               m_triIndex;
 };
-
-
 
 
 class CN_LIST
