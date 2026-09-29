@@ -20,7 +20,12 @@
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
 #include <bitmap_tracing.h>
+#include <eda_item.h>
+#include <import_gfx/bitmap_import_plugin.h>
+#include <import_gfx/graphics_importer_buffer.h>
 #include <reporter.h>
+
+#include <wx/mstream.h>
 
 BOOST_AUTO_TEST_SUITE( BitmapTracing )
 
@@ -103,6 +108,99 @@ BOOST_AUTO_TEST_CASE( RingTracesToOneOutlineWithItsHoleRemoved )
     BOX2I bbox = traced.BBox();
     BOOST_CHECK_LE( std::abs( bbox.GetWidth() - 40 ), 2 );
     BOOST_CHECK_LE( std::abs( bbox.GetHeight() - 40 ), 2 );
+}
+
+
+struct PNG_FIXTURE
+{
+    PNG_FIXTURE()
+    {
+        if( !wxImage::FindHandler( wxBITMAP_TYPE_PNG ) )
+            wxImage::AddHandler( new wxPNGHandler );
+    }
+
+    wxMemoryBuffer EncodeAsPng( const wxImage& aImage )
+    {
+        wxMemoryOutputStream stream;
+
+        BOOST_REQUIRE( aImage.SaveFile( stream, wxBITMAP_TYPE_PNG ) );
+
+        size_t         length = stream.GetLength();
+        wxMemoryBuffer buffer( length );
+
+        stream.CopyTo( buffer.GetWriteBuf( length ), length );
+        buffer.SetDataLen( length );
+
+        return buffer;
+    }
+};
+
+
+BOOST_FIXTURE_TEST_CASE( PluginReportsSizeInMillimetres, PNG_FIXTURE )
+{
+    BITMAP_IMPORT_PLUGIN plugin;
+
+    BOOST_REQUIRE( plugin.LoadFromMemory( EncodeAsPng( makeImage( 300, 150, 255 ) ) ) );
+
+    // An image with no resolution is read at 300 DPI, so 300 pixels is one inch.
+    BOOST_CHECK_CLOSE( plugin.GetImageWidth(), 25.4, 0.01 );
+    BOOST_CHECK_CLOSE( plugin.GetImageHeight(), 12.7, 0.01 );
+}
+
+
+BOOST_FIXTURE_TEST_CASE( PluginReportsFilledPolygons, PNG_FIXTURE )
+{
+    wxImage image = makeImage( 300, 300, 255 );
+    fillRect( image, wxRect( 60, 60, 60, 60 ), 0 );
+    fillRect( image, wxRect( 180, 180, 60, 60 ), 0 );
+
+    BITMAP_IMPORT_PLUGIN     plugin;
+    GRAPHICS_IMPORTER_BUFFER importer;
+
+    plugin.SetImporter( &importer );
+
+    BOOST_REQUIRE( plugin.LoadFromMemory( EncodeAsPng( image ) ) );
+    BOOST_REQUIRE( plugin.Import() );
+
+    BOOST_CHECK_EQUAL( importer.GetShapes().size(), 2 );
+
+    for( const std::unique_ptr<IMPORTED_SHAPE>& shape : importer.GetShapes() )
+    {
+        const IMPORTED_POLYGON* polygon = dynamic_cast<const IMPORTED_POLYGON*>( shape.get() );
+
+        BOOST_REQUIRE_MESSAGE( polygon, "a traced area must arrive as a polygon" );
+        BOOST_CHECK_MESSAGE( polygon->IsFilled(), "a traced area must arrive filled" );
+
+        // Width 0 would be read as "use the default line width" and outline the fill.
+        BOOST_CHECK_MESSAGE( polygon->GetStroke().GetWidth() == -1, "a traced area must arrive with no outline" );
+    }
+}
+
+
+BOOST_FIXTURE_TEST_CASE( PluginKeepsDetailFinerThanAMillimetre, PNG_FIXTURE )
+{
+    wxImage image = makeImage( 300, 300, 255 );
+
+    for( int bar = 0; bar < 3; bar++ )
+        fillRect( image, wxRect( 100 + bar * 6, 100, 4, 100 ), 0 );
+
+    BITMAP_IMPORT_PLUGIN     plugin;
+    GRAPHICS_IMPORTER_BUFFER importer;
+
+    plugin.SetImporter( &importer );
+
+    BOOST_REQUIRE( plugin.LoadFromMemory( EncodeAsPng( image ) ) );
+    BOOST_REQUIRE( plugin.Import() );
+
+    BOOST_CHECK_EQUAL( importer.GetShapes().size(), 3 );
+
+    for( const std::unique_ptr<IMPORTED_SHAPE>& shape : importer.GetShapes() )
+    {
+        BOX2D bbox = shape->GetBoundingBox();
+
+        BOOST_CHECK_CLOSE( bbox.GetWidth(), 4.0 * 25.4 / 300.0, 15.0 );
+        BOOST_CHECK_CLOSE( bbox.GetHeight(), 100.0 * 25.4 / 300.0, 5.0 );
+    }
 }
 
 

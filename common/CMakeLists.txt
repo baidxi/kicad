@@ -826,6 +826,7 @@ set ( COMMON_TRANSLINE_CALCULATION_SRCS
     )
 
 set( COMMON_IMPORT_GFX_SRCS
+    import_gfx/bitmap_import_plugin.cpp
     import_gfx/graphics_import_mgr.cpp
     import_gfx/graphics_importer.cpp
     import_gfx/graphics_importer_buffer.cpp
