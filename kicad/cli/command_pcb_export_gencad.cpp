@@ -25,6 +25,8 @@
 #include <string_utils.h>
 #include <wx/crt.h>
 
+#define ARG_FLIP_BOTTOM_PADS "--flip-bottom-pads"
+
 
 CLI::PCB_EXPORT_GENCAD_COMMAND::PCB_EXPORT_GENCAD_COMMAND() :
         PCB_EXPORT_BASE_COMMAND( "gencad", IO_TYPE::FILE, IO_TYPE::DIRECTORY )

@@ -61,6 +61,9 @@ private:
     void onPlotAllListMoveDown( wxCommandEvent& aEvent );
 
     void onDNPCheckbox( wxCommandEvent& event ) override;
+    void onPlotFPValues( wxCommandEvent& aEvent ) override;
+    void onPlotFPRefs( wxCommandEvent& aEvent ) override;
+    void onPlotFPText( wxCommandEvent& aEvent ) override;
     void onSketchPads( wxCommandEvent& event ) override;
     void onPDFColorChoice( wxCommandEvent& event ) override;
 

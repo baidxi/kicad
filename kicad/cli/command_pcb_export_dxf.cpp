@@ -40,36 +40,10 @@ CLI::PCB_EXPORT_DXF_COMMAND::PCB_EXPORT_DXF_COMMAND() :
 
     addLayerArg();
     addCommonLayersArg();
+    addReadabilityArgs();
+    addDNPArgs();
     addDrawingSheetArg();
     addDefineArg();
-
-    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
-            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
-            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--spn", ARG_SKETCH_PAD_NUMBERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PAD_NUMBERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
 
     m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
             .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )

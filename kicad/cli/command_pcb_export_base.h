@@ -25,21 +25,41 @@
 
 namespace CLI
 {
-#define ARG_BLACKANDWHITE "--black-and-white"
-#define ARG_BLACKANDWHITE_DESC "Black and white only"
 
+// Readability
 #define ARG_SKETCH_PADS_ON_FAB_LAYERS "--sketch-pads-on-fab-layers"
+#define ARG_SKETCH_PADS_ON_FAB_LAYERS_SHORT "--sp"
 #define ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC "Draw pad outlines on front and back fab layers"
 
 #define ARG_SKETCH_PAD_NUMBERS "--sketch-pad-numbers"
+#define ARG_SKETCH_PAD_NUMBERS_SHORT "--spn"
 #define ARG_SKETCH_PAD_NUMBERS_DESC "Plot pad numbers on top of sketched pads on fab layers"
 
+#define ARG_EXCLUDE_REFDES "--exclude-refdes"
+#define ARG_EXCLUDE_REFDES_SHORT "--erd"
+#define ARG_EXCLUDE_REFDES_DESC "Exclude the reference designator text"
+
+#define ARG_EXCLUDE_VALUE "--exclude-value"
+#define ARG_EXCLUDE_VALUE_SHORT "--ev"
+#define ARG_EXCLUDE_VALUE_DESC "Exclude the value text"
+
+
+// DNP presentation
 #define ARG_HIDE_DNP_FPS_ON_FAB_LAYERS "--hide-DNP-footprints-on-fab-layers"
+#define ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_SHORT "--hdnp"
 #define ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC "Don't plot text & graphics of DNP footprints on fab layers"
+
 #define ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS "--sketch-DNP-footprints-on-fab-layers"
+#define ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_SHORT "--sdnp"
 #define ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC "Plot graphics of DNP footprints in sketch mode on fab layers"
+
 #define ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS "--crossout-DNP-footprints-on-fab-layers"
+#define ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_SHORT "--cdnp"
 #define ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC "Plot an 'X' over the courtyard of DNP footprints on fab layers, and strikeout their reference designators"
+
+
+#define ARG_BLACKANDWHITE "--black-and-white"
+#define ARG_BLACKANDWHITE_DESC "Black and white only"
 
 #define ARG_DRILL_SHAPE_OPTION "--drill-shape-opt"
 #define ARG_DRILL_SHAPE_OPTION_DESC "Set pad/via drill shape option (0 = no shape, 1 = small shape, 2 = actual shape)"
@@ -49,14 +69,11 @@ namespace CLI
 #define ARG_NEGATIVE_DESC "Plot as negative (useful for directly etching from the export)"
 
 #define ARG_LAYERS "--layers"
-#define ARG_EXCLUDE_REFDES "--exclude-refdes"
-#define ARG_EXCLUDE_VALUE "--exclude-value"
 #define ARG_THEME "--theme"
 #define ARG_INCLUDE_BORDER_TITLE "--include-border-title"
 #define ARG_SUBTRACT_SOLDERMASK "--subtract-soldermask"
 #define ARG_MIRROR "--mirror"
 
-#define ARG_FLIP_BOTTOM_PADS "--flip-bottom-pads"
 #define ARG_UNIQUE_PINS "--unique-pins"
 #define ARG_UNIQUE_FOOTPRINTS "--unique-footprints"
 #define ARG_USE_DRILL_ORIGIN "--use-drill-origin"
@@ -81,6 +98,9 @@ struct PCB_EXPORT_BASE_COMMAND : public COMMAND
 protected:
     void addLayerArg();
     void addCommonLayersArg();
+
+    void addDNPArgs();
+    void addReadabilityArgs();
 };
 } // namespace CLI
 

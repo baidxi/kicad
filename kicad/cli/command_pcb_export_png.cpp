@@ -38,6 +38,8 @@ CLI::PCB_EXPORT_PNG_COMMAND::PCB_EXPORT_PNG_COMMAND() :
 
     addLayerArg();
     addCommonLayersArg();
+    addReadabilityArgs();
+    addDNPArgs();
     addDrawingSheetArg();
     addDefineArg();
 
@@ -60,26 +62,6 @@ CLI::PCB_EXPORT_PNG_COMMAND::PCB_EXPORT_PNG_COMMAND() :
 
     m_argParser.add_argument( ARG_BLACKANDWHITE )
             .help( UTF8STDSTR( _( ARG_BLACKANDWHITE_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--spn", ARG_SKETCH_PAD_NUMBERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_PAD_NUMBERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
             .flag();
 
     m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
@@ -125,15 +107,20 @@ int CLI::PCB_EXPORT_PNG_COMMAND::doPerform( KIWAY& aKiway )
 {
     std::unique_ptr<JOB_EXPORT_PCB_PNG> pngJob( new JOB_EXPORT_PCB_PNG() );
 
-    pngJob->m_mirror = m_argParser.get<bool>( ARG_MIRROR );
-    pngJob->m_blackAndWhite = m_argParser.get<bool>( ARG_BLACKANDWHITE );
-    pngJob->m_negative = m_argParser.get<bool>( ARG_NEGATIVE );
+    // Readability
     pngJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
     pngJob->m_plotPadNumbers = pngJob->m_sketchPadsOnFabLayers && m_argParser.get<bool>( ARG_SKETCH_PAD_NUMBERS );
+    pngJob->m_plotFootprintValues = !m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
+    pngJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
 
+    // DNP presentation
     pngJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
     pngJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
     pngJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+
+    pngJob->m_mirror = m_argParser.get<bool>( ARG_MIRROR );
+    pngJob->m_blackAndWhite = m_argParser.get<bool>( ARG_BLACKANDWHITE );
+    pngJob->m_negative = m_argParser.get<bool>( ARG_NEGATIVE );
     int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
     pngJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
     pngJob->m_drawingSheet = m_argDrawingSheet;

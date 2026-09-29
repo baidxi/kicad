@@ -49,3 +49,39 @@ void CLI::PCB_EXPORT_BASE_COMMAND::addCommonLayersArg()
                                   "untranslated layer names to include such as F.Cu,B.Cu" ) ) )
             .metavar( "COMMON_LAYER_LIST" );
 }
+
+
+void CLI::PCB_EXPORT_BASE_COMMAND::addDNPArgs()
+{
+    m_argParser.add_argument( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_SHORT, ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+            .flag();
+
+    m_argParser.add_argument( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_SHORT, ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+            .flag();
+
+    m_argParser.add_argument( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_SHORT, ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+            .flag();
+}
+
+
+void CLI::PCB_EXPORT_BASE_COMMAND::addReadabilityArgs()
+{
+    m_argParser.add_argument( ARG_SKETCH_PADS_ON_FAB_LAYERS_SHORT, ARG_SKETCH_PADS_ON_FAB_LAYERS )
+            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+            .flag();
+
+    m_argParser.add_argument( ARG_SKETCH_PAD_NUMBERS_SHORT, ARG_SKETCH_PAD_NUMBERS )
+            .help( UTF8STDSTR( _( ARG_SKETCH_PAD_NUMBERS_DESC ) ) )
+            .flag();
+
+    m_argParser.add_argument( ARG_EXCLUDE_REFDES_SHORT, ARG_EXCLUDE_REFDES )
+            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
+            .flag();
+
+    m_argParser.add_argument( ARG_EXCLUDE_VALUE_SHORT, ARG_EXCLUDE_VALUE )
+            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
+            .flag();
+}

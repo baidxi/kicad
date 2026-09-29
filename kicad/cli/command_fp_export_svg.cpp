@@ -38,6 +38,7 @@ CLI::FP_EXPORT_SVG_COMMAND::FP_EXPORT_SVG_COMMAND() :
 
     addLayerArg();
     addDefineArg();
+    addDNPArgs();
 
     m_argParser.add_argument( "-t", ARG_THEME )
             .default_value( std::string() )
@@ -55,18 +56,6 @@ CLI::FP_EXPORT_SVG_COMMAND::FP_EXPORT_SVG_COMMAND() :
 
     m_argParser.add_argument( "--spn", ARG_SKETCH_PAD_NUMBERS )
             .help( UTF8STDSTR( _( ARG_SKETCH_PAD_NUMBERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
-            .flag();
-
-    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
-            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
             .flag();
 
     m_argParser.add_argument( ARG_BLACKANDWHITE )
