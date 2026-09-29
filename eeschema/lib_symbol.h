@@ -138,8 +138,13 @@ public:
         return dupe;
     }
 
+    EDA_ITEM* Clone() const override
+    {
+        return new LIB_SYMBOL( *this, m_library );
+    }
+
     /**
-     * Returns a dummy LIB_SYMBOL, used when one is missing in the schematic
+     * Return a dummy #LIB_SYMBOL, used when one is missing in the schematic
      */
     static LIB_SYMBOL* GetDummy();
 
@@ -190,10 +195,10 @@ public:
 
     wxString GetLibNickname() const override { return GetLibraryName(); }
 
-    ///< Sets the Description field text value
+    /// Set the Description field text value
     void SetDescription( const wxString& aDescription );
 
-    ///< Gets the Description field text value */
+    /// Get the Description field text value */
     wxString GetDescription() const override
     {
         if( GetDescriptionField().GetText().IsEmpty() && IsDerived() )
@@ -326,12 +331,16 @@ public:
     /**
      * Get the symbol bounding box excluding fields.
      *
-     * @return the symbol bounding box ( in user coordinates ) without fields
+     * If aUnit == 0, unit is not used
+     * if aBodyStyle == 0, body style is not used
+     * Fields are not taken in account
+     *
      * @param aUnit = unit selection = 0, or 1..n
      * @param aBodyStyle = body style selection = 0, or 1..n
-     *  If aUnit == 0, unit is not used
-     *  if aBodyStyle == 0, body style is not used
-     *  Fields are not taken in account
+     * @param aIncludePins includes pins in the bounding box when true
+     * @param aIncludePrivateItems
+     *
+     * @return the symbol bounding box ( in user coordinates ) without fields
      */
     const BOX2I GetBodyBoundingBox( int aUnit, int aBodyStyle, bool aIncludePins,
                                     bool aIncludePrivateItems ) const;
@@ -384,7 +393,8 @@ public:
     /**
      * Populate a std::vector with SCH_FIELDs, sorted in ordinal order.
      *
-     * @param aList is the vector to populate.
+     * @param[out] aList is the vector to populate.
+     * @param aVisibleOnly limits returned fields to only the visible fields.
      */
     void GetFields( std::vector<SCH_FIELD*>& aList, bool aVisibleOnly = false ) const override;
 
@@ -642,8 +652,9 @@ public:
     /**
      * Automatically orient all the fields in the symbol.
      *
-     * @param aScreen is the SCH_SCREEN associated with the current instance of the symbol.
+     * @param aScreen is the #SCH_SCREEN associated with the current instance of the symbol.
      *                Required when \a aAlgo is AUTOPLACE_MANUAL; optional otherwise.
+     * @param aAlgo is the field placement algorithm to use.
      */
     void AutoplaceFields( SCH_SCREEN* aScreen, AUTOPLACE_ALGO aAlgo ) override;
 
@@ -652,9 +663,10 @@ public:
     /**
      * Resolve any references to system tokens supported by the symbol.
      *
+     * @param aToken is the text variable to resolve.
      * @param aDepth a counter to limit recursion and circular references.
      */
-    bool ResolveTextVar( wxString* token, int aDepth = 0 ) const;
+    bool ResolveTextVar( wxString* aToken, int aDepth = 0 ) const;
 
     void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
                int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
@@ -690,8 +702,7 @@ public:
      * @param aUnit Unit number to collect; 0 = all units
      * @param aBodyStyle Alternate body style to collect; 0 = all body styles
      */
-    std::vector<const SCH_PIN*> GetGraphicalPins( int aUnit = 0, int aBodyStyle = 0 ) const;
-    std::vector<SCH_PIN*> GetGraphicalPins( int aUnit = 0, int aBodyStyle = 0 );
+    std::vector<SCH_PIN*> GetGraphicalPins( int aUnit = 0, int aBodyStyle = 0 ) const override;
 
     /**
      * Logical pins: Return expanded logical pins based on stacked-pin notation.
@@ -720,9 +731,6 @@ public:
      */
     std::vector<UNIT_PIN_INFO> GetUnitPinInfo() const;
 
-
-    // Deprecated: use GetGraphicalPins(). This override remains to satisfy SYMBOL's pure virtual.
-    std::vector<SCH_PIN*> GetPins() const override;
 
     /**
      * @return a count of pins for all units / converts.
@@ -835,7 +843,7 @@ public:
     /**
      * This function finds the filled draw items that are covering up smaller draw items
      * and replaces their body fill color with the background fill color.
-    */
+     */
     void FixupDrawItems();
 
     INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
@@ -925,6 +933,8 @@ public:
      * Comparison test that can be used for operators.
      *
      * @param aRhs is the right hand side symbol used for comparison.
+     * @param aCompareFlags are used to control the comparison.
+     * @param aReporter is an optional #REPORTER object to write comparison status information.
      *
      * @return -1 if this symbol is less than \a aRhs
      *         1 if this symbol is greater than \a aRhs
@@ -973,7 +983,7 @@ public:
      * @param aSymbol is the symbol to compare to.
      *
      * @return a measure of similarity from 1.0 (identical) to 0.0 (no similarity).
-    */
+     */
     double Similarity( const SCH_ITEM& aSymbol ) const override;
 
     void RefreshLibraryTreeCaches();

@@ -39,7 +39,7 @@ void PCB_EDIT_FRAME::SetTrackSegmentWidth( PCB_TRACK* aItem, PICKED_ITEMS_LIST* 
         MINOPTMAX<int> constraint = aItem->GetWidthConstraint();
 
         if( constraint.HasOpt() )
-            new_width = constraint.Opt();
+            new_width = constraint.PinnedOpt();
         else if( constraint.Min() > 0 )
             new_width = constraint.Min();
 
@@ -48,15 +48,21 @@ void PCB_EDIT_FRAME::SetTrackSegmentWidth( PCB_TRACK* aItem, PICKED_ITEMS_LIST* 
             constraint = via->GetDrillConstraint();
 
             if( constraint.HasOpt() )
-                new_drill = constraint.Opt();
+                new_drill = constraint.PinnedOpt();
             else if( constraint.Min() > 0 )
                 new_drill = constraint.Min();
         }
     }
     else if( via && via->GetViaType() == VIATYPE::MICROVIA )
     {
-        new_width = aItem->GetEffectiveNetClass()->GetuViaDiameter();
-        new_drill = aItem->GetEffectiveNetClass()->GetuViaDrill();
+        NETCLASS* netClass = via->GetEffectiveNetClass();
+        PCB_VIA   original( *via );
+
+        // Resolve on the live via, since rules such as fromTo() match board items only
+        via->SetSizeFromRules( netClass->GetuViaDiameter(), netClass->GetuViaDrill() );
+        new_width = via->GetWidth( PADSTACK::ALL_LAYERS );
+        new_drill = via->GetDrillValue();
+        via->CopyFrom( &original );
     }
     else if( via )
     {

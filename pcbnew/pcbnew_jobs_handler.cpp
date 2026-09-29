@@ -40,6 +40,7 @@
 #include <diff_merge/kicad_diff_types.h>
 #include <settings/json_settings_internals.h>
 #include <trace_helpers.h>
+#include <board_tables/generated_table_refresh.h>
 #include <pcb_drill_chart.h>
 #include <drc/drc_engine.h>
 #include <board_statistics_report.h>
@@ -53,6 +54,7 @@
 #include <jobs/job_fp_export_svg.h>
 #include <jobs/job_fp_upgrade.h>
 #include <jobs/job_export_pcb_ipc2581.h>
+#include <jobs/job_export_pcb_idf.h>
 #include <jobs/job_export_pcb_ipcd356.h>
 #include <jobs/job_export_pcb_odb.h>
 #include <jobs/job_export_pcb_gerber.h>
@@ -95,6 +97,7 @@
 #include <pad.h>
 #include <pcb_marker.h>
 #include <project/project_file.h>
+#include <exporters/export_idf.h>
 #include <exporters/export_gencad_writer.h>
 #include <exporters/export_d356.h>
 #include <kiface_ids.h>
@@ -121,6 +124,7 @@
 #include <dialogs/dialog_gendrill.h>
 #include <dialogs/dialog_gen_footprint_position.h>
 #include <dialogs/dialog_export_2581.h>
+#include <dialogs/dialog_export_idf.h>
 #include <dialogs/dialog_export_odbpp.h>
 #include <dialogs/dialog_export_step.h>
 #include <dialogs/dialog_footprint_fields_table.h>
@@ -455,6 +459,19 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   wxCHECK( odbJob && editFrame, false );
 
                   DIALOG_EXPORT_ODBPP dlg( odbJob, editFrame, aParent );
+                  return dlg.ShowModal() == wxID_OK;
+              } );
+    Register( "idf", std::bind( &PCBNEW_JOBS_HANDLER::JobExportIdf, this, std::placeholders::_1 ),
+              [aKiway]( JOB* job, wxWindow* aParent ) -> bool
+              {
+                  JOB_EXPORT_PCB_IDF* idfJob = dynamic_cast<JOB_EXPORT_PCB_IDF*>( job );
+
+                  PCB_EDIT_FRAME* editFrame =
+                          dynamic_cast<PCB_EDIT_FRAME*>( aKiway->Player( FRAME_PCB_EDITOR, false ) );
+
+                  wxCHECK( idfJob && editFrame, false );
+
+                  DIALOG_EXPORT_IDF3 dlg( idfJob, editFrame, aParent );
                   return dlg.ShowModal() == wxID_OK;
               } );
 }
@@ -1760,7 +1777,7 @@ int PCBNEW_JOBS_HANDLER::JobExportGerbers( JOB* aJob )
     for( PCB_LAYER_ID commonLayer : aGerberJob->m_plotOnAllLayersSequence )
         preflightLayers.set( commonLayer );
 
-    RefreshDrillCharts( *brd );
+    RefreshGeneratedTables( *brd );
 
     for( PCB_LAYER_ID layer : layersToPlot.UIOrder() )
     {
@@ -2179,7 +2196,7 @@ int PCBNEW_JOBS_HANDLER::JobExportGerber( JOB* aJob )
     {
         LSET preflightLayers( { aGerberJob->m_plotLayerSequence } );
 
-        RefreshDrillCharts( *brd );
+        RefreshGeneratedTables( *brd );
     }
 
     PLOTTER* plotter = StartPlotBoard( brd, &plotOpts, layer, layerName, outPath, sheetName, sheetPath );
@@ -3061,6 +3078,53 @@ int PCBNEW_JOBS_HANDLER::JobExportIpcD356( JOB* aJob )
 }
 
 
+int PCBNEW_JOBS_HANDLER::JobExportIdf( JOB* aJob )
+{
+    JOB_EXPORT_PCB_IDF* job = dynamic_cast<JOB_EXPORT_PCB_IDF*>( aJob );
+
+    if( job == nullptr )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    BOARD* brd = getBoard( job->m_filename );
+
+    if( !brd )
+        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+
+    if( job->GetConfiguredOutputPath().IsEmpty() )
+    {
+        wxFileName fn = brd->GetFileName();
+        fn.SetExt( FILEEXT::IdfV3BoardFileExtension );
+
+        job->SetWorkingOutputPath( fn.GetFullName() );
+    }
+
+    wxString outPath = resolveJobOutputPath( job, brd );
+
+    if( !PATHS::EnsurePathExists( outPath, true ) )
+    {
+        m_reporter->Report( _( "Failed to create output directory\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
+    }
+
+    FILENAME_RESOLVER* resolver = PROJECT_PCB::Get3DFilenameResolver( brd->GetProject() );
+
+    if( !resolver )
+    {
+        m_reporter->Report( _( "Internal error\n" ), RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+    }
+
+    IDF_EXPORTER exporter( brd, resolver, job, m_reporter );
+
+    if( !exporter.Export( outPath ) )
+        return CLI::EXIT_CODES::ERR_UNKNOWN;
+
+    m_reporter->Report( _( "Successfully created IDFv3 files\n" ), RPT_SEVERITY_INFO );
+
+    return CLI::EXIT_CODES::SUCCESS;
+}
+
+
 int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
 {
     JOB_EXPORT_PCB_ODB* job = dynamic_cast<JOB_EXPORT_PCB_ODB*>( aJob );
@@ -3147,10 +3211,7 @@ int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )
 
         // A chart is derived data, so the upgrade brings every one up to date and saves if
         // that changed anything
-        const uint64_t before = brd->GetDrillModelGeneration();
-        RefreshDrillCharts( *brd );
-
-        if( brd->GetDrillModelGeneration() != before )
+        if( RefreshGeneratedTables( *brd ) > 0 )
             shouldSave = true;
 
         if( shouldSave )
@@ -3322,7 +3383,31 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     }
 
     if( job->m_probeOnly )
+    {
+        IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( fileType ) );
+
+        if( !pi )
+        {
+            m_reporter->Report( wxString::Format( _( "No plugin found for file type '%s'\n" ),
+                                                  PCB_IO_MGR::ShowType( fileType ) ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_UNKNOWN;
+        }
+
+        try
+        {
+            job->m_projectBoards = pi->EnumerateProjectBoards( job->m_inputFile );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            m_reporter->Report( wxString::Format( _( "Failed to inspect board project: %s\n" ), ioe.What() ),
+                                RPT_SEVERITY_ERROR );
+            return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        }
+
         return CLI::EXIT_CODES::SUCCESS;
+    }
+
 
     // Determine output path
     wxString outputPath = job->GetConfiguredOutputPath();
@@ -3489,7 +3574,20 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         // LoadBoard reports load failures and user cancellations by throwing.
         try
         {
-            board = pi->LoadBoard( job->m_inputFile );
+            // pcb_id selects a board only within an EasyEDA Pro project.  Other importers must
+            // continue receiving no properties so their existing design-settings import paths remain
+            // unchanged.
+            const std::map<std::string, UTF8>* importProperties = nullptr;
+            std::map<std::string, UTF8>        easyEdaProProperties;
+
+            if( !job->m_importPcbId.empty()
+                && ( fileType == PCB_IO_MGR::EASYEDAPRO || fileType == PCB_IO_MGR::EASYEDAPRO_V3 ) )
+            {
+                easyEdaProProperties.emplace( "pcb_id", std::string( job->m_importPcbId.ToUTF8() ) );
+                importProperties = &easyEdaProProperties;
+            }
+
+            board = pi->LoadBoard( job->m_inputFile, importProperties, projectPtr );
         }
         catch( const IO_CANCELLED& ioce )
         {
@@ -3505,19 +3603,21 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             m_reporter->Report( wxString::Format( _( "Failed to load board: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
         }
+        board->SetProject( projectPtr, job->m_isPartOfMultiBoardProject );
 
-        // Constraints that land in the project need the project attached before they are read.
-        if( PCB_IO_MGR::ImportPopulatesProjectSettings( fileType ) )
-            board->SetProject( projectPtr );
+
 
         if( !ApplyImportedNetNameMap( *board, job->m_netNameMap, *m_reporter ) )
             return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
-        // Extract a project footprint library and re-link FPIDs, as the board editor's import
-        // does; without it the saved board references a nickname no library table row resolves.
+        // Extract a project footprint library and re-link FPIDs, as the board editor does.
+        // Each EasyEDA Pro project board needs a distinct cache; using the archive name makes
+        // every board compete to publish the same .pretty directory.
         if( PCB_IO_MGR::ImportGeneratesProjectLibrary( fileType ) )
         {
-            ReconcileImportedFootprints( *pi, *board, *projectPtr, job->m_inputFile, nullptr,
+            const wxString reconciliationPath =
+                    job->m_importPcbId.empty() ? job->m_inputFile : outputPath;
+            ReconcileImportedFootprints( *pi, *board, *projectPtr, reconciliationPath, nullptr,
                                          *m_reporter );
         }
 
@@ -3537,8 +3637,29 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         }
 
         // Save as KiCad format
+
         IO_RELEASER<PCB_IO> kicadPlugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
         kicadPlugin->SaveBoard( outputPath, *board );
+        wxString importedRules = pi->GetImportedDesignRules();
+
+        if( !importedRules.IsEmpty() )
+        {
+            wxFileName rulesPath( outputPath );
+            rulesPath.SetExt( FILEEXT::DesignRulesFileExtension );
+
+            wxFile rulesFile( rulesPath.GetFullPath(), wxFile::write );
+
+            if( rulesFile.IsOpened() )
+            {
+                rulesFile.Write( importedRules );
+            }
+            else
+            {
+                m_reporter->Report( wxString::Format( _( "Could not write imported design rules to '%s'\n" ),
+                                                      rulesPath.GetFullPath() ),
+                                    RPT_SEVERITY_WARNING );
+            }
+        }
 
         m_reporter->Report( wxString::Format( _( "Successfully saved imported board to '%s'\n" ), outputPath ),
                             RPT_SEVERITY_INFO );
@@ -3617,6 +3738,7 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     catch( const IO_ERROR& ioe )
     {
         m_reporter->Report( wxString::Format( _( "Error during import: %s\n" ), ioe.What() ), RPT_SEVERITY_ERROR );
+
         return CLI::EXIT_CODES::ERR_UNKNOWN;
     }
 

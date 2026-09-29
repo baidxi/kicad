@@ -88,7 +88,12 @@ public:
      * If \p aParentWindow is not an EDA frame, a search through all the parents
      * of the parent window will be done to find the frame.
      *
-     * @param aParentWindow is the window immediately containing this panel
+     * @param aParentWindow is the window immediately containing this panel.
+     * @param aWindowId is the ID for this draw panel.
+     * @param aPosition is the position of the panel.
+     * @param aSize is the size of the panel.
+     * @param aOptions are the display options for the panel.
+     * @param aGalType is the type of graphics abstraction layer (GAL) for the panel.
      */
     EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWindowId,
                         const wxPoint& aPosition, const wxSize& aSize,
@@ -145,16 +150,16 @@ public:
     KIGFX::GAL* GetGAL() const { return m_gal; }
 
     /**
-     * Return a pointer to the #VIEW instance used in the panel.
+     * Return a pointer to the #KIGFX::VIEW instance used in the panel.
      *
-     * @return The instance of #VIEW.
+     * @return The instance of #KIGFX::VIEW.
      */
     virtual KIGFX::VIEW* GetView() const { return m_view; }
 
     /**
-     * Return a pointer to the #VIEW_CONTROLS instance used in the panel.
+     * Return a pointer to the #KIGFX::VIEW_CONTROLS instance used in the panel.
      *
-     * @return The instance of #VIEW_CONTROLS.
+     * @return The instance of #KIGFX::VIEW_CONTROLS.
      */
     KIGFX::VIEW_CONTROLS* GetViewControls() const
     {
@@ -169,7 +174,6 @@ public:
      */
     bool GetScreenshot( wxImage& aDstImage );
 
-    /// @copydoc wxWindow::Refresh()
     virtual void Refresh( bool aEraseBackground = true, const wxRect* aRect = nullptr ) override;
 
     /**
@@ -205,8 +209,8 @@ public:
     /**
      * Set a dispatcher that processes events and forwards them to tools.
      *
-     * #DRAW_PANEL_GAL does not take over the ownership. Passing NULL disconnects all event
-     * handlers from the #DRAW_PANEL_GAL and parent frame.
+     * #EDA_DRAW_PANEL_GAL does not take over the ownership. Passing NULL disconnects all event
+     * handlers from the #EDA_DRAW_PANEL_GAL and parent frame.
      *
      * @param aEventDispatcher is the object that will be used for dispatching events.
      */
@@ -330,6 +334,21 @@ protected:
 
     bool recoverFromGalError( const std::exception& aErr );
 
+    /**
+     * Replace a GAL whose context was destroyed by a GPU reset.
+     *
+     * @return true if the GAL was replaced, so the current repaint must stop.
+     */
+    bool handleContextLoss();
+
+    /**
+     * Show a recovery message once the current event finishes.
+     *
+     * Recovery runs inside a repaint, where a modal dialog would stop every canvas from painting
+     * until it was closed.
+     */
+    void showMessageLater( const wxString& aTitle, const wxString& aDetail, bool aError );
+
     wxWindow*                m_parent;           ///< Pointer to the parent window
     EDA_DRAW_FRAME*          m_edaFrame;         ///< Parent EDA_DRAW_FRAME (if available)
 
@@ -379,6 +398,9 @@ protected:
 
     /// Consecutive frames dropped because the GL context could not be made current
     int                      m_contextBindFailures;
+
+    /// The GAL was rebuilt after a GPU reset and has not completed a frame yet
+    bool                     m_rebuiltAfterReset;
 
     /// Set when a size change could not be applied because the GL context was unavailable
     bool                     m_pendingResize;

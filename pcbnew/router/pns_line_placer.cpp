@@ -1557,8 +1557,8 @@ bool LINE_PLACER::FixRoute( const VECTOR2I& aP, ITEM* aEndItem, bool aForceFinis
         if( !pl.EndsWithVia() )
             return false;
 
-        ///< @todo Determine what to do if m_lastNode is a null pointer.  I'm guessing return
-        ///<       false but someone with more knowledge of the code will need to determine that..
+        /// @todo Determine what to do if m_lastNode is a null pointer.  I'm guessing return
+        ///       false but someone with more knowledge of the code will need to determine that..
         if( m_lastNode )
         {
             auto newVia = Clone( pl.Via() );
@@ -1903,7 +1903,7 @@ void LINE_PLACER::updateLeadingRatLine()
 {
     LINE current = Trace();
     SHAPE_LINE_CHAIN ratLine;
-    TOPOLOGY topo( m_lastNode );
+    TOPOLOGY topo( m_lastNode, m_router->GetInterface() );
 
     if( topo.LeadingRatLine( &current, ratLine ) )
         m_router->GetInterface()->DisplayRatline( ratLine, m_currentNet );

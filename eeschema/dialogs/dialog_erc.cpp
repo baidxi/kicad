@@ -103,7 +103,6 @@ DIALOG_ERC::DIALOG_ERC( SCH_EDIT_FRAME* parent ) :
 
     m_markerTreeModel = new ERC_TREE_MODEL( parent, m_markerDataView );
     m_markerDataView->AssociateModel( m_markerTreeModel );
-    m_markerTreeModel->Update( m_markerProvider, getSeverities() );
 
     // Prevent RTL locales from mirroring the text in the data views
     m_markerDataView->SetLayoutDirection( wxLayout_LeftToRight );
@@ -956,10 +955,18 @@ void DIALOG_ERC::OnERCItemRClick( wxDataViewEvent& aEvent )
 
     case ID_EDIT_PIN_CONFLICT_MAP:
         m_parent->ShowSchematicSetupDialog( _( "Pin Conflicts Map" ) );
+
+        // Rebuild model and view
+        static_cast<RC_TREE_MODEL*>( aEvent.GetModel() )->Update( m_markerProvider, getSeverities() );
+        updateDisplayedCounts();
         break;
 
     case ID_EDIT_SEVERITIES:
         m_parent->ShowSchematicSetupDialog( _( "Violation Severity" ) );
+
+        // Rebuild model and view
+        static_cast<RC_TREE_MODEL*>( aEvent.GetModel() )->Update( m_markerProvider, getSeverities() );
+        updateDisplayedCounts();
         break;
 
     case ID_EDIT_CONNECTION_GRID:
@@ -995,6 +1002,7 @@ void DIALOG_ERC::OnIgnoredItemRClick( wxListEvent& event )
         if( settings.GetSeverity( errorCode ) != severity )
         {
             settings.SetSeverity( errorCode, (SEVERITY) severity );
+            m_ignoredList->DeleteItem( event.m_itemIndex );
 
             updateDisplayedCounts();
             redrawDrawPanel();
@@ -1063,7 +1071,7 @@ void DIALOG_ERC::ExcludeMarker( SCH_MARKER* aMarker )
 
     RC_TREE_NODE* node = nullptr;
 
-    if( m_notebook->GetSelection() == 0 )
+    if( !marker && m_notebook->GetSelection() == 0 )
     {
         node = RC_TREE_MODEL::ToNode( m_markerDataView->GetCurrentItem() );
 
@@ -1156,7 +1164,8 @@ void DIALOG_ERC::OnSaveReport( wxCommandEvent& aEvent )
     ERC_REPORT reportWriter( &m_parent->Schematic(), m_parent->GetUserUnits(), m_markerProvider );
 
     bool success = false;
-    if( fn.GetExt() == FILEEXT::JsonFileExtension )
+
+    if( fn.GetExt().Lower() == FILEEXT::JsonFileExtension )
         success = reportWriter.WriteJsonReport( fn.GetFullPath() );
     else
         success = reportWriter.WriteTextReport( fn.GetFullPath() );

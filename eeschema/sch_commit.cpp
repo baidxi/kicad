@@ -53,6 +53,14 @@ SCH_COMMIT::SCH_COMMIT( TOOL_MANAGER* aToolMgr ) :
 }
 
 
+SCH_COMMIT::SCH_COMMIT( TOOL_MANAGER* aToolMgr, bool aIsLibEditor ) :
+        COMMIT(),
+        m_toolMgr( aToolMgr ),
+        m_isLibEditor( aIsLibEditor )
+{
+}
+
+
 SCH_COMMIT::SCH_COMMIT( SCH_TOOL_BASE<SCH_BASE_FRAME>* aTool )
 {
     m_toolMgr = aTool->GetManager();
@@ -457,9 +465,10 @@ void SCH_COMMIT::pushSchEdit( const wxString& aMessage, int aCommitFlags )
 
             if( schItem->Type() == SCH_SHEET_T )
             {
-                const auto* modifiedSheet = static_cast<const SCH_SHEET*>( schItem );
-                const auto* originalSheet = static_cast<const SCH_SHEET*>( itemCopy );
-                const bool hierarchyChanged = originalSheet->HasHierarchyChanges( *modifiedSheet );
+                const SCH_SHEET* modifiedSheet = static_cast<const SCH_SHEET*>( schItem );
+                const SCH_SHEET* originalSheet = static_cast<const SCH_SHEET*>( itemCopy );
+                const bool       hierarchyChanged = originalSheet->HasHierarchyChanges( *modifiedSheet );
+
                 refreshHierarchy |= hierarchyChanged;
 
                 // Stable ports are invalidated through their containing screen, including shared instances
@@ -484,7 +493,7 @@ void SCH_COMMIT::pushSchEdit( const wxString& aMessage, int aCommitFlags )
                 const SCH_SYMBOL* origSymbol = static_cast<const SCH_SYMBOL*>( itemCopy );
                 const SCH_SYMBOL* modSymbol = static_cast<const SCH_SYMBOL*>( schItem );
 
-                if( origSymbol->GetPins().size() != modSymbol->GetPins().size() )
+                if( origSymbol->GetPins( &currentSheet ).size() != modSymbol->GetPins( &currentSheet ).size() )
                     connectivityCleanUp = GLOBAL_CLEANUP;
 
                 if( origSymbol->GetSchSymbolLibraryName() != modSymbol->GetSchSymbolLibraryName() )
@@ -617,7 +626,13 @@ EDA_ITEM* SCH_COMMIT::undoLevelItem( EDA_ITEM* aItem ) const
     EDA_ITEM* parent = aItem->GetParent();
 
     if( m_isLibEditor )
-        return static_cast<SYMBOL_EDIT_FRAME*>( m_toolMgr->GetToolHolder() )->GetCurSymbol();
+    {
+        // Headless commits operate directly on the staged item
+        if( SYMBOL_EDIT_FRAME* frame = static_cast<SYMBOL_EDIT_FRAME*>( m_toolMgr->GetToolHolder() ) )
+            return frame->GetCurSymbol();
+
+        return aItem;
+    }
 
     if( parent && parent->IsType( { SCH_SYMBOL_T, SCH_TABLE_T, SCH_SHEET_T, SCH_LABEL_LOCATE_ANY_T } ) )
         return parent;
@@ -631,26 +646,30 @@ EDA_ITEM* SCH_COMMIT::makeImage( EDA_ITEM* aItem ) const
     if( m_isLibEditor )
     {
         SYMBOL_EDIT_FRAME* frame = static_cast<SYMBOL_EDIT_FRAME*>( m_toolMgr->GetToolHolder() );
-        LIB_SYMBOL*        symbol = frame->GetCurSymbol();
-        std::vector<KIID>  selected;
 
-        // Cloning will clear the selected flags, but we want to keep them.
-        for( const SCH_ITEM& item : symbol->GetDrawItems() )
+        if( frame && frame->GetCurSymbol() )
         {
-            if( item.IsSelected() )
-                selected.push_back( item.m_Uuid );
+            LIB_SYMBOL*        symbol = frame->GetCurSymbol();
+            std::vector<KIID>  selected;
+
+            // Cloning will clear the selected flags, but we want to keep them.
+            for( const SCH_ITEM& item : symbol->GetDrawItems() )
+            {
+                if( item.IsSelected() )
+                    selected.push_back( item.m_Uuid );
+            }
+
+            symbol = new LIB_SYMBOL( *symbol );
+
+            // Restore selected flags.
+            for( SCH_ITEM& item : symbol->GetDrawItems() )
+            {
+                if( alg::contains( selected, item.m_Uuid ) )
+                    item.SetSelected();
+            }
+
+            return symbol;
         }
-
-        symbol = new LIB_SYMBOL( *symbol );
-
-        // Restore selected flags.
-        for( SCH_ITEM& item : symbol->GetDrawItems() )
-        {
-            if( alg::contains( selected, item.m_Uuid ) )
-                item.SetSelected();
-        }
-
-        return symbol;
     }
 
     return aItem->Clone();
@@ -806,7 +825,13 @@ void SCH_COMMIT::RevertToCheckpoint( int aCheckpoint )
 
                 graph->RemoveItem( symbolCopy );
 
-                for( SCH_PIN* pin : symbolCopy->GetPins() )
+                // Lazy eval of sheet list; this is expensive even when unsorted
+                if( sheets.empty() )
+                    sheets = schematic->Hierarchy();
+
+                SCH_SHEET_PATH sheet = sheets.FindSheetForScreen( screen );
+
+                for( SCH_PIN* pin : symbolCopy->GetPins( &sheet ) )
                     graph->RemoveItem( pin );
             }
 

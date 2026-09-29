@@ -41,7 +41,9 @@
 #include <api/api_handler_common.h>
 #include <api/api_handler_footprint.h>
 #include <api/api_handler_libraries.h>
+#include <api/api_plugin_manager.h>
 #include <api/api_server.h>
+#include <api/api_utils.h>
 #include <board.h>
 #include <project/net_settings.h>
 #include <widgets/wx_infobar.h>
@@ -92,11 +94,13 @@
 #include <wildcards_and_files_ext.h>
 #include <widgets/wx_aui_utils.h>
 #include <toolbars_footprint_editor.h>
+#include <wx/app.h>
 
 #include <algorithm>
 
 #include <wx/filedlg.h>
 #include <wx/hyperlink.h>
+#include <wx/log.h>
 
 BEGIN_EVENT_TABLE( FOOTPRINT_EDIT_FRAME, PCB_BASE_FRAME )
     EVT_MENU( wxID_CLOSE, FOOTPRINT_EDIT_FRAME::CloseFootprintEditor )
@@ -191,6 +195,9 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     ReCreateLayerBox( false );
 
     ReCreateMenuBar();
+
+    wxTheApp->Bind( EDA_EVT_PLUGIN_AVAILABILITY_CHANGED,
+                    &FOOTPRINT_EDIT_FRAME::onPluginAvailabilityChanged, this );
 
     m_selectionFilterPanel = new PANEL_SELECTION_FILTER( this );
     m_appearancePanel = new APPEARANCE_CONTROLS( this, GetCanvas(), true );
@@ -328,8 +335,13 @@ FOOTPRINT_EDIT_FRAME::FOOTPRINT_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_auimgr.GetPane( "SelectionFilter" ).Show( m_show_layer_manager_tools );
     m_auimgr.GetPane( PropertiesPaneName() ).Show( GetSettings()->m_AuiPanels.show_properties );
 
+    wxAuiPaneInfo& selectionFilterPane = m_auimgr.GetPane( wxS( "SelectionFilter" ) );
+
     // The selection filter doesn't need to grow in the vertical direction when docked
-    m_auimgr.GetPane( "SelectionFilter" ).dock_proportion = 0;
+    selectionFilterPane.dock_proportion = 0;
+
+    // wx 3.3.3 turns a -1 min height into 1, and a legacy perspective restores one
+    selectionFilterPane.min_size.y = m_selectionFilterPanel->GetBestSize().y;
 
     m_acceptedExts.emplace( FILEEXT::KiCadFootprintLibPathExtension, &ACTIONS::ddAddLibrary );
     m_acceptedExts.emplace( FILEEXT::KiCadFootprintFileExtension, &PCB_ACTIONS::ddImportFootprint );
@@ -1883,6 +1895,8 @@ void FOOTPRINT_EDIT_FRAME::doCloseWindow()
     GetCanvas()->StopDrawing();
 
     Pgm().GetApiServer().DeregisterHandler( m_apiHandler.get() );
+    wxTheApp->Unbind( EDA_EVT_PLUGIN_AVAILABILITY_CHANGED,
+                      &FOOTPRINT_EDIT_FRAME::onPluginAvailabilityChanged, this );
 
     if( GetLibTree() )
         GetLibTree()->ShutdownPreviews();
@@ -2329,6 +2343,7 @@ void FOOTPRINT_EDIT_FRAME::setupUIConditions()
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawEllipse );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawEllipseArc );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawArc );
+    setArcModeConditions( PCB_ACTIONS::drawArc, haveFootprintCond );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawPolygon );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawBezier );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawRuleArea );

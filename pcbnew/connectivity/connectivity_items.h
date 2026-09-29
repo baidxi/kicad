@@ -78,11 +78,11 @@ public:
         return ( m_pos - aSecond.Pos() ).EuclideanNorm();
     }
 
-    ///< @return tag, a common identifier for connected nodes.
+    /// @return tag, a common identifier for connected nodes.
     int GetTag() const { return m_tag; }
     void SetTag( int aTag ) { m_tag = aTag; }
 
-    ///< @return true if this node can be a target for ratsnest lines.
+    /// @return true if this node can be a target for ratsnest lines.
     const bool& GetNoLine() const { return m_noline; }
     void SetNoLine( bool aEnable ) { m_noline = aEnable; }
 
@@ -118,7 +118,7 @@ private:
 
 
 /**
- * CN_ITEM represents a BOARD_CONNETED_ITEM in the connectivity system (ie: a pad, track/arc/via,
+ * #CN_ITEM represents a #BOARD_CONNECTED_ITEM in the connectivity system (ie: a pad, track/arc/via,
  * or zone).
  */
 class CN_ITEM
@@ -191,7 +191,7 @@ public:
         return StartLayer();
     }
 
-    ///< Convert a copper layer ordinal back to the board layer it stands for.
+    /// Convert a copper layer ordinal back to the board layer it stands for.
     static PCB_LAYER_ID BoardLayerFromOrdinal( int aOrdinal )
     {
         if( aOrdinal <= 0 )
@@ -203,7 +203,7 @@ public:
         return ToLAYER_ID( B_Cu + 2 * aOrdinal );
     }
 
-    ///< @return the board layer of a single-layered item.
+    /// @return the board layer of a single-layered item.
     PCB_LAYER_ID GetBoardLayer() const { return BoardLayerFromOrdinal( Layer() ); }
 
     const BOX2I& BBox()
@@ -282,9 +282,9 @@ private:
 };
 
 
-/*
+/**
  * Represents a single outline of a zone fill on a particular layer.  \a aSubpolyIndex indicates
- * which outline in the fill's SHAPE_POLY_SET.
+ * which outline in the fill's #SHAPE_POLY_SET.
  */
 class CN_ZONE_LAYER : public CN_ITEM
 {
@@ -391,7 +391,8 @@ private:
     int                                 m_subpolyIndex;
     PCB_LAYER_ID                        m_layer;
     SHAPE_LINE_CHAIN                    m_outline;       ///< Cached copy of the zone outline
-    ///< Owned deep copies of triangulated polygons (includes vertex storage that TRI references)
+
+    /// Owned deep copies of triangulated polygons (includes vertex storage that TRI references)
     std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>> m_triangulatedPolys;
     std::unique_ptr<TRIANGULATION_INDEX>                               m_triIndex;
 };
@@ -435,7 +436,7 @@ public:
         return true;
     }
 
-    ///< Index everything queued since StartBulkAdd().  A no-op outside bulk mode.
+    /// Index everything queued since StartBulkAdd().  A no-op outside bulk mode.
     void FinishBulkAdd()
     {
         if( !m_bulkAdd )
@@ -528,7 +529,7 @@ protected:
             m_index.Insert( item );
     }
 
-    ///< The sole place CN_ITEM list numbering is assigned.
+    /// The sole place CN_ITEM list numbering is assigned.
     void appendItem( CN_ITEM* aItem )
     {
         aItem->SetListIndex( static_cast<int>( m_items.size() ) );

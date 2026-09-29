@@ -198,19 +198,19 @@ public:
 
         case COL_TYPE:
             if( PinTypeNames().Index( aValue, false ) != wxNOT_FOUND )
-                aPin.SetType( (ELECTRICAL_PINTYPE) PinTypeNames().Index( aValue ) );
+                aPin.SetType( (ELECTRICAL_PINTYPE) PinTypeNames().Index( aValue, false ) );
 
             break;
 
         case COL_SHAPE:
             if( PinShapeNames().Index( aValue, false ) != wxNOT_FOUND )
-                aPin.SetShape( (GRAPHIC_PINSHAPE) PinShapeNames().Index( aValue ) );
+                aPin.SetShape( (GRAPHIC_PINSHAPE) PinShapeNames().Index( aValue, false ) );
 
             break;
 
         case COL_ORIENTATION:
             if( PinOrientationNames().Index( aValue, false ) != wxNOT_FOUND )
-                aPin.SetOrientation( (PIN_ORIENTATION) PinOrientationNames().Index( aValue ) );
+                aPin.SetOrientation( (PIN_ORIENTATION) PinOrientationNames().Index( aValue, false ) );
 
             break;
 
@@ -765,6 +765,8 @@ public:
             wxGridTableMessage msg( this, wxGRIDTABLE_NOTIFY_ROWS_APPENDED, 1 );
             GetView()->ProcessTableMessage( msg );
         }
+
+        m_edited = true;
     }
 
     std::vector<SCH_PIN*> RemoveRow( int aRow )
@@ -779,6 +781,7 @@ public:
             GetView()->ProcessTableMessage( msg );
         }
 
+        m_edited = true;
         return removedRow;
     }
 
@@ -971,6 +974,10 @@ DIALOG_LIB_EDIT_PIN_TABLE::DIALOG_LIB_EDIT_PIN_TABLE( SYMBOL_EDIT_FRAME* parent,
 
     if( !parent->IsSymbolGraphicallyEditable() )
     {
+        // Export is OK, but Import is just going to produce frustration
+        m_btnImportFromClipboard->Enable( false );
+        m_btnImportFromFile->Enable( false );
+
         m_ButtonsCancel->SetDefault();
         m_ButtonsOK->SetLabel( _( "Read Only" ) );
         m_ButtonsOK->Enable( false );
@@ -1190,6 +1197,10 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnCellSelected( wxGridEvent& event )
         m_editFrame->FocusOnItem( pin );
         m_editFrame->GetCanvas()->Refresh();
     }
+
+    // Let WX_GRID run its editor-positioning handler
+    if( event.GetEventType() == wxEVT_GRID_EDITOR_SHOWN )
+        event.Skip();
 }
 
 
@@ -1309,6 +1320,9 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnFilterChoice( wxCommandEvent& event )
 
 void DIALOG_LIB_EDIT_PIN_TABLE::OnImportButtonClick( wxCommandEvent& event )
 {
+    if( !m_grid->CommitPendingChanges() )
+        return;
+
     bool fromFile = event.GetEventObject() == m_btnImportFromFile;
     bool replaceAll = m_rbReplaceAll->GetValue();
 
@@ -1316,20 +1330,23 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnImportButtonClick( wxCommandEvent& event )
 
     PIN_INFO_FORMATTER fmt( *m_editFrame, false, PIN_INFO_FORMATTER::BOOL_FORMAT::TRUE_FALSE, reporter );
 
-    auto updateFn = [&]( SCH_PIN& aPin, const wxString& aVal, COL_ORDER aCol )
-    {
-        fmt.UpdatePin( aPin, aVal, aCol, *m_symbol );
-    };
+    auto updateFn =
+            [&]( SCH_PIN& aPin, const wxString& aVal, COL_ORDER aCol )
+            {
+                fmt.UpdatePin( aPin, aVal, aCol, *m_symbol );
+            };
 
-    auto createFn = []( LIB_SYMBOL& aSym )
-    {
-        return std::make_unique<SCH_PIN>( &aSym );
-    };
+    auto createFn =
+            []( LIB_SYMBOL& aSym )
+            {
+                return std::make_unique<SCH_PIN>( &aSym );
+            };
 
-    auto colLabelToEnumFn = []( const wxString& aStr ) -> COL_ORDER
-    {
-        return GetColTypeForString( aStr );
-    };
+    auto colLabelToEnumFn =
+            []( const wxString& aStr ) -> COL_ORDER
+            {
+                return GetColTypeForString( aStr );
+            };
 
     std::optional<std::vector<std::vector<wxString>>> csvData = ReadTableFromFileOrClipboard( *m_editFrame, fromFile );
 
@@ -1402,6 +1419,7 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnImportButtonClick( wxCommandEvent& event )
 
     m_cbGroup->SetValue( false );
     m_dataModel->RebuildRows( m_pins, false, false );
+    m_modified = true;
 
     updateSummary();
 }
@@ -1409,6 +1427,9 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnImportButtonClick( wxCommandEvent& event )
 
 void DIALOG_LIB_EDIT_PIN_TABLE::OnExportButtonClick( wxCommandEvent& event )
 {
+    if( !m_grid->CommitPendingChanges() )
+        return;
+
     bool toFile = event.GetEventObject() == m_btnExportToFile;
     bool onlyShown = m_rbExportOnlyShownPins->GetValue();
 
@@ -1575,7 +1596,7 @@ void DIALOG_LIB_EDIT_PIN_TABLE::OnClose( wxCloseEvent& event )
 
     int retval = wxID_CANCEL;
 
-    if( m_dataModel->IsEdited() )
+    if( ( m_modified || m_dataModel->IsEdited() ) && m_ButtonsOK->IsEnabled() )
     {
         if( HandleUnsavedChanges( this, _( "Save changes?" ),
                                   [&]() -> bool

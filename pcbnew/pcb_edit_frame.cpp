@@ -69,9 +69,11 @@
 #include <dialogs/dialog_migrate_3d_models.h>
 #include <dialog_board_setup.h>
 #include <dialogs/dialog_dimension_properties.h>
+#include <board_tables/generated_table_refresh.h>
 #include <pcb_drill_chart.h>
 #include <pcb_drill_map.h>
-#include <dialogs/dialog_drill_chart_properties.h>
+#include <dialogs/dialog_generated_table_properties.h>
+#include <dialogs/panel_drill_chart_options.h>
 #include <dialogs/dialog_table_properties.h>
 #include <gal/graphics_abstraction_layer.h>
 #include <pad.h>
@@ -435,8 +437,13 @@ PCB_EDIT_FRAME::PCB_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_auimgr.GetPane( SearchPaneName() ).Show( m_ShowSearch );
     m_auimgr.GetPane( DesignBlocksPaneName() ).Show( GetPcbNewSettings()->m_AuiPanels.design_blocks_show );
 
+    wxAuiPaneInfo& selectionFilterPane = m_auimgr.GetPane( wxS( "SelectionFilter" ) );
+
     // The selection filter doesn't need to grow in the vertical direction when docked
-    m_auimgr.GetPane( "SelectionFilter" ).dock_proportion = 0;
+    selectionFilterPane.dock_proportion = 0;
+
+    // wx 3.3.3 turns a -1 min height into 1, and a legacy perspective restores one
+    selectionFilterPane.min_size.y = m_selectionFilterPanel->GetBestSize().y;
     FinishAUIInitialization();
 
     if( aui_cfg.right_panel_width > 0 )
@@ -676,7 +683,8 @@ void PCB_EDIT_FRAME::StartCrossProbeFlash( const std::vector<BOARD_ITEM*>& aItem
     if( !m_crossProbeFlashTimer.GetOwner() )
         m_crossProbeFlashTimer.SetOwner( this );
 
-    bool started = m_crossProbeFlashTimer.Start( 500, wxTIMER_CONTINUOUS ); // 0.5s intervals -> 3s total for 6 phases
+    // 0.5s intervals -> 3s total for 6 phases
+    [[maybe_unused]] bool started = m_crossProbeFlashTimer.Start( 500, wxTIMER_CONTINUOUS );
     wxLogTrace( traceCrossProbeFlash, "StartCrossProbeFlash(PCB): timer start=%d id=%d",
                 (int) started, m_crossProbeFlashTimer.GetId() );
 }
@@ -1483,6 +1491,7 @@ void PCB_EDIT_FRAME::setupUIConditions()
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawEllipse );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawEllipseArc );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawArc );
+    setArcModeConditions( PCB_ACTIONS::drawArc, isDRCIdle );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawPolygon );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::drawBezier );
     CURRENT_EDIT_TOOL( PCB_ACTIONS::placePoint );
@@ -2328,7 +2337,7 @@ void PCB_EDIT_FRAME::OnModify()
 
     // A chart reports the board, so an edit that moved a hole has already made it wrong.
     // Costs one integer comparison per chart when nothing drill related changed.
-    RefreshDrillCharts( *GetBoard() );
+    RefreshGeneratedTables( *GetBoard() );
 
     Update3DView( true, GetPcbNewSettings()->m_Display.m_Live3DRefresh );
 
@@ -3055,6 +3064,7 @@ void PCB_EDIT_FRAME::onPluginAvailabilityChanged( wxCommandEvent& aEvt )
 {
     wxLogTrace( traceApi, "PCB frame: EDA_EVT_PLUGIN_AVAILABILITY_CHANGED" );
     RecreateToolbars();
+    ReCreateMenuBar();
     aEvt.Skip();
 }
 
@@ -3120,7 +3130,11 @@ void PCB_EDIT_FRAME::OnEditItemRequest( BOARD_ITEM* aItem )
     {
         // Not the generic table dialog, which would offer copper layers and direct editing of
         // cells that the next rebuild discards
-        DIALOG_DRILL_CHART_PROPERTIES dlg( this, static_cast<PCB_DRILL_CHART*>( aItem ) );
+        DIALOG_GENERATED_TABLE_PROPERTIES dlg( this, static_cast<PCB_DRILL_CHART*>( aItem ),
+                                               []( wxWindow* aParent )
+                                               {
+                                                   return new PANEL_DRILL_CHART_OPTIONS( aParent );
+                                               } );
         dlg.ShowModal();
         break;
     }

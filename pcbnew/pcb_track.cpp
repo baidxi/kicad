@@ -708,13 +708,36 @@ MINOPTMAX<int> PCB_VIA::GetDrillConstraint( wxString* aSource ) const
     {
         BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
 
-        constraint = bds.m_DRCEngine->EvalRules( HOLE_SIZE_CONSTRAINT, this, nullptr, m_layer );
+        // Holes are not layer-specific, as in the hole size test
+        constraint = bds.m_DRCEngine->EvalRules( HOLE_SIZE_CONSTRAINT, this, nullptr, UNDEFINED_LAYER );
     }
 
     if( aSource )
         *aSource = constraint.GetName();
 
     return constraint.Value();
+}
+
+
+void PCB_VIA::SetSizeFromRules( int aDiameter, int aDrill )
+{
+    // Area rules test the via's shape, so evaluate them at the preferred size
+    SetPadstackMode( PADSTACK::MODE::NORMAL );
+    SetWidth( PADSTACK::ALL_LAYERS, aDiameter );
+    SetDrill( aDrill );
+
+    // Callers size vias that may still move, so keep them out of the pointer-keyed rule caches
+    bool wasTransient = HasFlag( ROUTER_TRANSIENT );
+    SetFlags( ROUTER_TRANSIENT );
+
+    int diameter = GetWidthConstraint().PinnedOpt( aDiameter );
+    int drill = GetDrillConstraint().PinnedOpt( aDrill );
+
+    if( !wasTransient )
+        ClearFlags( ROUTER_TRANSIENT );
+
+    SetWidth( PADSTACK::ALL_LAYERS, diameter );
+    SetDrill( drill );
 }
 
 
@@ -2850,6 +2873,14 @@ wxString PCB_VIA::LayerMaskDescribe() const
 }
 
 
+double PCB_TRACK::GetCoverageArea( int aTextMargin ) const
+{
+    // Width squared, so a long track does not outrank a short one it happens to cross
+    const double width = GetWidth();
+    return width * width;
+}
+
+
 bool PCB_TRACK::HitTest( const VECTOR2I& aPosition, int aAccuracy ) const
 {
     return TestSegmentHit( aPosition, m_Start, m_End, aAccuracy + ( m_width / 2 ) );
@@ -2888,6 +2919,13 @@ bool PCB_ARC::HitTest( const VECTOR2I& aPosition, int aAccuracy ) const
         return arc_hittest >= ANGLE_360 + arc_angle;
 
     return arc_hittest <= arc_angle;
+}
+
+
+double PCB_VIA::GetCoverageArea( int aTextMargin ) const
+{
+    // A via covers its pad, so the width rule it inherits from tracks does not apply
+    return BOARD_ITEM::GetCoverageArea( aTextMargin );
 }
 
 

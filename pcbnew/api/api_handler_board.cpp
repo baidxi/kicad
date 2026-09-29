@@ -82,6 +82,8 @@ API_HANDLER_BOARD::API_HANDLER_BOARD( std::shared_ptr<BOARD_CONTEXT> aContext,
     registerHandler<GetGraphicsDefaults, GraphicsDefaultsResponse>(
             &API_HANDLER_BOARD::handleGetGraphicsDefaults );
     registerHandler<GetBoundingBox, GetBoundingBoxResponse>( &API_HANDLER_BOARD::handleGetBoundingBox );
+    registerHandler<GetBoardBoundingBox, BoardBoundingBoxResponse>(
+            &API_HANDLER_BOARD::handleGetBoardBoundingBox );
     registerHandler<GetPadShapeAsPolygon, PadShapeAsPolygonResponse>(
             &API_HANDLER_BOARD::handleGetPadShapeAsPolygon );
     registerHandler<CheckPadstackPresenceOnLayers, PadstackPresenceResponse>(
@@ -249,8 +251,8 @@ void API_HANDLER_BOARD::deleteItemsInternal( std::map<KIID, ItemDeletionStatus>&
         if( item->Type() == PCB_TABLECELL_T )
         {
             // Cells are owned by their table; the commit removal path doesn't handle them.
-            // Match the GUI delete: clear the cell contents (drill-chart cells have no user text).
-            if( item->GetParent() && item->GetParent()->Type() == PCB_DRILL_CHART_T )
+            // Match the GUI delete: clear the cell contents (generated-table cells have no user text).
+            if( IsGeneratedTableCell( item ) )
                 continue;
 
             commit->Modify( item );
@@ -724,15 +726,15 @@ HANDLER_RESULT<RunActionResponse> API_HANDLER_BOARD::handleRunAction(
 HANDLER_RESULT<GetItemsResponse> API_HANDLER_BOARD::handleGetItemsById(
         const HANDLER_CONTEXT<GetItemsById>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( !validateItemHeaderDocument( aCtx.Request.header() ) )
     {
         ApiResponseStatus e;
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     GetItemsResponse response;
 
@@ -815,9 +817,6 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleClearSelection(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "ClearSelection" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( !validateItemHeaderDocument( aCtx.Request.header() ) )
     {
         ApiResponseStatus e;
@@ -825,6 +824,9 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleClearSelection(
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     TOOL_MANAGER* mgr = toolManager();
     mgr->RunAction( ACTIONS::selectionClear );
@@ -840,9 +842,6 @@ HANDLER_RESULT<SelectionResponse> API_HANDLER_BOARD::handleAddToSelection(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "AddToSelection" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( !validateItemHeaderDocument( aCtx.Request.header() ) )
     {
         ApiResponseStatus e;
@@ -850,6 +849,9 @@ HANDLER_RESULT<SelectionResponse> API_HANDLER_BOARD::handleAddToSelection(
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     TOOL_MANAGER* mgr = toolManager();
     PCB_SELECTION_TOOL* selectionTool = mgr->GetTool<PCB_SELECTION_TOOL>();
@@ -929,9 +931,6 @@ HANDLER_RESULT<SelectionResponse> API_HANDLER_BOARD::handleRemoveFromSelection(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "RemoveFromSelection" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( !validateItemHeaderDocument( aCtx.Request.header() ) )
     {
         ApiResponseStatus e;
@@ -939,6 +938,9 @@ HANDLER_RESULT<SelectionResponse> API_HANDLER_BOARD::handleRemoveFromSelection(
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     TOOL_MANAGER* mgr = toolManager();
     PCB_SELECTION_TOOL* selectionTool = mgr->GetTool<PCB_SELECTION_TOOL>();
@@ -1051,9 +1053,6 @@ HANDLER_RESULT<GraphicsDefaultsResponse> API_HANDLER_BOARD::handleGetGraphicsDef
 HANDLER_RESULT<GetBoundingBoxResponse> API_HANDLER_BOARD::handleGetBoundingBox(
         const HANDLER_CONTEXT<GetBoundingBox>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     if( !validateItemHeaderDocument( aCtx.Request.header() ) )
     {
         ApiResponseStatus e;
@@ -1061,6 +1060,9 @@ HANDLER_RESULT<GetBoundingBoxResponse> API_HANDLER_BOARD::handleGetBoundingBox(
         e.set_status( ApiStatusCode::AS_UNHANDLED );
         return tl::unexpected( e );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     GetBoundingBoxResponse response;
     bool includeText = aCtx.Request.mode() == BoundingBoxMode::BBM_ITEM_AND_CHILD_TEXT;
@@ -1084,6 +1086,33 @@ HANDLER_RESULT<GetBoundingBoxResponse> API_HANDLER_BOARD::handleGetBoundingBox(
         response.add_items()->set_value( idMsg.value() );
         PackBox2( *response.add_boxes(), bbox );
     }
+
+    return response;
+}
+
+
+HANDLER_RESULT<BoardBoundingBoxResponse>
+API_HANDLER_BOARD::handleGetBoardBoundingBox( const HANDLER_CONTEXT<GetBoardBoundingBox>& aCtx )
+{
+    if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() ); !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    BoardBoundingBoxResponse response;
+    BOX2I                    bbox;
+
+    switch( aCtx.Request.mode() )
+    {
+    case BoardBoundingBoxMode::BBBM_ALL_ITEMS:            bbox = board()->ComputeBoundingBox( false, false ); break;
+    case BoardBoundingBoxMode::BBBM_PHYSICAL_LAYERS_ONLY: bbox = board()->ComputeBoundingBox( false, true );  break;
+    case BoardBoundingBoxMode::BBBM_BOARD_EDGES_ONLY:     bbox = board()->GetBoardEdgesBoundingBox();         break;
+    default:
+        return tl::unexpected( MakeResponseStatus( AS_BAD_REQUEST, "invalid bounding box mode requested" ) );
+    }
+
+    PackBox2( *response.mutable_box(), bbox );
 
     return response;
 }
@@ -1236,13 +1265,13 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleInteractiveMoveItems(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "InteractiveMoveItems" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() );
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     TOOL_MANAGER* mgr = toolManager();
     std::vector<EDA_ITEM*> toSelect;
@@ -1278,9 +1307,6 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleInteractiveMoveItems(
 HANDLER_RESULT<FlipItemsResponse> API_HANDLER_BOARD::handleFlipItems(
         const HANDLER_CONTEXT<FlipItems>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     auto containerResult = validateItemHeaderDocument( aCtx.Request.header() );
 
     if( !containerResult && containerResult.error().status() == ApiStatusCode::AS_UNHANDLED )
@@ -1294,6 +1320,9 @@ HANDLER_RESULT<FlipItemsResponse> API_HANDLER_BOARD::handleFlipItems(
     {
         return tl::unexpected( containerResult.error() );
     }
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     FLIP_DIRECTION flipDirection = FromProtoEnum<FLIP_DIRECTION, BoardFlipDirection>(
             aCtx.Request.direction() );
@@ -1438,13 +1467,13 @@ HANDLER_RESULT<SavedSelectionResponse> API_HANDLER_BOARD::handleSaveSelectionToS
 HANDLER_RESULT<CreateItemsResponse> API_HANDLER_BOARD::handleParseAndCreateItemsFromString(
         const HANDLER_CONTEXT<ParseAndCreateItemsFromString>& aCtx )
 {
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() );
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     CreateItemsResponse response;
     return response;
@@ -1477,13 +1506,13 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleSetVisibleLayers(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "SetVisibleLayers" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() );
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     LSET visible;
     LSET enabled = board()->GetEnabledLayers();
@@ -1534,13 +1563,13 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleSetActiveLayer(
     if( std::optional<ApiResponseStatus> headless = checkForHeadless( "SetActiveLayer" ) )
         return tl::unexpected( *headless );
 
-    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
-        return tl::unexpected( *busy );
-
     HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() );
 
     if( !documentValidation )
         return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
 
     PCB_LAYER_ID layer = FromProtoEnum<PCB_LAYER_ID>( aCtx.Request.layer() );
 

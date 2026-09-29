@@ -1228,13 +1228,13 @@ bool PNS_KICAD_IFACE_BASE::ImportSizes( PNS::SIZES_SETTINGS& aSizes, PNS::ITEM* 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_VIA_DIAMETER, &dummyVia,
                                              nullptr, m_startLayer, &constraint ) )
         {
-            viaDiameter = std::max( viaDiameter, constraint.m_Value.Opt() );
+            viaDiameter = std::max( viaDiameter, constraint.m_Value.PinnedOpt() );
         }
 
         if( m_ruleResolver->QueryConstraint( PNS::CONSTRAINT_TYPE::CT_VIA_HOLE, &dummyVia,
                                              nullptr, m_startLayer, &constraint ) )
         {
-            viaDrill = std::max( viaDrill, constraint.m_Value.Opt() );
+            viaDrill = std::max( viaDrill, constraint.m_Value.PinnedOpt() );
         }
     }
     else
@@ -3185,6 +3185,37 @@ long long PNS_KICAD_IFACE_BASE::GetNetBoardLength( PNS::NET_HANDLE aNet ) const
     }
 
     return 0;
+}
+
+
+void PNS_KICAD_IFACE_BASE::RemoveBoardConnected( const std::vector<const PNS::ITEM*>& aJoined,
+                                                 std::set<PNS::ITEM*>& aItems ) const
+{
+    if( !m_board )
+        return;
+
+    std::shared_ptr<CONNECTIVITY_DATA> connectivity = m_board->GetConnectivity();
+    std::set<const BOARD_ITEM*>        boardJoined;
+
+    for( const PNS::ITEM* item : aJoined )
+    {
+        BOARD_ITEM* parent = item->Parent();
+
+        if( !parent || !parent->IsConnected() || !boardJoined.insert( parent ).second )
+            continue;
+
+        for( BOARD_CONNECTED_ITEM* connected :
+             connectivity->GetConnectedItems( static_cast<BOARD_CONNECTED_ITEM*>( parent ) ) )
+        {
+            boardJoined.insert( connected );
+        }
+    }
+
+    std::erase_if( aItems,
+                   [&]( PNS::ITEM* aItem )
+                   {
+                       return aItem->Parent() && boardJoined.count( aItem->Parent() );
+                   } );
 }
 
 

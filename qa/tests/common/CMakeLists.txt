@@ -100,6 +100,7 @@ set( QA_COMMON_SRCS
     test_grid_helper.cpp
     test_priority_thread_pool_task.cpp
     test_snapping_options.cpp
+    test_string_any_map.cpp
     test_string_utils.cpp
     test_richio.cpp
     test_template_fieldnames.cpp
@@ -158,6 +159,7 @@ set( QA_COMMON_SRCS
     view/test_zoom_controller.cpp
     view/test_view_null_safety.cpp
 
+    test_netclass.cpp
     test_netname_validator.cpp
 
     # GAL tests

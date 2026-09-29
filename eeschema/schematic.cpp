@@ -247,7 +247,7 @@ void SCHEMATIC::CacheExistingAnnotation()
 
     for( const SCH_REFERENCE& ref : references )
     {
-        refdesTracker->Insert( ref.GetFullRef( false ).ToStdString() );
+        refdesTracker->Insert( ref.GetCanonicalRef( false ).ToStdString() );
     }
 }
 
@@ -266,7 +266,7 @@ bool SCHEMATIC::Contains( const SCH_REFERENCE& aRef ) const
     return std::any_of( references.begin(), references.end(),
                         [&]( const SCH_REFERENCE& ref )
                         {
-                            return ref.GetFullRef( true ) == aRef.GetFullRef( true );
+                            return ref.GetCanonicalRef( true ) == aRef.GetCanonicalRef( true );
                         } );
 }
 
@@ -341,6 +341,10 @@ void SCHEMATIC::ensureCurrentSheetIsTopLevel()
 
 void SCHEMATIC::rebuildHierarchyState( bool aResetConnectionGraph )
 {
+    // Loaders and importers fill screens directly, bypassing the item listeners
+    if( m_textVarAdapter )
+        m_textVarAdapter->MarkHierarchyChanged();
+
     RefreshHierarchy();
 
     if( aResetConnectionGraph )
@@ -561,6 +565,9 @@ void SCHEMATIC::AdoptContent( SCHEMATIC_CONTENT&& aContent ) noexcept
     }
 
     delete outgoingGraph;
+
+    if( m_textVarAdapter )
+        m_textVarAdapter->RebuildIndex();
 }
 
 
@@ -587,6 +594,9 @@ void SCHEMATIC::RefreshHierarchy()
 {
     ensureDefaultTopLevelSheet();
     m_hierarchy = BuildSheetListSortedByPageNumbers();
+
+    if( m_textVarAdapter )
+        m_textVarAdapter->SyncToHierarchy();
 }
 
 
@@ -627,7 +637,12 @@ bool SCHEMATIC::ResolveTextVar( const SCH_SHEET_PATH* aSheetPath, wxString* toke
     }
     else if( token->IsSameAs( wxT( "##" ) ) )
     {
-        *token = wxString::Format( "%i", Root().CountSheets() );
+        int i = 0;
+
+        for( SCH_SHEET* sheet : GetTopLevelSheets() )
+            i += sheet->CountSheets();
+
+        *token = wxString::Format( "%i", i );
         return true;
     }
     else if( token->IsSameAs( wxT( "SHEETPATH" ) ) )
@@ -1354,7 +1369,7 @@ std::set<wxString> SCHEMATIC::GetNetClassAssignmentCandidates()
 
 bool SCHEMATIC::ResolveCrossReference( wxString* token, int aDepth ) const
 {
-    auto* environment = TEXT_EVAL::ENVIRONMENT::Current();
+    TEXT_EVAL::ENVIRONMENT* environment = TEXT_EVAL::ENVIRONMENT::Current();
 
     if( !environment || !environment->IsCollectingSources() )
         return resolveCrossReference( token, aDepth );
@@ -1371,12 +1386,13 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
     wxString       remainder;
     wxString       ref = token->BeforeFirst( ':', &remainder );
     KIID_PATH      path( ref );
-    KIID           uuid = path.back();
+    KIID           uuid( 0 );
     SCH_SHEET_PATH sheetPath;
     SCH_ITEM*      refItem = ResolveItem( KIID( uuid ), &sheetPath, true );
 
     if( path.size() > 1 )
     {
+        uuid = path.back();
         path.pop_back();
         sheetPath = Hierarchy().GetSheetPathByKIIDPath( path ).value_or( sheetPath );
     }
@@ -1402,19 +1418,19 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
     {
         SCH_SYMBOL* refSymbol = static_cast<SCH_SYMBOL*>( refItem );
 
-        bool resolved = refSymbol->ResolveTextVar( &sheetPath, &fieldName, variantName, aDepth + 1 );
-
-        if( resolved )
+        if( refSymbol->ResolveTextVar( &sheetPath, &fieldName, variantName, aDepth + 1 ) )
         {
             *token = std::move( fieldName );
         }
         else
         {
             // Field/function not found on symbol
-            *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), refSymbol->GetRef( &sheetPath, false ), fieldName );
+            *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ),
+                                       refSymbol->GetRef( &sheetPath, false ),
+                                       fieldName );
         }
 
-        return true;
+        return true;    // Stop looking
     }
     else if( refItem && refItem->Type() == SCH_SHEET_T )
     {
@@ -1422,17 +1438,19 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
 
         sheetPath.push_back( refSheet );
 
-        wxString remainderBefore = remainder;
-
         if( refSheet->ResolveTextVar( &sheetPath, &remainder, aDepth + 1 ) )
+        {
             *token = std::move( remainder );
+        }
+        else
+        {
+            // Field/function not found on sheet
+            *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ),
+                                       refSheet->GetName(),
+                                       remainder );
+        }
 
-        // If the remainder still contains unresolved variables or expressions,
-        // return false so ExpandTextVars keeps the ${...} wrapper
-        if( remainderBefore.Contains( wxT( "${" ) ) || remainderBefore.Contains( wxT( "@{" ) ) )
-            return false;
-
-        return true; // Cross-reference is resolved
+        return true;    // Stop looking
     }
 
     // If UUID resolution failed, try to resolve by reference designator
@@ -1473,20 +1491,19 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
 
         if( foundSymbol )
         {
-            bool resolved = foundSymbol->ResolveTextVar( &foundPath, &fieldName, variantName, aDepth + 1 );
-
-            if( resolved )
+            if( foundSymbol->ResolveTextVar( &foundPath, &fieldName, variantName, aDepth + 1 ) )
             {
                 *token = std::move( fieldName );
             }
             else
             {
                 // Field/function not found on symbol
-                *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), foundSymbol->GetRef( &foundPath, false ),
+                *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ),
+                                           foundSymbol->GetRef( &foundPath, false ),
                                            fieldName );
             }
 
-            return true;
+            return true;    // Stop looking
         }
 
         // Symbol not found - set unresolved error
@@ -2466,6 +2483,10 @@ void SCHEMATIC::RebuildConnectivity( std::function<void( SCH_ITEM* )>* aChangedI
                                       PROGRESS_REPORTER* aProgressReporter,
                                       KIGFX::SCH_VIEW* aSchView )
 {
+    // Some importers populate screens after installing the hierarchy
+    if( m_textVarAdapter )
+        m_textVarAdapter->MarkHierarchyChanged();
+
     RefreshHierarchy();
     m_project->GetProjectFile().NetSettings()->ClearAllCaches();
     std::unordered_set<SCH_SCREEN*> screens;
@@ -2493,10 +2514,9 @@ void SCHEMATIC::RebuildConnectivity( std::function<void( SCH_ITEM* )>* aChangedI
 
 void SCHEMATIC::RecalculateConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS aCleanupFlags,
                                         TOOL_MANAGER* aToolManager, PROGRESS_REPORTER* aProgressReporter,
-                                        KIGFX::SCH_VIEW*                  aSchView,
+                                        KIGFX::SCH_VIEW* aSchView,
                                         std::function<void( SCH_ITEM* )>* aChangedItemHandler,
-                                        PICKED_ITEMS_LIST*                aLastChangeList,
-                                        bool aCleanupDone )
+                                        PICKED_ITEMS_LIST* aLastChangeList, bool aCleanupDone )
 {
     SCH_COMMIT localCommit( aToolManager );
 
@@ -2530,9 +2550,8 @@ void SCHEMATIC::RecalculateConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS a
         if( !localCommit.Empty() )
             localCommit.Push( _( "Schematic Cleanup" ), SKIP_CONNECTIVITY | DELETE_REMOVED_ITEMS );
 
-        m_connectivity->Recalculate( *this, false,
-                                    aChangedItemHandler ? *aChangedItemHandler
-                                                        : std::function<void( SCH_ITEM* )>() );
+        m_connectivity->Recalculate( *this, false, aChangedItemHandler ? *aChangedItemHandler
+                                                                       : std::function<void( SCH_ITEM* )>() );
         return;
     }
 
@@ -2565,35 +2584,36 @@ void SCHEMATIC::RecalculateConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS a
         std::vector<CHANGED_ITEM>                        changed_connectable_items;
 
         // Lambda to add an item to the connectivity update sets
-        auto addItemToChangeSet = [&changed_items, &pts, &item_paths]( CHANGED_ITEM itemData )
-        {
-            std::vector<SCH_SHEET_PATH>& paths = itemData.screen->GetClientSheetPaths();
+        auto addItemToChangeSet =
+                [&changed_items, &pts, &item_paths]( CHANGED_ITEM itemData )
+                {
+                    std::vector<SCH_SHEET_PATH>& paths = itemData.screen->GetClientSheetPaths();
 
-            std::vector<VECTOR2I> tmp_pts = itemData.item->GetConnectionPoints();
-            pts.insert( tmp_pts.begin(), tmp_pts.end() );
-            changed_items.insert( itemData.item );
+                    std::vector<VECTOR2I> tmp_pts = itemData.item->GetConnectionPoints();
+                    pts.insert( tmp_pts.begin(), tmp_pts.end() );
+                    changed_items.insert( itemData.item );
 
-            for( SCH_SHEET_PATH& path : paths )
-                item_paths.insert( std::make_pair( path, itemData.item ) );
+                    for( SCH_SHEET_PATH& path : paths )
+                        item_paths.insert( std::make_pair( path, itemData.item ) );
 
-            if( !itemData.linked_item || !itemData.linked_item->IsConnectable() )
-                return;
+                    if( !itemData.linked_item || !itemData.linked_item->IsConnectable() )
+                        return;
 
-            tmp_pts = itemData.linked_item->GetConnectionPoints();
-            pts.insert( tmp_pts.begin(), tmp_pts.end() );
-            changed_items.insert( itemData.linked_item );
+                    tmp_pts = itemData.linked_item->GetConnectionPoints();
+                    pts.insert( tmp_pts.begin(), tmp_pts.end() );
+                    changed_items.insert( itemData.linked_item );
 
-            // We have to directly add the pins here because the link may not exist on the schematic
-            // anymore and so won't be picked up by GetScreen()->Items().Overlapping() below.
-            if( SCH_SYMBOL* symbol = dynamic_cast<SCH_SYMBOL*>( itemData.linked_item ) )
-            {
-                std::vector<SCH_PIN*> pins = symbol->GetPins();
-                changed_items.insert( pins.begin(), pins.end() );
-            }
+                    // We have to directly add the pins here because the link may not exist on the schematic
+                    // anymore and so won't be picked up by GetScreen()->Items().Overlapping() below.
+                    if( SCH_SYMBOL* symbol = dynamic_cast<SCH_SYMBOL*>( itemData.linked_item ) )
+                    {
+                        std::vector<SCH_PIN*> pins = symbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
+                        changed_items.insert( pins.begin(), pins.end() );
+                    }
 
-            for( SCH_SHEET_PATH& path : paths )
-                item_paths.insert( std::make_pair( path, itemData.linked_item ) );
-        };
+                    for( SCH_SHEET_PATH& path : paths )
+                        item_paths.insert( std::make_pair( path, itemData.linked_item ) );
+                };
 
         // Get all changed connectable items and determine all changed screens
         for( unsigned ii = 0; ii < aLastChangeList->GetCount(); ++ii )
@@ -2644,42 +2664,42 @@ void SCHEMATIC::RecalculateConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS a
         std::map<KIID, EDA_ITEM*> itemMap;
         list.FillItemMap( itemMap );
 
-        auto addPastAndPresentContainedItems = [&]( SCH_RULE_AREA* changedRuleArea, SCH_SCREEN* screen )
-        {
-            for( const KIID& pastItem : changedRuleArea->GetPastContainedItems() )
-            {
-                if( itemMap.contains( pastItem ) )
-                    addItemToChangeSet( { static_cast<SCH_ITEM*>( itemMap[pastItem] ), nullptr, screen } );
-            }
+        auto addPastAndPresentContainedItems =
+                [&]( SCH_RULE_AREA* changedRuleArea, SCH_SCREEN* screen )
+                {
+                    for( const KIID& pastItem : changedRuleArea->GetPastContainedItems() )
+                    {
+                        if( itemMap.contains( pastItem ) )
+                            addItemToChangeSet( { static_cast<SCH_ITEM*>( itemMap[pastItem] ), nullptr, screen } );
+                    }
 
-            for( SCH_ITEM* containedItem : changedRuleArea->GetContainedItems() )
-                addItemToChangeSet( { containedItem, nullptr, screen } );
-        };
+                    for( SCH_ITEM* containedItem : changedRuleArea->GetContainedItems() )
+                        addItemToChangeSet( { containedItem, nullptr, screen } );
+                };
 
         for( const auto& [changedRuleArea, screen] : changed_rule_areas )
             addPastAndPresentContainedItems( changedRuleArea, screen );
 
         // Add all changed items, and associated items, to the change set
-        for( CHANGED_ITEM& changed_item_data : changed_connectable_items )
+        for( CHANGED_ITEM& changed_item : changed_connectable_items )
         {
-            addItemToChangeSet( changed_item_data );
+            addItemToChangeSet( changed_item );
 
             // If a SCH_DIRECTIVE_LABEL was changed which is attached to a SCH_RULE_AREA, we need
             // to add the contained items to the change set to force update of their connectivity
-            if( changed_item_data.item->Type() == SCH_DIRECTIVE_LABEL_T )
+            if( changed_item.item->Type() == SCH_DIRECTIVE_LABEL_T )
             {
-                const std::vector<VECTOR2I> labelConnectionPoints = changed_item_data.item->GetConnectionPoints();
+                const std::vector<VECTOR2I> labelConnectionPoints = changed_item.item->GetConnectionPoints();
 
-                auto candidateRuleAreas = changed_item_data.screen->Items().Overlapping(
-                        SCH_RULE_AREA_T, changed_item_data.item->GetBoundingBox() );
+                auto candidateRuleAreas = changed_item.screen->Items()
+                                            .Overlapping( SCH_RULE_AREA_T, changed_item.item->GetBoundingBox() );
 
                 for( SCH_ITEM* candidateRuleArea : candidateRuleAreas )
                 {
-                    SCH_RULE_AREA*      ruleArea = static_cast<SCH_RULE_AREA*>( candidateRuleArea );
-                    std::vector<SHAPE*> borderShapes = ruleArea->MakeEffectiveShapes( true );
+                    SCH_RULE_AREA* ruleArea = static_cast<SCH_RULE_AREA*>( candidateRuleArea );
 
                     if( ruleArea->GetPolyShape().CollideEdge( labelConnectionPoints[0], nullptr, 5 ) )
-                        addPastAndPresentContainedItems( ruleArea, changed_item_data.screen );
+                        addPastAndPresentContainedItems( ruleArea, changed_item.screen );
                 }
             }
         }
@@ -2708,7 +2728,7 @@ void SCHEMATIC::RecalculateConnections( SCH_COMMIT* aCommit, SCH_CLEANUP_FLAGS a
                 else if( item->Type() == SCH_SYMBOL_T && item->IsConnected( pt ) )
                 {
                     SCH_SYMBOL*           symbol = static_cast<SCH_SYMBOL*>( item );
-                    std::vector<SCH_PIN*> pins = symbol->GetPins();
+                    std::vector<SCH_PIN*> pins = symbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
 
                     changed_items.insert( pins.begin(), pins.end() );
 
@@ -3016,7 +3036,7 @@ wxArrayString SCHEMATIC::GetVariantNamesForUI() const
     for( const wxString& name : m_variantNames )
         variantNames.Add( name );
 
-    variantNames.Sort( SortVariantNames );
+    variantNames.Sort( SortVariantNames );  // SortVariantNames ensures the default is always first
 
     return variantNames;
 }
@@ -3051,7 +3071,7 @@ void SCHEMATIC::SetCurrentVariant( const wxString& aVariantName )
     if( ( aVariantName != GetDefaultVariantName() ) && m_variantNames.contains( aVariantName ) )
         newVariant = aVariantName;
 
-    if( m_currentVariant == newVariant )
+    if( m_currentVariant.CmpNoCase( newVariant ) == 0 )
         return;
 
     m_currentVariant = newVariant;

@@ -210,6 +210,9 @@ void DIALOG_DRC_RULE_EDITOR::LoadExistingRules()
     DRC_RULE_LOADER loader;
     std::vector<DRC_RE_LOADED_PANEL_ENTRY> entries = loader.LoadFile( rulesFile.GetFullPath() );
 
+    // Kept even without rules so comments in the file survive the save
+    m_rulesFileTrivia = loader.GetFileTrivia();
+
     if( entries.empty() )
         return;
 
@@ -297,7 +300,20 @@ void DIALOG_DRC_RULE_EDITOR::LoadExistingRules()
             ruleData->SetOriginalRuleText( entry.originalRuleText );
             ruleData->SetWasEdited( entry.wasEdited );
             ruleData->SetOriginalEntryCount( entry.originalEntryCount );
-            ruleData->SetLayerSource( entry.layerSource );
+            ruleData->SetSourceRule( entry.sourceRule );
+
+            wxString layerSource = entry.layerSource;
+
+            // Edited panels write the canonical name, and siblings of a split rule must keep matching it
+            if( entry.layerCondition.count() == 1 )
+            {
+                PCB_LAYER_ID layer = entry.layerCondition.Seq().front();
+
+                if( layerSource == m_currentBoard->GetLayerName( layer ) )
+                    layerSource = LSET::Name( layer );
+            }
+
+            ruleData->SetLayerSource( layerSource );
 
             if( !entry.layerSource.IsEmpty() )
                 ruleData->SetLayers( entry.layerCondition.Seq() );
@@ -1353,6 +1369,7 @@ void DIALOG_DRC_RULE_EDITOR::SaveRulesToFile()
         entry.originalRuleText = data->GetOriginalRuleText();
         entry.wasEdited = data->WasEdited();
         entry.originalEntryCount = data->GetOriginalEntryCount();
+        entry.sourceRule = data->GetSourceRule();
         entry.severity = data->GetSeverity();
         entry.layerCondition = LSET( data->GetLayers() );
         entry.layerSource = data->GetLayerSource();
@@ -1361,7 +1378,7 @@ void DIALOG_DRC_RULE_EDITOR::SaveRulesToFile()
     }
 
     DRC_RULE_SAVER saver;
-    saver.SaveFile( m_frame->GetBoard()->GetDesignRulesPath(), entries, m_currentBoard );
+    saver.SaveFile( m_frame->GetBoard()->GetDesignRulesPath(), entries, m_currentBoard, m_rulesFileTrivia );
 
     try
     {

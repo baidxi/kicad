@@ -179,7 +179,7 @@ namespace IO
 
     /**
      * Duplicates the file security data from one file to another ensuring that they are
-     * the same between both.  This assumes that the user has permission to set #aDest
+     * the same between both.  This assumes that the user has permission to set @p aDest
      * @return true if the process was successful
      */
     bool DuplicatePermissions( const wxString& aSrc, const wxString& aDest );
@@ -283,10 +283,11 @@ namespace IO
                                      wxString* aTempPathOut, wxString* aError = nullptr );
 
     /**
-     * If @p aPath is a symlink on POSIX, returns the canonical path of its referent so
+     * If @p aPath is a symlink, returns the canonical path of its referent so
      * atomic-save operations replace the underlying file rather than the link itself.
-     * On Windows and when @p aPath is not a symlink (or does not yet exist) the input
-     * is returned unchanged.
+     * When @p aPath is not a symlink (or does not yet exist) the input is returned
+     * unchanged. On Windows other reparse points such as junctions and cloud
+     * placeholders are left alone.
      */
     wxString ResolveSymlinkTarget( const wxString& aPath );
 

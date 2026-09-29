@@ -4082,6 +4082,51 @@ bool PCB_SELECTION_TOOL::isPadVisible( const PAD& aPad, const LSET& aVisibleLaye
 }
 
 
+bool PCB_SELECTION_TOOL::isOnVisibleFootprintSide( const BOARD_ITEM& aItem, bool aFrontVisible,
+                                                   bool aBackVisible, bool aIsFootprintEditor )
+{
+    const FOOTPRINT* parentFP = aItem.GetParentFootprint();
+
+    if( aIsFootprintEditor || !parentFP )
+        return true;
+
+    // Only these types implement the switches in their ViewGetLOD; the rest stay drawn
+    switch( aItem.Type() )
+    {
+    case PCB_FIELD_T:
+    case PCB_TEXT_T:
+    case PCB_SHAPE_T:
+    case PCB_ZONE_T:
+    case PCB_PAD_T:
+    case PCB_DIM_ALIGNED_T:
+    case PCB_DIM_LEADER_T:
+    case PCB_DIM_CENTER_T:
+    case PCB_DIM_RADIAL_T:
+    case PCB_DIM_ORTHOGONAL_T:
+        break;
+
+    default:
+        return true;
+    }
+
+    LSET layers = aItem.GetLayerSet();
+    bool onFront = ( layers & LSET::FrontMask() ).any();
+    bool onBack = ( layers & LSET::BackMask() ).any();
+
+    if( !onFront && !onBack )
+    {
+        // A pad off both sides stays drawn; everything else takes the footprint's side
+        if( aItem.Type() == PCB_PAD_T )
+            return true;
+
+        onFront = parentFP->GetLayer() == F_Cu;
+        onBack = parentFP->GetLayer() == B_Cu;
+    }
+
+    return ( onFront && aFrontVisible ) || ( onBack && aBackVisible );
+}
+
+
 bool PCB_SELECTION_TOOL::Selectable( const BOARD_ITEM* aItem, bool checkVisibilityOnly ) const
 {
     const RENDER_SETTINGS* settings = getView()->GetPainter()->GetSettings();
@@ -4114,6 +4159,15 @@ bool PCB_SELECTION_TOOL::Selectable( const BOARD_ITEM* aItem, bool checkVisibili
                 else
                     return board()->IsLayerVisible( aLayer );
             };
+
+    // Box-select never goes through the collectors guide, so the Render tab's footprint switches
+    // have to be applied here too
+    if( !isOnVisibleFootprintSide( *aItem, board()->IsElementVisible( LAYER_FOOTPRINTS_FR ),
+                                   board()->IsElementVisible( LAYER_FOOTPRINTS_BK ),
+                                   m_isFootprintEditor ) )
+    {
+        return false;
+    }
 
     if( settings->GetHighContrast() )
     {
@@ -4149,9 +4203,10 @@ bool PCB_SELECTION_TOOL::Selectable( const BOARD_ITEM* aItem, bool checkVisibili
         // footprint in the selections.
         if( footprint->GraphicalItems().empty()
                 && footprint->Pads().empty()
-                && footprint->Zones().empty() )
+                && footprint->Zones().empty()
+                && footprint->Points().empty() )
         {
-            return true;
+            return board()->IsFootprintLayerVisible( footprint->GetLayer() );
         }
 
         for( const BOARD_ITEM* item : footprint->GraphicalItems() )
@@ -4890,14 +4945,11 @@ void PCB_SELECTION_TOOL::GuessSelectionCandidates( GENERAL_COLLECTOR& aCollector
             aCollector.Remove( i );
     }
 
-    // A drill chart says what the board says, so a click on it is a click on the chart. Its
-    // cells stay collectable for everything else, and a double-click still reaches them.
+    // A generated table says what the board says, so a click on it is a click on the table.
+    // Its cells stay collectable for everything else, and a double-click still reaches them.
     for( int i = aCollector.GetCount() - 1; i >= 0; --i )
     {
-        const BOARD_ITEM* parent = aCollector[i]->GetParent();
-
-        if( aCollector[i]->Type() == PCB_TABLECELL_T && parent
-            && parent->Type() == PCB_DRILL_CHART_T && aCollector.HasItem( parent ) )
+        if( IsGeneratedTableCell( aCollector[i] ) && aCollector.HasItem( aCollector[i]->GetParent() ) )
         {
             aCollector.Remove( i );
         }
@@ -5001,7 +5053,7 @@ void PCB_SELECTION_TOOL::GuessSelectionCandidates( GENERAL_COLLECTOR& aCollector
         {
             try
             {
-                area = FOOTPRINT::GetCoverageArea( item, aCollector );
+                area = item->GetCoverageArea( aCollector.GetGuide()->Accuracy() );
             }
             catch( const std::exception& e )
             {

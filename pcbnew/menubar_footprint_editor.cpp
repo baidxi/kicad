@@ -22,7 +22,10 @@
 
 #include "footprint_edit_frame.h"
 #include "pcbnew_id.h"
+
 #include <bitmaps.h>
+#include <pgm_base.h>
+#include <settings/common_settings.h>
 #include <tool/actions.h>
 #include <tool/action_menu.h>
 #include <tool/tool_manager.h>
@@ -240,6 +243,18 @@ void FOOTPRINT_EDIT_FRAME::doReCreateMenuBar()
     toolsMenu->Add( PCB_ACTIONS::cleanupGraphics );
     toolsMenu->Add( PCB_ACTIONS::repairFootprint );
 
+    ACTION_MENU* submenuActionPlugins = new ACTION_MENU( false, selTool );
+    submenuActionPlugins->SetTitle( _( "External Plugins" ) );
+    submenuActionPlugins->SetIcon( BITMAPS::puzzle_piece );
+
+    if( Pgm().GetCommonSettings()->m_Api.enable_server && AddApiPluginMenuItems( submenuActionPlugins ) > 0 )
+        submenuActionPlugins->AppendSeparator();
+
+    submenuActionPlugins->Add( ACTIONS::pluginsReload );
+    submenuActionPlugins->Add( ACTIONS::pluginsShowFolder );
+
+    toolsMenu->AppendSeparator();
+    toolsMenu->Add( submenuActionPlugins );
 
     //-- Preferences menu -------------------------------------------------
     //

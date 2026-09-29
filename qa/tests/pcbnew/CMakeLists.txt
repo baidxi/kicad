@@ -79,10 +79,12 @@ set( QA_PCBNEW_SRCS
     test_issue25010.cpp
     test_issue25110_bezier_line_style.cpp
     test_issue25521.cpp
+    test_issue25621_via_flashing_contact_layer.cpp
     test_fp_lib_load_save.cpp
     test_io_mgr.cpp
     test_ellipse_roundtrip.cpp
     test_custom_pad_primitive_roundtrip.cpp
+    test_custom_property_roundtrip.cpp
     test_active_layer_update.cpp
     test_line_ending_load_save.cpp
     test_lset.cpp
@@ -271,6 +273,7 @@ set( QA_PCBNEW_SRCS
 
     pcb_io/easyedapro/test_easyedapro_import.cpp
     pcb_io/easyedapro/test_easyedapro_v3_import.cpp
+    pcb_io/easyeda/test_easyeda_import.cpp
 
     pcb_io/diptrace/test_diptrace_import.cpp
     pcb_io/diptrace/test_diptrace_cross_link.cpp
@@ -388,7 +391,6 @@ target_link_libraries( qa_pcbnew
     tinyspline_lib
     nanosvg
     planegcs
-    idf3
     markdown_lib
     ${PCBNEW_IO_LIBRARIES}
     ${wxWidgets_LIBRARIES}

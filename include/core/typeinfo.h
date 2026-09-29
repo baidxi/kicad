@@ -45,7 +45,7 @@ bool IsA( const I& aObject )
 /**
  * A lightweight dynamic downcast.
  *
- * Cast \a aObject to type Casted*.  Uses #EDA_ITEM::Type() and #EDA_ITEM::ClassOf() to
+ * Cast \a aObject to type Casted*.  Uses #EDA_ITEM::Type() and object specific ClassOf method to
  * check if type matches.
  *
  * @param aObject object to be casted.
@@ -317,6 +317,14 @@ constexpr KICAD_T BaseType( const KICAD_T aType )
 constexpr bool IsNullType( const KICAD_T aType )
 {
     return aType <= 0;
+}
+
+/**
+ * A PCB_TABLE subclass whose cells are generated from the board rather than typed by the user
+ */
+constexpr bool IsGeneratedTableType( const KICAD_T aType )
+{
+    return aType == PCB_DRILL_CHART_T;
 }
 
 constexpr bool IsInstantiableType( const KICAD_T aType )

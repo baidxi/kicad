@@ -97,6 +97,15 @@ constexpr double GRID_EDGE_DARKEN = 0.75;
 constexpr double GRID_SELECTED_BRIGHTEN = 0.5;
 
 
+/// State of a canvas' rendering context after a GPU reset
+enum class GAL_CONTEXT_LOSS
+{
+    NONE,         ///< Context is usable
+    RECOVERABLE,  ///< Context was lost; rebuild the canvas
+    REPEATED      ///< Contexts keep being lost; stop using this backend
+};
+
+
 /**
  * Abstract interface for drawing on a 2D-surface.
  *
@@ -371,8 +380,6 @@ public:
 
     /**
      * Clear the screen.
-     *
-     * @param aColor is the color used for clearing.
      */
     virtual void ClearScreen() {};
 
@@ -1034,7 +1041,7 @@ public:
     int            GetCoarseGrid() const { return m_gridTick; }
     const COLOR4D& GetGridColor() const { return m_gridColor; }
 
-    ///< Draw the grid
+    /// Draw the grid
     virtual void DrawGrid() {};
 
     /**
@@ -1070,8 +1077,9 @@ public:
     /**
      * Set the cursor in the native panel.
      *
-     * @param aCursor is the cursor to use in the native panel
-     * @return true if the cursor was updated, false if the cursor given was already set
+     * @param aCursor is the cursor to use in the native panell
+     * @param aHiDPI is used to determine if high DPI cursors should be used.
+     * @return true if the cursor was updated, false if the cursor given was already set.
      */
     virtual bool SetNativeCursorStyle( KICURSOR aCursor, bool aHiDPI );
 
@@ -1132,6 +1140,26 @@ public:
      * @return True if GL commands may be issued.
      */
     virtual bool IsContextValid() const
+    {
+        return true;
+    }
+
+    /**
+     * Check whether a GPU reset destroyed this canvas' rendering context.
+     *
+     * A lost canvas cannot draw or update cached items until its owner rebuilds it.
+     */
+    virtual GAL_CONTEXT_LOSS GetContextLoss() const
+    {
+        return GAL_CONTEXT_LOSS::NONE;
+    }
+
+    /**
+     * Check whether the driver has finished the reset that destroyed this canvas' context.
+     *
+     * Rebuilding before then can fail or hang in the driver.
+     */
+    virtual bool IsResetSettled()
     {
         return true;
     }
@@ -1329,15 +1357,27 @@ class GAL_UPDATE_CONTEXT : public GAL_CONTEXT_LOCKER
 {
 public:
     GAL_UPDATE_CONTEXT( GAL* aGal ) :
-            GAL_CONTEXT_LOCKER( aGal )
+            GAL_CONTEXT_LOCKER( aGal ),
+            m_updating( aGal->IsContextValid() )
     {
-        m_gal->beginUpdate();
+        if( m_updating )
+            m_gal->beginUpdate();
     }
 
     ~GAL_UPDATE_CONTEXT()
     {
-        m_gal->endUpdate();
+        if( m_updating )
+            m_gal->endUpdate();
     }
+
+    /// @return False if the context could not be made current, so cached items must not be touched.
+    bool IsUpdating() const
+    {
+        return m_updating;
+    }
+
+private:
+    bool m_updating;
 };
 
 

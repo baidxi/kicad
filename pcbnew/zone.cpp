@@ -314,7 +314,7 @@ void ZONE::Serialize( google::protobuf::Any& aContainer ) const
         types::HatchFillSettings* hatch = cu->mutable_hatch_settings();
         hatch->mutable_thickness()->set_value_nm( m_hatchThickness );
         hatch->mutable_gap()->set_value_nm( m_hatchGap );
-        hatch->mutable_orientation()->set_value_degrees( m_hatchOrientation.AsDegrees() );
+        hatch->mutable_orientation()->set_value_degrees( m_hatchOrientation.GetAngle().AsDegrees() );
         hatch->set_hatch_smoothing_ratio( m_hatchSmoothingValue );
         hatch->set_hatch_hole_min_area_ratio( m_hatchHoleMinArea );
 
@@ -336,8 +336,7 @@ void ZONE::Serialize( google::protobuf::Any& aContainer ) const
         thieving->mutable_gap()->set_value_nm( m_thievingSettings.gap );
         thieving->mutable_line_width()->set_value_nm( m_thievingSettings.line_width );
         thieving->set_stagger( m_thievingSettings.stagger );
-        thieving->mutable_orientation()->set_value_degrees(
-                m_thievingSettings.orientation.AsDegrees() );
+        thieving->mutable_orientation()->set_value_degrees( m_thievingSettings.orientation.GetAngle().AsDegrees() );
     }
 
     for( const auto& [layer, shape] : m_FilledPolysList )
@@ -1971,6 +1970,44 @@ std::shared_ptr<SHAPE> ZONE::GetEffectiveShape( PCB_LAYER_ID aLayer, FLASHING, D
         return std::make_shared<SHAPE_NULL>();
     else
         return m_FilledPolysList.at( aLayer );
+}
+
+
+double ZONE::GetCoverageArea( int aTextMargin ) const
+{
+    if( !GetIsRuleArea() )
+    {
+        // Unioning the layer fills stalls selection on a hatched plane.  The largest layer is
+        // exact for a single layer and bounds the union for the rest, which is enough to rank
+        bool   filled = false;
+        double largest = 0.0;
+
+        for( PCB_LAYER_ID layer : GetLayerSet() )
+        {
+            if( !HasFilledPolysForLayer( layer ) )
+                continue;
+
+            std::shared_ptr<SHAPE_POLY_SET> fill = GetFilledPolysList( layer );
+
+            if( fill->OutlineCount() == 0 )
+                continue;
+
+            filled = true;
+            largest = std::max( largest, fill->Area() );
+        }
+
+        if( filled )
+            return largest;
+    }
+
+    // Rule areas are never filled, so TransformShapeToPolygon would report a zero coverage
+    // area and make them appear as the smallest item under the cursor.  That incorrectly
+    // gives them selection precedence over the pads, tracks and footprints they enclose.
+    // Use the outline area so an enclosed item is selected first while the rule area stays
+    // available via its border and the disambiguation menu.  An unfilled zone falls back the
+    // same way so it does not collapse to a zero coverage area.
+    SHAPE_POLY_SET outline = *m_Poly;
+    return polygonArea( outline );
 }
 
 

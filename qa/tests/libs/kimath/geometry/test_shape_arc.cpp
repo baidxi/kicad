@@ -26,6 +26,7 @@
 #include <geometry/shape_arc.h>
 #include <geometry/shape_circle.h>
 #include <geometry/shape_line_chain.h>
+#include <geometry/shape_simple.h>
 #include <trigo.h>
 
 #include <qa_utils/geometry/geometry.h>
@@ -1012,6 +1013,73 @@ BOOST_AUTO_TEST_CASE( CollideArcToShapeLineChain )
 }
 
 
+BOOST_AUTO_TEST_CASE( CollideArcToClosedChainMatchesSegmentScan )
+{
+    struct CASE
+    {
+        SHAPE_ARC        m_arc;
+        SHAPE_SIMPLE     m_chain;
+        int              m_clearance;
+        bool             m_collides;
+    };
+
+    const SHAPE_ARC semicircle( VECTOR2I( -100, 0 ), VECTOR2I( 0, 100 ), VECTOR2I( 100, 0 ), 0 );
+    const SHAPE_ARC major( VECTOR2I( 0, 0 ), VECTOR2I( -87, -50 ), EDA_ANGLE( 300.0, DEGREES_T ), 0 );
+
+    BOOST_REQUIRE( major.GetCentralAngle().AsDegrees() > 180.0 );
+    BOOST_REQUIRE( major.BBox( 150 ).GetLeft() > -238 );
+
+    auto rect =
+            []( int aX0, int aY0, int aX1, int aY1 )
+            {
+                return SHAPE_SIMPLE( SHAPE_LINE_CHAIN( { VECTOR2I( aX0, aY0 ), VECTOR2I( aX1, aY0 ),
+                                                         VECTOR2I( aX1, aY1 ), VECTOR2I( aX0, aY1 ) }, true ) );
+            };
+
+    // SHAPE_SIMPLE routes through the SHAPE_LINE_CHAIN_BASE overload that carries the box reject
+    const CASE cases[] = { { SHAPE_ARC( semicircle, 4 ), rect( -10, 102, 10, 110 ), 0, true },
+                           { semicircle, rect( -10, 105, 10, 110 ), 5, false },
+                           { major, rect( -239, -10, -238, 10 ), 150, true } };
+
+    for( const CASE& c : cases )
+    {
+        BOOST_REQUIRE( !c.m_chain.PointInside( c.m_arc.GetP0() ) );
+
+        int      expectedActual = std::numeric_limits<int>::max();
+        VECTOR2I expectedLocation;
+
+        for( size_t i = 0; i < c.m_chain.GetSegmentCount(); i++ )
+        {
+            int      segmentActual = 0;
+            VECTOR2I segmentLocation;
+
+            if( c.m_arc.Collide( c.m_chain.GetSegment( i ), c.m_clearance, &segmentActual, &segmentLocation )
+                && segmentActual < expectedActual )
+            {
+                expectedActual = segmentActual;
+                expectedLocation = segmentLocation;
+            }
+        }
+
+        bool expected = expectedActual == 0 || expectedActual < c.m_clearance;
+        BOOST_REQUIRE_EQUAL( expected, c.m_collides );
+
+        int      actual = 0;
+        VECTOR2I location;
+        bool collided = static_cast<const SHAPE&>( c.m_arc ).Collide( &c.m_chain, c.m_clearance,
+                                                                     &actual, &location );
+
+        BOOST_CHECK_EQUAL( collided, expected );
+
+        if( expected )
+        {
+            BOOST_CHECK_EQUAL( actual, expectedActual );
+            BOOST_CHECK( location == expectedLocation );
+        }
+    }
+}
+
+
 BOOST_AUTO_TEST_CASE( CollideArcToPolygonApproximation )
 {
     SHAPE_ARC arc( VECTOR2I( 73843527, 74355869 ), VECTOR2I( 71713528, 72965869 ),
@@ -1087,11 +1155,11 @@ bool ArePolylineEndPointsNearCircle( const SHAPE_LINE_CHAIN& aPolyline, const VE
 /**
  * Predicate for checking a polyline has all the segment mid points on
  * (near) a circle of given centre and radius
- * @param  aPolyline the polyline to check
- * @param  aCentre   the circle centre
- * @param  aRad      the circle radius
- * @param  aTolEnds  the tolerance for the midpoint-centre distance
- * @return           true if predicate met
+ * @param  aPolyline  the polyline to check
+ * @param  aCentre    the circle centre
+ * @param  aRad       the circle radius
+ * @param  aTolerance the tolerance for the midpoint-centre distance
+ * @return            true if predicate met
  */
 bool ArePolylineMidPointsNearCircle( const SHAPE_LINE_CHAIN& aPolyline, const VECTOR2I& aCentre,
                                      int aRad, int aTolerance )

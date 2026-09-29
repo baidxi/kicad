@@ -635,7 +635,7 @@ static void bitmapText( KIGFX::GAL& aGal, const wxString& aText, const VECTOR2D&
     aGal.SetHorizontalJustify( aAttrs.m_Halign );
     aGal.SetVerticalJustify( aAttrs.m_Valign );
 
-    aGal.BitmapText( aText, aPosition, aAttrs.m_Angle );
+    aGal.BitmapText( aText, aPosition, aAttrs.m_Angle.GetAngle() );
 }
 
 
@@ -1183,7 +1183,7 @@ void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
         VECTOR2D p5 = aBottom;
 
         // Apply brace offset based on text orientation
-        if( aAttrs.m_Angle == ANGLE_VERTICAL )
+        if( aAttrs.m_Angle.GetAngle() == ANGLE_VERTICAL )
         {
             // For vertical text, braces extend in the Y direction
             // "Left" brace is actually towards negative Y, "right" towards positive Y
@@ -1241,7 +1241,7 @@ void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
         int textHeight = aAttrs.m_Size.y;
         int extraHeight = textHeight / 3; // Extend braces by 1/3 of text height beyond text
 
-        if( aAttrs.m_Angle == ANGLE_VERTICAL )
+        if( aAttrs.m_Angle.GetAngle() == ANGLE_VERTICAL )
         {
             // For vertical text, lines are spaced horizontally and braces are horizontal
             braceEnd.x += ( (int) aLines.size() - 1 ) * aLineSpacing;
@@ -1318,7 +1318,7 @@ void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
 
                 int textHalfHeight = aAttrs.m_Size.y / 2;
 
-                if( aAttrs.m_Angle == ANGLE_VERTICAL )
+                if( aAttrs.m_Angle.GetAngle() == ANGLE_VERTICAL )
                 {
                     // For vertical text, lines are spaced horizontally
                     braceEnd.x += ( (int) aLines.size() - 1 ) * aLineSpacing;
@@ -1389,7 +1389,7 @@ void SCH_PAINTER::draw( const SCH_PIN* aPin, int aLayer, bool aDimmed )
                         // Calculate positioning based on text alignment and rotation
                         VECTOR2D startPos = aPosition;
 
-                        if( aAttrs.m_Angle == ANGLE_VERTICAL )
+                        if( aAttrs.m_Angle.GetAngle() == ANGLE_VERTICAL )
                         {
                             // For vertical text, lines are spaced horizontally
                             // Adjust start position based on horizontal alignment
@@ -2272,7 +2272,7 @@ void SCH_PAINTER::draw( const SCH_TEXT* aText, int aLayer, bool aDimmed )
         // offset by shadowWidth/2 to be drawn at the same place as normal text.
         double shadowOffset = 0.0;
 
-        if( attrs.m_Angle == ANGLE_VERTICAL )
+        if( attrs.m_Angle.GetAngle() == ANGLE_VERTICAL )
         {
             switch( attrs.m_Halign )
             {
@@ -2686,7 +2686,7 @@ void SCH_PAINTER::draw( const SCH_SYMBOL* aSymbol, int aLayer )
     bool usingAlternateSymbol = ( originalSymbol != aSymbol->GetLibSymbolRef().get()
                                   && originalSymbol != LIB_SYMBOL::GetDummy() );
 
-    std::vector<const SCH_PIN*> originalPins = originalSymbol->GetGraphicalPins( unit, bodyStyle );
+    std::vector<SCH_PIN*> originalPins = originalSymbol->GetGraphicalPins( unit, bodyStyle );
 
     if( usingAlternateSymbol && originalPins.empty() && bodyStyle > 1 )
         originalPins = originalSymbol->GetGraphicalPins( unit, 1 );
@@ -3188,15 +3188,14 @@ void SCH_PAINTER::draw( const SCH_LABEL* aLabel, int aLayer, bool aDimmed )
     if( drawingShadows && !( aLabel->IsBrightened() || aLabel->IsSelected() ) )
         return;
 
-    COLOR4D color = getRenderColor( aLabel, LAYER_HIERLABEL, drawingShadows, aDimmed, true );
+    COLOR4D color = getRenderColor( aLabel, LAYER_LOCLABEL, drawingShadows, aDimmed, true );
 
     if( drawingDangling )
     {
         if( aLabel->IsDangling() )
         {
-            drawDanglingIndicator( aLabel->GetTextPos(), color,
-                                   schIUScale.MilsToIU( DANGLING_SYMBOL_SIZE / 2 ), true,
-                                   drawingShadows, aLabel->IsBrightened() );
+            drawDanglingIndicator( aLabel->GetTextPos(), color, schIUScale.MilsToIU( DANGLING_SYMBOL_SIZE / 2 ),
+                                   true, drawingShadows, aLabel->IsBrightened() );
         }
 
         return;
@@ -3235,9 +3234,8 @@ void SCH_PAINTER::draw( const SCH_HIERLABEL* aLabel, int aLayer, bool aDimmed )
     {
         if( aLabel->IsDangling() )
         {
-            drawDanglingIndicator( aLabel->GetTextPos(), color,
-                                   schIUScale.MilsToIU( DANGLING_SYMBOL_SIZE / 2 ), true,
-                                   drawingShadows, aLabel->IsBrightened() );
+            drawDanglingIndicator( aLabel->GetTextPos(), color, schIUScale.MilsToIU( DANGLING_SYMBOL_SIZE / 2 ),
+                                   true, drawingShadows, aLabel->IsBrightened() );
         }
 
         return;
@@ -3355,6 +3353,7 @@ void SCH_PAINTER::draw( const SCH_SHEET* aSheet, int aLayer )
 
     bool drawingShadows = aLayer == LAYER_SELECTION_SHADOWS;
     bool markExclusion = eeconfig()->m_Appearance.mark_sim_exclusions
+                            && !m_schSettings.IsPrinting()
                             && aSheet->GetExcludedFromSim( sheetPath, variant );
 
     if( m_schSettings.IsPrinting() && drawingShadows )
@@ -3436,7 +3435,7 @@ void SCH_PAINTER::draw( const SCH_SHEET* aSheet, int aLayer )
         m_gal->DrawSegment( pt1, pt2, strokeWidth );
     }
 
-    if( markExclusion )
+    if( markExclusion && aLayer == LAYER_SHEET )
     {
         int   layer = LAYER_EXCLUDED_FROM_SIM;
         BOX2I bbox = aSheet->GetBodyBoundingBox();
@@ -3588,11 +3587,15 @@ void SCH_PAINTER::draw( const SCH_BUS_ENTRY_BASE *aEntry, int aLayer )
 
 void SCH_PAINTER::draw( const SCH_BITMAP* aBitmap, int aLayer )
 {
+    const REFERENCE_IMAGE& refImage = aBitmap->GetReferenceImage();
+    bool                   drawingShadows = aLayer == LAYER_SELECTION_SHADOWS;
+
+    if( m_schSettings.IsPrinting() && drawingShadows )
+        return;
+
     auto t1 = std::chrono::high_resolution_clock::now();
     m_gal->Save();
     m_gal->Translate( aBitmap->GetPosition() );
-
-    const REFERENCE_IMAGE& refImage = aBitmap->GetReferenceImage();
 
     // When the image scale factor is not 1.0, we need to modify the actual as the image scale
     // factor is similar to a local zoom
@@ -3602,9 +3605,7 @@ void SCH_PAINTER::draw( const SCH_BITMAP* aBitmap, int aLayer )
         m_gal->Scale( VECTOR2D( img_scale, img_scale ) );
 
     if( aLayer == LAYER_DRAW_BITMAPS )
-    {
         m_gal->DrawBitmap( refImage.GetImage() );
-    }
 
     if( aLayer == LAYER_SELECTION_SHADOWS )
     {

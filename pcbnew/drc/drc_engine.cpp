@@ -277,6 +277,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s')" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassClearanceRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( CLEARANCE_CONSTRAINT );
@@ -285,7 +286,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     {
                         std::unique_lock<std::shared_mutex> writeLock( m_clearanceCacheMutex );
-                        m_netclassClearances[nc->GetName()] = nc->GetClearance();
+                        m_netclassClearances[nc->GetName()] = netclassRule.get();
                     }
                 }
 
@@ -298,6 +299,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s')" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassClearanceRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( TRACK_WIDTH_CONSTRAINT );
@@ -315,6 +317,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && A.inDiffPair('*')" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( TRACK_WIDTH_CONSTRAINT );
@@ -332,6 +335,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s')" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( DIFF_PAIR_GAP_CONSTRAINT );
@@ -349,6 +353,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                         expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && AB.isCoupledDiffPair()" ), ncName );
                         netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                        netclassRule->m_ImplicitNetclass = nc->GetName();
                         netclassItemSpecificRules.push_back( netclassRule );
 
                         DRC_CONSTRAINT min_clearanceConstraint( CLEARANCE_CONSTRAINT );
@@ -368,6 +373,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && A.Via_Type != 'Micro'" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( VIA_DIAMETER_CONSTRAINT );
@@ -385,6 +391,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && A.Via_Type != 'Micro'" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( HOLE_SIZE_CONSTRAINT );
@@ -402,11 +409,12 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && A.Via_Type == 'Micro'" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( VIA_DIAMETER_CONSTRAINT );
                     constraint.Value().SetMin( bds.m_MicroViasMinSize );
-                    constraint.Value().SetMin( nc->GetuViaDiameter() );
+                    constraint.Value().SetOpt( nc->GetuViaDiameter() );
                     netclassRule->AddConstraint( constraint );
                 }
 
@@ -419,6 +427,7 @@ void DRC_ENGINE::loadImplicitRules()
 
                     expr = wxString::Format( wxT( "A.hasExactNetclass('%s') && A.Via_Type == 'Micro'" ), ncName );
                     netclassRule->m_Condition = new DRC_RULE_CONDITION( expr );
+                    netclassRule->m_ImplicitNetclass = nc->GetName();
                     netclassItemSpecificRules.push_back( netclassRule );
 
                     DRC_CONSTRAINT constraint( HOLE_SIZE_CONSTRAINT );
@@ -812,6 +821,12 @@ void DRC_ENGINE::InitEngine( const std::shared_ptr<DRC_RULE>& rule )
 
     m_constraintMap.clear();
 
+    // The netclass clearance cache points at the rules just destroyed
+    {
+        std::unique_lock<std::shared_mutex> writeLock( m_clearanceCacheMutex );
+        m_netclassClearances.clear();
+    }
+
     m_board->IncrementTimeStamp(); // Clear board-level caches
 
     try
@@ -1013,6 +1028,8 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
 
     const BOARD_CONNECTED_ITEM* ac = a && a->IsConnected() ? static_cast<const BOARD_CONNECTED_ITEM*>( a ) : nullptr;
     const BOARD_CONNECTED_ITEM* bc = b && b->IsConnected() ? static_cast<const BOARD_CONNECTED_ITEM*>( b ) : nullptr;
+    const NETCLASS*             acNetclass = ac ? ac->GetEffectiveNetClass() : nullptr;
+    const NETCLASS*             bcNetclass = bc ? bc->GetEffectiveNetClass() : nullptr;
 
     bool a_is_non_copper = a && ( !a->IsOnCopperLayer() || isKeepoutZone( a, false ) );
     bool b_is_non_copper = b && ( !b->IsOnCopperLayer() || isKeepoutZone( b, false ) );
@@ -1048,6 +1065,11 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
     auto applyConstraint =
             [&]( const DRC_ENGINE_CONSTRAINT* c )
             {
+                DRC_RULE* rule = c->constraint.GetParentRule();
+                DRC_RULE* minRule = constraint.GetMinRule();
+                DRC_RULE* optRule = constraint.GetOptRule();
+                DRC_RULE* maxRule = constraint.GetMaxRule();
+
                 if( c->constraint.m_Value.HasMin() )
                 {
                     if( c->parentRule && c->parentRule->IsImplicit() )
@@ -1056,13 +1078,20 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                         constraint.m_ImplicitMin = false;
 
                     constraint.m_Value.SetMin( c->constraint.m_Value.Min() );
+                    minRule = rule;
                 }
 
                 if( c->constraint.m_Value.HasOpt() )
+                {
                     constraint.m_Value.SetOpt( c->constraint.m_Value.Opt() );
+                    optRule = rule;
+                }
 
                 if( c->constraint.m_Value.HasMax() )
-                    constraint .m_Value.SetMax( c->constraint.m_Value.Max() );
+                {
+                    constraint.m_Value.SetMax( c->constraint.m_Value.Max() );
+                    maxRule = rule;
+                }
 
                 switch( c->constraint.m_Type )
                 {
@@ -1089,7 +1118,8 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
 
                 constraint.m_ZoneConnection = c->constraint.m_ZoneConnection;
 
-                constraint.SetParentRule( c->constraint.GetParentRule() );
+                constraint.SetParentRule( rule );
+                constraint.SetValueRules( minRule, optRule, maxRule );
 
                 constraint.SetOptionsFromOther( c->constraint );
             };
@@ -1639,6 +1669,17 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                         }
                     }
 
+                    // The condition starts with A.hasExactNetclass( tag ) and is tried both ways round, so
+                    // it cannot match unless one of the items is in that netclass
+                    const wxString& netclassName = c->parentRule->m_ImplicitNetclass;
+
+                    if( !netclassName.empty()
+                        && !( acNetclass && acNetclass->NameEquals( netclassName ) )
+                        && !( bcNetclass && bcNetclass->NameEquals( netclassName ) ) )
+                    {
+                        return;
+                    }
+
                     if( !checkCondition( c, nullptr ) )
                         return;
                 }
@@ -1880,7 +1921,8 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
         && !a_is_non_copper
         && ( !b || !b_is_non_copper ) )
     {
-        int clearance = 0;
+        DRC_RULE* netclassRule = nullptr;
+        int       clearance = 0;
 
         // Get netclass names outside of the lock to minimize critical section
         wxString ncNameA;
@@ -1912,15 +1954,21 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                 auto it = m_netclassClearances.find( ncNameA );
 
                 if( it != m_netclassClearances.end() )
-                    clearance = it->second;
+                {
+                    netclassRule = it->second;
+                    clearance = netclassRule->m_Constraints[0].m_Value.Min();
+                }
             }
 
             if( !ncNameB.empty() )
             {
                 auto it = m_netclassClearances.find( ncNameB );
 
-                if( it != m_netclassClearances.end() )
-                    clearance = std::max( clearance, it->second );
+                if( it != m_netclassClearances.end() && it->second->m_Constraints[0].m_Value.Min() > clearance )
+                {
+                    netclassRule = it->second;
+                    clearance = netclassRule->m_Constraints[0].m_Value.Min();
+                }
             }
         }
 
@@ -1928,6 +1976,7 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
         {
             constraint.m_Value.SetMin( clearance );
             constraint.m_ImplicitMin = true;
+            constraint.SetParentRule( netclassRule );
         }
     }
     else
@@ -1950,7 +1999,11 @@ DRC_CONSTRAINT DRC_ENGINE::EvalRules( DRC_CONSTRAINT_T aConstraintType, const BO
                                       MessageTextFromValue( clearanceConstraint.m_Value.Min() ) ) )
 
             if( constraint.m_Value.Min() < clearanceConstraint.m_Value.Min() )
+            {
                 constraint.m_Value.SetMin( clearanceConstraint.m_Value.Min() );
+                constraint.SetValueRules( clearanceConstraint.GetMinRule(), constraint.GetOptRule(),
+                                          constraint.GetMaxRule() );
+            }
 
             return constraint;
         }

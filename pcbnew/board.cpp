@@ -47,6 +47,7 @@
 #include <board_text_var_adapter.h>
 #include <font/outline_font.h>
 #include <length_delay_calculation/length_delay_calculation.h>
+#include <layer_range.h>
 #include <lset.h>
 #include <pad.h>
 #include <pcb_base_frame.h>
@@ -468,7 +469,6 @@ void BOARD::IncrementTimeStamp()
         || !m_ZoneBBoxCache.empty()
         || m_CopperItemRTreeCache
         || m_maxClearanceValue.has_value()
-        || !m_ItemNetclassCache.empty()
         || !m_ZonesByNameCache.empty()
         || !m_DeflatedZoneOutlineCache.empty()
         || !m_ItemFieldCache.Empty()
@@ -489,7 +489,6 @@ void BOARD::IncrementTimeStamp()
         m_ItemFieldCache.Clear();
         m_StackedMicroviaCache.reset();
         m_LayerExpressionCache.clear();
-        m_ItemNetclassCache.clear();
         m_ZonesByNameCache.clear();
         m_DeflatedZoneOutlineCache.clear();
 
@@ -1171,13 +1170,8 @@ PCB_LAYER_ID BOARD::GetCopperLayerStackMaxId() const
 
 int BOARD::LayerDepth( PCB_LAYER_ID aStartLayer, PCB_LAYER_ID aEndLayer ) const
 {
-    if( aStartLayer > aEndLayer )
-        std::swap( aStartLayer, aEndLayer );
-
-    if( aEndLayer == B_Cu )
-        aEndLayer = ToLAYER_ID( F_Cu + GetCopperLayerCount() - 1 );
-
-    return aEndLayer - aStartLayer;
+    // Copper IDs are not in stack order (B_Cu=2, In1_Cu=4), so count in stack positions
+    return static_cast<int>( LAYER_RANGE( aStartLayer, aEndLayer, GetCopperLayerCount() ).size() ) - 1;
 }
 
 
@@ -3364,7 +3358,7 @@ wxArrayString BOARD::GetVariantNamesForUI() const
     for( const wxString& name : m_variantNames )
         names.Add( name );
 
-    names.Sort( SortVariantNames );
+    names.Sort( SortVariantNames );  // SortVariantNames ensures the default is always first
 
     return names;
 }
@@ -3625,7 +3619,7 @@ PAD* BOARD::GetPad( std::vector<PAD*>& aPadList, const VECTOR2I& aPosition, cons
 
 
 /**
- * Used by #GetSortedPadListByXCoord to sort a pad list by X coordinate value.
+ * Used by #BOARD::GetSortedPadListByXthenYCoord to sort a pad list by X coordinate value.
  *
  * This function is used to build ordered pads lists
  */

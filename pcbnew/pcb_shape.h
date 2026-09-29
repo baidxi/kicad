@@ -285,10 +285,13 @@ public:
 
     void UpdateHatching() const override;
 
+    double GetCoverageArea( int aTextMargin ) const override;
+
     /**
      * Convert the shape to a closed polygon.  Circles and arcs are approximated by segments.
      *
      * @param aBuffer is a buffer to store the polygon.
+     * @param aLayer is the layer the polygon exists on.
      * @param aClearance is the clearance around the pad.
      * @param aError is the maximum deviation from a true arc.
      * @param aErrorLoc whether any approximation error should be placed inside or outside
@@ -304,6 +307,7 @@ public:
      * fills and details (if any) will be included.
      *
      * @param aBuffer a buffer to store the polygon.
+     * @param aLayer is the layer the polygon exists on.
      * @param aClearance the clearance around the pad.
      * @param aError the maximum deviation from true circle.
      * @param aErrorLoc should the approximation error be placed outside or inside the polygon?
@@ -324,7 +328,6 @@ public:
 
     std::vector<int> ViewGetLayers() const override;
 
-    ///< @copydoc VIEW_ITEM::ViewGetLOD
     double ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const override;
 
     double Similarity( const BOARD_ITEM& aBoardItem ) const override;

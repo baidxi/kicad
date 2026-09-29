@@ -145,7 +145,7 @@ SCH_FIELD::SCH_FIELD( SCH_ITEM* aParent, FIELD_T aFieldId, const wxString& aName
     else
         SetName( GetDefaultFieldName( aFieldId, TRANSLATED ) );
 
-    setId( aFieldId ); // will also set the layer
+    setId( aFieldId ); // will also set the layer; call only AFTER SetName()
     SetVisible( true );
 
     if( aParent && aParent->Schematic() )
@@ -184,9 +184,9 @@ SCH_FIELD::SCH_FIELD( const SCH_FIELD& aField ) :
         EDA_TEXT( aField )
 {
     m_private = aField.m_private;
-    setId( aField.m_id ); // will also set the layer
-    m_ordinal = aField.m_ordinal;
     m_name = aField.m_name;
+    setId( aField.m_id ); // will also set the layer; call only AFTER setting m_name
+    m_ordinal = aField.m_ordinal;
     m_showName = aField.m_showName;
     m_allowAutoPlace = aField.m_allowAutoPlace;
     m_isGeneratedField = aField.m_isGeneratedField;
@@ -257,9 +257,9 @@ SCH_FIELD& SCH_FIELD::operator=( const SCH_FIELD& aField )
     EDA_TEXT::operator=( aField );
 
     m_private = aField.m_private;
-    setId( aField.m_id ); // will also set the layer
-    m_ordinal = aField.m_ordinal;
     m_name = aField.m_name;
+    setId( aField.m_id ); // will also set the layer; call only AFTER setting m_name
+    m_ordinal = aField.m_ordinal;
     m_showName = aField.m_showName;
     m_allowAutoPlace = aField.m_allowAutoPlace;
     m_isGeneratedField = aField.m_isGeneratedField;
@@ -1160,61 +1160,67 @@ void SCH_FIELD::SetText( const wxString& aText, const SCH_SHEET_PATH* aPath, con
 
     const wxString text = IsMandatory() ? aText.Strip( wxString::both ) : aText;
 
-    switch( m_parent->Type() )
+    // Going through the parent symbol or sheet can handle setting values on variants, but it can't
+    // handle setting values on fields which haven't yet been added to the parent.
+    if( !aVariantName.IsEmpty() )
     {
-    case SCH_SYMBOL_T:
-    {
-        SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( m_parent );
-        wxCHECK( symbol, /* void */ );
-        symbol->SetFieldText( GetName( false ), text, aPath, aVariantName );
-        break;
+        switch( m_parent->Type() )
+        {
+        case SCH_SYMBOL_T:
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( m_parent );
+            wxCHECK( symbol, /* void */ );
+            symbol->SetFieldText( GetName( false ), text, aPath, aVariantName );
+            return;
+        }
+
+        case SCH_SHEET_T:
+        {
+            SCH_SHEET* sheet = static_cast<SCH_SHEET*>( m_parent );
+            wxCHECK( sheet, /* void */ );
+            sheet->SetFieldText( GetName( false ), text, aPath, aVariantName );
+            return;
+        }
+
+        default:
+            break;
+        }
     }
 
-    case SCH_SHEET_T:
-    {
-        SCH_SHEET* sheet = static_cast<SCH_SHEET*>( m_parent );
-        wxCHECK( sheet, /* void */ );
-        sheet->SetFieldText( GetName( false ), text, aPath, aVariantName );
-        break;
-    }
-
-    default:
-        SCH_FIELD::SetText( text );
-        break;
-    }
+    SCH_FIELD::SetText( text );
 }
 
 
 wxString SCH_FIELD::GetText( const SCH_SHEET_PATH* aPath, const wxString& aVariantName ) const
 {
-    wxString retv;
+    wxCHECK( aPath && m_parent, wxEmptyString );
 
-    wxCHECK( aPath && m_parent, retv );
+    // Going through the parent symbol or sheet can handle setting values on variants, but it can't
+    // handle setting values on fields which haven't yet been added to the parent.
+    if( !aVariantName.IsEmpty() )
+    {
+        switch( m_parent->Type() )
+        {
+        case SCH_SYMBOL_T:
+        {
+            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( m_parent );
+            wxCHECK( symbol, wxEmptyString );
+            return symbol->GetFieldText( GetName(), aPath, aVariantName );
+        }
 
-    switch( m_parent->Type() )
-    {
-    case SCH_SYMBOL_T:
-    {
-        SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( m_parent );
-        wxCHECK( symbol, retv );
-        retv = symbol->GetFieldText( GetName(), aPath, aVariantName );
-        break;
+        case SCH_SHEET_T:
+        {
+            SCH_SHEET* sheet = static_cast<SCH_SHEET*>( m_parent );
+            wxCHECK( sheet, wxEmptyString );
+            return sheet->GetFieldText( GetName(), aPath, aVariantName );
+        }
+
+        default:
+            break;
+        }
     }
 
-    case SCH_SHEET_T:
-    {
-        SCH_SHEET* sheet = static_cast<SCH_SHEET*>( m_parent );
-        wxCHECK( sheet, retv );
-        retv = sheet->GetFieldText( GetName(), aPath, aVariantName );
-        break;
-    }
-
-    default:
-        retv = GetText();
-        break;
-    }
-
-    return retv;
+    return SCH_FIELD::GetText();
 }
 
 

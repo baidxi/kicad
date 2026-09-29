@@ -38,7 +38,7 @@ class PARAM_CFG;
  * * The parameter they are setting is of general interest and should be in the
  *   main application config, with UI provided.
  *
- * Options in this class are, in general, preferable to #defines, as they
+ * Options in this class are, in general, preferable to \#defines, as they
  * allow more flexible configuration by developers, and don't hide code from
  * the compiler on other configurations, which can result in broken builds.
  *
@@ -1096,6 +1096,16 @@ public:
      * Default value: true
      */
     bool m_EagleImportFieldsCanAutoplace;
+
+    /**
+     * Create OpenGL contexts that report GPU resets so the canvases can rebuild themselves
+     * instead of freezing.
+     *
+     * Setting name: "EnableGLResetRecovery"
+     * Valid values: true or false
+     * Default value: true
+     */
+    bool m_EnableGLResetRecovery;
 
     wxString m_traceMasks; ///< Trace masks for wxLogTrace, loaded from the config file.
     ///@}

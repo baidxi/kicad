@@ -1103,6 +1103,10 @@ void DIALOG_DRC::OnDRCItemRClick( wxDataViewEvent& aEvent )
 
     case ID_EDIT_SEVERITIES:
         m_frame->ShowBoardSetupDialog( _( "Violation Severity" ), this );
+
+        // Rebuild model and view
+        static_cast<RC_TREE_MODEL*>( aEvent.GetModel() )->Update( m_markersProvider, getSeverities() );
+        updateDisplayedCounts();
         break;
     }
 
@@ -1133,6 +1137,7 @@ void DIALOG_DRC::OnIgnoredItemRClick( wxListEvent& event )
         if( bds().m_DRCSeverities[ errorCode ] != severity )
         {
             bds().m_DRCSeverities[ errorCode ] = (SEVERITY) severity;
+            m_ignoredList->DeleteItem( event.m_itemIndex );
 
             updateDisplayedCounts();
             refreshEditor();
@@ -1189,7 +1194,8 @@ void DIALOG_DRC::OnSaveReport( wxCommandEvent& aEvent )
                              m_ratsnestProvider, m_fpWarningsProvider );
 
     bool success = false;
-    if( fn.GetExt() == FILEEXT::JsonFileExtension )
+
+    if( fn.GetExt().Lower() == FILEEXT::JsonFileExtension )
         success = reportWriter.WriteJsonReport( fn.GetFullPath() );
     else
         success = reportWriter.WriteTextReport( fn.GetFullPath() );

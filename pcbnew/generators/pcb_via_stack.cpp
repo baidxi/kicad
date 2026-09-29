@@ -224,6 +224,17 @@ void PCB_VIA_STACK::addMember( BOARD* aBoard, BOARD_COMMIT* aCommit, BOARD_ITEM*
 }
 
 
+std::pair<int, int> PCB_VIA_STACK::GetNetclassViaSize( BOARD* aBoard, int aNetCode )
+{
+    BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    NETINFO_ITEM*          net = aBoard->FindNet( aNetCode );
+    NETCLASS*              nc = net ? net->GetNetClass() : nullptr;
+
+    return { ( nc && nc->HasuViaDiameter() ) ? nc->GetuViaDiameter() : bds.GetCurrentViaSize(),
+             ( nc && nc->HasuViaDrill() ) ? nc->GetuViaDrill() : bds.GetCurrentViaDrill() };
+}
+
+
 std::vector<BOARD_ITEM*> PCB_VIA_STACK::BuildMembers( BOARD* aBoard, int aNetCode ) const
 {
     std::vector<BOARD_ITEM*> members;
@@ -248,11 +259,7 @@ std::vector<BOARD_ITEM*> PCB_VIA_STACK::BuildMembers( BOARD* aBoard, int aNetCod
 
     if( m_useNetclass )
     {
-        NETINFO_ITEM* net = aBoard->FindNet( aNetCode );
-        NETCLASS*     nc = net ? net->GetNetClass() : nullptr;
-
-        viaSize = ( nc && nc->HasuViaDiameter() ) ? nc->GetuViaDiameter() : bds.GetCurrentViaSize();
-        viaDrill = ( nc && nc->HasuViaDrill() ) ? nc->GetuViaDrill() : bds.GetCurrentViaDrill();
+        std::tie( viaSize, viaDrill ) = GetNetclassViaSize( aBoard, aNetCode );
     }
     else
     {
@@ -293,6 +300,10 @@ std::vector<BOARD_ITEM*> PCB_VIA_STACK::BuildMembers( BOARD* aBoard, int aNetCod
         via->SetDrill( viaDrill );
         via->SetPosition( hopPos( i ) );
 
+        // Net class sizes follow the via rules, which can depend on each hop's layers and position
+        if( m_useNetclass )
+            via->SetSizeFromRules( viaSize, viaDrill );
+
         // Only a hop reaching an outer layer has a face to cap.
         bool capped = m_capped && ( IsExternalCopperLayer( layers[i] ) || IsExternalCopperLayer( layers[i + 1] ) );
 
@@ -314,6 +325,8 @@ std::vector<BOARD_ITEM*> PCB_VIA_STACK::BuildMembers( BOARD* aBoard, int aNetCod
 
         int trackWidth = ( nc && nc->HasTrackWidth() ) ? nc->GetTrackWidth() : bds.GetCurrentTrackWidth();
 
+        DRC_ENGINE* drcEngine = bds.m_DRCEngine.get();
+
         for( int i = 0; i < nHops - 1; ++i )
         {
             VECTOR2I a = hopPos( i );
@@ -327,7 +340,24 @@ std::vector<BOARD_ITEM*> PCB_VIA_STACK::BuildMembers( BOARD* aBoard, int aNetCod
             trace->SetStart( a );
             trace->SetEnd( b );
             trace->SetLayer( layers[i + 1] );
-            trace->SetWidth( trackWidth );
+
+            // Width rules can depend on the layer and the net, as the router resolves them
+            DRC_CONSTRAINT width;
+
+            if( drcEngine )
+            {
+                // Rebuilds are freed on each drag step, so their pointers must not seed the geometry caches
+                trace->SetFlags( ROUTER_TRANSIENT );
+                width = drcEngine->EvalRules( TRACK_WIDTH_CONSTRAINT, trace, nullptr, layers[i + 1] );
+                trace->ClearFlags( ROUTER_TRANSIENT );
+            }
+
+            int layerWidth = trackWidth;
+
+            if( !width.IsNull() && width.GetSeverity() != RPT_SEVERITY_IGNORE )
+                layerWidth = width.GetValue().PinnedOpt();
+
+            trace->SetWidth( std::max( bds.m_TrackMinWidth, layerWidth ) );
 
             members.push_back( trace );
         }
@@ -446,8 +476,10 @@ void PCB_VIA_STACK::Regenerate( BOARD* aBoard, BOARD_COMMIT* aCommit )
         if( aCommit )
         {
             aCommit->Unmodify( item, nullptr );
-            aCommit->Remove( item );
-            RemoveItem( item );
+
+            // A member added by an earlier motion event in this commit is freed, not orphaned
+            if( !aCommit->RemoveOrDiscard( item ) )
+                RemoveItem( item );
         }
         else
         {
@@ -886,6 +918,7 @@ void PCB_VIA_STACK::ShowPropertiesDialog( PCB_BASE_EDIT_FRAME* aEditFrame )
     // Dialog edits a scratch copy so the undo snapshot below sees the pre-edit settings.
     PCB_VIA_STACK temp( GetBoard(), GetLayer() );
     temp.ApplyPreset( ToPreset() );
+    temp.SetNetCode( GetNetCode() );
 
     DIALOG_MICROVIA_STACK dlg( aEditFrame, &temp );
 
@@ -1294,6 +1327,9 @@ int DRAWING_TOOL::PlaceMicroviaStack( const TOOL_EVENT& aEvent )
         {
             if( BOARD_CONNECTED_ITEM* copper = dynamic_cast<BOARD_CONNECTED_ITEM*>( item ) )
             {
+                // Candidates are freed below, so their pointers must not seed the rule caches
+                copper->SetFlags( ROUTER_TRANSIENT );
+
                 if( CheckItemDRCViolation( copper, m_frame, drcEngine.get(), worstClearance, drcEpsilon ) )
                 {
                     violates = true;

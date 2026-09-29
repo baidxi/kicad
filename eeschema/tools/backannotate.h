@@ -116,7 +116,7 @@ public:
         std::map<wxString, wxString> m_fieldsMap;
     };
 
-    ///< Map to hold NETLIST footprints data
+    /// Map to hold NETLIST footprints data
     using PCB_FOOTPRINTS_MAP = std::map<wxString, std::shared_ptr<PCB_FP_DATA>>;
 
     using CHANGELIST_ITEM = std::pair<SCH_REFERENCE, std::shared_ptr<PCB_FP_DATA>>;
@@ -148,14 +148,13 @@ public:
 
 private:
     /**
-     * Parse netlist sent over KiWay express mail interface and fill \ref m_pcbModules.
+     * Parse netlist sent over KiWay express mail interface and fill \ref m_pcbFootprints.
      *
      * @param aPayload is the netlist from Pcbnew.
-     * @return number of errors during parsing.
      */
     void getPcbModulesFromString( const std::string& aPayload );
 
-    ///< Create changelist.
+    /// Create changelist.
     void getChangeList();
 
     /**

@@ -38,6 +38,7 @@
 #include <jobs/job_export_pcb_3d.h>
 #include <jobs/job_export_pcb_dxf.h>
 #include <jobs/job_export_pcb_drill.h>
+#include <jobs/job_export_pcb_idf.h>
 #include <jobs/job_export_pcb_ipc2581.h>
 #include <jobs/job_export_pcb_odb.h>
 #include <jobs/job_export_pcb_pdf.h>
@@ -2122,6 +2123,69 @@ JOB_EXPORT_PCB_ODB::ODB_UNITS FromProtoEnum( kiapi::common::types::Units aValue 
     case kiapi::common::types::Units::U_TENTHS:
     default:
         return JOB_EXPORT_PCB_ODB::ODB_UNITS::MM;
+    }
+}
+
+
+template<>
+kiapi::common::types::Units ToProtoEnum( IDF_SETTINGS::UNITS aValue )
+{
+    switch( aValue )
+    {
+    case IDF_SETTINGS::UNITS::MILS: return kiapi::common::types::Units::U_MILS;
+    case IDF_SETTINGS::UNITS::MM:   return kiapi::common::types::Units::U_MM;
+    default:
+        wxCHECK_MSG( false, kiapi::common::types::Units::U_UNKNOWN,
+                     "Unhandled case in ToProtoEnum<IDF_SETTINGS::UNITS>" );
+    }
+}
+
+
+template<>
+IDF_SETTINGS::UNITS FromProtoEnum( kiapi::common::types::Units aValue )
+{
+    switch( aValue )
+    {
+    case kiapi::common::types::Units::U_MILS: return IDF_SETTINGS::UNITS::MILS;
+    case kiapi::common::types::Units::U_MM:   return IDF_SETTINGS::UNITS::MM;
+    case kiapi::common::types::Units::U_UNKNOWN:
+    case kiapi::common::types::Units::U_INCH:
+    case kiapi::common::types::Units::U_METERS:
+    case kiapi::common::types::Units::U_TENTHS:
+    default:
+        return IDF_SETTINGS::UNITS::MM;
+    }
+}
+
+
+template<>
+IdfOriginMode ToProtoEnum( IDF_SETTINGS::COORD_ORIGIN aValue )
+{
+    switch( aValue )
+    {
+    case IDF_SETTINGS::COORD_ORIGIN::CENTER: return IdfOriginMode::IOM_BOARD_CENTER;
+    case IDF_SETTINGS::COORD_ORIGIN::GRID:   return IdfOriginMode::IOM_GRID_ORIGIN;
+    case IDF_SETTINGS::COORD_ORIGIN::DRILL:  return IdfOriginMode::IOM_DRILL_ORIGIN;
+    case IDF_SETTINGS::COORD_ORIGIN::USER:   return IdfOriginMode::IOM_USER;
+    default:
+        wxCHECK_MSG( false, IdfOriginMode::IOM_UNKNOWN,
+                     "Unhandled case in ToProtoEnum<IDF_SETTINGS::COORD_ORIGIN>" );
+    }
+}
+
+
+template<>
+IDF_SETTINGS::COORD_ORIGIN FromProtoEnum( IdfOriginMode aValue )
+{
+    switch( aValue )
+    {
+    case IdfOriginMode::IOM_BOARD_CENTER: return IDF_SETTINGS::COORD_ORIGIN::CENTER;
+    case IdfOriginMode::IOM_GRID_ORIGIN:  return IDF_SETTINGS::COORD_ORIGIN::GRID;
+    case IdfOriginMode::IOM_DRILL_ORIGIN: return IDF_SETTINGS::COORD_ORIGIN::DRILL;
+    case IdfOriginMode::IOM_USER:         return IDF_SETTINGS::COORD_ORIGIN::USER;
+    case IdfOriginMode::IOM_UNKNOWN:
+    default:
+        return IDF_SETTINGS::COORD_ORIGIN::CENTER;
     }
 }
 

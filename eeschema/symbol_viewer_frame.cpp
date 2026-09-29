@@ -358,7 +358,16 @@ LIB_SYMBOL* SYMBOL_VIEWER_FRAME::GetSelectedSymbol() const
     LIB_SYMBOL* symbol = nullptr;
 
     if( m_currentSymbol.IsValid() )
-        symbol = PROJECT_SCH::SymbolLibAdapter( &Prj() )->LoadSymbol( m_currentSymbol );
+    {
+        try
+        {
+            symbol = PROJECT_SCH::SymbolLibAdapter( &Prj() )->LoadSymbol( m_currentSymbol );
+        }
+        catch( const IO_ERROR& ioe )
+        {
+            // best efforts
+        }
+    }
 
     return symbol;
 }
@@ -560,7 +569,9 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
     }
     else
     {
-        wxStringTokenizer tokenizer( m_libFilter->GetValue(), " \t\r\n", wxTOKEN_STRTOK );
+        wxStringTokenizer  tokenizer( m_libFilter->GetValue(), " \t\r\n", wxTOKEN_STRTOK );
+        std::set<wxString> successfulMatches;
+        std::set<wxString> failedMatches;
 
         while( tokenizer.HasMoreTokens() )
         {
@@ -570,13 +581,18 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
             for( const wxString& lib : libNicknames )
             {
                 if( matcher.Find( lib.Lower() ) )
-                    process( lib );
+                    successfulMatches.insert( lib );
+                else
+                    failedMatches.insert( lib );
             }
         }
-    }
 
-    if( libNicknames.empty() )
-        return true;
+        for( const wxString& lib : successfulMatches )
+        {
+            if( !failedMatches.contains( lib ) )
+                process( lib );
+        }
+    }
 
     for( const wxString& name : pinnedMatches )
         m_libList->Append( LIB_TREE_MODEL_ADAPTER::GetPinningSymbol() + UnescapeString( name ) );
@@ -585,7 +601,8 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
         m_libList->Append( UnescapeString( name ) );
 
     // Search for a previous selection:
-    int index = m_libList->FindString( UnescapeString( m_currentSymbol.GetUniStringLibNickname() ) );
+    int  index = m_libList->FindString( UnescapeString( m_currentSymbol.GetUniStringLibNickname() ) );
+    bool selChanged = false;
 
     if( index != wxNOT_FOUND )
     {
@@ -600,13 +617,14 @@ bool SYMBOL_VIEWER_FRAME::ReCreateLibList()
         m_currentSymbol.SetLibItemName( wxEmptyString );
         m_unit = 1;
         m_bodyStyle = BODY_STYLE::BASE;
+        selChanged = true;
     }
 
-    bool cmp_changed = ReCreateSymbolList();
+    selChanged |= ReCreateSymbolList();
     DisplayLibInfos();
     GetCanvas()->Refresh();
 
-    return cmp_changed;
+    return selChanged;
 }
 
 
@@ -669,31 +687,26 @@ bool SYMBOL_VIEWER_FRAME::ReCreateSymbolList()
             m_symbolList->Append( UnescapeString( symbol->GetName() ) );
     }
 
-    if( m_symbolList->IsEmpty() )
-    {
-        SetSelectedSymbol( wxEmptyString );
-        m_bodyStyle = BODY_STYLE::BASE;
-        m_unit    = 1;
-        return true;
-    }
-
-    int index = m_symbolList->FindString( UnescapeString( m_currentSymbol.GetUniStringLibItemName() ) );
-    bool changed = false;
+    int  index = m_symbolList->FindString( UnescapeString( m_currentSymbol.GetUniStringLibItemName() ) );
+    bool selChanged = false;
 
     if( index == wxNOT_FOUND )
     {
-        // Select the first library entry when the previous entry name does not exist in
-        // the current library.
+        // Clear out the current selection so that we don't match same-named symbols between
+        // libraries.
+        SetSelectedSymbol( wxEmptyString );
+
+        // Select the first library entry (if available) when the previous entry name no
+        // longer exists.
+        index       = m_symbolList->IsEmpty() ? -1 : 0;
         m_bodyStyle = BODY_STYLE::BASE;
         m_unit      = 1;
-        index       = -1;
-        changed     = true;
-        SetSelectedSymbol( wxEmptyString );
+        selChanged  = true;
     }
 
     m_symbolList->SetSelection( index, true );
 
-    return changed;
+    return selChanged;
 }
 
 

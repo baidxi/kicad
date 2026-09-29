@@ -158,6 +158,7 @@ set( KICOMMON_SRCS
     jobs/job_export_pcb_hpgl.cpp
     jobs/job_export_pcb_ipc2581.cpp
     jobs/job_export_pcb_ipcd356.cpp
+    jobs/job_export_pcb_idf.cpp
     jobs/job_export_pcb_odb.cpp
     jobs/job_export_pcb_pdf.cpp
     jobs/job_export_pcb_png.cpp
@@ -746,6 +747,11 @@ set( PLOTTERS_CONTROL_SRCS
     plotters/common_plot_functions.cpp
     )
 
+
+if( MINGW )
+    set( extra_file ${CMAKE_SOURCE_DIR}/common/streamwrapper.cpp )
+endif( MINGW )
+
 set( COMMON_IO_SRCS
 
     # Altium
@@ -777,6 +783,15 @@ set( COMMON_IO_SRCS
 
     # P-CAD
     io/pcad/s_expr_loader.cpp
+
+    # IDFv3
+    io/idf/idf_common.cpp
+    io/idf/idf_helpers.cpp
+    io/idf/idf_outlines.cpp
+    io/idf/idf_parser.cpp
+    io/idf/vrml_layer.cpp
+    ${extra_file}
+
 
     io/csv.cpp
     )
@@ -887,6 +902,8 @@ set( COMMON_SRCS
     tool/action_menu.cpp
     tool/action_toolbar.cpp
     tool/actions.cpp
+    tool/arc_mode_session.cpp
+    tool/arc_tangent_seed.cpp
     tool/common_control.cpp
     tool/construction_manager.cpp
     tool/common_tools.cpp
@@ -1043,6 +1060,8 @@ set( PCB_COMMON_SRCS
     ${CMAKE_SOURCE_DIR}/pcbnew/board_design_settings.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/teardrop/teardrop_parameters.cpp     #needed by board_design_settings.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/router/pns_meander.cpp               #needed by board_design_settings.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/board_tables/generated_table_refresh.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/board_tables/generated_table_schema.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_enumerator.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_symbol_profile.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_chart_model.cpp
@@ -1081,6 +1100,7 @@ set( PCB_COMMON_SRCS
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_reference_image.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_field.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_drill_chart.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/pcb_generated_table.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_drill_map.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_table.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_tablecell.cpp

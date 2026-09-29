@@ -226,6 +226,10 @@ public:
     /**
      * As CheckColliding(), but the clearance is resolved per item hit rather than once for the
      * whole query, so a rule written against a particular obstacle is honoured.
+     *
+     * @param aRefShape
+     * @param aTargetLayer
+     * @param aMaxClearance
      * @param aClearanceResolver returns false to ignore an item, else writes what it is owed
      */
     bool CheckColliding( SHAPE* aRefShape, PCB_LAYER_ID aTargetLayer, int aMaxClearance,
@@ -566,9 +570,11 @@ public:
     }
 
     /**
-     * Gets the BOARD_ITEMs that overlap the specified point/layer
+     * Get the #BOARD_ITEM objects that overlap the specified point/layer.
+     *
      * @param aPt Position on the tree
      * @param aLayer Layer to search
+     * @param aClearance is any additional clearance to get objects.
      * @return vector of overlapping BOARD_ITEMS*
      */
     std::unordered_set<BOARD_ITEM*> GetObjectsAt( const VECTOR2I& aPt, PCB_LAYER_ID aLayer,

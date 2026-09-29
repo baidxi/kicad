@@ -1294,25 +1294,18 @@ int EDIT_TOOL::ChangeTrackWidth( const TOOL_EVENT& aEvent )
 
             commit.Modify( via );
 
-            int new_width;
-            int new_drill;
-
             if( via->GetViaType() == VIATYPE::MICROVIA )
             {
                 NETCLASS* netClass = via->GetEffectiveNetClass();
 
-                new_width = netClass->GetuViaDiameter();
-                new_drill = netClass->GetuViaDrill();
+                via->SetSizeFromRules( netClass->GetuViaDiameter(), netClass->GetuViaDrill() );
             }
             else
             {
-                new_width = board()->GetDesignSettings().GetCurrentViaSize();
-                new_drill = board()->GetDesignSettings().GetCurrentViaDrill();
+                via->SetDrill( board()->GetDesignSettings().GetCurrentViaDrill() );
+                via->SetPadstackMode( PADSTACK::MODE::NORMAL );
+                via->SetWidth( PADSTACK::ALL_LAYERS, board()->GetDesignSettings().GetCurrentViaSize() );
             }
-
-            via->SetDrill( new_drill );
-            via->SetPadstackMode( PADSTACK::MODE::NORMAL );
-            via->SetWidth( PADSTACK::ALL_LAYERS, new_width );
         }
         else if( item->Type() == PCB_TRACE_T || item->Type() == PCB_ARC_T )
         {
@@ -1673,12 +1666,10 @@ static std::optional<DOGBONE_CORNER_ROUTINE::PARAMETERS> GetDogboneParams( PCB_B
 }
 
 /**
- * Prompt the user for chamfer parameters
+ * Prompt the user for chamfer parameters.
  *
  * @param aFrame
- * @param aErrorMsg filled with an error message if the parameter is invalid somehow
- * @return std::optional<int> the chamfer parameters or std::nullopt if no
- * valid fillet specified
+ * @return std::optional<int> the chamfer parameters or std::nullopt if no valid fillet specified.
  */
 static std::optional<CHAMFER_PARAMS> GetChamferParams( PCB_BASE_EDIT_FRAME& aFrame )
 {
@@ -3096,8 +3087,8 @@ void EDIT_TOOL::DeleteItems( const PCB_SELECTION& aItems, bool aIsCut )
             break;
 
         case PCB_TABLECELL_T:
-            // A drill chart's cells report the board, so there is no user text to clear
-            if( board_item->GetParent() && board_item->GetParent()->Type() == PCB_DRILL_CHART_T )
+            // A generated table's cells report the board, so there is no user text to clear
+            if( IsGeneratedTableCell( board_item ) )
                 break;
 
             // Clear contents of table cell
@@ -3422,6 +3413,18 @@ int EDIT_TOOL::MoveExact( const TOOL_EVENT& aEvent )
 }
 
 
+bool EDIT_TOOL::CanDuplicateSelection( const SELECTION& aSelection )
+{
+    // Some generators cannot be duplicated on their own, and neither can several of them
+    return std::any_of( aSelection.begin(), aSelection.end(),
+                        []( EDA_ITEM* aItem )
+                        {
+                            PCB_GENERATOR* generator = dynamic_cast<PCB_GENERATOR*>( aItem );
+                            return !generator || generator->CanDuplicate();
+                        } );
+}
+
+
 int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
 {
     if( isRouterActive() )
@@ -3445,15 +3448,8 @@ int EDIT_TOOL::Duplicate( const TOOL_EVENT& aEvent )
     if( selection.Empty() )
         return 0;
 
-    // Some generators cannot be duplicated on their own.
-    if( selection.Size() == 1 )
-    {
-        if( PCB_GENERATOR* generator = dynamic_cast<PCB_GENERATOR*>( selection.Front() ) )
-        {
-            if( !generator->CanDuplicate() )
-                return 0;
-        }
-    }
+    if( !CanDuplicateSelection( selection ) )
+        return 0;
 
     // we have a selection to work on now, so start the tool process
     PCB_BASE_EDIT_FRAME* editFrame = getEditFrame<PCB_BASE_EDIT_FRAME>();

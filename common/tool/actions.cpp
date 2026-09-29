@@ -608,6 +608,13 @@ TOOL_ACTION ACTIONS::arcPosture( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Switch Arc Posture" ) )
         .Tooltip( _( "Switch arc posture between clockwise and counter-clockwise" ) ) );
 
+TOOL_ACTION ACTIONS::cycleArcDrawMode( TOOL_ACTION_ARGS()
+        .Name( "common.InteractiveDrawing.cycleArcDrawMode" )
+        .Scope( AS_GLOBAL )
+        .DefaultHotkey( MD_ALT + '/' )
+        .FriendlyName( _( "Cycle Arc Drawing Mode" ) )
+        .Tooltip( _( "Switch to the next method of drawing arcs" ) ) );
+
 TOOL_ACTION ACTIONS::deleteLastPoint( TOOL_ACTION_ARGS()
         .Name( "common.InteractiveDrawing.deleteLastPoint" )
         .Scope( AS_GLOBAL )
@@ -1455,6 +1462,18 @@ TOOL_ACTION ACTIONS::pluginsReload( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Refresh Plugins" ) )
         .Tooltip( _( "Reload all python plugins and refresh plugin menus" ) )
         .Icon( BITMAPS::reload ) );
+
+TOOL_ACTION ACTIONS::pluginsShowFolder( TOOL_ACTION_ARGS()
+        .Name( "common.API.pluginsShowFolder" )
+        .Scope( AS_GLOBAL )
+#ifdef __WXMAC__
+        .FriendlyName( _( "Reveal Plugin Folder in Finder" ) )
+        .Tooltip( _( "Reveals the plugins folder in a Finder window" ) )
+#else
+        .FriendlyName( _( "Open Plugin Directory" ) )
+        .Tooltip( _( "Opens the directory in the default system file manager" ) )
+#endif
+        .Icon( BITMAPS::directory_open ) );
 
 // Embedding Files
 

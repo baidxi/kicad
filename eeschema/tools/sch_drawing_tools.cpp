@@ -771,6 +771,11 @@ static std::optional<VECTOR2I> designBlockAnchor( const std::vector<SCH_ITEM*>& 
 
 int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
 {
+    if( m_inDrawingTool )
+        return 0;
+
+    REENTRANCY_GUARD guard( &m_inDrawingTool );
+
     COMMON_SETTINGS*      common_settings = Pgm().GetCommonSettings();
     EESCHEMA_SETTINGS*    cfg = m_frame->eeconfig();
     SCHEMATIC_SETTINGS&   schSettings = m_frame->Schematic().Settings();
@@ -795,9 +800,6 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
     RESET_FORCED_CURSOR_GUARD forcedCursorGuard{ controls };
 
     if( !cfg || !common_settings )
-        return 0;
-
-    if( m_inDrawingTool )
         return 0;
 
     bool placingDesignBlock = aEvent.IsAction( &SCH_ACTIONS::placeDesignBlock );
@@ -853,9 +855,11 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
 
                 selectionTool->ClearSelection();
 
-                // Mark all existing items on the screen so we don't select them after appending
+                // Remember existing items so we only select and commit imported items.
+                std::unordered_set<EDA_ITEM*> existingItems;
+
                 for( EDA_ITEM* item : screen->Items() )
-                    item->SetFlags( SKIP_STRUCT );
+                    existingItems.insert( item );
 
                 if( !m_frame->LoadSheetFromFile( sheetPath.Last(), &sheetPath, sheetFileName, true,
                                                  placingDesignBlock ) )
@@ -895,7 +899,7 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
                 // Select all new items
                 for( EDA_ITEM* item : screen->Items() )
                 {
-                    if( !item->HasFlag( SKIP_STRUCT ) )
+                    if( !existingItems.contains( item ) )
                     {
                         // When auto-annotating, preserve original refs so that
                         // AnnotateSymbols can build correct locked groups for
@@ -917,10 +921,6 @@ int SCH_DRAWING_TOOLS::ImportSheet( const TOOL_EVENT& aEvent )
                         }
 
                         commit.Added( item, screen );
-                    }
-                    else
-                    {
-                        item->ClearFlags( SKIP_STRUCT );
                     }
                 }
 

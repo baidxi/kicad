@@ -319,6 +319,9 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // The selection filter doesn't need to grow in the vertical direction when docked
     selectionFilterPane.dock_proportion = 0;
 
+    // wx 3.3.3 turns a -1 min height into 1, and a legacy perspective restores one
+    selectionFilterPane.min_size.y = m_selectionFilterPanel->GetBestSize().y;
+
     if( aui_cfg.hierarchy_panel_float_width > 0 && aui_cfg.hierarchy_panel_float_height > 0 )
     {
         // Show at end, after positioning
@@ -522,7 +525,7 @@ void SCH_EDIT_FRAME::StartCrossProbeFlash( const std::vector<SCH_ITEM*>& aItems 
     if( !m_crossProbeFlashTimer.GetOwner() )
         m_crossProbeFlashTimer.SetOwner( this );
 
-    bool started = m_crossProbeFlashTimer.Start( 500, wxTIMER_CONTINUOUS );
+    [[maybe_unused]] bool started = m_crossProbeFlashTimer.Start( 500, wxTIMER_CONTINUOUS );
     wxLogTrace( traceCrossProbeFlash, "StartCrossProbeFlash: timer start=%d id=%d", (int) started,
                 m_crossProbeFlashTimer.GetId() );
 }
@@ -1013,6 +1016,7 @@ void SCH_EDIT_FRAME::setupUIConditions()
     CURRENT_TOOL( SCH_ACTIONS::drawEllipse );
     CURRENT_TOOL( SCH_ACTIONS::drawEllipseArc );
     CURRENT_TOOL( SCH_ACTIONS::drawArc );
+    setArcModeConditions( SCH_ACTIONS::drawArc, SELECTION_CONDITIONS::ShowAlways );
     CURRENT_TOOL( SCH_ACTIONS::drawBezier );
     CURRENT_TOOL( SCH_ACTIONS::drawPolygon );
     CURRENT_TOOL( SCH_ACTIONS::drawLines );
@@ -2451,7 +2455,7 @@ bool SCH_EDIT_FRAME::SaveSymbolToSchematic( const LIB_SYMBOL& aSymbol,
     }
 
     // Clear any orphaned alternate pins.
-    for( SCH_PIN* pin : principalSymbol->GetPins() )
+    for( SCH_PIN* pin : principalSymbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES ) )
     {
         wxString altName = pin->GetAlt();
 
@@ -3057,6 +3061,7 @@ void SCH_EDIT_FRAME::onPluginAvailabilityChanged( wxCommandEvent& aEvt )
 {
     wxLogTrace( traceApi, "SCH frame: EDA_EVT_PLUGIN_AVAILABILITY_CHANGED" );
     RecreateToolbars();
+    ReCreateMenuBar();
     aEvt.Skip();
 }
 
