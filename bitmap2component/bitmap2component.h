@@ -21,7 +21,7 @@
 #define BITMAP2COMPONENT_H
 
 #include <geometry/shape_poly_set.h>
-#include <potracelib.h>
+#include <wx/image.h>
 
 class REPORTER;
 
@@ -45,7 +45,6 @@ private:
     int                m_PixmapHeight;  // the bitmap size in pixels
     double             m_ScaleX;
     double             m_ScaleY;        // the conversion scale
-    potrace_path_t*    m_Paths;         // the list of paths, from potrace (list of lines and bezier curves)
     std::string        m_CmpName;       // The string used as cmp/footprint name
     std::string&       m_Data;          // the buffer containing the conversion
     REPORTER&          m_reporter;
@@ -56,14 +55,14 @@ public:
     /**
      * Run the conversion of the bitmap
      */
-    int ConvertBitmap( potrace_bitmap_t* aPotrace_bitmap, OUTPUT_FMT_ID aFormat, int aDpi_X,
-                       int aDpi_Y, const wxString& aLayer );
+    void ConvertBitmap( const wxImage& aBilevelImage, OUTPUT_FMT_ID aFormat, int aDpi_X, int aDpi_Y,
+                        const wxString& aLayer );
 
 private:
     /**
      * Creates the data specified by m_Format
      */
-    void createOutputData( const wxString& aBrdLayerName = wxT( "F.SilkS" ) );
+    void createOutputData( const SHAPE_POLY_SET& aPolygons, const wxString& aBrdLayerName = wxT( "F.SilkS" ) );
 
     /**
      * Function outputDataHeader

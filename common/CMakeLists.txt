@@ -851,6 +851,7 @@ set( COMMON_SRCS
     base_screen.cpp
     bin_mod.cpp
     bitmap_base.cpp
+    bitmap_tracing.cpp
     board_printout.cpp
     clipboard.cpp
     column_formatter.cpp
@@ -1025,6 +1026,7 @@ target_link_libraries( common
     gal
     nanosvg
     dxflib_qcad
+    potrace
     tinyspline_lib
     nlohmann_json
     compoundfilereader

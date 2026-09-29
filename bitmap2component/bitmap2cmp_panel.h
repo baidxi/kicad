@@ -110,7 +110,7 @@ private:
     // return a string giving the output size, according to the selected unit
     wxString formatOutputSize( double aSize );
 
-    void binarize( double aThreshold ); // aThreshold = 0.0 (black level) to 1.0 (white level)
+    void binarize();
 
     void negateGreyscaleImage();
 

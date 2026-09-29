@@ -18,17 +18,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <algorithm>    // std::max
-#include <cerrno>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
 #include <string>
-#include <vector>
 #include <kiid.h>
 
+#include <bitmap_tracing.h>
 #include <build_version.h>
 #include <drawing_sheet/ds_data_item.h>
 #include <drawing_sheet/ds_data_model.h>
@@ -36,27 +29,11 @@
 #include <io/kicad/sexpr_file_versions.h>
 #include <locale_io.h>
 #include <macros.h>
-#include <potracelib.h>
 #include <reporter.h>
 #include <fmt/format.h>
 #include <wx/translation.h>
 
 #include "bitmap2component.h"
-
-
-/* free a potrace bitmap */
-static void bm_free( potrace_bitmap_t* bm )
-{
-    if( bm )
-        free( bm->map );
-
-    free( bm );
-}
-
-
-static void BezierToPolyline( std::vector <potrace_dpoint_t>& aCornersBuffer,
-                              potrace_dpoint_t p1, potrace_dpoint_t p2,
-                              potrace_dpoint_t p3, potrace_dpoint_t p4 );
 
 
 BITMAPCONV_INFO::BITMAPCONV_INFO( std::string& aData, REPORTER& aReporter ):
@@ -67,51 +44,16 @@ BITMAPCONV_INFO::BITMAPCONV_INFO( std::string& aData, REPORTER& aReporter ):
     m_PixmapWidth  = 0;
     m_PixmapHeight = 0;
     m_ScaleX  = 1.0;
-    m_ScaleY  = 1.0;
-    m_Paths   = nullptr;
+    m_ScaleY = 1.0;
     m_CmpName = "LOGO";
 }
 
 
-int BITMAPCONV_INFO::ConvertBitmap( potrace_bitmap_t* aPotrace_bitmap, OUTPUT_FMT_ID aFormat,
-                                    int aDpi_X, int aDpi_Y, const wxString& aLayer )
+void BITMAPCONV_INFO::ConvertBitmap( const wxImage& aBilevelImage, OUTPUT_FMT_ID aFormat, int aDpi_X, int aDpi_Y,
+                                     const wxString& aLayer )
 {
-    potrace_param_t* param;
-    potrace_state_t* st;
-
-    // set tracing parameters, starting from defaults
-    param = potrace_param_default();
-
-    if( !param )
-    {
-        m_reporter.Report( fmt::format( "Error allocating parameters: {}\n", strerror( errno ) ),
-                           RPT_SEVERITY_ERROR );
-        return 1;
-    }
-
-    // For parameters: see http://potrace.sourceforge.net/potracelib.pdf
-    param->turdsize = 0;        // area (in pixels) of largest path to be ignored.
-                                // Potrace default is 2
-    param->opttolerance = 0.2;  // curve optimization tolerance. Potrace default is 0.2
-
-    /* convert the bitmap to curves */
-    st = potrace_trace( param, aPotrace_bitmap );
-
-    if( !st || st->status != POTRACE_STATUS_OK )
-    {
-        if( st )
-            potrace_state_free( st );
-
-        potrace_param_free( param );
-
-        m_reporter.Report( fmt::format( "Error tracing bitmap: {}\n", strerror( errno ) ),
-                           RPT_SEVERITY_ERROR );
-        return 1;
-    }
-
-    m_PixmapWidth  = aPotrace_bitmap->w;
-    m_PixmapHeight = aPotrace_bitmap->h;     // the bitmap size in pixels
-    m_Paths        = st->plist;
+    m_PixmapWidth = aBilevelImage.GetWidth();
+    m_PixmapHeight = aBilevelImage.GetHeight(); // the bitmap size in pixels
     m_Format       = aFormat;
 
     switch( aFormat )
@@ -119,34 +61,31 @@ int BITMAPCONV_INFO::ConvertBitmap( potrace_bitmap_t* aPotrace_bitmap, OUTPUT_FM
     case DRAWING_SHEET_FMT:
         m_ScaleX = PL_IU_PER_MM * 25.4 / aDpi_X;  // the conversion scale from PPI to micron
         m_ScaleY = PL_IU_PER_MM * 25.4 / aDpi_Y;  // Y axis is top to bottom
-        createOutputData();
         break;
 
     case POSTSCRIPT_FMT:
         m_ScaleX = 1.0;                // the conversion scale
         m_ScaleY = m_ScaleX;
-        createOutputData();
         break;
 
     case SYMBOL_FMT:
     case SYMBOL_PASTE_FMT:
         m_ScaleX = SCH_IU_PER_MM * 25.4 / aDpi_X;   // the conversion scale from PPI to eeschema iu
         m_ScaleY = -SCH_IU_PER_MM * 25.4 / aDpi_Y;  // Y axis is bottom to Top for components in libs
-        createOutputData();
         break;
 
     case FOOTPRINT_FMT:
         m_ScaleX = PCB_IU_PER_MM * 25.4 / aDpi_X;   // the conversion scale from PPI to IU
         m_ScaleY = PCB_IU_PER_MM * 25.4 / aDpi_Y;   // Y axis is top to bottom in Footprint Editor
-        createOutputData( aLayer );
         break;
     }
 
-    bm_free( aPotrace_bitmap );
-    potrace_state_free( st );
-    potrace_param_free( param );
+    SHAPE_POLY_SET polygons = TraceBilevelImage( aBilevelImage, m_ScaleX, m_ScaleY, m_reporter );
 
-    return 0;
+    if( aFormat == FOOTPRINT_FMT )
+        createOutputData( polygons, aLayer );
+    else
+        createOutputData( polygons );
 }
 
 
@@ -349,140 +288,33 @@ void BITMAPCONV_INFO::outputOnePolygon( SHAPE_LINE_CHAIN& aPolygon, const wxStri
 }
 
 
-void BITMAPCONV_INFO::createOutputData( const wxString& aLayer )
+void BITMAPCONV_INFO::createOutputData( const SHAPE_POLY_SET& aPolygons, const wxString& aLayer )
 {
-    std::vector <potrace_dpoint_t> cornersBuffer;
-
-    // polyset_areas is a set of polygon to draw
-    SHAPE_POLY_SET polyset_areas;
-
-    // polyset_holes is the set of holes inside polyset_areas outlines
-    SHAPE_POLY_SET polyset_holes;
-
-    // For DRAWING_SHEET_FMT, collect all output polygons so we can serialize
-    // them through DS_DATA_MODEL instead of writing hardcoded S-expression strings.
-    SHAPE_POLY_SET outputPolygons;
-
-    potrace_dpoint_t( *c )[3];
-
-    if( m_Format != DRAWING_SHEET_FMT )
-    {
-        // The layer name has meaning only for .kicad_mod files.
-        // For these files the header creates 2 invisible texts: value and ref
-        // (needed but not useful) on silk screen layer
-        outputDataHeader( "F.SilkS" );
-    }
-
-    bool main_outline = true;
-
-    /* draw each as a polygon with no hole.
-     * Bezier curves are approximated by a polyline
-     */
-    potrace_path_t* paths = m_Paths;    // the list of paths
-
-    if( !m_Paths )
+    if( aPolygons.IsEmpty() )
     {
         m_reporter.Report( _( "No shape in black and white image to convert: no outline created." ),
                            RPT_SEVERITY_ERROR );
     }
 
-    while( paths != nullptr )
-    {
-        int cnt  = paths->curve.n;
-        int* tag = paths->curve.tag;
-        c = paths->curve.c;
-        potrace_dpoint_t startpoint = c[cnt - 1][2];
-
-        for( int i = 0; i < cnt; i++ )
-        {
-            switch( tag[i] )
-            {
-            case POTRACE_CORNER:
-                cornersBuffer.push_back( c[i][1] );
-                cornersBuffer.push_back( c[i][2] );
-                startpoint = c[i][2];
-                break;
-
-            case POTRACE_CURVETO:
-                BezierToPolyline( cornersBuffer, startpoint, c[i][0], c[i][1], c[i][2] );
-                startpoint = c[i][2];
-                break;
-            }
-        }
-
-        // Store current path
-        if( main_outline )
-        {
-            main_outline = false;
-
-            // build the current main polygon
-            polyset_areas.NewOutline();
-
-            for( const potrace_dpoint_s& pt : cornersBuffer )
-            {
-                polyset_areas.Append( int( pt.x * m_ScaleX ),
-                                      int( pt.y * m_ScaleY ) );
-            }
-        }
-        else
-        {
-            // Add current hole in polyset_holes
-            polyset_holes.NewOutline();
-
-            for( const potrace_dpoint_s& pt : cornersBuffer )
-            {
-                polyset_holes.Append( int( pt.x * m_ScaleX ),
-                                      int( pt.y * m_ScaleY ) );
-            }
-        }
-
-        cornersBuffer.clear();
-
-        // at the end of a group of a positive path and its negative children, fill.
-        if( paths->next == nullptr || paths->next->sign == '+' )
-        {
-            polyset_areas.Simplify();
-            polyset_holes.Simplify();
-            polyset_areas.BooleanSubtract( polyset_holes );
-
-            // Ensure there are no self intersecting polygons
-            if( polyset_areas.NormalizeAreaOutlines() )
-            {
-                // Convert polygon with holes to a unique polygon
-                polyset_areas.Fracture();
-
-                if( m_Format == DRAWING_SHEET_FMT )
-                {
-                    // Collect polygons for serialization through DS_DATA_MODEL
-                    for( int ii = 0; ii < polyset_areas.OutlineCount(); ii++ )
-                        outputPolygons.AddOutline( polyset_areas.Outline( ii ) );
-                }
-                else
-                {
-                    for( int ii = 0; ii < polyset_areas.OutlineCount(); ii++ )
-                    {
-                        SHAPE_LINE_CHAIN& poly = polyset_areas.Outline( ii );
-                        outputOnePolygon( poly, aLayer );
-                    }
-                }
-
-                polyset_areas.RemoveAllContours();
-                polyset_holes.RemoveAllContours();
-                main_outline = true;
-            }
-        }
-
-        paths = paths->next;
-    }
-
     if( m_Format == DRAWING_SHEET_FMT )
     {
+        SHAPE_POLY_SET outputPolygons = aPolygons;
         createDrawingSheetData( outputPolygons );
+        return;
     }
-    else
+
+    // The layer name has meaning only for .kicad_mod files.
+    // For these files the header creates 2 invisible texts: value and ref
+    // (needed but not useful) on silk screen layer
+    outputDataHeader( "F.SilkS" );
+
+    for( int ii = 0; ii < aPolygons.OutlineCount(); ii++ )
     {
-        outputDataEnd();
+        SHAPE_LINE_CHAIN poly = aPolygons.COutline( ii );
+        outputOnePolygon( poly, aLayer );
     }
+
+    outputDataEnd();
 }
 
 
@@ -536,63 +368,4 @@ void BITMAPCONV_INFO::createDrawingSheetData( SHAPE_POLY_SET& aPolyset )
     std::string result = output.ToStdString();
     KICAD_FORMAT::Prettify( result );
     m_Data += result;
-}
-
-
-// a helper function to calculate a square value
-inline double square( double x )
-{
-    return x * x;
-}
-
-
-// a helper function to calculate a cube value
-inline double cube( double x )
-{
-    return x * x * x;
-}
-
-
-/* render a Bezier curve. */
-void BezierToPolyline( std::vector <potrace_dpoint_t>& aCornersBuffer,
-                       potrace_dpoint_t                p1,
-                       potrace_dpoint_t                p2,
-                       potrace_dpoint_t                p3,
-                       potrace_dpoint_t                p4 )
-{
-    double dd0, dd1, dd, delta, e2, epsilon, t;
-
-    // p1 = starting point
-
-    /* we approximate the curve by small line segments. The interval
-     *  size, epsilon, is determined on the fly so that the distance
-     *  between the true curve and its approximation does not exceed the
-     *  desired accuracy delta. */
-
-    delta = 0.25; /* desired accuracy, in pixels */
-
-    /* let dd = maximal value of 2nd derivative over curve - this must
-     *  occur at an endpoint. */
-    dd0     = square( p1.x - 2 * p2.x + p3.x ) + square( p1.y - 2 * p2.y + p3.y );
-    dd1     = square( p2.x - 2 * p3.x + p4.x ) + square( p2.y - 2 * p3.y + p4.y );
-    dd      = 6 * sqrt( std::max( dd0, dd1 ) );
-    e2      = 8 * delta <= dd ? 8 * delta / dd : 1;
-    epsilon = sqrt( e2 ); /* necessary interval size */
-
-    for( t = epsilon; t<1; t += epsilon )
-    {
-        potrace_dpoint_t intermediate_point;
-        intermediate_point.x = p1.x * cube( 1 - t ) +
-                               3* p2.x* square( 1 - t ) * t +
-                               3 * p3.x * (1 - t) * square( t ) +
-                               p4.x* cube( t );
-
-        intermediate_point.y = p1.y * cube( 1 - t ) +
-                               3* p2.y* square( 1 - t ) * t +
-                               3 * p3.y * (1 - t) * square( t ) + p4.y* cube( t );
-
-        aCornersBuffer.push_back( intermediate_point );
-    }
-
-    aCornersBuffer.push_back( p4 );
 }

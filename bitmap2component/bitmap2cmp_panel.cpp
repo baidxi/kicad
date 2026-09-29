@@ -23,10 +23,9 @@
 #include <reporter.h>
 #include <bitmap2cmp_panel.h>
 #include <bitmap2cmp_settings.h>
-#include <bitmap_io.h>
+#include <bitmap_tracing.h>
 #include <common.h>
-#include <math/util.h>      // for KiROUND
-#include <potracelib.h>
+#include <math/util.h> // for KiROUND
 #include <vector>
 #include <wx/arrstr.h>
 #include <wx/clipbrd.h>
@@ -251,8 +250,7 @@ bool BITMAP2CMP_PANEL::OpenProjectFiles( const std::vector<wxString>& aFileSet, 
         negateGreyscaleImage();
 
     m_Greyscale_Bitmap = wxBitmap( m_Greyscale_Image );
-    m_NB_Image  = m_Greyscale_Image;
-    binarize( (double)m_sliderThreshold->GetValue() / m_sliderThreshold->GetMax() );
+    binarize();
 
     m_buttonExportFile->Enable( true );
     m_buttonExportClipboard->Enable( true );
@@ -399,28 +397,11 @@ void BITMAP2CMP_PANEL::ToggleAspectRatioLock( wxCommandEvent& event )
 }
 
 
-void BITMAP2CMP_PANEL::binarize( double aThreshold )
+void BITMAP2CMP_PANEL::binarize()
 {
-    unsigned char threshold = aThreshold * 255;
-    unsigned char alpha_thresh = 0.7 * threshold;
+    double threshold = (double) m_sliderThreshold->GetValue() / m_sliderThreshold->GetMax();
 
-    for( int y = 0; y < m_Greyscale_Image.GetHeight(); y++ )
-    {
-        for( int x = 0; x < m_Greyscale_Image.GetWidth(); x++ )
-        {
-            unsigned char pixel = m_Greyscale_Image.GetGreen( x, y );
-            unsigned char alpha = m_Greyscale_Image.HasAlpha() ? m_Greyscale_Image.GetAlpha( x, y )
-                                                               : wxALPHA_OPAQUE;
-
-            if( pixel < threshold && alpha > alpha_thresh )
-                pixel = 0;
-            else
-                pixel = 255;
-
-            m_NB_Image.SetRGB( x, y, pixel, pixel, pixel );
-        }
-    }
-
+    m_NB_Image = ConvertImageToBilevel( m_Pict_Image, threshold, m_negative );
     m_BN_Bitmap = wxBitmap( m_NB_Image );
 }
 
@@ -443,11 +424,12 @@ void BITMAP2CMP_PANEL::OnNegativeClicked( wxCommandEvent&  )
 {
     if( m_checkNegative->GetValue() != m_negative )
     {
+        m_negative = m_checkNegative->GetValue();
+
         negateGreyscaleImage();
 
         m_Greyscale_Bitmap = wxBitmap( m_Greyscale_Image );
-        binarize( (double)m_sliderThreshold->GetValue() / m_sliderThreshold->GetMax() );
-        m_negative = m_checkNegative->GetValue();
+        binarize();
 
         Refresh();
     }
@@ -456,7 +438,7 @@ void BITMAP2CMP_PANEL::OnNegativeClicked( wxCommandEvent&  )
 
 void BITMAP2CMP_PANEL::OnThresholdChange( wxScrollEvent& event )
 {
-    binarize( (double)m_sliderThreshold->GetValue() / m_sliderThreshold->GetMax() );
+    binarize();
     Refresh();
 }
 
@@ -513,25 +495,6 @@ void BITMAP2CMP_PANEL::OnExportToClipboard( wxCommandEvent& event )
 
 void BITMAP2CMP_PANEL::ExportToBuffer( std::string& aOutput, OUTPUT_FMT_ID aFormat )
 {
-    // Create a potrace bitmap
-    potrace_bitmap_t* potrace_bitmap = bm_new( m_NB_Image.GetWidth(), m_NB_Image.GetHeight() );
-
-    if( !potrace_bitmap )
-    {
-        wxMessageBox( _( "Error allocating memory for potrace bitmap" ) );
-        return;
-    }
-
-    /* fill the bitmap with data */
-    for( int y = 0; y < m_NB_Image.GetHeight(); y++ )
-    {
-        for( int x = 0; x < m_NB_Image.GetWidth(); x++ )
-        {
-            unsigned char pixel = m_NB_Image.GetGreen( x, y );
-            BM_PUT( potrace_bitmap, x, y, pixel ? 0 : 1 );
-        }
-    }
-
     wxString layer = wxT( "F.SilkS" );
 
     if( aFormat == FOOTPRINT_FMT )
@@ -554,8 +517,7 @@ void BITMAP2CMP_PANEL::ExportToBuffer( std::string& aOutput, OUTPUT_FMT_ID aForm
     WX_STRING_REPORTER reporter;
     BITMAPCONV_INFO    converter( aOutput, reporter );
 
-    converter.ConvertBitmap( potrace_bitmap, aFormat, m_outputSizeX.GetOutputDPI(),
-                             m_outputSizeY.GetOutputDPI(), layer );
+    converter.ConvertBitmap( m_NB_Image, aFormat, m_outputSizeX.GetOutputDPI(), m_outputSizeY.GetOutputDPI(), layer );
 
     if( reporter.HasMessage() )
         wxMessageBox( reporter.GetMessages(), _( "Errors" ) );
