@@ -291,4 +291,35 @@ BOOST_AUTO_TEST_CASE( APreviewedTurnIsNotAppliedTwice )
 }
 
 
+BOOST_AUTO_TEST_CASE( AFailedRegionDoesNotSwallowTheRest )
+{
+    wxImage image = makeImage( 200, 200, 255 );
+
+    // A hairline first, which cannot be normalised at this coarse scale, then a solid block.
+    fillRect( image, wxRect( 20, 20, 1, 160 ), 0 );
+    fillRect( image, wxRect( 120, 20, 60, 60 ), 0 );
+
+    wxImage bilevel = ConvertImageToBilevel( image, 0.5, false );
+
+    WX_STRING_REPORTER reporter;
+    SHAPE_POLY_SET     traced = TraceBilevelImage( bilevel, 1.0, 1.0, reporter );
+
+    bool foundBlock = false;
+
+    for( int ii = 0; ii < traced.OutlineCount(); ii++ )
+    {
+        BOX2I bbox = traced.COutline( ii ).BBox();
+
+        if( bbox.GetWidth() > 50 && bbox.GetHeight() > 50 )
+            foundBlock = true;
+    }
+
+    BOOST_CHECK_MESSAGE( foundBlock, "a region traced after a failing one must survive" );
+
+    // Whatever the tracer makes of the hairline, a region it drops has to be reported.
+    BOOST_CHECK_MESSAGE( traced.OutlineCount() == 2 || reporter.HasMessage(),
+                         "a region that could not be traced must be reported" );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -206,6 +206,7 @@ SHAPE_POLY_SET TraceBilevelImage( const wxImage& aBilevelImage, double aScaleX, 
     SHAPE_POLY_SET                areas;
     SHAPE_POLY_SET                holes;
     bool                          mainOutline = true;
+    int                           droppedGroups = 0;
 
     for( potrace_path_t* path = st->plist; path != nullptr; path = path->next )
     {
@@ -256,17 +257,32 @@ SHAPE_POLY_SET TraceBilevelImage( const wxImage& aBilevelImage, double aScaleX, 
 
                 for( int ii = 0; ii < areas.OutlineCount(); ii++ )
                     result.AddOutline( areas.Outline( ii ) );
-
-                areas.RemoveAllContours();
-                holes.RemoveAllContours();
-                mainOutline = true;
             }
+            else
+            {
+                droppedGroups++;
+            }
+
+            // Start the next group even after a failure, so one bad group loses only itself.
+            areas.RemoveAllContours();
+            holes.RemoveAllContours();
+            mainOutline = true;
         }
     }
 
     potrace_state_free( st );
     potrace_param_free( param );
     bm_free( potraceBitmap );
+
+    // A dropped group leaves a hole in the result, so say so rather than let the user hunt
+    // for what went missing.
+    if( droppedGroups > 0 )
+    {
+        aReporter.Report( wxString::Format( wxPLURAL( "%d region of the image could not be traced.",
+                                                      "%d regions of the image could not be traced.", droppedGroups ),
+                                            droppedGroups ),
+                          RPT_SEVERITY_WARNING );
+    }
 
     return result;
 }
