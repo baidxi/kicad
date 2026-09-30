@@ -702,6 +702,7 @@ public:
     static TOOL_ACTION ddAppendBoard;
     static TOOL_ACTION ddImportFootprint;
     static TOOL_ACTION ddImportGraphics;
+    static TOOL_ACTION ddPlaceReferenceImage;
 
     static TOOL_ACTION repeatLayout;
     static TOOL_ACTION generatePlacementRuleAreas;

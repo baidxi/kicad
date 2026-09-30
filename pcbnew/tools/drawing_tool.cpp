@@ -859,9 +859,32 @@ int DRAWING_TOOL::PlaceReferenceImage( const TOOL_EVENT& aEvent )
     if( m_inDrawingTool )
         return 0;
 
-    REENTRANCY_GUARD     guard( &m_inDrawingTool );
+    REENTRANCY_GUARD guard( &m_inDrawingTool );
 
-    PCB_REFERENCE_IMAGE* image = aEvent.Parameter<PCB_REFERENCE_IMAGE*>();
+    PCB_REFERENCE_IMAGE* image = nullptr;
+
+    // A dropped file arrives as its name.
+    if( aEvent.IsAction( &PCB_ACTIONS::ddPlaceReferenceImage ) )
+    {
+        wxString* filename = aEvent.Parameter<wxString*>();
+
+        if( !filename )
+            return 0;
+
+        image = new PCB_REFERENCE_IMAGE( m_frame->GetModel() );
+
+        if( !image->GetReferenceImage().ReadImageFile( *filename ) )
+        {
+            wxMessageBox( wxString::Format( _( "Could not load image from '%s'." ), *filename ) );
+            delete image;
+            return 0;
+        }
+    }
+    else
+    {
+        image = aEvent.Parameter<PCB_REFERENCE_IMAGE*>();
+    }
+
     bool                 immediateMode = image != nullptr;
     PCB_GRID_HELPER      grid( m_toolMgr, m_frame->GetMagneticItemsSettings() );
     bool                 ignorePrimePosition = false;
@@ -881,8 +904,13 @@ int DRAWING_TOOL::PlaceReferenceImage( const TOOL_EVENT& aEvent )
     if( image )
     {
         image->SetPosition( cursorPos );
+        image->SetFlags( IS_NEW | IS_MOVING );
+        image->SetLayer( m_frame->GetActiveLayer() );
+
         m_view->ClearPreview();
         m_view->AddToPreview( image, false );   // Add, but not give ownership
+        m_view->RecacheAllItems();              // Bitmaps are cached in Opengl
+        selectionTool->AddItemToSel( image, false );
     }
 
     auto setCursor =
@@ -4970,6 +4998,7 @@ void DRAWING_TOOL::setTransitions()
     Go( &DRAWING_TOOL::PlaceMicroviaStack,    PCB_ACTIONS::placeViaStack.MakeEvent() );
     Go( &DRAWING_TOOL::PlacePoint,            PCB_ACTIONS::placePoint.MakeEvent() );
     Go( &DRAWING_TOOL::PlaceReferenceImage,   PCB_ACTIONS::placeReferenceImage.MakeEvent() );
+    Go( &DRAWING_TOOL::PlaceReferenceImage,   PCB_ACTIONS::ddPlaceReferenceImage.MakeEvent() );
     Go( &DRAWING_TOOL::PlaceText,             PCB_ACTIONS::placeText.MakeEvent() );
     Go( &DRAWING_TOOL::DrawTable,             PCB_ACTIONS::drawTable.MakeEvent() );
     Go( &DRAWING_TOOL::DrawRectangle,         PCB_ACTIONS::drawTextBox.MakeEvent() );

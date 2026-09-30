@@ -3326,6 +3326,10 @@ TOOL_ACTION PCB_ACTIONS::ddImportGraphics( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveDrawing.ddImportGraphics" )
         .Scope( AS_GLOBAL ) );
 
+TOOL_ACTION PCB_ACTIONS::ddPlaceReferenceImage( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveDrawing.ddPlaceReferenceImage" )
+        .Scope( AS_GLOBAL ) );
+
 // actions for footprint wizard frame
 TOOL_ACTION PCB_ACTIONS::showWizards( TOOL_ACTION_ARGS()
         .Name( "pcbnew.FpWizard.showWizards" )
