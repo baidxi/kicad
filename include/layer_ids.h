@@ -52,7 +52,7 @@
  * The PCB layer types are fixed at value 0 through #LAYER_ID_COUNT to ensure compatibility
  * with legacy board files.
  */
-enum PCB_LAYER_ID: int
+enum PCB_LAYER_ID : int
 {
     UNDEFINED_LAYER = -1,
     UNSELECTED_LAYER = -2,
@@ -89,6 +89,38 @@ enum PCB_LAYER_ID: int
     In28_Cu = 58,
     In29_Cu = 60,
     In30_Cu = 62,
+    In31_Cu = 64,
+    In32_Cu = 66,
+    In33_Cu = 68,
+    In34_Cu = 70,
+    In35_Cu = 72,
+    In36_Cu = 74,
+    In37_Cu = 76,
+    In38_Cu = 78,
+    In39_Cu = 80,
+    In40_Cu = 82,
+    In41_Cu = 84,
+    In42_Cu = 86,
+    In43_Cu = 88,
+    In44_Cu = 90,
+    In45_Cu = 92,
+    In46_Cu = 94,
+    In47_Cu = 96,
+    In48_Cu = 98,
+    In49_Cu = 100,
+    In50_Cu = 102,
+    In51_Cu = 104,
+    In52_Cu = 106,
+    In53_Cu = 108,
+    In54_Cu = 110,
+    In55_Cu = 112,
+    In56_Cu = 114,
+    In57_Cu = 116,
+    In58_Cu = 118,
+    In59_Cu = 120,
+    In60_Cu = 122,
+    In61_Cu = 124,
+    In62_Cu = 126,
 
     F_Mask = 1,
     B_Mask = 3,
@@ -169,7 +201,7 @@ enum PCB_LAYER_ID: int
 
 constexpr PCB_LAYER_ID PCBNEW_LAYER_ID_START = F_Cu;
 
-#define MAX_CU_LAYERS           32
+#define MAX_CU_LAYERS 64
 #define MAX_USER_DEFINED_LAYERS 45
 
 /**
@@ -717,7 +749,7 @@ inline bool IsExternalCopperLayer( int aLayerId )
 }
 
 /**
- * Test whether a layer is an inner (#In1_Cu to #In30_Cu) copper layer.
+ * Test whether a layer is an inner (#In1_Cu to #In62_Cu) copper layer.
  *
  * @param aLayerId = Layer  to test
  * @return true if aLayer is a valid inner copper layer
@@ -952,6 +984,16 @@ inline size_t CopperLayerToOrdinal( PCB_LAYER_ID aLayer )
     case B_Cu:  return MAX_CU_LAYERS - 1;
     default:    return ( aLayer - B_Cu ) / 2;
     }
+}
+
+
+/// Return In<aNumber>_Cu, or UNDEFINED_LAYER if aNumber is not between 1 and MAX_CU_LAYERS - 2.
+inline PCB_LAYER_ID InnerCopperLayer( int aNumber )
+{
+    if( aNumber < 1 || aNumber > MAX_CU_LAYERS - 2 )
+        return UNDEFINED_LAYER;
+
+    return static_cast<PCB_LAYER_ID>( In1_Cu + ( aNumber - 1 ) * 2 );
 }
 
 

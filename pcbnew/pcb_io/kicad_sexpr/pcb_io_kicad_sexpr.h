@@ -219,12 +219,15 @@ class PCB_IO_KICAD_SEXPR;   // forward decl
 //#define SEXPR_BOARD_FILE_VERSION    20260828  // Exclude-from-simulation footprint attribute
 //#define SEXPR_BOARD_FILE_VERSION    20260830  // Microvia stack generator (via_stack)
 //#define SEXPR_BOARD_FILE_VERSION    20260831  // Custom user properties
-#define SEXPR_BOARD_FILE_VERSION      20260901  // Drill charts and maps
+//#define SEXPR_BOARD_FILE_VERSION    20260901  // Drill charts and maps
+#define SEXPR_BOARD_FILE_VERSION      20260902  // Support 64 copper layers
 
 #define BOARD_FILE_HOST_VERSION       20200825  ///< Earlier files than this include the host tag
 #define LEGACY_ARC_FORMATTING         20210925  ///< These were the last to use old arc formatting
 #define LEGACY_NET_TIES               20220815  ///< These were the last to use the keywords field
                                                 ///<   to indicate a net-tie.
+#define LEGACY_32_COPPER_LAYERS       20260901  ///< The last with at most 32 copper layers, where
+                                                ///<   B_Cu has copper ordinal 31 in drill group keys
 #define FIRST_NORMALIZED_VERISON      20230924  ///< Earlier files did not have normalized bools
 #define FIRST_FP_AFFINE_TRANSFORM     20260616  ///< First version that stores footprint children
                                                 ///<   in library frame. Earlier files stored them
