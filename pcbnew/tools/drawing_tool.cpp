@@ -2294,19 +2294,16 @@ int DRAWING_TOOL::ConvertImageToOutlines( const TOOL_EVENT& aEvent )
         layerNames.Add( m_board->GetLayerName( layer ) );
     }
 
-    DIALOG_CONVERT_IMAGE_TO_OUTLINES* dlg = nullptr;
-
-    auto showPreview = [&]()
+    auto showPreview = [&]( double aThreshold, bool aInvert )
     {
-        bitmap.BeginPreviewImage( ConvertImageToBilevel( source, dlg->GetThreshold(), dlg->GetInvert() ) );
+        bitmap.BeginPreviewImage( ConvertImageToBilevel( source, aThreshold, aInvert ) );
         m_view->Update( image );
         m_frame->GetCanvas()->ForceRefresh();
     };
 
     DIALOG_CONVERT_IMAGE_TO_OUTLINES dialog( m_frame, layerNames, selectedLayer, showPreview );
 
-    dlg = &dialog;
-    showPreview();
+    showPreview( dialog.GetThreshold(), dialog.GetInvert() );
 
     int result = dialog.ShowModal();
 
@@ -2339,8 +2336,8 @@ int DRAWING_TOOL::ConvertImageToOutlines( const TOOL_EVENT& aEvent )
     VECTOR2I     origin = refImage.GetPosition() - size / 2;
     PCB_LAYER_ID layer = layerIds[dialog.GetLayerSelection()];
 
-    BOARD_COMMIT             commit( m_frame );
-    std::vector<BOARD_ITEM*> shapes;
+    BOARD_COMMIT commit( m_frame );
+    PCB_GROUP*   group = new PCB_GROUP( m_frame->GetModel() );
 
     for( int ii = 0; ii < traced.OutlineCount(); ii++ )
     {
@@ -2356,24 +2353,17 @@ int DRAWING_TOOL::ConvertImageToOutlines( const TOOL_EVENT& aEvent )
         shape->SetPolyShape( outline );
         shape->SetStroke( STROKE_PARAMS( 0 ) );
 
-        shapes.push_back( shape );
+        group->AddItem( shape );
+        commit.Add( shape );
     }
 
-    PCB_GROUP* group = new PCB_GROUP( m_frame->GetModel() );
-
-    for( BOARD_ITEM* shape : shapes )
-        group->AddItem( shape );
-
     commit.Remove( image );
-
-    for( BOARD_ITEM* shape : shapes )
-        commit.Add( shape );
-
     commit.Add( group );
     commit.Push( _( "Convert Image to Outlines" ) );
 
     m_frame->GetInfoBar()->ShowMessageFor(
-            wxString::Format( wxPLURAL( "Added %d shape.", "Added %d shapes.", shapes.size() ), (int) shapes.size() ),
+            wxString::Format( wxPLURAL( "Added %d shape.", "Added %d shapes.", traced.OutlineCount() ),
+                              traced.OutlineCount() ),
             4000, wxICON_INFORMATION );
 
     return 0;

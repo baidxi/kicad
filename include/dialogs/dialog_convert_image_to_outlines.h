@@ -41,10 +41,10 @@ public:
      * @param aParent is the window the dialog belongs to.
      * @param aLayerNames are the layers to offer, empty when the caller has no layers.
      * @param aSelectedLayer is the layer to start on, an index into aLayerNames.
-     * @param aOnChange is called whenever the threshold or the invert setting changes.
+     * @param aOnChange receives the threshold and invert setting whenever they change.
      */
     DIALOG_CONVERT_IMAGE_TO_OUTLINES( wxWindow* aParent, const wxArrayString& aLayerNames, int aSelectedLayer,
-                                      std::function<void()> aOnChange );
+                                      std::function<void( double, bool )> aOnChange );
 
     /// Brightness cut deciding which pixels are traced, from 0 to 1.
     double GetThreshold() const;
@@ -61,5 +61,5 @@ private:
     wxSlider*             m_threshold;
     wxCheckBox*           m_invert;
     wxChoice*             m_layer;
-    std::function<void()> m_onChange;
+    std::function<void( double, bool )> m_onChange;
 };

@@ -28,8 +28,8 @@
 
 
 DIALOG_CONVERT_IMAGE_TO_OUTLINES::DIALOG_CONVERT_IMAGE_TO_OUTLINES( wxWindow* aParent, const wxArrayString& aLayerNames,
-                                                                    int                   aSelectedLayer,
-                                                                    std::function<void()> aOnChange ) :
+                                                                    int                                 aSelectedLayer,
+                                                                    std::function<void( double, bool )> aOnChange ) :
         DIALOG_SHIM( aParent, wxID_ANY, _( "Convert to Outlines" ) ),
         m_threshold( nullptr ),
         m_invert( nullptr ),
@@ -105,12 +105,12 @@ int DIALOG_CONVERT_IMAGE_TO_OUTLINES::GetLayerSelection() const
 void DIALOG_CONVERT_IMAGE_TO_OUTLINES::onSettingChanged( wxCommandEvent& aEvent )
 {
     if( m_onChange )
-        m_onChange();
+        m_onChange( GetThreshold(), GetInvert() );
 }
 
 
 void DIALOG_CONVERT_IMAGE_TO_OUTLINES::onThresholdScrolled( wxScrollEvent& aEvent )
 {
     if( m_onChange )
-        m_onChange();
+        m_onChange( GetThreshold(), GetInvert() );
 }
