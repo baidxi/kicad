@@ -40,6 +40,20 @@ wxImage ConvertImageToBilevel( const wxImage& aImage, double aThreshold, bool aI
 
 
 /**
+ * Produce the black and white view of an image, shrunk to fit a preview area.
+ *
+ * The aspect ratio is kept, and an image already smaller than the area is left alone.
+ *
+ * @param aImage is the source image.
+ * @param aThreshold is the brightness cut, from 0 to 1.
+ * @param aInvert inverts the greyscale before the cut is applied.
+ * @param aRoom is the area the result has to fit inside.
+ * @return the black and white image, scaled down if it did not fit.
+ */
+wxImage MakeBilevelPreview( const wxImage& aImage, double aThreshold, bool aInvert, const wxSize& aRoom );
+
+
+/**
  * Trace the black regions of a black and white image into filled polygons.
  *
  * Holes are fractured into their outlines, so every returned outline is a simple polygon

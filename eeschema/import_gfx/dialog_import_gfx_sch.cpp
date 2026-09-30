@@ -22,7 +22,9 @@
 
 #include <import_gfx/graphics_importer_lib_symbol.h>
 #include <import_gfx/graphics_importer_sch.h>
+#include <import_gfx/bitmap_import_plugin.h>
 #include <import_gfx/dxf_import_plugin.h>
+#include <bitmap_tracing.h>
 
 #include <base_units.h>
 #include <kiface_base.h>
@@ -67,7 +69,7 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
     m_gfxImportMgr = std::make_unique<GRAPHICS_IMPORT_MGR>();
 
     wxCommandEvent dummy;
-    onFilename( dummy );
+    onFilenameChanged( dummy );
 
     SetInitialFocus( m_textCtrlFileName );
     SetupStandardButtons();
@@ -75,16 +77,6 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
     Centre();
-
-    m_textCtrlFileName->Connect( wxEVT_COMMAND_TEXT_UPDATED,
-                                 wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH::onFilename ), nullptr, this );
-}
-
-
-DIALOG_IMPORT_GFX_SCH::~DIALOG_IMPORT_GFX_SCH()
-{
-    m_textCtrlFileName->Disconnect( wxEVT_COMMAND_TEXT_UPDATED,
-                                    wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH::onFilename ), nullptr, this );
 }
 
 
@@ -102,11 +94,15 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataToWindow()
     if( !m_filenameOverride.IsEmpty() )
         m_textCtrlFileName->SetValue( m_filenameOverride );
 
+    // A filename restored from the last run arrives without an event, so sync to it here.
+    wxCommandEvent dummy;
+    onFilenameChanged( dummy );
+
     return true;
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onFilename( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX_SCH::onFilenameChanged( wxCommandEvent& event )
 {
     bool     enableDXFControls = true;
     wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
@@ -118,6 +114,61 @@ void DIALOG_IMPORT_GFX_SCH::onFilename( wxCommandEvent& event )
 
     m_staticTextLineWidth1->Enable( enableDXFControls );
     m_choiceDxfUnits->Enable( enableDXFControls );
+
+    updateImageControls();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::updateImageControls()
+{
+    wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
+    bool     isImage = false;
+
+    if( std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( ext ) )
+        isImage = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) != nullptr;
+
+    m_previewSource.Destroy();
+
+    if( isImage )
+    {
+        wxLogNull doNotLog;
+        m_previewSource.LoadFile( m_textCtrlFileName->GetValue() );
+    }
+
+    // The preview sits directly in the sizer holding the whole image block.
+    GetSizer()->Show( m_previewBitmap->GetContainingSizer(), isImage, true );
+
+    updatePreview();
+
+    Layout();
+    GetSizer()->Fit( this );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::updatePreview()
+{
+    if( !m_previewSource.IsOk() )
+    {
+        m_previewBitmap->SetBitmap( wxNullBitmap );
+        return;
+    }
+
+    double threshold = (double) m_thresholdSlider->GetValue() / m_thresholdSlider->GetMax();
+
+    m_previewBitmap->SetBitmap( wxBitmap( MakeBilevelPreview( m_previewSource, threshold, m_cbInvertColors->IsChecked(),
+                                                              m_previewBitmap->GetMinSize() ) ) );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onThresholdChanged( wxScrollEvent& event )
+{
+    updatePreview();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onInvertChanged( wxCommandEvent& event )
+{
+    updatePreview();
 }
 
 
@@ -193,6 +244,12 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
         else
         {
             m_importer->SetLineWidthMM( 0.0 );
+        }
+
+        if( BITMAP_IMPORT_PLUGIN* bitmapPlugin = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) )
+        {
+            bitmapPlugin->SetThreshold( (double) m_thresholdSlider->GetValue() / m_thresholdSlider->GetMax() );
+            bitmapPlugin->SetInvert( m_cbInvertColors->IsChecked() );
         }
 
         m_importer->SetPlugin( std::move( plugin ) );

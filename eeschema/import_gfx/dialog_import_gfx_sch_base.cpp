@@ -22,19 +22,17 @@ DIALOG_IMPORT_GFX_SCH_BASE::DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWind
 	bSizerFile = new wxBoxSizer( wxHORIZONTAL );
 
 	m_staticTextFile = new wxStaticText( this, wxID_ANY, _("File:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextFile->Wrap( -1 );
-	m_staticTextFile->SetToolTip( _("Only vectors will be imported.  Bitmaps and fonts will be ignored.") );
+    m_staticTextFile->Wrap( -1 );
+    bSizerFile->Add( m_staticTextFile, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
 
-	bSizerFile->Add( m_staticTextFile, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+    m_textCtrlFileName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+    m_textCtrlFileName->SetMinSize( wxSize( 300, -1 ) );
 
-	m_textCtrlFileName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_textCtrlFileName->SetToolTip( _("Only vectors will be imported.  Bitmaps and fonts will be ignored.") );
-	m_textCtrlFileName->SetMinSize( wxSize( 300,-1 ) );
+    bSizerFile->Add( m_textCtrlFileName, 1, wxALIGN_CENTER_VERTICAL, 5 );
 
-	bSizerFile->Add( m_textCtrlFileName, 1, wxALIGN_CENTER_VERTICAL, 5 );
-
-	m_browseButton = new STD_BITMAP_BUTTON( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxSize( -1,-1 ), wxBU_AUTODRAW|0 );
-	bSizerFile->Add( m_browseButton, 0, wxTOP|wxBOTTOM, 5 );
+    m_browseButton = new STD_BITMAP_BUTTON( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxSize( -1, -1 ),
+                                            wxBU_AUTODRAW | 0 );
+    bSizerFile->Add( m_browseButton, 0, wxTOP|wxBOTTOM, 5 );
 
 
 	bSizerMain->Add( bSizerFile, 0, wxALL|wxEXPAND, 10 );
@@ -130,19 +128,19 @@ DIALOG_IMPORT_GFX_SCH_BASE::DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWind
 
     m_importScaleCtrl =
             new wxTextCtrl( sbSizer1->GetStaticBox(), wxID_ANY, _( "1.0" ), wxDefaultPosition, wxDefaultSize, 0 );
-    fgSizerImportSettings->Add( m_importScaleCtrl, 0, wxALIGN_CENTER_VERTICAL|wxEXPAND, 5 );
+    fgSizerImportSettings->Add( m_importScaleCtrl, 0, wxALIGN_CENTER_VERTICAL | wxEXPAND, 5 );
 
 
-	fgSizerImportSettings->Add( 0, 0, 0, 0, 5 );
+    fgSizerImportSettings->Add( 0, 0, 0, 0, 5 );
 
 
-	bSizer7->Add( fgSizerImportSettings, 1, wxEXPAND|wxALL, 5 );
+    bSizer7->Add( fgSizerImportSettings, 1, wxEXPAND | wxALL, 5 );
 
 
-	sbSizer1->Add( bSizer7, 1, wxEXPAND, 5 );
+    sbSizer1->Add( bSizer7, 1, wxEXPAND, 5 );
 
 
-	bSizerMain->Add( sbSizer1, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 10 );
+    bSizerMain->Add( sbSizer1, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 10 );
 
 	wxStaticBoxSizer* sbSizer3;
 	sbSizer3 = new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _("DXF Parameters") ), wxVERTICAL );
@@ -188,10 +186,42 @@ DIALOG_IMPORT_GFX_SCH_BASE::DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWind
 
 	bSizerMain->Add( sbSizer3, 1, wxEXPAND|wxRIGHT|wxLEFT, 10 );
 
-	m_sdbSizer = new wxStdDialogButtonSizer();
-	m_sdbSizerOK = new wxButton( this, wxID_OK );
-	m_sdbSizer->AddButton( m_sdbSizerOK );
-	m_sdbSizerCancel = new wxButton( this, wxID_CANCEL );
+    wxStaticBoxSizer* bSizerImageOptions;
+    bSizerImageOptions =
+            new wxStaticBoxSizer( new wxStaticBox( this, wxID_ANY, _( "Image Parameters" ) ), wxHORIZONTAL );
+
+    wxBoxSizer* bSizerImageControls;
+    bSizerImageControls = new wxBoxSizer( wxVERTICAL );
+
+    m_thresholdLabel = new wxStaticText( bSizerImageOptions->GetStaticBox(), wxID_ANY, _( "Black / white threshold:" ),
+                                         wxDefaultPosition, wxDefaultSize, 0 );
+    m_thresholdLabel->Wrap( -1 );
+    bSizerImageControls->Add( m_thresholdLabel, 0, wxALL, 5 );
+
+    m_thresholdSlider = new wxSlider( bSizerImageOptions->GetStaticBox(), wxID_ANY, 50, 0, 100, wxDefaultPosition,
+                                      wxDefaultSize, wxSL_HORIZONTAL | wxSL_LABELS );
+    bSizerImageControls->Add( m_thresholdSlider, 0, wxEXPAND, 5 );
+
+    m_cbInvertColors = new wxCheckBox( bSizerImageOptions->GetStaticBox(), wxID_ANY, _( "Invert Colors" ),
+                                       wxDefaultPosition, wxDefaultSize, 0 );
+    bSizerImageControls->Add( m_cbInvertColors, 0, wxALL, 5 );
+
+
+    bSizerImageOptions->Add( bSizerImageControls, 1, wxEXPAND, 5 );
+
+    m_previewBitmap = new wxStaticBitmap( bSizerImageOptions->GetStaticBox(), wxID_ANY, wxNullBitmap, wxDefaultPosition,
+                                          wxDefaultSize, 0 );
+    m_previewBitmap->SetMinSize( wxSize( 160, 120 ) );
+
+    bSizerImageOptions->Add( m_previewBitmap, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5 );
+
+
+    bSizerMain->Add( bSizerImageOptions, 0, wxEXPAND | wxLEFT | wxTOP, 5 );
+
+    m_sdbSizer = new wxStdDialogButtonSizer();
+    m_sdbSizerOK = new wxButton( this, wxID_OK );
+    m_sdbSizer->AddButton( m_sdbSizerOK );
+    m_sdbSizerCancel = new wxButton( this, wxID_CANCEL );
 	m_sdbSizer->AddButton( m_sdbSizerCancel );
 	m_sdbSizer->Realize();
 
@@ -205,20 +235,44 @@ DIALOG_IMPORT_GFX_SCH_BASE::DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWind
 	this->Centre( wxBOTH );
 
 	// Connect Events
-	m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onBrowseFiles ), NULL, this );
-	m_rbInteractivePlacement->Connect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInteractivePlacement ), NULL, this );
-	m_rbInteractivePlacement->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
-	m_rbAbsolutePlacement->Connect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onAbsolutePlacement ), NULL, this );
+    m_textCtrlFileName->Connect( wxEVT_COMMAND_TEXT_UPDATED,
+                                 wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onFilenameChanged ), NULL, this );
+    m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED,
+                             wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onBrowseFiles ), NULL, this );
+    m_rbInteractivePlacement->Connect( wxEVT_COMMAND_RADIOBUTTON_SELECTED,
+                                       wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInteractivePlacement ),
+                                       NULL, this );
+    m_rbInteractivePlacement->Connect(
+            wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
+    m_rbAbsolutePlacement->Connect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onAbsolutePlacement ), NULL, this );
 	m_rbAbsolutePlacement->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
+    m_thresholdSlider->Connect( wxEVT_SCROLL_CHANGED,
+                                wxScrollEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onThresholdChanged ), NULL, this );
+    m_thresholdSlider->Connect( wxEVT_SCROLL_THUMBTRACK,
+                                wxScrollEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onThresholdChanged ), NULL, this );
+    m_cbInvertColors->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED,
+                               wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInvertChanged ), NULL, this );
 }
 
 DIALOG_IMPORT_GFX_SCH_BASE::~DIALOG_IMPORT_GFX_SCH_BASE()
 {
 	// Disconnect Events
-	m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onBrowseFiles ), NULL, this );
-	m_rbInteractivePlacement->Disconnect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInteractivePlacement ), NULL, this );
-	m_rbInteractivePlacement->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
-	m_rbAbsolutePlacement->Disconnect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onAbsolutePlacement ), NULL, this );
+    m_textCtrlFileName->Disconnect( wxEVT_COMMAND_TEXT_UPDATED,
+                                    wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onFilenameChanged ), NULL,
+                                    this );
+    m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED,
+                                wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onBrowseFiles ), NULL, this );
+    m_rbInteractivePlacement->Disconnect( wxEVT_COMMAND_RADIOBUTTON_SELECTED,
+                                          wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInteractivePlacement ),
+                                          NULL, this );
+    m_rbInteractivePlacement->Disconnect(
+            wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
+    m_rbAbsolutePlacement->Disconnect( wxEVT_COMMAND_RADIOBUTTON_SELECTED, wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onAbsolutePlacement ), NULL, this );
 	m_rbAbsolutePlacement->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::originOptionOnUpdateUI ), NULL, this );
-
+    m_thresholdSlider->Disconnect( wxEVT_SCROLL_CHANGED,
+                                   wxScrollEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onThresholdChanged ), NULL, this );
+    m_thresholdSlider->Disconnect( wxEVT_SCROLL_THUMBTRACK,
+                                   wxScrollEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onThresholdChanged ), NULL, this );
+    m_cbInvertColors->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED,
+                                  wxCommandEventHandler( DIALOG_IMPORT_GFX_SCH_BASE::onInvertChanged ), NULL, this );
 }

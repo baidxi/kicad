@@ -131,6 +131,25 @@ wxImage ConvertImageToBilevel( const wxImage& aImage, double aThreshold, bool aI
 }
 
 
+wxImage MakeBilevelPreview( const wxImage& aImage, double aThreshold, bool aInvert, const wxSize& aRoom )
+{
+    wxImage preview = ConvertImageToBilevel( aImage, aThreshold, aInvert );
+
+    if( !preview.IsOk() )
+        return preview;
+
+    double fit = std::min( (double) aRoom.x / preview.GetWidth(), (double) aRoom.y / preview.GetHeight() );
+
+    if( fit < 1.0 )
+    {
+        preview = preview.Scale( KiROUND( preview.GetWidth() * fit ), KiROUND( preview.GetHeight() * fit ),
+                                 wxIMAGE_QUALITY_NORMAL );
+    }
+
+    return preview;
+}
+
+
 SHAPE_POLY_SET TraceBilevelImage( const wxImage& aBilevelImage, double aScaleX, double aScaleY, REPORTER& aReporter )
 {
     SHAPE_POLY_SET result;

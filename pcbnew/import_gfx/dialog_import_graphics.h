@@ -33,7 +33,6 @@ class DIALOG_IMPORT_GRAPHICS : public DIALOG_IMPORT_GRAPHICS_BASE
 {
 public:
     DIALOG_IMPORT_GRAPHICS( PCB_BASE_FRAME* aParent );
-    ~DIALOG_IMPORT_GRAPHICS();
 
     /**
      * @return a list of items imported from a vector graphics file.
@@ -73,8 +72,15 @@ public:
 private:
     // Virtual event handlers
     void onBrowseFiles( wxCommandEvent& event ) override;
-    void onFilename( wxCommandEvent& event );
+    void onFilenameChanged( wxCommandEvent& event ) override;
+    void onThresholdChanged( wxScrollEvent& event ) override;
+    void onInvertChanged( wxCommandEvent& event ) override;
     void onUpdateUI( wxUpdateUIEvent& event ) override;
+
+    /// Show the image controls only when the chosen file is a raster image.
+    void updateImageControls();
+
+    void updatePreview();
 
 private:
     PCB_BASE_FRAME*                           m_parent;
@@ -86,5 +92,6 @@ private:
     UNIT_BINDER          m_defaultLineWidth;
     UNIT_BINDER          m_tolerance;
 
+    wxImage  m_previewSource;
     wxString m_filenameOverride;
 };

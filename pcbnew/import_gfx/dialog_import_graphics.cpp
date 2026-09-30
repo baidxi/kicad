@@ -22,8 +22,10 @@
 
 #include "dialog_import_graphics.h"
 #include <dialog_map_layers.h>
+#include <import_gfx/bitmap_import_plugin.h>
 #include <import_gfx/dxf_import_plugin.h>
 #include <base_units.h>
+#include <bitmap_tracing.h>
 #include <board.h>
 #include <kiface_base.h>
 #include <locale_io.h>
@@ -98,6 +100,9 @@ DIALOG_IMPORT_GRAPHICS::DIALOG_IMPORT_GRAPHICS( PCB_BASE_FRAME* aParent ) :
     m_importer = std::make_unique<GRAPHICS_IMPORTER_PCBNEW>( aParent->GetModel() );
     m_gfxImportMgr = std::make_unique<GRAPHICS_IMPORT_MGR>();
 
+    // Keyed apart from the schematic dialog, which has the same title and another layout.
+    m_hash_key = "DIALOG_IMPORT_GRAPHICS";
+
     // Configure the layers list selector
     m_SelLayerBox->SetLayersHotkeys( false );    // Do not display hotkeys
     m_SelLayerBox->SetBoardFrame( m_parent );
@@ -108,7 +113,7 @@ DIALOG_IMPORT_GRAPHICS::DIALOG_IMPORT_GRAPHICS( PCB_BASE_FRAME* aParent ) :
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
     wxCommandEvent dummy;
-    onFilename( dummy );
+    onFilenameChanged( dummy );
 
     SetInitialFocus( m_textCtrlFileName );
     SetupStandardButtons();
@@ -116,18 +121,6 @@ DIALOG_IMPORT_GRAPHICS::DIALOG_IMPORT_GRAPHICS( PCB_BASE_FRAME* aParent ) :
     GetSizer()->Fit( this );
     GetSizer()->SetSizeHints( this );
     Centre();
-
-    m_textCtrlFileName->Connect( wxEVT_COMMAND_TEXT_UPDATED,
-                                 wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS::onFilename ),
-                                 nullptr, this );
-}
-
-
-DIALOG_IMPORT_GRAPHICS::~DIALOG_IMPORT_GRAPHICS()
-{
-    m_textCtrlFileName->Disconnect( wxEVT_COMMAND_TEXT_UPDATED,
-                                    wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS::onFilename ),
-                                    nullptr, this );
 }
 
 
@@ -145,11 +138,15 @@ bool DIALOG_IMPORT_GRAPHICS::TransferDataToWindow()
     if( !m_filenameOverride.IsEmpty() )
         m_textCtrlFileName->SetValue( m_filenameOverride );
 
+    // A filename restored from the last run arrives without an event, so sync to it here.
+    wxCommandEvent dummy;
+    onFilenameChanged( dummy );
+
     return true;
 }
 
 
-void DIALOG_IMPORT_GRAPHICS::onFilename( wxCommandEvent& event )
+void DIALOG_IMPORT_GRAPHICS::onFilenameChanged( wxCommandEvent& event )
 {
     bool     enableDXFControls = true;
     wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
@@ -166,6 +163,61 @@ void DIALOG_IMPORT_GRAPHICS::onFilename( wxCommandEvent& event )
 
     if( !enableDXFControls && m_radioBtnMapLayers->GetValue() )
         m_radioBtnSingleLayer->SetValue( true );
+
+    updateImageControls();
+}
+
+
+void DIALOG_IMPORT_GRAPHICS::updateImageControls()
+{
+    wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
+    bool     isImage = false;
+
+    if( std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( ext ) )
+        isImage = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) != nullptr;
+
+    m_previewSource.Destroy();
+
+    if( isImage )
+    {
+        wxLogNull doNotLog;
+        m_previewSource.LoadFile( m_textCtrlFileName->GetValue() );
+    }
+
+    // The preview sits directly in the sizer holding the whole image block.
+    GetSizer()->Show( m_previewBitmap->GetContainingSizer(), isImage, true );
+
+    updatePreview();
+
+    Layout();
+    GetSizer()->Fit( this );
+}
+
+
+void DIALOG_IMPORT_GRAPHICS::updatePreview()
+{
+    if( !m_previewSource.IsOk() )
+    {
+        m_previewBitmap->SetBitmap( wxNullBitmap );
+        return;
+    }
+
+    double threshold = (double) m_thresholdSlider->GetValue() / m_thresholdSlider->GetMax();
+
+    m_previewBitmap->SetBitmap( wxBitmap( MakeBilevelPreview( m_previewSource, threshold, m_cbInvertColors->IsChecked(),
+                                                              m_previewBitmap->GetMinSize() ) ) );
+}
+
+
+void DIALOG_IMPORT_GRAPHICS::onThresholdChanged( wxScrollEvent& event )
+{
+    updatePreview();
+}
+
+
+void DIALOG_IMPORT_GRAPHICS::onInvertChanged( wxCommandEvent& event )
+{
+    updatePreview();
 }
 
 
@@ -267,6 +319,12 @@ bool DIALOG_IMPORT_GRAPHICS::TransferDataFromWindow()
         else
         {
             m_importer->SetLineWidthMM( 0.0 );
+        }
+
+        if( BITMAP_IMPORT_PLUGIN* bitmapPlugin = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) )
+        {
+            bitmapPlugin->SetThreshold( (double) m_thresholdSlider->GetValue() / m_thresholdSlider->GetMax() );
+            bitmapPlugin->SetInvert( m_cbInvertColors->IsChecked() );
         }
 
         m_importer->SetPlugin( std::move( plugin ) );

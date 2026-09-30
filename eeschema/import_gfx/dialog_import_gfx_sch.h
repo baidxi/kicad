@@ -34,7 +34,6 @@ class DIALOG_IMPORT_GFX_SCH : public DIALOG_IMPORT_GFX_SCH_BASE
 {
 public:
     DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent );
-    ~DIALOG_IMPORT_GFX_SCH();
 
     /**
      * @return a list of items imported from a vector graphics file.
@@ -62,7 +61,14 @@ public:
 private:
     // Virtual event handlers
     void onBrowseFiles( wxCommandEvent& event ) override;
-    void onFilename( wxCommandEvent& event );
+    void onFilenameChanged( wxCommandEvent& event ) override;
+    void onThresholdChanged( wxScrollEvent& event ) override;
+    void onInvertChanged( wxCommandEvent& event ) override;
+
+    /// Show the image controls only when the chosen file is a raster image.
+    void updateImageControls();
+
+    void updatePreview();
     void originOptionOnUpdateUI( wxUpdateUIEvent& event ) override;
 
 	void onInteractivePlacement( wxCommandEvent& event ) override
@@ -83,6 +89,8 @@ private:
     UNIT_BINDER          m_xOrigin;
     UNIT_BINDER          m_yOrigin;
     UNIT_BINDER          m_defaultLineWidth;
+
+    wxImage m_previewSource;
 
     static bool          m_placementInteractive;
     static double        m_importScale;         // a scale factor to change the size of imported
