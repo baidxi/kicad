@@ -219,6 +219,7 @@ public:
     static TOOL_ACTION drawBezier;
     static TOOL_ACTION placePoint;
     static TOOL_ACTION placeReferenceImage;
+    static TOOL_ACTION convertImageToOutlines;
     static TOOL_ACTION placeText;
     static TOOL_ACTION drawTextBox;
     static TOOL_ACTION drawTable;

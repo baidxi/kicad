@@ -19,12 +19,15 @@
 
 #include <qa_utils/wx_utils/unit_test_utils.h>
 
+#include <bitmap_base.h>
 #include <bitmap_tracing.h>
 #include <eda_item.h>
+#include <geometry/eda_angle.h>
 #include <import_gfx/bitmap_import_plugin.h>
 #include <import_gfx/graphics_importer_buffer.h>
 #include <reporter.h>
 
+#include <wx/imagjpeg.h>
 #include <wx/mstream.h>
 
 BOOST_AUTO_TEST_SUITE( BitmapTracing )
@@ -201,6 +204,90 @@ BOOST_FIXTURE_TEST_CASE( PluginKeepsDetailFinerThanAMillimetre, PNG_FIXTURE )
         BOOST_CHECK_CLOSE( bbox.GetWidth(), 4.0 * 25.4 / 300.0, 15.0 );
         BOOST_CHECK_CLOSE( bbox.GetHeight(), 100.0 * 25.4 / 300.0, 5.0 );
     }
+}
+
+
+/// Load an image the way a board does, through encoded file data.
+static void loadAsJpeg( BITMAP_BASE& aBitmap, const wxImage& aImage )
+{
+    if( !wxImage::FindHandler( wxBITMAP_TYPE_JPEG ) )
+        wxImage::AddHandler( new wxJPEGHandler );
+
+    wxMemoryOutputStream jpeg;
+    BOOST_REQUIRE( aImage.SaveFile( jpeg, wxBITMAP_TYPE_JPEG ) );
+
+    wxMemoryInputStream stream( jpeg );
+    BOOST_REQUIRE( aBitmap.ReadImageFile( stream ) );
+}
+
+
+/// The bytes the image would be written to a board file with.
+static std::string storedImageData( const BITMAP_BASE& aBitmap )
+{
+    wxMemoryOutputStream out;
+    BOOST_REQUIRE( aBitmap.SaveImageData( out ) );
+
+    std::string bytes( out.GetLength(), '\0' );
+    out.CopyTo( bytes.data(), bytes.size() );
+
+    return bytes;
+}
+
+
+BOOST_AUTO_TEST_CASE( APreviewPutsTheRealImageBack )
+{
+    wxImage source = makeImage( 40, 20, 255 );
+    fillRect( source, wxRect( 0, 0, 10, 20 ), 0 );
+
+    BITMAP_BASE bitmap;
+    loadAsJpeg( bitmap, source );
+
+    const KIID        id = bitmap.GetImageID();
+    const std::string stored = storedImageData( bitmap );
+    const wxImage     shown = *bitmap.GetImageData();
+
+    bitmap.BeginPreviewImage( ConvertImageToBilevel( shown, 0.5, true ) );
+
+    // Or a renderer caching by id would hand back the image the preview replaced.
+    BOOST_CHECK_MESSAGE( bitmap.GetImageID() != id, "a preview must not keep the image id" );
+
+    // A document can be written while a preview is up, by an autosave for one, and what it
+    // saves has to be the picture rather than the stand-in shown over it.
+    BOOST_CHECK_MESSAGE( storedImageData( bitmap ) == stored, "a preview must not change the stored data" );
+
+    bitmap.EndPreviewImage();
+
+    BOOST_CHECK_MESSAGE( bitmap.GetImageID() == id, "ending a preview must restore the image id" );
+    BOOST_CHECK_EQUAL( (int) bitmap.GetImageData()->GetGreen( 2, 10 ), (int) shown.GetGreen( 2, 10 ) );
+
+    // A preview the user cancelled must leave nothing to save, or the picture is encoded
+    // again and a JPEG loses quality every time.
+    BOOST_CHECK_MESSAGE( storedImageData( bitmap ) == stored, "ending a preview must restore the stored data" );
+}
+
+
+BOOST_AUTO_TEST_CASE( APreviewedTurnIsNotAppliedTwice )
+{
+    BITMAP_BASE bitmap;
+    BOOST_REQUIRE( bitmap.SetImage( makeImage( 40, 20, 255 ) ) );
+
+    bitmap.Rotate( true );
+
+    BOOST_REQUIRE_EQUAL( bitmap.GetSizePixels().x, 20 );
+    BOOST_REQUIRE_EQUAL( bitmap.GetOriginalImageData()->GetWidth(), 40 );
+
+    const wxImage rotated = *bitmap.GetImageData();
+
+    bitmap.BeginPreviewImage( rotated );
+
+    BOOST_CHECK_MESSAGE( bitmap.Rotation() == ANGLE_0,
+                         "a preview already holding the rotation must not be turned again" );
+
+    bitmap.EndPreviewImage();
+
+    BOOST_CHECK_MESSAGE( bitmap.Rotation() != ANGLE_0, "ending a preview must restore the rotation" );
+    BOOST_CHECK_EQUAL( bitmap.GetSizePixels().x, 20 );
+    BOOST_CHECK_EQUAL( bitmap.GetOriginalImageData()->GetWidth(), 40 );
 }
 
 

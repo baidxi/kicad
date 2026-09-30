@@ -546,6 +546,13 @@ TOOL_ACTION PCB_ACTIONS::placeReferenceImage( TOOL_ACTION_ARGS()
         .Flags( AF_ACTIVATE )
         .Parameter<PCB_REFERENCE_IMAGE*>( nullptr ) );
 
+TOOL_ACTION PCB_ACTIONS::convertImageToOutlines( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveDrawing.convertImageToOutlines" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Convert to Outlines..." ) )
+        .Tooltip( _( "Trace the image into board graphics" ) )
+        .Icon( BITMAPS::image ) );
+
 TOOL_ACTION PCB_ACTIONS::placeText( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveDrawing.text" )
         .Scope( AS_GLOBAL )
