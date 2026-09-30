@@ -22,12 +22,14 @@
 
 #include <dialog_shim.h>
 #include <git2.h>
+#include <map>
 #include <vector>
 
 class wxCheckBox;
 class wxTextCtrl;
 class wxListCtrl;
 class wxListEvent;
+class wxContextMenuEvent;
 class wxButton;
 
 class DIALOG_GIT_COMMIT : public DIALOG_SHIM
@@ -56,6 +58,7 @@ public:
     void OnTextChanged( wxCommandEvent& event );
     void OnItemChecked( wxListEvent& event );
     void OnItemUnchecked( wxListEvent& event );
+    void OnListContextMenu( wxContextMenuEvent& event );
 
 private:
     /// Enable the OK button only when there is both a message and at least one selected file.
@@ -63,12 +66,16 @@ private:
     void loadFileListColumnWidths();
     void saveFileListColumnWidths();
 
+    std::vector<long> getSelectedListItems() const;
+    void              setSelectedItemsChecked( bool aChecked );
+
     wxTextCtrl* m_commitMessageTextCtrl;
     wxTextCtrl* m_authorTextCtrl;
     wxListCtrl* m_listCtrl;
     wxButton* m_okButton;
 
     bool m_requireFiles = true;
+    bool m_updatingSelection = false;
 
     git_repository* m_repo;
     wxString m_defaultAuthorName;
