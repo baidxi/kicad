@@ -139,6 +139,13 @@ DIALOG_IMPORT_GFX_SCH_BASE::DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWind
 
     sbSizer1->Add( bSizer7, 1, wxEXPAND, 5 );
 
+    m_cbGroupItems = new wxCheckBox( sbSizer1->GetStaticBox(), wxID_ANY, _( "Group imported items" ), wxDefaultPosition,
+                                     wxDefaultSize, 0 );
+    m_cbGroupItems->SetValue( true );
+    m_cbGroupItems->SetToolTip( _( "Add all imported items to a new group" ) );
+
+    sbSizer1->Add( m_cbGroupItems, 0, wxTOP | wxBOTTOM | wxLEFT, 5 );
+
 
     bSizerMain->Add( sbSizer1, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 10 );
 

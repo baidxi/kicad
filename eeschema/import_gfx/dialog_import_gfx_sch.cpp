@@ -62,9 +62,16 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
     if( SYMBOL_EDIT_FRAME* symFrame = dynamic_cast<SYMBOL_EDIT_FRAME*>( aParent ) )
+    {
         m_importer = std::make_unique<GRAPHICS_IMPORTER_LIB_SYMBOL>( symFrame->GetCurSymbol(), symFrame->GetUnit() );
+
+        // A symbol holds its own draw items, so a group on the screen would not be saved with it.
+        m_cbGroupItems->Hide();
+    }
     else if( dynamic_cast<SCH_EDIT_FRAME*>( aParent ) )
+    {
         m_importer = std::make_unique<GRAPHICS_IMPORTER_SCH>();
+    }
 
     m_gfxImportMgr = std::make_unique<GRAPHICS_IMPORT_MGR>();
 

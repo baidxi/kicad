@@ -58,8 +58,9 @@ class DIALOG_IMPORT_GFX_SCH_BASE : public DIALOG_SHIM
 		wxStaticText* m_yUnits;
 		wxStaticText* m_importScaleLabel;
 		wxTextCtrl* m_importScaleCtrl;
-		wxStaticText* m_lineWidthLabel;
-		wxTextCtrl* m_lineWidthCtrl;
+        wxCheckBox*             m_cbGroupItems;
+        wxStaticText*           m_lineWidthLabel;
+        wxTextCtrl* m_lineWidthCtrl;
 		wxStaticText* m_lineWidthUnits;
 		wxStaticText* m_staticTextLineWidth1;
 		wxChoice* m_choiceDxfUnits;

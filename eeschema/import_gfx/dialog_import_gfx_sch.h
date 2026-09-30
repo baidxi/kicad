@@ -50,6 +50,8 @@ public:
      */
     bool IsPlacementInteractive() { return m_placementInteractive; }
 
+    bool ShouldGroupItems() { return m_cbGroupItems->IsChecked(); }
+
     /**
      * Set the filename override to be applied in TransferDataToWindow.
      */

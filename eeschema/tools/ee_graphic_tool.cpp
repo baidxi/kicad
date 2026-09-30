@@ -32,6 +32,7 @@
 #include <sch_actions.h>
 #include <sch_commit.h>
 #include <sch_edit_frame.h>
+#include <sch_group.h>
 #include <sch_line.h>
 #include <sch_shape.h>
 #include <sch_textbox.h>
@@ -1023,6 +1024,16 @@ int EE_GRAPHIC_TOOL::ImportGraphics( const TOOL_EVENT& aEvent )
     std::vector<SCH_ITEM*> selectedItems;
     SCH_SELECTION          preview;
     SCH_COMMIT             commit( m_toolMgr );
+    SCH_GROUP*             group = nullptr;
+
+    if( !IsSymbolEditor() && dlg.ShouldGroupItems() && list.size() >= 2 )
+    {
+        group = new SCH_GROUP( frame()->GetScreen() );
+
+        newItems.push_back( group );
+        selectedItems.push_back( group );
+        preview.Add( group );
+    }
 
     auto commitImport =
             [&]( const std::vector<SCH_ITEM*>& aItems )
@@ -1058,8 +1069,12 @@ int EE_GRAPHIC_TOOL::ImportGraphics( const TOOL_EVENT& aEvent )
         wxCHECK2_MSG( item, continue, wxString::Format( "Bad item type: ", eda_item->Type() ) );
 
         newItems.push_back( item );
-        selectedItems.push_back( item );
         preview.Add( item );
+
+        if( group )
+            group->AddItem( item );
+        else
+            selectedItems.push_back( item );
     }
 
     if( !dlg.IsPlacementInteractive() )
