@@ -18,10 +18,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "dialog_import_gfx_sch.h"
+#include "dialogs/dialog_import_gfx.h"
 
-#include <import_gfx/graphics_importer_lib_symbol.h>
-#include <import_gfx/graphics_importer_sch.h>
+#include <eda_item.h>
 #include <import_gfx/bitmap_import_plugin.h>
 #include <import_gfx/dxf_import_plugin.h>
 #include <bitmap_tracing.h>
@@ -31,12 +30,10 @@
 #include <kiface_base.h>
 #include <locale_io.h>
 #include <bitmaps.h>
+#include <string_utils.h>
 #include <wildcards_and_files_ext.h>
 
-#include <eeschema_settings.h>
-#include <sch_edit_frame.h>
-#include <symbol_editor_settings.h>
-#include <symbol_edit_frame.h>
+#include <eda_draw_frame.h>
 
 #include <wx/filedlg.h>
 #include <wx/msgdlg.h>
@@ -47,14 +44,16 @@
 
 #include <memory>
 
-// Static members of DIALOG_IMPORT_GFX_SCH, to remember the user's choices during the session
-bool   DIALOG_IMPORT_GFX_SCH::m_placementInteractive = true;
-double DIALOG_IMPORT_GFX_SCH::m_importScale          = 1.0;   // Do not change the imported items size
+// Static members of DIALOG_IMPORT_GFX, to remember the user's choices during the session
+bool DIALOG_IMPORT_GFX::m_placementInteractive = true;
 
 
-DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
-        DIALOG_IMPORT_GFX_SCH_BASE( aParent ),
+DIALOG_IMPORT_GFX::DIALOG_IMPORT_GFX( EDA_DRAW_FRAME* aParent, std::unique_ptr<GRAPHICS_IMPORTER> aImporter,
+                                      bool aAllowGrouping ) :
+        DIALOG_IMPORT_GFX_BASE( aParent ),
         m_parent( aParent ),
+        m_importer( std::move( aImporter ) ),
+        m_allowGrouping( aAllowGrouping ),
         m_xOrigin( aParent, m_xLabel, m_xCtrl, m_xUnits ),
         m_yOrigin( aParent, m_yLabel, m_yCtrl, m_yUnits ),
         m_defaultLineWidth( aParent, m_lineWidthLabel, m_lineWidthCtrl, m_lineWidthUnits ),
@@ -78,19 +77,16 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
                             } );
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
-    if( SYMBOL_EDIT_FRAME* symFrame = dynamic_cast<SYMBOL_EDIT_FRAME*>( aParent ) )
-    {
-        m_importer = std::make_unique<GRAPHICS_IMPORTER_LIB_SYMBOL>( symFrame->GetCurSymbol(), symFrame->GetUnit() );
-
-        // A symbol holds its own draw items, so a group on the screen would not be saved with it.
+    // An editor with nothing to group into has no use for the option.
+    if( !m_allowGrouping )
         m_cbGroupItems->Hide();
-    }
-    else if( dynamic_cast<SCH_EDIT_FRAME*>( aParent ) )
-    {
-        m_importer = std::make_unique<GRAPHICS_IMPORTER_SCH>();
-    }
 
     m_gfxImportMgr = std::make_unique<GRAPHICS_IMPORT_MGR>();
+
+    // Keyed apart from the board dialog, which has the same title and another layout, and keyed
+    // per editor on top of that: the origin and the line width are remembered as internal units,
+    // which are not the same size in a schematic as in a drawing sheet.
+    m_hash_key = std::string( "DIALOG_IMPORT_GFX_" ) + TO_UTF8( aParent->GetName() );
 
     wxCommandEvent dummy;
     onFilenameChanged( dummy );
@@ -104,13 +100,13 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::SetFilenameOverride( const wxString& aFilenameOverride )
+void DIALOG_IMPORT_GFX::SetFilenameOverride( const wxString& aFilenameOverride )
 {
     m_filenameOverride = aFilenameOverride;
 }
 
 
-bool DIALOG_IMPORT_GFX_SCH::TransferDataToWindow()
+bool DIALOG_IMPORT_GFX::TransferDataToWindow()
 {
     DIALOG_SHIM::TransferDataToWindow();
 
@@ -136,7 +132,7 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataToWindow()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onFilenameChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onFilenameChanged( wxCommandEvent& event )
 {
     loadSourceFile();
 
@@ -156,7 +152,7 @@ void DIALOG_IMPORT_GFX_SCH::onFilenameChanged( wxCommandEvent& event )
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::loadSourceFile()
+void DIALOG_IMPORT_GFX::loadSourceFile()
 {
     const wxString path = m_textCtrlFileName->GetValue();
 
@@ -193,7 +189,7 @@ void DIALOG_IMPORT_GFX_SCH::loadSourceFile()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::updateSizeControls()
+void DIALOG_IMPORT_GFX::updateSizeControls()
 {
     const bool known = m_sourceSizeMM.x > 0 && m_sourceSizeMM.y > 0;
 
@@ -217,7 +213,7 @@ void DIALOG_IMPORT_GFX_SCH::updateSizeControls()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::sizeFromScale()
+void DIALOG_IMPORT_GFX::sizeFromScale()
 {
     if( m_sourceSizeMM.x <= 0 || m_sourceSizeMM.y <= 0 )
     {
@@ -227,18 +223,18 @@ void DIALOG_IMPORT_GFX_SCH::sizeFromScale()
     }
 
     // ChangeValue(), so that writing one field does not look like the user typing in it.
-    m_importWidth.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.x * m_xScale ) );
-    m_importHeight.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.y * m_yScale ) );
+    m_importWidth.ChangeValue( m_parent->GetIuScale().mmToIU( m_sourceSizeMM.x * m_xScale ) );
+    m_importHeight.ChangeValue( m_parent->GetIuScale().mmToIU( m_sourceSizeMM.y * m_yScale ) );
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::scaleFromSize( bool aFromWidth )
+void DIALOG_IMPORT_GFX::scaleFromSize( bool aFromWidth )
 {
     if( m_sourceSizeMM.x <= 0 || m_sourceSizeMM.y <= 0 )
         return;
 
-    const double width = schIUScale.IUTomm( m_importWidth.GetValue() );
-    const double height = schIUScale.IUTomm( m_importHeight.GetValue() );
+    const double width = m_parent->GetIuScale().IUTomm( m_importWidth.GetValue() );
+    const double height = m_parent->GetIuScale().IUTomm( m_importHeight.GetValue() );
     const bool   locked = m_aspectRatioCheckbox->IsChecked();
 
     // A half typed number is not a size to work from.
@@ -261,13 +257,13 @@ void DIALOG_IMPORT_GFX_SCH::scaleFromSize( bool aFromWidth )
 
     // The field the user is typing in is left alone; only the one that follows is written.
     if( locked && aFromWidth )
-        m_importHeight.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.y * m_yScale ) );
+        m_importHeight.ChangeValue( m_parent->GetIuScale().mmToIU( m_sourceSizeMM.y * m_yScale ) );
     else if( locked )
-        m_importWidth.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.x * m_xScale ) );
+        m_importWidth.ChangeValue( m_parent->GetIuScale().mmToIU( m_sourceSizeMM.x * m_xScale ) );
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onScaleChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onScaleChanged( wxCommandEvent& event )
 {
     const double scale = EDA_UNIT_UTILS::UI::DoubleValueFromString( m_importScaleCtrl->GetValue() );
 
@@ -281,19 +277,19 @@ void DIALOG_IMPORT_GFX_SCH::onScaleChanged( wxCommandEvent& event )
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onWidthChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onWidthChanged( wxCommandEvent& event )
 {
     scaleFromSize( true );
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onHeightChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onHeightChanged( wxCommandEvent& event )
 {
     scaleFromSize( false );
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onLockAspectChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onLockAspectChanged( wxCommandEvent& event )
 {
     // Locking the ratio again keeps the width and brings the height back into step.
     if( m_aspectRatioCheckbox->IsChecked() )
@@ -304,7 +300,7 @@ void DIALOG_IMPORT_GFX_SCH::onLockAspectChanged( wxCommandEvent& event )
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::updateImageControls()
+void DIALOG_IMPORT_GFX::updateImageControls()
 {
     wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
     bool     isImage = false;
@@ -312,8 +308,8 @@ void DIALOG_IMPORT_GFX_SCH::updateImageControls()
     if( std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( ext ) )
         isImage = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) != nullptr;
 
-    // The preview sits directly in the sizer holding the whole image block.
-    GetSizer()->Show( m_previewBitmap->GetContainingSizer(), isImage, true );
+    // The whole panel, since a hidden wxSlider still shows its tick labels on macOS.
+    m_imagePanel->Show( isImage );
 
     updatePreview();
 
@@ -322,7 +318,7 @@ void DIALOG_IMPORT_GFX_SCH::updateImageControls()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::updatePreview()
+void DIALOG_IMPORT_GFX::updatePreview()
 {
     if( !m_previewSource.IsOk() )
     {
@@ -337,19 +333,19 @@ void DIALOG_IMPORT_GFX_SCH::updatePreview()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onThresholdChanged( wxScrollEvent& event )
+void DIALOG_IMPORT_GFX::onThresholdChanged( wxScrollEvent& event )
 {
     updatePreview();
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onInvertChanged( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onInvertChanged( wxCommandEvent& event )
 {
     updatePreview();
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::onBrowseFiles( wxCommandEvent& event )
+void DIALOG_IMPORT_GFX::onBrowseFiles( wxCommandEvent& event )
 {
     wxString path;
     wxString filename = m_textCtrlFileName->GetValue();
@@ -386,7 +382,7 @@ void DIALOG_IMPORT_GFX_SCH::onBrowseFiles( wxCommandEvent& event )
 }
 
 
-bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
+bool DIALOG_IMPORT_GFX::TransferDataFromWindow()
 {
     if( !wxDialog::TransferDataFromWindow() )
         return false;
@@ -416,7 +412,7 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
         if( DXF_IMPORT_PLUGIN* dxfPlugin = dynamic_cast<DXF_IMPORT_PLUGIN*>( plugin.get() ) )
         {
             dxfPlugin->SetUnit( DxfImportUnitFromChoice( m_choiceDxfUnits->GetSelection() ) );
-            m_importer->SetLineWidthMM( schIUScale.IUTomm( m_defaultLineWidth.GetValue() ) );
+            m_importer->SetLineWidthMM( m_parent->GetIuScale().IUTomm( m_defaultLineWidth.GetValue() ) );
         }
         else
         {
@@ -430,9 +426,10 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
         }
 
         m_importer->SetPlugin( std::move( plugin ) );
-        m_importer->SetImportOffsetMM( { schIUScale.IUTomm( origin.x ), schIUScale.IUTomm( origin.y ) } );
+        m_importer->SetImportOffsetMM(
+                { m_parent->GetIuScale().IUTomm( origin.x ), m_parent->GetIuScale().IUTomm( origin.y ) } );
 
-        LOCALE_IO dummy;    // Ensure floats can be read.
+        LOCALE_IO dummy; // Ensure floats can be read.
 
         if( m_importer->Load( m_textCtrlFileName->GetValue() ) )
             m_importer->Import( VECTOR2D( xscale, yscale ) );
@@ -460,7 +457,7 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
 }
 
 
-void DIALOG_IMPORT_GFX_SCH::originOptionOnUpdateUI( wxUpdateUIEvent& event )
+void DIALOG_IMPORT_GFX::originOptionOnUpdateUI( wxUpdateUIEvent& event )
 {
     if( m_rbInteractivePlacement->GetValue() != m_placementInteractive )
         m_rbInteractivePlacement->SetValue( m_placementInteractive );
@@ -471,5 +468,3 @@ void DIALOG_IMPORT_GFX_SCH::originOptionOnUpdateUI( wxUpdateUIEvent& event )
     m_xOrigin.Enable( !m_placementInteractive );
     m_yOrigin.Enable( !m_placementInteractive );
 }
-
-

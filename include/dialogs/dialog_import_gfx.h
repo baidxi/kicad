@@ -18,30 +18,43 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef __DIALOG_IMPORT_GFX_SCH_H__
-#define __DIALOG_IMPORT_GFX_SCH_H__
+#ifndef __DIALOG_IMPORT_GFX_H__
+#define __DIALOG_IMPORT_GFX_H__
 
-#include "dialog_import_gfx_sch_base.h"
+#include <dialog_import_gfx_base.h>
 
 #include <import_gfx/graphics_importer.h>
 #include <widgets/unit_binder.h>
 
-class SCH_BASE_FRAME;
+class EDA_DRAW_FRAME;
 class GRAPHICS_IMPORT_MGR;
 
 
-class DIALOG_IMPORT_GFX_SCH : public DIALOG_IMPORT_GFX_SCH_BASE
+/**
+ * Import a graphics file into whichever editor opened the dialog.
+ *
+ * The dialog knows nothing about the items it produces. It drives the importer it is
+ * handed, and the caller takes the result out of that importer.
+ */
+class DIALOG_IMPORT_GFX : public DIALOG_IMPORT_GFX_BASE
 {
 public:
-    DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent );
+    /**
+     * @param aParent is the editor the import lands in.
+     * @param aImporter turns the imported geometry into that editor's own items.
+     * @param aAllowGrouping is false where the editor has nothing to group items into.
+     */
+    DIALOG_IMPORT_GFX( EDA_DRAW_FRAME* aParent, std::unique_ptr<GRAPHICS_IMPORTER> aImporter, bool aAllowGrouping );
+
+    /**
+     * @return the importer the items were handed to, still holding them.
+     */
+    GRAPHICS_IMPORTER* GetImporter() const { return m_importer.get(); }
 
     /**
      * @return a list of items imported from a vector graphics file.
      */
-    std::list<std::unique_ptr<EDA_ITEM>>& GetImportedItems()
-    {
-        return m_importer->GetItems();
-    }
+    std::list<std::unique_ptr<EDA_ITEM>>& GetImportedItems() { return m_importer->GetItems(); }
 
     /**
      * @return true if the placement is interactive, i.e. all imported
@@ -50,7 +63,7 @@ public:
      */
     bool IsPlacementInteractive() { return m_placementInteractive; }
 
-    bool ShouldGroupItems() { return m_cbGroupItems->IsChecked(); }
+    bool ShouldGroupItems() { return m_allowGrouping && m_cbGroupItems->IsChecked(); }
 
     /**
      * Set the filename override to be applied in TransferDataToWindow.
@@ -89,26 +102,21 @@ private:
     void scaleFromSize( bool aFromWidth );
     void originOptionOnUpdateUI( wxUpdateUIEvent& event ) override;
 
-	void onInteractivePlacement( wxCommandEvent& event ) override
-    {
-        m_placementInteractive = true;
-    }
+    void onInteractivePlacement( wxCommandEvent& event ) override { m_placementInteractive = true; }
 
-	void onAbsolutePlacement( wxCommandEvent& event ) override
-    {
-        m_placementInteractive = false;
-    }
+    void onAbsolutePlacement( wxCommandEvent& event ) override { m_placementInteractive = false; }
 
 private:
-    SCH_BASE_FRAME*                      m_parent;
+    EDA_DRAW_FRAME*                      m_parent;
     std::unique_ptr<GRAPHICS_IMPORTER>   m_importer;
     std::unique_ptr<GRAPHICS_IMPORT_MGR> m_gfxImportMgr;
+    bool                                 m_allowGrouping;
 
-    UNIT_BINDER          m_xOrigin;
-    UNIT_BINDER          m_yOrigin;
-    UNIT_BINDER          m_defaultLineWidth;
-    UNIT_BINDER          m_importWidth;
-    UNIT_BINDER          m_importHeight;
+    UNIT_BINDER m_xOrigin;
+    UNIT_BINDER m_yOrigin;
+    UNIT_BINDER m_defaultLineWidth;
+    UNIT_BINDER m_importWidth;
+    UNIT_BINDER m_importHeight;
 
     wxImage m_previewSource;
 
@@ -121,11 +129,9 @@ private:
     double m_xScale;
     double m_yScale;
 
-    static bool          m_placementInteractive;
-    static double        m_importScale;         // a scale factor to change the size of imported
-                                                // items m_importScale =1.0 means keep original size
+    static bool m_placementInteractive;
 
-    wxString             m_filenameOverride;
+    wxString m_filenameOverride;
 };
 
-#endif    //  __DIALOG_IMPORT_GFX_SCH_H__
+#endif //  __DIALOG_IMPORT_GFX_H__

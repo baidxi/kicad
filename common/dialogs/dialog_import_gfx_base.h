@@ -33,14 +33,15 @@ class STD_BITMAP_BUTTON;
 #include <wx/choice.h>
 #include <wx/slider.h>
 #include <wx/statbmp.h>
+#include <wx/panel.h>
 #include <wx/dialog.h>
 
 ///////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
-/// Class DIALOG_IMPORT_GFX_SCH_BASE
+/// Class DIALOG_IMPORT_GFX_BASE
 ///////////////////////////////////////////////////////////////////////////////
-class DIALOG_IMPORT_GFX_SCH_BASE : public DIALOG_SHIM
+class DIALOG_IMPORT_GFX_BASE : public DIALOG_SHIM
 {
 	private:
 
@@ -71,6 +72,7 @@ class DIALOG_IMPORT_GFX_SCH_BASE : public DIALOG_SHIM
 		wxStaticText* m_lineWidthUnits;
 		wxStaticText* m_staticTextLineWidth1;
 		wxChoice* m_choiceDxfUnits;
+		wxPanel* m_imagePanel;
 		wxStaticText* m_thresholdLabel;
 		wxSlider* m_thresholdSlider;
 		wxCheckBox* m_cbInvertColors;
@@ -95,9 +97,9 @@ class DIALOG_IMPORT_GFX_SCH_BASE : public DIALOG_SHIM
 
 	public:
 
-		DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Import Graphics File"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+		DIALOG_IMPORT_GFX_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Import Graphics File"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
 
-		~DIALOG_IMPORT_GFX_SCH_BASE();
+		~DIALOG_IMPORT_GFX_BASE();
 
 };
 
