@@ -31,6 +31,7 @@ class STD_BITMAP_BUTTON;
 #include <wx/choice.h>
 #include <wx/slider.h>
 #include <wx/statbmp.h>
+#include <wx/panel.h>
 #include <wx/statline.h>
 #include <wx/valtext.h>
 #include <wx/radiobut.h>
@@ -64,6 +65,7 @@ class DIALOG_IMPORT_GRAPHICS_BASE : public DIALOG_SHIM
 		wxStaticText* m_lineWidthUnits;
 		wxStaticText* m_dxfUnitsLabel;
 		wxChoice* m_dxfUnitsChoice;
+		wxPanel* m_imagePanel;
 		wxStaticText* m_thresholdLabel;
 		wxSlider* m_thresholdSlider;
 		wxCheckBox* m_cbInvertColors;

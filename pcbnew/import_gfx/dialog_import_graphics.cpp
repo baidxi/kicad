@@ -354,8 +354,8 @@ void DIALOG_IMPORT_GRAPHICS::updateImageControls()
     if( std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( ext ) )
         isImage = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) != nullptr;
 
-    // The preview sits directly in the sizer holding the whole image block.
-    GetSizer()->Show( m_previewBitmap->GetContainingSizer(), isImage, true );
+    // The whole panel, since a hidden wxSlider still shows its tick labels on macOS.
+    m_imagePanel->Show( isImage );
 
     updatePreview();
 

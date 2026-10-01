@@ -116,32 +116,36 @@ DIALOG_IMPORT_GRAPHICS_BASE::DIALOG_IMPORT_GRAPHICS_BASE( wxWindow* parent, wxWi
 
 	bSizerMain->Add( fgSizer3, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
+	m_imagePanel = new wxPanel( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
 	wxBoxSizer* bSizerImageOptions;
 	bSizerImageOptions = new wxBoxSizer( wxHORIZONTAL );
 
 	wxBoxSizer* bSizerImageControls;
 	bSizerImageControls = new wxBoxSizer( wxVERTICAL );
 
-	m_thresholdLabel = new wxStaticText( this, wxID_ANY, _("Black / white threshold:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_thresholdLabel = new wxStaticText( m_imagePanel, wxID_ANY, _("Black / white threshold:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_thresholdLabel->Wrap( -1 );
 	bSizerImageControls->Add( m_thresholdLabel, 0, wxALL, 5 );
 
-	m_thresholdSlider = new wxSlider( this, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL|wxSL_LABELS );
+	m_thresholdSlider = new wxSlider( m_imagePanel, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL|wxSL_LABELS );
 	bSizerImageControls->Add( m_thresholdSlider, 0, wxEXPAND|wxLEFT, 5 );
 
-	m_cbInvertColors = new wxCheckBox( this, wxID_ANY, _("Invert Colors"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_cbInvertColors = new wxCheckBox( m_imagePanel, wxID_ANY, _("Invert Colors"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizerImageControls->Add( m_cbInvertColors, 0, wxEXPAND|wxLEFT, 5 );
 
 
 	bSizerImageOptions->Add( bSizerImageControls, 1, wxEXPAND|wxLEFT, 5 );
 
-	m_previewBitmap = new wxStaticBitmap( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxDefaultSize, 0 );
+	m_previewBitmap = new wxStaticBitmap( m_imagePanel, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxDefaultSize, 0 );
 	m_previewBitmap->SetMinSize( wxSize( 160,120 ) );
 
 	bSizerImageOptions->Add( m_previewBitmap, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
 
-	bSizerMain->Add( bSizerImageOptions, 0, wxEXPAND, 5 );
+	m_imagePanel->SetSizer( bSizerImageOptions );
+	m_imagePanel->Layout();
+	bSizerImageOptions->Fit( m_imagePanel );
+	bSizerMain->Add( m_imagePanel, 0, wxEXPAND, 5 );
 
 
 	bSizerMain->Add( 0, 5, 0, wxEXPAND, 5 );
