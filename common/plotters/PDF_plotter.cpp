@@ -68,8 +68,8 @@ std::string PDF_PLOTTER::encodeStringForPlotter( const wxString& aText )
 {
     // returns a string compatible with PDF string convention from a unicode string.
     // if the initial text is only ASCII7, return the text between ( and ) for a good readability
-    // if the initial text is no ASCII7, return the text between < and >
-    // and encoded using 16 bits hexa (4 digits) by wide char (unicode 16)
+    // if the initial text contains non ASCII7, return the text between < and > encoded using 16
+    // bit hexadecimal (4 digits) per wide char (unicode 16)
     std::string result;
 
     // Is aText only ASCII7 ?
@@ -380,8 +380,13 @@ void PDF_PLOTTER::Circle( const VECTOR2I& pos, int diametre, FILL_T aFill, int w
     // If diameter is less than width, switch to filled mode
     if( aFill == FILL_T::NO_FILL && diametre < GetCurrentLineWidth() )
     {
+        // SetCurrentLineWidth enforces a minimum, so we only put everything above
+        // said minimum into the radius.
+        SetCurrentLineWidth( 0 );
+        int diff = width - GetCurrentLineWidth();
+
         aFill = FILL_T::FILLED_SHAPE;
-        radius = userToDeviceSize( ( diametre / 2.0 ) + ( width / 2.0 ) );
+        radius += diff / 2.0;
     }
 
     /* OK. Here's a trick. PDF doesn't support circles or circular angles, that's
@@ -535,6 +540,9 @@ void PDF_PLOTTER::PlotPoly( const std::vector<VECTOR2I>& aCornerList, FILL_T aFi
 
 void PDF_PLOTTER::PlotPoly( const SHAPE_LINE_CHAIN& aLineChain, FILL_T aFill, int aWidth, void* aData )
 {
+    if( aFill == FILL_T::NO_FILL && aWidth == 0 )
+        return;
+
     SetCurrentLineWidth( aWidth );
 
     std::set<size_t>      handledArcs;
@@ -961,27 +969,6 @@ void PDF_PLOTTER::ClosePage()
     const double PTsPERMIL = 0.072;
     VECTOR2D     psPaperSize = VECTOR2D( m_pageInfo.GetSizeMils() ) * PTsPERMIL;
 
-    auto iuToPdfUserSpace =
-            [&]( const VECTOR2I& aCoord ) -> VECTOR2D
-            {
-                VECTOR2D pos = VECTOR2D( aCoord ) * PTsPERMIL / ( m_IUsPerDecimil * 10 );
-
-                // PDF y=0 is at bottom of page, invert coordinate
-                VECTOR2D retval( pos.x, psPaperSize.y - pos.y );
-
-                // The pdf plot can be mirrored (from left to right). So mirror the
-                // x coordinate if m_plotMirror is set
-                if( m_plotMirror )
-                {
-                    if( m_mirrorIsHorizontal )
-                        retval.x = ( psPaperSize.x - pos.x );
-                    else
-                        retval.y = pos.y;
-                }
-
-                return retval;
-            };
-
     // Handle annotations (at the moment only "link" type objects)
     std::vector<int> annotHandles;
 
@@ -992,8 +979,8 @@ void PDF_PLOTTER::ClosePage()
         const BOX2I&    box = linkPair.first;
         const wxString& url = linkPair.second;
 
-        VECTOR2D bottomLeft = iuToPdfUserSpace( box.GetPosition() );
-        VECTOR2D topRight = iuToPdfUserSpace( box.GetEnd() );
+        VECTOR2D bottomLeft = userToDeviceCoordinates( box.GetPosition() );
+        VECTOR2D topRight = userToDeviceCoordinates( box.GetEnd() );
 
         BOX2D userSpaceBox;
         userSpaceBox.SetOrigin( bottomLeft );
@@ -1009,8 +996,8 @@ void PDF_PLOTTER::ClosePage()
         const BOX2I&                 box = menuPair.first;
         const std::vector<wxString>& urls = menuPair.second;
 
-        VECTOR2D bottomLeft = iuToPdfUserSpace( box.GetPosition() );
-        VECTOR2D topRight = iuToPdfUserSpace( box.GetEnd() );
+        VECTOR2D bottomLeft = userToDeviceCoordinates( box.GetPosition() );
+        VECTOR2D topRight = userToDeviceCoordinates( box.GetEnd() );
 
         BOX2D userSpaceBox;
         userSpaceBox.SetOrigin( bottomLeft );
@@ -1149,8 +1136,8 @@ void PDF_PLOTTER::ClosePage()
             const BOX2I&    box = bookmarkPair.first;
             const wxString& ref = bookmarkPair.second;
 
-            VECTOR2I bottomLeft = iuToPdfUserSpace( box.GetPosition() );
-            VECTOR2I topRight = iuToPdfUserSpace( box.GetEnd() );
+            VECTOR2I bottomLeft = userToDeviceCoordinates( box.GetPosition() );
+            VECTOR2I topRight = userToDeviceCoordinates( box.GetEnd() );
 
             actionHandle = emitGoToAction( pageHandle, bottomLeft, topRight );
 
@@ -1182,13 +1169,16 @@ bool PDF_PLOTTER::StartPlot( const wxString& aPageNumber, const wxString& aPageN
     wxASSERT( m_outputFile );
 
     // First things first: the customary null object
+    m_pageHandles.clear();
     m_xrefTable.clear();
     m_xrefTable.push_back( 0 );
+    m_pageNumbers.clear();
     m_hyperlinksInPage.clear();
     m_hyperlinkMenusInPage.clear();
     m_hyperlinkHandles.clear();
     m_hyperlinkMenuHandles.clear();
     m_bookmarksInPage.clear();
+    m_imageHandles.clear();
     m_totalOutlineNodes = 0;
     m_usedBase14Fonts = false;
 

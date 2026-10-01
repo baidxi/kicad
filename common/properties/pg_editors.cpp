@@ -237,14 +237,14 @@ bool PG_UNIT_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aPr
         else
         {
             PGPROPERTY_ANGLE* angleProp = static_cast<PGPROPERTY_ANGLE*>( aProperty );
-            double             scaledValue = angle.AsDegrees() * angleProp->GetScale();
+            double            scaledValue = angle.AsDegrees() * angleProp->GetScale();
 
             changed = ( aVariant.IsNull() || scaledValue != aVariant.GetDouble() );
 
             if( changed )
             {
                 aVariant = scaledValue;
-                m_unitBinder->SetValue( angle.AsDegrees() );
+                m_unitBinder->SetDoubleValue( angle.AsDegrees() );
             }
         }
     }
@@ -276,7 +276,7 @@ bool PG_UNIT_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aPr
         }
         else
         {
-            result = std::optional<int>( m_unitBinder->GetValue() );
+            result = std::optional<int>( m_unitBinder->GetIntValue() );
             changed = ( aVariant.IsNull() || result != variantData->Value() );
 
             if( changed )
@@ -298,8 +298,7 @@ bool PG_UNIT_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aPr
         }
     }
 
-    // Changing unspecified always causes event (returning
-    // true here should be enough to trigger it).
+    // Changing unspecified always causes event (returning true here should be enough to trigger it).
     if( !changed && aVariant.IsNull() )
         changed = true;
 
@@ -445,7 +444,9 @@ bool PG_RATIO_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aP
         }
         else
         {
-            double dblValue;
+            // One could argue that 1.0 would be a better default for a ratio, but we currently
+            // only use this for solder paste margins, where 0.0 makes more sense.
+            double dblValue = 0.0;
             textVal.ToDouble( &dblValue );
             std::optional<double> result( dblValue );
             changed = ( aVariant.IsNull() || result != variantData->Value() );
@@ -459,7 +460,9 @@ bool PG_RATIO_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aP
     }
     else
     {
-        double result;
+        // One could argue that 1.0 would be a better default for a ratio, but we currently
+        // only use this for solder paste margins, where 0.0 makes more sense.
+        double result = 0.0;
         textVal.ToDouble( &result );
         changed = ( aVariant.IsNull() || result != aVariant.GetDouble() );
 
@@ -470,8 +473,7 @@ bool PG_RATIO_EDITOR::GetValueFromControl( wxVariant& aVariant, wxPGProperty* aP
         }
     }
 
-    // Changing unspecified always causes event (returning
-    // true here should be enough to trigger it).
+    // Changing unspecified always causes event (returning true here should be enough to trigger it).
     if( !changed && aVariant.IsNull() )
         changed = true;
 
@@ -502,8 +504,7 @@ void PG_RATIO_EDITOR::UpdateControl( wxPGProperty* aProperty, wxWindow* aCtrl ) 
     }
     else if( !aProperty->IsValueUnspecified() )
     {
-        wxFAIL_MSG( wxT( "PG_RATIO_EDITOR should only be used with scale-free numeric "
-                         "properties!" ) );
+        wxFAIL_MSG( wxT( "PG_RATIO_EDITOR should only be used with scale-free numeric properties!" ) );
     }
 }
 
@@ -545,9 +546,8 @@ wxPGWindowList PG_FPID_EDITOR::CreateControls( wxPropertyGrid* aGrid, wxPGProper
     buttons->Add( KiBitmap( BITMAPS::small_library ) );
     buttons->Finalize( aGrid, aPos );
     wxSize textSize = buttons->GetPrimarySize();
-    wxWindow* textCtrl = aGrid->GenerateEditorTextCtrl( aPos, textSize,
-                                                       aProperty->GetValueAsString(), nullptr, 0,
-                                                       aProperty->GetMaxLength() );
+    wxWindow* textCtrl = aGrid->GenerateEditorTextCtrl( aPos, textSize, aProperty->GetValueAsString(),
+                                                        nullptr, 0, aProperty->GetMaxLength() );
     wxPGWindowList ret( textCtrl, buttons );
     return ret;
 }
