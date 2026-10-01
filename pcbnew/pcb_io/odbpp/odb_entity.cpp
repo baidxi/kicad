@@ -1159,18 +1159,30 @@ void ODB_LAYER_ENTITY::GenAttrList( ODB_TREE_WRITER& writer )
 
     if( stackupItem )
     {
+        BOARD_STACKUP_ITEM_TYPE stackupType = stackupItem->GetType();
         int thickness = stackupItem->GetThickness();
 
-        if( thickness > 0 )
+        ost << "UNITS=" << PCB_IO_ODBPP::m_unitsStr << std::endl;
+
+        if( stackupType == BS_ITEM_TYPE_COPPER )
+        {
+            double thicknessOut = static_cast<double>( thickness ) / pcbIUScale.mmToIU( 1.0 );
+
+            if( PCB_IO_ODBPP::m_unitsStr == "INCH" )
+            {
+                // Convert mm to oz/sqft
+                thicknessOut /= 0.035;
+            }
+            else
+            {
+                // Convert mm to µm
+                thicknessOut *= 1000;
+            }
+            ost << ".copper_weight=" << ODB::Double2String( thicknessOut ) << std::endl;
+        }
+        else if( stackupType == BS_ITEM_TYPE_DIELECTRIC || stackupType == BS_ITEM_TYPE_SOLDERMASK )
         {
             ost << ".layer_dielectric=" << ODB::Data2String( thickness ) << std::endl;
-        }
-
-        if( stackupItem->GetType() == BS_ITEM_TYPE_COPPER )
-        {
-            double copperThicknessMM = static_cast<double>( thickness ) / pcbIUScale.mmToIU( 1.0 );
-            double thicknessOz = copperThicknessMM / 0.035;
-            ost << ".copper_weight=" << ODB::Double2String( thicknessOz ) << std::endl;
         }
 
         if( stackupItem->HasEpsilonRValue() )
