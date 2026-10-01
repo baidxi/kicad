@@ -1835,6 +1835,14 @@ bool SCH_PIN::HasConnectivityChanges( const SCH_ITEM* aItem,
             return true;
     }
 
+    // Similarly, changing to/from PT_NC affects whether or not the pin participates
+    // in the connectivity graph.
+    if( GetType() == ELECTRICAL_PINTYPE::PT_NC || pin->GetType() == ELECTRICAL_PINTYPE::PT_NC )
+    {
+        if( GetType() != pin->GetType() )
+            return true;
+    }
+
     return false;
 }
 
@@ -2098,10 +2106,12 @@ int SCH_PIN::compare( const SCH_ITEM& aOther, int aCompareFlags ) const
 
     if( dynamic_cast<const SCH_SYMBOL*>( GetParentSymbol() ) )
     {
-        if( ( m_libPin == nullptr ) || ( tmp->m_libPin == nullptr ) )
+        if( m_libPin && !tmp->m_libPin )
+            return 1;
+        else if( !m_libPin && tmp->m_libPin )
             return -1;
-
-        retv = m_libPin->compare( *tmp->m_libPin, aCompareFlags );
+        else if( m_libPin )
+            retv = m_libPin->compare( *tmp->m_libPin, aCompareFlags );
 
         if( retv )
             return retv;
@@ -2197,16 +2207,12 @@ double SCH_PIN::Similarity( const SCH_ITEM& aOther ) const
 
     const SCH_PIN* other = static_cast<const SCH_PIN*>( &aOther );
 
-    if( m_libPin )
-    {
-        if( m_number != other->m_number )
-            return 0.0;
-
-        if( m_position != other->m_position )
-            return 0.0;
-
+    if( m_libPin && !other->m_libPin )
+        return 0.0;
+    else if( !m_libPin && other->m_libPin )
+        return 0.0;
+    else if( m_libPin )
         return m_libPin->Similarity( *other->m_libPin );
-    }
 
     double similarity = SimilarityBase( aOther );
 

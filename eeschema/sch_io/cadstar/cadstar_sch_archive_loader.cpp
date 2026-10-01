@@ -305,11 +305,11 @@ void CADSTAR_SCH_ARCHIVE_LOADER::copySymbolItems( LIB_SYMBOL* aSourceSym, LIB_SY
                                                   int aDestUnit, bool aOverrideFields )
 {
     // Ensure there are no items on the unit we want to load onto
-    for( SCH_ITEM* item : aDestSym->GetUnitDrawItems( aDestUnit, 0 /* aBodyStyle */ ) )
+    for( SCH_ITEM* item : aDestSym->GetUnitDrawItems( aDestUnit, ALL_BODY_STYLES ) )
         aDestSym->RemoveDrawItem( item );
 
     // Copy all draw items
-    for( SCH_ITEM* newItem : aSourceSym->GetUnitDrawItems( 1, 0 /* aBodyStyle */ ) )
+    for( SCH_ITEM* newItem : aSourceSym->GetUnitDrawItems( 1, ALL_BODY_STYLES ) )
     {
         SCH_ITEM* itemCopy = static_cast<SCH_ITEM*>( newItem->Clone() );
         itemCopy->SetParent( aDestSym );
@@ -3214,13 +3214,14 @@ LIB_SYMBOL* CADSTAR_SCH_ARCHIVE_LOADER::getScaledLibPart( const LIB_SYMBOL* aSym
                 shape.SetStart( scalePt( shape.GetStart() ) );
                 shape.SetEnd( scalePt( shape.GetEnd() ) );
             }
-            else if( shape.GetShape() == SHAPE_T::POLY )
+            else if( shape.GetShape() == SHAPE_T::POLY && !shape.GetPolyShape().IsEmpty() )
             {
                 SHAPE_LINE_CHAIN& poly = shape.GetPolyShape().Outline( 0 );
 
-                for( size_t ii = 0; ii < poly.GetPointCount(); ++ii )
+                for( int ii = 0; ii < (int) poly.GetPointCount(); ++ii )
                     poly.SetPoint( ii, scalePt( poly.CPoint( ii ) ) );
             }
+
             break;
         }
 

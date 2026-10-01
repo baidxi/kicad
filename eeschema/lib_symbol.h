@@ -184,7 +184,7 @@ public:
 
     LIB_ID GetLIB_ID() const override { return m_libId; }
     wxString GetDesc() override { return GetShownDescription( FOR_GUI ); }
-    wxString GetFootprint() override;
+    wxString GetFootprint() const override;
     int GetSubUnitCount() const override { return GetUnitCount(); }
 
     const LIB_ID& GetLibId() const override { return m_libId; }
@@ -230,7 +230,7 @@ public:
 
     wxString GetShownKeyWords( RESOLUTION_CONTEXT aContext, int aDepth = 0 ) const override;
 
-    std::vector<SEARCH_TERM>& GetSearchTerms() override { return m_searchTermsCache; }
+    std::vector<SEARCH_TERM>& GetSearchTerms() override;
 
     void GetChooserFields( std::map<wxString , wxString>& aColumnMap ) override;
 
@@ -487,6 +487,7 @@ public:
     void SetRefProp( const wxString& aRef )
     {
         GetReferenceField().SetText( aRef );
+        m_cachesDirty = true;
     }
 
     wxString GetValueProp() const
@@ -497,6 +498,7 @@ public:
     void SetValueProp( const wxString& aValue )
     {
         GetValueField().SetText( aValue );
+        m_cachesDirty = true;
     }
 
     wxString GetFootprintProp() const
@@ -507,7 +509,7 @@ public:
     void SetFootprintProp( const wxString& aFootprint )
     {
         GetFootprintField().SetText( aFootprint );
-        cacheSearchTerms();
+        m_cachesDirty = true;
     }
 
     wxString GetDatasheetProp() const
@@ -518,6 +520,7 @@ public:
     void SetDatasheetProp( const wxString& aDatasheet )
     {
         GetDatasheetField().SetText( aDatasheet );
+        m_cachesDirty = true;
     }
 
     wxString GetKeywordsProp() const
@@ -528,6 +531,7 @@ public:
     void SetKeywordsProp( const wxString& aKeywords )
     {
         SetKeyWords( aKeywords );
+        m_cachesDirty = true;
     }
 
     bool GetPowerSymbolProp() const
@@ -602,38 +606,37 @@ public:
         // For now, this is primarily for display purposes
     }
 
-    bool GetExcludedFromSimProp() const
-    {
-        return GetExcludedFromSim();
-    }
+    bool GetExcludedFromSimProp() const { return GetExcludedFromSim(); }
 
     void SetExcludedFromSimProp( bool aExclude )
     {
         SetExcludedFromSim( aExclude );
+        m_cachesDirty = true;
     }
 
-    bool GetExcludedFromBOMProp() const
-    {
-        return GetExcludedFromBOM();
-    }
+    bool GetExcludedFromBOMProp() const { return GetExcludedFromBOM(); }
 
     void SetExcludedFromBOMProp( bool aExclude )
     {
         SetExcludedFromBOM( aExclude );
+        m_cachesDirty = true;
     }
 
-    bool GetExcludedFromBoardProp() const
-    {
-        return GetExcludedFromBoard();
-    }
+    bool GetExcludedFromBoardProp() const { return GetExcludedFromBoard(); }
 
     void SetExcludedFromBoardProp( bool aExclude )
     {
         SetExcludedFromBoard( aExclude );
+        m_cachesDirty = true;
     }
 
     bool GetExcludedFromPosFilesProp() const { return GetExcludedFromPosFiles(); }
-    void SetExcludedFromPosFilesProp( bool aExclude ) { SetExcludedFromPosFiles( aExclude ); }
+
+    void SetExcludedFromPosFilesProp( bool aExclude )
+    {
+        SetExcludedFromPosFiles( aExclude );
+        m_cachesDirty = true;
+    }
 
     void Serialize( kiapi::schematic::types::SchematicSymbol& aOutput, bool aSkipPins = false ) const;
     bool Deserialize( const kiapi::schematic::types::SchematicSymbol& aInput );
@@ -735,7 +738,7 @@ public:
     /**
      * @return a count of pins for all units / converts.
      */
-    int GetPinCount() override;
+    int GetPinCount() const override;
 
     /**
      * Return pin object with the requested pin \a aNumber.
@@ -1016,7 +1019,7 @@ private:
     // We create a different set parent function for this class, so we hide the inherited one.
     using EDA_ITEM::SetParent;
 
-    void deleteAllFields();
+    void deleteAllUserFields();
 
     wxString getShownDescription( RESOLUTION_CONTEXT aContext, int aDepth ) const;
 
@@ -1024,10 +1027,7 @@ private:
     ///         associated footprints), so the bundle is not inherited from the parent.
     bool definesOwnPinMapBundle() const { return !m_pinMaps.IsEmpty() || !m_associatedFootprints.empty(); }
 
-    void cacheSearchTerms();
-    void cachePinCount();
-    void cacheShownDescription();
-    void cacheChooserFields();
+    void rebuildCaches() const;
 
 private:
     std::shared_ptr<LIB_SYMBOL> m_me;
@@ -1054,11 +1054,11 @@ private:
     LEGACY_SYMBOL_LIB*  m_library;
     wxString            m_name;
     wxString            m_keyWords;         ///< Search keywords
-    wxArrayString       m_fpFilters;        ///< List of suitable footprint names for the symbol (wild card
-                                            ///< names accepted).
+    wxArrayString       m_fpFilters;        ///< List of suitable footprint names for the symbol
+                                            ///< (wild card names accepted).
 
     /// Named pin-to-pad maps owned by this symbol (issue #2282).
-    PIN_MAP_SET m_pinMaps;
+    PIN_MAP_SET                       m_pinMaps;
 
     /// Footprints associated with this symbol, each tied to a named pin map.  Coupled with
     /// m_pinMaps for inheritance.
@@ -1066,20 +1066,20 @@ private:
 
     /// A list of jumper pin groups, each of which is a set of pin numbers that should be jumpered
     /// together (treated as internally connected for the purposes of connectivity)
-    JUMPER_GROUP_SET m_jumperPinGroups;
+    JUMPER_GROUP_SET                  m_jumperPinGroups;
 
     /// Flag that this symbol should automatically treat sets of two or more pins with the same
     /// number as jumpered pin groups
-    bool m_duplicatePinNumbersAreJumpers;
+    bool                              m_duplicatePinNumbersAreJumpers;
 
-    std::map<int, wxString> m_unitDisplayNames;
-    std::vector<wxString>   m_bodyStyleNames;
+    std::map<int, wxString>           m_unitDisplayNames;
+    std::vector<wxString>             m_bodyStyleNames;
 
-    // Caches for things that are expensive to compute but required every time
-    // the symbol chooser or other library list is created
-
-    std::vector<SEARCH_TERM> m_searchTermsCache;
-    int m_pinCountCache;
-    wxString m_shownDescriptionCache;
-    std::map<wxString, wxString> m_chooserFieldsCache;
+    // Caches for things that are expensive to compute but required every time the symbol chooser or
+    // other library list is created
+    mutable bool                         m_cachesDirty;
+    mutable std::vector<SEARCH_TERM>     m_searchTermsCache;
+    mutable int                          m_pinCountCache;
+    mutable wxString                     m_shownDescriptionCache;
+    mutable std::map<wxString, wxString> m_chooserFieldsCache;
 };

@@ -432,9 +432,9 @@ public:
     {
         std::vector<wxString> names;
 
-        if( const LIB_SYMBOL* lib = aSymbol->GetLibSymbolRef().get() )
+        if( const std::unique_ptr<LIB_SYMBOL>& libSymbol = aSymbol->GetLibSymbolRef() )
         {
-            for( const PIN_MAP& map : lib->GetEffectivePinMaps().GetAll() )
+            for( const PIN_MAP& map : libSymbol->GetEffectivePinMaps().GetAll() )
                 names.push_back( map.GetName() );
         }
 
@@ -987,7 +987,7 @@ bool SCH_SYMBOL::Deserialize( const kiapi::schematic::types::SchematicSymbolInst
         wxString   name = wxString::FromUTF8( fieldProto.name() );
         SCH_FIELD* existing = GetField( name );
 
-        // Don't duplicate existing or mandatory fields.
+        // Don't duplicate existing mandatory fields.
         if( existing && existing->IsMandatory() )
             continue;
 
@@ -2168,7 +2168,7 @@ const wxString SCH_SYMBOL::GetValue( const SCH_SHEET_PATH* aInstance, RESOLUTION
 
     // Fall back to default value when variant doesn't have an override
 
-    return GetField( FIELD_T::VALUE )->GetShownText( aInstance, aContext );
+    return GetField( FIELD_T::VALUE )->GetShownText( aInstance, aContext, aVariantName );
 }
 
 
@@ -2440,7 +2440,7 @@ void SCH_SYMBOL::SyncOtherUnits( const SCH_SHEET_PATH& aSourceSheet, SCH_COMMIT&
             SCH_SCREEN*              screen = sheet.LastScreen();
             std::vector<SCH_SYMBOL*> otherUnits;
 
-            CollectOtherUnits( ref, m_unit, m_lib_id, sheet, &otherUnits );
+            CollectOtherUnits( ref, GetUnitSelection( &aSourceSheet ), m_lib_id, sheet, &otherUnits );
 
             for( SCH_SYMBOL* otherUnit : otherUnits )
             {
@@ -2610,10 +2610,10 @@ const SCH_PIN* SCH_SYMBOL::GetPin( const VECTOR2I& aPos ) const
         int pin_unit = pin->GetLibPin() ? pin->GetLibPin()->GetUnit() : GetUnit();
         int pin_bodyStyle = pin->GetLibPin() ? pin->GetLibPin()->GetBodyStyle() : GetBodyStyle();
 
-        if( pin_unit > 0 && pin_unit != GetUnit() )
+        if( pin_unit != ALL_UNITS && pin_unit != GetUnit() )
             continue;
 
-        if( pin_bodyStyle > 0 && pin_bodyStyle != GetBodyStyle() )
+        if( pin_bodyStyle != ALL_BODY_STYLES && pin_bodyStyle != GetBodyStyle() )
             continue;
 
         if( pin->GetPosition() == aPos )
@@ -2673,7 +2673,7 @@ std::vector<const SCH_PIN*> SCH_SYMBOL::GetPins( const SCH_SHEET_PATH* aSheet ) 
 
     for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
     {
-        if( unit && pin->GetUnit() && pin->GetUnit() != unit )
+        if( unit != ALL_UNITS && pin->GetUnit() != ALL_UNITS && pin->GetUnit() != unit )
             continue;
 
         pins.push_back( pin.get() );
@@ -2696,7 +2696,7 @@ std::vector<SCH_PIN*> SCH_SYMBOL::GetPins( const SCH_SHEET_PATH* aSheet )
 
     for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
     {
-        if( unit && pin->GetUnit() && pin->GetUnit() != unit )
+        if( unit != ALL_UNITS && pin->GetUnit() != ALL_UNITS && pin->GetUnit() != unit )
             continue;
 
         pins.push_back( pin.get() );
@@ -2713,12 +2713,20 @@ std::vector<SCH_PIN*> SCH_SYMBOL::GetGraphicalPins( int aUnit, int aBodyStyle ) 
     for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
     {
         // Unit filtering:
-        if( aUnit && pin->GetUnit() && ( pin->GetUnit() != aUnit ) )
+        if( aUnit != ALL_UNITS
+                && pin->GetUnit() != ALL_UNITS
+                && pin->GetUnit() != aUnit )
+        {
             continue;
+        }
 
         // Body style filtering:
-        if( aBodyStyle && pin->GetBodyStyle() && ( pin->GetBodyStyle() != aBodyStyle ) )
+        if( aBodyStyle != ALL_BODY_STYLES
+                && pin->GetBodyStyle() != ALL_BODY_STYLES
+                && pin->GetBodyStyle() != aBodyStyle )
+        {
             continue;
+        }
 
         pins.push_back( pin.get() );
     }
@@ -2835,8 +2843,8 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, i
 }
 
 
-bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
-                                 const wxString& aVariantName, int aDepth ) const
+bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, const wxString& aVariantName,
+                                 int aDepth ) const
 {
     // Per-thread regex.  CONNECTION_GRAPH::resolveAllDrivers calls this from worker
     // threads, and wxRegEx::Matches is not safe to call concurrently on one instance.
@@ -2854,8 +2862,6 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
 
     if( !schematic )
         return false;
-
-    wxString variant = aVariantName;
 
     if( SCH_CONNECTIVITY::INPUT_TEXT_SCOPE::Active()
         && ( operatingPoint.Matches( *token ) || token->StartsWith( wxS( "NET_NAME(" ) )
@@ -2959,13 +2965,9 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
         if( token->IsSameAs( fieldName, false ) )
         {
             if( field.GetId() == FIELD_T::REFERENCE )
-            {
                 *token = GetRef( aPath, true );
-            }
             else
-            {
                 *token = field.GetShownText( aPath, INTERNAL, aVariantName, aDepth + 1 );
-            }
 
             return true;
         }
@@ -2994,7 +2996,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
 
     if( token->IsSameAs( wxT( "FOOTPRINT_LIBRARY" ) ) )
     {
-        wxString footprint = GetFootprintFieldText( aPath, INTERNAL );
+        wxString footprint = GetFootprintFieldText( aPath, INTERNAL, aVariantName );
 
         wxArrayString parts = wxSplit( footprint, ':' );
 
@@ -3007,7 +3009,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     }
     else if( token->IsSameAs( wxT( "FOOTPRINT_NAME" ) ) )
     {
-        wxString footprint = GetFootprintFieldText( aPath, INTERNAL );
+        wxString footprint = GetFootprintFieldText( aPath, INTERNAL, aVariantName );
 
         wxArrayString parts = wxSplit( footprint, ':' );
 
@@ -3062,7 +3064,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetExcludedFromBOM( variant ) || this->ResolveExcludedFromBOM( aPath, variant ) )
+        if( aPath->GetExcludedFromBOM( aVariantName ) || this->ResolveExcludedFromBOM( aPath, aVariantName ) )
             *token = wxS( "Excluded from BOM" );
 
         return true;
@@ -3071,7 +3073,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetExcludedFromBoard( variant ) || this->ResolveExcludedFromBoard( aPath, variant ) )
+        if( aPath->GetExcludedFromBoard( aVariantName ) || this->ResolveExcludedFromBoard( aPath, aVariantName ) )
             *token = wxS( "Excluded from board" );
 
         return true;
@@ -3080,7 +3082,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetExcludedFromSim( variant ) || this->ResolveExcludedFromSim( aPath, variant ) )
+        if( aPath->GetExcludedFromSim( aVariantName ) || this->ResolveExcludedFromSim( aPath, aVariantName ) )
             *token = wxS( "Excluded from simulation" );
 
         return true;
@@ -3089,7 +3091,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
     {
         *token = wxEmptyString;
 
-        if( aPath->GetDNP( variant ) || this->ResolveDNP( aPath, variant ) )
+        if( aPath->GetDNP( aVariantName ) || this->ResolveDNP( aPath, aVariantName ) )
             *token = wxS( "DNP" );
 
         return true;
@@ -3103,24 +3105,25 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
         wxString pinNumber = token->AfterFirst( '(' );
         pinNumber = pinNumber.BeforeLast( ')' );
 
-        auto resolvePinConnection = [&]( const SCH_PIN& pin, const SCH_SHEET_PATH& path )
-        {
-            const bool local = token->StartsWith( wxS( "SHORT_NET_NAME" ) );
-            const auto name = pin.GetConnectionName( &path, local );
+        auto resolvePinConnection =
+                [&]( const SCH_PIN& pin, const SCH_SHEET_PATH& path )
+                {
+                    const bool local = token->StartsWith( wxS( "SHORT_NET_NAME" ) );
+                    const auto name = pin.GetConnectionName( &path, local );
 
-            if( !name )
-            {
-                token->clear();
-                return;
-            }
+                    if( !name )
+                    {
+                        token->clear();
+                        return;
+                    }
 
-            if( local )
-                *token = name->Lower().StartsWith( wxS( "unconnected" ) ) ? wxString( "NC" ) : *name;
-            else if( token->StartsWith( wxS( "NET_NAME" ) ) )
-                *token = *name;
-            else if( token->StartsWith( wxS( "NET_CLASS" ) ) )
-                *token = pin.GetEffectiveNetClass( &path )->GetName();
-        };
+                    if( local )
+                        *token = name->Lower().StartsWith( wxS( "unconnected" ) ) ? wxString( "NC" ) : *name;
+                    else if( token->StartsWith( wxS( "NET_NAME" ) ) )
+                        *token = *name;
+                    else if( token->StartsWith( wxS( "NET_CLASS" ) ) )
+                        *token = pin.GetEffectiveNetClass( &path )->GetName();
+                };
 
         bool isReferenceFunction = token->StartsWith( wxT( "REFERENCE(" ) );
         bool isShortReferenceFunction = token->StartsWith( wxT( "SHORT_REFERENCE(" ) );
@@ -3157,7 +3160,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
                     if( isReferenceFunction )
                     {
                         // Return the full unit reference (e.g., "J601A")
-                        if( pinUnit > 0 )
+                        if( pinUnit != ALL_UNITS )
                             result = GetRef( aPath, false ) + SubReference( pinUnit, false );
                         else
                             result = GetRef( aPath, false );
@@ -3170,7 +3173,7 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
                     else if( isUnitFunction )
                     {
                         // Return only the unit letter (e.g., "A")
-                        if( pinUnit > 0 )
+                        if( pinUnit != ALL_UNITS )
                             result = SubReference( pinUnit, false );
                         else
                             result = wxEmptyString;
@@ -3353,21 +3356,21 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token,
         if( name == wxS( "Reference" ) )
             sourceValue = GetRef( aPath );
         else if( name == wxS( "Value" ) )
-            sourceValue = GetValue( aPath, RAW_VALUE, variant );
+            sourceValue = GetValue( aPath, RAW_VALUE, aVariantName );
         else if( name == wxS( "Unit" ) )
             sourceValue = GetUnitSelection( aPath );
         else if( name == wxS( "Exclude From Simulation" ) )
-            sourceValue = GetExcludedFromSim( aPath, variant );
+            sourceValue = GetExcludedFromSim( aPath, aVariantName );
         else if( name == wxS( "Exclude From Bill of Materials" ) )
-            sourceValue = GetExcludedFromBOM( aPath, variant );
+            sourceValue = GetExcludedFromBOM( aPath, aVariantName );
         else if( name == wxS( "Exclude From Board" ) )
-            sourceValue = GetExcludedFromBoard( aPath, variant );
+            sourceValue = GetExcludedFromBoard( aPath, aVariantName );
         else if( name == wxS( "Exclude From Position Files" ) )
-            sourceValue = GetExcludedFromPosFiles( aPath, variant );
+            sourceValue = GetExcludedFromPosFiles( aPath, aVariantName );
         else if( name == wxS( "Do not Populate" ) )
-            sourceValue = GetDNP( aPath, variant );
+            sourceValue = GetDNP( aPath, aVariantName );
         else if( auto* instanceProperty = dynamic_cast<SCH_SYMBOL_INSTANCE_PROPERTY*>( property ) )
-            sourceValue = instanceProperty->ValueForInstance( this, aPath, variant );
+            sourceValue = instanceProperty->ValueForInstance( this, aPath, aVariantName );
         else
             sourceValue = Get( property );
 
@@ -3866,12 +3869,10 @@ BITMAPS SCH_SYMBOL::GetMenuImage() const
 
 EMBEDDED_FILES* SCH_SYMBOL::GetEmbeddedFiles()
 {
-    std::unique_ptr<LIB_SYMBOL>& libSymbolRef = GetLibSymbolRef();
+    if( std::unique_ptr<LIB_SYMBOL>& libSymbol = GetLibSymbolRef() )
+        return libSymbol->GetEmbeddedFiles();
 
-    if( !libSymbolRef )
-        return nullptr;
-
-    return GetLibSymbolRef()->GetEmbeddedFiles();
+    return nullptr;
 }
 
 
@@ -3947,13 +3948,16 @@ bool SCH_SYMBOL::Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) c
     // Fields are searched as separate items
 
     // Search non-field lib draw items (pins, graphical text) for completeness.
-    for( const SCH_ITEM& drawItem : GetLibSymbolRef()->GetDrawItems() )
+    if( const std::unique_ptr<LIB_SYMBOL>& libSymbol = GetLibSymbolRef() )
     {
-        if( drawItem.Type() == SCH_FIELD_T )
-            continue;
+        for( const SCH_ITEM& drawItem : libSymbol->GetDrawItems() )
+        {
+            if( drawItem.Type() == SCH_FIELD_T )
+                continue;
 
-        if( drawItem.Matches( aSearchData, aAuxData ) )
-            return true;
+            if( drawItem.Matches( aSearchData, aAuxData ) )
+                return true;
+        }
     }
 
     // Symbols are searchable via the child field and pin item text.
@@ -3965,13 +3969,14 @@ void SCH_SYMBOL::GetEndPoints( std::vector<DANGLING_END_ITEM>& aItemList )
 {
     for( std::unique_ptr<SCH_PIN>& pin : m_pins )
     {
-        SCH_PIN* lib_pin = pin->GetLibPin();
+        if( SCH_PIN* lib_pin = pin->GetLibPin() )
+        {
+            if( lib_pin->GetUnit() != ALL_UNITS && m_unit != ALL_UNITS && m_unit != lib_pin->GetUnit() )
+                continue;
 
-        if( lib_pin && lib_pin->GetUnit() && m_unit && ( m_unit != lib_pin->GetUnit() ) )
-            continue;
-
-        DANGLING_END_ITEM item( PIN_END, lib_pin, GetPinPhysicalPosition( lib_pin ), this );
-        aItemList.push_back( item );
+            DANGLING_END_ITEM item( PIN_END, lib_pin, GetPinPhysicalPosition( lib_pin ), this );
+            aItemList.push_back( item );
+        }
     }
 }
 
@@ -4101,10 +4106,10 @@ std::vector<VECTOR2I> SCH_SYMBOL::GetConnectionPoints() const
         int pin_unit = pin->GetLibPin() ? pin->GetLibPin()->GetUnit() : GetUnit();
         int pin_bodyStyle = pin->GetLibPin() ? pin->GetLibPin()->GetBodyStyle() : GetBodyStyle();
 
-        if( pin_unit > 0 && pin_unit != GetUnit() )
+        if( pin_unit != ALL_UNITS && pin_unit != GetUnit() )
             continue;
 
-        if( pin_bodyStyle > 0 && pin_bodyStyle != GetBodyStyle() )
+        if( pin_bodyStyle != ALL_BODY_STYLES && pin_bodyStyle != GetBodyStyle() )
             continue;
 
         retval.push_back( m_transform.TransformCoordinate( pin->GetLocalPosition() ) + m_pos );
@@ -4193,10 +4198,10 @@ INSPECT_RESULT SCH_SYMBOL::Visit( INSPECTOR aInspector, void* aTestData, const s
                 int pin_unit = pin->GetLibPin() ? pin->GetLibPin()->GetUnit() : GetUnit();
                 int pin_bodyStyle = pin->GetLibPin() ? pin->GetLibPin()->GetBodyStyle() : GetBodyStyle();
 
-                if( pin_unit > 0 && pin_unit != GetUnit() )
+                if( pin_unit != ALL_UNITS && pin_unit != GetUnit() )
                     continue;
 
-                if( pin_bodyStyle > 0 && pin_bodyStyle != GetBodyStyle() )
+                if( pin_bodyStyle != ALL_BODY_STYLES && pin_bodyStyle != GetBodyStyle() )
                     continue;
 
                 if( INSPECT_RESULT::QUIT == aInspector( pin.get(), (void*) this ) )
@@ -4397,10 +4402,10 @@ bool SCH_SYMBOL::doIsConnected( const VECTOR2I& aPosition ) const
 
         // Collect only pins attached to the current unit and convert.
         // others are not associated to this symbol instance
-        if( pin->GetUnit() > 0 && pin->GetUnit() != GetUnit() )
+        if( pin->GetUnit() != ALL_UNITS && pin->GetUnit() != GetUnit() )
             continue;
 
-        if( pin->GetBodyStyle() > 0 && pin->GetBodyStyle() != GetBodyStyle() )
+        if( pin->GetBodyStyle() != ALL_BODY_STYLES && pin->GetBodyStyle() != GetBodyStyle() )
             continue;
 
         if( pin->GetLocalPosition() == new_pos )
@@ -4471,7 +4476,7 @@ void SCH_SYMBOL::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS&
         aPlotter->StartBlock( nullptr );
 
         wxString variant = Schematic() ? Schematic()->GetCurrentVariant() : wxString();
-        bool            dnp = GetDNP( sheet, variant );
+        bool     dnp = GetDNP( sheet, variant );
 
         for( bool local_background : { true, false } )
         {
@@ -4482,8 +4487,10 @@ void SCH_SYMBOL::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS&
                 field.ClearRenderCache();
                 field.Plot( aPlotter, local_background, aPlotOpts, GetUnit(), GetBodyStyle(), m_pos, dnp );
 
-                if( IsSymbolLikePowerLocalLabel() && field.GetId() == FIELD_T::VALUE
-                    && ( field.IsVisible() || field.IsForceVisible() ) )
+                if( IsSymbolLikePowerLocalLabel()
+                        && field.GetId() == FIELD_T::VALUE
+                        && ( field.IsVisible() || field.IsForceVisible() )
+                        && !local_background )
                 {
                     PlotLocalPowerIconShape( aPlotter );
                 }
@@ -4714,10 +4721,10 @@ bool SCH_SYMBOL::IsPointClickableAnchor( const VECTOR2I& aPos ) const
         int pin_unit = pin->GetLibPin() ? pin->GetLibPin()->GetUnit() : GetUnit();
         int pin_bodyStyle = pin->GetLibPin() ? pin->GetLibPin()->GetBodyStyle() : GetBodyStyle();
 
-        if( pin_unit > 0 && pin_unit != GetUnit() )
+        if( pin_unit != ALL_UNITS && pin_unit != GetUnit() )
             continue;
 
-        if( pin_bodyStyle > 0 && pin_bodyStyle != GetBodyStyle() )
+        if( pin_bodyStyle != ALL_BODY_STYLES && pin_bodyStyle != GetBodyStyle() )
             continue;
 
         if( pin->IsPointClickableAnchor( aPos ) )
@@ -4905,7 +4912,7 @@ LIB_SYMBOL* SCH_SYMBOL::GetVariantLibSymbol( const wxString&      aVariantName,
 
             cached = libSymbol->Flatten();
 
-            if( m_part && !ValidateVariantSymbolCompatibility( *m_part, *cached ).empty() )
+            if( m_part && cached && !ValidateVariantSymbolCompatibility( *m_part, *cached ).empty() )
             {
                 cached.reset();
                 return nullptr;

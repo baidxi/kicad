@@ -558,7 +558,7 @@ SCH_LINE* SCH_LINE::MergeOverlap( SCH_SCREEN* aScreen, SCH_LINE* aLine, bool aCh
     wxCHECK_MSG( aLine != nullptr && aLine->Type() == SCH_LINE_T, nullptr,
                  wxT( "Cannot test line segment for overlap." ) );
 
-    if( this == aLine || GetLayer() != aLine->GetLayer() )
+    if( this == aLine || GetLayer() != aLine->GetLayer() || GetStroke() != aLine->GetStroke() )
         return nullptr;
 
     VECTOR2I leftmost_start = aLine->m_start;
@@ -1097,7 +1097,7 @@ void SCH_LINE::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_IT
 
     LINE_STYLE lineStyle = GetStroke().GetLineStyle();
 
-    if( GetEffectiveLineStyle() != lineStyle )
+    if( ( IsWire() || IsBus() ) && GetEffectiveLineStyle() != lineStyle )
         aList.emplace_back( _( "Line Style" ), _( "from netclass" ) );
     else
         m_stroke.GetMsgPanelInfo( aFrame, aList, true, false );

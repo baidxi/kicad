@@ -67,12 +67,10 @@ struct RULE_AREA_COMPAT_DATA
 struct RULE_AREA
 {
     PLACEMENT_SOURCE_T        m_sourceType = PLACEMENT_SOURCE_T::SHEETNAME;
-    ZONE*                     m_oldZone = nullptr;
     ZONE*                     m_zone = nullptr;
     std::set<FOOTPRINT*>      m_components;
     std::unordered_set<EDA_ITEM*> m_designBlockItems;
     PCB_GROUP*                    m_group = nullptr;
-    bool                      m_existsAlready = false;
     bool                      m_generateEnabled = false;
     wxString                  m_sheetPath;
     wxString                  m_sheetName;

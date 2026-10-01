@@ -1169,8 +1169,9 @@ void SCH_SCREEN::Plot( PLOTTER* aPlotter, const SCH_PLOT_OPTS& aPlotOpts, const 
             field.ClearRenderCache();
             field.Plot( aPlotter, false, aPlotOpts, sym->GetUnit(), sym->GetBodyStyle(), { 0, 0 }, dnp );
 
-            if( sym->IsSymbolLikePowerLocalLabel() && field.GetId() == FIELD_T::VALUE
-                && ( field.IsVisible() || field.IsForceVisible() ) )
+            if( sym->IsSymbolLikePowerLocalLabel()
+                    && field.GetId() == FIELD_T::VALUE
+                    && ( field.IsVisible() || field.IsForceVisible() ) )
             {
                 sym->PlotLocalPowerIconShape( aPlotter );
             }
@@ -1846,6 +1847,19 @@ bool SCH_SCREEN::HasInstanceDataFromOtherProjects() const
         const std::vector<SCH_SYMBOL_INSTANCE> symbolInstances = symbol->GetInstances();
 
         for( const SCH_SYMBOL_INSTANCE& instance : symbolInstances )
+        {
+            if( !hierarchy.HasPath( instance.m_Path ) )
+                return true;
+        }
+    }
+
+    for( const SCH_ITEM* item : Items().OfType( SCH_SHEET_T ) )
+    {
+        const SCH_SHEET* sheet = static_cast<const SCH_SHEET*>( item );
+
+        const std::vector<SCH_SHEET_INSTANCE> sheetInstances = sheet->GetInstances();
+
+        for( const SCH_SHEET_INSTANCE& instance : sheetInstances )
         {
             if( !hierarchy.HasPath( instance.m_Path ) )
                 return true;

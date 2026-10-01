@@ -20,6 +20,10 @@
  */
 
 #include <bitmaps.h>
+#include <api/api_handler_common.h>
+#include <api/api_handler_libraries.h>
+#include <api/api_handler_symbol.h>
+#include <api/api_server.h>
 #include <api/api_plugin_manager.h>
 #include <api/api_utils.h>
 #include <wx/hyperlink.h>
@@ -371,6 +375,18 @@ SYMBOL_EDIT_FRAME::SYMBOL_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     // in debug mode because the loading time of ecah library can be really noticeable
     SyncLibraries( true );
 
+    m_apiHandler = std::make_unique<API_HANDLER_SYMBOL>( this );
+    Pgm().GetApiServer().RegisterHandler( m_apiHandler.get() );
+
+    if( Kiface().IsSingle() )
+    {
+        m_apiHandlerCommon = std::make_unique<API_HANDLER_COMMON>();
+        Pgm().GetApiServer().RegisterHandler( m_apiHandlerCommon.get() );
+        m_apiLibrariesHandler = std::make_unique<API_HANDLER_LIBRARIES>(
+                LIBRARY_TABLE_TYPE::DESIGN_BLOCK );
+        Pgm().GetApiServer().RegisterHandler( m_apiLibrariesHandler.get() );
+    }
+
     // Must follow SyncLibraries so persisted tabs can resolve against the loaded libraries.
     restoreSymbolTabsFromSettings();
 }
@@ -378,6 +394,15 @@ SYMBOL_EDIT_FRAME::SYMBOL_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
 
 SYMBOL_EDIT_FRAME::~SYMBOL_EDIT_FRAME()
 {
+    // Ensure that teardowns without doCloseWindow() are fully unregistered
+    Pgm().GetApiServer().DeregisterHandler( m_apiHandler.get() );
+
+    if( Kiface().IsSingle() )
+    {
+        Pgm().GetApiServer().DeregisterHandler( m_apiHandlerCommon.get() );
+        Pgm().GetApiServer().DeregisterHandler( m_apiLibrariesHandler.get() );
+    }
+
     // Hand the borrowed canvas back before the base destructor frees it, else the panel reparents
     // freed memory on its own teardown.
     if( m_tabsPanel )
@@ -825,6 +850,35 @@ bool SYMBOL_EDIT_FRAME::canCloseWindow( wxCloseEvent& aEvent )
     if( !promptToSaveInactiveInstanceTabs() )
         return false;
 
+    // A dirty unsaved tab has no library buffer for saveAllLibraries to prompt about, so ask here
+    if( m_activeTab && m_activeTab->IsUnsaved() && GetScreen()->IsContentModified() )
+    {
+        wxString msg = wxString::Format( _( "Save changes to '%s' before closing?" ),
+                                         m_activeTab->GetDisplayName( true ) );
+
+        KIDIALOG dlg( this, msg, _( "Confirmation" ), wxYES_NO | wxCANCEL | wxICON_WARNING );
+        dlg.SetYesNoCancelLabels( _( "Save" ), _( "Discard Changes" ), _( "Cancel" ) );
+
+        switch( dlg.ShowModal() )
+        {
+        case wxID_YES:
+            if( !saveCurrentSymbol() )
+            {
+                aEvent.Veto();
+                return false;
+            }
+
+            break;
+
+        case wxID_NO:
+            break;
+
+        default:
+            aEvent.Veto();
+            return false;
+        }
+    }
+
     if( !saveAllLibraries( true ) )
         return false;
 
@@ -838,6 +892,17 @@ bool SYMBOL_EDIT_FRAME::canCloseWindow( wxCloseEvent& aEvent )
 void SYMBOL_EDIT_FRAME::doCloseWindow()
 {
     SCH_BASE_FRAME::doCloseWindow();
+
+    if( Pgm().ApiServerOrNull() )
+    {
+        Pgm().GetApiServer().DeregisterHandler( m_apiHandler.get() );
+
+        if( Kiface().IsSingle() )
+        {
+            Pgm().GetApiServer().DeregisterHandler( m_apiHandlerCommon.get() );
+            Pgm().GetApiServer().DeregisterHandler( m_apiLibrariesHandler.get() );
+        }
+    }
 
     wxTheApp->Unbind( EDA_EVT_PLUGIN_AVAILABILITY_CHANGED,
                       &SYMBOL_EDIT_FRAME::onPluginAvailabilityChanged, this );
@@ -1192,7 +1257,7 @@ void SYMBOL_EDIT_FRAME::OnModify()
 
     GetScreen()->SetContentModified();
 
-    if( !IsSymbolFromSchematic() )
+    if( !IsSymbolFromSchematic() && !( m_activeTab && m_activeTab->IsUnsaved() ) )
     {
         if( m_symbol && GetScreen()->IsContentModified() )
             m_libMgr->UpdateSymbol( m_symbol, m_symbol->GetLibNickname() ); // UpdateSymbol() makes a copy

@@ -45,6 +45,9 @@
 #include <dialog_database_lib_settings.h>
 
 
+thread_local std::unordered_set<wxString> SCH_IO_DATABASE::s_inProgressLoads;
+
+
 SCH_IO_DATABASE::SCH_IO_DATABASE() :
         SCH_IO( wxS( "Database library" ) ),
         m_adapter( nullptr ),
@@ -745,7 +748,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
         {
             wxString symbolIdStr = symbolId.Format().wx_str();
 
-            if( !m_inProgressLoads.insert( symbolIdStr ).second )
+            if( !s_inProgressLoads.insert( symbolIdStr ).second )
             {
                 wxLogTrace( traceDatabase, wxT( "loadSymbolFromRow: cycle detected resolving '%s' "
                                                 "(row '%s' in table '%s'); skipping recursive load" ),
@@ -758,7 +761,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
                 std::unordered_set<wxString>* set;
                 wxString                      key;
                 ~CYCLE_GUARD() { set->erase( key ); }
-            } guard{ &m_inProgressLoads, symbolIdStr };
+            } guard{ &s_inProgressLoads, symbolIdStr };
 
             LIB_SYMBOL* src = nullptr;
 
@@ -868,7 +871,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
 
                         int targetStyle;
 
-                        if( item.GetBodyStyle() == 0 )
+                        if( item.GetBodyStyle() == ALL_BODY_STYLES )
                             targetStyle = base;
                         else
                             targetStyle = base + ( item.GetBodyStyle() - 1 );
@@ -881,7 +884,7 @@ std::unique_ptr<LIB_SYMBOL>  SCH_IO_DATABASE::loadSymbolFromRow( const wxString&
                         newItem->SetBodyStyle( targetStyle );
                         symbol->AddDrawItem( newItem, false );
                     }
-                    else if( item.GetBodyStyle() == 0 )
+                    else if( item.GetBodyStyle() == ALL_BODY_STYLES )
                     {
                         for( int bodyStyle = 0; bodyStyle < srcCount; ++bodyStyle )
                         {

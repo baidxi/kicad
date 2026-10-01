@@ -113,7 +113,7 @@ SCH_ITEM* SCH_EDITOR_CONTROL::FindSymbolAndItem( const wxString* aPath, const wx
                     {
                         int unit = pin->GetLibPin()->GetUnit();
 
-                        if( unit != 0 && unit != symbol->GetUnit() )
+                        if( unit != ALL_UNITS && unit != symbol->GetUnit() )
                         {
                             pin = nullptr;
                             continue;
@@ -703,10 +703,7 @@ void SCH_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
     case MAIL_RELOAD_LIB:
     {
         if( m_designBlocksPane && m_designBlocksPane->IsShown() )
-        {
             m_designBlocksPane->RefreshLibs();
-            SyncView();
-        }
 
         // Show any symbol library load errors in the status bar
         if( KISTATUSBAR* statusBar = dynamic_cast<KISTATUSBAR*>( GetStatusBar() ) )

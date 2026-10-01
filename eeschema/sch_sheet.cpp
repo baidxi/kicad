@@ -142,11 +142,8 @@ SCH_SHEET::SCH_SHEET( EDA_ITEM* aParent, const VECTOR2I& aPos, VECTOR2I aSize ) 
     m_backgroundColor = COLOR4D::UNSPECIFIED;
     m_fieldsAutoplaced = AUTOPLACE_AUTO;
 
-    m_fields.emplace_back( this, FIELD_T::SHEET_NAME,
-                           GetDefaultFieldName( FIELD_T::SHEET_NAME, TRANSLATED ) );
-
-    m_fields.emplace_back( this, FIELD_T::SHEET_FILENAME,
-                           GetDefaultFieldName( FIELD_T::SHEET_FILENAME, TRANSLATED ) );
+    m_fields.emplace_back( this, FIELD_T::SHEET_NAME, GetDefaultFieldName( FIELD_T::SHEET_NAME, TRANSLATED ) );
+    m_fields.emplace_back( this, FIELD_T::SHEET_FILENAME, GetDefaultFieldName( FIELD_T::SHEET_FILENAME, TRANSLATED ) );
 
     AutoplaceFields( nullptr, m_fieldsAutoplaced );
 }
@@ -196,7 +193,7 @@ void SCH_SHEET::Serialize( google::protobuf::Any& aContainer ) const
     }
 
     for( const SCH_SHEET_PIN* pin : GetPins() )
-        pin->Serialize( *sheet.add_pins(), schIUScale );
+        pin->Serialize( *sheet.add_pins() );
 
     kiapi::common::PackCustomProperties( sheet.mutable_custom_properties(), *this );
     aContainer.PackFrom( sheet );
@@ -230,7 +227,7 @@ bool SCH_SHEET::Deserialize( const google::protobuf::Any& aContainer )
 
     SetBorderWidth( UnpackDistance( sheet.border_stroke().width(), schIUScale ) );
     SetBorderColor( sheet.border_stroke().has_color() ? UnpackColor( sheet.border_stroke().color() )
-                                                       : COLOR4D::UNSPECIFIED );
+                                                      : COLOR4D::UNSPECIFIED );
 
     if( sheet.fill().fill_type() == GraphicFillType::GFT_UNFILLED || !sheet.fill().has_color() )
         SetBackgroundColor( COLOR4D::UNSPECIFIED );
@@ -243,10 +240,8 @@ bool SCH_SHEET::Deserialize( const google::protobuf::Any& aContainer )
     m_pins.clear();
 
     m_fields.clear();
-    m_fields.emplace_back( this, FIELD_T::SHEET_NAME,
-                           GetDefaultFieldName( FIELD_T::SHEET_NAME, TRANSLATED ) );
-    m_fields.emplace_back( this, FIELD_T::SHEET_FILENAME,
-                           GetDefaultFieldName( FIELD_T::SHEET_FILENAME, TRANSLATED ) );
+    m_fields.emplace_back( this, FIELD_T::SHEET_NAME, GetDefaultFieldName( FIELD_T::SHEET_NAME, TRANSLATED ) );
+    m_fields.emplace_back( this, FIELD_T::SHEET_FILENAME, GetDefaultFieldName( FIELD_T::SHEET_FILENAME, TRANSLATED ) );
 
     GetField( FIELD_T::SHEET_NAME )->Deserialize( sheet.name_field(), schIUScale );
     GetField( FIELD_T::SHEET_FILENAME )->Deserialize( sheet.filename_field(), schIUScale );
@@ -261,7 +256,7 @@ bool SCH_SHEET::Deserialize( const google::protobuf::Any& aContainer )
     {
         std::unique_ptr<SCH_SHEET_PIN> pin = std::make_unique<SCH_SHEET_PIN>( this );
 
-        if( !pin->Deserialize( pinProto, schIUScale ) )
+        if( !pin->Deserialize( pinProto ) )
             return false;
 
         AddPin( pin.release() );
@@ -794,8 +789,10 @@ wxString SCH_SHEET::GetFieldText( const wxString& aFieldName, const SCH_SHEET_PA
             const SCH_SHEET_INSTANCE* instance = getInstance( *aPath );
 
             if( instance->m_Variants.contains( aVariantName )
-              && instance->m_Variants.at( aVariantName ).m_Fields.contains( aFieldName ) )
+                && instance->m_Variants.at( aVariantName ).m_Fields.contains( aFieldName ) )
+            {
                 return instance->m_Variants.at( aVariantName ).m_Fields.at( aFieldName );
+            }
         }
 
         break;
@@ -1058,9 +1055,9 @@ int SCH_SHEET::GetPenWidth() const
 void SCH_SHEET::AutoplaceFields( SCH_SCREEN* aScreen, AUTOPLACE_ALGO aAlgo )
 {
     SCH_FIELD* sheetNameField = GetField( FIELD_T::SHEET_NAME );
-    VECTOR2I  textSize = sheetNameField->GetTextSize();
-    int       borderMargin = KiROUND( GetPenWidth() / 2.0 ) + 4;
-    int       margin = borderMargin + KiROUND( std::max( textSize.x, textSize.y ) * 0.5 );
+    VECTOR2I   textSize = sheetNameField->GetTextSize();
+    int        borderMargin = KiROUND( GetPenWidth() / 2.0 ) + 4;
+    int        margin = borderMargin + KiROUND( std::max( textSize.x, textSize.y ) * 0.5 );
 
     if( IsVerticalOrientation() )
     {
@@ -1542,8 +1539,7 @@ bool SCH_SHEET::UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemListBy
 }
 
 
-bool SCH_SHEET::HasConnectivityChanges( const SCH_ITEM* aItem,
-                                        const SCH_SHEET_PATH* aInstance ) const
+bool SCH_SHEET::HasConnectivityChanges( const SCH_ITEM* aItem, const SCH_SHEET_PATH* aInstance ) const
 {
     // Do not compare to ourself.
     if( aItem == this )
@@ -1587,8 +1583,7 @@ std::vector<VECTOR2I> SCH_SHEET::GetConnectionPoints() const
 }
 
 
-INSPECT_RESULT SCH_SHEET::Visit( INSPECTOR aInspector, void* testData,
-                                 const std::vector<KICAD_T>& aScanTypes )
+INSPECT_RESULT SCH_SHEET::Visit( INSPECTOR aInspector, void* testData, const std::vector<KICAD_T>& aScanTypes )
 {
     for( KICAD_T scanType : aScanTypes )
     {
@@ -1733,8 +1728,7 @@ void SCH_SHEET::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& 
     // Make the sheet object a clickable hyperlink (e.g. for PDF plotter)
     if( aPlotOpts.m_PDFHierarchicalLinks )
     {
-        aPlotter->HyperlinkBox( GetBoundingBox(),
-                                EDA_TEXT::GotoPageHref( findSelf().GetPageNumber() ) );
+        aPlotter->HyperlinkBox( GetBoundingBox(), EDA_TEXT::GotoPageHref( findSelf().GetPageNumber() ) );
     }
     else if( aPlotOpts.m_PDFPropertyPopups )
     {
@@ -2002,8 +1996,10 @@ void SCH_SHEET::setPageNumber( const KIID_PATH& aPath, const wxString& aPageNumb
 
 bool SCH_SHEET::HasHierarchyChanges( const SCH_SHEET& aOther ) const
 {
-    return GetName() != aOther.GetName() || GetFileName() != aOther.GetFileName()
-           || GetScreen() != aOther.GetScreen() || HasPageNumberChanges( aOther );
+    return GetName() != aOther.GetName()
+            || GetFileName() != aOther.GetFileName()
+            || GetScreen() != aOther.GetScreen()
+            || HasPageNumberChanges( aOther );
 }
 
 
@@ -2052,8 +2048,8 @@ bool SCH_SHEET::HasPageNumberChanges( const SCH_SHEET& aOther ) const
 
     while( itThis != instances.end() )
     {
-        if( ( itThis->m_Path == itOther->m_Path )
-          && ( itThis->m_PageNumber != itOther->m_PageNumber ) )
+        if( itThis->m_Path == itOther->m_Path
+            && itThis->m_PageNumber != itOther->m_PageNumber )
         {
             return true;
         }
@@ -2458,7 +2454,7 @@ static struct SCH_SHEET_DESC
                     groupAttributes );
         propMgr.AddProperty( new PROPERTY<SCH_SHEET, bool>( _HKI( "Exclude From Bill of Materials" ),
                     &SCH_SHEET::SetExcludedFromBOMProp, &SCH_SHEET::GetExcludedFromBOMProp ),
-                groupAttributes );
+                    groupAttributes );
         propMgr.AddProperty( new PROPERTY<SCH_SHEET, bool>( _HKI( "Do not Populate" ),
                     &SCH_SHEET::SetDNPProp, &SCH_SHEET::GetDNPProp ),
                     groupAttributes );

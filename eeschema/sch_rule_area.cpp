@@ -178,6 +178,9 @@ void SCH_RULE_AREA::Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OP
 
     ptList.clear();
 
+    if( GetPolyShape().IsEmpty() )
+        return;
+
     const std::vector<VECTOR2I>& polyPoints = GetPolyShape().Outline( 0 ).CPoints();
 
     for( const VECTOR2I& pt : polyPoints )
@@ -437,8 +440,8 @@ void SCH_RULE_AREA::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PAN
 {
     aList.emplace_back( _( "Rule Area" ), wxEmptyString );
 
-    wxString msg;
-    msg.Printf( wxS( "%d" ), GetPolyShape().Outline( 0 ).PointCount() );
+    wxString msg = wxString::Format( wxS( "%d" ),
+                                     GetPolyShape().IsEmpty() ? 0 : GetPolyShape().Outline( 0 ).PointCount() );
     aList.emplace_back( _( "Points" ), msg );
 
     m_stroke.GetMsgPanelInfo( aFrame, aList );

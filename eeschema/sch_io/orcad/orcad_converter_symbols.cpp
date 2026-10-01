@@ -2159,14 +2159,15 @@ LIB_SYMBOL* ORCAD_CONVERTER::kicadSymbolFor( const std::string& aLibName )
     symbol->GetDatasheetField().SetVisible( false );
 
     // Items stay common to both body styles unless their unit has a Convert view
-    auto stampBodyStyle = [&]( int aUnit, int aBodyStyle )
-    {
-        for( SCH_ITEM& item : symbol->GetDrawItems() )
-        {
-            if( item.Type() != SCH_FIELD_T && item.GetUnit() == aUnit && item.GetBodyStyle() == 0 )
-                item.SetBodyStyle( aBodyStyle );
-        }
-    };
+    auto stampBodyStyle =
+            [&]( int aUnit, int aBodyStyle )
+            {
+                for( SCH_ITEM& item : symbol->GetDrawItems() )
+                {
+                    if( item.Type() != SCH_FIELD_T && item.GetUnit() == aUnit && item.GetBodyStyle() == ALL_BODY_STYLES )
+                        item.SetBodyStyle( aBodyStyle );
+                }
+            };
 
     for( size_t ui = 0; ui < entry.units.size(); ++ui )
     {
@@ -2913,29 +2914,30 @@ void ORCAD_CONVERTER::placeInstance( ORCAD_RAW_PAGE& aPage, const ORCAD_PLACED_I
     TRANSFORM                                     inverseTransform = symbol->GetTransform().InverseTransform();
     std::vector<std::pair<SCH_TEXT*, SCH_SHAPE*>> degreeMarks;
 
-    auto circleTouchesStroke = [&]( const SCH_SHAPE& aCircle )
-    {
-        int64_t radiusSquared = static_cast<int64_t>( aCircle.GetRadius() ) * aCircle.GetRadius();
-
-        for( const SCH_ITEM& item : symbol->GetLibSymbolRef()->GetDrawItems() )
-        {
-            if( item.Type() != SCH_SHAPE_T )
-                continue;
-
-            const SCH_SHAPE& shape = static_cast<const SCH_SHAPE&>( item );
-
-            if( &shape == &aCircle || shape.GetShape() != SHAPE_T::POLY )
-                continue;
-
-            for( const VECTOR2I& point : shape.GetPolyShape().Outline( 0 ).CPoints() )
+    auto circleTouchesStroke =
+            [&]( const SCH_SHAPE& aCircle )
             {
-                if( ( point - aCircle.GetPosition() ).SquaredEuclideanNorm() <= radiusSquared )
-                    return true;
-            }
-        }
+                int64_t radiusSquared = static_cast<int64_t>( aCircle.GetRadius() ) * aCircle.GetRadius();
 
-        return false;
-    };
+                for( const SCH_ITEM& item : symbol->GetLibSymbolRef()->GetDrawItems() )
+                {
+                    if( item.Type() != SCH_SHAPE_T )
+                        continue;
+
+                    const SCH_SHAPE& shape = static_cast<const SCH_SHAPE&>( item );
+
+                    if( &shape == &aCircle || shape.GetShape() != SHAPE_T::POLY || shape.GetPolyShape().IsEmpty() )
+                        continue;
+
+                    for( const VECTOR2I& point : shape.GetPolyShape().Outline( 0 ).CPoints() )
+                    {
+                        if( ( point - aCircle.GetPosition() ).SquaredEuclideanNorm() <= radiusSquared )
+                            return true;
+                    }
+                }
+
+                return false;
+            };
 
     for( SCH_ITEM& item : symbol->GetLibSymbolRef()->GetDrawItems() )
     {

@@ -1585,8 +1585,8 @@ void SCH_POINT_EDITOR::updatePoints()
         SYMBOL_EDIT_FRAME* editor = static_cast<SYMBOL_EDIT_FRAME*>( m_frame );
         SCH_ITEM*          item = dynamic_cast<SCH_ITEM*>( m_editPoints->GetParent() );
 
-        if( ( item && item->GetUnit() != 0 && item->GetUnit() != editor->GetUnit() )
-                || ( item && item->GetBodyStyle() != 0 && item->GetBodyStyle() != editor->GetBodyStyle() ) )
+        if( ( item && item->GetUnit() != ALL_UNITS && item->GetUnit() != editor->GetUnit() )
+            || ( item && item->GetBodyStyle() != ALL_BODY_STYLES && item->GetBodyStyle() != editor->GetBodyStyle() ) )
         {
             getView()->Remove( m_editPoints.get() );
             getView()->Remove( m_angleItem.get() );
@@ -1673,7 +1673,11 @@ int SCH_POINT_EDITOR::addCorner( const TOOL_EVENT& aEvent )
     if( !m_editPoints || !m_editPoints->GetParent()->IsType( { SCH_SHAPE_T, SCH_RULE_AREA_T } ) )
         return 0;
 
-    SCH_SHAPE*        shape = static_cast<SCH_SHAPE*>( m_editPoints->GetParent() );
+    SCH_SHAPE* shape = static_cast<SCH_SHAPE*>( m_editPoints->GetParent() );
+
+    if( shape->GetPolyShape().IsEmpty() )
+        return 0;
+
     SHAPE_LINE_CHAIN& poly = shape->GetPolyShape().Outline( 0 );
     SCH_COMMIT        commit( m_toolMgr );
 
@@ -1714,7 +1718,11 @@ int SCH_POINT_EDITOR::removeCorner( const TOOL_EVENT& aEvent )
     if( !m_editPoints || !m_editedPoint || !m_editPoints->GetParent()->IsType( { SCH_SHAPE_T, SCH_RULE_AREA_T } ) )
         return 0;
 
-    SCH_SHAPE*        shape = static_cast<SCH_SHAPE*>( m_editPoints->GetParent() );
+    SCH_SHAPE* shape = static_cast<SCH_SHAPE*>( m_editPoints->GetParent() );
+
+    if( shape->GetPolyShape().IsEmpty() )
+        return 0;
+
     SHAPE_LINE_CHAIN& poly = shape->GetPolyShape().Outline( 0 );
     SCH_COMMIT        commit( m_toolMgr );
 
