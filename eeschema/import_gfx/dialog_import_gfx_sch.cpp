@@ -25,6 +25,7 @@
 #include <import_gfx/bitmap_import_plugin.h>
 #include <import_gfx/dxf_import_plugin.h>
 #include <bitmap_tracing.h>
+#include <cmath>
 
 #include <base_units.h>
 #include <kiface_base.h>
@@ -56,9 +57,25 @@ DIALOG_IMPORT_GFX_SCH::DIALOG_IMPORT_GFX_SCH( SCH_BASE_FRAME* aParent ) :
         m_parent( aParent ),
         m_xOrigin( aParent, m_xLabel, m_xCtrl, m_xUnits ),
         m_yOrigin( aParent, m_yLabel, m_yCtrl, m_yUnits ),
-        m_defaultLineWidth( aParent, m_lineWidthLabel, m_lineWidthCtrl, m_lineWidthUnits )
+        m_defaultLineWidth( aParent, m_lineWidthLabel, m_lineWidthCtrl, m_lineWidthUnits ),
+        m_importWidth( aParent, m_importWidthLabel, m_importWidthCtrl, m_importWidthUnits ),
+        m_importHeight( aParent, m_importHeightLabel, m_importHeightCtrl, m_importHeightUnits ),
+        m_sourceSizeMM( 0, 0 ),
+        m_xScale( 1.0 ),
+        m_yScale( 1.0 )
 {
     m_choiceDxfUnits->Append( GetDxfImportUnitChoices() );
+
+    // The chosen unit decides what a DXF file's numbers mean, so its size has to be read again.
+    m_choiceDxfUnits->Bind( wxEVT_CHOICE,
+                            [this]( wxCommandEvent& aEvent )
+                            {
+                                m_sourcePath.Clear();
+
+                                wxCommandEvent dummy;
+                                onFilenameChanged( dummy );
+                                aEvent.Skip();
+                            } );
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
 
     if( SYMBOL_EDIT_FRAME* symFrame = dynamic_cast<SYMBOL_EDIT_FRAME*>( aParent ) )
@@ -101,6 +118,16 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataToWindow()
     if( !m_filenameOverride.IsEmpty() )
         m_textCtrlFileName->SetValue( m_filenameOverride );
 
+    // The scale comes back from the last run without an event too, so the size fields have
+    // to be told what it is before they are filled in.
+    const double scale = EDA_UNIT_UTILS::UI::DoubleValueFromString( m_importScaleCtrl->GetValue() );
+
+    if( scale > 0.0 )
+    {
+        m_xScale = scale;
+        m_yScale = scale;
+    }
+
     // A filename restored from the last run arrives without an event, so sync to it here.
     wxCommandEvent dummy;
     onFilenameChanged( dummy );
@@ -111,6 +138,8 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataToWindow()
 
 void DIALOG_IMPORT_GFX_SCH::onFilenameChanged( wxCommandEvent& event )
 {
+    loadSourceFile();
+
     bool     enableDXFControls = true;
     wxString ext = wxFileName( m_textCtrlFileName->GetValue() ).GetExt();
 
@@ -123,6 +152,155 @@ void DIALOG_IMPORT_GFX_SCH::onFilenameChanged( wxCommandEvent& event )
     m_choiceDxfUnits->Enable( enableDXFControls );
 
     updateImageControls();
+    updateSizeControls();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::loadSourceFile()
+{
+    const wxString path = m_textCtrlFileName->GetValue();
+
+    if( path == m_sourcePath )
+        return;
+
+    m_sourcePath = path;
+    m_previewSource.Destroy();
+    m_sourceSizeMM = VECTOR2D( 0, 0 );
+
+    std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( wxFileName( path ).GetExt() );
+
+    if( !plugin )
+        return;
+
+    if( DXF_IMPORT_PLUGIN* dxfPlugin = dynamic_cast<DXF_IMPORT_PLUGIN*>( plugin.get() ) )
+        dxfPlugin->SetUnit( DxfImportUnitFromChoice( m_choiceDxfUnits->GetSelection() ) );
+
+    wxLogNull doNotLog;
+    LOCALE_IO dummy; // Ensure floats can be read.
+
+    if( !plugin->Load( path ) )
+        return;
+
+    const VECTOR2D size( plugin->GetImageWidth(), plugin->GetImageHeight() );
+
+    // A file holding no geometry leaves its bounding box unset.
+    if( std::isfinite( size.x ) && std::isfinite( size.y ) && size.x > 0 && size.y > 0 )
+        m_sourceSizeMM = size;
+
+    // The image data is shared, so this keeps the pixels without reading the file again.
+    if( BITMAP_IMPORT_PLUGIN* bitmapPlugin = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) )
+        m_previewSource = bitmapPlugin->GetImage();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::updateSizeControls()
+{
+    const bool known = m_sourceSizeMM.x > 0 && m_sourceSizeMM.y > 0;
+
+    // Without a source size there is nothing to turn a size into a scale.
+    m_importWidth.Enable( known );
+    m_importHeight.Enable( known );
+
+    // Scaling the axes apart would turn an imported circle into an ellipse, which the
+    // importer has no way to report, so only a traced image may be stretched.
+    const bool stretchable = known && m_previewSource.IsOk();
+
+    m_aspectRatioCheckbox->Enable( stretchable );
+
+    if( !stretchable )
+        m_aspectRatioCheckbox->SetValue( true );
+
+    if( m_aspectRatioCheckbox->IsChecked() )
+        m_yScale = m_xScale;
+
+    sizeFromScale();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::sizeFromScale()
+{
+    if( m_sourceSizeMM.x <= 0 || m_sourceSizeMM.y <= 0 )
+    {
+        m_importWidth.ChangeValue( wxEmptyString );
+        m_importHeight.ChangeValue( wxEmptyString );
+        return;
+    }
+
+    // ChangeValue(), so that writing one field does not look like the user typing in it.
+    m_importWidth.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.x * m_xScale ) );
+    m_importHeight.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.y * m_yScale ) );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::scaleFromSize( bool aFromWidth )
+{
+    if( m_sourceSizeMM.x <= 0 || m_sourceSizeMM.y <= 0 )
+        return;
+
+    const double width = schIUScale.IUTomm( m_importWidth.GetValue() );
+    const double height = schIUScale.IUTomm( m_importHeight.GetValue() );
+    const bool   locked = m_aspectRatioCheckbox->IsChecked();
+
+    // A half typed number is not a size to work from.
+    if( aFromWidth && width > 0 )
+        m_xScale = width / m_sourceSizeMM.x;
+    else if( !aFromWidth && height > 0 )
+        m_yScale = height / m_sourceSizeMM.y;
+    else
+        return;
+
+    if( locked )
+    {
+        if( aFromWidth )
+            m_yScale = m_xScale;
+        else
+            m_xScale = m_yScale;
+    }
+
+    m_importScaleCtrl->ChangeValue( wxString::Format( wxT( "%g" ), m_xScale ) );
+
+    // The field the user is typing in is left alone; only the one that follows is written.
+    if( locked && aFromWidth )
+        m_importHeight.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.y * m_yScale ) );
+    else if( locked )
+        m_importWidth.ChangeValue( schIUScale.mmToIU( m_sourceSizeMM.x * m_xScale ) );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onScaleChanged( wxCommandEvent& event )
+{
+    const double scale = EDA_UNIT_UTILS::UI::DoubleValueFromString( m_importScaleCtrl->GetValue() );
+
+    if( scale <= 0.0 )
+        return;
+
+    m_xScale = scale;
+    m_yScale = scale;
+
+    sizeFromScale();
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onWidthChanged( wxCommandEvent& event )
+{
+    scaleFromSize( true );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onHeightChanged( wxCommandEvent& event )
+{
+    scaleFromSize( false );
+}
+
+
+void DIALOG_IMPORT_GFX_SCH::onLockAspectChanged( wxCommandEvent& event )
+{
+    // Locking the ratio again keeps the width and brings the height back into step.
+    if( m_aspectRatioCheckbox->IsChecked() )
+    {
+        m_yScale = m_xScale;
+        sizeFromScale();
+    }
 }
 
 
@@ -133,14 +311,6 @@ void DIALOG_IMPORT_GFX_SCH::updateImageControls()
 
     if( std::unique_ptr<GRAPHICS_IMPORT_PLUGIN> plugin = m_gfxImportMgr->GetPluginByExt( ext ) )
         isImage = dynamic_cast<BITMAP_IMPORT_PLUGIN*>( plugin.get() ) != nullptr;
-
-    m_previewSource.Destroy();
-
-    if( isImage )
-    {
-        wxLogNull doNotLog;
-        m_previewSource.LoadFile( m_textCtrlFileName->GetValue() );
-    }
 
     // The preview sits directly in the sizer holding the whole image block.
     GetSizer()->Show( m_previewBitmap->GetContainingSizer(), isImage, true );
@@ -236,8 +406,8 @@ bool DIALOG_IMPORT_GFX_SCH::TransferDataFromWindow()
         return false;
     }
 
-    double           xscale = scale;
-    double           yscale = scale;
+    double xscale = m_xScale;
+    double yscale = m_yScale;
 
     VECTOR2D origin( m_xOrigin.GetValue() / xscale, m_yOrigin.GetValue() / yscale );
 

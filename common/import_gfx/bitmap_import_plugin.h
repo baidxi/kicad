@@ -61,6 +61,9 @@ public:
     double GetImageHeight() const override;
     BOX2D  GetImageBBox() const override;
 
+    /// The loaded image, so a caller showing a preview does not have to read the file again.
+    const wxImage& GetImage() const { return m_image; }
+
     /// Brightness cut deciding which pixels are traced, from 0 to 1.
     void SetThreshold( double aThreshold ) { m_threshold = aThreshold; }
 

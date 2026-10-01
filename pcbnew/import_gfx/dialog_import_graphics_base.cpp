@@ -23,17 +23,16 @@ DIALOG_IMPORT_GRAPHICS_BASE::DIALOG_IMPORT_GRAPHICS_BASE( wxWindow* parent, wxWi
 	bSizerFile = new wxBoxSizer( wxHORIZONTAL );
 
 	m_staticTextFile = new wxStaticText( this, wxID_ANY, _("File:"), wxDefaultPosition, wxDefaultSize, 0 );
-    m_staticTextFile->Wrap( -1 );
-    bSizerFile->Add( m_staticTextFile, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5 );
+	m_staticTextFile->Wrap( -1 );
+	bSizerFile->Add( m_staticTextFile, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
 
-    m_textCtrlFileName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-    m_textCtrlFileName->SetMinSize( wxSize( 300, -1 ) );
+	m_textCtrlFileName = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_textCtrlFileName->SetMinSize( wxSize( 300,-1 ) );
 
-    bSizerFile->Add( m_textCtrlFileName, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, 5 );
+	bSizerFile->Add( m_textCtrlFileName, 1, wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
 
-    m_browseButton = new STD_BITMAP_BUTTON( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxSize( -1, -1 ),
-                                            wxBU_AUTODRAW | 0 );
-    bSizerFile->Add( m_browseButton, 0, wxALIGN_CENTER_VERTICAL, 5 );
+	m_browseButton = new STD_BITMAP_BUTTON( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxSize( -1,-1 ), wxBU_AUTODRAW|0 );
+	bSizerFile->Add( m_browseButton, 0, wxALIGN_CENTER_VERTICAL, 5 );
 
 
 	bSizerMain->Add( bSizerFile, 0, wxBOTTOM|wxEXPAND|wxLEFT|wxRIGHT|wxTOP, 10 );
@@ -50,6 +49,42 @@ DIALOG_IMPORT_GRAPHICS_BASE::DIALOG_IMPORT_GRAPHICS_BASE( wxWindow* parent, wxWi
 
 	m_importScaleCtrl = new wxTextCtrl( this, wxID_ANY, _("1.0"), wxDefaultPosition, wxSize( 120,-1 ), 0 );
 	fgSizer3->Add( m_importScaleCtrl, 0, wxALIGN_CENTER_VERTICAL, 5 );
+
+
+	fgSizer3->Add( 0, 0, 1, wxEXPAND, 5 );
+
+	m_importWidthLabel = new wxStaticText( this, wxID_ANY, _("Imported width:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_importWidthLabel->Wrap( -1 );
+	fgSizer3->Add( m_importWidthLabel, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
+
+	m_importWidthCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_importWidthCtrl->SetMinSize( wxSize( 120,-1 ) );
+
+	fgSizer3->Add( m_importWidthCtrl, 0, wxALIGN_CENTER_VERTICAL, 5 );
+
+	m_importWidthUnits = new wxStaticText( this, wxID_ANY, _("mm"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_importWidthUnits->Wrap( -1 );
+	fgSizer3->Add( m_importWidthUnits, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+
+	m_importHeightLabel = new wxStaticText( this, wxID_ANY, _("Imported height:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_importHeightLabel->Wrap( -1 );
+	fgSizer3->Add( m_importHeightLabel, 0, wxALIGN_CENTER_VERTICAL|wxLEFT, 5 );
+
+	m_importHeightCtrl = new wxTextCtrl( this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_importHeightCtrl->SetMinSize( wxSize( 120,-1 ) );
+
+	fgSizer3->Add( m_importHeightCtrl, 0, wxALIGN_CENTER_VERTICAL, 5 );
+
+	m_importHeightUnits = new wxStaticText( this, wxID_ANY, _("mm"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_importHeightUnits->Wrap( -1 );
+	fgSizer3->Add( m_importHeightUnits, 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+
+
+	fgSizer3->Add( 0, 0, 1, wxEXPAND, 5 );
+
+	m_aspectRatioCheckbox = new wxCheckBox( this, wxID_ANY, _("Lock height / width ratio"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_aspectRatioCheckbox->SetValue(true);
+	fgSizer3->Add( m_aspectRatioCheckbox, 0, wxALL, 5 );
 
 
 	fgSizer3->Add( 0, 0, 1, wxEXPAND, 5 );
@@ -81,42 +116,40 @@ DIALOG_IMPORT_GRAPHICS_BASE::DIALOG_IMPORT_GRAPHICS_BASE( wxWindow* parent, wxWi
 
 	bSizerMain->Add( fgSizer3, 0, wxEXPAND|wxBOTTOM|wxRIGHT|wxLEFT, 5 );
 
-    wxBoxSizer* bSizerImageOptions;
-    bSizerImageOptions = new wxBoxSizer( wxHORIZONTAL );
+	wxBoxSizer* bSizerImageOptions;
+	bSizerImageOptions = new wxBoxSizer( wxHORIZONTAL );
 
-    wxBoxSizer* bSizerImageControls;
-    bSizerImageControls = new wxBoxSizer( wxVERTICAL );
+	wxBoxSizer* bSizerImageControls;
+	bSizerImageControls = new wxBoxSizer( wxVERTICAL );
 
-    m_thresholdLabel =
-            new wxStaticText( this, wxID_ANY, _( "Black / white threshold:" ), wxDefaultPosition, wxDefaultSize, 0 );
-    m_thresholdLabel->Wrap( -1 );
-    bSizerImageControls->Add( m_thresholdLabel, 0, wxALL, 5 );
+	m_thresholdLabel = new wxStaticText( this, wxID_ANY, _("Black / white threshold:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_thresholdLabel->Wrap( -1 );
+	bSizerImageControls->Add( m_thresholdLabel, 0, wxALL, 5 );
 
-    m_thresholdSlider =
-            new wxSlider( this, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL | wxSL_LABELS );
-    bSizerImageControls->Add( m_thresholdSlider, 0, wxEXPAND | wxLEFT, 5 );
+	m_thresholdSlider = new wxSlider( this, wxID_ANY, 50, 0, 100, wxDefaultPosition, wxDefaultSize, wxSL_HORIZONTAL|wxSL_LABELS );
+	bSizerImageControls->Add( m_thresholdSlider, 0, wxEXPAND|wxLEFT, 5 );
 
-    m_cbInvertColors = new wxCheckBox( this, wxID_ANY, _( "Invert Colors" ), wxDefaultPosition, wxDefaultSize, 0 );
-    bSizerImageControls->Add( m_cbInvertColors, 0, wxEXPAND | wxLEFT, 5 );
+	m_cbInvertColors = new wxCheckBox( this, wxID_ANY, _("Invert Colors"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizerImageControls->Add( m_cbInvertColors, 0, wxEXPAND|wxLEFT, 5 );
 
 
-    bSizerImageOptions->Add( bSizerImageControls, 1, wxEXPAND | wxLEFT, 5 );
+	bSizerImageOptions->Add( bSizerImageControls, 1, wxEXPAND|wxLEFT, 5 );
 
-    m_previewBitmap = new wxStaticBitmap( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxDefaultSize, 0 );
-    m_previewBitmap->SetMinSize( wxSize( 160, 120 ) );
+	m_previewBitmap = new wxStaticBitmap( this, wxID_ANY, wxNullBitmap, wxDefaultPosition, wxDefaultSize, 0 );
+	m_previewBitmap->SetMinSize( wxSize( 160,120 ) );
 
-    bSizerImageOptions->Add( m_previewBitmap, 0, wxALIGN_CENTER_VERTICAL | wxALL, 5 );
-
-
-    bSizerMain->Add( bSizerImageOptions, 0, wxEXPAND, 5 );
+	bSizerImageOptions->Add( m_previewBitmap, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5 );
 
 
-    bSizerMain->Add( 0, 5, 0, wxEXPAND, 5 );
+	bSizerMain->Add( bSizerImageOptions, 0, wxEXPAND, 5 );
 
-    m_staticline2 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
-    bSizerMain->Add( m_staticline2, 0, wxEXPAND | wxALL, 5 );
 
-    wxBoxSizer* bSizerPlaceAt;
+	bSizerMain->Add( 0, 5, 0, wxEXPAND, 5 );
+
+	m_staticline2 = new wxStaticLine( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+	bSizerMain->Add( m_staticline2, 0, wxEXPAND|wxALL, 5 );
+
+	wxBoxSizer* bSizerPlaceAt;
 	bSizerPlaceAt = new wxBoxSizer( wxHORIZONTAL );
 
 	m_placeAtCheckbox = new wxCheckBox( this, wxID_ANY, _("Place at:"), wxDefaultPosition, wxDefaultSize, 0 );
@@ -253,32 +286,29 @@ DIALOG_IMPORT_GRAPHICS_BASE::DIALOG_IMPORT_GRAPHICS_BASE( wxWindow* parent, wxWi
 
 	// Connect Events
 	this->Connect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onUpdateUI ) );
-    m_textCtrlFileName->Connect( wxEVT_COMMAND_TEXT_UPDATED,
-                                 wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onFilenameChanged ), NULL, this );
-    m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED,
-                             wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onBrowseFiles ), NULL, this );
-    m_thresholdSlider->Connect( wxEVT_SCROLL_CHANGED,
-                                wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
-    m_thresholdSlider->Connect( wxEVT_SCROLL_THUMBTRACK,
-                                wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
-    m_cbInvertColors->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED,
-                               wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onInvertChanged ), NULL, this );
+	m_textCtrlFileName->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onFilenameChanged ), NULL, this );
+	m_browseButton->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onBrowseFiles ), NULL, this );
+	m_importScaleCtrl->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onScaleChanged ), NULL, this );
+	m_importWidthCtrl->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onWidthChanged ), NULL, this );
+	m_importHeightCtrl->Connect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onHeightChanged ), NULL, this );
+	m_aspectRatioCheckbox->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onLockAspectChanged ), NULL, this );
+	m_thresholdSlider->Connect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
+	m_thresholdSlider->Connect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
+	m_cbInvertColors->Connect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onInvertChanged ), NULL, this );
 }
 
 DIALOG_IMPORT_GRAPHICS_BASE::~DIALOG_IMPORT_GRAPHICS_BASE()
 {
 	// Disconnect Events
 	this->Disconnect( wxEVT_UPDATE_UI, wxUpdateUIEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onUpdateUI ) );
-    m_textCtrlFileName->Disconnect( wxEVT_COMMAND_TEXT_UPDATED,
-                                    wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onFilenameChanged ), NULL,
-                                    this );
-    m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED,
-                                wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onBrowseFiles ), NULL, this );
-    m_thresholdSlider->Disconnect(
-            wxEVT_SCROLL_CHANGED, wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
-    m_thresholdSlider->Disconnect( wxEVT_SCROLL_THUMBTRACK,
-                                   wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL,
-                                   this );
-    m_cbInvertColors->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED,
-                                  wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onInvertChanged ), NULL, this );
+	m_textCtrlFileName->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onFilenameChanged ), NULL, this );
+	m_browseButton->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onBrowseFiles ), NULL, this );
+	m_importScaleCtrl->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onScaleChanged ), NULL, this );
+	m_importWidthCtrl->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onWidthChanged ), NULL, this );
+	m_importHeightCtrl->Disconnect( wxEVT_COMMAND_TEXT_UPDATED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onHeightChanged ), NULL, this );
+	m_aspectRatioCheckbox->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onLockAspectChanged ), NULL, this );
+	m_thresholdSlider->Disconnect( wxEVT_SCROLL_CHANGED, wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
+	m_thresholdSlider->Disconnect( wxEVT_SCROLL_THUMBTRACK, wxScrollEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onThresholdChanged ), NULL, this );
+	m_cbInvertColors->Disconnect( wxEVT_COMMAND_CHECKBOX_CLICKED, wxCommandEventHandler( DIALOG_IMPORT_GRAPHICS_BASE::onInvertChanged ), NULL, this );
+
 }

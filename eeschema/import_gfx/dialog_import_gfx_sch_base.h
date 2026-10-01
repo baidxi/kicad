@@ -29,9 +29,9 @@ class STD_BITMAP_BUTTON;
 #include <wx/radiobut.h>
 #include <wx/valtext.h>
 #include <wx/statbox.h>
+#include <wx/checkbox.h>
 #include <wx/choice.h>
 #include <wx/slider.h>
-#include <wx/checkbox.h>
 #include <wx/statbmp.h>
 #include <wx/dialog.h>
 
@@ -58,36 +58,46 @@ class DIALOG_IMPORT_GFX_SCH_BASE : public DIALOG_SHIM
 		wxStaticText* m_yUnits;
 		wxStaticText* m_importScaleLabel;
 		wxTextCtrl* m_importScaleCtrl;
-        wxCheckBox*             m_cbGroupItems;
-        wxStaticText*           m_lineWidthLabel;
-        wxTextCtrl* m_lineWidthCtrl;
+		wxStaticText* m_importWidthLabel;
+		wxTextCtrl* m_importWidthCtrl;
+		wxStaticText* m_importWidthUnits;
+		wxStaticText* m_importHeightLabel;
+		wxTextCtrl* m_importHeightCtrl;
+		wxStaticText* m_importHeightUnits;
+		wxCheckBox* m_aspectRatioCheckbox;
+		wxCheckBox* m_cbGroupItems;
+		wxStaticText* m_lineWidthLabel;
+		wxTextCtrl* m_lineWidthCtrl;
 		wxStaticText* m_lineWidthUnits;
 		wxStaticText* m_staticTextLineWidth1;
 		wxChoice* m_choiceDxfUnits;
-        wxStaticText*           m_thresholdLabel;
-        wxSlider*               m_thresholdSlider;
-        wxCheckBox*             m_cbInvertColors;
-        wxStaticBitmap*         m_previewBitmap;
-        wxStdDialogButtonSizer* m_sdbSizer;
-        wxButton*               m_sdbSizerOK;
-        wxButton*               m_sdbSizerCancel;
+		wxStaticText* m_thresholdLabel;
+		wxSlider* m_thresholdSlider;
+		wxCheckBox* m_cbInvertColors;
+		wxStaticBitmap* m_previewBitmap;
+		wxStdDialogButtonSizer* m_sdbSizer;
+		wxButton* m_sdbSizerOK;
+		wxButton* m_sdbSizerCancel;
 
-        // Virtual event handlers, override them in your derived class
-        virtual void onFilenameChanged( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onBrowseFiles( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onInteractivePlacement( wxCommandEvent& event ) { event.Skip(); }
-        virtual void originOptionOnUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
-        virtual void onAbsolutePlacement( wxCommandEvent& event ) { event.Skip(); }
-        virtual void onThresholdChanged( wxScrollEvent& event ) { event.Skip(); }
-        virtual void onInvertChanged( wxCommandEvent& event ) { event.Skip(); }
+		// Virtual event handlers, override them in your derived class
+		virtual void onFilenameChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onBrowseFiles( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onInteractivePlacement( wxCommandEvent& event ) { event.Skip(); }
+		virtual void originOptionOnUpdateUI( wxUpdateUIEvent& event ) { event.Skip(); }
+		virtual void onAbsolutePlacement( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onScaleChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onWidthChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onHeightChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onLockAspectChanged( wxCommandEvent& event ) { event.Skip(); }
+		virtual void onThresholdChanged( wxScrollEvent& event ) { event.Skip(); }
+		virtual void onInvertChanged( wxCommandEvent& event ) { event.Skip(); }
 
 
-    public:
-        DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWindowID id = wxID_ANY,
-                                    const wxString& title = _( "Import Graphics File" ),
-                                    const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1, -1 ),
-                                    long style = wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER );
+	public:
 
-        ~DIALOG_IMPORT_GFX_SCH_BASE();
+		DIALOG_IMPORT_GFX_SCH_BASE( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = _("Import Graphics File"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( -1,-1 ), long style = wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER );
+
+		~DIALOG_IMPORT_GFX_SCH_BASE();
+
 };
 
