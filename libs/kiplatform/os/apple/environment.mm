@@ -14,14 +14,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include <kiplatform/environment.h>
-
-#include <memory>
-#include <string>
 
 #import <Cocoa/Cocoa.h>
 #import <CFNetwork/CFNetwork.h>
@@ -75,6 +72,27 @@ bool KIPLATFORM::ENV::IsNetworkPath( const wxString& aPath )
 {
     // placeholder, we "nerf" behavior if its a network path so return false by default
     return false;
+}
+
+
+bool KIPLATFORM::ENV::IsRemovablePath( const wxString& aPath )
+{
+    NSURL* url = [[NSURL fileURLWithPath:wxCFStringRef( aPath ).AsNSString()]
+                         URLByResolvingSymlinksInPath];
+    NSNumber* local = nil;
+    NSNumber* removable = nil;
+    NSNumber* ejectable = nil;
+
+    if( ![url getResourceValue:&local forKey:NSURLVolumeIsLocalKey error:nil]
+        || ![local boolValue] )
+    {
+        return false;
+    }
+
+    [url getResourceValue:&removable forKey:NSURLVolumeIsRemovableKey error:nil];
+    [url getResourceValue:&ejectable forKey:NSURLVolumeIsEjectableKey error:nil];
+
+    return [removable boolValue] || [ejectable boolValue];
 }
 
 
@@ -201,22 +219,22 @@ bool evaluatePACScript( CFURLRef aPacUrl, CFURLRef aTargetUrl, KIPLATFORM::ENV::
                                                  cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
                                              timeoutInterval:10.0];
 
-        // The handler's NSData is autoreleased in the delegate queue's pool, which drains
-        // as soon as the handler returns, so nothing Objective-C can be handed to the
-        // waiting thread. Copy the bytes into a shared buffer instead: the block owns its
-        // own reference, so a handler that fires after the wait times out still has
-        // somewhere valid to write.
-        auto script = std::make_shared<std::string>();
+        __block NSString* scriptString = nil;
 
-        // Block capture retains the semaphore (OS_OBJECT_USE_OBJC), so releasing our own
-        // reference after the wait is safe even if the handler has not yet fired.
+        // The completion handler may run after dispatch_semaphore_wait times out, so
+        // the semaphore must outlive both paths. Block capture retains the semaphore
+        // automatically (OS_OBJECT_USE_OBJC), so releasing our own reference after the
+        // wait is safe even if the block has not yet fired.
         dispatch_semaphore_t semaphore = dispatch_semaphore_create( 0 );
 
         NSURLSessionDataTask* task = [[NSURLSession sharedSession]
                   dataTaskWithRequest:request
                     completionHandler:^( NSData* data, NSURLResponse* response, NSError* error ) {
-                        if( !error && data )
-                            script->assign( (const char*) [data bytes], [data length] );
+                        if( data && !error )
+                        {
+                            scriptString = [[NSString alloc] initWithData:data
+                                                                encoding:NSUTF8StringEncoding];
+                        }
 
                         dispatch_semaphore_signal( semaphore );
                     }];
@@ -229,21 +247,16 @@ bool evaluatePACScript( CFURLRef aPacUrl, CFURLRef aTargetUrl, KIPLATFORM::ENV::
 
         if( waitResult != 0 )
         {
-            // Timed out. Cancel so the handler runs and drops its share of the buffer;
-            // reading the buffer from here on would race with that handler.
+            // Timed out. Cancel the task so its completion block can fire and release
+            // its captured semaphore reference, otherwise the block leaks until it runs.
             [task cancel];
             return false;
         }
 
-        if( script->empty() )
-            return false;
-
-        NSString* scriptString = [[[NSString alloc] initWithBytes:script->data()
-                                                           length:script->size()
-                                                         encoding:NSUTF8StringEncoding] autorelease];
-
         if( !scriptString )
             return false;
+
+        [scriptString autorelease];
 
         CFErrorRef error = nullptr;
         CFArrayRef pacProxies = CFNetworkCopyProxiesForAutoConfigurationScript(
