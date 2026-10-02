@@ -163,7 +163,9 @@ bool extractProxyFromDict( CFDictionaryRef aProxy, KIPLATFORM::ENV::PROXY_CONFIG
     if( CFEqual( proxyType, kCFProxyTypeHTTP ) )
         scheme = wxT( "http" );
     else if( CFEqual( proxyType, kCFProxyTypeHTTPS ) )
-        scheme = wxT( "https" );
+        // The "HTTPS" on the Mac side here means "proxy applies to https://" URLs;
+        // the proxy itself is still expected to be an HTTP proxy.
+        scheme = wxT( "http" );
     else if( CFEqual( proxyType, kCFProxyTypeSOCKS ) )
         scheme = wxT( "socks5" );
 
