@@ -33,6 +33,7 @@
 #include <pcb_text.h>
 #include <pcb_textbox.h>
 #include <pcb_drill_chart.h>
+#include <pcb_stackup_table.h>
 #include <pcb_table.h>
 #include <pcb_tablecell.h>
 #include <pcb_reference_image.h>
@@ -148,8 +149,14 @@ public:
         case PCB_GRID_ITEM_T:         return new PCB_GRID_ITEM( &m_board );
 
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         {
-            PCB_DRILL_CHART* chart = new PCB_DRILL_CHART( &m_board );
+            PCB_GENERATED_TABLE* chart = nullptr;
+
+            if( aType == PCB_DRILL_CHART_T )
+                chart = new PCB_DRILL_CHART( &m_board );
+            else
+                chart = new PCB_STACKUP_TABLE( &m_board );
 
             const int colWidths[2] = { pcbIUScale.mmToIU( 20.0 ), pcbIUScale.mmToIU( 30.0 ) };
             const int rowHeights[2] = { pcbIUScale.mmToIU( 5.0 ), pcbIUScale.mmToIU( 7.0 ) };

@@ -1601,6 +1601,7 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode, bool aSkipConnectivity 
     case PCB_TEXTBOX_T:
     case PCB_TABLE_T:
     case PCB_DRILL_CHART_T:
+    case PCB_STACKUP_TABLE_T:
     case PCB_DRILL_MAP_T:
     case PCB_TARGET_T:
     case PCB_GRID_ITEM_T:
@@ -1763,6 +1764,7 @@ void BOARD::Remove( BOARD_ITEM* aBoardItem, REMOVE_MODE aRemoveMode )
     case PCB_TEXTBOX_T:
     case PCB_TABLE_T:
     case PCB_DRILL_CHART_T:
+    case PCB_STACKUP_TABLE_T:
     case PCB_DRILL_MAP_T:
     case PCB_TARGET_T:
     case PCB_GRID_ITEM_T:
@@ -1878,6 +1880,7 @@ void BOARD::RemoveAll( std::initializer_list<KICAD_T> aTypes )
         case PCB_TEXTBOX_T:
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         case PCB_DRILL_MAP_T:
         case PCB_TARGET_T:
         case PCB_BARCODE_T:
@@ -2871,6 +2874,7 @@ INSPECT_RESULT BOARD::Visit( INSPECTOR inspector, void* testData, const std::vec
         case PCB_TEXTBOX_T:
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         case PCB_DRILL_MAP_T:
         case PCB_TABLECELL_T:
         case PCB_DIM_ALIGNED_T:
@@ -4334,6 +4338,7 @@ void BOARD::ConvertBrdLayerToPolygonalContours( PCB_LAYER_ID aLayer, SHAPE_POLY_
 
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         {
             const PCB_TABLE* table = static_cast<const PCB_TABLE*>( item );
             table->TransformGraphicItemsToPolySet( aOutlines, maxError, ERROR_INSIDE, aRenderSettings );
