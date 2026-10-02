@@ -514,7 +514,7 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
     fromLegacyString( aCfg, "LastNetListRead",           "pcbnew.last_paths.netlist" );
     fromLegacyString( aCfg, "LastSTEPExportPath",        "pcbnew.last_paths.step" );
     fromLegacyString( aCfg, "LastIDFExportPath",         "pcbnew.last_paths.idf" );
-    fromLegacyString( aCfg, "LastVRMLExportPath",        "pcbnew.last_paths.vmrl" );
+    fromLegacyString( aCfg, "LastVRMLExportPath",        "pcbnew.last_paths.vrml" );
     fromLegacyString( aCfg, "LastSpecctraDSNExportPath", "pcbnew.last_paths.specctra_dsn" );
     fromLegacyString( aCfg, "LastGenCADExportPath",      "pcbnew.last_paths.gencad" );
 
@@ -643,7 +643,7 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
         wxString keyBase = "ViaDiameter";
         wxString key     = keyBase;
         double   diameter;
-        double   drill   = 1.0;
+        double   drill;
 
         nlohmann::json vias = nlohmann::json::array();
 
@@ -652,6 +652,7 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
         while( aCfg->Read( key, &diameter ) )
         {
             key = "ViaDrill";
+            drill = 1.0;
             aCfg->Read( key << idx, &drill );
 
             nlohmann::json via = { { "diameter", diameter }, { "drill", drill } };
@@ -669,8 +670,8 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
         wxString keyBase = "dPairWidth";
         wxString key     = keyBase;
         double   width;
-        double   gap     = 1.0;
-        double   via_gap = 1.0;
+        double   gap;
+        double   via_gap;
 
         nlohmann::json pairs = nlohmann::json::array();
 
@@ -679,9 +680,11 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
         while( aCfg->Read( key, &width ) )
         {
             key = "dPairGap";
+            gap = 1.0;
             aCfg->Read( key << idx, &gap );
 
             key = "dPairViaGap";
+            via_gap = 1.0;
             aCfg->Read( key << idx, &via_gap );
 
             nlohmann::json pair = { { "width", width }, { "gap", gap }, { "via_gap", via_gap } };
@@ -719,8 +722,7 @@ bool PROJECT_FILE::MigrateFromLegacy( wxConfigBase* aCfg )
 
                     if( tokens.size() == 2 )
                     {
-                        wxLogTrace( traceSettings, wxT( "%d: %s = %s" ), sheet, tokens[0],
-                                    tokens[1] );
+                        wxLogTrace( traceSettings, wxT( "%d: %s = %s" ), sheet, tokens[0], tokens[1] );
                         arr.push_back( nlohmann::json::array( { tokens[0], tokens[1] } ) );
                     }
                 }
@@ -843,16 +845,14 @@ bool PROJECT_FILE::LoadFromFile( const wxString& aDirectory )
                     continue;
 
                 // Try the project-name-based filename
-                wxString expectedFile =
-                        projectName + wxS( "." ) + FILEEXT::KiCadSchematicFileExtension;
+                wxString expectedFile = projectName + wxS( "." ) + FILEEXT::KiCadSchematicFileExtension;
 
                 wxFileName candidateFile( projectPath, expectedFile );
 
                 if( candidateFile.FileExists() )
                 {
                     wxLogTrace( traceSettings,
-                                wxT( "PROJECT_FILE: Fixing stale top_level_sheets reference "
-                                     "'%s' -> '%s'" ),
+                                wxT( "PROJECT_FILE: Fixing stale top_level_sheets reference '%s' -> '%s'" ),
                                 sheetInfo.filename, expectedFile );
 
                     sheetInfo.filename = expectedFile;
