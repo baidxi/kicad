@@ -194,4 +194,13 @@ BOOST_AUTO_TEST_CASE( DefaultPenWidthIsResolvedBeforeSizingTheDisk )
 }
 
 
+BOOST_AUTO_TEST_CASE( FilledCircleWithoutOutlineIsFilledOnly )
+{
+    CIRCLE_PATH path = plotOneCircle( 20000, FILL_T::FILLED_SHAPE, 0, 5000 );
+
+    BOOST_CHECK_EQUAL( path.m_PaintOp, 'f' );
+    BOOST_CHECK_CLOSE( path.m_Radius, 10000.0, 0.01 );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
