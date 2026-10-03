@@ -184,4 +184,14 @@ BOOST_AUTO_TEST_CASE( StrokeWiderThanDiameterUsesDeviceUnits )
 }
 
 
+BOOST_AUTO_TEST_CASE( DefaultPenWidthIsResolvedBeforeSizingTheDisk )
+{
+    CIRCLE_PATH path = plotOneCircle( 2000, FILL_T::NO_FILL, PLOTTER::USE_DEFAULT_LINE_WIDTH,
+                                      20000 );
+
+    BOOST_CHECK_EQUAL( path.m_PaintOp, 'f' );
+    BOOST_CHECK_CLOSE( path.m_Radius, 11000.0, 0.01 );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()

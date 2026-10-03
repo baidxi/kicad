@@ -374,15 +374,16 @@ void PDF_PLOTTER::Circle( const VECTOR2I& pos, int diametre, FILL_T aFill, int w
 
     SetCurrentLineWidth( width );
 
-    VECTOR2D pos_dev = userToDeviceCoordinates( pos );
-    double   radius = userToDeviceSize( diametre / 2.0 );
+    VECTOR2D  pos_dev = userToDeviceCoordinates( pos );
+    const int effectiveWidth = GetCurrentLineWidth();
+    double    radius = userToDeviceSize( diametre / 2.0 );
 
     char paintOp = aFill == FILL_T::NO_FILL ? 's' : 'b';
 
     // If diameter is less than width, switch to filled mode
-    if( aFill == FILL_T::NO_FILL && diametre < GetCurrentLineWidth() )
+    if( aFill == FILL_T::NO_FILL && diametre < effectiveWidth )
     {
-        radius = userToDeviceSize( ( diametre / 2.0 ) + ( width / 2.0 ) );
+        radius = userToDeviceSize( ( diametre / 2.0 ) + ( effectiveWidth / 2.0 ) );
         paintOp = 'f';
     }
 
