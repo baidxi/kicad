@@ -544,9 +544,9 @@ BOOST_AUTO_TEST_CASE( PositionFormat )
     testEnums<JOB_EXPORT_PCB_POS::FORMAT, kiapi::board::jobs::PositionFormat>();
 }
 
-BOOST_AUTO_TEST_CASE( Ipc2581Units )
+BOOST_AUTO_TEST_CASE( FabUnits )
 {
-    testEnums<JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS, kiapi::common::types::Units>( true );
+    testEnums<JOB_EXPORT_PCB_FAB::UNITS, kiapi::common::types::Units>( true );
 }
 
 BOOST_AUTO_TEST_CASE( Ipc2581Version )
@@ -554,14 +554,45 @@ BOOST_AUTO_TEST_CASE( Ipc2581Version )
     testEnums<JOB_EXPORT_PCB_IPC2581::IPC2581_VERSION, kiapi::board::jobs::Ipc2581Version>();
 }
 
-BOOST_AUTO_TEST_CASE( OdbUnits )
-{
-    testEnums<JOB_EXPORT_PCB_ODB::ODB_UNITS, kiapi::common::types::Units>( true );
-}
-
 BOOST_AUTO_TEST_CASE( OdbCompression )
 {
     testEnums<JOB_EXPORT_PCB_ODB::ODB_COMPRESSION, kiapi::board::jobs::OdbCompression>();
+}
+
+BOOST_AUTO_TEST_CASE( OdbVariantPackaging )
+{
+    testEnums<JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING, kiapi::board::jobs::OdbVariantPackaging>();
+}
+
+BOOST_AUTO_TEST_CASE( OdbOrigin )
+{
+    testEnums<JOB_EXPORT_PCB_ODB::ORIGIN, kiapi::board::jobs::OdbOrigin>();
+    BOOST_CHECK( FromProtoEnum<JOB_EXPORT_PCB_ODB::ORIGIN>( kiapi::board::jobs::ODBO_UNKNOWN )
+                 == JOB_EXPORT_PCB_ODB::ORIGIN::ABSOLUTE_COORDS );
+}
+
+BOOST_AUTO_TEST_CASE( FabDataSet )
+{
+    // COUNT marks an unrecognised token and has no API value
+    testEnums<JOB_EXPORT_PCB_FAB::DATA_SET, kiapi::board::jobs::FabDataSet>( true );
+    BOOST_CHECK( FromProtoEnum<JOB_EXPORT_PCB_FAB::DATA_SET>( kiapi::board::jobs::FDS_UNKNOWN )
+                 == JOB_EXPORT_PCB_FAB::DATA_SET::USERDEF );
+    BOOST_CHECK( FromProtoEnum<JOB_EXPORT_PCB_FAB::DATA_SET>( static_cast<kiapi::board::jobs::FabDataSet>( 99 ) )
+                 == JOB_EXPORT_PCB_FAB::DATA_SET::COUNT );
+}
+
+BOOST_AUTO_TEST_CASE( FabNetNamePolicy )
+{
+    testEnums<JOB_EXPORT_PCB_FAB::NET_NAMES, kiapi::board::jobs::FabNetNamePolicy>();
+    BOOST_CHECK( FromProtoEnum<JOB_EXPORT_PCB_FAB::NET_NAMES>( kiapi::board::jobs::FNNP_UNKNOWN )
+                 == JOB_EXPORT_PCB_FAB::NET_NAMES::INCLUDE );
+}
+
+BOOST_AUTO_TEST_CASE( Ipc2581RefDes )
+{
+    testEnums<JOB_EXPORT_PCB_IPC2581::REF_DES, kiapi::board::jobs::Ipc2581RefDes>();
+    BOOST_CHECK( FromProtoEnum<JOB_EXPORT_PCB_IPC2581::REF_DES>( kiapi::board::jobs::IPC2581RD_UNKNOWN )
+                 == JOB_EXPORT_PCB_IPC2581::REF_DES::INCLUDE );
 }
 
 BOOST_AUTO_TEST_CASE( StatsOutputFormat )

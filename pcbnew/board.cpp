@@ -32,6 +32,7 @@
 #include <drc/drc_rtree.h>
 #include <board_design_settings.h>
 #include <drill/drill_chart_model.h>
+#include <drill/drill_enumerator.h>
 #include <drill/drill_symbol_assigner.h>
 #include <pcb_drill_map.h>
 #include <board_commit.h>
@@ -685,6 +686,12 @@ void BOARD::GetContextualTextVars( wxArrayString* aVars ) const
 
 bool BOARD::ResolveTextVar( wxString* token, int aDepth ) const
 {
+    return ResolveTextVar( token, GetCurrentVariant(), aDepth );
+}
+
+
+bool BOARD::ResolveTextVar( wxString* token, const wxString& aVariantName, int aDepth ) const
+{
     if( token->Contains( ':' ) )
     {
         wxString    remainder;
@@ -695,7 +702,7 @@ bool BOARD::ResolveTextVar( wxString* token, int aDepth ) const
         {
             FOOTPRINT* refFP = static_cast<FOOTPRINT*>( refItem );
 
-            if( refFP->ResolveTextVar( &remainder, aDepth + 1 ) )
+            if( refFP->ResolveTextVar( &remainder, aVariantName, aDepth + 1 ) )
             {
                 *token = std::move( remainder );
                 return true;
@@ -712,7 +719,7 @@ bool BOARD::ResolveTextVar( wxString* token, int aDepth ) const
                 {
                     wxString remainderCopy = remainder;
 
-                    if( footprint->ResolveTextVar( &remainderCopy, aDepth + 1 ) )
+                    if( footprint->ResolveTextVar( &remainderCopy, aVariantName, aDepth + 1 ) )
                     {
                         *token = std::move( remainderCopy );
                     }
@@ -746,12 +753,12 @@ bool BOARD::ResolveTextVar( wxString* token, int aDepth ) const
     }
     else if( token->IsSameAs( wxT( "VARIANT" ) ) )
     {
-        *token = GetCurrentVariant();
+        *token = aVariantName;
         return true;
     }
     else if( token->IsSameAs( wxT( "VARIANT_DESC" ) ) )
     {
-        *token = GetVariantDescription( GetCurrentVariant() );
+        *token = GetVariantDescription( aVariantName );
         return true;
     }
     else if( token->IsSameAs( wxT( "PROJECTNAME" ) ) && GetProject() )
@@ -1299,7 +1306,10 @@ BOARD_DESIGN_SETTINGS& BOARD::GetDesignSettings() const
 
 void BOARD::SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings )
 {
+    std::unique_lock<std::shared_mutex> writeLock( m_CachesMutex );
+
     *m_designSettings = aSettings;
+    m_maxClearanceValue.reset();
 }
 
 

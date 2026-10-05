@@ -1980,6 +1980,150 @@ JOB_EXPORT_PCB_ODB::ODB_COMPRESSION FromProtoEnum( OdbCompression aValue )
 
 
 template<>
+OdbVariantPackaging ToProtoEnum( JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING aValue )
+{
+    switch( aValue )
+    {
+    case JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING::SEPARATE: return OdbVariantPackaging::ODBVP_SEPARATE;
+    case JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING::COMBINED: return OdbVariantPackaging::ODBVP_COMBINED;
+    default:
+        wxCHECK_MSG( false, OdbVariantPackaging::ODBVP_UNKNOWN,
+                     "Unhandled case in ToProtoEnum<JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING>" );
+    }
+}
+
+
+template <>
+OdbOrigin ToProtoEnum( JOB_EXPORT_PCB_ODB::ORIGIN aValue )
+{
+    switch( aValue )
+    {
+    case JOB_EXPORT_PCB_ODB::ORIGIN::ABSOLUTE_COORDS: return OdbOrigin::ODBO_ABSOLUTE;
+    case JOB_EXPORT_PCB_ODB::ORIGIN::AUX: return OdbOrigin::ODBO_AUX;
+    case JOB_EXPORT_PCB_ODB::ORIGIN::GRID: return OdbOrigin::ODBO_GRID;
+    default: wxCHECK_MSG( false, OdbOrigin::ODBO_UNKNOWN, "Unhandled ODB++ origin" );
+    }
+}
+
+
+template <>
+JOB_EXPORT_PCB_ODB::ORIGIN FromProtoEnum( OdbOrigin aValue )
+{
+    switch( aValue )
+    {
+    case OdbOrigin::ODBO_AUX: return JOB_EXPORT_PCB_ODB::ORIGIN::AUX;
+    case OdbOrigin::ODBO_GRID: return JOB_EXPORT_PCB_ODB::ORIGIN::GRID;
+    case OdbOrigin::ODBO_ABSOLUTE:
+    case OdbOrigin::ODBO_UNKNOWN:
+    default: return JOB_EXPORT_PCB_ODB::ORIGIN::ABSOLUTE_COORDS;
+    }
+}
+
+
+template <>
+FabDataSet ToProtoEnum( JOB_EXPORT_PCB_FAB::DATA_SET aValue )
+{
+    switch( aValue )
+    {
+    case JOB_EXPORT_PCB_FAB::DATA_SET::USERDEF: return FabDataSet::FDS_USERDEF;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::BOM: return FabDataSet::FDS_BOM;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::STACKUP: return FabDataSet::FDS_STACKUP;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::FABRICATION: return FabDataSet::FDS_FABRICATION;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::ASSEMBLY: return FabDataSet::FDS_ASSEMBLY;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::TEST: return FabDataSet::FDS_TEST;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::STENCIL: return FabDataSet::FDS_STENCIL;
+    case JOB_EXPORT_PCB_FAB::DATA_SET::DFX: return FabDataSet::FDS_DFX;
+    default: wxCHECK_MSG( false, FabDataSet::FDS_UNKNOWN, "Unhandled fabrication data set" );
+    }
+}
+
+
+template <>
+JOB_EXPORT_PCB_FAB::DATA_SET FromProtoEnum( FabDataSet aValue )
+{
+    switch( aValue )
+    {
+    case FabDataSet::FDS_BOM: return JOB_EXPORT_PCB_FAB::DATA_SET::BOM;
+    case FabDataSet::FDS_STACKUP: return JOB_EXPORT_PCB_FAB::DATA_SET::STACKUP;
+    case FabDataSet::FDS_FABRICATION: return JOB_EXPORT_PCB_FAB::DATA_SET::FABRICATION;
+    case FabDataSet::FDS_ASSEMBLY: return JOB_EXPORT_PCB_FAB::DATA_SET::ASSEMBLY;
+    case FabDataSet::FDS_TEST: return JOB_EXPORT_PCB_FAB::DATA_SET::TEST;
+    case FabDataSet::FDS_STENCIL: return JOB_EXPORT_PCB_FAB::DATA_SET::STENCIL;
+    case FabDataSet::FDS_DFX: return JOB_EXPORT_PCB_FAB::DATA_SET::DFX;
+    case FabDataSet::FDS_USERDEF:
+    case FabDataSet::FDS_UNKNOWN: return JOB_EXPORT_PCB_FAB::DATA_SET::USERDEF;
+
+    // A value from a newer client must not turn into the broadest data set
+    default: return JOB_EXPORT_PCB_FAB::DATA_SET::COUNT;
+    }
+}
+
+
+template <>
+FabNetNamePolicy ToProtoEnum( JOB_EXPORT_PCB_FAB::NET_NAMES aValue )
+{
+    switch( aValue )
+    {
+    case JOB_EXPORT_PCB_FAB::NET_NAMES::INCLUDE: return FabNetNamePolicy::FNNP_INCLUDE;
+    case JOB_EXPORT_PCB_FAB::NET_NAMES::ANONYMIZE: return FabNetNamePolicy::FNNP_ANONYMIZE;
+    default: wxCHECK_MSG( false, FabNetNamePolicy::FNNP_UNKNOWN, "Unhandled net name policy" );
+    }
+}
+
+
+template <>
+JOB_EXPORT_PCB_FAB::NET_NAMES FromProtoEnum( FabNetNamePolicy aValue )
+{
+    switch( aValue )
+    {
+    case FabNetNamePolicy::FNNP_ANONYMIZE: return JOB_EXPORT_PCB_FAB::NET_NAMES::ANONYMIZE;
+    case FabNetNamePolicy::FNNP_INCLUDE:
+    case FabNetNamePolicy::FNNP_UNKNOWN:
+    default: return JOB_EXPORT_PCB_FAB::NET_NAMES::INCLUDE;
+    }
+}
+
+
+template <>
+Ipc2581RefDes ToProtoEnum( JOB_EXPORT_PCB_IPC2581::REF_DES aValue )
+{
+    switch( aValue )
+    {
+    case JOB_EXPORT_PCB_IPC2581::REF_DES::INCLUDE: return Ipc2581RefDes::IPC2581RD_INCLUDE;
+    case JOB_EXPORT_PCB_IPC2581::REF_DES::OMIT: return Ipc2581RefDes::IPC2581RD_OMIT;
+    default: wxCHECK_MSG( false, Ipc2581RefDes::IPC2581RD_UNKNOWN, "Unhandled reference designator policy" );
+    }
+}
+
+
+template <>
+JOB_EXPORT_PCB_IPC2581::REF_DES FromProtoEnum( Ipc2581RefDes aValue )
+{
+    switch( aValue )
+    {
+    case Ipc2581RefDes::IPC2581RD_OMIT: return JOB_EXPORT_PCB_IPC2581::REF_DES::OMIT;
+    case Ipc2581RefDes::IPC2581RD_INCLUDE:
+    case Ipc2581RefDes::IPC2581RD_UNKNOWN:
+    default: return JOB_EXPORT_PCB_IPC2581::REF_DES::INCLUDE;
+    }
+}
+
+
+template<>
+JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING FromProtoEnum( OdbVariantPackaging aValue )
+{
+    switch( aValue )
+    {
+    case OdbVariantPackaging::ODBVP_COMBINED: return JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING::COMBINED;
+    case OdbVariantPackaging::ODBVP_SEPARATE:
+    case OdbVariantPackaging::ODBVP_UNKNOWN:
+    default:
+        return JOB_EXPORT_PCB_ODB::VARIANT_PACKAGING::SEPARATE;
+    }
+}
+
+
+template<>
 StatsOutputFormat ToProtoEnum( JOB_EXPORT_PCB_STATS::OUTPUT_FORMAT aValue )
 {
     switch( aValue )
@@ -2068,61 +2212,31 @@ JOB_EXPORT_PCB_POS::UNITS FromProtoEnum( kiapi::common::types::Units aValue )
 
 
 template<>
-kiapi::common::types::Units ToProtoEnum( JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS aValue )
+kiapi::common::types::Units ToProtoEnum( JOB_EXPORT_PCB_FAB::UNITS aValue )
 {
     switch( aValue )
     {
-    case JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::INCH: return kiapi::common::types::Units::U_INCH;
-    case JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::MM:   return kiapi::common::types::Units::U_MM;
+    case JOB_EXPORT_PCB_FAB::UNITS::INCH: return kiapi::common::types::Units::U_INCH;
+    case JOB_EXPORT_PCB_FAB::UNITS::MM:   return kiapi::common::types::Units::U_MM;
     default:
         wxCHECK_MSG( false, kiapi::common::types::Units::U_UNKNOWN,
-                     "Unhandled case in ToProtoEnum<JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS>" );
+                     "Unhandled case in ToProtoEnum<JOB_EXPORT_PCB_FAB::UNITS>" );
     }
 }
 
 
 template<>
-JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS FromProtoEnum( kiapi::common::types::Units aValue )
+JOB_EXPORT_PCB_FAB::UNITS FromProtoEnum( kiapi::common::types::Units aValue )
 {
     switch( aValue )
     {
-    case kiapi::common::types::Units::U_INCH: return JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::INCH;
-    case kiapi::common::types::Units::U_MM:   return JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::MM;
+    case kiapi::common::types::Units::U_INCH: return JOB_EXPORT_PCB_FAB::UNITS::INCH;
+    case kiapi::common::types::Units::U_MM:   return JOB_EXPORT_PCB_FAB::UNITS::MM;
     case kiapi::common::types::Units::U_UNKNOWN:
     case kiapi::common::types::Units::U_METERS:
     case kiapi::common::types::Units::U_TENTHS:
     default:
-        return JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::MM;
-    }
-}
-
-
-template<>
-kiapi::common::types::Units ToProtoEnum( JOB_EXPORT_PCB_ODB::ODB_UNITS aValue )
-{
-    switch( aValue )
-    {
-    case JOB_EXPORT_PCB_ODB::ODB_UNITS::INCH: return kiapi::common::types::Units::U_INCH;
-    case JOB_EXPORT_PCB_ODB::ODB_UNITS::MM:   return kiapi::common::types::Units::U_MM;
-    default:
-        wxCHECK_MSG( false, kiapi::common::types::Units::U_UNKNOWN,
-                     "Unhandled case in ToProtoEnum<JOB_EXPORT_PCB_ODB::ODB_UNITS>" );
-    }
-}
-
-
-template<>
-JOB_EXPORT_PCB_ODB::ODB_UNITS FromProtoEnum( kiapi::common::types::Units aValue )
-{
-    switch( aValue )
-    {
-    case kiapi::common::types::Units::U_INCH: return JOB_EXPORT_PCB_ODB::ODB_UNITS::INCH;
-    case kiapi::common::types::Units::U_MM:   return JOB_EXPORT_PCB_ODB::ODB_UNITS::MM;
-    case kiapi::common::types::Units::U_UNKNOWN:
-    case kiapi::common::types::Units::U_METERS:
-    case kiapi::common::types::Units::U_TENTHS:
-    default:
-        return JOB_EXPORT_PCB_ODB::ODB_UNITS::MM;
+        return JOB_EXPORT_PCB_FAB::UNITS::MM;
     }
 }
 

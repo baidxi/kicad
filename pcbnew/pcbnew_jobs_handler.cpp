@@ -20,6 +20,7 @@
 
 #include <import_net_names.h>
 #include <richio.h>
+#include <string_utils.h>
 #include <wx/crt.h>
 #include <wx/dir.h>
 #include <wx/zipstrm.h>
@@ -126,6 +127,8 @@
 #include <dialogs/dialog_export_2581.h>
 #include <dialogs/dialog_export_idf.h>
 #include <dialogs/dialog_export_odbpp.h>
+#include <pcb_io/ipc2581/ipc2581_export_job.h>
+#include <pcb_io/odbpp/odb_export_job.h>
 #include <dialogs/dialog_export_step.h>
 #include <dialogs/dialog_footprint_fields_table.h>
 #include <dialogs/dialog_plot.h>
@@ -979,8 +982,7 @@ int PCBNEW_JOBS_HANDLER::JobExportBom( JOB* aJob )
 
         if( hasVariantPlaceholder )
         {
-            wxString variantPath = configuredPath;
-            variantPath.Replace( wxS( "${VARIANT}" ), variantName );
+            wxString variantPath = ExpandVariantOutputPath( configuredPath, variantName );
             aBomJob->SetConfiguredOutputPath( variantPath );
             outPath = aBomJob->GetFullOutputPath( board->GetProject() );
             aBomJob->SetConfiguredOutputPath( configuredPath );
@@ -2151,7 +2153,7 @@ int PCBNEW_JOBS_HANDLER::JobExportGerber( JOB* aJob )
         aGerberJob->SetWorkingOutputPath( fn.GetFullName() );
     }
 
-    wxString outPath = resolveJobOutputPath( aJob, brd );
+    wxString outPath = resolveJobOutputPath( aJob, brd, &aGerberJob->m_drawingSheet );
 
     if( aGerberJob->m_checkZonesBeforePlot )
     {
@@ -2993,6 +2995,24 @@ int PCBNEW_JOBS_HANDLER::JobExportDrc( JOB* aJob )
 }
 
 
+void PCBNEW_JOBS_HANDLER::refillFabZones( const JOB_EXPORT_PCB_FAB& aJob, BOARD* aBoard )
+{
+    if( !aJob.m_checkZonesBeforeExport )
+    {
+        return;
+    }
+
+    TOOL_MANAGER* toolManager = getToolManager( aBoard );
+
+    if( !toolManager->FindTool( ZONE_FILLER_TOOL_NAME ) )
+    {
+        toolManager->RegisterTool( new ZONE_FILLER_TOOL );
+    }
+
+    toolManager->GetTool<ZONE_FILLER_TOOL>()->FillAllZones( nullptr, m_progressReporter, true );
+}
+
+
 int PCBNEW_JOBS_HANDLER::JobExportIpc2581( JOB* aJob )
 {
     JOB_EXPORT_PCB_IPC2581* job = dynamic_cast<JOB_EXPORT_PCB_IPC2581*>( aJob );
@@ -3005,8 +3025,16 @@ int PCBNEW_JOBS_HANDLER::JobExportIpc2581( JOB* aJob )
     if( !brd )
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
-    if( !job->m_variant.IsEmpty() )
-        brd->SetCurrentVariant( job->m_variant );
+    struct VARIANT_RESTORE
+    {
+        BOARD*   m_board;
+        wxString m_variant;
+
+        ~VARIANT_RESTORE() { m_board->SetCurrentVariant( m_variant ); }
+    } restore{ brd, brd->GetCurrentVariant() };
+
+    if( !job->m_variantNames.empty() )
+        brd->SetCurrentVariant( job->m_variantNames.front() );
 
     if( job->GetConfiguredOutputPath().IsEmpty() )
     {
@@ -3024,7 +3052,9 @@ int PCBNEW_JOBS_HANDLER::JobExportIpc2581( JOB* aJob )
         return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
-    if( !DIALOG_EXPORT_2581::GenerateFile( *job, brd, m_progressReporter, m_reporter ) )
+    refillFabZones( *job, brd );
+
+    if( !GenerateIpc2581File( *job, brd, m_progressReporter, m_reporter ) )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
     return CLI::EXIT_CODES::SUCCESS;
@@ -3137,9 +3167,6 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
     if( !brd )
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
-    if( !job->m_variant.IsEmpty() )
-        brd->SetCurrentVariant( job->m_variant );
-
     if( job->GetConfiguredOutputPath().IsEmpty() )
     {
         if( job->m_compressionMode == JOB_EXPORT_PCB_ODB::ODB_COMPRESSION::NONE )
@@ -3165,29 +3192,21 @@ int PCBNEW_JOBS_HANDLER::JobExportOdb( JOB* aJob )
         }
     }
 
-    wxString outPath = resolveJobOutputPath( job, brd );
+    resolveJobOutputPath( job, brd );
 
     // The helper handles output path creation, so hand it a job that already has fully-resolved
     // token context (title block and project overrides applied above).
-    CLI_REPORTER reporter;
+    refillFabZones( *job, brd );
 
-    if( !m_reporter )
-        m_reporter = &reporter;
+    ODB_EXPORT_RESULT result = ::GenerateODBPPFiles( *job, brd, nullptr, m_progressReporter, m_reporter );
 
-    if( job->m_checkZonesBeforeExport )
+    if( result.m_ok )
     {
-        TOOL_MANAGER* toolManager = getToolManager( brd );
-
-        if( !toolManager->FindTool( ZONE_FILLER_TOOL_NAME ) )
-            toolManager->RegisterTool( new ZONE_FILLER_TOOL );
-
-        toolManager->GetTool<ZONE_FILLER_TOOL>()->FillAllZones( nullptr, m_progressReporter, true );
+        for( const wxString& path : result.m_outputs )
+            aJob->AddOutput( path );
     }
 
-    DIALOG_EXPORT_ODBPP::GenerateODBPPFiles( *job, brd, nullptr, m_progressReporter, m_reporter );
-    aJob->AddOutput( outPath );
-
-    if( m_reporter->HasMessageOfSeverity( RPT_SEVERITY_ERROR ) )
+    if( !result.m_ok || m_reporter->HasMessageOfSeverity( RPT_SEVERITY_ERROR ) )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
 
     return CLI::EXIT_CODES::SUCCESS;

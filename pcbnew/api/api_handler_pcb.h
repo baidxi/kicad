@@ -36,6 +36,14 @@ using namespace kiapi::board::jobs;
 class PCB_EDIT_FRAME;
 class PCB_TRACK;
 class PROPERTY_BASE;
+class JOB_EXPORT_PCB_FAB;
+class JOB_EXPORT_PCB_ODB;
+
+
+void ApplyFabExportContent( const kiapi::board::jobs::FabExportContent& aContent, JOB_EXPORT_PCB_FAB& aJob );
+
+void ApplyOdbJobRequest( const kiapi::board::jobs::RunBoardJobExportODB& aRequest,
+                         JOB_EXPORT_PCB_ODB& aJob );
 
 
 class API_HANDLER_PCB : public API_HANDLER_BOARD

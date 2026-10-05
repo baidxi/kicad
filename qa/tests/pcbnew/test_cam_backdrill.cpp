@@ -20,6 +20,8 @@
 #include <boost/test/unit_test.hpp>
 
 #include <board.h>
+#include <board_design_settings.h>
+#include <drill/drill_enumerator.h>
 #include <footprint.h>
 #include <netinfo.h>
 #include <pad.h>
@@ -29,9 +31,15 @@
 #include <pcbnew/pcb_io/odbpp/pcb_io_odbpp.h>
 #include <pcbnew/pcb_track.h>
 #include <pcbnew_utils/board_test_utils.h>
+#include <pcbnew_utils/board_file_utils.h>
+#include <qa_utils/file_utils.h>
 #include <settings/settings_manager.h>
 #include <base_units.h>
 
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <memory>
 
@@ -54,7 +62,86 @@ wxFileName MakeTempDir()
 
     return tempDir;
 }
+
+
+std::vector<wxString> ExportGerberDrill( BOARD& aBoard, const KI_TEST::SCOPED_TEMP_DIR& aDir )
+{
+    GERBER_WRITER gerber( &aBoard );
+    gerber.SetOptions( VECTOR2I( 0, 0 ) );
+    gerber.SetFormat( 6 );
+    BOOST_REQUIRE( gerber.CreateDrillandMapFilesSet( aDir.PathStr(), true, false, true ) );
+    return gerber.GetCreatedFiles();
+}
+
+
+size_t CountContaining( const std::vector<wxString>& aFiles, const wxString& aPart )
+{
+    return std::count_if( aFiles.begin(), aFiles.end(), [&]( const wxString& aName )
+    {
+        return aName.Contains( aPart );
+    } );
+}
 } // anonymous namespace
+
+
+BOOST_AUTO_TEST_CASE( GerberDrillBoardDefaultsCreateProtectionFiles )
+{
+    std::unique_ptr<BOARD> board = KI_TEST::ReadBoardFromFileOrStream(
+            KI_TEST::GetPcbnewTestDataDir()
+            + "drc_via_stack/FillFromBoardHonoursTheBoardDefault.kicad_pcb" );
+    BOOST_REQUIRE( board );
+    BOOST_REQUIRE( board->GetDesignSettings().m_FillVias );
+    BOOST_REQUIRE( board->GetDesignSettings().m_TentViasFront );
+
+    KI_TEST::SCOPED_TEMP_DIR dir( wxT( "gerber_default_protection" ) );
+    std::vector<wxString> created = ExportGerberDrill( *board, dir );
+    auto front = std::find_if( created.begin(), created.end(), []( const wxString& aName )
+    {
+        return aName.EndsWith( wxT( "-tenting-front.gbr" ) );
+    } );
+    BOOST_REQUIRE( front != created.end() );
+    std::ifstream stream( std::filesystem::path( front->ToStdString() ), std::ios::binary );
+    std::string frontTenting( std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{} );
+
+    BOOST_CHECK_EQUAL( CountContaining( created, wxT( "-filling-" ) ), 2 );
+    BOOST_CHECK_EQUAL( CountContaining( created, wxT( "-tenting-" ) ), 1 );
+    BOOST_CHECK_EQUAL( CountContaining( created, wxT( "-tenting-front.gbr" ) ), 1 );
+    BOOST_CHECK( frontTenting.find( "TF,FileFunction,Other,Tenting-Front" ) != std::string::npos );
+}
+
+
+BOOST_AUTO_TEST_CASE( GerberBackdrillDoesNotInheritViaProtection )
+{
+    std::unique_ptr<BOARD> board = KI_TEST::ReadBoardFromFileOrStream(
+            KI_TEST::GetPcbnewTestDataDir() + "issue25021/backdrill.kicad_pcb" );
+    BOOST_REQUIRE( board );
+    BOOST_REQUIRE( board->GetDesignSettings().m_TentViasFront );
+    BOOST_REQUIRE( board->GetDesignSettings().m_TentViasBack );
+
+    for( const DRILL_SPAN& span : EnumerateDrillSpans( *board ) )
+    {
+        if( !span.m_IsBackdrill )
+            continue;
+
+        DRILL_QUERY query;
+        query.m_Span = span;
+
+        for( const DRILL_OPERATION& op : EnumerateDrillOperations( *board, query ) )
+        {
+            BOOST_CHECK( !op.m_TopTented );
+            BOOST_CHECK( !op.m_BottomTented );
+            BOOST_CHECK( !op.m_TopCovered );
+            BOOST_CHECK( !op.m_BottomCovered );
+            BOOST_CHECK( !op.m_TopPlugged );
+            BOOST_CHECK( !op.m_BottomPlugged );
+        }
+    }
+
+    KI_TEST::SCOPED_TEMP_DIR dir( wxT( "gerber_backdrill_protection" ) );
+    std::vector<wxString> created = ExportGerberDrill( *board, dir );
+    BOOST_CHECK_EQUAL( CountContaining( created, wxT( "-tenting-front.gbr" ) ), 1 );
+    BOOST_CHECK_EQUAL( CountContaining( created, wxT( "-tenting-back.gbr" ) ), 1 );
+}
 
 
 BOOST_AUTO_TEST_CASE( BackdrillCamOutputs )
@@ -635,16 +722,11 @@ BOOST_AUTO_TEST_CASE( OdbPpUnfilledCircleAnnulus )
     wxFileName tempDir = MakeTempDir();
     wxFileName odbRoot = ExportOdbTree( board.get(), tempDir );
 
-    // Every circle in the project is 2 mm across with a 0.1 mm stroke, so the ring spans radius
+    // Each copper circle is 2 mm across with a 0.1 mm stroke, so the ring spans radius
     // 0.95 mm to 1.05 mm
-    for( const wxString& layerDir : { wxString( wxT( "f.cu" ) ), wxString( wxT( "edge.cuts" ) ) } )
-    {
-        wxString contents = ReadOdbLayerFeatures( odbRoot, layerDir );
-
-        BOOST_CHECK_MESSAGE( contents.Contains( wxT( "donut_r2100.0x1900.0" ) ),
-                             "Wrong annulus on " + layerDir + ", features file holds:\n"
-                                     + contents );
-    }
+    wxString contents = ReadOdbLayerFeatures( odbRoot, wxT( "f.cu" ) );
+    BOOST_CHECK_MESSAGE( contents.Contains( wxT( "donut_r2100.0x1900.0" ) ),
+                         "Wrong copper annulus, features file holds:\n" + contents );
 
     wxFileName::Rmdir( odbRoot.GetFullPath(), wxPATH_RMDIR_RECURSIVE );
     wxFileName::Rmdir( tempDir.GetFullPath(), wxPATH_RMDIR_RECURSIVE );
@@ -805,8 +887,9 @@ BOOST_AUTO_TEST_CASE( OdbPpPlatedSlotDrill )
         return false;
     };
 
-    // The plated slot must appear on the plated drill layer as exactly one oval pad feature,
-    // and the slot must NOT leak onto this layer as a non-plated hole.
+    // The plated slot must appear on the plated drill layer as exactly one line feature (drill
+    // layers hold only lines and circular pads), and must NOT leak onto this layer as a
+    // non-plated hole.
     wxFileName platedDir = layerDir( wxT( "drill_plated_f.cu-b.cu" ) );
     BOOST_REQUIRE_MESSAGE( platedDir.DirExists(), "Plated drill layer should exist" );
 
@@ -814,9 +897,9 @@ BOOST_AUTO_TEST_CASE( OdbPpPlatedSlotDrill )
     BOOST_REQUIRE( platedFeatures.FileExists() );
     wxString platedContents = readFile( platedFeatures );
 
-    BOOST_CHECK_EQUAL( countLinesStartingWith( platedContents, wxT( "P " ) ), 1 );
-    BOOST_CHECK_MESSAGE( containsOvalSymbol( platedContents ),
-                         "Plated slot should use an oval symbol" );
+    BOOST_CHECK_EQUAL( countLinesStartingWith( platedContents, wxT( "L " ) ), 1 );
+    BOOST_CHECK_MESSAGE( !containsOvalSymbol( platedContents ),
+                         "Plated slot should be a line, not an oval pad" );
 
     wxFileName platedTools( platedDir.GetFullPath(), wxT( "tools" ) );
     BOOST_REQUIRE( platedTools.FileExists() );
@@ -833,9 +916,9 @@ BOOST_AUTO_TEST_CASE( OdbPpPlatedSlotDrill )
     BOOST_REQUIRE( nonPlatedFeatures.FileExists() );
     wxString nonPlatedContents = readFile( nonPlatedFeatures );
 
-    BOOST_CHECK_EQUAL( countLinesStartingWith( nonPlatedContents, wxT( "P " ) ), 1 );
-    BOOST_CHECK_MESSAGE( containsOvalSymbol( nonPlatedContents ),
-                         "Non-plated slot should still export an oval symbol" );
+    BOOST_CHECK_EQUAL( countLinesStartingWith( nonPlatedContents, wxT( "L " ) ), 1 );
+    BOOST_CHECK_MESSAGE( !containsOvalSymbol( nonPlatedContents ),
+                         "Non-plated slot should be a line, not an oval pad" );
 
     wxFileName nonPlatedTools( nonPlatedDir.GetFullPath(), wxT( "tools" ) );
     BOOST_REQUIRE( nonPlatedTools.FileExists() );

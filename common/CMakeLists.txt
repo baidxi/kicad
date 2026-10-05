@@ -157,6 +157,7 @@ set( KICOMMON_SRCS
     jobs/job_export_pcb_gerbers.cpp
     jobs/job_export_pcb_hpgl.cpp
     jobs/job_export_pcb_ipc2581.cpp
+    jobs/job_export_pcb_fab.cpp
     jobs/job_export_pcb_ipcd356.cpp
     jobs/job_export_pcb_idf.cpp
     jobs/job_export_pcb_odb.cpp
@@ -1063,6 +1064,16 @@ set( PCB_COMMON_SRCS
     ${CMAKE_SOURCE_DIR}/pcbnew/board_tables/generated_table_refresh.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/board_tables/generated_table_schema.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_enumerator.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_pin.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_drill.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_sections.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_stackup.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_drill_model.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_layer_index.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_net_names.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_test_points.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_component_row.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/exporters/fab_model/fab_pad_geometry.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_symbol_profile.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_chart_model.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_chart_template.cpp

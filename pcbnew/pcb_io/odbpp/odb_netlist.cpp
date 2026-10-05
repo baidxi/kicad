@@ -31,110 +31,17 @@
 #include <footprint.h>
 #include <pad.h>
 #include <pcb_track.h>
+#include <exporters/fab_model/fab_pin.h>
+#include <exporters/fab_model/fab_test_points.h>
 #include <vector>
 #include <cctype>
 #include <odb_netlist.h>
 #include <wx/filedlg.h>
 #include <wx/log.h>
+#include "odb_defines.h"
 #include "odb_util.h"
+#include "pcb_io_odbpp.h"
 
-
-// Compute the side code for a pad. Returns "" if there is no copper
-std::string ODB_NET_LIST::ComputePadAccessSide( BOARD* aBoard, LSET aLayerMask )
-{
-    // Non-copper is not interesting here
-    aLayerMask &= LSET::AllCuMask( aBoard->GetCopperLayerCount() );
-
-    if( !aLayerMask.any() )
-        return "";
-
-    // Traditional TH pad
-    if( aLayerMask[F_Cu] && aLayerMask[B_Cu] )
-        return "B";
-
-    // Front SMD pad
-    if( aLayerMask[F_Cu] )
-        return "T";
-
-    // Back SMD pad
-    if( aLayerMask[B_Cu] )
-        return "D";
-
-    // Inner.  We've already checked that there is no copper on the front or back, so
-    // since we checked that there is at least one copper layer, this must be an inner layer
-    return "I";
-}
-
-
-void ODB_NET_LIST::InitPadNetPoints( BOARD*                                         aBoard,
-                                     std::map<size_t, std::vector<ODB_NET_RECORD>>& aRecords )
-{
-    for( FOOTPRINT* footprint : aBoard->Footprints() )
-    {
-        for( PAD* pad : footprint->Pads() )
-        {
-            ODB_NET_RECORD net_point;
-            net_point.side = ComputePadAccessSide( aBoard, pad->GetLayerSet() );
-
-            // It could be a mask only pad, we only handle pads with copper here
-            if( !net_point.side.empty() && net_point.side != "I" )
-            {
-                if( pad->GetNetCode() == 0 )
-                    net_point.netname = "$NONE$";
-                else
-                    net_point.netname = pad->GetNetname();
-                // net_point.pin = pad->GetNumber();
-                net_point.refdes = footprint->GetReference();
-                const VECTOR2I& drill = pad->GetDrillSize();
-                net_point.hole = pad->HasHole();
-
-                if( !net_point.hole )
-                    net_point.drill_radius = 0;
-                else
-                    net_point.drill_radius = std::min( drill.x, drill.y );
-
-                net_point.smd = pad->GetAttribute() == PAD_ATTRIB::SMD
-                                || pad->GetAttribute() == PAD_ATTRIB::CONN;
-                net_point.is_via = false;
-                net_point.mechanical = ( pad->GetAttribute() == PAD_ATTRIB::NPTH );
-                net_point.x_location = pad->GetPosition().x;
-                net_point.y_location = -pad->GetPosition().y;
-
-                // net_point.rotation = ( ANGLE_360 - pad->GetOrientation() ).Normalize().AsDegrees();
-
-                // if( net_point.rotation < 0 )
-                //     net_point.rotation += 360;
-
-                // always output NET end point as net test point
-                net_point.epoint = "e";
-
-                // the value indicates which sides are *not* accessible
-                net_point.soldermask = 3;
-
-                if( pad->GetLayerSet()[F_Mask] )
-                    net_point.soldermask &= ~1;
-
-                if( pad->GetLayerSet()[B_Mask] )
-                    net_point.soldermask &= ~2;
-
-                // The land size is written only for undrilled pads, which are single-sided, so
-                // the access side gives the copper to report
-                PCB_LAYER_ID sideLayer = pad->Padstack().EffectiveLayerFor(
-                        net_point.side == "D" ? B_Cu : F_Cu );
-
-                net_point.x_size = pad->GetSize( sideLayer ).x;
-
-                // Rule: round pads have y = 0
-                if( pad->GetShape( sideLayer ) == PAD_SHAPE::CIRCLE )
-                    net_point.y_size = net_point.x_size;
-                else
-                    net_point.y_size = pad->GetSize( sideLayer ).y;
-
-                aRecords[pad->GetNetCode()].push_back( net_point );
-            }
-        }
-    }
-}
 
 // Compute the side code for a via.
 std::string ODB_NET_LIST::ComputeViaAccessSide( BOARD* aBoard, int top_layer, int bottom_layer )
@@ -157,69 +64,83 @@ std::string ODB_NET_LIST::ComputeViaAccessSide( BOARD* aBoard, int top_layer, in
 }
 
 
-void ODB_NET_LIST::InitViaNetPoints( BOARD*                                         aBoard,
-                                     std::map<size_t, std::vector<ODB_NET_RECORD>>& aRecords )
+void ODB_NET_LIST::InitNetPoints( std::map<size_t, std::vector<ODB_NET_RECORD>>& aRecords )
 {
-    // Enumerate all the track segments and keep the vias
-    for( auto track : aBoard->Tracks() )
+    for( const FAB_TEST_POINT& point : FabTestPoints( *m_board ) )
     {
-        if( track->Type() == PCB_VIA_T )
+        ODB_NET_RECORD record;
+        record.testpoint = false;
+        record.is_via = point.m_via != nullptr;
+        record.x_location = point.m_position.x;
+        record.y_location = -point.m_position.y;
+        record.soldermask = 3;
+        record.epoint = point.m_netEnd ? "e" : "m";
+
+        if( point.m_frontMask )
+            record.soldermask &= ~1;
+
+        if( point.m_backMask )
+            record.soldermask &= ~2;
+
+        if( const PCB_VIA* via = point.m_via )
         {
-            PCB_VIA*     via = static_cast<PCB_VIA*>( track );
-            PCB_LAYER_ID top_layer, bottom_layer;
+            PCB_LAYER_ID top, bottom;
+            via->LayerPair( &top, &bottom );
+            record.side = ComputeViaAccessSide( m_board, top, bottom );
 
-            via->LayerPair( &top_layer, &bottom_layer );
+            if( record.side == "I" )
+                continue;
 
-            ODB_NET_RECORD net_point;
-            net_point.side = ComputeViaAccessSide( aBoard, top_layer, bottom_layer );
-
-            if( net_point.side != "I" )
-            {
-                NETINFO_ITEM* net = track->GetNet();
-                net_point.smd = false;
-                net_point.hole = true;
-
-                if( net->GetNetCode() == 0 )
-                    net_point.netname = "$NONE$";
-                else
-                    net_point.netname = net->GetNetname();
-
-                net_point.refdes = "VIA";
-                net_point.is_via = true;
-                net_point.drill_radius = via->GetDrillValue();
-                net_point.mechanical = false;
-                net_point.x_location = via->GetPosition().x;
-                net_point.y_location = -via->GetPosition().y;
-
-                // via always has drill radius, Width and Height are 0
-                net_point.x_size = 0;
-                net_point.y_size = 0;   // Round so height = 0
-                net_point.epoint = "e"; // only buried via is "m" net mid point
-
-                // the value indicates which sides are *not* accessible
-                net_point.soldermask = 3;
-
-                if( via->GetLayerSet()[F_Mask] )
-                    net_point.soldermask &= ~1;
-
-                if( via->GetLayerSet()[B_Mask] )
-                    net_point.soldermask &= ~2;
-
-                aRecords[net->GetNetCode()].push_back( net_point );
-            }
+            record.refdes = "VIA";
+            record.smd = false;
+            record.hole = true;
+            record.drill_radius = point.m_drill / 2;
+            record.mechanical = false;
+            record.x_size = 0;
+            record.y_size = 0;
         }
+        else
+        {
+            const PAD* pad = point.m_pad;
+
+            if( !point.m_front && !point.m_back )
+                continue;
+
+            record.side = point.m_front && point.m_back ? "B" : point.m_front ? "T" : "D";
+            record.refdes = pad->GetParentFootprint()->GetReference();
+            record.hole = pad->HasHole();
+            record.drill_radius = record.hole ? point.m_drill / 2 : 0;
+            record.smd = pad->GetAttribute() == PAD_ATTRIB::SMD || pad->GetAttribute() == PAD_ATTRIB::CONN;
+            record.mechanical = pad->GetAttribute() == PAD_ATTRIB::NPTH;
+            record.testpoint = GetFabPadRole( *pad ) == FAB_PAD_ROLE::TESTPOINT;
+
+            // The land size is written only for undrilled pads, which are single-sided, so
+            // the access side gives the copper to report
+            PCB_LAYER_ID sideLayer = pad->Padstack().EffectiveLayerFor( record.side == "D" ? B_Cu : F_Cu );
+            record.x_size = pad->GetSize( sideLayer ).x;
+
+            // A circle's stored second size can differ from its diameter
+            if( pad->GetShape( sideLayer ) == PAD_SHAPE::CIRCLE )
+                record.y_size = record.x_size;
+            else
+                record.y_size = pad->GetSize( sideLayer ).y;
+        }
+
+        aRecords[point.m_netCode].push_back( record );
     }
 }
 
 
 void ODB_NET_LIST::WriteNetPointRecords( std::map<size_t, std::vector<ODB_NET_RECORD>>& aRecords,
-                                         std::ostream&                                  aStream )
+                                         std::ostream&                                  aStream,
+                                         const ODB_FORMAT&                              aFormat )
 {
     aStream << "H optimize n staggered n" << std::endl;
+    aStream << ODB_UNITS << "=" << aFormat.m_unitsStr << std::endl;
 
     for( const auto& [key, vec] : aRecords )
     {
-        aStream << "$" << key << " " << ODB::GenLegalNetName( vec.front().netname ) << std::endl;
+        aStream << "$" << key << " " << m_plugin->GetLegalNetName( static_cast<int>( key ) ) << std::endl;
     }
 
     aStream << "#" << std::endl << "#Netlist points" << std::endl << "#" << std::endl;
@@ -231,16 +152,17 @@ void ODB_NET_LIST::WriteNetPointRecords( std::map<size_t, std::vector<ODB_NET_RE
             aStream << key << " ";
 
             if( net_point.hole )
-                aStream << ODB::Data2String( net_point.drill_radius );
+                aStream << ODB::Data2String( aFormat, net_point.drill_radius );
             else
-                aStream << 0;
+                aStream << "0.002";
 
-            aStream << " " << ODB::Data2String( net_point.x_location ) << " "
-                    << ODB::Data2String( net_point.y_location ) << " " << net_point.side << " ";
+            aStream << " " << ODB::Data2String( aFormat, net_point.x_location - aFormat.m_originOffset.x ) << " "
+                    << ODB::Data2String( aFormat, net_point.y_location + aFormat.m_originOffset.y ) << " "
+                    << net_point.side << " ";
 
             if( !net_point.hole )
-                aStream << ODB::Data2String( net_point.x_size ) << " "
-                        << ODB::Data2String( net_point.y_size ) << " ";
+                aStream << ODB::Data2String( aFormat, net_point.x_size ) << " "
+                        << ODB::Data2String( aFormat, net_point.y_size ) << " ";
 
             std::string exp;
 
@@ -261,19 +183,20 @@ void ODB_NET_LIST::WriteNetPointRecords( std::map<size_t, std::vector<ODB_NET_RE
             if( net_point.is_via )
                 aStream << " v";
 
+            if( net_point.testpoint )
+                aStream << " t";
+
             aStream << std::endl;
         }
     }
 }
 
 
-void ODB_NET_LIST::Write( std::ostream& aStream )
+void ODB_NET_LIST::Write( std::ostream& aStream, const ODB_FORMAT& aFormat )
 {
     std::map<size_t, std::vector<ODB_NET_RECORD>> net_point_records;
 
-    InitViaNetPoints( m_board, net_point_records );
+    InitNetPoints( net_point_records );
 
-    InitPadNetPoints( m_board, net_point_records );
-
-    WriteNetPointRecords( net_point_records, aStream );
+    WriteNetPointRecords( net_point_records, aStream, aFormat );
 }

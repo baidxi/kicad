@@ -489,6 +489,45 @@ enum Ipc2581Version
     IPC2581V_C = 2;
 }
 
+// Data set of a fabrication export, per the IPC-2581 function mode table.
+enum FabDataSet
+{
+    FDS_UNKNOWN = 0;
+    FDS_USERDEF = 1;
+    FDS_BOM = 2;
+    FDS_STACKUP = 3;
+    FDS_FABRICATION = 4;
+    FDS_ASSEMBLY = 5;
+    FDS_TEST = 6;
+    FDS_STENCIL = 7;
+    FDS_DFX = 8;
+}
+
+enum FabNetNamePolicy
+{
+    FNNP_UNKNOWN = 0;
+    FNNP_INCLUDE = 1;
+    // Opaque names that keep the connections
+    FNNP_ANONYMIZE = 2;
+}
+
+enum Ipc2581RefDes
+{
+    IPC2581RD_UNKNOWN = 0;
+    IPC2581RD_INCLUDE = 1;
+    IPC2581RD_OMIT = 2;
+}
+
+// Content selection shared by the ODB++ and IPC-2581 exports.
+message FabExportContent
+{
+    FabDataSet data_set = 1;
+
+    // Section key letters that replace the optional sections of the data set
+    string sections = 2;
+    FabNetNamePolicy net_names = 3;
+}
+
 // Exports a board to IPC-2581 format.  Returns RunJobResponse.
 message RunBoardJobExportIpc2581
 {
@@ -509,6 +548,9 @@ message RunBoardJobExportIpc2581
     string distributor_part_number_column = 11;
     string distributor_column = 12;
     string bom_revision = 13;
+    optional bool check_zones = 14;
+    FabExportContent content = 15;
+    Ipc2581RefDes ref_des = 16;
 }
 
 // Exports a board netlist in IPC-D-356 format.  Returns RunJobResponse.
@@ -529,6 +571,23 @@ enum OdbCompression
     ODBC_TGZ = 3;
 }
 
+enum OdbVariantPackaging
+{
+    ODBVP_UNKNOWN = 0;
+    ODBVP_SEPARATE = 1;
+    ODBVP_COMBINED = 2;
+}
+
+enum OdbOrigin
+{
+    ODBO_UNKNOWN = 0;
+    ODBO_ABSOLUTE = 1;
+    // Drill and place file origin
+    ODBO_AUX = 2;
+    ODBO_GRID = 3;
+}
+
+
 // Exports a board to ODB++ format.  Returns RunJobResponse.
 message RunBoardJobExportODB
 {
@@ -541,6 +600,13 @@ message RunBoardJobExportODB
     kiapi.common.types.Units units = 4;
     optional int32 precision = 5;
     OdbCompression compression = 6;
+    optional bool check_zones = 7;
+    repeated string variant_names = 8;
+    OdbVariantPackaging variant_packaging = 9;
+    string manufacturer_part_number_column = 10;
+    OdbOrigin origin = 11;
+    string product_name = 12;
+    FabExportContent content = 13;
 }
 
 // Board statistics output format.

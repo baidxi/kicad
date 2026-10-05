@@ -293,6 +293,12 @@ set( QA_PCBNEW_SRCS
     pcb_io/ipc2581/test_ipc2581_export.cpp
 
     pcb_io/odbpp/test_odbpp_netlist.cpp
+    pcb_io/odbpp/test_odbpp_attributes.cpp
+    pcb_io/odbpp/test_odbpp_rout.cpp
+    test_fab_pin.cpp
+    test_fab_stackup.cpp
+    test_fab_pad_geometry.cpp
+    pcb_io/odbpp/odb_test_utils.cpp
 
     group_saveload.cpp
     test_via_stack_saveload.cpp
@@ -467,6 +473,8 @@ set( PCBNEW_ZONE_TESTS
 :RegressionDiffNetOverlappingZones\
 :RegressionThermalReliefsToNowhere\
 :OffCenterTeardropSymmetry\
+:CrossingTrackTeardropOnViaStaysOnTrack\
+:CrossingTrackTeardropOnPadStaysOnTrack\
 :RegressionKeepoutBoundaryMissingFill\
 :HatchZoneViaConnectionRespectsSetting\
 :RegressionCascadingIslandRefill\
@@ -559,6 +567,8 @@ set( PCBNEW_EXCLUDED_FROM_OTHER
 :!RegressionDiffNetOverlappingZones\
 :!RegressionThermalReliefsToNowhere\
 :!OffCenterTeardropSymmetry\
+:!CrossingTrackTeardropOnViaStaysOnTrack\
+:!CrossingTrackTeardropOnPadStaysOnTrack\
 :!RegressionKeepoutBoundaryMissingFill\
 :!HatchZoneViaConnectionRespectsSetting\
 :!RegressionCascadingIslandRefill\
