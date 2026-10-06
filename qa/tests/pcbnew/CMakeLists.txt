@@ -52,6 +52,7 @@ set( QA_PCBNEW_SRCS
     test_clip_line_to_via.cpp
     test_component_classes.cpp
     test_connectivity_clusters.cpp
+    test_via_cross_section_geometry.cpp
     test_via_validation.cpp
     test_convert_tool.cpp
     test_generator_load_save.cpp
