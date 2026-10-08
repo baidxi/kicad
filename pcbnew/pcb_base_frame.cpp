@@ -64,7 +64,7 @@
 #include <tool/grid_menu.h>
 #include <ratsnest/ratsnest_view_item.h>
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 #include <spacenav/spnav_2d_plugin.h>
 #else
 #include <navlib/nl_pcbnew_plugin.h>
@@ -1042,7 +1042,7 @@ void PCB_BASE_FRAME::ActivateGalCanvas()
     {
         if( !m_spaceMouse )
         {
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__)
             m_spaceMouse = std::make_unique<SPNAV_2D_PLUGIN>( GetCanvas() );
             m_spaceMouse->SetScale( 0.01 );
 #else

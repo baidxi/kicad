@@ -56,7 +56,7 @@ class EESCHEMA_SETTINGS;
 class SYMBOL_EDITOR_SETTINGS;
 struct SCH_SELECTION_FILTER_OPTIONS;
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__)
 class SPNAV_2D_PLUGIN;
 #else
 class NL_SCHEMATIC_PLUGIN;
@@ -333,7 +333,7 @@ private:
     wxTimer                                 m_watcherDebounceTimer;
     bool                                    m_inSymChangeTimerEvent;
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__OpenBSD__)
     std::unique_ptr<SPNAV_2D_PLUGIN>        m_spaceMouse;
 #else
     std::unique_ptr<NL_SCHEMATIC_PLUGIN>    m_spaceMouse;

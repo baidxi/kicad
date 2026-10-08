@@ -773,7 +773,7 @@ struct APP_KICAD_CLI : public wxAppConsole
         // of this hazard; kept consistent with the GUI apps for parity.
         int ret = wxAppConsole::OnExit();
 
-#if defined( __FreeBSD__ )
+#if defined( __FreeBSD__ ) || defined(__OpenBSD__)
         // Avoid wxLog crashing when used in destructors invoked from OnPgmExit().
         wxLog::EnableLogging( false );
 #endif
