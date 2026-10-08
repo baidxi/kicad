@@ -72,6 +72,9 @@ public:
 
     bool GetLayerPolarity() const { return m_LayerNegative; }
 
+    bool GetMirrorA() const { return m_mirrorA; }
+    bool GetMirrorB() const { return m_mirrorB; }
+
     /**
      * Return the best size and orientation to display the D_Code on screen.
      *

@@ -21,8 +21,10 @@
 #include <base_units.h>
 #include <confirm.h>
 #include <common.h>
+#include <dialogs/dialog_gerber_item_properties.h>
 #include <dialogs/dialog_map_gerber_layers_to_pcb.h>
 #include <export_to_pcbnew.h>
+#include <gerber_draw_item.h>
 #include <gerber_file_image.h>
 #include <gerber_file_image_list.h>
 #include <gerbview_painter.h>
@@ -583,10 +585,11 @@ int GERBVIEW_CONTROL::UpdateMessagePanel( const TOOL_EVENT& aEvent )
 {
     GERBVIEW_SELECTION_TOOL* selTool = m_toolMgr->GetTool<GERBVIEW_SELECTION_TOOL>();
     GERBVIEW_SELECTION&      selection = selTool->GetSelection();
+    GERBER_DRAW_ITEM*        item = nullptr;
 
     if( selection.GetSize() == 1 )
     {
-        EDA_ITEM* item = (EDA_ITEM*) selection.Front();
+        item = static_cast<GERBER_DRAW_ITEM*>( selection.Front() );
 
         std::vector<MSG_PANEL_ITEM> msgItems;
         item->GetMsgPanelInfo( m_frame, msgItems );
@@ -596,6 +599,10 @@ int GERBVIEW_CONTROL::UpdateMessagePanel( const TOOL_EVENT& aEvent )
     {
         m_frame->EraseMsgBox();
     }
+
+    // Keep the modeless Gerber Item Properties dialog in sync with the current selection.
+    if( m_frame->m_propertiesDialog )
+        m_frame->m_propertiesDialog->SetItem( item );
 
     return 0;
 }
@@ -636,6 +643,30 @@ int GERBVIEW_CONTROL::LoadGerbFiles( const TOOL_EVENT& aEvent )
 
     if( !aFileNameList.empty() )
         m_frame->OpenProjectFiles( aFileNameList, KICTL_CREATE );
+
+    return 0;
+}
+
+
+int GERBVIEW_CONTROL::ItemProperties( const TOOL_EVENT& aEvent )
+{
+    const auto&       selection = m_toolMgr->GetTool<GERBVIEW_SELECTION_TOOL>()->GetSelection();
+    GERBER_DRAW_ITEM* item = nullptr;
+
+    if( selection.Size() == 1 )
+        item = dynamic_cast<GERBER_DRAW_ITEM*>( selection[0] );
+
+    // Create the modeless dialog on first use, then keep it alive and refresh in place.
+    if( !m_frame->m_propertiesDialog )
+    {
+        m_frame->m_propertiesDialog = new DIALOG_GERBER_ITEM_PROPERTIES( m_frame, item );
+        m_frame->m_propertiesDialog->Show( true );
+    }
+    else
+    {
+        m_frame->m_propertiesDialog->SetItem( item );
+        m_frame->m_propertiesDialog->Raise();
+    }
 
     return 0;
 }
@@ -687,4 +718,6 @@ void GERBVIEW_CONTROL::setTransitions()
 
     Go( &GERBVIEW_CONTROL::LoadZipfile,        GERBVIEW_ACTIONS::loadZipFile.MakeEvent() );
     Go( &GERBVIEW_CONTROL::LoadGerbFiles,      GERBVIEW_ACTIONS::loadGerbFiles.MakeEvent() );
+
+    Go( &GERBVIEW_CONTROL::ItemProperties, GERBVIEW_ACTIONS::properties.MakeEvent() );
 }

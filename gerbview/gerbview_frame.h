@@ -35,6 +35,7 @@
 #define NO_AVAILABLE_LAYERS UNDEFINED_LAYER
 
 class DCODE_SELECTION_BOX;
+class DIALOG_GERBER_ITEM_PROPERTIES;
 class GERBER_LAYER_WIDGET;
 class GBR_LAYER_BOX_SELECTOR;
 class GERBER_DRAW_ITEM;
@@ -504,6 +505,9 @@ public:
                                                 // gerber data (format..)
 
     GERBER_LAYER_WIDGET*    m_LayersManager;
+
+    /// Pointer to the modeless properties dialog, owned by wx (nulled on close).
+    DIALOG_GERBER_ITEM_PROPERTIES* m_propertiesDialog = nullptr;
 
 protected:
     FILE_HISTORY            m_zipFileHistory;
