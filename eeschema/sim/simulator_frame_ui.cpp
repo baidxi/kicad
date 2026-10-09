@@ -792,10 +792,10 @@ void SIMULATOR_FRAME_UI::LoadSettings( EESCHEMA_SETTINGS* aCfg )
     // Read subwindows sizes (should be > 0 )
     m_splitterLeftRightSashPosition      = settings.view.plot_panel_width;
     m_splitterPlotAndConsoleSashPosition = settings.view.plot_panel_height;
-    m_splitterSignalsSashPosition        = settings.view.signal_panel_height;
-    m_splitterCursorsSashPosition        = settings.view.cursors_panel_height;
-    m_splitterTuneValuesSashPosition     = settings.view.measurements_panel_height;
-    m_darkMode                           = !settings.view.white_background;
+    m_splitterSignalsSashPosition = settings.view.signal_panel_height;
+    m_splitterCursorsSashPosition = settings.view.cursors_panel_height;
+    m_splitterTuneValuesSashPosition = settings.view.measurements_panel_height;
+    m_darkMode = !settings.view.white_background;
     m_smithCursorColumns = settings.view.smith_cursor_columns;
 
     m_preferences = settings.preferences;
@@ -811,7 +811,7 @@ void SIMULATOR_FRAME_UI::SaveSettings( EESCHEMA_SETTINGS* aCfg )
     settings.view.signal_panel_height       = m_splitterSignals->GetSashPosition();
     settings.view.cursors_panel_height      = m_splitterCursors->GetSashPosition();
     settings.view.measurements_panel_height = m_splitterMeasurements->GetSashPosition();
-    settings.view.white_background          = !m_darkMode;
+    settings.view.white_background = !m_darkMode;
 
     if( smithColumnsShown( m_cursorsGrid ) )
         rememberSmithCursorColumns();
@@ -1193,31 +1193,30 @@ void SIMULATOR_FRAME_UI::rebuildSignalsList()
     SIM_PLOT_TAB* curPlotTab = dynamic_cast<SIM_PLOT_TAB*>( GetCurrentSimTab() );
     bool          smithMode = curPlotTab && curPlotTab->GetSimType() == ST_SP && curPlotTab->IsSmithMode();
 
-    auto addSignal =
-            [&]( const wxString& aSignalName )
+    auto addSignal = [&]( const wxString& aSignalName )
+    {
+        if( simType == ST_AC )
+        {
+            m_signals.push_back( aSignalName + _( " (gain)" ) );
+            m_signals.push_back( aSignalName + _( " (phase)" ) );
+        }
+        else if( simType == ST_SP )
+        {
+            if( smithMode )
             {
-                if( simType == ST_AC )
-                {
-                    m_signals.push_back( aSignalName + _( " (gain)" ) );
-                    m_signals.push_back( aSignalName + _( " (phase)" ) );
-                }
-                else if( simType == ST_SP )
-                {
-                    if( smithMode )
-                    {
-                        m_signals.push_back( aSignalName );
-                    }
-                    else
-                    {
-                        m_signals.push_back( aSignalName + _( " (amplitude)" ) );
-                        m_signals.push_back( aSignalName + _( " (phase)" ) );
-                    }
-                }
-                else
-                {
-                    m_signals.push_back( aSignalName );
-                }
-            };
+                m_signals.push_back( aSignalName );
+            }
+            else
+            {
+                m_signals.push_back( aSignalName + _( " (amplitude)" ) );
+                m_signals.push_back( aSignalName + _( " (phase)" ) );
+            }
+        }
+        else
+        {
+            m_signals.push_back( aSignalName );
+        }
+    };
 
     if( ( options & NETLIST_EXPORTER_SPICE::OPTION_SAVE_ALL_VOLTAGES )
         && ( simType == ST_TRAN || simType == ST_DC || simType == ST_AC || simType == ST_FFT ) )
@@ -1449,7 +1448,7 @@ wxString SIMULATOR_FRAME_UI::vectorNameFromSignalName( SIM_PLOT_TAB* aPlotTab, c
         *aTraceType |= SPT_SP_SMITH;
     }
 
-    for( const auto& [ id, signal ] : m_userDefinedSignals )
+    for( const auto& [id, signal] : m_userDefinedSignals )
     {
         if( name == signal )
         {
@@ -2175,8 +2174,7 @@ double SIMULATOR_FRAME_UI::getSmithPortImpedance( const wxString& aVectorName )
         const SIM_MODEL::PARAM* portnumParam = item.model->FindParam( "portnum" );
         long                    portnum = 0;
 
-        if( !portnumParam
-            || !wxString( SIM_VALUE::ToSpice( portnumParam->value ) ).ToLong( &portnum )
+        if( !portnumParam || !wxString( SIM_VALUE::ToSpice( portnumParam->value ) ).ToLong( &portnum )
             || portnum != responsePort )
         {
             continue;
@@ -2798,7 +2796,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
             if( !tab_js.contains( "commands" ) || !tab_js["commands"].is_array() )
                 continue;
 
-            for( const nlohmann::json& cmd : tab_js[ "commands" ] )
+            for( const nlohmann::json& cmd : tab_js["commands"] )
             {
                 if( cmd == ".kicad adjustpaths" )
                     simOptions |= NETLIST_EXPORTER_SPICE::OPTION_ADJUST_INCLUDE_PATHS;
@@ -2831,7 +2829,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
 
                 if( tab_js.contains( "measurements" ) && tab_js["measurements"].is_array() )
                 {
-                    for( const nlohmann::json& m_js : tab_js[ "measurements" ] )
+                    for( const nlohmann::json& m_js : tab_js["measurements"] )
                     {
                         plotTab->Measurements().emplace_back( wxString( m_js.value( "expr", "" ) ),
                                                               wxString( m_js.value( "format", "" ) ) );
@@ -2840,6 +2838,8 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
 
                 plotTab->SetDottedSecondary( tab_js.value( "dottedSecondary", false ) );
                 plotTab->ShowGrid( tab_js.value( "showGrid", true ) );
+                plotTab->ShowStatistics( tab_js.value( "showStatistics", false ) );
+                plotTab->EnableTrackCursor( tab_js.value( "showTrackCursor", false ) );
 
                 if( tab_js.value( "smithMode", false ) )
                 {
@@ -2928,7 +2928,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
 
                 if( tab_js.contains( "legend" ) )
                 {
-                    const nlohmann::json& legend_js = tab_js[ "legend" ];
+                    const nlohmann::json& legend_js = tab_js["legend"];
                     plotTab->SetLegendPosition( wxPoint( legend_js.value( "x", 0 ), legend_js.value( "y", 0 ) ) );
                     plotTab->ShowLegend( true );
                 }
@@ -3231,11 +3231,11 @@ bool SIMULATOR_FRAME_UI::SaveWorkbook( const wxString& aPath )
                                                              { "format", format } } ) );
             }
 
-            tab_js[ "traces" ]          = traces_js;
-            tab_js[ "measurements" ]    = measurements_js;
-            tab_js[ "dottedSecondary" ] = plotTab->GetDottedSecondary();
-            tab_js[ "showGrid" ]        = plotTab->IsGridShown();
-            tab_js[ "smithMode" ]       = plotTab->IsSmithMode();
+            tab_js["traces"] = traces_js;
+            tab_js["measurements"] = measurements_js;
+            tab_js["dottedSecondary"] = plotTab->GetDottedSecondary();
+            tab_js["showGrid"] = plotTab->IsGridShown();
+            tab_js["smithMode"] = plotTab->IsSmithMode();
 
             if( plotTab->IsSmithMode() )
             {
@@ -3277,6 +3277,8 @@ bool SIMULATOR_FRAME_UI::SaveWorkbook( const wxString& aPath )
             }
 
             tab_js["viewCount"] = plotTab->GetViewCount();
+            tab_js["showStatistics"] = plotTab->IsStatisticsShown();
+            tab_js["showTrackCursor"] = plotTab->IsTrackCursorEnabled();
 
             double min, max;
 
@@ -3656,8 +3658,8 @@ void SIMULATOR_FRAME_UI::ToggleSmithChart()
         {
             const SMITH_STASHED_CURSOR* stashed = findStashed( saved.id, saved.vectorName );
 
-            if( restoreCursor( saved.id, saved.vectorName, saved.baseType,
-                               stashed ? stashed->subType : SPT_SP_AMP, saved.coordX ) )
+            if( restoreCursor( saved.id, saved.vectorName, saved.baseType, stashed ? stashed->subType : SPT_SP_AMP,
+                               saved.coordX ) )
             {
                 restoredIds.push_back( saved.id );
             }

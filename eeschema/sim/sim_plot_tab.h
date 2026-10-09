@@ -64,6 +64,16 @@ class TRACE;
  */
 
 
+/// Summary of a trace's Y values over the run it is currently showing.
+struct TRACE_STATS
+{
+    double min;
+    double max;
+    double average;
+    double rms;
+};
+
+
 /// Cursor attached to a trace to follow its values:
 class CURSOR : public mpInfoLayer
 {
@@ -90,10 +100,7 @@ public:
         Move( wxPoint( aX, 0 ) );
     }
 
-    void Update()
-    {
-        m_updateRequired = true;
-    }
+    void Update() { m_updateRequired = true; }
 
     virtual void UpdateForNewData() { SetCoordX( m_coords.x ); }
 
@@ -105,10 +112,7 @@ public:
 
     bool OnDoubleClick( const wxPoint& aPoint, mpWindow& aWindow ) override;
 
-    const wxRealPoint& GetCoords() const
-    {
-        return m_coords;
-    }
+    const wxRealPoint& GetCoords() const { return m_coords; }
 
     virtual void SetCoordX( double aValue );
 
@@ -119,14 +123,14 @@ protected:
     wxString getID();
 
 protected:
-    TRACE*       m_trace;
-    bool         m_updateRequired;
-    bool         m_updateRef;
-    wxRealPoint  m_coords;
-    mpWindow*    m_window;
-    int          m_sweepIndex;
-    bool         m_snapToNearest;
-    double       m_snapTargetY;
+    TRACE*      m_trace;
+    bool        m_updateRequired;
+    bool        m_updateRef;
+    wxRealPoint m_coords;
+    mpWindow*   m_window;
+    int         m_sweepIndex;
+    bool        m_snapToNearest;
+    double      m_snapTargetY;
 
     static constexpr int DRAG_MARGIN = 10;
 };
@@ -149,7 +153,7 @@ public:
 
     void SetName( const wxString& aName ) override
     {
-        for( auto& [ idx, cursor ] : m_cursors )
+        for( auto& [idx, cursor] : m_cursors )
         {
             if( cursor )
                 cursor->SetName( aName );
@@ -173,7 +177,7 @@ public:
      */
     void SetData( const std::vector<double>& aX, const std::vector<double>& aY ) override
     {
-        for( auto& [ idx, cursor ] : m_cursors )
+        for( auto& [idx, cursor] : m_cursors )
         {
             if( cursor )
                 cursor->Update();
@@ -185,15 +189,40 @@ public:
     const std::vector<double>& GetDataX() const { return m_xs; }
     const std::vector<double>& GetDataY() const { return m_ys; }
 
-    bool HasCursor( int aCursorId ) { return m_cursors[ aCursorId ] != nullptr; }
+    /**
+     * Min/max/average/RMS of this trace's data, ignoring non-finite values (a magnitude of
+     * zero plots as NaN, and would otherwise poison the result).
+     *
+     * The average and RMS are integrated over X (trapezoidal), so a transient run's variable
+     * timestep doesn't bias them towards the densely-sampled stretches.  Where the X data
+     * can't carry that -- a zero span, or samples that don't advance -- they fall back to the
+     * plain sample mean.
+     *
+     * For multi-run (swept) traces, only the most recent run is considered, matching what
+     * GetValueAtX() reads out.
+     *
+     * @return false if the trace holds no finite data.
+     */
+    bool GetStatistics( TRACE_STATS& aStats ) const;
 
-    void SetCursor( int aCursorId, CURSOR* aCursor ) { m_cursors[ aCursorId ] = aCursor; }
-    CURSOR* GetCursor( int aCursorId ) { return m_cursors[ aCursorId ]; }
+    /**
+     * Linearly interpolate this trace's value at a given X (in the trace's own data space).
+     *
+     * For multi-run (swept) traces, only the most recent run is considered.
+     *
+     * @return false if aX is outside the available data (or there isn't enough data).
+     */
+    bool GetValueAtX( double aX, double* aY ) const;
+
+    bool HasCursor( int aCursorId ) { return m_cursors[aCursorId] != nullptr; }
+
+    void                    SetCursor( int aCursorId, CURSOR* aCursor ) { m_cursors[aCursorId] = aCursor; }
+    CURSOR*                 GetCursor( int aCursorId ) { return m_cursors[aCursorId]; }
     std::map<int, CURSOR*>& GetCursors() { return m_cursors; }
 
     SIM_TRACE_TYPE GetType() const { return m_type; }
 
-    void SetTraceColour( const wxColour& aColour ) { m_traceColour = aColour; }
+    void     SetTraceColour( const wxColour& aColour ) { m_traceColour = aColour; }
     wxColour GetTraceColour() const { return m_traceColour; }
 
     void SetIsMultiRun( bool aIsMultiRun ) { m_isMultiRun = aIsMultiRun; }
@@ -224,7 +253,7 @@ public:
     }
 
 protected:
-    std::map<int, CURSOR*> m_cursors;       // No ownership; the mpWindow owns the CURSORs
+    std::map<int, CURSOR*> m_cursors; // No ownership; the mpWindow owns the CURSORs
     SIM_TRACE_TYPE         m_type;
     wxColour               m_traceColour;
     bool                   m_isMultiRun;
@@ -344,6 +373,75 @@ struct SMITH_STASHED_CURSOR
     int      baseType;
     int      subType; // the SP subtype bit the cursor lived on before Smith mode
     double   frequency;
+};
+
+
+/// A floating, draggable panel listing per-signal statistics (min, max, peak-to-peak) for the
+/// traces of one view.  Like the legend, every SIM_VIEW of a tab carries one.
+class STATS_PANEL : public mpInfoLayer
+{
+public:
+    STATS_PANEL( SIM_PLOT_TAB* aPlotTab, SIM_VIEW* aView ) :
+            mpInfoLayer( wxRect( 0, 0, 200, 40 ), wxTRANSPARENT_BRUSH ),
+            m_plotTab( aPlotTab ),
+            m_view( aView ),
+            m_placed( false )
+    {
+        m_visible = false;
+        SetFont( (wxFont&) *wxSMALL_FONT );
+    }
+
+    void Plot( wxDC& aDC, mpWindow& aWindow ) override;
+
+    /// Only grabbable while it is actually on screen (mpWindow's hit test doesn't check
+    /// visibility, and the panel draws nothing on a Smith chart).
+    bool Inside( const wxPoint& aPoint ) const override;
+
+private:
+    SIM_PLOT_TAB* m_plotTab;
+    SIM_VIEW*     m_view;
+    bool          m_placed; // false until it has been given its default (top-right) position
+};
+
+
+/// A crosshair that follows the mouse pointer (rather than being manually positioned) and shows
+/// every trace's value at the current X position in a floating box.
+///
+/// Every SIM_VIEW of a tab carries one.  They are all driven from the same plot-space X, so a
+/// pointer over any one of the stacked charts reads out all of them at the same X.
+class TRACK_CURSOR : public mpInfoLayer
+{
+public:
+    TRACK_CURSOR( SIM_PLOT_TAB* aPlotTab, SIM_VIEW* aView ) :
+            mpInfoLayer( wxRect( 0, 0, 1, 1 ), wxTRANSPARENT_BRUSH ),
+            m_plotTab( aPlotTab ),
+            m_view( aView ),
+            m_plotX( 0.0 )
+    {
+        m_visible = false;
+    }
+
+    void Plot( wxDC& aDC, mpWindow& aWindow ) override;
+
+    // Never draggable/clickable; it just tracks the mouse.
+    bool Inside( const wxPoint& aPoint ) const override { return false; }
+    void Move( wxPoint aDelta ) override {}
+    void UpdateReference() override {}
+
+    /// The X position is kept in plot space (not pixels), because the stacked views share an
+    /// X range but not necessarily their margins.
+    void SetPlotX( double aPlotX )
+    {
+        m_plotX = aPlotX;
+        SetVisible( true );
+    }
+
+    void SetHidden() { SetVisible( false ); }
+
+private:
+    SIM_PLOT_TAB* m_plotTab;
+    SIM_VIEW*     m_view;
+    double        m_plotX;
 };
 
 
@@ -504,6 +602,28 @@ public:
     void SmithZoomAt( const wxPoint& aPos, double aFactor );
     void SmithPanBy( const wxPoint& aDelta );
 
+    // ---- Track cursor -------------------------------------------------------------------
+
+    /// Position this view's track cursor at a shared plot-space X.
+    void SetTrackCursorPlotX( double aPlotX );
+
+    void HideTrackCursor();
+
+    /// Move the floating overlays (legend, statistics, track cursor) to the end of the layer
+    /// stack so they draw on top of the traces and their cursors, rather than being painted
+    /// over by them.
+    void RaiseOverlays();
+
+    // ---- Statistics panel ---------------------------------------------------------------
+
+    void ShowStatistics( bool aEnable )
+    {
+        m_statsPanel->SetVisible( aEnable );
+        UpdateAll();
+    }
+
+    bool IsStatisticsShown() const { return m_statsPanel && m_statsPanel->IsVisible(); }
+
 public:
     wxPoint m_lastLegendPosition;
 
@@ -530,8 +650,14 @@ private:
 
     bool getSmithView( SMITH_VIEW& aView ) const;
 
+    void onPlotMouseMove( wxMouseEvent& aEvent );
+    void onPlotMouseLeave( wxMouseEvent& aEvent );
+
 private:
     SIM_PLOT_TAB* m_plotTab;
+
+    TRACK_CURSOR* m_trackCursor;
+    STATS_PANEL*  m_statsPanel;
 
     SMITH_GRID* m_smithGrid;
 
@@ -655,6 +781,20 @@ public:
     std::vector<SMITH_STASHED_TRACE>&  SmithStashedTraces() { return m_smithStashedTraces; }
     std::vector<SMITH_STASHED_CURSOR>& SmithStashedCursors() { return m_smithStashedCursors; }
 
+    /// Show/hide the floating per-signal statistics panel on every view of the tab.
+    void ShowStatistics( bool aEnable );
+    bool IsStatisticsShown() const;
+
+    /// Turn on/off the crosshair that follows the mouse and reads out every trace's value.
+    /// It is a tab-wide mode: the crosshair shows on every stacked view at the same X.
+    void EnableTrackCursor( bool aEnable );
+    bool IsTrackCursorEnabled() const { return m_trackCursorEnabled; }
+
+    /// Show the track cursor of every view at a shared plot-space X.
+    void SetTrackCursorX( double aPlotX );
+
+    void HideTrackCursor();
+
     /// Turn on/off the cursor for a particular trace.
     void EnableCursor( TRACE* aTrace, int aCursorId, const wxString& aSignalName );
     void DisableCursor( TRACE* aTrace, int aCursorId );
@@ -742,6 +882,8 @@ private:
 
     // Re-entrancy guard for SyncXView()
     bool m_syncingXView;
+
+    bool m_trackCursorEnabled;
 
     // Smith-chart mode is a property of the whole tab; each SIM_VIEW carries its own grid
     // layer and pan/zoom state.
