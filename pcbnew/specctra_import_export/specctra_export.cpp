@@ -59,6 +59,8 @@
 #include <mmh3_hash.h>
 #include <pcbnew_settings.h>
 
+#include "fmt/xchar.h"
+
 
 using namespace DSN;
 
@@ -612,7 +614,7 @@ PADSTACK* SPECCTRA_DB::makePADSTACK( BOARD* aBoard, PAD* aPad )
                 else if( layer == copperCount - 1 )
                     uniqifier += 'B';
                 else
-                    uniqifier += char('0' + layer); // layer index char
+                    uniqifier += fmt::format( "{}", layer );
             }
         }
     }
@@ -1004,7 +1006,7 @@ IMAGE* SPECCTRA_DB::makeIMAGE( BOARD* aBoard, FOOTPRINT* aFootprint )
 
                     window->SetShape( cutout );
 
-                    cutout->layer_id = m_layerIds[ m_kicadLayer2pcb[ zone->GetLayer() ] ];
+                    cutout->layer_id = m_layerIds[ m_kicadLayer2pcb[ layer ] ];
                 }
 
                 isStartContour = iterator.IsEndContour();

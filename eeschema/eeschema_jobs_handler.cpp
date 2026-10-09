@@ -488,7 +488,7 @@ int EESCHEMA_JOBS_HANDLER::JobExportNetlist( JOB* aJob )
 
     // Annotation warning check
     SCH_REFERENCE_LIST referenceList;
-    sch->Hierarchy().GetSymbols( referenceList, SYMBOL_FILTER_ALL );
+    sch->Hierarchy().GetSymbols( referenceList, SYMBOL_FILTER_NON_POWER );
 
     if( referenceList.GetCount() > 0 )
     {
@@ -810,9 +810,7 @@ int EESCHEMA_JOBS_HANDLER::JobExportBom( JOB* aJob )
 
             field.name = fieldName;
             field.show = !fieldName.StartsWith( wxT( "__" ), &field.name );
-
-            field.groupBy = alg::contains( aBomJob->m_fieldsGroupBy, field.name )
-                            || alg::contains( aBomJob->m_fieldsGroupBy, rawFieldName );
+            field.name = normalizeFieldName( field.name );
 
             if( ( aBomJob->m_fieldsLabels.size() > i ) && !aBomJob->m_fieldsLabels[i].IsEmpty() )
                 field.label = aBomJob->m_fieldsLabels[i];
@@ -823,6 +821,31 @@ int EESCHEMA_JOBS_HANDLER::JobExportBom( JOB* aJob )
 
             preset.fieldsOrdered.emplace_back( field );
             i++;
+        }
+
+        for( const wxString& rawFieldName : aBomJob->m_fieldsGroupBy )
+        {
+            wxString fieldName = rawFieldName;
+            fieldName.StartsWith( wxT( "__" ), &fieldName );
+            fieldName = normalizeFieldName( fieldName );
+
+            if( fieldName.IsEmpty() )
+                continue;
+
+            bool fieldAlreadyPresent = false;
+
+            for( BOM_FIELD& field : preset.fieldsOrdered )
+            {
+                if( field.name == fieldName )
+                {
+                    field.groupBy = true;
+                    fieldAlreadyPresent = true;
+                    break;
+                }
+            }
+
+            if( !fieldAlreadyPresent )
+                preset.fieldsOrdered.push_back( { fieldName, GetGeneratedFieldDisplayName( fieldName ), false, true } );
         }
 
         preset.sortAsc = aBomJob->m_sortAsc;
@@ -973,7 +996,7 @@ int EESCHEMA_JOBS_HANDLER::JobExportPythonBom( JOB* aJob )
 
     // Annotation warning check
     SCH_REFERENCE_LIST referenceList;
-    sch->Hierarchy().GetSymbols( referenceList, SYMBOL_FILTER_ALL );
+    sch->Hierarchy().GetSymbols( referenceList, SYMBOL_FILTER_NON_POWER );
 
     if( referenceList.GetCount() > 0 )
     {
@@ -1497,6 +1520,7 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
     case JOB_SCH_IMPORT::FORMAT::DIPTRACE:   fileType = SCH_IO_MGR::SCH_DIPTRACE;        break;
     case JOB_SCH_IMPORT::FORMAT::PCAD:       fileType = SCH_IO_MGR::SCH_PCAD;            break;
     case JOB_SCH_IMPORT::FORMAT::ORCAD:      fileType = SCH_IO_MGR::SCH_ORCAD;           break;
+    case JOB_SCH_IMPORT::FORMAT::EASYPC:     fileType = SCH_IO_MGR::SCH_EASYPC;          break;
     }
 
     if( fileType == SCH_IO_MGR::SCH_FILE_UNKNOWN )
@@ -1572,6 +1596,9 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
     wxString   formatName = SCH_IO_MGR::ShowType( fileType );
     SCH_SHEET* loadedSheet = nullptr;
 
+    // Declared before the plugin so it outlives the plugin's pointer to it
+    IMPORT_MESSAGE_COLLECTOR importMessages( *m_reporter );
+
     // outlives the load so the retained symbol definitions can be reconciled below
     IO_RELEASER<SCH_IO> pi( SCH_IO_MGR::FindPlugin( fileType ) );
 
@@ -1582,6 +1609,9 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
                             RPT_SEVERITY_ERROR );
         return CLI::EXIT_CODES::ERR_UNKNOWN;
     }
+
+    // Without this the importer's warnings go to the wx log and never reach the import report
+    pi->SetReporter( &importMessages );
 
     try
     {
@@ -1758,10 +1788,11 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
                             RPT_SEVERITY_WARNING );
     }
 
+    IMPORT_REPORT_DATA reportData;
+    importMessages.Flush( job->m_reportFormat, reportData );
+
     if( job->m_reportFormat != IMPORT_REPORT_FORMAT::NONE )
     {
-        IMPORT_REPORT_DATA reportData;
-
         reportData.m_sourceFile = inputFn.GetFullName();
         reportData.m_sourceFormat = formatName;
         reportData.m_outputFile = outputFn.GetFullName();
@@ -1772,7 +1803,8 @@ int EESCHEMA_JOBS_HANDLER::JobImport( JOB* aJob )
 
         reportData.m_statistics.emplace_back( wxS( "renamed_board_nets" ), job->m_netNameMap.size() );
 
-        WriteImportReport( m_reporter, job->m_reportFormat, job->m_reportFile, reportData );
+        if( !WriteImportReport( m_reporter, job->m_reportFormat, job->m_reportFile, reportData ) )
+            return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
     }
 
     return CLI::EXIT_CODES::SUCCESS;

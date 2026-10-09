@@ -1218,9 +1218,9 @@ BOARD_DESIGN_SETTINGS::~BOARD_DESIGN_SETTINGS()
 }
 
 
+// Detached so a discarded copy cannot flush its values into the project file
 BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( const BOARD_DESIGN_SETTINGS& aOther ) :
-        NESTED_SETTINGS( "board_design_settings", bdsSchemaVersion, aOther.m_parent,
-                         aOther.m_path ),
+        NESTED_SETTINGS( "board_design_settings", bdsSchemaVersion, nullptr, aOther.m_path ),
         m_Pad_Master( nullptr )
 {
     initFromOther( aOther );
@@ -1796,6 +1796,37 @@ BOARD_DESIGN_SETTINGS::ValidateDesignRules( std::optional<EDA_UNITS> aUnits ) co
     }
 
     return errors;
+}
+
+
+std::vector<BOARD_DESIGN_SETTINGS::VALIDATION_ERROR>
+BOARD_DESIGN_SETTINGS::GetDesignRuleWarnings( std::optional<EDA_UNITS> aUnits ) const
+{
+    std::vector<VALIDATION_ERROR> warnings;
+    EDA_UNITS                     units = aUnits.value_or( EDA_UNITS::MM );
+
+    auto str =
+            [&]( int aValue )
+            {
+                return EDA_UNIT_UTILS::UI::StringFromValue( pcbIUScale, units, aValue, true );
+            };
+
+    // Microvias are excluded because their default drill plus annulus already exceeds their default diameter
+    int impliedViaMin = m_MinThroughDrill + 2 * m_ViasMinAnnularWidth;
+
+    if( m_ViasMinSize < impliedViaMin )
+    {
+        warnings.push_back( {
+                wxS( "min_via_diameter" ),
+                wxString::Format( _( "Minimum via diameter (%s) is smaller than the minimum drill size (%s) "
+                                     "plus twice the minimum annular width (%s), so it has no effect. "
+                                     "The effective minimum via diameter is %s." ),
+                                  str( m_ViasMinSize ), str( m_MinThroughDrill ),
+                                  str( m_ViasMinAnnularWidth ), str( impliedViaMin ) )
+        } );
+    }
+
+    return warnings;
 }
 
 

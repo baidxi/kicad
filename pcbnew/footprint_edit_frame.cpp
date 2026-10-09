@@ -887,7 +887,8 @@ void FOOTPRINT_EDIT_FRAME::ReloadFootprint( FOOTPRINT* aFootprint )
 
         m_activeTab->SetOriginalFootprintCopy( std::unique_ptr<FOOTPRINT>( fp_copy ) );
         m_activeTab->SetFootprintNameWhenLoaded( m_footprintNameWhenLoaded );
-        m_activeTab->SetName( aFootprint->GetFPID().GetLibItemName() );
+        m_activeTab->SetLibNickname( aFootprint->GetFPID().GetLibNickname() );
+        m_activeTab->SetFootprintName( aFootprint->GetFPID().GetLibItemName() );
     }
 
     PCB_BASE_EDIT_FRAME::AddFootprintToBoard( aFootprint );
@@ -977,6 +978,8 @@ void FOOTPRINT_EDIT_FRAME::borrowBoardNonDestructive( BOARD* aBoard )
             rs->SetDashLengthRatio( GetBoard()->GetPlotOptions().GetDashedLineDashRatio() );
             rs->SetGapLengthRatio( GetBoard()->GetPlotOptions().GetDashedLineGapRatio() );
         }
+
+        GetCanvas()->GetView()->GetGAL()->SetGridOrigin( GetBoard()->GetDesignSettings().GetGridOrigin() );
     }
 
     wxCommandEvent e( EDA_EVT_BOARD_CHANGED );
@@ -1129,13 +1132,29 @@ void FOOTPRINT_EDIT_FRAME::installFootprintTabBoard( FOOTPRINT_EDITOR_TAB_CONTEX
 }
 
 
-static std::unique_ptr<BOARD> makeFpHolderBoard()
+static std::unique_ptr<BOARD> makeFpHolderBoard( FOOTPRINT_EDITOR_SETTINGS* aCfg )
 {
     auto board = std::make_unique<BOARD>();
     board->SetBoardUse( BOARD_USE::FPHOLDER );
     board->GetDesignSettings().m_NetSettings->GetDefaultNetclass()->SetClearance( 0 );
     board->GetDesignSettings().m_SolderMaskExpansion = 0;
     board->SetVisibleAlls();
+
+    // Get our own settings; aCfg will be the PCBNEW_SETTINGS because we're part of the pcbnew
+    // compile unit
+    if( aCfg )
+    {
+        board->GetDesignSettings() = aCfg->m_DesignSettings;
+
+        for( auto& [source_name, dest_name] : aCfg->m_DesignSettings.m_UserLayerNames )
+        {
+            wxString wx_source_name = source_name;
+            PCB_LAYER_ID layer = static_cast<PCB_LAYER_ID>( LSET::NameToLayer( wx_source_name ) );
+
+            if( IsUserLayer( layer ) )
+                board->SetLayerName( layer, dest_name );
+        }
+    }
 
     return board;
 }
@@ -1153,7 +1172,7 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintTab( co
         return m_tabContexts[existing].get();
     }
 
-    auto ctx = std::make_unique<FOOTPRINT_EDITOR_TAB_CONTEXT>( lib, name, makeFpHolderBoard() );
+    auto ctx = std::make_unique<FOOTPRINT_EDITOR_TAB_CONTEXT>( lib, name, makeFpHolderBoard( GetSettings() ) );
     ctx->SetPreview( aAsPreview );
 
     FOOTPRINT_EDITOR_TAB_CONTEXT* raw = ctx.get();
@@ -1224,7 +1243,7 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintInstanc
     if( int existing = m_tabsPanel->FindTab( key ); existing >= 0 )
         return m_tabContexts[existing].get();
 
-    std::unique_ptr<BOARD> board = makeFpHolderBoard();
+    std::unique_ptr<BOARD> board = makeFpHolderBoard( GetSettings() );
     board->GetDesignSettings().m_DRCSeverities[DRCE_MISSING_COURTYARD] = RPT_SEVERITY_WARNING;
 
     auto ctx = std::make_unique<FOOTPRINT_EDITOR_TAB_CONTEXT>( sourceUuid, reference, std::move( board ) );
@@ -1294,8 +1313,8 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintInstanc
 
 FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::CreateUnsavedFootprintTab()
 {
-    std::unique_ptr<FOOTPRINT_EDITOR_TAB_CONTEXT> ctx =
-            FOOTPRINT_EDITOR_TAB_CONTEXT::MakeUnsaved( makeFpHolderBoard() );
+    std::unique_ptr<BOARD>                        board = makeFpHolderBoard( GetSettings() );
+    std::unique_ptr<FOOTPRINT_EDITOR_TAB_CONTEXT> ctx = FOOTPRINT_EDITOR_TAB_CONTEXT::MakeUnsaved( std::move( board ) );
 
     const wxString                key = ctx->GetTabKey();
     FOOTPRINT_EDITOR_TAB_CONTEXT* raw = ctx.get();
@@ -1419,7 +1438,7 @@ bool FOOTPRINT_EDIT_FRAME::promptAndCloseFootprintTab( int aIdx )
     else
     {
         // Last tab: the fresh empty board is frame-owned like the bootstrap board.
-        installFootprintTabBoard( nullptr, makeFpHolderBoard().release() );
+        installFootprintTabBoard( nullptr, makeFpHolderBoard( GetSettings() ).release() );
     }
 
     // The install swapped m_pcb off the closing board, so erasing the context frees it safely.
@@ -1480,8 +1499,9 @@ void FOOTPRINT_EDIT_FRAME::RenameFootprintTab( const LIB_ID& aOldId, const LIB_I
     if( idx < static_cast<int>( m_tabContexts.size() ) )
     {
         // A tab switch restores the context's baseline onto the frame, so it must track the rename too
-        // or the next save would delete the pre-rename library entry
-        m_tabContexts[idx]->SetName( newName );
+        // or the next save would delete the pre-renamed library entry
+        m_tabContexts[idx]->SetLibNickname( newLib );
+        m_tabContexts[idx]->SetFootprintName( newName );
         m_tabContexts[idx]->SetFootprintNameWhenLoaded( newName );
     }
 
@@ -1522,6 +1542,10 @@ void FOOTPRINT_EDIT_FRAME::RefreshLibraryFootprintTab( const FOOTPRINT& aFootpri
 
     FOOTPRINT_EDITOR_TAB_CONTEXT* ctx = m_tabContexts[idx].get();
     FOOTPRINT_EDITOR_TAB_CONTEXT* originalActive = m_activeTab;
+
+    // If we have our own unsaved changes, then leave it be.
+    if( ctx->IsModified() )
+        return;
 
     activateFootprintTab( ctx );
 
@@ -1794,7 +1818,7 @@ void FOOTPRINT_EDIT_FRAME::SaveSettings( APP_SETTINGS_BASE* aCfg )
 
             const bool preview = i < entries.size() && entries[i].preview;
 
-            cfg->m_OpenTabs.push_back( { ctx->GetLib(), ctx->GetName(), preview } );
+            cfg->m_OpenTabs.push_back( { ctx->GetLibNickname(), ctx->GetFootprintName(), preview } );
 
             if( ctx == m_activeTab )
                 cfg->m_ActiveTab = ctx->GetTabKey();

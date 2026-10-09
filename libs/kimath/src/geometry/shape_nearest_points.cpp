@@ -42,7 +42,7 @@ static bool NearestPoints( const SEG& aSeg, const SHAPE_LINE_CHAIN_BASE& aChain,
                            VECTOR2I& aPtA, VECTOR2I& aPtB );
 
 /**
- * Find the nearest points between two circles.
+ * Find the nearest points between two (solid) circles.
  *
  * @param aA first circle
  * @param aB second circle
@@ -74,7 +74,7 @@ static bool NearestPoints( const SHAPE_CIRCLE& aA, const SHAPE_CIRCLE& aB,
 
 
 /**
- * Find the nearest points between a circle and a rectangle.
+ * Find the nearest points between a (solid) circle and a (solid) rectangle.
  *
  * @param aCircle the circle
  * @param aRect the rectangle
@@ -136,7 +136,7 @@ static bool NearestPoints( const SHAPE_CIRCLE& aCircle, const SHAPE_RECT& aRect,
 
 
 /**
- * Find the nearest points between a circle and a line segment.
+ * Find the nearest points between a (solid) circle and a line segment.
  *
  * @param aCircle the circle
  * @param aSeg the segment
