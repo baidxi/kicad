@@ -316,7 +316,8 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
                     // Load each top-level sheet
                     for( const TOP_LEVEL_SHEET_INFO& sheetInfo : topLevelSheets )
                     {
-                        wxFileName sheetFileName( Prj().GetProjectPath(), sheetInfo.filename );
+                        wxFileName sheetFileName( sheetInfo.filename );
+                        sheetFileName.MakeAbsolute( Prj().GetProjectPath() );
 
                         // When loading legacy schematic files, ensure we are referencing the correct extension
                         if( schFileType == SCH_IO_MGR::SCH_LEGACY )
@@ -1504,6 +1505,7 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
     case SCH_IO_MGR::SCH_DIPTRACE:
     case SCH_IO_MGR::SCH_PCAD:
     case SCH_IO_MGR::SCH_ORCAD:
+    case SCH_IO_MGR::SCH_EASYPC:
     {
         // We insist on caller sending us an absolute path, if it does not, we say it's a bug.
         // Unless we are passing the files in aproperties, in which case aFileName can be empty.

@@ -1432,7 +1432,7 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
     wxCHECK( aEndIndex < PointCount(), SHAPE_LINE_CHAIN() );
     wxCHECK( aEndIndex >= aStartIndex, SHAPE_LINE_CHAIN() );
 
-    int numPoints = static_cast<int>( m_points.size() );
+    int numPoints = static_cast<int>( PointCount() );
 
     if( IsArcSegment( aStartIndex ) && !IsArcStart( aStartIndex ) )
     {
@@ -1441,7 +1441,7 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
         const SHAPE_ARC& arcToSplit = Arc( arcToSplitIndex );
 
         // Copy the points as arc points
-        for( size_t i = aStartIndex; i < m_points.size() && arcToSplitIndex == ArcIndex( i ); i++ )
+        for( int i = aStartIndex; i < aEndIndex && arcToSplitIndex == ArcIndex( i ); i++ )
         {
             rv.m_points.push_back( m_points[i] );
             rv.m_shapes.push_back( { rv.m_arcs.size(), SHAPE_IS_PT } );
@@ -1450,13 +1450,10 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
 
         // Create a new arc from the existing one, with different start point.
         SHAPE_ARC newArc;
+        VECTOR2I  newArcStart = m_points[aStartIndex];
 
-        VECTOR2I newArcStart = m_points[aStartIndex];
-
-        newArc.ConstructFromStartEndCenter( newArcStart, arcToSplit.GetP1(),
-                                            arcToSplit.GetCenter(),
+        newArc.ConstructFromStartEndCenter( newArcStart, arcToSplit.GetP1(), arcToSplit.GetCenter(),
                                             arcToSplit.IsClockwise() );
-
 
         rv.m_arcs.push_back( newArc );
 
@@ -1474,7 +1471,7 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
         if( IsArcStart( i ) )
         {
             if(  ( isLastShape && aEndIndex != ( numPoints - 1 ) )
-                     || ( nextShape > aEndIndex ) )
+              || ( nextShape > aEndIndex ) )
             {
                 if( i == aEndIndex )
                 {
@@ -1500,13 +1497,10 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
 
                 // Create a new arc from the existing one, with different end point.
                 SHAPE_ARC newArc;
+                VECTOR2I  newArcEnd = m_points[aEndIndex];
 
-                VECTOR2I newArcEnd = m_points[aEndIndex];
-
-                newArc.ConstructFromStartEndCenter( currentArc.GetP0(), newArcEnd,
-                                                    currentArc.GetCenter(),
+                newArc.ConstructFromStartEndCenter( currentArc.GetP0(), newArcEnd, currentArc.GetCenter(),
                                                     currentArc.IsClockwise() );
-
 
                 rv.m_arcs.push_back( newArc );
 
@@ -1534,7 +1528,6 @@ const SHAPE_LINE_CHAIN SHAPE_LINE_CHAIN::Slice( int aStartIndex, int aEndIndex, 
             if( !nextPointIsArc && i < SegmentCount() && i < aEndIndex )
                 rv.Append( GetSegment( i ).B );
         }
-
     }
 
     wxASSERT( rv.m_points.size() == rv.m_shapes.size() );
@@ -1571,7 +1564,7 @@ void SHAPE_LINE_CHAIN::Append( const SHAPE_LINE_CHAIN& aOtherLine )
 
     if( PointCount() == 0 || aOtherLine.CPoint( 0 ) != CLastPoint() )
     {
-        const VECTOR2I p = aOtherLine.CPoint( 0 );
+        const VECTOR2I& p = aOtherLine.CPoint( 0 );
         m_points.push_back( p );
         m_shapes.push_back( fixShapeIndices( aOtherLine.CShapes()[0] ) );
         m_bbox.Merge( p );
@@ -1588,7 +1581,7 @@ void SHAPE_LINE_CHAIN::Append( const SHAPE_LINE_CHAIN& aOtherLine )
 
     for( int i = 1; i < aOtherLine.PointCount(); i++ )
     {
-        const VECTOR2I p = aOtherLine.CPoint( i );
+        const VECTOR2I& p = aOtherLine.CPoint( i );
         m_points.push_back( p );
 
         ssize_t arcIndex = aOtherLine.ArcIndex( i );
@@ -1956,7 +1949,7 @@ int SHAPE_LINE_CHAIN::PathLength( const VECTOR2I& aP, int aIndex ) const
     for( int i = 0; i < SegmentCount(); i++ )
     {
         const SEG seg = CSegment( i );
-        bool indexMatch = true;
+        bool indexMatch = false;
 
         if( aIndex >= 0 )
         {
@@ -1976,15 +1969,16 @@ int SHAPE_LINE_CHAIN::PathLength( const VECTOR2I& aP, int aIndex ) const
             return sum;
         }
         else
+        {
             sum += seg.Length();
+        }
     }
 
     return -1;
 }
 
 
-bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy,
-                                    bool aUseBBoxCache ) const
+bool SHAPE_LINE_CHAIN::PointInside( const VECTOR2I& aPt, int aAccuracy, bool aUseBBoxCache ) const
 {
     if( aUseBBoxCache && GetCachedBBox() && !GetCachedBBox()->Contains( aPt ) )
         return false;
@@ -2115,7 +2109,7 @@ bool SHAPE_LINE_CHAIN::CheckClearance( const VECTOR2I& aP, const int aDist ) con
     if( !PointCount() )
         return false;
     else if( PointCount() == 1 )
-        return m_points[0] == aP;
+        return m_points[0].Distance( aP ) <= aDist;
 
     for( int i = 0; i < SegmentCount(); i++ )
     {
@@ -2729,7 +2723,7 @@ void SHAPE_LINE_CHAIN::RemoveDuplicatePoints()
     }
     else if( PointCount() == 3 )
     {
-        if( m_points[0] == m_points[1] )
+        if( m_points[0] == m_points[1] || m_points[1] == m_points[2] )
             Remove( 1 );
 
         return;
@@ -2915,7 +2909,7 @@ SHAPE_LINE_CHAIN& SHAPE_LINE_CHAIN::Simplify2( bool aRemoveColinear )
     }
     else if( PointCount() == 3 )
     {
-        if( m_points[0] == m_points[1] )
+        if( m_points[0] == m_points[1] || m_points[1] == m_points[2] )
             Remove( 1 );
 
         return *this;

@@ -50,6 +50,8 @@
 #include "pns_meander_skew_placer.h"
 #include "pns_dp_meander_placer.h"
 #include "pns_utils.h"
+#include "pns_diff_pair.h"
+
 #include "router_preview_item.h"
 
 namespace PNS {
@@ -227,24 +229,59 @@ bool ROUTER::StartDragging( const VECTOR2I& aP, ITEM* aItem, int aDragMode )
     return StartDragging( aP, ITEM_SET( aItem ), aDragMode );
 }
 
+bool ROUTER::hasDiffPairMembers( const ITEM_SET& aItems ) const
+{
+     auto rr = GetRuleResolver();
+
+    for( auto item : aItems.CItems() )
+    {
+
+        if( item->OfKind( ITEM::SEGMENT_T | ITEM::ARC_T ) )
+        {
+            NET_HANDLE coupledNet = rr->DpCoupledNet( item->Net() );
+            if( coupledNet )
+            {
+                PNS_DBG( dbg(), Message, wxString::Format( wxT("found DP in itemset: %s/%s"),
+                GetInterface()->GetNetName( item->Net() ),
+                GetInterface()->GetNetName( coupledNet ) ) );
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 
 bool ROUTER::StartDragging( const VECTOR2I& aP, ITEM_SET aStartItems, int aDragMode )
 {
     m_leaderSegments.clear();
     SetFailureReason( wxEmptyString );
-
+    auto dbg = GetInterface()->GetDebugDecorator();
     if( aStartItems.Empty() )
         return false;
 
-    GetRuleResolver()->ClearCaches();
+    auto rr = GetRuleResolver();
+    rr->ClearCaches();
 
-    if( aStartItems.Count( ITEM::SOLID_T ) == aStartItems.Size() )
+    bool useMultidragger = aStartItems.Count( ITEM::SEGMENT_T | ITEM::ARC_T ) > 1;
+
+    PNS_DBG( dbg, Message, wxString::Format(wxT("start-drag items %d usemulti %d"),
+    aStartItems.Count( ITEM::SEGMENT_T | ITEM::ARC_T ), useMultidragger?1:0 ));
+
+    // we use MULTI_DRAGGER also for differential pairs (with somewhat different optimization strategy)
+    if( !useMultidragger && Settings().GetKeepDPCouplingWhenDragging() )
+    {
+        useMultidragger = hasDiffPairMembers( aStartItems );
+    }
+
+    if( aStartItems.Count( ITEM::SOLID_T ) > 0 )
     {
         m_dragger = std::make_unique<COMPONENT_DRAGGER>( this );
         m_state = DRAG_COMPONENT;
     }
     // more than 1 track segment or arc to drag? launch the multisegment dragger
-    else if( aStartItems.Count( ITEM::SEGMENT_T | ITEM::ARC_T ) > 1 )
+    else if( useMultidragger )
     {
         m_dragger = std::make_unique<MULTI_DRAGGER>( this );
         m_state = DRAG_SEGMENT;
@@ -740,6 +777,18 @@ void ROUTER::markViolations( NODE* aNode, ITEM_SET& aCurrent, NODE::ITEM_VECTOR&
 }
 
 
+bool ROUTER::areWeLengthTuning() const
+{
+    if( m_state != ROUTE_TRACK )
+        return false;
+
+    if( m_mode == PNS_MODE_TUNE_DIFF_PAIR_SKEW || m_mode == PNS_MODE_TUNE_DIFF_PAIR || m_mode == PNS_MODE_TUNE_SINGLE )
+        return true;
+
+    return false;
+}
+
+
 void ROUTER::updateView( NODE* aNode, ITEM_SET& aCurrent, bool aDragging )
 {
     NODE::ITEM_VECTOR removed, added;
@@ -752,8 +801,7 @@ void ROUTER::updateView( NODE* aNode, ITEM_SET& aCurrent, bool aDragging )
     // by design can never generate clearance violations. Since markViolations() calls multiple
     // collision/clearance queries, it can be extremely expensive with certain custom DRC rules
     // (rule area/courtyard-based, see issue #24052 for examples)
-    if( m_mode == PNS_MODE_ROUTE_SINGLE ||
-        m_mode == PNS_MODE_ROUTE_DIFF_PAIR )
+    if( !areWeLengthTuning() )
     {
         markViolations( aNode, aCurrent, removed );
     }

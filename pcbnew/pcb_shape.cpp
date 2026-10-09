@@ -172,6 +172,7 @@ PCB_SHAPE::PCB_SHAPE( BOARD_ITEM* aParent, KICAD_T aItemType, SHAPE_T aShapeType
         EDA_SHAPE( aShapeType, pcbIUScale.mmToIU( DEFAULT_LINE_WIDTH ), FILL_T::NO_FILL ),
         m_libStart( 0, 0 ),
         m_libEnd( 0, 0 ),
+        m_libCornerRadius( 0 ),
         m_libArcMid( 0, 0 ),
         m_libBezierC1( 0, 0 ),
         m_libBezierC2( 0, 0 ),
@@ -192,6 +193,7 @@ PCB_SHAPE::PCB_SHAPE( BOARD_ITEM* aParent, SHAPE_T shapetype ) :
         EDA_SHAPE( shapetype, pcbIUScale.mmToIU( DEFAULT_LINE_WIDTH ), FILL_T::NO_FILL ),
         m_libStart( 0, 0 ),
         m_libEnd( 0, 0 ),
+        m_libCornerRadius( 0 ),
         m_libArcMid( 0, 0 ),
         m_libBezierC1( 0, 0 ),
         m_libBezierC2( 0, 0 ),
@@ -959,6 +961,13 @@ void PCB_SHAPE::SetEnd( const VECTOR2I& aEnd )
 }
 
 
+void PCB_SHAPE::SetCornerRadius( int aCornerRadius )
+{
+    EDA_SHAPE::SetCornerRadius( aCornerRadius );
+    syncLibCoords();
+}
+
+
 void PCB_SHAPE::OnFootprintRescaled( double aRatioX, double aRatioY, double aLinearFactor, const VECTOR2I& aAnchor,
                                      const EDA_ANGLE& aParentRotate )
 {
@@ -1164,15 +1173,14 @@ void PCB_SHAPE::rebakeFromTransform( const TRANSFORM_TRS& xform )
 
             if( isArc )
             {
-                libEllipse = std::make_unique<SHAPE_ELLIPSE>(
-                        m_libEllipseCenter, m_libEllipseMajorRadius, m_libEllipseMinorRadius,
-                        m_libEllipseRotation, m_libEllipseStartAngle, m_libEllipseEndAngle );
+                libEllipse = std::make_unique<SHAPE_ELLIPSE>( m_libEllipseCenter, m_libEllipseMajorRadius,
+                                                              m_libEllipseMinorRadius, m_libEllipseRotation,
+                                                              m_libEllipseStartAngle, m_libEllipseEndAngle );
             }
             else
             {
-                libEllipse = std::make_unique<SHAPE_ELLIPSE>(
-                        m_libEllipseCenter, m_libEllipseMajorRadius, m_libEllipseMinorRadius,
-                        m_libEllipseRotation );
+                libEllipse = std::make_unique<SHAPE_ELLIPSE>( m_libEllipseCenter, m_libEllipseMajorRadius,
+                                                              m_libEllipseMinorRadius, m_libEllipseRotation );
             }
 
             SHAPE_LINE_CHAIN chain = libEllipse->ConvertToPolyline( getMaxError() );
@@ -1198,7 +1206,8 @@ void PCB_SHAPE::rebakeFromTransform( const TRANSFORM_TRS& xform )
         const VECTOR2I c3 = xform.Apply( m_libEnd );
         const VECTOR2I c4 = xform.Apply( VECTOR2I( m_libStart.x, m_libEnd.y ) );
 
-        if( xform.GetRotate().IsCardinal() )
+        if( xform.GetRotate().IsCardinal()
+                && ( m_libCornerRadius == 0 || xform.IsUniformScale() ) )
         {
             m_shape = SHAPE_T::RECTANGLE;
             BOX2I bbox( c1, VECTOR2I( 0, 0 ) );
@@ -1207,6 +1216,8 @@ void PCB_SHAPE::rebakeFromTransform( const TRANSFORM_TRS& xform )
             bbox.Merge( c4 );
             EDA_SHAPE::SetStart( bbox.GetOrigin() );
             EDA_SHAPE::SetEnd( bbox.GetEnd() );
+
+            EDA_SHAPE::SetCornerRadius( xform.ApplyLinearScale( m_libCornerRadius ) );
         }
         else
         {
@@ -1214,7 +1225,7 @@ void PCB_SHAPE::rebakeFromTransform( const TRANSFORM_TRS& xform )
             SHAPE_POLY_SET& poly = GetPolyShape();
             poly.RemoveAllContours();
 
-            if( m_cornerRadius > 0 )
+            if( m_libCornerRadius > 0 )
             {
                 SHAPE_POLY_SET rounded;
                 VECTOR2I       libCenter = ( m_libStart + m_libEnd ) / 2;
@@ -1469,6 +1480,13 @@ void PCB_SHAPE::syncLibCoords()
         m_libStart = xform.InverseApply( GetStart() );
         m_libEnd = xform.InverseApply( GetEnd() );
 
+        if( m_shape == SHAPE_T::RECTANGLE )
+        {
+            // We assume xform is uniform scale.  If not, we should have been turned into a
+            // polygon.
+            m_libCornerRadius = xform.InverseApplyLinearScale( GetCornerRadius() );
+        }
+
         if( m_shape == SHAPE_T::ARC )
             m_libArcMid = xform.InverseApply( GetArcMid() );
 
@@ -1482,6 +1500,9 @@ void PCB_SHAPE::syncLibCoords()
     {
         m_libStart = GetStart();
         m_libEnd = GetEnd();
+
+        if( m_shape == SHAPE_T::RECTANGLE )
+            m_libCornerRadius = GetCornerRadius();
 
         if( m_shape == SHAPE_T::ARC )
             m_libArcMid = GetArcMid();
@@ -1764,11 +1785,25 @@ void PCB_SHAPE::swapData( BOARD_ITEM* aImage )
     std::swap( m_hasSolderMask, image->m_hasSolderMask );
     std::swap( m_solderMaskMargin, image->m_solderMaskMargin );
     std::swap( m_customProperties, image->m_customProperties );
+
+    std::swap( m_libStart, image->m_libStart );
+    std::swap( m_libEnd, image->m_libEnd );
+    std::swap( m_libCornerRadius, image->m_libCornerRadius );
+    std::swap( m_libArcMid, image->m_libArcMid );
+    std::swap( m_libBezierC1, image->m_libBezierC1 );
+    std::swap( m_libBezierC2, image->m_libBezierC2 );
+    std::swap( m_libPoly, image->m_libPoly );
+    std::swap( m_libEllipseCenter, image->m_libEllipseCenter );
+    std::swap( m_libEllipseMajorRadius, image->m_libEllipseMajorRadius );
+    std::swap( m_libEllipseMinorRadius, image->m_libEllipseMinorRadius );
+    std::swap( m_libEllipseRotation, image->m_libEllipseRotation );
+    std::swap( m_libEllipseStartAngle, image->m_libEllipseStartAngle );
+    std::swap( m_libEllipseEndAngle, image->m_libEllipseEndAngle );
+    std::swap( m_libShape, image->m_libShape );
 }
 
 
-bool PCB_SHAPE::cmp_drawings::operator()( const BOARD_ITEM* aFirst,
-                                          const BOARD_ITEM* aSecond ) const
+bool PCB_SHAPE::cmp_drawings::operator()( const BOARD_ITEM* aFirst, const BOARD_ITEM* aSecond ) const
 {
     if( aFirst->Type() != aSecond->Type() )
         return aFirst->Type() < aSecond->Type();

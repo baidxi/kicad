@@ -1466,16 +1466,19 @@ int SCH_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
 
         case SCH_SHEET_T:
         {
-            noConnects = static_cast<SCH_SHEET*>( item )->GetNoConnects();
+            SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item );
+
+            noConnects = sheet->GetNoConnects();
 
             // Mirror the sheet on itself. Sheets do not have a anchor point.
-            VECTOR2I mirrorPoint = m_frame->GetNearestHalfGridPosition( item->GetBoundingBox().Centre() );
+            VECTOR2I mirrorPoint = m_frame->GetNearestHalfGridPosition( sheet->GetBoundingBox().Centre() );
 
             if( vertical )
-                item->MirrorVertically( mirrorPoint.y );
+                sheet->MirrorVertically( mirrorPoint.y );
             else
-                item->MirrorHorizontally( mirrorPoint.x );
+                sheet->MirrorHorizontally( mirrorPoint.x );
 
+            sheet->SetFieldsAutoplaced( AUTOPLACE_NONE );
             break;
         }
 
@@ -1485,6 +1488,7 @@ int SCH_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
             else
                 item->MirrorHorizontally( item->GetPosition().x );
 
+            item->SetFieldsAutoplaced( AUTOPLACE_NONE );
             break;
         }
 
@@ -1510,14 +1514,19 @@ int SCH_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
                 }
                 else
                 {
-                    // mirror within parent sheet
                     SCH_SHEET_PIN* pin = static_cast<SCH_SHEET_PIN*>( item );
                     SCH_SHEET*     sheet = pin->GetParent();
 
+                    for( SCH_ITEM* ncItem : screen->Items().Overlapping( SCH_NO_CONNECT_T, pin->GetTextPos() ) )
+                        noConnects[pin] = static_cast<SCH_NO_CONNECT*>( ncItem );
+
+                    // mirror within parent sheet
                     if( vertical )
                         pin->MirrorVertically( sheet->GetBoundingBox().GetCenter().y );
                     else
                         pin->MirrorHorizontally( sheet->GetBoundingBox().GetCenter().x );
+
+                    pin->SetFieldsAutoplaced( AUTOPLACE_NONE );
                 }
             }
             else if( item->Type() == SCH_FIELD_T )
@@ -1532,12 +1541,27 @@ int SCH_EDIT_TOOL::Mirror( const TOOL_EVENT& aEvent )
                 // Now that we're re-justifying a field, they're no longer autoplaced.
                 static_cast<SCH_ITEM*>( field->GetParent() )->SetFieldsAutoplaced( AUTOPLACE_NONE );
             }
+            else if( item->Type() == SCH_SHEET_T )
+            {
+                SCH_SHEET* sheet = static_cast<SCH_SHEET*>( item );
+
+                noConnects = sheet->GetNoConnects();
+
+                if( vertical )
+                    sheet->MirrorVertically( mirrorPoint.y );
+                else
+                    sheet->MirrorHorizontally( mirrorPoint.x );
+
+                sheet->SetFieldsAutoplaced( AUTOPLACE_NONE );
+            }
             else
             {
                 if( vertical )
                     item->MirrorVertically( mirrorPoint.y );
                 else
                     item->MirrorHorizontally( mirrorPoint.x );
+
+                item->SetFieldsAutoplaced( AUTOPLACE_NONE );
             }
 
             connections |= item->IsConnectable();
@@ -2225,7 +2249,12 @@ int SCH_EDIT_TOOL::SwapUnitLabels( const TOOL_EVENT& aEvent )
 
 int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
 {
-    const std::vector<std::unique_ptr<SCH_ITEM>>& sourceItems = m_frame->GetRepeatItems();
+    // This MUST be a copy as finalizing the SCH_ACTIONS::move lower down will reset m_frame's
+    // m_items_to_repeat member variable.
+    std::vector<std::unique_ptr<SCH_ITEM>> sourceItems( m_frame->GetRepeatItems().size() );
+
+    for( int ii = 0; ii < (int) sourceItems.size(); ++ii )
+        sourceItems[ii].reset( m_frame->GetRepeatItems().at( ii )->Duplicate( IGNORE_PARENT_GROUP ) );
 
     if( sourceItems.empty() )
         return 0;
@@ -2239,6 +2268,7 @@ int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
     for( const std::unique_ptr<SCH_ITEM>& item : sourceItems )
     {
         SCH_ITEM* newItem = item->Duplicate( IGNORE_PARENT_GROUP );
+        int       commitCheckpoint = commit.Checkpoint();
         bool      restore_state = false;
 
         // Ensure newItem has a suitable parent: the current screen, because an item from
@@ -2317,8 +2347,7 @@ int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
                 static_cast<SCH_SYMBOL*>( newItem )->ClearAnnotation( nullptr, false );
                 NULL_REPORTER reporter;
                 m_frame->AnnotateSymbols( &commit, ANNOTATE_SELECTION, annotateOrder, annotateAlgo,
-                                          true /* recursive */, annotateStartNum, false, false, false,
-                                          reporter, SYMBOL_FILTER_NON_POWER );
+                                          true /* recursive */, annotateStartNum, false, false, false, reporter );
             }
 
             // Annotation clears the selection so re-add the item
@@ -2328,13 +2357,9 @@ int SCH_EDIT_TOOL::RepeatDrawItem( const TOOL_EVENT& aEvent )
         }
 
         if( restore_state )
-        {
-            commit.Revert();
-        }
+            commit.RevertToCheckpoint( commitCheckpoint );
         else
-        {
             newItems.Add( newItem );
-        }
     }
 
     if( !newItems.Empty() )
@@ -2621,6 +2646,9 @@ int SCH_EDIT_TOOL::AutoplaceFields( const TOOL_EVENT& aEvent )
 
     for( SCH_ITEM* sch_item : autoplaceItems )
     {
+        if( sch_item->IsLocked() )
+            continue;
+
         if( !moving && !sch_item->IsNew() )
             commit.Modify( sch_item, m_frame->GetScreen() );
 
@@ -2855,12 +2883,7 @@ int SCH_EDIT_TOOL::CycleBodyStyle( const TOOL_EVENT& aEvent )
         return 0;
 
     SCH_SYMBOL* symbol = (SCH_SYMBOL*) selection.Front();
-    SCH_COMMIT  commit( m_toolMgr );
-
-    if( !symbol->IsNew() )
-        commit.Modify( symbol, m_frame->GetScreen() );
-
-    int nextBodyStyle = symbol->GetBodyStyle() + 1;
+    int         nextBodyStyle = symbol->GetBodyStyle() + 1;
 
     if( nextBodyStyle > symbol->GetBodyStyleCount() )
         nextBodyStyle = 1;
@@ -2869,9 +2892,6 @@ int SCH_EDIT_TOOL::CycleBodyStyle( const TOOL_EVENT& aEvent )
 
     if( symbol->IsNew() )
         m_toolMgr->PostAction( ACTIONS::refreshPreview );
-
-    if( !commit.Empty() )
-        commit.Push( _( "Change Body Style" ) );
 
     if( selection.IsHover() )
         m_toolMgr->RunAction( ACTIONS::selectionClear );

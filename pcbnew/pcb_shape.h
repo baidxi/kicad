@@ -197,6 +197,8 @@ public:
     void SetStart( const VECTOR2I& aStart ) override;
     void SetEnd( const VECTOR2I& aEnd ) override;
 
+    void SetCornerRadius( int aCornerRadius ) override;
+
     // Stroke width is stored in lib units. Scale-aware accessors apply the
     // parent footprint scale on read / strip it on write so callers see the
     // runtime width as before.
@@ -227,6 +229,7 @@ public:
     VECTOR2I GetLibraryStart() const { return m_libStart; }
     VECTOR2I GetLibraryEnd() const { return m_libEnd; }
     SHAPE_T  GetLibraryShape() const { return m_libShape; }
+    int      GetLibraryCornerRadius() const { return m_libCornerRadius; }
 
     VECTOR2I  GetLibraryEllipseCenter() const      { return m_libEllipseCenter; }
     int       GetLibraryEllipseMajorRadius() const { return m_libEllipseMajorRadius; }
@@ -270,6 +273,8 @@ public:
         if( m_libShape == SHAPE_T::ARC )
             m_libArcMid = aArcMid;
     }
+
+    void OverrideLibCornerRadius( int aCornerRadius ) { m_libCornerRadius = aCornerRadius; }
 
     void OverrideLibBezier( const VECTOR2I& aC1, const VECTOR2I& aC2 )
     {
@@ -374,22 +379,24 @@ protected:
     bool               m_hasSolderMask;
     std::optional<int> m_solderMaskMargin;
 
-    VECTOR2I m_libStart;
-    VECTOR2I m_libEnd;
+    VECTOR2I           m_libStart;
+    VECTOR2I           m_libEnd;
 
-    VECTOR2I m_libArcMid;
+    int                m_libCornerRadius;
 
-    VECTOR2I m_libBezierC1;
-    VECTOR2I m_libBezierC2;
+    VECTOR2I           m_libArcMid;
 
-    SHAPE_POLY_SET m_libPoly;
+    VECTOR2I           m_libBezierC1;
+    VECTOR2I           m_libBezierC2;
 
-    VECTOR2I  m_libEllipseCenter;
-    int       m_libEllipseMajorRadius;
-    int       m_libEllipseMinorRadius;
-    EDA_ANGLE m_libEllipseRotation;
-    EDA_ANGLE m_libEllipseStartAngle;
-    EDA_ANGLE m_libEllipseEndAngle;
+    SHAPE_POLY_SET     m_libPoly;
 
-    SHAPE_T m_libShape;
+    VECTOR2I           m_libEllipseCenter;
+    int                m_libEllipseMajorRadius;
+    int                m_libEllipseMinorRadius;
+    EDA_ANGLE          m_libEllipseRotation;
+    EDA_ANGLE          m_libEllipseStartAngle;
+    EDA_ANGLE          m_libEllipseEndAngle;
+
+    SHAPE_T            m_libShape;
 };

@@ -1188,8 +1188,8 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_SHAPE* aShape ) const
     case SHAPE_T::SEGMENT:
         m_out->Print( "(%s_line (start %s) (end %s)",
                       prefix.c_str(),
-                      formatInternalUnits( aShape->GetStart(), parentFP ).c_str(),
-                      formatInternalUnits( aShape->GetEnd(), parentFP ).c_str() );
+                      formatInternalUnits( aShape->GetLibraryStart() ).c_str(),
+                      formatInternalUnits( aShape->GetLibraryEnd() ).c_str() );
         break;
 
     case SHAPE_T::RECTANGLE:
@@ -1198,7 +1198,7 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_SHAPE* aShape ) const
                       formatInternalUnits( aShape->GetLibraryEnd() ).c_str() );
 
         if( aShape->GetCornerRadius() > 0 )
-            m_out->Print( " (radius %s)", formatInternalUnits( aShape->GetCornerRadius() ).c_str() );
+            m_out->Print( " (radius %s)", formatInternalUnits( aShape->GetLibraryCornerRadius() ).c_str() );
         break;
 
     case SHAPE_T::CIRCLE:
@@ -2280,14 +2280,14 @@ void PCB_IO_KICAD_SEXPR::format( const PAD* aPad ) const
                         if( primitive->IsProxyItem() )
                         {
                             m_out->Print( "(gr_vector (start %s) (end %s)",
-                                          formatInternalUnits( primitive->GetStart() ).c_str(),
-                                          formatInternalUnits( primitive->GetEnd() ).c_str() );
+                                          formatInternalUnits( primitive->GetLibraryStart() ).c_str(),
+                                          formatInternalUnits( primitive->GetLibraryEnd() ).c_str() );
                         }
                         else
                         {
                             m_out->Print( "(gr_line (start %s) (end %s)",
-                                          formatInternalUnits( primitive->GetStart() ).c_str(),
-                                          formatInternalUnits( primitive->GetEnd() ).c_str() );
+                                          formatInternalUnits( primitive->GetLibraryStart() ).c_str(),
+                                          formatInternalUnits( primitive->GetLibraryEnd() ).c_str() );
                         }
                         break;
 
@@ -2307,7 +2307,7 @@ void PCB_IO_KICAD_SEXPR::format( const PAD* aPad ) const
                             if( primitive->GetCornerRadius() > 0 )
                             {
                                 m_out->Print( " (radius %s)",
-                                              formatInternalUnits( primitive->GetCornerRadius() ).c_str() );
+                                              formatInternalUnits( primitive->GetLibraryCornerRadius() ).c_str() );
                             }
                         }
                         break;
@@ -2425,6 +2425,11 @@ void PCB_IO_KICAD_SEXPR::format( const PAD* aPad ) const
                 if( aPad->GetShape( aLayer ) == PAD_SHAPE::CUSTOM )
                 {
                     m_out->Print( "(options" );
+
+                    if( aPad->GetCustomShapeInZoneOpt() == CUSTOM_SHAPE_ZONE_MODE::CONVEXHULL )
+                        m_out->Print( "(clearance convexhull)" );
+                    else
+                        m_out->Print( "(clearance outline)" );
 
                     // Output the anchor pad shape (circle/rect)
                     m_out->Print( "(anchor %s)", anchorShape( aLayer ) );

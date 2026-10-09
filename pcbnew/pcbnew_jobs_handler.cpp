@@ -876,9 +876,7 @@ int PCBNEW_JOBS_HANDLER::JobExportBom( JOB* aJob )
 
             field.name = fieldName;
             field.show = !fieldName.StartsWith( wxT( "__" ), &field.name );
-
-            field.groupBy = alg::contains( aBomJob->m_fieldsGroupBy, field.name )
-                            || alg::contains( aBomJob->m_fieldsGroupBy, rawFieldName );
+            field.name = normalizeFieldName( field.name );
 
             if( ( aBomJob->m_fieldsLabels.size() > i ) && !aBomJob->m_fieldsLabels[i].IsEmpty() )
                 field.label = aBomJob->m_fieldsLabels[i];
@@ -889,6 +887,31 @@ int PCBNEW_JOBS_HANDLER::JobExportBom( JOB* aJob )
 
             preset.fieldsOrdered.emplace_back( field );
             i++;
+        }
+
+        for( const wxString& rawFieldName : aBomJob->m_fieldsGroupBy )
+        {
+            wxString fieldName = rawFieldName;
+            fieldName.StartsWith( wxT( "__" ), &fieldName );
+            fieldName = normalizeFieldName( fieldName );
+
+            if( fieldName.IsEmpty() )
+                continue;
+
+            bool fieldAlreadyPresent = false;
+
+            for( BOM_FIELD& field : preset.fieldsOrdered )
+            {
+                if( field.name == fieldName )
+                {
+                    field.groupBy = true;
+                    fieldAlreadyPresent = true;
+                    break;
+                }
+            }
+
+            if( !fieldAlreadyPresent )
+                preset.fieldsOrdered.push_back( { fieldName, GetGeneratedFieldDisplayName( fieldName ), false, true } );
         }
 
         preset.sortAsc = aBomJob->m_sortAsc;
@@ -3225,6 +3248,10 @@ int PCBNEW_JOBS_HANDLER::JobUpgrade( JOB* aJob )
     {
         IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
         BOARD*              brd = getBoard( job->m_filename );
+
+        if( !brd )
+            return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+
         if( brd->GetFileFormatVersionAtLoad() < SEXPR_BOARD_FILE_VERSION )
             shouldSave = true;
 
@@ -3388,6 +3415,8 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
     case JOB_PCB_IMPORT::FORMAT::PCAD: fileType = PCB_IO_MGR::PCAD; break;
 
     case JOB_PCB_IMPORT::FORMAT::SOLIDWORKS: fileType = PCB_IO_MGR::SOLIDWORKS_PCB; break;
+
+    case JOB_PCB_IMPORT::FORMAT::EASYPC: fileType = PCB_IO_MGR::EASYPC; break;
     }
 
     // FindPluginTypeFromBoardPath returns FILE_TYPE_NONE (not PCB_FILE_UNKNOWN) when no plugin
@@ -3451,6 +3480,9 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
         wxFileName projectFn( outputPath );
         projectFn.SetExt( FILEEXT::ProjectFileExtension );
 
+        // PROJECT requires an absolute path; -o may be relative to the working directory
+        projectFn.MakeAbsolute();
+
         mgr.LoadProject( projectFn.GetFullPath(), true );
         projectPtr = mgr.GetProject( projectFn.GetFullPath() );
         createdTransientProject = ( projectPtr != nullptr );
@@ -3508,7 +3540,9 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
 
     try
     {
-        IO_RELEASER<PCB_IO> pi( PCB_IO_MGR::FindPlugin( fileType ) );
+        // Declared before the plugin so it outlives the plugin's pointer to it
+        IMPORT_MESSAGE_COLLECTOR importMessages( *m_reporter );
+        IO_RELEASER<PCB_IO>      pi( PCB_IO_MGR::FindPlugin( fileType ) );
 
         if( !pi )
         {
@@ -3516,6 +3550,9 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                                 RPT_SEVERITY_ERROR );
             return CLI::EXIT_CODES::ERR_UNKNOWN;
         }
+
+        // Without this the importer's warnings never reach the import report
+        pi->SetReporter( &importMessages );
 
         // Replace the plugin's default best-guess callback so we can apply explicit overrides and
         // capture the resulting mapping.  Only mappable importers expose their source layers; for
@@ -3684,10 +3721,11 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
                             RPT_SEVERITY_INFO );
 
         // Generate report if requested
+        IMPORT_REPORT_DATA reportData;
+        importMessages.Flush( job->m_reportFormat, reportData );
+
         if( job->m_reportFormat != IMPORT_REPORT_FORMAT::NONE )
         {
-            IMPORT_REPORT_DATA reportData;
-
             reportData.m_sourceFile = wxFileName( job->m_inputFile ).GetFullName();
             reportData.m_sourceFormat = formatName;
             reportData.m_outputFile = wxFileName( outputPath ).GetFullName();
@@ -3743,9 +3781,10 @@ int PCBNEW_JOBS_HANDLER::JobImport( JOB* aJob )
             }
 
             reportData.m_extraJson["layer_mapping"] = layerMappings;
-            reportData.m_warnings = warnings;
+            reportData.m_warnings.insert( reportData.m_warnings.end(), warnings.begin(), warnings.end() );
 
-            WriteImportReport( m_reporter, job->m_reportFormat, job->m_reportFile, reportData );
+            if( !WriteImportReport( m_reporter, job->m_reportFormat, job->m_reportFile, reportData ) )
+                return CLI::EXIT_CODES::ERR_INVALID_OUTPUT_CONFLICT;
         }
         else
         {
