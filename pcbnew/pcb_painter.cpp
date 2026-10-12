@@ -129,6 +129,9 @@ PCB_RENDER_SETTINGS::PCB_RENDER_SETTINGS()
     m_imageOpacity    = 1.0;
     m_filledShapeOpacity    = 1.0;
 
+    m_groupEditModeActive = false;
+    m_outsideGroupOpacity = 1.0;
+
     m_ForcePadSketchModeOn = false;
 
     m_PadEditModePad = nullptr;
@@ -203,12 +206,35 @@ void PCB_RENDER_SETTINGS::LoadDisplayOptions( const PCB_DISPLAY_OPTIONS& aOption
     m_zoneOpacity     = aOptions.m_ZoneOpacity;
     m_imageOpacity    = aOptions.m_ImageOpacity;
     m_filledShapeOpacity = aOptions.m_FilledShapeOpacity;
+    m_outsideGroupOpacity = aOptions.m_OutsideGroupOpacity;
 }
 
 
 COLOR4D PCB_RENDER_SETTINGS::GetColor( const VIEW_ITEM* aItem, int aLayer ) const
 {
     return GetColor( dynamic_cast<const BOARD_ITEM*>( aItem ), aLayer );
+}
+
+
+bool PCB_RENDER_SETTINGS::isInEnteredGroup( const BOARD_ITEM* aItem ) const
+{
+    if( aItem->IsEntered() )
+        return true;
+
+    EDA_GROUP* pg = aItem->GetParentGroup();
+
+    if( !pg && aItem->GetParent() )
+        pg = aItem->GetParent()->GetParentGroup();
+
+    while( pg )
+    {
+        if( pg->AsEdaItem()->IsEntered() )
+            return true;
+
+        pg = pg->AsEdaItem()->GetParentGroup();
+    }
+
+    return false;
 }
 
 
@@ -220,11 +246,16 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
     if( aLayer == LAYER_MARKER_SHADOWS )
         return m_backgroundColor.WithAlpha( 0.5 );
 
-    if( aLayer == LAYER_LOCKED_ITEM_SHADOW )
-        return m_layerColors.at( aLayer );
+    if( aLayer == LAYER_LOCKED_ITEM_SHADOW || aLayer == LAYER_CONSTRAINT_SHADOW )
+    {
+        COLOR4D color = m_layerColors.at( aLayer );
 
-    if( aLayer == LAYER_CONSTRAINT_SHADOW )
-        return m_layerColors.at( aLayer );
+        // Dim shadows of items outside the currently-entered group
+        if( m_groupEditModeActive && m_outsideGroupOpacity < 1.0 && aItem && !isInEnteredGroup( aItem ) )
+            color.a *= m_outsideGroupOpacity;
+
+        return color;
+    }
 
     // SMD pads use the copper netname layer
     if( aLayer == LAYER_PAD_FR_NETNAMES )
@@ -585,6 +616,13 @@ COLOR4D PCB_RENDER_SETTINGS::GetColor( const BOARD_ITEM* aItem, int aLayer ) con
         // Target graphic is visible if the via crosses a visible layer
         if( ( via->GetLayerSet() & visibleLayers ).none() )
             color = COLOR4D::CLEAR;
+    }
+
+    // Dim items outside the currently-entered group
+    if( m_groupEditModeActive && m_outsideGroupOpacity < 1.0 && !highlighted && !selected )
+    {
+        if( !isInEnteredGroup( aItem ) )
+            color.a *= m_outsideGroupOpacity;
     }
 
     // Apply per-type opacity overrides

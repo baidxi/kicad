@@ -341,6 +341,9 @@ enum GAL_LAYER_ID: int
     LAYER_CONSTRAINT_WELL,          ///< Fully constrained.
     LAYER_CONSTRAINT_OVER,          ///< Over-constrained / conflicting.
 
+    /// Opacity slider for items outside the entered group
+    LAYER_OUTSIDE_GROUP_OPACITY,
+
     /// Virtual layers for stacking zones and tracks on a given copper layer.
     LAYER_ZONE_START,
     LAYER_ZONE_END = LAYER_ZONE_START + PCB_LAYER_ID_COUNT,
