@@ -528,8 +528,14 @@ public:
 
     int GetUnitProp() const;
 
+    void SetFieldText( SCH_FIELD* aField, const wxString& aFieldName, const wxString& aFieldText,
+                       const SCH_SHEET_PATH* aPath, const wxString& aVariantName );
+
     void SetFieldText( const wxString& aFieldName, const wxString& aFieldText, const SCH_SHEET_PATH* aPath = nullptr,
                        const wxString& aVariantName = wxEmptyString );
+
+    wxString GetFieldText( const SCH_FIELD* aField, const wxString& aFieldName, const SCH_SHEET_PATH* aPath,
+                           const wxString& aVariantName ) const;
 
     wxString GetFieldText( const wxString& aFieldName, const SCH_SHEET_PATH* aPath = nullptr,
                            const wxString& aVariantName = wxEmptyString ) const;
@@ -743,6 +749,11 @@ public:
      */
     PIN_MAP_INSTANCE_OVERRIDE GetPinMapOverride( const SCH_SHEET_PATH* aInstance = nullptr,
                                                  const wxString&       aVariantName = wxEmptyString ) const;
+
+    /**
+     * Clear the base pin-to-pad map override and every variant's override.
+     */
+    void ClearPinMapOverrides();
 
     void SetExcludedFromBOM( bool aEnable, const SCH_SHEET_PATH* aInstance = nullptr,
                              const wxString& aVariantName = wxEmptyString ) override;
@@ -1075,6 +1086,14 @@ public:
 
 protected:
     void swapData( SCH_ITEM* aItem ) override;
+
+    struct cmp_pins
+    {
+        bool operator()( const SCH_PIN* aFirst, const SCH_PIN* aSecond ) const
+        {
+            return *aFirst < *aSecond;
+        }
+    };
 
 private:
     // Copy construction must relink pins without invalidating the live source screen.

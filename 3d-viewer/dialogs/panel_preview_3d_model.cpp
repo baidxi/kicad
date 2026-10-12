@@ -142,13 +142,12 @@ PANEL_PREVIEW_3D_MODEL::PANEL_PREVIEW_3D_MODEL( wxWindow* aParent, PCB_BASE_FRAM
     // This board will only be used to hold a footprint for viewing
     m_dummyBoard->SetBoardUse( BOARD_USE::FPHOLDER );
 
-    BOARD_DESIGN_SETTINGS parent_bds = aFrame->GetDesignSettings();
-    BOARD_DESIGN_SETTINGS& dummy_bds = m_dummyBoard->GetDesignSettings();
-    dummy_bds.SetBoardThickness( parent_bds.GetBoardThickness() );
-    dummy_bds.SetEnabledLayers( LSET::FrontMask() | LSET::BackMask() );
-    BOARD_STACKUP& dummy_board_stackup = m_dummyBoard->GetDesignSettings().GetStackupDescriptor();
+    BOARD_DESIGN_SETTINGS& dummyBoard_bds = m_dummyBoard->GetDesignSettings();
+    dummyBoard_bds.SetBoardThickness( aFrame->GetDesignSettings().GetBoardThickness() );
+    dummyBoard_bds.SetEnabledLayers( LSET::FrontMask() | LSET::BackMask() );
+    BOARD_STACKUP& dummy_board_stackup = dummyBoard_bds.GetStackupDescriptor();
     dummy_board_stackup.RemoveAll();
-    dummy_board_stackup.BuildDefaultStackupList( &dummy_bds, 2 );
+    dummy_board_stackup.BuildDefaultStackupList( &dummyBoard_bds, 2 );
 
     m_selected = -1;
 
@@ -301,12 +300,23 @@ PANEL_PREVIEW_3D_MODEL::~PANEL_PREVIEW_3D_MODEL()
     if( m_toolManager )
         m_toolManager->ShutdownAllTools();
 
+    m_spaceMouse.reset();
+
+    // Stop dispatching events before destroying the tools and their menus.
+    m_previewPane->SetEventDispatcher( nullptr );
+    delete m_toolDispatcher;
+    m_toolDispatcher = nullptr;
+
+    delete m_toolManager;
+    delete m_actions;
+
     // Restore the 3D viewer Render settings, that can be modified by the panel tools
     if( m_boardAdapter.m_Cfg )
         m_boardAdapter.m_Cfg->m_Render = m_initialRender;
 
-    delete m_dummyBoard;
+    // The canvas must stop its rendering worker before the board is destroyed.
     delete m_previewPane;
+    delete m_dummyBoard;
 }
 
 
@@ -567,7 +577,7 @@ void PANEL_PREVIEW_3D_MODEL::onAlign( wxCommandEvent& aEvent )
     auto layers = *m_alignLayers;
 
     for( int layer : { LAYER_3D_COPPER_TOP, LAYER_3D_COPPER_BOTTOM, LAYER_3D_PLATED_BARRELS, LAYER_3D_SOLDERPASTE,
-                      LAYER_3D_SOLDERMASK_TOP, LAYER_3D_SOLDERMASK_BOTTOM, LAYER_3D_BOARD } )
+                       LAYER_3D_ADHESIVE, LAYER_3D_SOLDERMASK_TOP, LAYER_3D_SOLDERMASK_BOTTOM, LAYER_3D_BOARD } )
     {
         layers.reset( layer );
     }

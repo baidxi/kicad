@@ -442,10 +442,6 @@ SCH_EDIT_FRAME::SCH_EDIT_FRAME( KIWAY* aKiway, wxWindow* aParent ) :
     m_netNavigator->Bind( wxEVT_TREE_SEL_CHANGED, &SCH_EDIT_FRAME::onNetNavigatorSelection, this );
     m_netNavigator->Bind( wxEVT_SIZE, &SCH_EDIT_FRAME::onResizeNetNavigator, this );
 
-    // This is used temporarily to fix a client size issue on GTK that causes zoom to fit
-    // to calculate the wrong zoom size.  See SCH_EDIT_FRAME::onSize().
-    Bind( wxEVT_SIZE, &SCH_EDIT_FRAME::onSize, this );
-
     setupUnits( eeconfig() );
 
     // Net list generator
@@ -2388,23 +2384,6 @@ SELECTION& SCH_EDIT_FRAME::GetCurrentSelection()
     return m_toolManager->GetTool<SCH_SELECTION_TOOL>()->GetSelection();
 }
 
-void SCH_EDIT_FRAME::onSize( wxSizeEvent& aEvent )
-{
-    // doCloseWindow() destroys the tool manager and then updates the AUI layout, which can
-    // dispatch a deferred size event back to this still-bound handler.
-    if( IsShown() && GetToolManager() )
-    {
-        // We only need this until the frame is done resizing and the final client size is
-        // established.
-        Unbind( wxEVT_SIZE, &SCH_EDIT_FRAME::onSize, this );
-        GetToolManager()->RunAction( ACTIONS::zoomFitScreen );
-    }
-
-    // Skip() is called in the base class.
-    EDA_DRAW_FRAME::OnSize( aEvent );
-}
-
-
 bool SCH_EDIT_FRAME::SaveSymbolToSchematic( const LIB_SYMBOL& aSymbol,
                                             const KIID& aSchematicSymbolUUID )
 {
@@ -3405,23 +3384,20 @@ void SCH_EDIT_FRAME::RemoveVariant()
 
     VARIANT_PROXY_UNDO_ITEM* undoItem = new VARIANT_PROXY_UNDO_ITEM( &Schematic() );
     SCH_COMMIT               commit( this );
-    PICKED_ITEMS_LIST*       undoCmd = nullptr;
+    bool                     append = false;
 
     Schematic().DeleteVariant( variantName, &commit );
 
     if( !commit.Empty() )
     {
         commit.Push();
-        undoCmd = PopCommandFromUndoList();
-    }
-    else
-    {
-        undoCmd = new PICKED_ITEMS_LIST();
+        append = true;
     }
 
-    undoCmd->PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
-    undoCmd->SetDescription( _( "Delete Variant" ) );
-    PushCommandToUndoList( undoCmd );
+    PICKED_ITEMS_LIST undoCmd;
+    undoCmd.PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+    undoCmd.SetDescription( _( "Delete Variant" ) );
+    SaveCopyInUndoList( undoCmd, UNDO_REDO::VARIANTS, append );
 
     OnModify();
 
@@ -3509,23 +3485,20 @@ void SCH_EDIT_FRAME::RenameVariant()
 
     VARIANT_PROXY_UNDO_ITEM* undoItem = new VARIANT_PROXY_UNDO_ITEM( &Schematic() );
     SCH_COMMIT               commit( this );
-    PICKED_ITEMS_LIST*       undoCmd = nullptr;
+    bool                     append = false;
 
     Schematic().RenameVariant( oldName, newName, &commit );
 
     if( !commit.Empty() )
     {
         commit.Push();
-        undoCmd = PopCommandFromUndoList();
-    }
-    else
-    {
-        undoCmd = new PICKED_ITEMS_LIST();
+        append = true;
     }
 
-    undoCmd->PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
-    undoCmd->SetDescription( _( "Rename Variant" ) );
-    PushCommandToUndoList( undoCmd );
+    PICKED_ITEMS_LIST undoCmd;
+    undoCmd.PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+    undoCmd.SetDescription( _( "Rename Variant" ) );
+    SaveCopyInUndoList( undoCmd, UNDO_REDO::VARIANTS, append );
 
     // The registry entry changes even when no symbol carries an override, so always mark dirty.
     OnModify();
@@ -3578,23 +3551,20 @@ void SCH_EDIT_FRAME::CopyVariant()
 
     VARIANT_PROXY_UNDO_ITEM* undoItem = new VARIANT_PROXY_UNDO_ITEM( &Schematic() );
     SCH_COMMIT               commit( this );
-    PICKED_ITEMS_LIST*       undoCmd = nullptr;
+    bool                     append = false;
 
     Schematic().CopyVariant( sourceName, newName, &commit );
 
     if( !commit.Empty() )
     {
         commit.Push();
-        undoCmd = PopCommandFromUndoList();
-    }
-    else
-    {
-        undoCmd = new PICKED_ITEMS_LIST();
+        append = true;
     }
 
-    undoCmd->PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
-    undoCmd->SetDescription( _( "Copy Variant" ) );
-    PushCommandToUndoList( undoCmd );
+    PICKED_ITEMS_LIST undoCmd;
+    undoCmd.PushItem( ITEM_PICKER( GetScreen(), undoItem, UNDO_REDO::VARIANTS ) );
+    undoCmd.SetDescription( _( "Copy Variant" ) );
+    SaveCopyInUndoList( undoCmd, UNDO_REDO::VARIANTS, append );
 
     // The new registry entry changes project state even when no symbol carries an override.
     OnModify();

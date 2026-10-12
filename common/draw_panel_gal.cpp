@@ -53,6 +53,7 @@
 #include <core/profile.h>
 
 #include <wx/display.h>
+#include <wx/utils.h>
 
 #include <pgm_base.h>
 #include <confirm.h>
@@ -585,6 +586,56 @@ bool EDA_DRAW_PANEL_GAL::DoRePaint( bool aAllowSkip )
 void EDA_DRAW_PANEL_GAL::onSize( wxSizeEvent& aEvent )
 {
     ResizeGal();
+
+    // The first fit often runs before the frame has its final layout, and window managers,
+    // infobars and panels resize the canvas later. Until someone zooms or pans, fit again.
+    wxSize clientSize = GetClientSize();
+
+    if( clientSize.x > 0 && clientSize.y > 0 && m_view
+        && m_automaticFit.Holds( m_view->GetScale(), m_view->GetCenter() ) )
+    {
+        ZoomToFit( m_automaticFit.GetBox(), m_automaticFit.GetMarginScale() );
+    }
+}
+
+
+void EDA_DRAW_PANEL_GAL::ZoomToFit( const BOX2I& aBox, std::optional<double> aMarginScale )
+{
+    KIGFX::VIEW* view = m_view;
+    BOX2I        bBox = aBox;
+
+    // The GAL's world units may have changed since the view was attached.
+    m_gal->ComputeWorldScreenMatrix();
+
+    // Avoid a temporary zoom that dirties retained targets before the fitted scale is known.
+    VECTOR2D screenSize = view->ToWorld( ToVECTOR2I( GetClientSize() ), false ) * view->GetScale();
+
+    // A box with no extent (an empty screen or a lone point) has nothing to fit
+    if( bBox.GetWidth() == 0 && bBox.GetHeight() == 0 )
+        bBox = GetDefaultViewBBox();
+
+    VECTOR2D vsize = bBox.GetSize();
+    double scale = 1.0 / std::max( fabs( vsize.x / screenSize.x ),
+                                   fabs( vsize.y / screenSize.y ) );
+
+    // if the scale isn't finite (most likely due to an empty canvas)
+    // simply just make sure we are centered and quit out of trying to zoom to fit
+    if( !std::isfinite( scale ) )
+    {
+        view->SetCenter( VECTOR2D( 0, 0 ) );
+        m_automaticFit.Clear();
+        Refresh();
+        return;
+    }
+
+    // Reserve enough margin to limit the amount of the view that might be obscured behind the
+    // infobar.
+    double margin_scale_factor = aMarginScale.value_or( GetClientSize().y < 768 ? 1.10 : 1.04 );
+
+    view->SetScale( scale / margin_scale_factor );
+    view->SetCenter( bBox.Centre() );
+    m_automaticFit.Record( aBox, aMarginScale, view->GetScale(), view->GetCenter() );
+    Refresh();
 }
 
 
@@ -610,6 +661,9 @@ void EDA_DRAW_PANEL_GAL::ResizeGal( bool aForce )
 
     wxSize clientSize = GetClientSize();
 
+    // The backend window starts below what cannot be drawn over it
+    clientSize.y -= m_overlayInsetTop;
+
     if( !aForce && ToVECTOR2I( clientSize ) == m_gal->GetScreenPixelSize() )
         return;
 
@@ -618,6 +672,11 @@ void EDA_DRAW_PANEL_GAL::ResizeGal( bool aForce )
     clientSize.y = std::max( 10, clientSize.y + 1 );
 
     m_gal->ResizeScreen( clientSize.GetX(), clientSize.GetY() );
+
+    wxWindow* backendWindow = dynamic_cast<wxWindow*>( m_gal );
+
+    if( backendWindow && backendWindow->GetPosition().y != m_overlayInsetTop )
+        backendWindow->Move( 0, m_overlayInsetTop );
 
     if( m_view )
     {
@@ -629,21 +688,37 @@ void EDA_DRAW_PANEL_GAL::ResizeGal( bool aForce )
 
 void EDA_DRAW_PANEL_GAL::UpdateOverlayExclusions()
 {
-    KIGFX::CAIRO_GAL* cairoGal = dynamic_cast<KIGFX::CAIRO_GAL*>( m_gal );
-
-    // Only the Cairo backend presents frames outside the paint cycle
-    if( !cairoGal )
-        return;
-
     std::vector<wxRect> rects;
+    int                 infobarsBottom = 0;
 
     for( wxWindow* child : GetChildren() )
     {
         if( dynamic_cast<WX_INFOBAR*>( child ) && child->IsShown() )
+        {
             rects.push_back( child->GetRect() );
+            infobarsBottom = std::max( infobarsBottom, child->GetRect().GetBottom() + 1 );
+        }
     }
 
-    cairoGal->SetOverlayExclusions( rects );
+    // On Wayland the OpenGL canvas is a subsurface stacked above everything the toolkit draws
+    // in the frame, so an infobar overlaid on it cannot show. The canvas makes room instead.
+    int inset = 0;
+
+#ifdef __WXGTK__
+    if( m_backend == GAL_TYPE_OPENGL && wxGetDisplayInfo().type == wxDisplayType::wxDisplayWayland )
+        inset = infobarsBottom;
+#endif
+
+    if( inset != m_overlayInsetTop )
+    {
+        m_overlayInsetTop = inset;
+        ResizeGal( true );
+        Refresh();
+    }
+
+    // Only the Cairo backend presents frames outside the paint cycle
+    if( KIGFX::CAIRO_GAL* cairoGal = dynamic_cast<KIGFX::CAIRO_GAL*>( m_gal ) )
+        cairoGal->SetOverlayExclusions( rects );
 }
 
 
@@ -918,10 +993,10 @@ bool EDA_DRAW_PANEL_GAL::SwitchBackend( GAL_TYPE aGalType )
 
     m_backend = aGalType;
 
-    // A shown backend window raises itself, which would bury an infobar overlaid on this canvas
+    // A shown backend window raises itself, which would bury what is overlaid on this canvas
     for( wxWindow* child : GetChildren() )
     {
-        if( dynamic_cast<WX_INFOBAR*>( child ) )
+        if( child != dynamic_cast<wxWindow*>( m_gal ) )
             child->Raise();
     }
 

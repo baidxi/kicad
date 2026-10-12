@@ -239,6 +239,8 @@ bool PCB_TABLE::Deserialize( const google::protobuf::Any& aContainer )
     if( table.has_separators_stroke() )
         kiapi::common::UnpackStroke( m_separatorsStroke, table.separators_stroke() );
 
+    Normalize();
+
     return true;
 }
 
@@ -545,7 +547,7 @@ void PCB_TABLE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
 
         m_colWidths = std::move( newColWidths );
 
-        SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+        SetLayer( GetFlippedLayer( GetLayer() ) );
         return;
     }
 
@@ -594,7 +596,7 @@ void PCB_TABLE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
 
     m_colWidths = std::move( newColWidths );
 
-    SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+    SetLayer( GetFlippedLayer( GetLayer() ) );
     Normalize();
 
     if( originalAngle != ANGLE_0 )
@@ -939,6 +941,9 @@ int PCB_TABLE::Compare( const PCB_TABLE* aTable, const PCB_TABLE* aOther )
         if( ( diff = aTable->GetColWidth( col ) - aOther->GetColWidth( col ) ) != 0 )
             return diff;
     }
+
+    if( ( diff = aTable->GetRowCount() - aOther->GetRowCount() ) != 0 )
+        return diff;
 
     for( int row = 0; row < aTable->GetRowCount(); ++row )
     {

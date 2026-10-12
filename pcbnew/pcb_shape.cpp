@@ -392,8 +392,7 @@ int PCB_SHAPE::GetSolderMaskExpansion() const
     int margin = 0;
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine
-        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType(
-                   SOLDER_MASK_EXPANSION_CONSTRAINT ) )
+        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType( SOLDER_MASK_EXPANSION_CONSTRAINT ) )
     {
         DRC_CONSTRAINT              constraint;
         std::shared_ptr<DRC_ENGINE> drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine;
@@ -578,6 +577,10 @@ void PCB_SHAPE::UpdateHatching() const
 SHAPE_POLY_SET PCB_SHAPE::getHatchingKnockouts() const
 {
     SHAPE_POLY_SET knockouts;
+
+    if( !GetBoard() )
+        return knockouts;
+
     PCB_LAYER_ID   layer = GetLayer();
     BOX2I          bbox = GetBoundingBox();
     int            maxError = ARC_LOW_DEF;
@@ -666,9 +669,9 @@ int PCB_SHAPE::GetWidth() const
 }
 
 
-void PCB_SHAPE::StyleFromSettings( const BOARD_DESIGN_SETTINGS& settings, bool aCheckSide )
+void PCB_SHAPE::StyleFromSettings( const BOARD_DESIGN_SETTINGS& aSettings, bool aCheckSide )
 {
-    m_stroke.SetWidth( settings.GetLineThickness( GetLayer() ) );
+    m_stroke.SetWidth( aSettings.GetLineThickness( GetLayer() ) );
 }
 
 
@@ -905,7 +908,7 @@ void PCB_SHAPE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
             }
         }
 
-        SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+        SetLayer( GetFlippedLayer( GetLayer() ) );
         rebakeFromTransform( xform );
         return;
     }
@@ -935,14 +938,14 @@ void PCB_SHAPE::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
             m_libEllipseEndAngle = -oldStart;
         }
 
-        SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+        SetLayer( GetFlippedLayer( GetLayer() ) );
         rebakeFromTransform( xform );
         return;
     }
 
     flip( aCentre, aFlipDirection );
 
-    SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+    SetLayer( GetFlippedLayer( GetLayer() ) );
     syncLibCoords();
 }
 
@@ -1231,8 +1234,8 @@ void PCB_SHAPE::rebakeFromTransform( const TRANSFORM_TRS& xform )
                 VECTOR2I       libCenter = ( m_libStart + m_libEnd ) / 2;
                 VECTOR2I       libSize( std::abs( m_libEnd.x - m_libStart.x ), std::abs( m_libEnd.y - m_libStart.y ) );
 
-                TransformRoundChamferedRectToPolygon( rounded, libCenter, libSize, ANGLE_0, m_cornerRadius, 0.0, 0, 0,
-                                                      getMaxError(), ERROR_INSIDE );
+                TransformRoundChamferedRectToPolygon( rounded, libCenter, libSize, ANGLE_0, m_libCornerRadius, 0.0,
+                                                      0, 0, getMaxError(), ERROR_INSIDE );
 
                 poly.NewOutline();
 

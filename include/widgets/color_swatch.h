@@ -28,6 +28,7 @@
 #include <functional>
 
 #include <gal/color4d.h>
+#include <widgets/ui_common.h>
 #include <dialogs/dialog_color_picker.h>
 
 enum SWATCH_SIZE
@@ -79,6 +80,11 @@ public:
      */
     void SetSwatchColor( const KIGFX::COLOR4D& aColor, bool aSendEvent );
 
+    void SetIndeterminate()
+    {
+        SetSwatchColor( KIGFX::COLOR4D( INDETERMINATE_STATE ), false );
+    }
+
     /**
      * Sets the color that will be chosen with the "Reset to Default" button in the chooser
      */
@@ -93,6 +99,11 @@ public:
      * @return the current swatch color.
      */
     KIGFX::COLOR4D GetSwatchColor() const;
+
+    bool IsIndeterminate() const
+    {
+        return m_color.m_text && *m_color.m_text == INDETERMINATE_STATE;
+    }
 
     /**
      * Update the window ID of this control and its children.

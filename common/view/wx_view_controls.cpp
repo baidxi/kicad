@@ -481,7 +481,15 @@ void WX_VIEW_CONTROLS::onWheel( wxMouseEvent& aEvent )
         if( modifiers == m_settings.m_scrollModifierZoom && axis == wxMOUSE_WHEEL_VERTICAL )
         {
             const int    rotation = aEvent.GetWheelRotation() * ( m_settings.m_scrollReverseZoom ? -1 : 1 );
-            const double zoomScale = m_zoomController->GetScaleForRotation( rotation );
+
+            // macOS reports a scroll distance rather than notches, so its rotation is never compounded
+#ifdef __WXMAC__
+            const int wheelDelta = 0;
+#else
+            const int wheelDelta = aEvent.GetWheelDelta();
+#endif
+
+            const double zoomScale = m_zoomController->GetScaleForRotation( rotation, wheelDelta );
 
 
 #ifdef KICAD_GAL_PROFILE

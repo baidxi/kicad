@@ -967,6 +967,28 @@ void PDF_PLOTTER::ClosePage()
     const double PTsPERMIL = 0.072;
     VECTOR2D     psPaperSize = VECTOR2D( m_pageInfo.GetSizeMils() ) * PTsPERMIL;
 
+    auto iuToPdfUserSpace =
+            [&]( const VECTOR2I& aCoord ) -> VECTOR2D
+            {
+                VECTOR2D pos = ( aCoord - m_plotOffset ) * m_plotScale;
+                pos *= PTsPERMIL / ( m_IUsPerDecimil * 10 );
+
+                // PDF y=0 is at bottom of page, invert coordinate
+                VECTOR2D retval( pos.x, psPaperSize.y - pos.y );
+
+                // The pdf plot can be mirrored (from left to right). So mirror the
+                // x coordinate if m_plotMirror is set
+                if( m_plotMirror )
+                {
+                    if( m_mirrorIsHorizontal )
+                        retval.x = ( psPaperSize.x - pos.x );
+                    else
+                        retval.y = pos.y;
+                }
+
+                return retval;
+            };
+
     // Handle annotations (at the moment only "link" type objects)
     std::vector<int> annotHandles;
 
@@ -977,8 +999,8 @@ void PDF_PLOTTER::ClosePage()
         const BOX2I&    box = linkPair.first;
         const wxString& url = linkPair.second;
 
-        VECTOR2D bottomLeft = userToDeviceCoordinates( box.GetPosition() );
-        VECTOR2D topRight = userToDeviceCoordinates( box.GetEnd() );
+        VECTOR2D bottomLeft = iuToPdfUserSpace( box.GetPosition() );
+        VECTOR2D topRight = iuToPdfUserSpace( box.GetEnd() );
 
         BOX2D userSpaceBox;
         userSpaceBox.SetOrigin( bottomLeft );
@@ -994,8 +1016,8 @@ void PDF_PLOTTER::ClosePage()
         const BOX2I&                 box = menuPair.first;
         const std::vector<wxString>& urls = menuPair.second;
 
-        VECTOR2D bottomLeft = userToDeviceCoordinates( box.GetPosition() );
-        VECTOR2D topRight = userToDeviceCoordinates( box.GetEnd() );
+        VECTOR2D bottomLeft = iuToPdfUserSpace( box.GetPosition() );
+        VECTOR2D topRight = iuToPdfUserSpace( box.GetEnd() );
 
         BOX2D userSpaceBox;
         userSpaceBox.SetOrigin( bottomLeft );
@@ -1134,8 +1156,8 @@ void PDF_PLOTTER::ClosePage()
             const BOX2I&    box = bookmarkPair.first;
             const wxString& ref = bookmarkPair.second;
 
-            VECTOR2I bottomLeft = userToDeviceCoordinates( box.GetPosition() );
-            VECTOR2I topRight = userToDeviceCoordinates( box.GetEnd() );
+            VECTOR2I bottomLeft = iuToPdfUserSpace( box.GetPosition() );
+            VECTOR2I topRight = iuToPdfUserSpace( box.GetEnd() );
 
             actionHandle = emitGoToAction( pageHandle, bottomLeft, topRight );
 

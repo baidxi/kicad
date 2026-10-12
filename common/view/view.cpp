@@ -494,7 +494,7 @@ void VIEW::SetRequired( int aLayerId, int aRequiredId, bool aRequired )
     if( aRequired )
         m_layers[aLayerId].requiredLayers.insert( aRequiredId );
     else
-        m_layers[aLayerId].requiredLayers.erase( aRequired );
+        m_layers[aLayerId].requiredLayers.erase( aRequiredId );
 }
 
 
@@ -1074,7 +1074,7 @@ struct VIEW::DRAW_ITEM_VISITOR
         const double itemLOD = aItem->ViewGetLOD( layer, view );
 
         // Conditions that have to be fulfilled for an item to be drawn
-        bool drawCondition = aItem->viewPrivData()->isRenderable() && itemLOD < view->m_scale;
+        bool drawCondition = aItem->viewPrivData()->isRenderable() && view->IsShownAtScale( itemLOD );
 
         if( !drawCondition )
             return true;
