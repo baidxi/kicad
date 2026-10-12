@@ -1033,7 +1033,7 @@ bool SCH_SYMBOL::Deserialize( const kiapi::schematic::types::SchematicSymbolInst
         {
             m_pins.emplace_back( std::make_unique<SCH_PIN>( *pin ) );
             m_pins.back()->SetParent( this );
-            const_cast<::KIID&>( m_pins.back() ->m_Uuid ) = pin->m_Uuid;
+            const_cast<::KIID&>( m_pins.back()->m_Uuid ) = pin->m_Uuid;
         }
 
         UpdatePins();
@@ -1611,16 +1611,10 @@ void SCH_SYMBOL::SetRef( const SCH_SHEET_PATH* sheet, const wxString& ref )
 }
 
 
-void SCH_SYMBOL::SetFieldText( const wxString& aFieldName, const wxString& aFieldText, const SCH_SHEET_PATH* aPath,
-                               const wxString& aVariantName )
+void SCH_SYMBOL::SetFieldText( SCH_FIELD* aField, const wxString& aFieldName, const wxString& aFieldText,
+                               const SCH_SHEET_PATH* aPath, const wxString& aVariantName )
 {
-    wxCHECK_MSG( !aFieldName.IsEmpty(), /* void */, wxT( "Can't set text on a field with no name!" ) );
-
-    SCH_FIELD* field = GetField( aFieldName );
-
-    wxCHECK_MSG( field, /* void */, wxT( "Can't set text on a field not yet added to the symbol!" ) );
-
-    switch( field->GetId() )
+    switch( aField->GetId() )
     {
     case FIELD_T::REFERENCE:
         wxCHECK( aPath, /* void */ );
@@ -1629,12 +1623,12 @@ void SCH_SYMBOL::SetFieldText( const wxString& aFieldName, const wxString& aFiel
 
     default:
     {
-        wxString defaultText = field->GetText( aPath );
+        wxString defaultText = aField->GetText( aPath );
 
         if( aVariantName.IsEmpty() )
         {
             if( aFieldText != defaultText )
-                field->SetText( aFieldText );
+                aField->SetText( aFieldText );
         }
         else
         {
@@ -1688,19 +1682,26 @@ void SCH_SYMBOL::SetFieldText( const wxString& aFieldName, const wxString& aFiel
 }
 
 
-wxString SCH_SYMBOL::GetFieldText( const wxString& aFieldName, const SCH_SHEET_PATH* aPath,
+void SCH_SYMBOL::SetFieldText( const wxString& aFieldName, const wxString& aFieldText, const SCH_SHEET_PATH* aPath,
+                               const wxString& aVariantName )
+{
+    wxCHECK_MSG( !aFieldName.IsEmpty(), /* void */, wxT( "Can't set text on a field with no name!" ) );
+
+    SCH_FIELD* field = GetField( aFieldName );
+
+    wxCHECK_MSG( field, /* void */, wxT( "Can't set text on a field not yet added to the symbol!" ) );
+
+    SetFieldText( field, aFieldName, aFieldText, aPath, aVariantName );
+}
+
+
+wxString SCH_SYMBOL::GetFieldText( const SCH_FIELD* aField, const wxString& aFieldName, const SCH_SHEET_PATH* aPath,
                                    const wxString& aVariantName ) const
 {
-    wxCHECK( !aFieldName.IsEmpty(), wxEmptyString );
-
-    const SCH_FIELD* field = GetField( aFieldName );
-
-    wxCHECK( field, wxEmptyString );
-
-    switch( field->GetId() )
+    switch( aField->GetId() )
     {
     case FIELD_T::REFERENCE:
-        wxCHECK( aPath, field->GetText() );
+        wxCHECK( aPath, aField->GetText() );
         return GetRef( aPath, false );
         break;
 
@@ -1731,7 +1732,7 @@ wxString SCH_SYMBOL::GetFieldText( const wxString& aFieldName, const SCH_SHEET_P
     default:
         if( aVariantName.IsEmpty() )
         {
-            return field->GetText();
+            return aField->GetText();
         }
         else if( aPath )
         {
@@ -1759,7 +1760,20 @@ wxString SCH_SYMBOL::GetFieldText( const wxString& aFieldName, const SCH_SHEET_P
         break;
     }
 
-    return field->GetText();
+    return aField->GetText();
+}
+
+
+wxString SCH_SYMBOL::GetFieldText( const wxString& aFieldName, const SCH_SHEET_PATH* aPath,
+                                   const wxString& aVariantName ) const
+{
+    wxCHECK_MSG( !aFieldName.IsEmpty(), wxEmptyString, wxT( "Can't get text from a field with no name!" ) );
+
+    const SCH_FIELD* field = GetField( aFieldName );
+
+    wxCHECK_MSG( field, wxEmptyString, wxT( "Can't get text from a field not yet added to the symbol!" ) );
+
+    return GetFieldText( field, aFieldName, aPath, aVariantName );
 }
 
 
@@ -1953,6 +1967,18 @@ void SCH_SYMBOL::SetPinMapOverride( const PIN_MAP_INSTANCE_OVERRIDE& aOverride, 
         variant.InitializeAttributes( *this );
         variant.m_PinMapOverride = aOverride;
         AddVariant( *aInstance, variant );
+    }
+}
+
+
+void SCH_SYMBOL::ClearPinMapOverrides()
+{
+    m_pinMapOverride = PIN_MAP_INSTANCE_OVERRIDE();
+
+    for( SCH_SYMBOL_INSTANCE& instance : m_instances )
+    {
+        for( auto& [name, variant] : instance.m_Variants )
+            variant.m_PinMapOverride = PIN_MAP_INSTANCE_OVERRIDE();
     }
 }
 
@@ -4286,17 +4312,24 @@ bool SCH_SYMBOL::operator==( const SCH_SYMBOL& aSymbol ) const
         return false;
 #endif
 
-    if( m_pins.size() != aSymbol.m_pins.size() )
+    // Running the pin compare on matched pins found with GetPin( number) will match all same-numbered
+    // pins in the first symbol with the first pin of that number in the second symbol.  Sort the pins
+    // instead, which results in a more "complete" matching of source and other pins.
+    std::set<SCH_PIN*, SCH_SYMBOL::cmp_pins> sortedPins;
+    std::set<SCH_PIN*, SCH_SYMBOL::cmp_pins> sortedOtherPins;
+
+    for( const std::unique_ptr<SCH_PIN>& pin : m_pins )
+        sortedPins.insert( pin.get() );
+
+    for( const std::unique_ptr<SCH_PIN>& pin : aSymbol.m_pins )
+        sortedOtherPins.insert( pin.get() );
+
+    if( sortedPins.size() != sortedOtherPins.size() )
         return false;
 
-    for( int ii = 0; ii < (int) m_pins.size(); ++ii )
+    for( auto aIt = sortedPins.begin(), bIt = sortedOtherPins.begin(); aIt != sortedPins.end(); ++aIt, ++bIt )
     {
-        SCH_PIN* matched = aSymbol.GetPin( m_pins[ii]->GetNumber() );
-
-        if( !matched )
-            return false;
-
-        if( *m_pins[ii] != *matched )
+        if( !( *aIt )->operator==( *( *bIt ) ) )
             return false;
     }
 

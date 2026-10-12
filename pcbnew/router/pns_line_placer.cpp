@@ -56,6 +56,7 @@ LINE_PLACER::LINE_PLACER( ROUTER* aRouter ) :
     m_currentNet = nullptr;
     m_currentLayer = 0;
     m_startItem = nullptr;
+    m_routeStartItem = nullptr;
     m_endItem = nullptr;
     m_chainedPlacement = false;
     m_orthoMode = false;
@@ -104,7 +105,7 @@ void LINE_PLACER::setInitialDirection( const DIRECTION_45& aDirection )
 
 bool LINE_PLACER::handleSelfIntersections()
 {
-    SHAPE_LINE_CHAIN::INTERSECTIONS ips;
+    std::vector<SHAPE_LINE_CHAIN::INTERSECTION> ips;
     SHAPE_LINE_CHAIN& head = m_head.Line();
     SHAPE_LINE_CHAIN& tail = m_tail.Line();
 
@@ -1329,6 +1330,8 @@ bool LINE_PLACER::Start( const VECTOR2I& aP, ITEM* aStartItem )
     m_currentEnd = VECTOR2I( aP );
     m_currentNet = aStartItem ? aStartItem->Net() : Router()->GetInterface()->GetOrphanedNetHandle();
     m_startItem = aStartItem;
+    m_routeStartItem = aStartItem;
+    m_routeStart = aP;
     m_placingVia = false;
     m_chainedPlacement = false;
     m_fixedTail.Clear();
@@ -1658,7 +1661,10 @@ bool LINE_PLACER::FixRoute( const VECTOR2I& aP, ITEM* aEndItem, bool aForceFinis
         simplifyNewLine( m_lastNode, lastItem );
 
     if( realEnd && Settings().RemoveLoops() )
+    {
         removeAntennas( m_lastNode, aEndItem, p_last );
+        removeAntennas( m_lastNode, m_routeStartItem, m_routeStart );
+    }
 
     if( !realEnd )
     {

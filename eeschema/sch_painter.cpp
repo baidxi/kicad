@@ -1959,8 +1959,6 @@ void SCH_PAINTER::draw( const SCH_SHAPE* aShape, int aLayer, bool aDimmed )
             [&]( const SCH_SHAPE* shape )
             {
                 int  lineWidth = KiROUND( getLineWidth( shape, false ) );
-                bool hasEndings = shape->GetStartEnding().GetStyle() != LINE_ENDING_STYLE::NONE
-                                  || shape->GetEndEnding().GetStyle() != LINE_ENDING_STYLE::NONE;
 
                 switch( shape->GetShape() )
                 {
@@ -2007,7 +2005,8 @@ void SCH_PAINTER::draw( const SCH_SHAPE* aShape, int aLayer, bool aDimmed )
                     const SHAPE_LINE_CHAIN& outline = shape->GetPolyShape().COutline( 0 );
                     std::deque<VECTOR2D>    drawPts;
 
-                    if( hasEndings && !shape->IsClosed() )
+                    if( shape->GetStartEnding().GetShortenDepth( lineWidth ) > 0
+                        || shape->GetEndEnding().GetShortenDepth( lineWidth ) > 0 )
                     {
                         std::vector<VECTOR2I> pts;
 
@@ -2033,20 +2032,10 @@ void SCH_PAINTER::draw( const SCH_SHAPE* aShape, int aLayer, bool aDimmed )
                 }
 
                 case SHAPE_T::BEZIER:
-                {
-                    if( hasEndings )
-                    {
-                        if( std::optional<BEZIER<double>> curve = shape->ShortenedBezierCurve( lineWidth ) )
-                            m_gal->DrawCurve( curve->Start, curve->C1, curve->C2, curve->End, shape->GetMaxError() );
-                    }
-                    else
-                    {
-                        m_gal->DrawCurve( shape->GetStart(), shape->GetBezierC1(), shape->GetBezierC2(),
-                                          shape->GetEnd() );
-                    }
+                    if( std::optional<BEZIER<double>> curve = shape->ShortenedBezierCurve( lineWidth ) )
+                        m_gal->DrawCurve( curve->Start, curve->C1, curve->C2, curve->End, shape->GetMaxError() );
 
                     break;
-                }
 
                 case SHAPE_T::ELLIPSE:
                     m_gal->DrawEllipse( shape->GetEllipseCenter(), shape->GetEllipseMajorRadius(),
@@ -2054,10 +2043,31 @@ void SCH_PAINTER::draw( const SCH_SHAPE* aShape, int aLayer, bool aDimmed )
                     break;
 
                 case SHAPE_T::ELLIPSE_ARC:
-                    m_gal->DrawEllipseArc( shape->GetEllipseCenter(), shape->GetEllipseMajorRadius(),
-                                           shape->GetEllipseMinorRadius(), shape->GetEllipseRotation(),
-                                           shape->GetEllipseStartAngle(), shape->GetEllipseEndAngle() );
+                {
+                    const VECTOR2D        center( aShape->GetEllipseCenter() );
+                    const int             majorR = aShape->GetEllipseMajorRadius();
+                    const int             minorR = aShape->GetEllipseMinorRadius();
+                    const EDA_ANGLE&      rot = aShape->GetEllipseRotation();
+                    const EDA_ANGLE&      start = aShape->GetEllipseStartAngle();
+                    const EDA_ANGLE&      end = aShape->GetEllipseEndAngle();
+                    SHAPE_ELLIPSE         ellipse( center, majorR, minorR, rot, start, end );
+                    SHAPE_LINE_CHAIN      chain = ellipse.ConvertToPolyline( aShape->GetMaxError() );
+                    std::vector<VECTOR2I> pts;
+
+                    if( aShape->GetShortenedBodyPolyPoints( chain, 0, pts, lineWidth ) )
+                    {
+                        chain.Clear();
+
+                        for( const VECTOR2I& pt : pts )
+                            chain.Append( pt );
+
+                        chain.SetClosed( false );
+
+                        m_gal->DrawSegmentChain( chain, lineWidth );
+                    }
+
                     break;
+                }
 
                 default:
                     UNIMPLEMENTED_FOR( shape->SHAPE_T_asString() );
@@ -2182,10 +2192,9 @@ void SCH_PAINTER::draw( const SCH_SHAPE* aShape, int aLayer, bool aDimmed )
             }
         }
 
-        // Line endings for open shapes
-        if( !aShape->IsClosed()
-            && ( aShape->GetStartEnding().GetStyle() != LINE_ENDING_STYLE::NONE
-                 || aShape->GetEndEnding().GetStyle() != LINE_ENDING_STYLE::NONE ) )
+        // Line endings
+        if( aShape->GetStartEnding().GetStyle() != LINE_ENDING_STYLE::NONE
+             || aShape->GetEndEnding().GetStyle() != LINE_ENDING_STYLE::NONE )
         {
             EDA_ANGLE startTangent, endTangent;
             aShape->GetEndingTangents( startTangent, endTangent, KiROUND( lineWidth ) );
@@ -2644,6 +2653,25 @@ wxString SCH_PAINTER::expandLibItemTextVars( const wxString& aSourceText, const 
 }
 
 
+// A selected or brightened symbol or pin shows on the shadow layer, a pin's operating point on the
+// current layer, and nothing else of a symbol is drawn there
+static bool symbolDrawsOnOverlay( const SCH_SYMBOL* aSymbol, int aLayer )
+{
+    const bool shadows = aLayer == LAYER_SELECTION_SHADOWS;
+
+    if( shadows && ( aSymbol->IsBrightened() || aSymbol->IsSelected() ) )
+        return true;
+
+    for( const std::unique_ptr<SCH_PIN>& pin : aSymbol->GetRawPins() )
+    {
+        if( shadows ? pin->IsBrightened() || pin->IsSelected() : !pin->GetOperatingPoint().IsEmpty() )
+            return true;
+    }
+
+    return false;
+}
+
+
 void SCH_PAINTER::draw( const SCH_SYMBOL* aSymbol, int aLayer )
 {
     auto t1 = std::chrono::high_resolution_clock::now();
@@ -2683,10 +2711,11 @@ void SCH_PAINTER::draw( const SCH_SYMBOL* aSymbol, int aLayer )
     if( isFieldsLayer( aLayer ) )
         return;
 
-    if( drawingShadows && !( aSymbol->IsBrightened() || aSymbol->IsSelected() ) )
+    // The library copy below is most of a symbol's draw; skip it on overlay layers it adds nothing to
+    if( ( drawingShadows || aLayer == LAYER_OP_CURRENTS ) && !m_schSettings.GetDrawBoundingBoxes()
+        && !symbolDrawsOnOverlay( aSymbol, aLayer ) )
     {
-        // Don't exit here; symbol may still have selected pins
-        // return;
+        return;
     }
 
     int unit = m_schematic ? aSymbol->GetUnitSelection( &m_schematic->CurrentSheet() ) : 1;

@@ -1387,12 +1387,15 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
     wxString       ref = token->BeforeFirst( ':', &remainder );
     KIID_PATH      path( ref );
     KIID           uuid( 0 );
+
+    if( path.size() > 1 )
+        uuid = path.back();
+
     SCH_SHEET_PATH sheetPath;
     SCH_ITEM*      refItem = ResolveItem( KIID( uuid ), &sheetPath, true );
 
     if( path.size() > 1 )
     {
-        uuid = path.back();
         path.pop_back();
         sheetPath = Hierarchy().GetSheetPathByKIIDPath( path ).value_or( sheetPath );
     }
@@ -3070,9 +3073,6 @@ void SCHEMATIC::SetCurrentVariant( const wxString& aVariantName )
     // Internally an empty string is the default variant.  Set to default if the variant name doesn't exist.
     if( ( aVariantName != GetDefaultVariantName() ) && m_variantNames.contains( aVariantName ) )
         newVariant = aVariantName;
-
-    if( m_currentVariant.CmpNoCase( newVariant ) == 0 )
-        return;
 
     m_currentVariant = newVariant;
 

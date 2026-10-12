@@ -168,16 +168,16 @@ bool PCB_TEXTBOX::Deserialize( const google::protobuf::Any& aContainer )
 }
 
 
-void PCB_TEXTBOX::StyleFromSettings( const BOARD_DESIGN_SETTINGS& settings, bool aCheckSide )
+void PCB_TEXTBOX::StyleFromSettings( const BOARD_DESIGN_SETTINGS& aSettings, bool aCheckSide )
 {
-    PCB_SHAPE::StyleFromSettings( settings, aCheckSide );
+    PCB_SHAPE::StyleFromSettings( aSettings, aCheckSide );
 
-    SetTextSize( settings.GetTextSize( GetLayer() ) );
-    SetTextThickness( settings.GetTextThickness( GetLayer() ) );
-    SetItalic( settings.GetTextItalic( GetLayer() ) );
+    SetTextSize( aSettings.GetTextSize( GetLayer() ) );
+    SetTextThickness( aSettings.GetTextThickness( GetLayer() ) );
+    SetItalic( aSettings.GetTextItalic( GetLayer() ) );
 
     if( GetParentFootprint() )
-        SetKeepUpright( settings.GetTextUpright( GetLayer() ) );
+        SetKeepUpright( aSettings.GetTextUpright( GetLayer() ) );
 
     if( aCheckSide )
     {
@@ -508,7 +508,7 @@ wxString PCB_TEXTBOX::GetShownText( RESOLUTION_CONTEXT aContext, int aDepth ) co
                 if( parentFootprint && parentFootprint->ResolveTextVar( token, aDepth + 1 ) )
                     return true;
 
-                if( board->ResolveTextVar( token, aDepth + 1 ) )
+                if( board && board->ResolveTextVar( token, aDepth + 1 ) )
                     return true;
 
                 return false;

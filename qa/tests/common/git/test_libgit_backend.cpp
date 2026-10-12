@@ -163,9 +163,8 @@ struct GIT_BACKEND_FIXTURE
     /// Add an `origin` remote pointing at the bare remote on disk.
     bool addOrigin( git_repository* aRepo )
     {
-        wxString    fileUrl = wxS( "file://" ) + m_remotePath;
         git_remote* remote = nullptr;
-        int         rc = git_remote_create( &remote, aRepo, "origin", fileUrl.ToUTF8().data() );
+        int rc = git_remote_create( &remote, aRepo, "origin", m_remotePath.ToUTF8().data() );
 
         if( remote )
             git_remote_free( remote );
@@ -268,10 +267,8 @@ private:
         git_clone_init_options( &opts, GIT_CLONE_OPTIONS_VERSION );
         opts.bare = 1;
 
-        wxString sourceUrl = wxS( "file://" ) + m_repoPath;
-
         git_repository* bare = nullptr;
-        int             rc = git_clone( &bare, sourceUrl.ToUTF8().data(), m_remotePath.ToUTF8().data(), &opts );
+        int rc = git_clone( &bare, m_repoPath.ToUTF8().data(), m_remotePath.ToUTF8().data(), &opts );
 
         if( bare )
             git_repository_free( bare );
@@ -321,6 +318,13 @@ BOOST_AUTO_TEST_CASE( IsWithinProjectPath_ScopesToProjectDirectory )
     BOOST_CHECK( KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( wxT( "/repo/proj/f.txt" ), wxT( "/repo/proj" ) ) );
     BOOST_CHECK( !KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( wxT( "/repo/proj-extra/f.txt" ),
                                                                  wxT( "/repo/proj" ) ) );
+
+#ifdef __WINDOWS__
+    BOOST_CHECK( KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( wxT( "C:\\repo\\proj/file.kicad_sch" ),
+                                                                 wxT( "C:\\repo\\proj\\" ) ) );
+    BOOST_CHECK( !KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( wxT( "C:\\repo\\proj-extra/file.kicad_sch" ),
+                                                                  wxT( "C:\\repo\\proj\\" ) ) );
+#endif
 
     // An empty project path matches nothing rather than the whole repository.
     BOOST_CHECK( !KIGIT::PROJECT_GIT_UTILS::IsWithinProjectPath( wxT( "/repo/proj/f.txt" ), wxEmptyString ) );

@@ -1836,7 +1836,7 @@ void PAD::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
     LSET flipped;
 
     for( PCB_LAYER_ID layer : m_padStack.LayerSet() )
-        flipped.set( GetBoard()->FlipLayer( layer ) );
+        flipped.set( GetFlippedLayer( layer ) );
 
     SetLayerSet( flipped );
 
@@ -2013,11 +2013,10 @@ int PAD::GetSolderMaskExpansion( PCB_LAYER_ID aLayer ) const
     std::optional<int> margin;
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine
-        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType(
-                   SOLDER_MASK_EXPANSION_CONSTRAINT ) )
+        && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType( SOLDER_MASK_EXPANSION_CONSTRAINT ) )
     {
-        DRC_CONSTRAINT              constraint;
-        std::shared_ptr<DRC_ENGINE> drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine;
+        DRC_CONSTRAINT constraint;
+        DRC_ENGINE*    drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine.get();
 
         constraint = drcEngine->EvalRules( SOLDER_MASK_EXPANSION_CONSTRAINT, this, nullptr, aLayer );
 
@@ -2843,6 +2842,28 @@ double PAD::ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const
             return LOD_HIDE;
 
         if( onFront && onBack && !frVis && !bkVis )
+            return LOD_HIDE;
+    }
+
+    // Selection and net highlight draw a pad on layers where it otherwise draws nothing
+    const bool drawnRegardless = IsSelected() || renderSettings.IsPrinting()
+                                 || ( renderSettings.IsHighlightEnabled()
+                                      && renderSettings.GetHighlightNetCodes().contains( GetNetCode() ) );
+
+    if( !drawnRegardless )
+    {
+        // The painter draws a pad copper layer only where the pad flashes, plus the post-machining
+        // indicator of a layer that has one
+        if( IsPadCopperLayer( aLayer ) )
+        {
+            const PCB_LAYER_ID copperLayer = ToLAYER_ID( aLayer - LAYER_PAD_COPPER_START );
+
+            if( !FlashLayer( copperLayer ) && GetPostMachiningKnockout( copperLayer ) <= 0 )
+                return LOD_HIDE;
+        }
+
+        // The painter draws clearance outlines only when the pad clearance option is on
+        if( IsClearanceLayer( aLayer ) && pcbconfig() && !pcbconfig()->m_Display.m_PadClearance )
             return LOD_HIDE;
     }
 

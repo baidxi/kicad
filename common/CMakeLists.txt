@@ -199,7 +199,9 @@ set( KICOMMON_SRCS
     jobs/job_sym_export_svg.cpp
     jobs/job_sym_upgrade.cpp
     jobs/job_pcb_upgrade.cpp
+    jobs/job_pcb_downgrade.cpp
     jobs/job_sch_upgrade.cpp
+    jobs/job_sch_downgrade.cpp
 
     local_history.cpp
     history_lock.cpp
@@ -232,6 +234,7 @@ set( KICOMMON_SRCS
     project/net_settings.cpp
     project/project_archiver.cpp
     project/project_file.cpp
+    project/project_file_downgrade.cpp
     project/project_local_settings.cpp
     project/tuning_profiles.cpp
 

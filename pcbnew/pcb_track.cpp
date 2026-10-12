@@ -46,6 +46,7 @@
 #include <geometry/shape_arc.h>
 #include <drc/drc_engine.h>
 #include <pcb_painter.h>
+#include <pcbnew_settings.h>
 #include <trigo.h>
 #include <properties/property_validators.h>
 #include <properties/property.h>
@@ -670,9 +671,8 @@ MINOPTMAX<int> PCB_TRACK::GetWidthConstraint( wxString* aSource ) const
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine )
     {
-        BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
-
-        constraint = bds.m_DRCEngine->EvalRules( TRACK_WIDTH_CONSTRAINT, this, nullptr, m_layer );
+        constraint = GetBoard()->GetDesignSettings().m_DRCEngine->EvalRules( TRACK_WIDTH_CONSTRAINT, this,
+                                                                             nullptr, m_layer );
     }
 
     if( aSource )
@@ -688,9 +688,8 @@ MINOPTMAX<int> PCB_VIA::GetWidthConstraint( wxString* aSource ) const
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine )
     {
-        BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
-
-        constraint = bds.m_DRCEngine->EvalRules( VIA_DIAMETER_CONSTRAINT, this, nullptr, m_layer );
+        constraint = GetBoard()->GetDesignSettings().m_DRCEngine->EvalRules( VIA_DIAMETER_CONSTRAINT, this,
+                                                                             nullptr, m_layer );
     }
 
     if( aSource )
@@ -706,10 +705,9 @@ MINOPTMAX<int> PCB_VIA::GetDrillConstraint( wxString* aSource ) const
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine )
     {
-        BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
-
         // Holes are not layer-specific, as in the hole size test
-        constraint = bds.m_DRCEngine->EvalRules( HOLE_SIZE_CONSTRAINT, this, nullptr, UNDEFINED_LAYER );
+        constraint = GetBoard()->GetDesignSettings().m_DRCEngine->EvalRules( HOLE_SIZE_CONSTRAINT, this,
+                                                                             nullptr, UNDEFINED_LAYER );
     }
 
     if( aSource )
@@ -755,9 +753,8 @@ int PCB_VIA::GetMinAnnulus( PCB_LAYER_ID aLayer, wxString* aSource ) const
 
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine )
     {
-        BOARD_DESIGN_SETTINGS& bds = GetBoard()->GetDesignSettings();
-
-        constraint = bds.m_DRCEngine->EvalRules( ANNULAR_WIDTH_CONSTRAINT, this, nullptr, aLayer );
+        constraint = GetBoard()->GetDesignSettings().m_DRCEngine->EvalRules( ANNULAR_WIDTH_CONSTRAINT, this,
+                                                                             nullptr, aLayer );
     }
 
     if( constraint.Value().HasMin() )
@@ -1409,7 +1406,7 @@ void PCB_TRACK::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         m_End.y   = aCentre.y - ( m_End.y - aCentre.y );
     }
 
-    SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+    SetLayer( GetFlippedLayer( GetLayer() ) );
 }
 
 
@@ -1428,7 +1425,7 @@ void PCB_ARC::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         m_Mid.y = aCentre.y - ( m_Mid.y - aCentre.y );
     }
 
-    SetLayer( GetBoard()->FlipLayer( GetLayer() ) );
+    SetLayer( GetFlippedLayer( GetLayer() ) );
 }
 
 
@@ -1460,8 +1457,8 @@ void PCB_VIA::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
         PCB_LAYER_ID top_layer;
         PCB_LAYER_ID bottom_layer;
         LayerPair( &top_layer, &bottom_layer );
-        top_layer    = GetBoard()->FlipLayer( top_layer );
-        bottom_layer = GetBoard()->FlipLayer( bottom_layer );
+        top_layer = GetFlippedLayer( top_layer );
+        bottom_layer = GetFlippedLayer( bottom_layer );
         SetLayerPair( top_layer, bottom_layer );
     }
 }
@@ -1723,8 +1720,8 @@ int PCB_TRACK::GetSolderMaskExpansion() const
     if( GetBoard() && GetBoard()->GetDesignSettings().m_DRCEngine
         && GetBoard()->GetDesignSettings().m_DRCEngine->HasRulesForConstraintType( SOLDER_MASK_EXPANSION_CONSTRAINT ) )
     {
-        DRC_CONSTRAINT              constraint;
-        std::shared_ptr<DRC_ENGINE> drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine;
+        DRC_CONSTRAINT constraint;
+        DRC_ENGINE*    drcEngine = GetBoard()->GetDesignSettings().m_DRCEngine.get();
 
         constraint = drcEngine->EvalRules( SOLDER_MASK_EXPANSION_CONSTRAINT, this, nullptr, m_layer );
 
@@ -2378,7 +2375,8 @@ void PCB_VIA::GetOutermostConnectedLayers( PCB_LAYER_ID* aTopmost,
         {
             connected = true;
         }
-        else if( GetBoard()->GetConnectivity()->IsConnectedOnLayer( this, layer, nonZoneTypes ) )
+        else if( GetBoard()
+                 && GetBoard()->GetConnectivity()->IsConnectedOnLayer( this, layer, nonZoneTypes ) )
         {
             connected = true;
         }
@@ -2593,6 +2591,20 @@ double PCB_VIA::ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const
             {
                 return LOD_HIDE;
             }
+        }
+    }
+
+    // The painter draws a via copper layer only where the via flashes
+    if( IsViaCopperLayer( aLayer ) && !FlashLayer( aLayer - LAYER_VIA_COPPER_START ) )
+        return LOD_HIDE;
+
+    // The painter draws clearance outlines only for this display mode and never when printing
+    if( IsClearanceLayer( aLayer ) )
+    {
+        if( renderSettings->IsPrinting() || !pcbconfig()
+            || pcbconfig()->m_Display.m_TrackClearance != SHOW_WITH_VIA_ALWAYS )
+        {
+            return LOD_HIDE;
         }
     }
 
@@ -2865,13 +2877,12 @@ void PCB_TRACK::GetMsgPanelInfoBase_Common( EDA_DRAW_FRAME* aFrame, std::vector<
 
 wxString PCB_VIA::LayerMaskDescribe() const
 {
-    const BOARD* board = GetBoard();
     PCB_LAYER_ID top_layer;
     PCB_LAYER_ID bottom_layer;
 
     LayerPair( &top_layer, &bottom_layer );
 
-    return board->GetLayerName( top_layer ) + wxT( " - " ) + board->GetLayerName( bottom_layer );
+    return GetLayerName( top_layer ) + wxT( " - " ) + GetLayerName( bottom_layer );
 }
 
 

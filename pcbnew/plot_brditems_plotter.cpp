@@ -159,6 +159,8 @@ void BRDITEMS_PLOTTER::PlotPad( const PAD* aPad, PCB_LAYER_ID aLayer, const COLO
     VECTOR2I     shape_pos = aPad->ShapePos( aLayer );
     GBR_METADATA metadata;
 
+    m_plotter->MarkFootprintPlotted( aPad->GetParentFootprint() );
+
     bool plotOnCopperLayer = ( m_layerMask & LSET::AllCuMask() ).any();
     bool plotOnExternalCopperLayer = ( m_layerMask & LSET::ExternalCuMask() ).any();
 
@@ -409,6 +411,7 @@ void BRDITEMS_PLOTTER::PlotFootprintTextItems( const FOOTPRINT* aFootprint )
             && reference->IsVisible()
             && !( dnp && hideDNPItems( refLayer ) ) )
     {
+        m_plotter->MarkFootprintPlotted( aFootprint );
         PlotText( reference, refLayer, reference->IsKnockout(), reference->GetFontMetrics(),
                   dnp && crossoutDNPItems( refLayer ) );
     }
@@ -421,6 +424,7 @@ void BRDITEMS_PLOTTER::PlotFootprintTextItems( const FOOTPRINT* aFootprint )
             && value->IsVisible()
             && !( dnp && hideDNPItems( valueLayer ) ) )
     {
+        m_plotter->MarkFootprintPlotted( aFootprint );
         PlotText( value, valueLayer, value->IsKnockout(), value->GetFontMetrics(), false );
     }
 
@@ -472,6 +476,7 @@ void BRDITEMS_PLOTTER::PlotFootprintTextItems( const FOOTPRINT* aFootprint )
                 continue;
         }
 
+        m_plotter->MarkFootprintPlotted( aFootprint );
         PlotText( text, textLayer, text->IsKnockout(), text->GetFontMetrics(), strikeout );
     }
 }
@@ -682,6 +687,8 @@ void BRDITEMS_PLOTTER::PlotFootprintGraphicItems( const FOOTPRINT* aFootprint )
 
         if( !( m_layerMask & item->GetLayerSet() ).any() )
             continue;
+
+        m_plotter->MarkFootprintPlotted( aFootprint );
 
         switch( item->Type() )
         {
@@ -1055,61 +1062,54 @@ void BRDITEMS_PLOTTER::PlotShape( const PCB_SHAPE* aShape )
             {
                 m_plotter->ThickCircle( aShape->GetCenter(), aShape->GetRadius() * 2, thickness, getMetadata() );
             }
-            else if( aShape->GetStartEnding().GetStyle() != LINE_ENDING_STYLE::NONE
-                     || aShape->GetEndEnding().GetStyle() != LINE_ENDING_STYLE::NONE )
+            else
             {
                 EDA_ANGLE startAngle;
                 EDA_ANGLE endAngle;
                 aShape->CalcArcAngles( startAngle, endAngle );
 
                 EDA_ANGLE arcAngle = endAngle - startAngle;
+
                 if( aShape->ShortenArcForEndings( startAngle, arcAngle, aShape->GetRadius(), thickness ) )
                 {
                     m_plotter->ThickArc( VECTOR2D( aShape->GetCenter() ), startAngle, arcAngle, aShape->GetRadius(),
                                          thickness, getMetadata() );
                 }
             }
-            else
-            {
-                m_plotter->ThickArc( *aShape, getMetadata(), thickness );
-            }
 
             break;
         }
 
         case SHAPE_T::BEZIER:
-        {
-            std::optional<BEZIER<double>> curve = aShape->ShortenedBezierCurve( thickness );
-
-            if( curve && m_plotter->GetPlotterType() == PLOT_FORMAT::SVG )
+            if( std::optional<BEZIER<double>> curve = aShape->ShortenedBezierCurve( thickness ) )
             {
-                m_plotter->BezierCurve( VECTOR2I( curve->Start ), VECTOR2I( curve->C1 ), VECTOR2I( curve->C2 ),
-                                        VECTOR2I( curve->End ), aShape->GetMaxError(), thickness );
-            }
-            else
-            {
-                std::vector<VECTOR2D> pts = aShape->ShortenedBezierPolyline( thickness );
+                if( m_plotter->GetPlotterType() == PLOT_FORMAT::SVG )
+                {
+                    m_plotter->BezierCurve( VECTOR2I( curve->Start ), VECTOR2I( curve->C1 ), VECTOR2I( curve->C2 ),
+                                            VECTOR2I( curve->End ), aShape->GetMaxError(), thickness );
+                }
+                else
+                {
+                    std::vector<VECTOR2D> pts = aShape->ShortenedBezierPolyline( thickness );
 
-                for( size_t i = 0; i + 1 < pts.size(); i++ )
-                    m_plotter->ThickSegment( VECTOR2I( pts[i] ), VECTOR2I( pts[i + 1] ), thickness, getMetadata() );
+                    for( size_t i = 0; i + 1 < pts.size(); i++ )
+                        m_plotter->ThickSegment( VECTOR2I( pts[i] ), VECTOR2I( pts[i + 1] ), thickness, getMetadata() );
+                }
             }
 
             break;
-        }
 
         case SHAPE_T::POLY:
             if( aShape->IsPolyShapeValid() )
             {
-                bool hasEndings = aShape->GetStartEnding().GetStyle() != LINE_ENDING_STYLE::NONE
-                                  || aShape->GetEndEnding().GetStyle() != LINE_ENDING_STYLE::NONE;
-
                 auto plotStrokeOutline =
                         [&]( const SHAPE_LINE_CHAIN& aOutline, int aOutlineIdx )
                         {
                             if( aOutline.PointCount() < 2 )
                                 return;
 
-                            if( hasEndings )
+                            if( aShape->GetStartEnding().GetShortenDepth( thickness ) > 0
+                                || aShape->GetEndEnding().GetShortenDepth( thickness ) > 0 )
                             {
                                 std::vector<VECTOR2I> pts;
 
@@ -1123,13 +1123,14 @@ void BRDITEMS_PLOTTER::PlotShape( const PCB_SHAPE* aShape )
 
                                 shortened.SetClosed( aOutline.IsClosed() );
                                 m_plotter->PlotPoly( shortened, FILL_T::NO_FILL, thickness, getMetadata() );
-                                return;
                             }
-
-                            m_plotter->PlotPoly( aOutline, FILL_T::NO_FILL, thickness, getMetadata() );
+                            else
+                            {
+                                m_plotter->PlotPoly( aOutline, FILL_T::NO_FILL, thickness, getMetadata() );
+                            }
                         };
 
-                if( !hasEndings && m_plotter->GetPlotterType() == PLOT_FORMAT::DXF && GetDXFPlotMode() == SKETCH )
+                if( m_plotter->GetPlotterType() == PLOT_FORMAT::DXF && GetDXFPlotMode() == SKETCH )
                 {
                     m_plotter->ThickPoly( aShape->GetPolyShape(), thickness, getMetadata() );
                 }

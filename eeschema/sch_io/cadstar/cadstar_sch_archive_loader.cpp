@@ -769,11 +769,14 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadSchematicSymbolInstances()
                 loadSymbolGateAndPartFields( sym.SymdefID, part, sym.GateID, kiSym );
             }
 
-            std::unique_ptr<LIB_SYMBOL> scaledPart(
-                    getScaledLibPart( kiSym, sym.ScaleRatioNumerator, sym.ScaleRatioDenominator ) );
+            std::unique_ptr<LIB_SYMBOL> scaledPart( getScaledLibPart( kiSym, sym.ScaleRatioNumerator,
+                                                                      sym.ScaleRatioDenominator ) );
 
             EDA_ANGLE   symOrient = ANGLE_0;
             SCH_SYMBOL* symbol = loadSchematicSymbol( sym, *scaledPart, symOrient );
+
+            if( !symbol )
+                continue;
 
             SCH_FIELD* refField = symbol->GetField( FIELD_T::REFERENCE );
 
@@ -927,12 +930,13 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadSchematicSymbolInstances()
                     wxASSERT( kiPart->GetValueField().GetText() == symbolInstanceNetName );
                 }
 
-                std::unique_ptr<LIB_SYMBOL> scaledPart(
-                        getScaledLibPart( kiPart, sym.ScaleRatioNumerator, sym.ScaleRatioDenominator ) );
+                std::unique_ptr<LIB_SYMBOL> scaledPart( getScaledLibPart( kiPart, sym.ScaleRatioNumerator,
+                                                                          sym.ScaleRatioDenominator ) );
 
-                EDA_ANGLE   returnedOrient = ANGLE_0;
-                SCH_SYMBOL* symbol = loadSchematicSymbol( sym, *scaledPart, returnedOrient );
-                m_powerSymMap.insert( { sym.ID, symbol } );
+                EDA_ANGLE returnedOrient = ANGLE_0;
+
+                if( SCH_SYMBOL* symbol = loadSchematicSymbol( sym, *scaledPart, returnedOrient ) )
+                    m_powerSymMap.insert( { sym.ID, symbol } );
             }
             else if( sym.SymbolVariant.Type == SYMBOLVARIANT::TYPE::SIGNALREF )
             {
@@ -1195,11 +1199,9 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
             if( !alg::contains( m_busesMap.at( bus.ID )->Members(), netName ) )
                 m_busesMap.at( bus.ID )->AddMember( netName );
 
-            SCH_BUS_WIRE_ENTRY* busEntry =
-                    new SCH_BUS_WIRE_ENTRY( getKiCadPoint( busTerm.FirstPoint ), false );
+            SCH_BUS_WIRE_ENTRY* busEntry = new SCH_BUS_WIRE_ENTRY( getKiCadPoint( busTerm.FirstPoint ), false );
 
-            VECTOR2I size =
-                    getKiCadPoint( busTerm.SecondPoint ) - getKiCadPoint( busTerm.FirstPoint );
+            VECTOR2I size = getKiCadPoint( busTerm.SecondPoint ) - getKiCadPoint( busTerm.FirstPoint );
             busEntry->SetSize( VECTOR2I( size.x, size.y ) );
 
             m_sheetMap.at( bus.LayerID )->GetScreen()->Append( busEntry );
@@ -1316,7 +1318,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
                         sheetEdge.Append( leftSide, botSide );
                         sheetEdge.Append( leftSide, topSide );
 
-                        SHAPE_LINE_CHAIN::INTERSECTIONS wireToSheetIntersects;
+                        std::vector<SHAPE_LINE_CHAIN::INTERSECTION> wireToSheetIntersects;
 
                         if( !wireChain.Intersect( sheetEdge, wireToSheetIntersects ) )
                         {
@@ -1981,7 +1983,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadLibrarySymbolShapeVertices( const std::vect
     const VERTEX* prev = aCadstarVertices.empty() ? nullptr : &aCadstarVertices.at( 0 );
     const VERTEX* cur;
 
-    wxASSERT_MSG( prev->Type == VERTEX_TYPE::VT_POINT, "First vertex should always be a point." );
+    wxASSERT_MSG( prev && prev->Type == VERTEX_TYPE::VT_POINT, "First vertex should always be a point." );
 
     for( size_t i = 1; i < aCadstarVertices.size(); i++ )
     {
@@ -2387,7 +2389,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadShapeVertices( const std::vector<VERTEX>& a
     const VERTEX* prev = aCadstarVertices.empty() ? nullptr : &aCadstarVertices.at( 0 );
     const VERTEX* cur;
 
-    wxASSERT_MSG( prev->Type == VERTEX_TYPE::VT_POINT, "First vertex should always be a point vertex" );
+    wxASSERT_MSG( prev && prev->Type == VERTEX_TYPE::VT_POINT, "First vertex should always be a point vertex" );
 
     auto pointTransform =
             [&]( const VECTOR2I& aV )

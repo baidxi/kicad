@@ -173,6 +173,7 @@ bool SCH_TABLE::Deserialize( const google::protobuf::Any& aContainer )
     if( table.has_separators_stroke() )
         kiapi::common::UnpackStroke( m_separatorsStroke, table.separators_stroke(), schIUScale );
 
+    Normalize();
     return true;
 }
 
@@ -364,11 +365,25 @@ bool SCH_TABLE::operator<( const SCH_ITEM& aItem ) const
     if( m_separatorsStroke != other.m_separatorsStroke )
         return m_separatorsStroke < other.m_separatorsStroke;
 
-    if( m_colWidths != other.m_colWidths )
-        return false;
+    int diff;
 
-    if( m_rowHeights != other.m_rowHeights )
-        return false;
+    if( ( diff = GetColCount() - other.GetColCount() ) != 0 )
+        return diff;
+
+    for( int col = 0; col < GetColCount(); ++col )
+    {
+        if( ( diff = GetColWidth( col ) - other.GetColWidth( col ) ) != 0 )
+            return diff;
+    }
+
+    if( ( diff = GetRowCount() - other.GetRowCount() ) != 0 )
+        return diff;
+
+    for( int row = 0; row < GetRowCount(); ++row )
+    {
+        if( ( diff = GetRowHeight( row ) - other.GetRowHeight( row ) ) != 0 )
+            return diff;
+    }
 
     for( int ii = 0; ii < (int) m_cells.size(); ++ii )
     {

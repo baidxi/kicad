@@ -27,6 +27,15 @@ if [ -z "$KICAD_CLI" ] || [ ! -x "$KICAD_CLI" ]; then
     exit 2
 fi
 
+run_mergetool()
+{
+    if [ "${#RUNNER[@]}" -gt 0 ]; then
+        "${RUNNER[@]}" "$@"
+    else
+        "$@"
+    fi
+}
+
 # Skip if the kicad GUI binary isn't next to kicad-cli.  The CLI mergetool
 # entry point re-execs into it; without that this workflow can't complete.
 kicad_bin="$(dirname "$KICAD_CLI")/kicad"
@@ -38,12 +47,12 @@ fi
 
 # Skip if no display server is reachable.  We try DISPLAY first (a normal
 # desktop session), then xvfb-run (CI virtual display).
-RUNNER=""
+RUNNER=()
 
 if [ -n "${DISPLAY:-}" ]; then
-    RUNNER=""   # use the existing display
+    RUNNER=()   # use the existing display
 elif command -v xvfb-run >/dev/null 2>&1; then
-    RUNNER="xvfb-run -a --server-args=-screen 0 1024x768x24"
+    RUNNER=(xvfb-run -a "--server-args=-screen 0 1024x768x24")
 else
     echo "SKIP: no DISPLAY and xvfb-run not available; cannot exercise GUI re-exec" >&2
     exit 0
@@ -79,25 +88,26 @@ cp "$FIXTURE_BOARD" "$OURS"
 cp "$FIXTURE_BOARD" "$THEIRS"
 
 # Make ours and theirs differ from ancestor: bump a numeric value in each.
-# Use sed to mutate a trace width on each side (different values) so the
-# auto-resolver has to choose.  Robust to fixture changes -- if neither
-# mutation fires we still get a no-op merge which is also a valid test
-# outcome (exit 0 with no diff).
-sed -i 's/(width 0\.2)/(width 0.21)/' "$OURS"     || true
-sed -i 's/(width 0\.2)/(width 0.22)/' "$THEIRS"   || true
+# The two divergent Edge.Cuts stroke widths require the auto-resolver to choose a side.
+sed '/1546372c-4518-4c49-b994-211020ea3f32/s/(width 0\.2032)/(width 0.21)/' "$OURS" > "$OURS.next" && mv "$OURS.next" "$OURS"
+sed '/1546372c-4518-4c49-b994-211020ea3f32/s/(width 0\.2032)/(width 0.22)/' "$THEIRS" > "$THEIRS.next" && mv "$THEIRS.next" "$THEIRS"
 
-# Write an auto-resolution file selecting TAKE_OURS as the default strategy.
+if cmp -s "$ANCESTOR" "$OURS" || cmp -s "$ANCESTOR" "$THEIRS" || cmp -s "$OURS" "$THEIRS"; then
+    echo "FAIL: fixture did not produce divergent merge inputs" >&2
+    exit 1
+fi
+
+# Resolve the conflict on the modified Edge.Cuts line by its fixture UUID.
 cat > "$AUTO_RES" <<'EOF'
 {
-    "schema_version": 1,
-    "strategy": "take_ours"
+    "/1546372c-4518-4c49-b994-211020ea3f32": "take_ours"
 }
 EOF
 
 export KICAD_MERGETOOL_AUTO="$AUTO_RES"
 
 set +e
-$RUNNER "$KICAD_CLI" mergetool "$ANCESTOR" "$OURS" "$THEIRS" --output "$MERGED" 2>&1
+run_mergetool "$KICAD_CLI" mergetool "$ANCESTOR" "$OURS" "$THEIRS" --output "$MERGED" 2>&1
 exit_code=$?
 set -e
 
@@ -118,6 +128,11 @@ fi
 if ! head -c 200 "$MERGED" | grep -q "kicad_pcb"; then
     echo "FAIL: merged output doesn't look like a .kicad_pcb file" >&2
     head -c 500 "$MERGED" >&2
+    exit 1
+fi
+
+if ! grep -q '(width 0.21)' "$MERGED" || grep -q '(width 0.22)' "$MERGED"; then
+    echo "FAIL: merged board did not select ours for the divergent Edge.Cuts stroke" >&2
     exit 1
 fi
 
@@ -143,7 +158,7 @@ cp "$FIXTURE_FOOTPRINT" "$FP_OURS"
 cp "$FIXTURE_FOOTPRINT" "$FP_THEIRS"
 
 set +e
-$RUNNER "$KICAD_CLI" mergetool "$FP_ANCESTOR" "$FP_OURS" "$FP_THEIRS" --output "$FP_MERGED" 2>&1
+run_mergetool "$KICAD_CLI" mergetool "$FP_ANCESTOR" "$FP_OURS" "$FP_THEIRS" --output "$FP_MERGED" 2>&1
 exit_code=$?
 set -e
 

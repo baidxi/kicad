@@ -368,6 +368,14 @@ void SCH_PLOTTER::createPSFiles( const SCH_PLOT_OPTS& aPlotOpts,
         sheetList.push_back( aPlotOpts.m_sheetPath.value_or( m_schematic->CurrentSheet() ) );
     }
 
+    if( sheetList.empty() )
+    {
+        if( aReporter )
+            aReporter->Report( _( "No sheets to plot." ), RPT_SEVERITY_ERROR );
+
+        return;
+    }
+
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
         m_schematic->SetCurrentSheet( sheetList[i] );
@@ -556,6 +564,14 @@ void SCH_PLOTTER::createSVGFiles( const SCH_PLOT_OPTS& aPlotOpts,
     {
         // in Eeschema, this prints the current page
         sheetList.push_back( aPlotOpts.m_sheetPath.value_or( m_schematic->CurrentSheet() ) );
+    }
+
+    if( sheetList.empty() )
+    {
+        if( aReporter )
+            aReporter->Report( _( "No sheets to plot." ), RPT_SEVERITY_ERROR );
+
+        return;
     }
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
@@ -747,6 +763,14 @@ void SCH_PLOTTER::createPNGFiles( const SCH_PLOT_OPTS& aPlotOpts,
         sheetList.push_back( aPlotOpts.m_sheetPath.value_or( m_schematic->CurrentSheet() ) );
     }
 
+    if( sheetList.empty() )
+    {
+        if( aReporter )
+            aReporter->Report( _( "No sheets to plot." ), RPT_SEVERITY_ERROR );
+
+        return;
+    }
+
     for( unsigned i = 0; i < sheetList.size(); i++ )
     {
         SCH_SCREEN* screen;
@@ -920,7 +944,7 @@ bool SCH_PLOTTER::plotOneSheetPNG( const wxString& aFileName, SCH_SCREEN* aScree
 void SCH_PLOTTER::createDXFFiles( const SCH_PLOT_OPTS& aPlotOpts, SCH_RENDER_SETTINGS* aRenderSettings,
                                   REPORTER* aReporter )
 {
-    PLOT_CONTEXT( nullptr, m_schematic );
+    PLOT_CONTEXT raii( nullptr, m_schematic );
 
     /* When printing all pages, the printed page is not the current page.  In complex hierarchies,
      * we must update symbol references and other parameters in the given printed SCH_SCREEN,
@@ -942,6 +966,14 @@ void SCH_PLOTTER::createDXFFiles( const SCH_PLOT_OPTS& aPlotOpts, SCH_RENDER_SET
     {
         // in Eeschema, this prints the current page
         sheetList.push_back( aPlotOpts.m_sheetPath.value_or( m_schematic->CurrentSheet() ) );
+    }
+
+    if( sheetList.empty() )
+    {
+        if( aReporter )
+            aReporter->Report( _( "No sheets to plot." ), RPT_SEVERITY_ERROR );
+
+        return;
     }
 
     for( unsigned i = 0; i < sheetList.size(); i++ )
