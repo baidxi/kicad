@@ -1957,6 +1957,7 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
 
     updater->SetReporter( &reporter );
     updater->SetIsDryRun( aCtx.Request.dry_run() );
+    updater->SetWillDrag( false );
     updater->SetLookupByTimestamp( lookupByTimestamp );
     updater->SetDeleteUnusedFootprints( aCtx.Request.delete_extra_footprints() );
     updater->SetReplaceFootprints( aCtx.Request.update_footprints() );
@@ -3398,6 +3399,9 @@ API_HANDLER_PCB::handlePlaceFootprintFromLibrary( const HANDLER_CONTEXT<PlaceFoo
     }
 
     PCB_LAYER_ID layer = FromProtoEnum<PCB_LAYER_ID, board::types::BoardLayer>( aCtx.Request.layer() );
+
+    if( layer == UNDEFINED_LAYER )
+        layer = F_Cu;
 
     // TODO update if we support inner layer footprints in the future
     if( !IsExternalCopperLayer( layer ) )

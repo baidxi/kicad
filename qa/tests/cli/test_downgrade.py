@@ -337,6 +337,11 @@ class TestDropApproximations(unittest.TestCase):
         settings["via_stack_presets"] = [{"name": "Custom microvia stack"}]
         profiles = document["tuning_profiles"]
         profiles["meta"]["version"] = 2
+
+        # Schema 2 skips the migration that adds this field, so every profile needs it
+        for entry in profiles["tuning_profiles_impedance_geometric"]:
+            entry["net_chain_bridge_prop_delay"] = 0
+
         profiles["tuning_profiles_impedance_geometric"][0]["net_chain_bridge_prop_delay"] = 25
         project.write_text(json.dumps(document), encoding="utf-8")
         original = {p.name: p.read_bytes() for p in source.iterdir() if p.is_file()}
@@ -372,7 +377,7 @@ class TestDropApproximations(unittest.TestCase):
     (constraint clearance (min 0.2mm)))
 (rule "Keep coordinates" (condition "A.Start_X > 0 && A.Start_Y > 0")
     (constraint clearance (min 0.2mm)))
-(rule "Microvia aspect" (constraint microvia_aspect_ratio (max 1)))
+(rule "Microvia aspect" (constraint hole_aspect_ratio (max 1)))
 (rule "Microvia depth" (constraint microvia_stack_depth (max 2)))
 (rule "Keepout" (condition "A.intersectsKeepout('area')")
     (constraint clearance (min 0.2mm)))
@@ -398,9 +403,10 @@ class TestDropApproximations(unittest.TestCase):
                                               "--force", "--report-json", report_path, "--output", output))
                 self.assertEqual(json.loads(report_path.read_text()), preview)
                 converted = (output / rules.name).read_text()
-                self.assertIn('"Keep literal"', converted)
-                self.assertIn('"Keep coordinates"', converted)
-                self.assertEqual(converted.count("(rule "), 2)
+                self.assertIn('\n(rule "Keep literal"', converted)
+                self.assertIn('\n(rule "Keep coordinates"', converted)
+                self.assertEqual(converted.count("\n(rule "), 2)
+                self.assertEqual(converted.count("# (rule "), 7)
                 self.assertEqual(rules.read_bytes(), original)
 
     def test_post_target_drc_properties_require_consent_in_both_expressions(self):
@@ -447,10 +453,12 @@ class TestDropApproximations(unittest.TestCase):
                                               "--force", "--output", output, "--report-json", report_path))
                 self.assertEqual(json.loads(report_path.read_text()), preview)
                 converted = (output / rules.name).read_text()
-                self.assertIn('rule "Keep literal"', converted)
-                self.assertIn('rule "Keep coordinates"', converted)
-                self.assertNotIn('rule "Property 0 condition"', converted)
-                self.assertEqual('rule "Property 8 assertion"' in converted, target == "10.0")
+                self.assertIn('\n(rule "Keep literal"', converted)
+                self.assertIn('\n(rule "Keep coordinates"', converted)
+                self.assertNotIn('\n(rule "Property 0 condition"', converted)
+                self.assertIn('\n# (rule "Property 0 condition"', converted)
+                self.assertEqual('\n(rule "Property 8 assertion"' in converted, target == "10.0")
+                self.assertEqual('\n# (rule "Property 8 assertion"' in converted, target == "9.0")
                 self.assertEqual(self.source_snapshot(), original)
                 self.assertEqual(rules.read_bytes(), original_rules)
 
@@ -878,6 +886,7 @@ class TestDropApproximations(unittest.TestCase):
         saved = json.loads((REGRESSIONS / "tuning_model_settings/tuning_model_settings.kicad_pro").read_text())
         profile = saved["tuning_profiles"]["tuning_profiles_impedance_geometric"][0]
         profile["profile_name"] = "Default"
+        profile["net_chain_bridge_prop_delay"] = 0
         for choice in ("unreferenced-profile", "selected-profile", "missing-profile-selection",
                        "assignment", "sheet-classes"):
             document = json.loads(json.dumps(native_default))

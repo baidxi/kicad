@@ -337,13 +337,17 @@ public:
             {
                 auto permissions = std::filesystem::status( destination, error ).permissions();
 
-                if( error )
+                // Windows reports a dangling link as a file, but it has no target to take permissions from
+                if( error && !( symlink && error == std::errc::no_such_file_or_directory ) )
                     return entry.m_destination;
 
-                std::filesystem::permissions( nativePath( entry.m_temp ), permissions, error );
+                if( !error )
+                {
+                    std::filesystem::permissions( nativePath( entry.m_temp ), permissions, error );
 
-                if( error )
-                    return entry.m_destination;
+                    if( error )
+                        return entry.m_destination;
+                }
             }
 
             entry.m_backup = wxFileName::CreateTempFileName( entry.m_destination + wxT( ".downgrade_backup." ) );
@@ -376,6 +380,19 @@ public:
         {
             // An overwrite may disturb its destination even when the rename reports a failure.
             entry.m_attemptedReplacement = true;
+
+#ifdef _WIN32
+            // Windows renames onto a link by writing through to its target, so the link goes first. Its
+            // backup restores it if anything fails.
+            std::error_code error;
+            const auto      destination = nativePath( entry.m_destination );
+
+            if( std::filesystem::is_symlink( destination, error ) && !std::filesystem::remove( destination, error ) )
+            {
+                rollback();
+                return entry.m_destination;
+            }
+#endif
 
             if( !wxRenameFile( entry.m_temp, entry.m_destination, true ) )
             {
@@ -427,6 +444,21 @@ private:
 #endif
     }
 
+    static bool restoreBackup( const ENTRY& aEntry )
+    {
+        std::error_code error;
+        const auto      backup = nativePath( aEntry.m_backup );
+
+        // wxRenameFile can fall back to copying on Windows, which would follow the link
+        if( std::filesystem::is_symlink( backup, error ) )
+        {
+            std::filesystem::rename( backup, nativePath( aEntry.m_destination ), error );
+            return !error;
+        }
+
+        return wxRenameFile( aEntry.m_backup, aEntry.m_destination, true );
+    }
+
     void rollback()
     {
         for( auto it = m_entries.rbegin(); it != m_entries.rend(); ++it )
@@ -438,7 +470,7 @@ private:
 
             if( entry.m_hadOriginal )
             {
-                if( wxRenameFile( entry.m_backup, entry.m_destination, true ) )
+                if( restoreBackup( entry ) )
                 {
                     entry.m_backup.clear();
                 }

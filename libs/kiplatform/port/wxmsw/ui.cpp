@@ -24,6 +24,7 @@
 
 #include <wx/cursor.h>
 #include <wx/dialog.h>
+#include <wx/display.h>
 #include <wx/nonownedwnd.h>
 #include <wx/window.h>
 #include <wx/msw/registry.h>
@@ -151,6 +152,13 @@ double KIPLATFORM::UI::GetContentScaleFactor( const wxWindow* aWindow )
 }
 
 
+double KIPLATFORM::UI::GetDisplayRefreshRate( const wxWindow* aWindow )
+{
+    // wx reports the hardware's default rate as 0
+    return wxDisplay( aWindow ).GetCurrentMode().refresh;
+}
+
+
 wxSize KIPLATFORM::UI::GetUnobscuredSize( const wxWindow* aWindow )
 {
     return aWindow->GetClientSize();
@@ -247,4 +255,30 @@ void KIPLATFORM::UI::SetWMClass( wxWindow* aWindow, const wxString& aClass )
 {
     // WM_CLASS is an X11/Wayland concept; taskbar identity on Windows is driven by the
     // AppUserModelID (see KIPLATFORM::ENV::SetAppDetailsForWindow).
+}
+
+
+void KIPLATFORM::UI::GetNativeWindowHandles( wxWindow* aWindow, void** aHandle, void** aDisplay,
+                                              int* aDisplayType )
+{
+    *aHandle = nullptr;
+    *aDisplay = nullptr;
+
+    if( aDisplayType )
+        *aDisplayType = NATIVE_DISPLAY_TYPE::DISPLAY_WIN32;
+
+    if( aWindow )
+        *aHandle = static_cast<void*>( aWindow->GetHWND() );
+}
+
+
+void KIPLATFORM::UI::PrepareForExternalRendering( wxWindow* aWindow )
+{
+    // The GPU API owns Win32 surfaces natively
+}
+
+
+void KIPLATFORM::UI::KeepAboveExternalRendering( wxWindow* aChild )
+{
+    // Child windows are native and clip their parent's surface
 }

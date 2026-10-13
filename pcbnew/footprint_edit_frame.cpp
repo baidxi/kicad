@@ -1168,7 +1168,7 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintTab( co
 
     if( int existing = m_tabsPanel->FindTab( key ); existing >= 0 )
     {
-        m_tabsPanel->AddTab( key, name, aAsPreview );
+        m_tabsPanel->ActivateOrCreateTab( key, name, aAsPreview );
         return m_tabContexts[existing].get();
     }
 
@@ -1199,13 +1199,13 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintTab( co
                 [&]( const FOOTPRINT_EDITOR_TAB_CONTEXT& aDisplaced )
                 {
                     SCOPED_SET_RESET<BOARD*> protectedBoard( m_protectedBorrowedBoard, aDisplaced.GetBoard() );
-                    m_tabsPanel->AddTab( key, name, aAsPreview );
+                    m_tabsPanel->ActivateOrCreateTab( key, name, aAsPreview );
                 } );
     }
 
     m_tabContexts.push_back( std::move( ctx ) );
 
-    m_tabsPanel->AddTab( key, name, aAsPreview );
+    m_tabsPanel->ActivateOrCreateTab( key, name, aAsPreview );
 
     return raw;
 }
@@ -1235,13 +1235,16 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintInstanc
     if( !aBoardFootprint )
         return nullptr;
 
-    const KIID     sourceUuid = aBoardFootprint->m_Uuid;
-    const wxString key = FOOTPRINT_EDITOR_TAB_CONTEXT::MakeInstanceTabKey( sourceUuid );
-    const wxString reference = aBoardFootprint->GetReference();
+    const KIID      sourceUuid = aBoardFootprint->m_Uuid;
+    const wxString  key = FOOTPRINT_EDITOR_TAB_CONTEXT::MakeInstanceTabKey( sourceUuid );
+    const wxString& reference = aBoardFootprint->GetReference();
 
     // Re-editing the same placed footprint focuses the live tab rather than duplicating it.
     if( int existing = m_tabsPanel->FindTab( key ); existing >= 0 )
+    {
+        m_tabsPanel->ActivateOrCreateTab( key, m_tabContexts[existing]->GetDisplayName(), false );
         return m_tabContexts[existing].get();
+    }
 
     std::unique_ptr<BOARD> board = makeFpHolderBoard( GetSettings() );
     board->GetDesignSettings().m_DRCSeverities[DRCE_MISSING_COURTYARD] = RPT_SEVERITY_WARNING;
@@ -1305,7 +1308,7 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::findOrCreateFootprintInstanc
 
     // Index-aligned with the panel model; the context is at its final index before AddTab fires
     // onActivateTab.
-    m_tabsPanel->AddTab( key, m_tabContexts.back()->GetDisplayName(), false );
+    m_tabsPanel->ActivateOrCreateTab( key, m_tabContexts.back()->GetDisplayName(), false );
 
     return raw;
 }
@@ -1322,7 +1325,7 @@ FOOTPRINT_EDITOR_TAB_CONTEXT* FOOTPRINT_EDIT_FRAME::CreateUnsavedFootprintTab()
     m_tabContexts.push_back( std::move( ctx ) );
 
     // At its final index before AddTab fires onActivateTab, which makes the new tab active
-    m_tabsPanel->AddTab( key, m_tabContexts.back()->GetDisplayName(), false );
+    m_tabsPanel->ActivateOrCreateTab( key, m_tabContexts.back()->GetDisplayName(), false );
 
     return raw;
 }
@@ -1470,23 +1473,28 @@ void FOOTPRINT_EDIT_FRAME::RenameFootprintTab( const LIB_ID& aOldId, const LIB_I
     const wxString newLib = aNewId.GetLibNickname();
     const wxString newName = aNewId.GetLibItemName();
 
-    // An unsaved import is keyed by a session id, not by aOldId, so the save-as that named it promotes
-    // the active tab instead. A tree-driven rename carries a nickname and never reaches this path
-    if( m_activeTab && m_activeTab->IsUnsaved() && aOldId.GetLibNickname().empty()
-        && !newLib.IsEmpty() )
+    if( aOldId.GetLibNickname().empty() )
     {
-        const wxString unsavedKey = m_activeTab->GetTabKey();
+        // This test precludes a tree-driven rename, so we can assume that the active tab is being
+        // renamed.
 
-        m_activeTab->PromoteToLibrary( newLib, newName );
-        m_tabsPanel->RenameTab( unsavedKey, m_activeTab->GetTabKey(), m_activeTab->GetDisplayName() );
+        // An unsaved import is keyed by a session id, not by aOldId, so the save-as that named it
+        // promotes the active tab.
+        if( m_activeTab && m_activeTab->IsUnsaved() && !newLib.IsEmpty() )
+        {
+            const wxString unsavedKey = m_activeTab->GetTabKey();
 
-        return;
+            m_activeTab->PromoteToLibrary( newLib, newName );
+            m_tabsPanel->RenameTab( unsavedKey, m_activeTab->GetTabKey(), m_activeTab->GetDisplayName() );
+
+            return;
+        }
+
+        // A board footprint's tab is named from the board instance's reference, not any properties of
+        // the edited copy.
+        if( m_activeTab && m_activeTab->IsFromBoard() && aOldId.GetLibNickname().empty() )
+            return;
     }
-
-    // A board footprint's tab is named from the board instance's reference, not any properties of the
-    // edited copy.
-    if( m_activeTab && m_activeTab->IsFromBoard() )
-        return;
 
     const wxString oldLib = aOldId.GetLibNickname();
     const wxString oldName = aOldId.GetLibItemName();
@@ -1746,19 +1754,6 @@ void FOOTPRINT_EDIT_FRAME::LoadSettings( APP_SETTINGS_BASE* aCfg )
         }
 
     }
-}
-
-
-void FOOTPRINT_EDIT_FRAME::resolveCanvasType()
-{
-    // Load canvas type from the FOOTPRINT_EDITOR_SETTINGS:
-    m_canvasType = loadCanvasTypeSetting();
-
-    // If we had an OpenGL failure this session, use the fallback GAL but don't update the
-    // user preference silently:
-
-    if( m_openGLFailureOccured && m_canvasType == EDA_DRAW_PANEL_GAL::GAL_TYPE_OPENGL )
-        m_canvasType = EDA_DRAW_PANEL_GAL::GAL_FALLBACK;
 }
 
 

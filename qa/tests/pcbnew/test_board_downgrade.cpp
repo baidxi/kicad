@@ -1103,7 +1103,7 @@ BOOST_AUTO_TEST_CASE( VerifyGateCatchesUnsupportedTokens )
 
 
 // One unknown keyword makes an old KiCad drop the whole rules file, so the export must
-// filter out rules the target cannot parse and keep the rest byte-identical.
+// comment out rules the target cannot parse and keep the rest byte-identical.
 BOOST_AUTO_TEST_CASE( DrcRulesFilterForKicad9 )
 {
     const wxString rules = wxT( "(version 2)\n"
@@ -1123,17 +1123,158 @@ BOOST_AUTO_TEST_CASE( DrcRulesFilterForKicad9 )
     DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad9 );
 
     BOOST_REQUIRE_EQUAL( result.m_dropped.size(), 3 );
-    BOOST_CHECK( result.m_dropped[0] == wxT( "mask_check" ) );
-    BOOST_CHECK( result.m_dropped[1] == wxT( "chain_check" ) );
-    BOOST_CHECK( result.m_dropped[2] == wxT( "delay_check" ) );
+    BOOST_CHECK_EQUAL( result.m_dropped[0], wxString( "mask_check" ) );
+    BOOST_CHECK_EQUAL( result.m_dropped[1], wxString( "chain_check" ) );
+    BOOST_CHECK_EQUAL( result.m_dropped[2], wxString( "delay_check" ) );
 
     BOOST_CHECK( result.m_text.Contains( wxT( "(version 1)" ) ) );
     BOOST_CHECK( result.m_text.Contains( wxT( "# keep me" ) ) );
     BOOST_CHECK( result.m_text.Contains( wxT( "(rule \"clearance_ok\"" ) ) );
     BOOST_CHECK( result.m_text.Contains( wxT( "A.NetClass == 'HV'" ) ) );
-    BOOST_CHECK( !result.m_text.Contains( wxT( "bridged_mask" ) ) );
-    BOOST_CHECK( !result.m_text.Contains( wxT( "inNetChain" ) ) );
-    BOOST_CHECK( !result.m_text.Contains( wxT( "5ps" ) ) );
+    BOOST_CHECK( result.m_text.Contains( wxT( "# Not supported by KiCad 9.0:\n"
+                                              "# (rule \"mask_check\"\n#   (constraint bridged_mask))\n" ) ) );
+    BOOST_CHECK( result.m_text.Contains( wxT( "# (rule \"chain_check\"\n#   (condition \"inNetChain('x')\")\n" ) ) );
+    BOOST_CHECK( result.m_text.Contains( wxT( "# (rule \"delay_check\"\n#   (constraint skew (max 5ps)))\n" ) ) );
+}
+
+
+static size_t ParsedDrcRuleCount( const wxString& aText, const wxString& aSource )
+{
+    DRC_RULES_PARSER                       parser( aText, aSource );
+    WX_STRING_REPORTER                     reporter;
+    std::vector<std::shared_ptr<DRC_RULE>> rules;
+    parser.Parse( rules, &reporter );
+    BOOST_CHECK_MESSAGE( !reporter.HasMessageOfSeverity( RPT_SEVERITY_ERROR ), reporter.GetMessages() );
+    return rules.size();
+}
+
+
+BOOST_AUTO_TEST_CASE( DroppedRulesStayInTheFileAsComments )
+{
+    const wxString rules = wxT( "(version 2)\n"
+                                "(rule \"keep\" (constraint clearance (min 0.2mm)))\n"
+                                "# why the chain rule exists\n"
+                                "(rule \"chain\"\n"
+                                "  (constraint net_chain_length (max 10mm)))\n"
+                                "(rule \"glued\" (constraint net_chain_length (max 1mm)))"
+                                "(rule \"after\" (constraint clearance (min 0.1mm)))\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, target );
+        BOOST_REQUIRE( result.m_error.IsEmpty() );
+        BOOST_REQUIRE_EQUAL( result.m_dropped.size(), 2 );
+
+        const wxString marker = wxT( "# Not supported by " ) + target.m_name + wxT( ":\n" );
+        const wxString expected = wxT( "(version 1)\n"
+                                       "(rule \"keep\" (constraint clearance (min 0.2mm)))\n"
+                                       "# why the chain rule exists\n" )
+                                  + marker
+                                  + wxT( "# (rule \"chain\"\n"
+                                         "#   (constraint net_chain_length (max 10mm)))\n" )
+                                  + marker
+                                  + wxT( "# (rule \"glued\" (constraint net_chain_length (max 1mm)))\n"
+                                         "(rule \"after\" (constraint clearance (min 0.1mm)))\n" );
+        BOOST_CHECK_EQUAL( result.m_text, expected );
+        BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_commented_rules" ) ), 2 );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( CommentedRuleStartsAndEndsOnItsOwnLine )
+{
+    const wxString rules = wxT( "(version 2)"
+                                "(rule \"first\" (constraint net_chain_length (max 1mm)))"
+                                "(rule \"kept\" (constraint clearance (min 0.2mm)))"
+                                "(rule \"last\" (constraint net_chain_length (max 1mm)))" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, target );
+        BOOST_REQUIRE( result.m_error.IsEmpty() );
+
+        const wxString marker = wxT( "# Not supported by " ) + target.m_name + wxT( ":\n" );
+        const wxString expected = wxT( "(version 1)\n" ) + marker
+                                  + wxT( "# (rule \"first\" (constraint net_chain_length (max 1mm)))\n"
+                                         "(rule \"kept\" (constraint clearance (min 0.2mm)))\n" )
+                                  + marker + wxT( "# (rule \"last\" (constraint net_chain_length (max 1mm)))\n" );
+        BOOST_CHECK_EQUAL( result.m_text, expected );
+        BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_glued_rules" ) ), 1 );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( CommentedRuleKeepsItsOwnCommentsAndLineEndings )
+{
+    const wxString rules = wxT( "(version 2)\r\n"
+                                "  (rule \"messy\"\r\n"
+                                "  # ) \" ( unmatched in a comment\r\n"
+                                "  (condition \"A.NetName == 'a'\")\r\n"
+                                "  (constraint net_chain_length (max 1mm)))\r\n"
+                                "(rule \"kept\" (constraint clearance (min 0.2mm)))\r\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, target );
+        BOOST_REQUIRE( result.m_error.IsEmpty() );
+        BOOST_REQUIRE_EQUAL( result.m_dropped.size(), 1 );
+        BOOST_CHECK( result.m_dropped.front() == wxT( "messy" ) );
+
+        const wxString expected = wxT( "(version 1)\r\n  # Not supported by " ) + target.m_name
+                                  + wxT( ":\r\n"
+                                         "# (rule \"messy\"\r\n"
+                                         "#   # ) \" ( unmatched in a comment\r\n"
+                                         "#   (condition \"A.NetName == 'a'\")\r\n"
+                                         "#   (constraint net_chain_length (max 1mm)))\r\n"
+                                         "(rule \"kept\" (constraint clearance (min 0.2mm)))\r\n" );
+        BOOST_CHECK_EQUAL( result.m_text, expected );
+        BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_crlf_rules" ) ), 1 );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( UnknownTopLevelBlockIsCommentedOut )
+{
+    const wxString rules = wxT( "(version 2)\n"
+                                "(future_block \"x\" (constraint clearance (min 1mm)))\n"
+                                "(rule \"kept\" (constraint clearance (min 0.2mm)))\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, target );
+        BOOST_REQUIRE( result.m_error.IsEmpty() );
+        BOOST_CHECK_EQUAL( result.m_dropped.size(), 1 );
+        BOOST_CHECK( result.m_text.Contains( wxT( "# (future_block \"x\" (constraint clearance (min 1mm)))\n"
+                                                  "(rule \"kept\"" ) ) );
+        BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_unknown_block" ) ), 1 );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( ExportedRulesFileDowngradesAgainUnchanged )
+{
+    const wxString rules = wxT( "(version 2)\n"
+                                "# why the chain rule exists\n"
+                                "(rule \"chain\"\n"
+                                "  # ) \" (\n"
+                                "  (constraint net_chain_length (max 10mm)))\n"
+                                "(rule \"after\" (constraint clearance (min 0.1mm)))"
+                                "(rule \"last\" (constraint net_chain_length (max 1mm)))\n"
+                                "# trailing note\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        DRC_RULES_FILTER_RESULT first = FilterDrcRulesForTarget( rules, target );
+        BOOST_REQUIRE( first.m_error.IsEmpty() );
+        BOOST_REQUIRE_EQUAL( first.m_dropped.size(), 2 );
+        BOOST_CHECK( first.m_text.EndsWith( wxT( "# (rule \"last\" (constraint net_chain_length (max 1mm)))\n"
+                                                 "# trailing note\n" ) ) );
+
+        DRC_RULES_FILTER_RESULT second = FilterDrcRulesForTarget( first.m_text, target );
+        BOOST_CHECK( second.m_error.IsEmpty() );
+        BOOST_CHECK( second.m_dropped.empty() );
+        BOOST_CHECK_EQUAL( second.m_text, first.m_text );
+    }
 }
 
 
@@ -1186,7 +1327,7 @@ BOOST_AUTO_TEST_CASE( DrcRulesFilterForKicad10 )
     DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad10 );
 
     BOOST_REQUIRE_EQUAL( result.m_dropped.size(), 1 );
-    BOOST_CHECK( result.m_dropped[0] == wxT( "chain_check" ) );
+    BOOST_CHECK_EQUAL( result.m_dropped[0], wxString( "chain_check" ) );
     BOOST_CHECK( result.m_text.Contains( wxT( "bridged_mask" ) ) );
     BOOST_CHECK( result.m_text.Contains( wxT( "5ps" ) ) );
 }
@@ -1228,6 +1369,160 @@ BOOST_AUTO_TEST_CASE( DrcRulesWithCommentsRemainIntact )
 }
 
 
+BOOST_AUTO_TEST_CASE( CommentsAboveTheVersionHeaderAreKept )
+{
+    const wxString rules = wxT( "# project rules\n"
+                                "(version 2)\n"
+                                "(rule \"a\" (constraint clearance (min 0.2mm)))\n" );
+
+    DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad9 );
+    BOOST_REQUIRE( result.m_error.IsEmpty() );
+    BOOST_CHECK_EQUAL( result.m_text, wxString( "# project rules\n"
+                                                "(version 1)\n"
+                                                "(rule \"a\" (constraint clearance (min 0.2mm)))\n" ) );
+    BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_comment_above_header" ) ), 1 );
+}
+
+
+BOOST_AUTO_TEST_CASE( MissingVersionHeaderIsWrittenOnItsOwnLine )
+{
+    const wxString rules = wxT( "# intro\n"
+                                "(rule \"a\" (constraint net_chain_length (max 1mm)))\n" );
+
+    DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad9 );
+    BOOST_REQUIRE( result.m_error.IsEmpty() );
+    BOOST_CHECK_EQUAL( result.m_text, wxString( "(version 1)\n"
+                                                "# intro\n"
+                                                "# Not supported by KiCad 9.0:\n"
+                                                "# (rule \"a\" (constraint net_chain_length (max 1mm)))\n" ) );
+    BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_missing_header" ) ), 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( HeaderGluedToTheFirstRuleStaysGlued )
+{
+    const wxString rules = wxT( "(version 2)(rule \"kept\" (constraint clearance (min 0.2mm)))" );
+
+    DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad9 );
+    BOOST_REQUIRE( result.m_error.IsEmpty() );
+    BOOST_CHECK_EQUAL( result.m_text, wxString( "(version 1)(rule \"kept\" (constraint clearance (min 0.2mm)))\n" ) );
+    BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_glued_header" ) ), 1 );
+}
+
+
+BOOST_AUTO_TEST_CASE( InlineCommentBetweenRulesFailsClosed )
+{
+    const wxString rules = wxT( "(version 1) # note\n(rule \"a\" (constraint clearance (min 0.2mm)))\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+        BOOST_CHECK( !FilterDrcRulesForTarget( rules, target ).m_error.IsEmpty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnitInsideAConditionIsChecked )
+{
+    const wxString rules = wxT( "(version 1)(rule \"c\" (condition \"A.Width > 5ps\") "
+                                "(constraint clearance (min 0.2mm)))" );
+
+    BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( rules, kicad9 ).m_dropped.size(), 1 );
+    BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( rules, kicad10 ).m_dropped.size(), 0 );
+}
+
+
+BOOST_AUTO_TEST_CASE( TextVariableInsideACommentIsIgnored )
+{
+    const wxString rules = wxT( "(version 1)\n"
+                                "(rule \"a\"\n"
+                                "  # see ${GAP}\n"
+                                "  (constraint clearance (min 0.2mm)))\n" );
+
+    BOOST_CHECK( FilterDrcRulesForTarget( rules, kicad9 ).m_dropped.empty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( FunctionNamesAreMatchedWithoutCase )
+{
+    const wxString rules = wxT( "(version 1)(rule \"f\" (condition \"A.InsideCourtyard('x')\") "
+                                "(constraint clearance (min 0.2mm)))" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+        BOOST_CHECK( FilterDrcRulesForTarget( rules, target ).m_dropped.empty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( ComponentClassSelectorIsDroppedForEveryTarget )
+{
+    const wxString rules = wxT( "(version 1)(rule \"hv\" (condition \"A.memberOfFootprint('${Class:HV}')\") "
+                                "(constraint clearance (min 1mm)))" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+        BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( rules, target ).m_dropped.size(), 1 );
+}
+
+
+BOOST_AUTO_TEST_CASE( UnquotedExpressionsAreScanned )
+{
+    const wxString parent = wxT( "(version 1)(rule \"x\" (condition A.Parent.Reference==B.Reference) "
+                                 "(constraint clearance (min 1mm)))" );
+    const wxString assertion = wxT( "(version 1)(rule \"x\" (constraint assertion A.Parent.Reference==B.Reference))" );
+    const wxString plain = wxT( "(version 1)(rule \"x\" (condition A.NetClass=='HV') "
+                                "(constraint clearance (min 1mm)))" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( parent, target ).m_dropped.size(), 1 );
+        BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( assertion, target ).m_dropped.size(), 1 );
+        BOOST_CHECK( FilterDrcRulesForTarget( plain, target ).m_dropped.empty() );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( QuotedConstraintItemsAreChecked )
+{
+    const wxString newItem = wxT( "(version 1)(rule \"y\" (constraint disallow \"blind_via\"))" );
+    const wxString oldItem = wxT( "(version 1)(rule \"y\" (constraint disallow \"via\"))" );
+    const wxString connection = wxT( "(version 1)(rule \"z\" (constraint zone_connection \"thermal_reliefs\"))" );
+
+    BOOST_CHECK_EQUAL( FilterDrcRulesForTarget( newItem, kicad9 ).m_dropped.size(), 1 );
+    BOOST_CHECK( FilterDrcRulesForTarget( newItem, kicad10 ).m_dropped.empty() );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        BOOST_CHECK( FilterDrcRulesForTarget( oldItem, target ).m_dropped.empty() );
+        BOOST_CHECK( FilterDrcRulesForTarget( connection, target ).m_dropped.empty() );
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( StringSpanningLinesFailsClosed )
+{
+    const wxString rules = wxT( "(version 1)\n(rule \"a\" (condition \"A.NetClass ==\n 'HV'\") "
+                                "(constraint clearance (min 0.2mm)))\n" );
+
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+        BOOST_CHECK( !FilterDrcRulesForTarget( rules, target ).m_error.IsEmpty() );
+}
+
+
+BOOST_AUTO_TEST_CASE( CommentBetweenParenthesisAndHeadIsKept )
+{
+    const wxString rules = wxT( "(version 1)\n"
+                                "(\n"
+                                "# the head comes after this comment\n"
+                                "rule \"a\" (constraint clearance (min 0.2mm)))\n"
+                                "(\n"
+                                "# so does this one\n"
+                                "rule \"b\" (constraint net_chain_length (max 1mm)))\n" );
+
+    DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( rules, kicad9 );
+    BOOST_REQUIRE( result.m_error.IsEmpty() );
+    BOOST_REQUIRE_EQUAL( result.m_dropped.size(), 1 );
+    BOOST_CHECK_EQUAL( result.m_dropped.front(), wxString( "b" ) );
+    BOOST_CHECK( result.m_text.Contains( wxT( "\nrule \"a\"" ) ) );
+    BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_comment_before_head" ) ), 1 );
+}
+
+
 BOOST_AUTO_TEST_CASE( InvalidDrcCommentAndUnbalancedSyntaxFailClosed )
 {
     for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
@@ -1252,14 +1547,11 @@ BOOST_AUTO_TEST_CASE( DrcRulesMatchIndependentOlderReferences )
         DRC_RULES_FILTER_RESULT result = FilterDrcRulesForTarget( input, target );
         BOOST_REQUIRE( result.m_error.IsEmpty() );
         const std::string release = target.m_id == wxT( "9.0" ) ? "v9" : "v10";
-        BOOST_CHECK( result.m_text.ToStdString() == KI_TEST::ReadGoldenText( fixture + release + "/rules.kicad_dru" ) );
+        BOOST_CHECK_EQUAL( result.m_text.ToStdString(),
+                           KI_TEST::ReadGoldenText( fixture + release + "/rules.kicad_dru" ) );
         BOOST_CHECK_EQUAL( result.m_dropped.size(), release == "v9" ? 2 : 1 );
-        DRC_RULES_PARSER                       parser( result.m_text, wxT( "downgrade_drc_golden" ) );
-        WX_STRING_REPORTER                     reporter;
-        std::vector<std::shared_ptr<DRC_RULE>> rules;
-        parser.Parse( rules, &reporter );
-        BOOST_CHECK_MESSAGE( !reporter.HasMessageOfSeverity( RPT_SEVERITY_ERROR ), reporter.GetMessages() );
-        BOOST_CHECK_EQUAL( rules.size(), release == "v9" ? 1 : 2 );
+        BOOST_CHECK_EQUAL( ParsedDrcRuleCount( result.m_text, wxT( "downgrade_drc_golden" ) ),
+                           release == "v9" ? 1 : 2 );
     }
 }
 
@@ -2151,7 +2443,7 @@ BOOST_AUTO_TEST_CASE( DirectoryDestinationStopsAllTransactionReplacements )
         }
 
         BOOST_REQUIRE( wxMkdir( second ) );
-        BOOST_CHECK_EQUAL( transaction.Commit(), second );
+        BOOST_CHECK( wxFileName( transaction.Commit() ).SameAs( wxFileName( second ) ) );
         BOOST_CHECK( transaction.GetRecoveryError().IsEmpty() );
     }
 
@@ -4034,11 +4326,179 @@ BOOST_AUTO_TEST_CASE( NativeNetChainClassMapReportsOnlyNonemptyMappings )
 }
 
 
+// A word the generated vocabulary lists must never be the reason a rule is dropped. That is the
+// direction a generator mistake would take, silently losing a rule the target can read.
+BOOST_AUTO_TEST_CASE( ReleaseVocabularyKeepsEveryRuleTheReleaseCouldRead )
+{
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        const DRC_RULE_VOCABULARY* vocabulary = FindDrcRuleVocabulary( target );
+        BOOST_REQUIRE( vocabulary );
+
+        for( size_t i = 0; i < vocabulary->m_functionCount; i++ )
+        {
+            const wxString name = wxString::FromUTF8( vocabulary->m_functions[i] );
+
+            if( std::any_of( std::begin( DRC_RULE_SEMANTIC_BREAKS ), std::end( DRC_RULE_SEMANTIC_BREAKS ),
+                             [&]( const char* aBreak )
+                             {
+                                 return name == aBreak;
+                             } ) )
+                continue;
+
+            const wxString rule = wxT( "(version 1)(rule \"f\" (condition \"A." ) + name
+                                  + wxT( "('x')\") (constraint clearance (min 0.2mm)))" );
+
+            BOOST_CHECK_MESSAGE( FilterDrcRulesForTarget( rule, target ).m_dropped.empty(),
+                                 target.m_id + " dropped a rule calling " + name );
+        }
+
+        for( size_t i = 0; i < vocabulary->m_propertyCount; i++ )
+        {
+            const wxString name = wxString::FromUTF8( vocabulary->m_properties[i] );
+            const wxString rule = wxT( "(version 1)(rule \"p\" (condition \"A." ) + name
+                                  + wxT( " == 1\") (constraint clearance (min 0.2mm)))" );
+
+            BOOST_CHECK_MESSAGE( FilterDrcRulesForTarget( rule, target ).m_dropped.empty(),
+                                 target.m_id + " dropped a rule reading " + name );
+        }
+    }
+}
+
+
+// Adding a downgrade target without rerunning tools/generate_drc_rules_vocabulary.py must fail here.
+BOOST_AUTO_TEST_CASE( EveryDowngradeTargetHasARuleVocabulary )
+{
+    for( const DOWNGRADE_TARGET& target : GetDowngradeTargets() )
+    {
+        BOOST_CHECK_MESSAGE( FindDrcRuleVocabulary( target ),
+                             target.m_name + " has no entry in include/drc_rules_release_vocabulary.h" );
+    }
+}
+
+
+// A registered property is only usable if the release's evaluator can read its type. Priority
+// is unsigned and Hatch Orientation an angle, neither readable before 11, while an enum always is.
+BOOST_AUTO_TEST_CASE( PropertiesTheReleaseCannotEvaluateAreDropped )
+{
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        for( const wxString& property : { wxT( "A.Priority > 1" ), wxT( "A.Hatch_Orientation == 0" ),
+                                          wxT( "A.Line_Color == 'red'" ) } )
+        {
+            const auto result = FilterDrcRulesForTarget( wxT( "(version 1)(rule \"typed\" (condition \"" ) + property
+                                                                 + wxT( "\") (constraint clearance (min 0.2mm)))" ),
+                                                         target );
+            BOOST_CHECK_MESSAGE( result.m_dropped.size() == 1, target.m_id + " kept " + property );
+        }
+
+        const auto kept = FilterDrcRulesForTarget( wxT( "(version 1)(rule \"enum\" (condition \"A.Pad_Type == 'PTH'\") "
+                                                        "(constraint clearance (min 0.2mm)))" ),
+                                                   target );
+        BOOST_CHECK( kept.m_dropped.empty() );
+    }
+}
+
+
+// A unit may stand apart from its number. That is a value, not a keyword the target lacks.
+BOOST_AUTO_TEST_CASE( SpacedUnitsAreNotMistakenForKeywords )
+{
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        const auto kept = FilterDrcRulesForTarget(
+                wxT( "(version 1)(rule \"spaced\" (constraint clearance (min 0.2 mm) (opt 0.3 mil) (max 1 in)))" ),
+                target );
+        BOOST_CHECK_MESSAGE( kept.m_dropped.empty(), target.m_id + " dropped a rule with a spaced unit" );
+
+        // A unit the target cannot read is still caught when it stands apart.
+        const auto dropped = FilterDrcRulesForTarget(
+                wxT( "(version 1)(rule \"delay\" (constraint skew (max 5 ps)))" ), target );
+        BOOST_CHECK_EQUAL( dropped.m_dropped.size(), target.m_id == wxT( "9.0" ) ? 1 : 0 );
+    }
+}
+
+
+// 9.0 reads neither degrees nor picoseconds, and knows nothing of text variables. 10.0 has all three.
+BOOST_AUTO_TEST_CASE( UnitsAndTextVariablesFollowWhatTheReleaseParses )
+{
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        const bool old = target.m_id == wxT( "9.0" );
+
+        auto angle = FilterDrcRulesForTarget(
+                wxT( "(version 1)(rule \"a\" (constraint track_angle (max 45deg)))" ), target );
+        BOOST_CHECK_EQUAL( angle.m_dropped.size(), old ? 1 : 0 );
+
+        auto delay = FilterDrcRulesForTarget( wxT( "(version 1)(rule \"d\" (constraint skew (max 5ps)))" ), target );
+        BOOST_CHECK_EQUAL( delay.m_dropped.size(), old ? 1 : 0 );
+
+        for( const wxString& rule : { wxT( "(rule \"v\" (constraint clearance (min ${GAP})))" ),
+                                      wxT( "(rule \"c\" (condition \"A.NetName == '${NET}'\") "
+                                           "(constraint clearance (min 0.2mm)))" ) } )
+        {
+            auto variable = FilterDrcRulesForTarget( wxT( "(version 1)" ) + rule, target );
+            BOOST_CHECK_EQUAL( variable.m_dropped.size(), old ? 1 : 0 );
+        }
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( WordsAddedInAPointReleaseAreNotInTheSeriesVocabulary )
+{
+    for( const wxString& expression : { wxT( "A.hasExactNetclass('x')" ), wxT( "A.Column_Width == 1" ),
+                                        wxT( "A.Visible == 1" ) } )
+    {
+        const wxString rule = wxT( "(version 1)(rule \"r\" (condition \"" ) + expression
+                              + wxT( "\") (constraint clearance (min 0.2mm)))" );
+        BOOST_CHECK_MESSAGE( FilterDrcRulesForTarget( rule, kicad9 ).m_dropped.size() == 1,
+                             "9.0 kept " + expression + " which not every 9.0.x release reads" );
+    }
+
+    for( const wxString& expression : { wxT( "A.intersectsKeepout('x')" ), wxT( "A.Origin_X == 1" ) } )
+    {
+        const wxString rule = wxT( "(version 1)(rule \"r\" (condition \"" ) + expression
+                              + wxT( "\") (constraint clearance (min 0.2mm)))" );
+        BOOST_CHECK_MESSAGE( FilterDrcRulesForTarget( rule, kicad10 ).m_dropped.size() == 1,
+                             "10.0 kept " + expression + " which not every 10.0.x release reads" );
+    }
+}
+
+
+// A layer may be given unquoted, and a user layer name is not a grammar keyword.
+BOOST_AUTO_TEST_CASE( UnquotedLayerNamesAreNotMistakenForKeywords )
+{
+    for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
+    {
+        for( const wxString& layer : { wxT( "MyCustomLayer" ), wxT( "F.Cu" ), wxT( "\"In1.Cu\"" ), wxT( "outer" ) } )
+        {
+            const auto result = FilterDrcRulesForTarget( wxT( "(version 1)(rule \"on layer\" (layer " ) + layer
+                                                                 + wxT( ") (constraint clearance (min 0.2mm)))" ),
+                                                         target );
+            BOOST_CHECK_MESSAGE( result.m_dropped.empty(), target.m_id + " dropped a rule on layer " + layer );
+        }
+    }
+}
+
+
+BOOST_AUTO_TEST_CASE( MissingRuleVocabularyFailsClosed )
+{
+    DOWNGRADE_TARGET unknown = kicad10;
+    unknown.m_id = wxT( "0.0" );
+    unknown.m_name = wxT( "KiCad 0.0" );
+
+    const auto result =
+            FilterDrcRulesForTarget( wxT( "(version 1)(rule \"r\" (constraint clearance (min 0.2mm)))" ), unknown );
+
+    BOOST_CHECK( !result.m_error.IsEmpty() );
+    BOOST_CHECK( result.m_text.IsEmpty() );
+}
+
+
 BOOST_AUTO_TEST_CASE( NewDrcConstraintsAndFunctionsAreFilteredWithoutLiteralFalsePositives )
 {
     for( const DOWNGRADE_TARGET& target : { kicad9, kicad10 } )
     {
-        for( const wxString& keyword : { wxT( "microvia_aspect_ratio" ), wxT( "microvia_stack_depth" ) } )
+        for( const wxString& keyword : { wxT( "hole_aspect_ratio" ), wxT( "microvia_stack_depth" ) } )
         {
             const wxString rule = "(version 1)(rule \"new\" (constraint " + keyword + " (max 2)))";
             const auto     result = FilterDrcRulesForTarget( rule, target );
