@@ -864,10 +864,9 @@ void PCB_PAINTER::draw( const PCB_TRACK* aTrack, int aLayer )
     int      track_width = aTrack->GetWidth();
     COLOR4D  color       = m_pcbSettings.GetColor( aTrack, aLayer );
 
-    // If a chain highlight is active and the track belongs to the highlighted
-    // chain, and the chain has a colour override configured on the board,
-    // prefer that colour.  Only do this when we're drawing the actual copper
-    // (not netname labels, clearance outlines, etc.).
+    // If a chain highlight is active and the track belongs to the highlighted chain, and the chain
+    // has a colour override configured on the board, prefer that colour.  Only do this when we're
+    // drawing the actual copper (not netname labels, clearance outlines, etc.).
     if( IsCopperLayer( aLayer ) && !m_pcbSettings.m_highlightedNetChain.IsEmpty() )
     {
         if( NETINFO_ITEM* netinfo = aTrack->GetNet() )
@@ -920,9 +919,9 @@ void PCB_PAINTER::draw( const PCB_TRACK* aTrack, int aLayer )
 
     // Clearance lines
     if( IsClearanceLayer( aLayer )
-            && pcbconfig()
-            && pcbconfig()->m_Display.m_TrackClearance == SHOW_WITH_VIA_ALWAYS
-            && !m_pcbSettings.m_isPrinting )
+        && pcbconfig()
+        && pcbconfig()->m_Display.m_TrackClearance == SHOW_WITH_VIA_ALWAYS
+        && !m_pcbSettings.m_isPrinting )
     {
         const PCB_LAYER_ID copperLayerForClearance = ToLAYER_ID( aLayer - LAYER_CLEARANCE_START );
 
@@ -1012,9 +1011,30 @@ void PCB_PAINTER::renderNetNameForSegment( const SHAPE_SEGMENT& aSeg, const COLO
 
 void PCB_PAINTER::draw( const PCB_ARC* aArc, int aLayer )
 {
+    COLOR4D color = m_pcbSettings.GetColor( aArc, aLayer );
+
+    // If a chain highlight is active and the track belongs to the highlighted chain, and the chain
+    // has a colour override configured on the board, prefer that colour.  Only do this when we're
+    // drawing the actual copper (not netname labels, clearance outlines, etc.).
+    if( IsCopperLayer( aLayer ) && !m_pcbSettings.m_highlightedNetChain.IsEmpty() )
+    {
+        if( NETINFO_ITEM* netinfo = aArc->GetNet() )
+        {
+            if( netinfo->GetNetChain() == m_pcbSettings.m_highlightedNetChain )
+            {
+                if( const BOARD* board = aArc->GetBoard() )
+                {
+                    COLOR4D chainColor = board->GetNetChainColor( m_pcbSettings.m_highlightedNetChain );
+
+                    if( chainColor != COLOR4D::UNSPECIFIED )
+                        color = chainColor.WithAlpha( color.a );
+                }
+            }
+        }
+    }
+
     VECTOR2D  center( aArc->GetCenter() );
     int       width = aArc->GetWidth();
-    COLOR4D   color = m_pcbSettings.GetColor( aArc, aLayer );
     double    radius = aArc->GetRadius();
     EDA_ANGLE start_angle = aArc->GetArcAngleStart();
     EDA_ANGLE angle = aArc->GetAngle();
@@ -1101,31 +1121,23 @@ void PCB_PAINTER::draw( const PCB_ARC* aArc, int aLayer )
 
     // Clearance lines
     if( IsClearanceLayer( aLayer )
-            && pcbconfig() && pcbconfig()->m_Display.m_TrackClearance == SHOW_WITH_VIA_ALWAYS
+            && pcbconfig()
+            && pcbconfig()->m_Display.m_TrackClearance == SHOW_WITH_VIA_ALWAYS
             && !m_pcbSettings.m_isPrinting )
     {
-        /*
-         * Showing the clearance area is not obvious for optionally-flashed pads and vias, so we
-         * choose to not display clearance lines at all on non-copper active layers.  We follow
-         * the same rule for tracks to be consistent (even though they don't have the same issue).
-         */
-        const PCB_LAYER_ID activeLayer = m_pcbSettings.GetActiveLayer();
-        const BOARD*       board = aArc->GetBoard();
+        const PCB_LAYER_ID copperLayerForClearance = ToLAYER_ID( aLayer - LAYER_CLEARANCE_START );
 
-        if( IsCopperLayer( activeLayer ) && ( !board || board->GetVisibleLayers().test( activeLayer ) ) )
-        {
-            int clearance = aArc->GetOwnClearance( activeLayer );
+        int clearance = aArc->GetOwnClearance( copperLayerForClearance );
 
-            m_gal->SetLineWidth( m_pcbSettings.m_outlineWidth );
-            m_gal->SetIsFill( false );
-            m_gal->SetIsStroke( true );
-            m_gal->SetStrokeColor( color );
+        m_gal->SetLineWidth( m_pcbSettings.m_outlineWidth );
+        m_gal->SetIsFill( false );
+        m_gal->SetIsStroke( true );
+        m_gal->SetStrokeColor( color );
 
-            if( degenerate )
-                m_gal->DrawSegment( aArc->GetStart(), aArc->GetEnd(), width + clearance * 2 );
-            else
-                m_gal->DrawArcSegment( center, radius, start_angle, angle, width + clearance * 2, m_maxError );
-        }
+        if( degenerate )
+            m_gal->DrawSegment( aArc->GetStart(), aArc->GetEnd(), width + clearance * 2 );
+        else
+            m_gal->DrawArcSegment( center, radius, start_angle, angle, width + clearance * 2, m_maxError );
     }
 
 #if 0
@@ -1183,43 +1195,56 @@ static bool viaHoleShowsLayerPair( const PCB_VIA* aVia )
 
 bool PCB_PAINTER::HasUniformColor( const VIEW_ITEM* aItem, int aLayer ) const
 {
-    // A net's terminal pads gain and lose their emphasis box with the net highlight
-    if( aItem->IsBOARD_ITEM() && static_cast<const BOARD_ITEM*>( aItem )->Type() == PCB_PAD_T )
-    {
-        const PAD*          pad = static_cast<const PAD*>( static_cast<const BOARD_ITEM*>( aItem ) );
-        const NETINFO_ITEM* net = pad->GetNet();
-
-        if( net && ( net->GetTerminalPad( 0 ) == pad || net->GetTerminalPad( 1 ) == pad ) )
-            return false;
-    }
-
-    if( aLayer != LAYER_VIA_HOLES && aLayer != LAYER_VIA_HOLEWALLS && aLayer != LAYER_PAD_HOLEWALLS )
-        return true;
-
     if( !aItem->IsBOARD_ITEM() )
         return true;
 
-    const BOARD_ITEM* item = static_cast<const BOARD_ITEM*>( aItem );
+    const bool holeLayer = aLayer == LAYER_VIA_HOLES || aLayer == LAYER_VIA_HOLEWALLS;
 
-    if( aLayer == LAYER_PAD_HOLEWALLS )
+    switch( static_cast<const BOARD_ITEM*>( aItem )->Type() )
     {
-        if( item->Type() != PCB_PAD_T )
-            return true;
+    case PCB_PAD_T:
+    {
+        const PAD*          pad = static_cast<const PAD*>( aItem );
+        const NETINFO_ITEM* net = pad->GetNet();
 
-        const PAD* pad = static_cast<const PAD*>( item );
+        // A net's terminal pads gain and lose their emphasis box with the net highlight
+        if( net && ( net->GetTerminalPad( 0 ) == pad || net->GetTerminalPad( 1 ) == pad ) )
+            return false;
+
+        if( aLayer != LAYER_PAD_HOLEWALLS )
+            return true;
 
         return pad->GetDrillSizeX() <= 0 || ( pad->GetSecondaryDrillSizeX() <= 0 && pad->GetTertiaryDrillSizeX() <= 0 );
     }
 
-    if( item->Type() != PCB_VIA_T )
+    case PCB_VIA_T:
+    {
+        const PCB_VIA* via = static_cast<const PCB_VIA*>( aItem );
+
+        if( !holeLayer )
+            return true;
+
+        if( aLayer == LAYER_VIA_HOLES )
+            return !viaHoleShowsLayerPair( via );
+
+        return via->GetSecondaryDrillSize().value_or( 0 ) <= 0 && via->GetTertiaryDrillSize().value_or( 0 ) <= 0;
+    }
+
+    // A zone's outline and hatch are drawn opaque whatever the zone opacity, so its outline does not
+    // take the zone's colour
+    case PCB_ZONE_T:
+        return !ZoneOutlineDrawnOnLayer( zoneOutlineOnly( static_cast<const ZONE*>( aItem ) ), aLayer );
+
+    default:
         return true;
+    }
+}
 
-    const PCB_VIA* via = static_cast<const PCB_VIA*>( item );
 
-    if( aLayer == LAYER_VIA_HOLES )
-        return !viaHoleShowsLayerPair( via );
-
-    return via->GetSecondaryDrillSize().value_or( 0 ) <= 0 && via->GetTertiaryDrillSize().value_or( 0 ) <= 0;
+bool PCB_PAINTER::zoneOutlineOnly( const ZONE* aZone ) const
+{
+    return aZone->GetIsRuleArea()
+           || ( !aZone->IsTeardropArea() && m_pcbSettings.m_ZoneDisplayMode == ZONE_DISPLAY_MODE::SHOW_ZONE_OUTLINE );
 }
 
 
@@ -1500,7 +1525,8 @@ void PCB_PAINTER::draw( const PCB_VIA* aVia, int aLayer )
     }
 
     // Clearance lines
-    if( IsClearanceLayer( aLayer ) && pcbconfig()
+    if( IsClearanceLayer( aLayer )
+        && pcbconfig()
         && pcbconfig()->m_Display.m_TrackClearance == SHOW_WITH_VIA_ALWAYS
         && !m_pcbSettings.m_isPrinting )
     {
@@ -2844,7 +2870,8 @@ void PCB_PAINTER::draw( const PCB_SHAPE* aShape, int aLayer )
                         // triangles as primitives. CacheTriangulation() can create basic triangle
                         // primitives to draw the polygon solid shape on Opengl.  GLU tessellation
                         // is much slower, so currently we are using our tessellation.
-                        if( m_gal->IsOpenGlEngine() && !shape.IsTriangulationUpToDate() )
+                        if( m_gal->UsesPolygonTriangulationCache()
+                            && !shape.IsTriangulationUpToDate() )
                             shape.CacheTriangulation( true );
 
                         m_gal->DrawPolygon( shape );
@@ -3582,12 +3609,8 @@ void PCB_PAINTER::draw( const ZONE* aZone, int aLayer )
     if( aZone->IsTeardropArea() )
         displayMode = ZONE_DISPLAY_MODE::SHOW_FILLED;
 
-    // A zone whose only visual is its outline (rule area, or outline-only display) draws it on
-    // the zone layer, above copper, so tracks and pads can't paint over it.
-    bool outlineOnly = aZone->GetIsRuleArea() || displayMode == ZONE_DISPLAY_MODE::SHOW_ZONE_OUTLINE;
-
-    // Draw the outline
-    if( ZoneOutlineDrawnOnLayer( outlineOnly, aLayer ) )
+    // An outline-only zone draws on the zone layer, above copper, so tracks and pads can't hide it
+    if( ZoneOutlineDrawnOnLayer( zoneOutlineOnly( aZone ), aLayer ) )
     {
         bool allowDrawOutline = aZone->GetHatchStyle() != ZONE_BORDER_DISPLAY_STYLE::INVISIBLE_BORDER;
 
@@ -3654,7 +3677,7 @@ void PCB_PAINTER::draw( const ZONE* aZone, int aLayer )
         // as primitives. CacheTriangulation() can create basic triangle primitives to
         // draw the polygon solid shape on Opengl.  GLU tessellation is much slower,
         // so currently we are using our tessellation.
-        if( m_gal->IsOpenGlEngine() && !polySet->IsTriangulationUpToDate() )
+        if( m_gal->UsesPolygonTriangulationCache() && !polySet->IsTriangulationUpToDate() )
             polySet->CacheTriangulation( true );
 
         m_gal->DrawPolygon( *polySet, displayMode == ZONE_DISPLAY_MODE::SHOW_TRIANGULATION );

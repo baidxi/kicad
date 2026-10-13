@@ -28,6 +28,7 @@
 #include <advanced_config.h>
 #include <build_version.h>
 #include <gal/opengl/opengl_gal.h>
+#include <gal/bitmap_texture.h>
 #include <gal/opengl/utils.h>
 #include <gal/definitions.h>
 #include <kicad_gl/gl_context_mgr.h>
@@ -136,7 +137,6 @@ private:
     GLuint cacheBitmap( const BITMAP_BASE* aBitmap );
 
     const size_t m_cacheMaxElements = 50;
-    const size_t m_cacheMaxSize     = 256 * 1024 * 1024;
 
     std::map<const KIID, CACHED_BITMAP> m_bitmaps;
     std::list<KIID>                     m_cacheLru;
@@ -200,31 +200,13 @@ GLuint GL_BITMAP_CACHE::cacheBitmap( const BITMAP_BASE* aBitmap )
     if( !imgPtr )
         return std::numeric_limits< GLuint >::max();
 
-    wxImage imgData = *imgPtr;
-
-    // Check if the image exceeds the maximum texture size supported by the GPU
     GLint maxTextureSize;
     glGetIntegerv( GL_MAX_TEXTURE_SIZE, &maxTextureSize );
 
-    int imgWidth = imgData.GetWidth();
-    int imgHeight = imgData.GetHeight();
+    wxImage imgData = FitImageToTexture( *imgPtr, maxTextureSize );
 
-    if( imgWidth > maxTextureSize || imgHeight > maxTextureSize )
-    {
-        // Scale down the image to fit within the maximum texture size while preserving
-        // the aspect ratio
-        double scaleX = static_cast<double>( maxTextureSize ) / imgWidth;
-        double scaleY = static_cast<double>( maxTextureSize ) / imgHeight;
-        double scale = std::min( scaleX, scaleY );
-
-        int newWidth = std::clamp( KiROUND( imgWidth * scale ), 1, maxTextureSize );
-        int newHeight = std::clamp( KiROUND( imgHeight * scale ), 1, maxTextureSize );
-
-        imgData = imgData.Scale( newWidth, newHeight, wxIMAGE_QUALITY_HIGH );
-
-        if( !imgData.IsOk() )
-            return std::numeric_limits< GLuint >::max();
-    }
+    if( !imgData.IsOk() )
+        return std::numeric_limits< GLuint >::max();
 
     bmp.w = imgData.GetSize().x;
     bmp.h = imgData.GetSize().y;
@@ -246,50 +228,12 @@ GLuint GL_BITMAP_CACHE::cacheBitmap( const BITMAP_BASE* aBitmap )
     if( imgData.HasAlpha() || imgData.HasMask() )
     {
         bmp.size = static_cast<size_t>( bmp.w ) * bmp.h * 4;
-        auto buf = std::make_unique<uint8_t[]>( bmp.size );
 
-        uint8_t* dstP = buf.get();
-        uint8_t* srcP = imgData.GetData();
-
-        long long pxCount = static_cast<long long>( bmp.w ) * bmp.h;
-
-        if( imgData.HasAlpha() )
-        {
-            uint8_t* srcAlpha = imgData.GetAlpha();
-
-            for( long long px = 0; px < pxCount; px++ )
-            {
-                memcpy( dstP, srcP, 3 );
-                dstP[3] = *srcAlpha;
-
-                srcAlpha += 1;
-                srcP += 3;
-                dstP += 4;
-            }
-        }
-        else if( imgData.HasMask() )
-        {
-            uint8_t maskRed = imgData.GetMaskRed();
-            uint8_t maskGreen = imgData.GetMaskGreen();
-            uint8_t maskBlue = imgData.GetMaskBlue();
-
-            for( long long px = 0; px < pxCount; px++ )
-            {
-                memcpy( dstP, srcP, 3 );
-
-                if( srcP[0] == maskRed && srcP[1] == maskGreen && srcP[2] == maskBlue )
-                    dstP[3] = wxALPHA_TRANSPARENT;
-                else
-                    dstP[3] = wxALPHA_OPAQUE;
-
-                srcP += 3;
-                dstP += 4;
-            }
-        }
+        const std::vector<uint8_t> rgba = ImageToRgba( imgData );
 
         glBindTexture( GL_TEXTURE_2D, textureID );
         glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, bmp.w, bmp.h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                      buf.get() );
+                      rgba.data() );
     }
     else
     {
@@ -312,7 +256,7 @@ GLuint GL_BITMAP_CACHE::cacheBitmap( const BITMAP_BASE* aBitmap )
 #ifndef DISABLE_BITMAP_CACHE
     // A single oversized bitmap can exceed the whole cache budget, so evict until it fits or the
     // cache is drained
-    while( ( m_cacheLru.size() + 1 > m_cacheMaxElements || m_cacheSize + bmp.size > m_cacheMaxSize )
+    while( ( m_cacheLru.size() + 1 > m_cacheMaxElements || m_cacheSize + bmp.size > BITMAP_CACHE_MAX_BYTES )
            && !m_cacheLru.empty() )
     {
         KIID toRemove( 0 );
@@ -450,6 +394,10 @@ OPENGL_GAL::OPENGL_GAL( const KIGFX::VC_SETTINGS& aVcSettings, GAL_DISPLAY_OPTIO
     Bind( wxEVT_GESTURE_PAN, &OPENGL_GAL::skipGestureEvent, this );
 
     SetSize( aParent->GetClientSize() );
+#ifdef __WXMAC__
+    // wxDefaultPosition can place the GL child one pixel above and left of its parent.
+    SetPosition( wxPoint( 0, 0 ) );
+#endif
     m_screenSize = ToVECTOR2I( GetNativePixelSize() );
 
     // Grid color settings are different in Cairo and OpenGL
@@ -2295,65 +2243,6 @@ void OPENGL_GAL::DrawGrid()
 }
 
 
-void OPENGL_GAL::drawGridCoverageShape( const GRID_SOURCE& src )
-{
-    Save();
-    Translate( src.origin );
-    Rotate( -src.orientation );
-
-    if( src.unbounded )
-    {
-        const BOX2D screen = gridScreenBBox( src );
-
-        DrawRectangle( screen.GetOrigin(), screen.GetEnd() );
-        Restore();
-        return;
-    }
-
-    switch( src.kind )
-    {
-    case GRID_SOURCE::KIND::POLAR:
-    {
-        const double rMax = src.extent.x;
-        const double phiMax = src.extent.y;
-
-        if( rMax > 0.0 && phiMax > 0.0 )
-        {
-            if( phiMax >= 2 * M_PI - 1e-6 )
-            {
-                DrawCircle( VECTOR2D( 0, 0 ), rMax );
-            }
-            else
-            {
-                const int            kArcSegments = std::max( 16, (int) ( phiMax / ( M_PI / 16 ) ) );
-                std::deque<VECTOR2D> poly;
-                poly.emplace_back( 0.0, 0.0 );
-
-                for( int i = 0; i <= kArcSegments; ++i )
-                {
-                    const double phi = phiMax * i / kArcSegments;
-                    poly.emplace_back( rMax * std::cos( phi ), rMax * std::sin( phi ) );
-                }
-
-                poly.emplace_back( 0.0, 0.0 );
-
-                DrawPolygon( poly );
-            }
-        }
-        break;
-    }
-
-    case GRID_SOURCE::KIND::CARTESIAN:
-        DrawRectangle( VECTOR2D( -src.extent.x, -src.extent.y ), VECTOR2D( src.extent.x, src.extent.y ) );
-        break;
-
-    default: wxFAIL_MSG( wxT( "drawGridCoverageShape: unhandled GRID_SOURCE::KIND" ) ); break;
-    }
-
-    Restore();
-}
-
-
 void OPENGL_GAL::drawGridSources()
 {
     if( m_gridSources.empty() )
@@ -2411,10 +2300,8 @@ void OPENGL_GAL::drawGridSources()
             m_nonCachedManager->EndDrawing();
         }
 
-        COLOR4D color = src.color.a > 0 ? src.color : m_gridColor;
-
-        if( src.highlighted )
-            color.Brighten( GRID_SELECTED_BRIGHTEN );
+        const COLOR4D      color = gridSourceColor( src );
+        const GRID_LATTICE lattice = gridLattice( src );
 
         glColor4d( color.r, color.g, color.b, color.a );
         SetStrokeColor( color );
@@ -2423,10 +2310,6 @@ void OPENGL_GAL::drawGridSources()
         Translate( src.origin );
         // GAL Rotate is math-convention; grid orientation is screen-convention.
         Rotate( -src.orientation );
-
-        const unsigned tick = ( src.tick > 0 ) ? src.tick : static_cast<unsigned>( m_gridTick );
-        const double   threshold =
-                computeMinGridSpacing() / m_worldScale * ( src.style == GRID_STYLE::SMALL_CROSS ? 2.0 : 1.0 );
 
         // SMALL_CROSS marker.
         auto drawCrossAt = [&]( const VECTOR2D& pos, bool aMajor, double aArmAngle )
@@ -2481,30 +2364,10 @@ void OPENGL_GAL::drawGridSources()
         {
         case GRID_SOURCE::KIND::POLAR:
         {
-            double rMax;
-            double phiMax;
-            double dr = src.pitch.x;
-            double dPhi = src.pitch.y;
-
-            if( src.unbounded )
-            {
-                const BOX2D  screen = gridScreenBBox( src );
-                const double farX = std::max( std::abs( screen.GetLeft() ), std::abs( screen.GetRight() ) );
-                const double farY = std::max( std::abs( screen.GetTop() ), std::abs( screen.GetBottom() ) );
-
-                rMax = std::hypot( farX, farY ) * 1.01; // bleed past the farthest corner
-                phiMax = 2 * M_PI;
-            }
-            else
-            {
-                rMax = src.extent.x;
-                phiMax = src.extent.y;
-            }
-
-            dr = AutoSparsePitch( dr, tick, threshold );
-
-            if( rMax > 0.0 )
-                dPhi = AutoSparsePitch( dPhi, tick, threshold / rMax );
+            const double rMax = lattice.extent.x;
+            const double phiMax = lattice.extent.y;
+            const double dr = lattice.pitch.x;
+            const double dPhi = lattice.pitch.y;
 
             wxASSERT( dr > 0.0 && dPhi > 0.0 );
 
@@ -2516,7 +2379,7 @@ void OPENGL_GAL::drawGridSources()
                     if( r == 0.0 )
                         continue;
 
-                    SetLineWidth( ( tick && rIdx % (int) tick == 0 ) ? majorLineWidth : minorLineWidth );
+                    SetLineWidth( lattice.IsMajor( rIdx ) ? majorLineWidth : minorLineWidth );
                     DrawArc( VECTOR2D( 0, 0 ), r, EDA_ANGLE( 0, RADIANS_T ), EDA_ANGLE( phiMax, RADIANS_T ) );
                 }
             };
@@ -2526,7 +2389,7 @@ void OPENGL_GAL::drawGridSources()
                 int pIdx = 0;
                 for( double phi = 0; phi <= phiMax + 1e-6; phi += dPhi, ++pIdx )
                 {
-                    SetLineWidth( ( tick && pIdx % (int) tick == 0 ) ? majorLineWidth : minorLineWidth );
+                    SetLineWidth( lattice.IsMajor( pIdx ) ? majorLineWidth : minorLineWidth );
                     const double cx = std::cos( phi );
                     const double cy = std::sin( phi );
                     DrawLine( VECTOR2D( 0, 0 ), VECTOR2D( rMax * cx, rMax * cy ) );
@@ -2551,7 +2414,7 @@ void OPENGL_GAL::drawGridSources()
                     int pIdx = 0;
                     for( double phi = 0; phi <= phiMax + 1e-6; phi += dPhi, ++pIdx )
                     {
-                        const bool     major = tick && ( rIdx % (int) tick == 0 ) && ( pIdx % (int) tick == 0 );
+                        const bool     major = lattice.IsMajor( rIdx ) && lattice.IsMajor( pIdx );
                         const VECTOR2D pos( r * std::cos( phi ), r * std::sin( phi ) );
                         drawCrossAt( pos, major, phi );
                     }
@@ -2562,19 +2425,8 @@ void OPENGL_GAL::drawGridSources()
 
         case GRID_SOURCE::KIND::CARTESIAN:
         {
-            double dx = src.pitch.x;
-            double dy = src.pitch.y;
-
-            // Sparse both axes by the same factor to preserve aspect ratio.
-            const double minPitch = std::min( dx, dy );
-            const double sparsed = AutoSparsePitch( minPitch, tick, threshold );
-
-            if( sparsed != minPitch )
-            {
-                const double scale = sparsed / minPitch;
-                dx *= scale;
-                dy *= scale;
-            }
+            const double dx = lattice.pitch.x;
+            const double dy = lattice.pitch.y;
 
             wxASSERT( dx > 0.0 && dy > 0.0 );
 
@@ -2620,7 +2472,7 @@ void OPENGL_GAL::drawGridSources()
                     if( src.axesEnabled && x + src.origin.x == 0.0 )
                         continue;
 
-                    SetLineWidth( ( tick && std::abs( ix ) % (int) tick == 0 ) ? majorLineWidth : minorLineWidth );
+                    SetLineWidth( lattice.IsMajor( ix ) ? majorLineWidth : minorLineWidth );
                     DrawLine( VECTOR2D( x, yMin ), VECTOR2D( x, yMax ) );
                 }
             };
@@ -2634,7 +2486,7 @@ void OPENGL_GAL::drawGridSources()
                     if( src.axesEnabled && y + src.origin.y == 0.0 )
                         continue;
 
-                    SetLineWidth( ( tick && std::abs( iy ) % (int) tick == 0 ) ? majorLineWidth : minorLineWidth );
+                    SetLineWidth( lattice.IsMajor( iy ) ? majorLineWidth : minorLineWidth );
                     DrawLine( VECTOR2D( xMin, y ), VECTOR2D( xMax, y ) );
                 }
             };
@@ -2655,8 +2507,7 @@ void OPENGL_GAL::drawGridSources()
                 {
                     for( int iy = iyMin; iy <= iyMax; ++iy )
                     {
-                        const bool major =
-                                tick && ( std::abs( ix ) % (int) tick == 0 ) && ( std::abs( iy ) % (int) tick == 0 );
+                        const bool major = lattice.IsMajor( ix ) && lattice.IsMajor( iy );
                         drawCrossAt( VECTOR2D( ix * dx, iy * dy ), major, 0.0 );
                     }
                 }
@@ -3302,11 +3153,7 @@ int OPENGL_GAL::drawBitmapChar( unsigned long aChar, bool aReserve )
     // handle space
     if( aChar == ' ' )
     {
-        const FONT_GLYPH_TYPE* g = LookupGlyph( 'x' );
-        wxCHECK( g, 0 );
-
-        // Match stroke font as well as possible
-        double spaceWidth = g->advance * 0.74;
+        const double spaceWidth = SpaceAdvance();
 
         Translate( VECTOR2D( spaceWidth, 0 ) );
         return KiROUND( spaceWidth );
@@ -3322,18 +3169,14 @@ int OPENGL_GAL::drawBitmapChar( unsigned long aChar, bool aReserve )
     if( !glyph ) // Should not happen.
         return 0;
 
-    const float X = glyph->atlas_x + font_information.smooth_pixels;
-    const float Y = glyph->atlas_y + font_information.smooth_pixels;
-    const float XOFF = glyph->minx;
-
-    // adjust for height rounding
-    const float round_adjust = ( glyph->maxy - glyph->miny )
-                               - float( glyph->atlas_h - font_information.smooth_pixels * 2 );
-    const float top_adjust = font_information.max_y - glyph->maxy;
-    const float YOFF = round_adjust + top_adjust;
-    const float W = glyph->atlas_w - font_information.smooth_pixels * 2;
-    const float H = glyph->atlas_h - font_information.smooth_pixels * 2;
-    const float B = 0;
+    const GLYPH_BOX box = ComputeGlyphBox( *glyph );
+    const float     X = box.atlasX;
+    const float     Y = box.atlasY;
+    const float     XOFF = box.x;
+    const float     YOFF = box.y;
+    const float     W = box.w;
+    const float     H = box.h;
+    const float     B = 0;
 
     if( aReserve )
         m_currentManager->Reserve( 6 );
@@ -3406,61 +3249,7 @@ void OPENGL_GAL::drawBitmapOverbar( double aLength, double aHeight, bool aReserv
 
 std::pair<VECTOR2D, float> OPENGL_GAL::computeBitmapTextSize( const UTF8& aText ) const
 {
-    static const FONT_GLYPH_TYPE* defaultGlyph = LookupGlyph( '(' ); // for strange chars
-
-    VECTOR2D textSize( 0, 0 );
-    float    commonOffset = std::numeric_limits<float>::max();
-    float    charHeight = font_information.max_y - defaultGlyph->miny;
-    int      overbarDepth = -1;
-    int braceNesting = 0;
-
-    for( UTF8::uni_iter chIt = aText.ubegin(), end = aText.uend(); chIt < end; ++chIt )
-    {
-        if( *chIt == '~' && overbarDepth == -1 )
-        {
-            UTF8::uni_iter lookahead = chIt;
-
-            if( ++lookahead != end && *lookahead == '{' )
-            {
-                chIt = lookahead;
-                overbarDepth = braceNesting;
-                braceNesting++;
-                continue;
-            }
-        }
-        else if( *chIt == '{' )
-        {
-            braceNesting++;
-        }
-        else if( *chIt == '}' )
-        {
-            if( braceNesting > 0 )
-                braceNesting--;
-
-            if( braceNesting == overbarDepth )
-            {
-                overbarDepth = -1;
-                continue;
-            }
-        }
-
-        const FONT_GLYPH_TYPE* glyph = LookupGlyph( *chIt );
-
-        if( !glyph                            // Not coded in font
-            || *chIt == '-' || *chIt == '_' ) // Strange size of these 2 chars
-        {
-            glyph = defaultGlyph;
-        }
-
-        if( glyph )
-            textSize.x += glyph->advance;
-    }
-
-    textSize.y = std::max<float>( textSize.y, charHeight );
-    commonOffset = std::min<float>( font_information.max_y - defaultGlyph->maxy, commonOffset );
-    textSize.y -= commonOffset;
-
-    return std::make_pair( textSize, commonOffset );
+    return BUILTIN_FONT::ComputeBitmapTextSize( aText );
 }
 
 

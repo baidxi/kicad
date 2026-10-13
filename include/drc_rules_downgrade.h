@@ -20,616 +20,546 @@
 #ifndef DRC_RULES_DOWNGRADE_H
 #define DRC_RULES_DOWNGRADE_H
 
+#include <algorithm>
 #include <cctype>
 #include <string>
 #include <vector>
 
 #include <wx/intl.h>
 
-#include <downgrade_scan.h>
+#include <dsnlexer.h>
+#include <ki_exception.h>
 #include <downgrade_target.h>
+#include <drc_rules_release_vocabulary.h>
 
 // The old rules parsers are all-or-nothing. One unknown keyword anywhere makes the target drop
 // every custom rule and refuse to run DRC. So the export filters the file: rules the target
-// cannot parse are removed and reported, surviving rules are kept byte-identical.
+// cannot parse are commented out and reported, surviving rules are kept byte-identical.
 
-/// Rule-file tokens dated by the board format of the first release that parses them. A rule
-/// using a token newer than the target is dropped. Tokens dated 99999999 have no released
-/// parser yet and drop for every target.
-static constexpr DATED_TOKEN DRC_RULE_TOKENS[] = {
-    // Constraints and disallow kinds added in 10.0
-    { "bridged_mask", 20260206 },
-    { "solder_mask_expansion", 20260206 },
-    { "solder_mask_sliver", 20260206 },
-    { "solder_paste_abs_margin", 20260206 },
-    { "solder_paste_rel_margin", 20260206 },
-    { "via_dangling", 20260206 },
-    { "through_via", 20260206 },
-    { "blind_via", 20260206 },
-    // Expression functions added in 10.0
-    { "isBlindVia", 20260206 },
-    { "isBuriedVia", 20260206 },
-    { "memberOfSheetOrChildren", 20260206 },
-    { "hasExactNetclass", 20260206 },
-    // Added after 10.0
-    { "net_chain_length", 99999999 },
-    { "stub_length", 99999999 },
-    { "return_path", 99999999 },
-    { "inNetChain", 99999999 },
-    { "hasNetChain", 99999999 },
-    { "inNetChainClass", 99999999 },
-    { "microvia_aspect_ratio", 99999999 },
-    { "microvia_stack_depth", 99999999 },
-    { "intersectsKeepout", 99999999 },
-    { "isStackedVia", 99999999 },
-    { "customProperty", 99999999 },
-    { "hasCustomProperty", 99999999 },
-    // Released readers test zone fills rather than the source's zone outlines.
-    { "intersectsArea", 99999999 },
+/// The vocabulary a target release could parse, generated from its release tags by
+/// tools/generate_drc_rules_vocabulary.py. A release without one cannot be exported to.
+inline const DRC_RULE_VOCABULARY* FindDrcRuleVocabulary( const DOWNGRADE_TARGET& aTarget )
+{
+    for( const DRC_RULE_VOCABULARY& vocabulary : DRC_RULE_VOCABULARIES )
+    {
+        if( aTarget.m_id == vocabulary.m_targetId )
+            return &vocabulary;
+    }
+
+    return nullptr;
+}
+
+
+/// A function a release parses but answers differently, which the vocabulary cannot say.
+inline constexpr const char* DRC_RULE_SEMANTIC_BREAKS[] = {
+    // Releases before 10.0.7 test a zone item's fill rather than its outline.
+    "intersectsarea",
 };
 
-/// Property names exposed by PCB expressions, normalized like the evaluator's underscore aliases.
-/// A property absent from the released registry makes the whole rules file fail to compile.
-static constexpr DATED_TOKEN DRC_RULE_PROPERTIES[] = {
-    // Released in 10.0
-    { "corner_radius", 20260206 },
-    { "fill", 20260206 },
-    { "auto_thickness", 20260206 },
-    { "target_delay", 20260206 },
-    { "target_skew_delay", 20260206 },
-    { "top_counterbore_depth", 20260206 },
-    { "top_countersink_angle", 20260206 },
-    { "bottom_counterbore_depth", 20260206 },
-    { "bottom_countersink_angle", 20260206 },
-    { "backdrill_mode", 20260206 },
-    { "bottom_backdrill_size", 20260206 },
-    { "top_backdrill_size", 20260206 },
-    { "pad_to_die_delay", 20260206 },
-    { "show_text", 20260206 },
-    { "text_size", 20260206 },
-    { "barcode_type", 20260206 },
-    { "error_correction", 20260206 },
-    { "margin_x", 20260206 },
-    { "margin_y", 20260206 },
-    { "column_width", 20260206 },
-    { "row_height", 20260206 },
-    { "capping", 20260206 },
-    { "filling", 20260206 },
-    { "keep_out_zone_fills", 20260206 },
-    { "hatch_orientation", 20260206 },
-    // Added after 10.0
-    { "major_radius", 99999999 },
-    { "minor_radius", 99999999 },
-    { "ellipse_rotation", 99999999 },
-    { "arc_start_angle", 99999999 },
-    { "arc_end_angle", 99999999 },
-    { "start_shape", 99999999 },
-    { "start_length", 99999999 },
-    { "start_width", 99999999 },
-    { "start_stroke_width", 99999999 },
-    { "end_shape", 99999999 },
-    { "end_length", 99999999 },
-    { "end_width", 99999999 },
-    { "end_stroke_width", 99999999 },
-    { "driving", 99999999 },
-    { "scale_x", 99999999 },
-    { "scale_y", 99999999 },
-    { "footprint_type", 99999999 },
-    { "exclude_from_simulation", 99999999 },
-    { "start_layer", 99999999 },
-    { "end_layer", 99999999 },
-    { "style", 99999999 },
-    { "use_netclass_values", 99999999 },
-    { "via_diameter", 99999999 },
-    { "via_hole", 99999999 },
-    { "pitch", 99999999 },
-    { "capped", 99999999 },
-    { "drill", 99999999 },
-    { "layout", 99999999 },
-    { "mode", 99999999 },
-    { "seed", 99999999 },
-    { "guarded_net", 99999999 },
-    { "simulation_electrical_type", 99999999 },
-    { "value_mode", 99999999 },
-    { "show_totals", 99999999 },
-    { "offset_x", 99999999 },
-    { "offset_y", 99999999 },
-    { "symbol_size", 99999999 },
-    { "hole_span", 99999999 },
-    { "outline_slots", 99999999 },
-    { "guide_cross", 99999999 },
-    { "decimal_places", 99999999 },
-    { "grid_type", 99999999 },
-    { "extent_x", 99999999 },
-    { "extent_y", 99999999 },
-    { "spacing_x", 99999999 },
-    { "spacing_y", 99999999 },
-    { "radius_extent", 99999999 },
-    { "radius_spacing", 99999999 },
-    { "phi_extent", 99999999 },
-    { "phi_spacing", 99999999 },
-    { "tick_interval", 99999999 },
-    { "affects_cursor_snap", 99999999 },
-    { "affects_routing", 99999999 },
-    { "affects_placement", 99999999 },
-    { "automatically_update_net", 99999999 },
-    { "front_tenting", 99999999 },
-    { "back_tenting", 99999999 },
-    { "front_covering", 99999999 },
-    { "back_covering", 99999999 },
-    { "front_plugging", 99999999 },
-    { "back_plugging", 99999999 },
-    { "thieving_pattern", 99999999 },
-    { "thieving_element_size", 99999999 },
-    { "thieving_gap", 99999999 },
-    { "thieving_line_width", 99999999 },
-    { "thieving_stagger", 99999999 },
-    { "thieving_orientation", 99999999 },
-};
+
+/// The generated arrays are sorted, so membership is a binary search.
+inline bool DrcVocabularyHas( const char* const* aWords, size_t aCount, const std::string& aWord )
+{
+    return std::binary_search( aWords, aWords + aCount, aWord );
+}
 
 
 struct DRC_RULES_FILTER_RESULT
 {
     wxString              m_text;    ///< The filtered rules file text
     std::vector<wxString> m_dropped; ///< Names of the rules the target cannot parse
-    wxString              m_error;   ///< Invalid source syntax; do not write m_text
+    wxString              m_error;   ///< Invalid source syntax, do not write m_text
 };
 
 
-/// The rule name following a "(rule" head, for the report.
-inline wxString ExtractDrcRuleName( const std::string& aBlock )
+struct DRC_RULE_TOKEN
 {
-    size_t pos = aBlock.find( "(rule" );
-
-    if( pos == std::string::npos )
-        return wxEmptyString;
-
-    pos += 5;
-
-    while( pos < aBlock.size() && std::isspace( static_cast<unsigned char>( aBlock[pos] ) ) )
-        pos++;
-
-    if( pos >= aBlock.size() )
-        return wxEmptyString;
-
-    std::string name;
-
-    if( aBlock[pos] == '"' )
-    {
-        for( pos++; pos < aBlock.size() && aBlock[pos] != '"'; pos++ )
-        {
-            if( aBlock[pos] == '\\' && pos + 1 < aBlock.size() )
-                pos++;
-
-            name += aBlock[pos];
-        }
-    }
-    else
-    {
-        while( pos < aBlock.size() && !std::isspace( static_cast<unsigned char>( aBlock[pos] ) ) && aBlock[pos] != '('
-               && aBlock[pos] != ')' )
-        {
-            name += aBlock[pos++];
-        }
-    }
-
-    return wxString::FromUTF8( name.c_str() );
-}
+    int         m_type;   ///< A DSNLEXER token type
+    std::string m_text;   ///< The token as the lexer reports it, strings without their quotes
+    size_t      m_offset; ///< Byte offset of the token's first character in the source
+};
 
 
-/// Drop # comments, keeping quoted strings intact, so a comment cannot trip the token or
-/// unit scans below.
-inline std::string StripDrcComments( const std::string& aText )
+/// A top-level block of the rules file, as byte span and token range.
+struct DRC_RULE_BLOCK
 {
-    std::string out;
-    bool        inString = false;
+    size_t      m_start = 0; ///< Byte offset of the opening parenthesis
+    size_t      m_end = 0;   ///< Byte offset just past the closing parenthesis
+    size_t      m_first = 0; ///< Index of the opening parenthesis token
+    size_t      m_last = 0;  ///< Index of the closing parenthesis token
+    std::string m_head;      ///< The word after the opening parenthesis, "rule" or "version"
+    wxString    m_name;      ///< The name after a "rule" head, for the report
+};
+
+
+/// Tokenize with the lexer the rule readers use, so comments, strings and symbols end exactly
+/// where they end for the readers. Comments stay as tokens so every byte of the source is placed.
+inline bool TokenizeDrcRules( const std::string& aText, std::vector<DRC_RULE_TOKEN>& aTokens, wxString& aError )
+{
+    std::vector<size_t> lineStarts{ 0 };
 
     for( size_t i = 0; i < aText.size(); i++ )
     {
-        char c = aText[i];
-
-        if( inString )
-        {
-            if( c == '\\' && i + 1 < aText.size() )
-            {
-                out += c;
-                out += aText[++i];
-                continue;
-            }
-
-            if( c == '"' )
-                inString = false;
-
-            out += c;
-            continue;
-        }
-
-        if( c == '"' )
-        {
-            inString = true;
-        }
-        else if( c == '#' )
-        {
-            while( i < aText.size() && aText[i] != '\n' )
-                i++;
-
-            if( i >= aText.size() )
-                break;
-
-            c = '\n';
-        }
-
-        out += c;
+        if( aText[i] == '\n' )
+            lineStarts.push_back( i + 1 );
     }
 
-    return out;
-}
+    DSNLEXER lexer( aText, wxT( "drc_rules_downgrade" ) );
+    lexer.SetCommentsAreTokens( true );
 
-
-/// True if the rule text uses something the target's parser or evaluator cannot handle.
-inline bool DrcRuleUnsupportedByTarget( const std::string& aRawBlock, const DOWNGRADE_TARGET& aTarget )
-{
-    std::string              block = StripDrcComments( aRawBlock );
-    std::string              conditions;
-    std::string              values;
-    std::vector<std::string> nodes;
-
-    for( size_t i = 0; i < block.size(); i++ )
+    try
     {
-        if( block[i] == '(' )
+        for( int type = lexer.NextTok(); type != DSN_EOF; type = lexer.NextTok() )
         {
-            size_t start = ++i;
+            size_t offset = lineStarts[lexer.CurLineNumber() - 1] + lexer.CurOffset() - 1;
 
-            while( i < block.size() && !std::isspace( static_cast<unsigned char>( block[i] ) ) && block[i] != '('
-                   && block[i] != ')' )
-                i++;
+            // The lexer places a string at its first character, after the opening quote.
+            if( type == DSN_STRING )
+                offset--;
 
-            std::string node = block.substr( start, i - start );
-
-            if( node == "constraint" )
-            {
-                size_t kind = i;
-
-                while( kind < block.size() && std::isspace( static_cast<unsigned char>( block[kind] ) ) )
-                    kind++;
-
-                size_t end = kind;
-
-                while( end < block.size() && !std::isspace( static_cast<unsigned char>( block[end] ) )
-                       && block[end] != '(' && block[end] != ')' )
-                {
-                    end++;
-                }
-
-                if( block.substr( kind, end - kind ) == "assertion" )
-                    node = "assertion";
-            }
-
-            nodes.push_back( std::move( node ) );
-            i--;
-        }
-        else if( block[i] == ')' )
-        {
-            if( !nodes.empty() )
-                nodes.pop_back();
-        }
-        else if( block[i] == '"' )
-        {
-            std::string value;
-
-            while( ++i < block.size() && block[i] != '"' )
-            {
-                if( block[i] == '\\' && i + 1 < block.size() )
-                    i++;
-
-                value += block[i];
-            }
-
-            if( !nodes.empty() && ( nodes.back() == "condition" || nodes.back() == "assertion" ) )
-            {
-                char quote = 0;
-
-                for( size_t j = 0; j < value.size(); j++ )
-                {
-                    char c = value[j];
-
-                    if( quote )
-                    {
-                        if( c == '\\' && j + 1 < value.size() )
-                            j++;
-                        else if( c == quote )
-                            quote = 0;
-                    }
-                    else if( c == '\'' || c == '"' )
-                    {
-                        quote = c;
-                        conditions += ' ';
-                    }
-                    else
-                    {
-                        conditions += c;
-                    }
-                }
-
-                conditions += '\n';
-            }
-            else if( !nodes.empty() && ( nodes.back() == "min" || nodes.back() == "max" || nodes.back() == "opt" ) )
-            {
-                values += value + '\n';
-            }
+            aTokens.push_back( { type, lexer.CurText(), offset } );
         }
     }
-
-    // Rule names are labels, including when the source uses an unquoted name.
-    size_t name = block.find( "(rule" );
-
-    if( name != std::string::npos )
+    catch( const IO_ERROR& error )
     {
-        name += 5;
-
-        while( name < block.size() && std::isspace( static_cast<unsigned char>( block[name] ) ) )
-            name++;
-
-        if( name < block.size() && block[name] != '"' )
-        {
-            size_t end = name;
-
-            while( end < block.size() && !std::isspace( static_cast<unsigned char>( block[end] ) ) && block[end] != '('
-                   && block[end] != ')' )
-                end++;
-
-            block.replace( name, end - name, end - name, ' ' );
-        }
-    }
-
-    const std::string structural = StripSexprStrings( block );
-
-    std::string foldedConditions = conditions;
-
-    for( char& c : foldedConditions )
-        c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
-
-    for( const DATED_TOKEN& token : DRC_RULE_TOKENS )
-    {
-        if( aTarget.m_boardVersion >= token.m_introducedIn )
-            continue;
-
-        if( ContainsSexprValue( structural, token.m_token ) )
-            return true;
-
-        std::string function = token.m_token;
-
-        for( char& c : function )
-            c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
-
-        for( size_t pos = foldedConditions.find( function ); pos != std::string::npos;
-             pos = foldedConditions.find( function, pos + 1 ) )
-        {
-            if( pos > 0
-                && ( std::isalnum( static_cast<unsigned char>( foldedConditions[pos - 1] ) )
-                     || foldedConditions[pos - 1] == '_' ) )
-                continue;
-
-            size_t after = pos + function.size();
-
-            while( after < foldedConditions.size()
-                   && std::isspace( static_cast<unsigned char>( foldedConditions[after] ) ) )
-                after++;
-
-            if( after < foldedConditions.size() && foldedConditions[after] == '(' )
-                return true;
-        }
-    }
-
-    for( size_t pos = 0; pos < foldedConditions.size(); pos++ )
-    {
-        if( foldedConditions[pos] != '.' )
-            continue;
-
-        size_t begin = pos + 1;
-
-        while( begin < foldedConditions.size()
-               && std::isspace( static_cast<unsigned char>( foldedConditions[begin] ) ) )
-        {
-            begin++;
-        }
-
-        size_t end = begin;
-
-        while( end < foldedConditions.size()
-               && ( std::isalnum( static_cast<unsigned char>( foldedConditions[end] ) )
-                    || foldedConditions[end] == '_' ) )
-        {
-            end++;
-        }
-
-        const std::string property = foldedConditions.substr( begin, end - begin );
-
-        // Parent navigation is new, but the old standalone Parent string property is supported.
-        if( property == "parent" )
-        {
-            size_t next = end;
-
-            while( next < foldedConditions.size()
-                   && std::isspace( static_cast<unsigned char>( foldedConditions[next] ) ) )
-            {
-                next++;
-            }
-
-            if( next < foldedConditions.size() && foldedConditions[next] == '.' )
-                return true;
-        }
-
-        for( const DATED_TOKEN& token : DRC_RULE_PROPERTIES )
-        {
-            if( aTarget.m_boardVersion < token.m_introducedIn && property == token.m_token )
-                return true;
-        }
-
-        pos = end > begin ? end - 1 : pos;
-    }
-
-    // Time and angle value units appeared in 10.0.
-    if( aTarget.m_boardVersion < 20260206 )
-    {
-        auto isWordChar = []( char c )
-        {
-            return std::isalnum( static_cast<unsigned char>( c ) ) || c == '_';
-        };
-
-        const std::string numeric = structural + '\n' + values + conditions;
-
-        for( size_t i = 1; i + 1 < numeric.size(); i++ )
-        {
-            size_t before = i;
-
-            while( before > 0 && std::isspace( static_cast<unsigned char>( numeric[before - 1] ) ) )
-                before--;
-
-            if( before == 0
-                || ( !std::isdigit( static_cast<unsigned char>( numeric[before - 1] ) )
-                     && numeric[before - 1] != '.' ) )
-                continue;
-
-            if( ( numeric[i] == 'f' || numeric[i] == 'p' ) && numeric[i + 1] == 's'
-                && ( i + 2 >= numeric.size() || !isWordChar( numeric[i + 2] ) ) )
-            {
-                return true;
-            }
-
-            if( numeric.compare( i, 3, "deg" ) == 0 && ( i + 3 >= numeric.size() || !isWordChar( numeric[i + 3] ) ) )
-                return true;
-        }
-    }
-
-    return false;
-}
-
-
-/// Match the full-line comment syntax of DSNLEXER, used by both target readers.
-inline bool IsDrcCommentAtStartOfLine( const std::string& aText, size_t aOffset )
-{
-    while( aOffset > 0 && aText[aOffset - 1] != '\n' )
-    {
-        if( !std::isspace( static_cast<unsigned char>( aText[--aOffset] ) ) )
-            return false;
+        aError = error.Problem();
+        return false;
     }
 
     return true;
 }
 
 
-/// Filter a .kicad_dru file for the target. Surviving rules are kept byte-identical, dropped
-/// rules are listed by name, and the version header is rewritten to what the target writes.
-/// A syntax error sets m_error; callers must refuse to write the partial result.
+/// Group the tokens into top-level blocks. Anything but a comment outside a block is invalid for
+/// the readers, and so is a comment that does not start its line.
+inline bool SplitDrcRuleBlocks( const std::vector<DRC_RULE_TOKEN>& aTokens, std::vector<DRC_RULE_BLOCK>& aBlocks,
+                                wxString& aError )
+{
+    int depth = 0;
+
+    for( size_t i = 0; i < aTokens.size(); i++ )
+    {
+        const DRC_RULE_TOKEN& token = aTokens[i];
+
+        if( token.m_type == DSN_SYMBOL && token.m_text[0] == '#' )
+        {
+            aError = _( "Design rule comments must start on a separate line." );
+            return false;
+        }
+
+        if( token.m_type == DSN_COMMENT )
+            continue;
+
+        if( depth == 0 )
+        {
+            if( token.m_type != DSN_LEFT )
+            {
+                aError = _( "Design rules contain text outside a rule." );
+                return false;
+            }
+
+            DRC_RULE_BLOCK block;
+            block.m_start = token.m_offset;
+            block.m_first = i;
+
+            auto nextCode = [&aTokens]( size_t aFrom )
+            {
+                while( aFrom < aTokens.size() && aTokens[aFrom].m_type == DSN_COMMENT )
+                    aFrom++;
+
+                return aFrom;
+            };
+
+            size_t head = nextCode( i + 1 );
+
+            if( head < aTokens.size() && aTokens[head].m_type == DSN_SYMBOL )
+                block.m_head = aTokens[head].m_text;
+
+            size_t name = nextCode( head + 1 );
+
+            if( block.m_head == "rule" && name < aTokens.size() && aTokens[name].m_type != DSN_LEFT
+                && aTokens[name].m_type != DSN_RIGHT )
+            {
+                block.m_name = wxString::FromUTF8( aTokens[name].m_text.c_str() );
+            }
+
+            aBlocks.push_back( block );
+        }
+
+        if( token.m_type == DSN_LEFT )
+        {
+            depth++;
+        }
+        else if( token.m_type == DSN_RIGHT )
+        {
+            depth--;
+
+            if( depth == 0 )
+            {
+                aBlocks.back().m_end = token.m_offset + 1;
+                aBlocks.back().m_last = i;
+            }
+        }
+    }
+
+    if( depth != 0 )
+    {
+        aError = _( "Unbalanced parentheses in design rules." );
+        return false;
+    }
+
+    return true;
+}
+
+
+/// True if the rule uses something the target's parser or evaluator cannot handle.
+inline bool DrcRuleUnsupportedByTarget( const std::vector<DRC_RULE_TOKEN>& aTokens, const DRC_RULE_BLOCK& aBlock,
+                                        const DRC_RULE_VOCABULARY& aVocabulary )
+{
+    std::vector<std::string> nodes;
+    std::vector<std::string> words;
+    std::string              expressions;
+    std::string              values;
+    bool                     headPending = false;
+    bool                     kindPending = false;
+    bool                     namePending = false;
+
+    // String literals inside an expression are not names, so only their quotes are kept as gaps.
+    auto addExpression = [&expressions]( const std::string& aExpression )
+    {
+        char quote = 0;
+
+        for( size_t j = 0; j < aExpression.size(); j++ )
+        {
+            char c = aExpression[j];
+
+            if( quote )
+            {
+                if( c == '\\' && j + 1 < aExpression.size() )
+                    j++;
+                else if( c == quote )
+                    quote = 0;
+            }
+            else if( c == '\'' || c == '"' )
+            {
+                quote = c;
+                expressions += ' ';
+            }
+            else
+            {
+                expressions += c;
+            }
+        }
+
+        expressions += '\n';
+    };
+
+    for( size_t i = aBlock.m_first; i <= aBlock.m_last; i++ )
+    {
+        const DRC_RULE_TOKEN& token = aTokens[i];
+
+        if( token.m_type == DSN_COMMENT )
+            continue;
+
+        if( token.m_type == DSN_LEFT )
+        {
+            nodes.emplace_back();
+            headPending = true;
+            continue;
+        }
+
+        if( token.m_type == DSN_RIGHT )
+        {
+            // A node with no head is not grammar for any reader.
+            if( headPending )
+                return true;
+
+            nodes.pop_back();
+            continue;
+        }
+
+        if( token.m_text.find( "${" ) != std::string::npos )
+        {
+            // A text variable is syntax, and a target without it fails to read the rule at all.
+            if( !aVocabulary.m_textVariables )
+                return true;
+
+            std::string folded = token.m_text;
+
+            for( char& c : folded )
+                c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
+
+            // Releases before 10.0.6 read a component class selector as a reference designator.
+            if( folded.find( "${class:" ) != std::string::npos )
+                return true;
+        }
+
+        if( headPending )
+        {
+            headPending = false;
+
+            if( token.m_type != DSN_SYMBOL )
+                return true;
+
+            nodes.back() = token.m_text;
+            words.push_back( token.m_text );
+            kindPending = token.m_text == "constraint";
+            namePending = token.m_text == "rule";
+            continue;
+        }
+
+        const std::string& node = nodes.back();
+
+        if( namePending )
+        {
+            namePending = false;
+        }
+        else if( kindPending )
+        {
+            // The constraint kind is grammar, and three kinds change how what follows is read.
+            kindPending = false;
+            words.push_back( token.m_text );
+
+            if( token.m_text == "assertion" || token.m_text == "disallow" || token.m_text == "zone_connection" )
+                nodes.back() = token.m_text;
+        }
+        else if( node == "condition" || node == "assertion" )
+        {
+            addExpression( token.m_text );
+        }
+        else if( node == "min" || node == "max" || node == "opt" )
+        {
+            values += token.m_text + ' ';
+        }
+        else if( node == "layer" )
+        {
+            // A layer node names a board layer, which is not grammar.
+        }
+        else if( node == "disallow" || node == "zone_connection" )
+        {
+            // The readers accept these items quoted, so they are keywords in disguise.
+            words.push_back( token.m_text );
+        }
+        else if( token.m_type != DSN_STRING && token.m_type != DSN_NUMBER )
+        {
+            words.push_back( token.m_text );
+        }
+    }
+
+    for( const std::string& word : words )
+    {
+        // A dotted name is a layer or similar, never grammar.
+        if( word.find( '.' ) != std::string::npos )
+            continue;
+
+        if( !DrcVocabularyHas( aVocabulary.m_tokens, aVocabulary.m_tokenCount, word ) )
+            return true;
+    }
+
+    auto isWord = []( char c )
+    {
+        return std::isalnum( static_cast<unsigned char>( c ) ) || c == '_';
+    };
+
+    std::string folded = expressions;
+
+    for( char& c : folded )
+        c = static_cast<char>( std::tolower( static_cast<unsigned char>( c ) ) );
+
+    // Inside an expression a word followed by a parenthesis is a function call, and a word after
+    // a dot is a property. Both must exist in the target.
+    for( size_t i = 0; i < folded.size(); i++ )
+    {
+        if( !std::isalpha( static_cast<unsigned char>( folded[i] ) ) && folded[i] != '_' )
+            continue;
+
+        if( i > 0 && isWord( folded[i - 1] ) )
+            continue;
+
+        size_t end = i;
+
+        while( end < folded.size() && isWord( folded[end] ) )
+            end++;
+
+        const std::string word = folded.substr( i, end - i );
+
+        size_t next = end;
+
+        while( next < folded.size() && std::isspace( static_cast<unsigned char>( folded[next] ) ) )
+            next++;
+
+        size_t prev = i;
+
+        while( prev > 0 && std::isspace( static_cast<unsigned char>( folded[prev - 1] ) ) )
+            prev--;
+
+        if( next < folded.size() && folded[next] == '(' )
+        {
+            for( const char* broken : DRC_RULE_SEMANTIC_BREAKS )
+            {
+                if( word == broken )
+                    return true;
+            }
+
+            if( !DrcVocabularyHas( aVocabulary.m_functions, aVocabulary.m_functionCount, word ) )
+                return true;
+        }
+        else if( prev > 0 && folded[prev - 1] == '.' )
+        {
+            // Parent navigation is new, but the old standalone Parent string property is supported.
+            if( word == "parent" && next < folded.size() && folded[next] == '.' )
+                return true;
+
+            if( !DrcVocabularyHas( aVocabulary.m_properties, aVocabulary.m_propertyCount, word ) )
+                return true;
+        }
+
+        i = end;
+    }
+
+    // A unit is the letters after a number, glued to it or not. It must be one the target's
+    // value resolver knows.
+    const std::string numeric = values + '\n' + expressions;
+
+    for( size_t i = 0; i < numeric.size(); i++ )
+    {
+        if( !std::isalpha( static_cast<unsigned char>( numeric[i] ) ) )
+            continue;
+
+        if( i > 0 && ( std::isalpha( static_cast<unsigned char>( numeric[i - 1] ) ) || numeric[i - 1] == '_' ) )
+            continue;
+
+        size_t before = i;
+
+        while( before > 0 && std::isspace( static_cast<unsigned char>( numeric[before - 1] ) ) )
+            before--;
+
+        size_t end = i;
+
+        while( end < numeric.size() && isWord( numeric[end] ) )
+            end++;
+
+        if( before > 0 && std::isdigit( static_cast<unsigned char>( numeric[before - 1] ) )
+            && !DrcVocabularyHas( aVocabulary.m_units, aVocabulary.m_unitCount, numeric.substr( i, end - i ) ) )
+        {
+            return true;
+        }
+
+        i = end;
+    }
+
+    return false;
+}
+
+
+/// Prefix every line, so the target reads the whole block as comments.
+inline std::string CommentOutDrcBlock( const std::string& aBlock )
+{
+    std::string out = "# ";
+
+    for( char c : aBlock )
+    {
+        out += c;
+
+        if( c == '\n' )
+            out += "# ";
+    }
+
+    return out;
+}
+
+
+/// Filter a .kicad_dru file for the target. Kept rules stay byte-identical, unsupported rules
+/// become comments and are listed by name. On a syntax error m_error is set, write nothing.
 inline DRC_RULES_FILTER_RESULT FilterDrcRulesForTarget( const wxString& aRulesText, const DOWNGRADE_TARGET& aTarget )
 {
     std::string text = aRulesText.ToStdString( wxConvUTF8 );
 
     DRC_RULES_FILTER_RESULT result;
-    result.m_text = wxT( "(version 1)\n" );
 
-    size_t i = 0;
+    const DRC_RULE_VOCABULARY* vocabulary = FindDrcRuleVocabulary( aTarget );
 
-    while( i < text.size() )
+    if( !vocabulary )
     {
-        // A comment travels with the block after it, so a dropped rule takes its comment along.
-        size_t prefixStart = i;
-
-        while( i < text.size() && text[i] != '(' )
-        {
-            if( text[i] == '#' )
-            {
-                if( !IsDrcCommentAtStartOfLine( text, i ) )
-                {
-                    result.m_error = _( "Design rule comments must start on a separate line." );
-                    return result;
-                }
-
-                while( i < text.size() && text[i] != '\n' )
-                    i++;
-            }
-            else
-            {
-                i++;
-            }
-        }
-
-        if( i >= text.size() )
-            break;
-
-        std::string prefix = text.substr( prefixStart, i - prefixStart );
-
-        size_t blockStart = i;
-        int    depth = 0;
-        bool   inString = false;
-
-        for( ; i < text.size(); i++ )
-        {
-            char c = text[i];
-
-            if( inString )
-            {
-                if( c == '\\' && i + 1 < text.size() )
-                    i++;
-                else if( c == '"' )
-                    inString = false;
-
-                continue;
-            }
-
-            // Comments can contain unmatched parentheses, quotes, and escapes. Preserve
-            // their bytes in the block, but never interpret them as s-expression syntax.
-            if( c == '#' )
-            {
-                // Match DSNLEXER: inline comments are invalid in both target readers.
-                // Refuse them instead of claiming an invalid rules file was exported.
-                if( !IsDrcCommentAtStartOfLine( text, i ) )
-                {
-                    result.m_error = _( "Design rule comments must start on a separate line." );
-                    return result;
-                }
-
-                while( i < text.size() && text[i] != '\n' )
-                    i++;
-            }
-            else if( c == '"' )
-                inString = true;
-            else if( c == '(' )
-                depth++;
-            else if( c == ')' && --depth == 0 )
-            {
-                i++;
-                break;
-            }
-        }
-
-        std::string block = text.substr( blockStart, i - blockStart );
-
-        if( depth != 0 || inString )
-        {
-            result.m_error = _( "Unbalanced parentheses or unterminated string in design rules." );
-            return result;
-        }
-
-        // The version header is rewritten, never copied.
-        if( block.compare( 0, 8, "(version" ) == 0 )
-            continue;
-
-        bool isRule = block.compare( 0, 5, "(rule" ) == 0
-                      && ( block.size() <= 5
-                           || ( !std::isalnum( static_cast<unsigned char>( block[5] ) ) && block[5] != '_' ) );
-
-        if( !isRule || DrcRuleUnsupportedByTarget( block, aTarget ) )
-        {
-            result.m_dropped.push_back( ExtractDrcRuleName( block ) );
-            continue;
-        }
-
-        result.m_text += wxString::FromUTF8( ( prefix + block ).c_str() );
+        result.m_error = wxString::Format( _( "No design rule vocabulary is recorded for %s." ), aTarget.m_name );
+        return result;
     }
 
-    result.m_text += wxT( "\n" );
+    std::vector<DRC_RULE_TOKEN> tokens;
+    std::vector<DRC_RULE_BLOCK> blocks;
+
+    if( !TokenizeDrcRules( text, tokens, result.m_error ) || !SplitDrcRuleBlocks( tokens, blocks, result.m_error ) )
+        return result;
+
+    const wxString header = wxT( "(version 1)" );
+    const wxString eol = text.find( "\r\n" ) != std::string::npos ? wxT( "\r\n" ) : wxT( "\n" );
+
+    size_t consumed = 0;
+    bool   headerWritten = false;
+    bool   commentedOut = false;
+
+    auto endsOnBlankLine = []( const wxString& aText )
+    {
+        int lineStart = aText.Find( '\n', true );
+        return aText.Mid( lineStart == wxNOT_FOUND ? 0 : lineStart + 1 ).Trim().IsEmpty();
+    };
+
+    for( const DRC_RULE_BLOCK& block : blocks )
+    {
+        // A comment travels with the block after it, so a dropped rule takes its comment along.
+        wxString prefix = wxString::FromUTF8( text.substr( consumed, block.m_start - consumed ).c_str() );
+        std::string body = text.substr( block.m_start, block.m_end - block.m_start );
+        consumed = block.m_end;
+
+        // The version header is rewritten in place, so a comment above it stays above it.
+        if( block.m_head == "version" )
+        {
+            result.m_text += prefix;
+
+            if( !headerWritten )
+                result.m_text += header;
+
+            headerWritten = true;
+            continue;
+        }
+
+        if( !headerWritten )
+        {
+            result.m_text += header + eol;
+            headerWritten = true;
+        }
+
+        bool unsupported = block.m_head != "rule" || DrcRuleUnsupportedByTarget( tokens, block, *vocabulary );
+
+        result.m_text += prefix;
+
+        // A comment runs to the end of its line, so a commented block and whatever follows it
+        // each start on a line of their own.
+        if( ( unsupported || commentedOut ) && !endsOnBlankLine( result.m_text ) )
+            result.m_text += eol;
+
+        if( unsupported )
+        {
+            result.m_dropped.push_back( block.m_name );
+            result.m_text += wxT( "# Not supported by " ) + aTarget.m_name + wxT( ":" ) + eol;
+            result.m_text += wxString::FromUTF8( CommentOutDrcBlock( body ).c_str() );
+        }
+        else
+        {
+            result.m_text += wxString::FromUTF8( body.c_str() );
+        }
+
+        commentedOut = unsupported;
+    }
+
+    if( !headerWritten )
+        result.m_text += header + eol;
+
+    // Comments after the last block, which by now include every commented rule that was last.
+    result.m_text += wxString::FromUTF8( text.substr( consumed ).c_str() );
+
+    if( !result.m_text.EndsWith( wxT( "\n" ) ) )
+        result.m_text += eol;
 
     return result;
 }

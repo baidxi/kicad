@@ -764,7 +764,7 @@ set( BMAPS_CONSTRAINTS
     via-style
     vias-under-smd
     microvia-stack-depth
-    microvia-aspect-ratio
+    hole-aspect-ratio
     )
 
 set( BMAPS_CONSTRAINTS_GEOM
@@ -1042,6 +1042,13 @@ endfunction()
 
 
 include( FindUnixCommands )
+
+# Git's GNU tar on Windows treats "C:/..." as a remote host and needs a gzip that is not on PATH.
+# Prefer the System32 bsdtar unless a reproducible build needs the GNU archive flags below.
+
+if( MSVC AND NOT DEFINED ENV{SOURCE_DATE_EPOCH} AND EXISTS "C:\\Windows\\System32\\tar.exe" )
+    set( TAR "C:\\Windows\\System32\\tar.exe" )
+endif()
 
 if( TAR STREQUAL "TAR-NOTFOUND" )
     # CMake on Windows CI seems to struggle to find tar even though it's in PATH

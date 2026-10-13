@@ -99,6 +99,8 @@ public:
 
     bool IsOpenGlEngine() override { return true; }
 
+    bool UsesPolygonTriangulationCache() const override { return true; }
+
     /// @copydoc GAL::IsInitialized()
     bool IsInitialized() const override
     {
@@ -570,11 +572,6 @@ private:
      * this routine.
      */
     void drawGridSources();
-
-    /**
-     * Fill a source's coverage region into the current color/stencil state.
-     */
-    void drawGridCoverageShape( const GRID_SOURCE& aSrc );
 
     /**
      * Compute a size of text drawn using bitmap font with current text setting applied.
