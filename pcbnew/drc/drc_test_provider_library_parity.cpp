@@ -1079,6 +1079,12 @@ bool DRC_TEST_PROVIDER_LIBRARY_PARITY::Run()
     int           ii = 0;
     const int     progressDelta = 250;
 
+    if( !adapter )
+    {
+        REPORT_AUX( _( "No footprint library manager available, skipping library parity tests." ) );
+        return true; // Continue with other tests
+    }
+
     if( !reportPhase( _( "Checking board footprints against library..." ) ) )
         return false;
 
