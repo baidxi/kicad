@@ -40,6 +40,11 @@ FOOTPRINT_LIBRARY_ADAPTER* PROJECT_PCB::FootprintLibAdapter( PROJECT* aProject )
 {
     std::scoped_lock lock( s_libAdapterMutex );
 
+    // The library manager belongs to the PGM_BASE, which a script that loads the pcbnew module
+    // outside KiCad doesn't have.
+    if( !PgmOrNull() )
+        return nullptr;
+
     LIBRARY_MANAGER& mgr = Pgm().GetLibraryManager();
     std::optional<LIBRARY_MANAGER_ADAPTER*> adapter = mgr.Adapter( LIBRARY_TABLE_TYPE::FOOTPRINT );
 

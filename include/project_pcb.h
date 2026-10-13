@@ -33,6 +33,12 @@ class FILENAME_RESOLVER;
 class PROJECT_PCB
 {
 public:
+    /**
+     * Return the footprint library adapter, creating it on first use.
+     *
+     * @return the adapter, or nullptr if it can't be created; there is no library manager in a
+     *         script that loads the pcbnew module outside KiCad.
+     */
     static FOOTPRINT_LIBRARY_ADAPTER* FootprintLibAdapter( PROJECT* aProject );
 
     /**
