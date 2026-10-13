@@ -290,7 +290,7 @@ void IFACE::SaveFileAs( const wxString& aProjectBasePath, const wxString& aProje
             aErrors += msg;
         }
     }
-    else if( ext == FILEEXT::DrillFileExtension )
+    else if( ext == FILEEXT::DrillFileExtension || ext == wxT( "ncd" ) )
     {
         wxString destFileName = destFile.GetName();
 

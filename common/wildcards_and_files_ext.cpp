@@ -433,8 +433,7 @@ wxString FILEEXT::FootprintAssignmentFileWildcard()
 // Wildcard for reports and fabrication documents
 wxString FILEEXT::DrillFileWildcard()
 {
-    return _( "Drill files" )
-            + AddFileExtListToFilter( { DrillFileExtension, "nc", "xnc", "txt" } );
+    return _( "Drill files" ) + AddFileExtListToFilter( { DrillFileExtension, "nc", "xnc", "ncd", "txt" } );
 }
 
 
