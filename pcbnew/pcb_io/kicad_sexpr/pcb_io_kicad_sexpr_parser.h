@@ -271,6 +271,9 @@ private:
     void parseSetup();
 
     void parseDrillSymbolProfile();
+
+    /// Update the B_Cu ordinal in a drill group key written with at most 32 copper layers.
+    std::string migrateDrillGroupKey( const std::string& aKey ) const;
     void parseDefaults( BOARD_DESIGN_SETTINGS& aSettings );
     void parseDefaultTextDims( BOARD_DESIGN_SETTINGS& aSettings, int aLayer );
     void parseNETINFO_ITEM();
