@@ -1,0 +1,417 @@
+name: Build Packages
+
+# Build distributable packages from KiCad sources:
+#   - macOS  : .dmg (Apple Silicon)
+#   - Linux  : .deb (Debian/Ubuntu) and .AppImage (x86_64)
+#
+# Triggers:
+#   - pushing a tag like v1.2.3 / v10.99.0-rc1  -> builds + attaches to a GitHub Release
+#   - manual run (workflow_dispatch)            -> builds + uploads artifacts only
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed by the release job when building on a tag
+
+env:
+  CMAKE_BUILD_TYPE: Release
+  # Keep 3D STEP/OCC and SPICE support enabled; disable telemetry.
+  KICAD_CMAKE_EXTRA: >-
+    -DKICAD_USE_SENTRY=OFF
+    -DKICAD_INSTALL_DEMOS=ON
+    -DKICAD_BUILD_I18N=OFF
+    -DKICAD_BUILD_QA_TESTS=OFF
+    -DKICAD_SPICE_QA=OFF
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # macOS: build and package a .dmg (Apple Silicon)
+  # ---------------------------------------------------------------------------
+  macos-dmg:
+    name: macOS DMG (arm64)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history for the git-based version string
+
+      - name: Install dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: |
+          set -euo pipefail
+          brew update
+          brew install \
+            cmake \
+            ninja \
+            pkg-config \
+            wxwidgets \
+            boost \
+            glm \
+            opencascade \
+            libgit2 \
+            libngspice \
+            protobuf \
+            openssl@3 \
+            zstd \
+            curl \
+            gettext
+
+      - name: Configure
+        env:
+          OPENSSL_ROOT_DIR: /opt/homebrew/opt/openssl@3
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+            -DCMAKE_INSTALL_PREFIX="$PWD/stage" \
+            -DKICAD_USE_SENTRY=OFF \
+            -DKICAD_INSTALL_DEMOS=ON \
+            -DKICAD_BUILD_I18N=OFF \
+            -DKICAD_BUILD_QA_TESTS=OFF \
+            -DKICAD_SPICE_QA=OFF \
+            -DKICAD_APPLE_MAKE_RELOCATEABLE_BUNDLE=ON
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake --build build -j"$(sysctl -n hw.ncpu)"
+
+      - name: Install into staging directory
+        run: |
+          set -euo pipefail
+          cmake --install build
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+          VERSION="$(git describe --tags --always --dirty || echo dev)"
+          PKGDIR="Kicad"
+          mkdir -p dist/"$PKGDIR"
+          # Move the staged install into a drag-and-drop style folder
+          cp -R stage/. dist/"$PKGDIR"/
+          ln -s /Applications dist/Applications
+          cat > dist/README.txt <<'EOF'
+          KiCad (unofficial build)
+
+          Drag the "Kicad" folder anywhere (e.g. your home or /Applications)
+          and run bin/kicad from a terminal, or create an alias.
+          EOF
+
+          hdiutil create -volname "KiCad $VERSION" \
+            -srcfolder dist \
+            -ov -format UDZO \
+            "kicad-macos-arm64-$VERSION.dmg"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: kicad-macos-arm64-*.dmg
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux: build a .deb (Debian/Ubuntu x86_64)
+  # ---------------------------------------------------------------------------
+  linux-deb:
+    name: Linux DEB (x86_64)
+    # Built on the newest LTS so the package targets its library versions.
+    # The resulting .deb installs on 26.04; use ubuntu-24.04 here instead if you
+    # need a package for older releases.
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # wxWidgets 3.2 was the 24.04 name; 26.04 may ship 3.3.  Try in order.
+          sudo apt-get install -y --no-install-recommends \
+            libwxgtk3.2-dev libwxgtk-webview3.2-dev \
+            || sudo apt-get install -y --no-install-recommends \
+                 libwxgtk3.3-dev libwxgtk-webview3.3-dev
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ pkg-config \
+            libboost-all-dev libglm-dev \
+            libcairo2-dev libpng-dev libglu1-mesa-dev libgl1-mesa-dev \
+            libx11-dev mesa-common-dev libgtk-3-dev \
+            libocct-modeling-algorithms-dev libocct-modeling-data-dev \
+            libocct-data-exchange-dev libocct-visualization-dev \
+            libocct-foundation-dev libocct-ocaf-dev \
+            libgit2-dev libsecret-1-dev libcurl4-openssl-dev \
+            libngspice0-dev unixodbc-dev libspnav-dev libnng-dev \
+            libprotobuf-dev protobuf-compiler shared-mime-info \
+            libzint-dev libpoppler-dev libpoppler-glib-dev \
+            libssl-dev libbz2-dev libzstd-dev zlib1g-dev \
+            python3-dev libwebkit2gtk-4.1-dev \
+            glslang-tools spirv-tools libvulkan-dev \
+            dpkg-dev file
+
+      - name: Configure
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            $KICAD_CMAKE_EXTRA
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake --build build -j"$(nproc)"
+
+      - name: Assemble DEB
+        run: |
+          set -euo pipefail
+          VERSION="$(git describe --tags --always --dirty | sed 's/^v//')"
+          STAGE="debstage"
+          install -d "$STAGE/DEBIAN" "$STAGE/usr"
+          DESTDIR="$PWD/$STAGE" cmake --install build
+
+          # Auto-generate shared-library dependencies from the installed binaries
+          EXECUTABLES=$(find "$STAGE/usr" -type f -executable | sort)
+          LIBS=$(find "$STAGE/usr" -name '*.so' -o -name '*.kiface' | sort)
+          SHLIBS=$(dpkg-shlibdeps -O $EXECUTABLES $LIBS 2>/dev/null \
+                     | sed -n 's/^shlibs:Depends=//p' || true)
+
+          cat > "$STAGE/DEBIAN/control" <<EOF
+          Package: kicad
+          Version: $VERSION
+          Section: electronics
+          Priority: optional
+          Architecture: amd64
+          Maintainer: local build <local@invalid>
+          Depends: ${SHLIBS:-libc6}, shared-mime-info, xdg-utils
+          Description: KiCad EDA suite (unofficial build)
+           A full featured electronics design automation suite including
+           schematic capture, PCB layout, Gerber viewer and more.
+           Built from source by GitHub Actions.
+          EOF
+
+          # Documentation of the dependency computation for debugging
+          echo "$SHLIBS" > "$STAGE/DEBIAN/shlibs.deps"
+
+          dpkg-deb --root-owner-group --build "$STAGE" "kicad-linux-amd64-$VERSION.deb"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: kicad-linux-amd64-*.deb
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux: build an AppImage (x86_64)
+  # ---------------------------------------------------------------------------
+  linux-appimage:
+    name: Linux AppImage (x86_64)
+    # AppImages bundle all libraries, so the built image runs on any distro
+    # including 26.04; the runner version only affects the build toolchain.
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # wxWidgets 3.2 was the 24.04 name; 26.04 may ship 3.3.  Try in order.
+          sudo apt-get install -y --no-install-recommends \
+            libwxgtk3.2-dev libwxgtk-webview3.2-dev \
+            || sudo apt-get install -y --no-install-recommends \
+                 libwxgtk3.3-dev libwxgtk-webview3.3-dev
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ pkg-config \
+            libboost-all-dev libglm-dev \
+            libcairo2-dev libpng-dev libglu1-mesa-dev libgl1-mesa-dev \
+            libx11-dev mesa-common-dev libgtk-3-dev \
+            libocct-modeling-algorithms-dev libocct-modeling-data-dev \
+            libocct-data-exchange-dev libocct-visualization-dev \
+            libocct-foundation-dev libocct-ocaf-dev \
+            libgit2-dev libsecret-1-dev libcurl4-openssl-dev \
+            libngspice0-dev unixodbc-dev libspnav-dev libnng-dev \
+            libprotobuf-dev protobuf-compiler shared-mime-info \
+            libzint-dev libpoppler-dev libpoppler-glib-dev \
+            libssl-dev libbz2-dev libzstd-dev zlib1g-dev \
+            python3-dev libwebkit2gtk-4.1-dev \
+            glslang-tools spirv-tools libvulkan-dev \
+            desktop-file-utils file
+
+      - name: Configure
+        run: |
+          set -euo pipefail
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            $KICAD_CMAKE_EXTRA
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          cmake --build build -j"$(nproc)"
+
+      - name: Install into AppDir
+        run: |
+          set -euo pipefail
+          install -d AppDir/usr
+          DESTDIR="$PWD/AppDir" cmake --install build
+
+      - name: Build AppImage
+        run: |
+          set -euo pipefail
+          VERSION="$(git describe --tags --always --dirty | sed 's/^v//')"
+
+          # Pull in the .kiface libraries: they are dlopen()ed by the main
+          # binaries and therefore invisible to linuxdeploy's dependency scan.
+          EXTRA_LIBS=()
+          while IFS= read -r lib; do
+            EXTRA_LIBS+=(--library "$lib")
+          done < <(find AppDir/usr/lib/kicad -name '*.kiface' -o -name '*.so' 2>/dev/null | sort)
+
+          curl -sSfL -o linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy.AppImage
+
+          ./linuxdeploy.AppImage --appimage-extract-and-run \
+            --appdir "$PWD/AppDir" \
+            "${EXTRA_LIBS[@]}" \
+            --output appimage
+
+          # linuxdeploy names the file after the desktop entry
+          mv KiCad-*.AppImage "kicad-linux-x86_64-$VERSION.AppImage" 2>/dev/null \
+            || mv *.AppImage "kicad-linux-x86_64-$VERSION.AppImage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: kicad-linux-x86_64-*.AppImage
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows: build with MSVC + vcpkg and package a portable .zip (x64)
+  # ---------------------------------------------------------------------------
+  windows-zip:
+    name: Windows ZIP (x64)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout vcpkg
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+
+      - name: Bootstrap vcpkg
+        run: |
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+
+      # The in-tree vcpkg.json references KiCad's private "wxwidgets-33" port and
+      # pins versions that the mainline registry does not carry.  Generate a build
+      # variant that uses the mainline "wxwidgets" port and drops the overrides.
+      - name: Prepare vcpkg manifest variant
+        run: |
+          $src = Get-Content vcpkg.json -Raw | ConvertFrom-Json
+          $src.PSObject.Properties.Remove( 'overrides' )
+          foreach( $dep in $src.dependencies )
+          {
+            if( $dep -is [pscustomobject] -and $dep.name -eq 'wxwidgets-33' )
+            {
+              $dep.name = 'wxwidgets'
+              $dep.PSObject.Properties.Remove( 'features' )   # wxWebView uses the system Edge runtime
+            }
+          }
+          New-Item -ItemType Directory -Force -Path vcpkg-variant | Out-Null
+          $src | ConvertTo-Json -Depth 20 | Set-Content vcpkg-variant/vcpkg.json -Encoding utf8
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-bin-windows-x64-${{ hashFiles( 'vcpkg-variant/vcpkg.json' ) }}
+
+      - name: Configure
+        run: |
+          New-Item -ItemType Directory -Force -Path vcpkg-binary-cache | Out-Null
+          $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
+          cmake -G Ninja -S . -B build `
+            -DCMAKE_BUILD_TYPE=$env:CMAKE_BUILD_TYPE `
+            -DCMAKE_INSTALL_PREFIX="$PWD\stage" `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_MANIFEST_DIR="$PWD\vcpkg-variant" `
+            -DVCPKG_OVERLAY_TRIPLETS="$PWD\tools\custom_vcpkg_triplets" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DKICAD_USE_OCC=ON `
+            -DKICAD_USE_PCH=OFF `
+            -DKICAD_USE_SENTRY=OFF `
+            -DKICAD_INSTALL_DEMOS=ON `
+            -DKICAD_BUILD_I18N=OFF `
+            -DKICAD_BUILD_QA_TESTS=OFF `
+            -DKICAD_SPICE_QA=OFF
+
+      - name: Build
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
+          cmake --build build -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Install into staging directory
+        run: |
+          $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
+          cmake --install build
+
+      - name: Package ZIP
+        run: |
+          $VERSION = ( git describe --tags --always --dirty ) -replace '^v',''
+          Compress-Archive -Path stage/* -DestinationPath "kicad-windows-x64-$VERSION.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: kicad-windows-x64-*.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Release: attach all packages to the GitHub Release when building on a tag
+  # ---------------------------------------------------------------------------
+  release:
+    name: Attach packages to release
+    if: startsWith( github.ref, 'refs/tags/v' )
+    needs:
+      - macos-dmg
+      - linux-deb
+      - linux-appimage
+      - windows-zip
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
