@@ -1063,6 +1063,11 @@ void SCH_EASYEDAPRO_PARSER::ParseSchematic( SCHEMATIC* aSchematic, SCH_SHEET* aR
             {
                 const SEG& seg = chain.CSegment( segId );
 
+                // EasyEDA paths can contain duplicated points; skip the degenerate
+                // zero-length segments they produce.
+                if( seg.A == seg.B )
+                    continue;
+
                 std::unique_ptr<SCH_LINE> schLine =
                         std::make_unique<SCH_LINE>( seg.A, LAYER_NOTES );
                 schLine->SetEndPoint( seg.B );

@@ -33,12 +33,20 @@ jobs:
   # ---------------------------------------------------------------------------
   macos-dmg:
     name: macOS DMG (arm64)
-    runs-on: macos-14
+    # macos-15 ships a newer Xcode than macos-14: the code uses C++20
+    # std::jthread/std::stop_token, which libc++ only implements from LLVM 19
+    # (Xcode 16.3+).  The macos-14 default (Xcode 15.4 / LLVM 17) lacks them.
+    runs-on: macos-15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0        # full history for the git-based version string
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install dependencies
         env:
@@ -61,7 +69,13 @@ jobs:
             openssl@3 \
             zstd \
             curl \
-            gettext
+            gettext \
+            glslang \
+            spirv-cross \
+            spirv-tools \
+            vulkan-headers \
+            nng \
+            unixodbc
 
       - name: Configure
         env:
@@ -76,7 +90,9 @@ jobs:
             -DKICAD_BUILD_I18N=OFF \
             -DKICAD_BUILD_QA_TESTS=OFF \
             -DKICAD_SPICE_QA=OFF \
-            -DKICAD_APPLE_MAKE_RELOCATEABLE_BUNDLE=ON
+            -DKICAD_APPLE_MAKE_RELOCATEABLE_BUNDLE=ON \
+            -DNGSPICE_LIB_NAME=libngspice.dylib \
+            -DOCC_INCLUDE_DIR=/opt/homebrew/include/opencascade
 
       - name: Build
         run: |
@@ -209,6 +225,10 @@ jobs:
           name: linux-deb
           path: kicad-linux-amd64-*.deb
           if-no-files-found: error
+          # .deb files are already compressed; store them verbatim inside the
+          # artifact container instead of wasting time re-compressing.  The
+          # .deb keeps its original name inside the container.
+          compression-level: 0
 
   # ---------------------------------------------------------------------------
   # Linux: build an AppImage (x86_64)
@@ -272,33 +292,84 @@ jobs:
       - name: Build AppImage
         run: |
           set -euo pipefail
-          VERSION="$(git describe --tags --always --dirty | sed 's/^v//')"
-
-          # Pull in the .kiface libraries: they are dlopen()ed by the main
-          # binaries and therefore invisible to linuxdeploy's dependency scan.
-          EXTRA_LIBS=()
+          # Find the KiCad internal libraries: the versioned shared libraries
+          # (libkigal.so.10.99.0, libkicommon...) do not match a plain '*.so'
+          # glob and the .kiface plugins are dlopen()ed, so none of them are
+          # picked up by linuxdeploy's own dependency scan.  KiCad installs
+          # them into CMAKE_INSTALL_LIBDIR, which on Debian/Ubuntu resolves to
+          # the multiarch dir (usr/lib/x86_64-linux-gnu) rather than
+          # usr/lib/kicad, so search the whole usr/lib tree.
+          INTERNAL_LIBS=()
           while IFS= read -r lib; do
-            EXTRA_LIBS+=(--library "$lib")
-          done < <(find AppDir/usr/lib/kicad -name '*.kiface' -o -name '*.so' 2>/dev/null | sort)
+            INTERNAL_LIBS+=( "$lib" )
+          done < <(find AppDir/usr/lib -type f \
+                     \( -name '*.kiface' -o -name '*.so' -o -name '*.so.*' \) | sort)
+          if [ ${#INTERNAL_LIBS[@]} -eq 0 ]; then
+            echo "ERROR: no internal KiCad libraries found under AppDir/usr/lib" >&2
+            find AppDir/usr -maxdepth 3 -type d | sort >&2
+            exit 1
+          fi
+          echo "Found ${#INTERNAL_LIBS[@]} internal libraries"
+
+          # linuxdeploy resolves the DT_NEEDED entries of the AppDir's ELF
+          # files against the top level of AppDir/usr/lib only - it does not
+          # recurse into subdirectories like the multiarch
+          # usr/lib/x86_64-linux-gnu, which is why it failed with "Could not
+          # find dependency: libkigal.so.10.99.0".  Flatten the internal
+          # libraries up to usr/lib before invoking linuxdeploy; it then
+          # deploys them (and their system dependencies) itself.  Feeding the
+          # dir through LD_LIBRARY_PATH additionally helps its resolver.
+          mkdir -p AppDir/usr/lib
+          for lib in "${INTERNAL_LIBS[@]}"; do
+            cp -f "$lib" AppDir/usr/lib/
+          done
+          export LD_LIBRARY_PATH="$PWD/AppDir/usr/lib:${LD_LIBRARY_PATH:-}"
+
+          # Custom AppRun: KiCad's internal libraries live outside the default
+          # dynamic loader path inside the AppImage; cover the multiarch dir
+          # and any other layout CMAKE_INSTALL_LIBDIR may resolve to.
+          cat > AppRun <<'EOF'
+          #!/bin/bash
+          HERE="$(cd "$(dirname "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$HERE/usr/lib/kicad:$HERE/usr/lib/x86_64-linux-gnu:$HERE/usr/lib64:$HERE/usr/lib:${LD_LIBRARY_PATH}"
+          exec "$HERE/usr/bin/kicad" "$@"
+          EOF
+          chmod +x AppRun
 
           curl -sSfL -o linuxdeploy.AppImage \
             "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
           chmod +x linuxdeploy.AppImage
 
+          # Prefer the main KiCad desktop entry so the AppImage is named and
+          # iconified after KiCad itself; without it linuxdeploy silently uses
+          # the first .desktop it finds (which happens to be pcbnew's, naming
+          # the artifact "KiCad_PCB_Editor_(Standalone)").
+          DESKTOP_FILE="$(find AppDir/usr/share/applications -name 'org.kicad.*.desktop' \
+                           ! -name '*pcbnew*' ! -name '*eeschema*' ! -name '*gerbview*' \
+                           ! -name '*pcbcalculator*' ! -name '*bitmap2component*' \
+                           | head -1 || true)"
+          DESKTOP_ARGS=()
+          if [ -n "$DESKTOP_FILE" ]; then
+            DESKTOP_ARGS+=( --desktop-file "$PWD/$DESKTOP_FILE" )
+          fi
+
           ./linuxdeploy.AppImage --appimage-extract-and-run \
             --appdir "$PWD/AppDir" \
-            "${EXTRA_LIBS[@]}" \
+            --custom-apprun "$PWD/AppRun" \
+            "${DESKTOP_ARGS[@]}" \
             --output appimage
 
-          # linuxdeploy names the file after the desktop entry
-          mv KiCad-*.AppImage "kicad-linux-x86_64-$VERSION.AppImage" 2>/dev/null \
-            || mv *.AppImage "kicad-linux-x86_64-$VERSION.AppImage"
+          # Keep the AppImage under the name linuxdeploy produced from the
+          # desktop entry (no renaming).  Only move the linuxdeploy tool
+          # itself out of the way so it is not uploaded alongside the
+          # artifact below.
+          mv linuxdeploy.AppImage linuxdeploy.tool
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: kicad-linux-x86_64-*.AppImage
+          path: KiCad*.AppImage
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -307,6 +378,9 @@ jobs:
   windows-zip:
     name: Windows ZIP (x64)
     runs-on: windows-2022
+    env:
+      # The GitHub runner does not set VCPKG_ROOT itself; clone into the workspace.
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -321,23 +395,179 @@ jobs:
         run: |
           & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
 
+      # Seed the vcpkg downloads directory for upstreams that are flaky or
+      # broken from Azure-hosted runners.  vcpkg accepts a pre-seeded file
+      # when its SHA512 checksum matches the port (a mismatching file is
+      # discarded and the regular download retried), so seeding can never
+      # make things worse.  On Windows the default downloads directory is
+      # %LOCALAPPDATA%\vcpkg.
+      #  - www.cairographics.org is frequently very slow or unreachable, and
+      #    vcpkg's WinHTTP download then times out (WinHttpSendRequest 12002).
+      #    curl has no short receive timeout, proper retry handling, and the
+      #    NetBSD pkgsrc distfile cache stores the byte-identical upstream
+      #    release tarball (SHA512 verified against pkgsrc distinfo) as a
+      #    fallback.
+      #  - ngspice 41 was moved into SourceForge's old-releases area, so the
+      #    mainline port's URL 404s on every mirror.  Seed it from the
+      #    official old-releases location; the overlay-port REF patch below
+      #    fixes the portfile side, this covers the download as well.
+      - name: Pre-seed flaky upstream downloads
+        run: |
+          $downloads = Join-Path $env:LOCALAPPDATA 'vcpkg/downloads'
+          New-Item -ItemType Directory -Force -Path $downloads | Out-Null
+
+          # --- cairo ---
+          $portJson = Get-Content "$env:VCPKG_ROOT\ports\cairo\vcpkg.json" -Raw | ConvertFrom-Json
+          $portfile = Get-Content "$env:VCPKG_ROOT\ports\cairo\portfile.cmake" -Raw
+          if( $portfile -notmatch 'cairographics\.org' )
+          {
+            Write-Host "cairo port no longer downloads from cairographics.org; nothing to pre-seed"
+          }
+          else
+          {
+            $version = $portJson.version
+            $target = Join-Path $downloads "cairo-$version.tar.xz"
+            if( Test-Path $target )
+            {
+              Write-Host "$target already present; nothing to do"
+            }
+            else
+            {
+              $tmp = Join-Path $env:RUNNER_TEMP "cairo-$version.tar.xz"
+              $urls = @(
+                "https://www.cairographics.org/releases/cairo-$version.tar.xz",
+                "https://cdn.netbsd.org/pub/pkgsrc/distfiles/cairo-$version.tar.xz"
+              )
+              $ok = $false
+              foreach( $url in $urls )
+              {
+                Write-Host "Downloading $url"
+                curl.exe -fL --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 -o $tmp $url
+                if( $LASTEXITCODE -eq 0 )
+                {
+                  Move-Item -Force $tmp $target
+                  $ok = $true
+                  break
+                }
+                Remove-Item -Force -ErrorAction SilentlyContinue $tmp
+              }
+              if( -not $ok )
+              {
+                throw "Failed to download cairo-$version.tar.xz from all mirrors"
+              }
+              Write-Host "Seeded $target"
+            }
+          }
+
+          # --- ngspice ---
+          $ngspiceTarget = Join-Path $downloads 'ngspice-41.tar.gz'
+          if( Test-Path $ngspiceTarget )
+          {
+            Write-Host "$ngspiceTarget already present; nothing to do"
+          }
+          else
+          {
+            $tmp = Join-Path $env:RUNNER_TEMP 'ngspice-41.tar.gz'
+            curl.exe -fL --retry 8 --retry-all-errors --retry-delay 5 --connect-timeout 30 `
+              -o $tmp `
+              "https://sourceforge.net/projects/ngspice/files/ng-spice-rework/old-releases/41/ngspice-41.tar.gz/download"
+            if( $LASTEXITCODE -eq 0 )
+            {
+              Move-Item -Force $tmp $ngspiceTarget
+              Write-Host "Seeded $ngspiceTarget"
+            }
+            else
+            {
+              Write-Host "::warning::ngspice pre-seed download failed; relying on the overlay port REF patch"
+              Remove-Item -Force -ErrorAction SilentlyContinue $tmp
+            }
+          }
+
       # The in-tree vcpkg.json references KiCad's private "wxwidgets-33" port and
       # pins versions that the mainline registry does not carry.  Generate a build
-      # variant that uses the mainline "wxwidgets" port and drops the overrides.
+      # variant that uses the mainline "wxwidgets" port, keeps the remaining
+      # official overrides and drops the ngspice override (supplied by an overlay
+      # port instead).
       - name: Prepare vcpkg manifest variant
         run: |
           $src = Get-Content vcpkg.json -Raw | ConvertFrom-Json
-          $src.PSObject.Properties.Remove( 'overrides' )
+
+          # Map KiCad's private "wxwidgets-33" port onto the mainline "wxwidgets"
+          # port.  KEEP the webview feature: libs/kiplatform compiles against
+          # wxWebView, and without it the wx build turns wxUSE_WEBVIEW off -
+          # wx/webview.h then declares nothing and the kiplatform webview port
+          # fails with C2027 "use of undefined type 'wxWebView'".  The
+          # mainline 'webview' feature pulls in the new-style 'webview2'
+          # dependency (SDK headers + WebView2Loader), which the baseline
+          # provides under that name.
           foreach( $dep in $src.dependencies )
           {
             if( $dep -is [pscustomobject] -and $dep.name -eq 'wxwidgets-33' )
             {
               $dep.name = 'wxwidgets'
-              $dep.PSObject.Properties.Remove( 'features' )   # wxWebView uses the system Edge runtime
             }
           }
+
+          # kiplatform's webview port includes WebView2.h directly (wxWebView
+          # Edge backend); pull the WebView2 SDK from vcpkg.  The port was
+          # renamed upstream: 'microsoft-webview2' is gone from the registry
+          # and baseline, the new name is 'webview2'.
+          $src.dependencies += 'webview2'
+
+          # Keep official overrides except ngspice (supplied by an overlay port,
+          # see the next step).  glm stays pinned: the mainline 0.9.9.9 port is
+          # broken per the upstream comment.
+          if( $src.PSObject.Properties[ 'overrides' ] )
+          {
+            $kept = @( $src.overrides | Where-Object { $_.name -notin 'wxwidgets-33', 'ngspice' } )
+            if( $kept.Count -gt 0 ){ $src.overrides = $kept }
+            else { $src.PSObject.Properties.Remove( 'overrides' ) }
+          }
+
+          # Mainline vcpkg requires a baseline to resolve ports from the manifest
+          $baseline = ( git -C $env:VCPKG_ROOT rev-parse HEAD ).Trim()
+          $src | Add-Member -NotePropertyName 'builtin-baseline' -NotePropertyValue $baseline
           New-Item -ItemType Directory -Force -Path vcpkg-variant | Out-Null
           $src | ConvertTo-Json -Depth 20 | Set-Content vcpkg-variant/vcpkg.json -Encoding utf8
+          Write-Host "builtin-baseline = $baseline"
+
+      # ngspice: the mainline port downloads ngspice-41.tar.gz from
+      # <project>/files/ng-spice-rework/41/, which now 404s on every mirror -
+      # the ngspice project has moved the release into SourceForge's
+      # old-releases area (same file, new path).  Patch the overlay port's REF
+      # value to the official old-releases location; the tarball is
+      # byte-identical, so the SHA512 pinned in the port still applies.  The
+      # REF line is rewritten line-wise ( (?m) line anchors ) so both portfile
+      # layouts are handled: "REF 41" (FILENAME separate) and
+      # "REF 41/ngspice-41.tar.gz".  A no-match aborts the step instead of
+      # leaving the port broken.
+      - name: Prepare ngspice overlay port
+        run: |
+          New-Item -ItemType Directory -Force -Path overlay-ports | Out-Null
+          Copy-Item -Recurse "$env:VCPKG_ROOT\ports\ngspice" overlay-ports/ngspice
+
+          $portfile = Get-Content overlay-ports/ngspice/portfile.cmake -Raw
+          if( $portfile -match '(?m)^\s*REF\s+old-releases/' )
+          {
+            Write-Host "ngspice port already references SourceForge old-releases; nothing to patch"
+          }
+          else
+          {
+            $updated = [regex]::Replace(
+              $portfile,
+              '(?m)^(\s*REF\s+)(?!old-releases/)(\S.*)$',
+              '${1}old-releases/${2}'
+            )
+            if( $updated -eq $portfile )
+            {
+              Write-Host "portfile head for diagnosis:"
+              Get-Content overlay-ports/ngspice/portfile.cmake | Select-Object -First 20
+              throw "Failed to patch ngspice REF - mainline portfile layout changed"
+            }
+            Set-Content overlay-ports/ngspice/portfile.cmake -Value $updated -Encoding utf8
+            Write-Host "overlay portfile rewritten:"
+            Get-Content overlay-ports/ngspice/portfile.cmake | Select-Object -First 20
+          }
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -354,20 +584,48 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path vcpkg-binary-cache | Out-Null
           $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
-          cmake -G Ninja -S . -B build `
-            -DCMAKE_BUILD_TYPE=$env:CMAKE_BUILD_TYPE `
-            -DCMAKE_INSTALL_PREFIX="$PWD\stage" `
-            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
-            -DVCPKG_MANIFEST_DIR="$PWD\vcpkg-variant" `
-            -DVCPKG_OVERLAY_TRIPLETS="$PWD\tools\custom_vcpkg_triplets" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows `
-            -DKICAD_USE_OCC=ON `
-            -DKICAD_USE_PCH=OFF `
-            -DKICAD_USE_SENTRY=OFF `
-            -DKICAD_INSTALL_DEMOS=ON `
-            -DKICAD_BUILD_I18N=OFF `
-            -DKICAD_BUILD_QA_TESTS=OFF `
-            -DKICAD_SPICE_QA=OFF
+          # Spell the build type out literally: a literal keeps the CMake
+          # cache clean of any shell-quoting artefacts (a stray
+          # '$env:CMAKE_BUILD_TYPE' leaked into the cache once and broke the
+          # ninja rules file at build time, since CMake >= 3.28 embeds the
+          # build type into the C++-module scan rule names).
+          #
+          # The configure also runs the vcpkg manifest install, which fails on
+          # transient upstream errors (e.g. GitHub archive endpoints answering
+          # 500 for some boost-* tarballs).  Every package that did build is
+          # already in the binary cache and comes back instantly, so retrying
+          # the whole configure with a backoff is cheap and usually crosses
+          # the gap.
+          $maxAttempts = 3
+          for( $attempt = 1; $attempt -le $maxAttempts; $attempt++ )
+          {
+            Write-Host "=== configure attempt $attempt / $maxAttempts ==="
+            cmake -G Ninja -S . -B build `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_INSTALL_PREFIX="$PWD\stage" `
+              -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+              -DVCPKG_MANIFEST_DIR="$PWD\vcpkg-variant" `
+              -DVCPKG_OVERLAY_PORTS="$PWD\overlay-ports" `
+              -DVCPKG_OVERLAY_TRIPLETS="$PWD\tools\custom_vcpkg_triplets" `
+              -DVCPKG_TARGET_TRIPLET=x64-windows `
+              -DKICAD_USE_OCC=ON `
+              -DKICAD_USE_PCH=OFF `
+              -DKICAD_USE_SENTRY=OFF `
+              -DKICAD_INSTALL_DEMOS=ON `
+              -DKICAD_BUILD_I18N=OFF `
+              -DKICAD_BUILD_QA_TESTS=OFF `
+              -DKICAD_SPICE_QA=OFF
+            if( $LASTEXITCODE -eq 0 )
+            {
+              break
+            }
+            if( $attempt -eq $maxAttempts )
+            {
+              exit $LASTEXITCODE
+            }
+            Write-Host "::warning::configure/vcpkg install failed (attempt $attempt/$maxAttempts); retrying after backoff"
+            Start-Sleep -Seconds ( 20 * $attempt )
+          }
 
       - name: Build
         run: |
@@ -396,7 +654,6 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: Attach packages to release
-    if: startsWith( github.ref, 'refs/tags/v' )
     needs:
       - macos-dmg
       - linux-deb
@@ -410,8 +667,26 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Tag builds publish a regular release.  The files keep their original
+      # names (.deb/.dmg/.AppImage/.zip) as release assets - no extra zipping.
       - name: Attach to release
+        if: startsWith( github.ref, 'refs/tags/v' )
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
+
+      # Manual (workflow_dispatch) builds have no tag, and the Actions
+      # artifact store always wraps uploads in a zip container.  Publish the
+      # raw files - under their original names, no extra zip - as a rolling
+      # draft release instead.  Drafts stay private until manually published;
+      # the ci-latest tag/release is reused and its files overwritten.
+      - name: Attach to rolling draft release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-latest
+          name: CI build ${{ github.run_number }}
+          draft: true
+          overwrite_files: true
+          files: dist/*

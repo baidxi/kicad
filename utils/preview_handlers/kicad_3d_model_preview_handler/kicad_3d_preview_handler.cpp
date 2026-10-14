@@ -31,6 +31,7 @@
 #include <AIS_InteractiveContext.hxx>
 #include <V3d_View.hxx>
 #include <Aspect_DisplayConnection.hxx>
+#include <Graphic3d_Vec2.hxx>
 #include <OpenGl_GraphicDriver.hxx>
 #include <WNT_Window.hxx>
 #include <AIS_ViewController.hxx>

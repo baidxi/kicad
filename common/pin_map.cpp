@@ -25,11 +25,6 @@
 #include <utility>
 
 
-#if defined( _MSC_VER ) && wxCHECK_VERSION( 3, 3, 0 )
-extern template class WXDLLIMPEXP_BASE std::vector<wxString>;
-#endif
-
-
 PIN_MAP::PIN_MAP( const wxString& aName ) :
         m_name( aName )
 {

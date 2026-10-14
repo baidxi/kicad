@@ -437,8 +437,29 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
 
             auto shape = std::make_unique<SCH_SHAPE>( SHAPE_T::POLY, LAYER_DEVICE );
 
+            // EasyEDA paths carry command letters ("L", "C", ...) that FlattenPoints
+            // drops, and they frequently contain duplicated vertices (a repeated
+            // point plus a closing point equal to the first one).  Degenerate
+            // outlines make SHAPE_POLY_SET's global vertex indexing throw
+            // std::out_of_range during import, so skip duplicates here.
             for( size_t i = 1; i < points.size(); i += 2 )
-                shape->AddPoint( V3ScalePosSym( VECTOR2D( points[i - 1], points[i] ) ) );
+            {
+                VECTOR2I pt = V3ScalePosSym( VECTOR2D( points[i - 1], points[i] ) );
+
+                if( shape->GetPolyShape().OutlineCount() > 0
+                    && shape->GetPolyShape().Outline( 0 ).PointCount() > 0
+                    && shape->GetPolyShape().Outline( 0 ).CLastPoint() == pt )
+                {
+                    continue;
+                }
+
+                shape->AddPoint( pt );
+            }
+
+            SHAPE_LINE_CHAIN& outline = shape->GetPolyShape().Outline( 0 );
+
+            if( outline.PointCount() > 2 && outline.CPoint( 0 ) == outline.CLastPoint() )
+                outline.Remove( outline.PointCount() - 1 );
 
             shape->SetUnit( rowUnit );
             ApplyV3LineStyle( shape, row.inner );
@@ -1133,8 +1154,26 @@ void SCH_EASYEDAPRO_V3_PARSER::ParseSchematic(
 
             std::unique_ptr<SCH_SHAPE> poly = std::make_unique<SCH_SHAPE>( SHAPE_T::POLY );
 
+            // Skip duplicated vertices (repeated points and duplicated closing
+            // vertex) - degenerate outlines break global vertex indexing.
             for( size_t i = 1; i < pointsData.size(); i += 2 )
-                poly->AddPoint( V3ScalePos( VECTOR2D( pointsData[i - 1], pointsData[i] ) ) );
+            {
+                VECTOR2I pt = V3ScalePos( VECTOR2D( pointsData[i - 1], pointsData[i] ) );
+
+                if( poly->GetPolyShape().OutlineCount() > 0
+                    && poly->GetPolyShape().Outline( 0 ).PointCount() > 0
+                    && poly->GetPolyShape().Outline( 0 ).CLastPoint() == pt )
+                {
+                    continue;
+                }
+
+                poly->AddPoint( pt );
+            }
+
+            SHAPE_LINE_CHAIN& outline = poly->GetPolyShape().Outline( 0 );
+
+            if( outline.PointCount() > 2 && outline.CPoint( 0 ) == outline.CLastPoint() )
+                outline.Remove( outline.PointCount() - 1 );
 
             SCH_SHAPE* polyPtr = poly.get();
             ApplyV3LineStyle( polyPtr, row.inner );

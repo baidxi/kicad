@@ -466,6 +466,10 @@ bool LOCAL_HISTORY::RunRegisteredSaversAndCommit( const wxString& aProjectPath, 
         entry.saver( aProjectPath, fileData );
         wxLogTrace( traceAutoSave, wxS( "[history] saver %p produced %zu entries (total=%zu)" ),
                     saverObject, fileData.size() - before, fileData.size() );
+        // 'before' is only referenced by the trace above, whose argument
+        // expressions are discarded when built with wxDEBUG_LEVEL == 0;
+        // reference it here to keep -Wunused-variable quiet.
+        wxUnusedVar( before );
     }
 
     // Reject entries with an empty or absolute relativePath; the saver contract requires
@@ -2084,7 +2088,16 @@ bool LOCAL_HISTORY::enforceSizeLimit( const wxString& aProjectPath, const wxStri
     // Replay kept commits chronologically (oldest first) to preserve order.
     std::reverse( keep.begin(), keep.end() );
     git_commit* parent = nullptr;
-    struct MAP_ENTRY { git_oid orig; git_oid neu; };
+    // An explicit constructor keeps emplace_back() working on toolchains
+    // without C++20 P0960 (parenthesised aggregate initialisation), e.g.
+    // Apple clang 15, while still constructing in place with no extra copy.
+    struct MAP_ENTRY
+    {
+        git_oid orig;
+        git_oid neu;
+
+        MAP_ENTRY( const git_oid& aOrig, const git_oid& aNeu ) : orig( aOrig ), neu( aNeu ) {}
+    };
     std::vector<MAP_ENTRY> commitMap;
     bool rewriteOk = true;
 
