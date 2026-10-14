@@ -12,6 +12,7 @@
     "boost-iterator",
     "boost-locale",
     "boost-math",
+    "boost-multiprecision",
     "boost-optional",
     "boost-property-tree",
     "boost-ptr-container",
