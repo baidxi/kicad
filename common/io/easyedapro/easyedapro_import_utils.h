@@ -45,6 +45,14 @@ wxString ShortenLibName( wxString aProjectName );
 
 LIB_ID ToKiCadLibID( const wxString& aLibName, const wxString& aLibReference );
 
+/**
+ * Strips leading zeros from all-numeric pin/pad numbers (e.g. "01" -> "1") so that
+ * converted EasyEDA symbols and footprints follow KiCad library conventions and match
+ * stock KiCad symbols for the same part.  This prevents pad-to-pin number string
+ * mismatches during "Update PCB from Schematic".
+ */
+wxString NormalizePinNumber( const wxString& aNumber );
+
 std::vector<IMPORT_PROJECT_DESC> ProjectToSelectorDialog( const nlohmann::json& aProject, bool aPcbOnly = false,
                                                           bool                  aSchOnly = false );
 

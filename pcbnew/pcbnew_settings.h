@@ -92,6 +92,7 @@ public:
         bool    m_DisplayGraphicsFill;
         bool    m_DisplayTextFill;
         bool    m_DisplayPadNumbers;
+        bool    m_DisplayPinNames;
         bool    m_DisplayPadFill;
     };
 
@@ -112,6 +113,7 @@ public:
         m_ViewersDisplay.m_DisplayGraphicsFill = true;
         m_ViewersDisplay.m_DisplayTextFill = true;
         m_ViewersDisplay.m_DisplayPadNumbers = true;
+        m_ViewersDisplay.m_DisplayPinNames = false;
         m_ViewersDisplay.m_DisplayPadFill = true;
     }
 

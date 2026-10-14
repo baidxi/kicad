@@ -242,6 +242,13 @@ public:
 
     void RestoreAuiLayout();
 
+    /**
+     * Docks all floating AUI panes back at their last docked position.  Useful on
+     * platforms (e.g. Wayland) where drag-and-drop docking of floating panes is
+     * unreliable or unavailable.
+     */
+    void DockFloatingPanes();
+
     void FinishAUIInitialization();
 
     /**

@@ -971,3 +971,22 @@ std::map<wxString, wxString> EASYEDAPRO::BuildV3LibraryItemMap( const V3_DOC_PAR
 
     return nameToUuid;
 }
+
+
+wxString EASYEDAPRO::NormalizePinNumber( const wxString& aNumber )
+{
+    // Strip leading zeros from all-numeric numbers: "01" -> "1", "010" -> "10", "000" -> "0".
+    // Non-numeric designators (e.g. "A1", "B4A9") are left untouched.
+    if( aNumber.length() > 1 && aNumber[0] == wxS( '0' )
+        && aNumber.find_first_not_of( wxS( "0123456789" ) ) == wxString::npos )
+    {
+        size_t firstNonZero = aNumber.find_first_not_of( wxS( '0' ) );
+
+        if( firstNonZero == wxString::npos )
+            return wxS( "0" );
+
+        return aNumber.substr( firstNonZero );
+    }
+
+    return aNumber;
+}

@@ -23,6 +23,7 @@
 #include <base_units.h>
 #include <kiplatform/environment.h>
 #include <kiplatform/io.h>
+#include <kiplatform/ui.h>
 #include <wildcards_and_files_ext.h>
 #include <background_jobs_monitor.h>
 #include <kiway.h>
@@ -631,6 +632,15 @@ COLOR_SETTINGS* SCH_BASE_FRAME::GetColorSettings( bool aForceRefresh ) const
                 if( !sym_edit_cfg->m_UseEeschemaColorSettings )
                     colorTheme = sym_edit_cfg->m_ColorTheme;
             }
+        }
+
+        // If the user has not explicitly chosen a non-default theme and the
+        // system is running in dark mode, swap the default (light) theme for
+        // the built-in dark theme so the canvas follows the system theme.
+        if( ( colorTheme.IsEmpty() || colorTheme == COLOR_SETTINGS::COLOR_BUILTIN_DEFAULT )
+                && KIPLATFORM::UI::IsDarkTheme() )
+        {
+            colorTheme = COLOR_SETTINGS::COLOR_BUILTIN_DARK;
         }
 
         const_cast<SCH_BASE_FRAME*>( this )->m_colorSettings = ::GetColorSettings( colorTheme );

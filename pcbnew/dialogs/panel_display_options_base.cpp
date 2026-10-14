@@ -129,6 +129,10 @@ PANEL_DISPLAY_OPTIONS_BASE::PANEL_DISPLAY_OPTIONS_BASE( wxWindow* parent, wxWind
 	m_OptDisplayPadNumber->SetValue(true);
 	gbSizer1->Add( m_OptDisplayPadNumber, wxGBPosition( 1, 0 ), wxGBSpan( 1, 2 ), wxALL, 5 );
 
+	m_OptDisplayPinNames = new wxCheckBox( pcbPage, wxID_ANY, _("Show pin names"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_OptDisplayPinNames->SetValue(false);
+	gbSizer1->Add( m_OptDisplayPinNames, wxGBPosition( 2, 0 ), wxGBSpan( 1, 2 ), wxALL, 5 );
+
 
 	bMargins->Add( gbSizer1, 1, wxEXPAND|wxRIGHT|wxLEFT, 5 );
 

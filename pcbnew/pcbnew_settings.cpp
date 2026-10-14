@@ -260,6 +260,9 @@ PCBNEW_SETTINGS::PCBNEW_SETTINGS() :
     m_params.emplace_back( new PARAM<bool>( "pcb_display.pad_numbers",
             &m_ViewersDisplay.m_DisplayPadNumbers, true ) );
 
+    m_params.emplace_back( new PARAM<bool>( "pcb_display.pin_names",
+            &m_ViewersDisplay.m_DisplayPinNames, false ) );
+
     m_params.emplace_back( new PARAM<bool>( "pcb_display.ratsnest_global",
             &m_Display.m_ShowGlobalRatsnest, true ) );
 

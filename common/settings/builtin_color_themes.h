@@ -302,6 +302,68 @@ static const std::map<int, COLOR4D> s_defaultTheme =
             { LAYER_3D_B_COURTYARD,         CSS_COLOR( 38,  233, 255, 1 ) }
         };
 
+/*
+ * A dark variant of the default theme, created by remapping the schematic layer
+ * colors of s_defaultTheme so they remain readable against a dark canvas.
+ * Only schematic layers are overridden here; the default (dark) PCB, Gerbview
+ * and 3D viewer colors are reused as-is.
+ */
+static const std::map<int, COLOR4D> s_defaultThemeDark =
+        {
+            { LAYER_SCHEMATIC_ANCHOR,     CSS_COLOR( 80,   80,  255, 1 ) },
+            { LAYER_SCHEMATIC_AUX_ITEMS,  CSS_COLOR( 220, 220, 220, 1 ) },
+            { LAYER_SCHEMATIC_BACKGROUND, CSS_COLOR( 38,   38,  42,  1 ) },
+            { LAYER_HOVERED,              CSS_COLOR( 80,   80,  255, 1 ) },
+            { LAYER_BRIGHTENED,           CSS_COLOR( 255,   0,  255, 1 ) },
+            { LAYER_BUS,                  CSS_COLOR( 90,   90,  255, 1 ) },
+            { LAYER_BUS_JUNCTION,         CSS_COLOR( 90,   90,  255, 1 ) },
+            { LAYER_DEVICE_BACKGROUND,    CSS_COLOR( 70,   70,  60,  1 ) },
+            { LAYER_DEVICE,               CSS_COLOR( 232, 116, 116, 1 ) },
+            { LAYER_SCHEMATIC_CURSOR,     CSS_COLOR( 220, 220, 220, 1 ) },
+            { LAYER_DNP_MARKER,           CSS_COLOR( 255,  80,  80, 0.85 ) },
+            { LAYER_EXCLUDED_FROM_SIM,    CSS_COLOR( 120, 120, 120, 0.95 ) },
+            { LAYER_ERC_ERR,              CSS_COLOR( 255,  80,  80, 0.8 ) },
+            { LAYER_ERC_WARN,             CSS_COLOR( 255, 180,   0, 0.8 ) },
+            { LAYER_ERC_EXCLUSION,        CSS_COLOR( 120, 120, 120, 0.8 ) },
+            { LAYER_FIELDS,               CSS_COLOR( 230, 100, 230, 1 ) },
+            { LAYER_SCHEMATIC_GRID,       CSS_COLOR( 90,   90,  90,  1 ) },
+            { LAYER_SCHEMATIC_GRID_AXES,  CSS_COLOR( 90,   90, 255,  1 ) },
+            { LAYER_HIDDEN,               CSS_COLOR( 120, 120, 120, 1 ) },
+            { LAYER_JUNCTION,             CSS_COLOR( 0,   200,   0,  1 ) },
+            { LAYER_GLOBLABEL,            CSS_COLOR( 255, 110, 110, 1 ) },
+            { LAYER_HIERLABEL,            CSS_COLOR( 230, 180,  60, 1 ) },
+            { LAYER_LOCLABEL,             CSS_COLOR( 220, 220, 220, 1 ) },
+            { LAYER_NETCLASS_REFS,        CSS_COLOR( 150, 150, 150, 1 ) },
+            { LAYER_DRAG_NET_COLLISION,   CSS_COLOR( 255,  80,  80, 0.8 ) },
+            { LAYER_RULE_AREAS,           CSS_COLOR( 255,  80,  80, 1 ) },
+            { LAYER_NOCONNECT,            CSS_COLOR( 90,   90, 255, 1 ) },
+            { LAYER_NOTES,                CSS_COLOR( 90,  120, 255, 1 ) },
+            { LAYER_PRIVATE_NOTES,        CSS_COLOR( 140, 140, 255, 1 ) },
+            { LAYER_NOTES_BACKGROUND,     CSS_COLOR( 0,     0,   0,  0 ) },
+            { LAYER_PIN,                  CSS_COLOR( 232, 116, 116, 1 ) },
+            { LAYER_PINNAM,               CSS_COLOR( 0,   180, 180, 1 ) },
+            { LAYER_PINNUM,               CSS_COLOR( 255, 120, 120, 1 ) },
+            { LAYER_REFERENCEPART,        CSS_COLOR( 0,   180, 180, 1 ) },
+#ifdef __WXMAC__
+            // Try to mimic the system highlight color on Mac
+            { LAYER_SELECTION_SHADOWS,      COLOR4D( .3, .7, 1.0, 0.6 ) },
+#else
+            { LAYER_SELECTION_SHADOWS,      COLOR4D( .4, .7, 1.0, 0.8 ) },
+#endif
+            { LAYER_SHEET,                  CSS_COLOR( 255, 100, 100, 1 ) },
+            { LAYER_SHEET_BACKGROUND,       CSS_COLOR( 255, 255, 255, 0 ) },
+            { LAYER_SHEETFILENAME,          CSS_COLOR( 230, 180,  60, 1 ) },
+            { LAYER_SHEETFIELDS,            CSS_COLOR( 230, 100, 230, 1 ) },
+            { LAYER_SHEETLABEL,             CSS_COLOR( 0,   180, 180, 1 ) },
+            { LAYER_SHEETNAME,              CSS_COLOR( 0,   180, 180, 1 ) },
+            { LAYER_VALUEPART,              CSS_COLOR( 0,   180, 180, 1 ) },
+            { LAYER_WIRE,                   CSS_COLOR( 0,   200,   0,  1 ) },
+            { LAYER_SCHEMATIC_DRAWINGSHEET, CSS_COLOR( 170,  90,  90, 1 ) },
+            { LAYER_SCHEMATIC_PAGE_LIMITS,  CSS_COLOR( 90,   90,  90,  1 ) },
+            { LAYER_OP_VOLTAGES,            CSS_COLOR( 255, 120, 160, 1 ) },
+            { LAYER_OP_CURRENTS,            CSS_COLOR( 255,  90, 100, 1 ) },
+        };
+
 // These are looping colors used higher-order copper layers
 static const std::vector<COLOR4D> s_copperColors =
 {

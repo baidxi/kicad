@@ -248,6 +248,220 @@ void KIPLATFORM::UI::EnsureVisible( wxWindow* aWindow )
 }
 
 
+namespace
+{
+
+// Temporary diagnostics for the "dialog vanishes after being shown" report under
+// Wayland.  Enabled with KICAD_DIALOG_DEBUG=1; appends one line per state probe to
+// /tmp/kicad_dialog_debug.log.
+void dialogDebugLog( GtkWidget* aWidget, const char* aTag )
+{
+    static const bool s_enabled = []()
+        {
+            const char* env = getenv( "KICAD_DIALOG_DEBUG" );
+            return env && *env;
+        }();
+
+    if( !s_enabled )
+        return;
+
+    GdkWindow*     window = gtk_widget_get_window( aWidget );
+    GdkWindowState state = window ? gdk_window_get_state( window ) : GDK_WINDOW_STATE_WITHDRAWN;
+    gint           x = 0, y = 0, w = 0, h = 0;
+
+    if( window )
+        gdk_window_get_geometry( window, &x, &y, &w, &h );
+
+    if( FILE* f = fopen( "/tmp/kicad_dialog_debug.log", "a" ) )
+    {
+        fprintf( f, "[dialog] %s: mapped=%d visible=%d active=%d state=0x%x geom=%dx%d%+d%+d\n",
+                 aTag,
+                 gtk_widget_get_mapped( aWidget ) ? 1 : 0,
+                 gtk_widget_get_visible( aWidget ) ? 1 : 0,
+                 gtk_window_is_active( GTK_WINDOW( aWidget ) ) ? 1 : 0,
+                 (unsigned) state, w, h, x, y );
+
+        if( window )
+        {
+            GdkMonitor*  monitor = gdk_display_get_monitor_at_window( gtk_widget_get_display( aWidget ), window );
+            GdkRectangle mgeo = { 0, 0, 0, 0 };
+            const gchar* model = monitor ? gdk_monitor_get_model( monitor ) : nullptr;
+
+            if( monitor )
+                gdk_monitor_get_geometry( monitor, &mgeo );
+
+            fprintf( f, "[dialog]   monitor=%s geo=%dx%d%+d%+d scale=%d\n",
+                     model ? model : "?", mgeo.width, mgeo.height, mgeo.x, mgeo.y,
+                     monitor ? gdk_monitor_get_scale_factor( monitor ) : 0 );
+        }
+
+        fclose( f );
+    }
+}
+
+struct DialogDebugCtx
+{
+    GtkWidget* widget;
+    bool       rescued;
+    int        attempts;   // escalation rounds left
+};
+
+// Run shortly after mapping.  Mutter occasionally maps a new transient toplevel
+// without activating it, stacking it below the (disabled) parent -- with no client-side
+// way to raise a window under Wayland, a quick unmap/remap forces the compositor to
+// re-evaluate placement, which then activates the dialog every time.  The denial is
+// however probabilistic and races against a busy compositor (slow map, delayed
+// focus-stealing-prevention decision), so a single 40ms probe is not enough: probe
+// repeatedly -- first asking politely through gtk_window_present() (xdg-activation),
+// then escalating to the unmap/remap -- until the window is active or we give up.
+static gboolean dialogActivationGuard( gpointer aData )
+{
+    DialogDebugCtx* ctx = static_cast<DialogDebugCtx*>( aData );
+
+    if( !ctx->widget )
+    {
+        // Window destroyed while we were waiting.
+        delete ctx;
+        return G_SOURCE_REMOVE;
+    }
+
+    if( !gtk_widget_get_visible( ctx->widget )
+            || gtk_window_is_active( GTK_WINDOW( ctx->widget ) ) )
+    {
+        // Already active (or gone): done.
+        g_object_remove_weak_pointer( G_OBJECT( ctx->widget ),
+                                      reinterpret_cast<gpointer*>( &ctx->widget ) );
+        delete ctx;
+        return G_SOURCE_REMOVE;
+    }
+
+    if( ctx->attempts > 1 )
+    {
+        // Ask the compositor to activate us via xdg-activation and re-check shortly.
+        dialogDebugLog( ctx->widget, "activation-guard:present" );
+        gtk_window_present( GTK_WINDOW( ctx->widget ) );
+
+        ctx->attempts--;
+        return G_SOURCE_CONTINUE;
+    }
+
+    // Last resort: unmap/remap forces mutter to re-evaluate the placement.
+    dialogDebugLog( ctx->widget, "activation-guard:remap" );
+    g_object_remove_weak_pointer( G_OBJECT( ctx->widget ),
+                                  reinterpret_cast<gpointer*>( &ctx->widget ) );
+    gtk_widget_hide( ctx->widget );
+    gtk_widget_show( ctx->widget );
+
+    delete ctx;
+    return G_SOURCE_REMOVE;
+}
+
+// Debug-only late probe (gated by KICAD_DIALOG_DEBUG).
+static gboolean dialogDebugDelayed( gpointer aData )
+{
+    DialogDebugCtx* ctx = static_cast<DialogDebugCtx*>( aData );
+
+    if( ctx->widget )
+    {
+        g_object_remove_weak_pointer( G_OBJECT( ctx->widget ),
+                                      reinterpret_cast<gpointer*>( &ctx->widget ) );
+
+        dialogDebugLog( ctx->widget,
+                        gtk_widget_get_visible( ctx->widget ) ? "delayed:visible" : "delayed:hidden" );
+    }
+
+    delete ctx;
+    return G_SOURCE_REMOVE;
+}
+
+// Schedule the one-shot activation guard for a freshly shown toplevel (see
+// dialogActivationGuard above).  Safe to call repeatedly: the guard self-removes and
+// holds the widget through a weak pointer, so a destroyed window is a no-op.
+static void scheduleActivationGuard( GtkWidget* aWidget )
+{
+    DialogDebugCtx* ctx = new DialogDebugCtx{ aWidget, false, 3 };
+    g_object_add_weak_pointer( G_OBJECT( aWidget ),
+                               reinterpret_cast<gpointer*>( &ctx->widget ) );
+    g_timeout_add( 40, dialogActivationGuard, ctx );
+}
+
+
+} // namespace
+
+
+void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
+{
+    GtkWidget* widget = static_cast<GtkWidget*>( aWindow->GetHandle() );
+
+    if( !widget || !GTK_IS_WINDOW( widget ) )
+        return;
+
+    GdkDisplay* display = gtk_widget_get_display( widget );
+
+    // X11 window managers honour raise requests, so keep the quasi-modal semantics there.
+    if( !GDK_IS_WAYLAND_DISPLAY( display ) )
+        return;
+
+    // Under Wayland a quasi-modal dialog cannot reliably be raised above its disabled
+    // parent (no client-side stacking, focus-stealing prevention denies activation to
+    // the newly mapped window).  The modal flag must be set before the window is
+    // mapped so GTK takes the full modal path from the start.
+    gtk_window_set_modal( GTK_WINDOW( widget ), aModal ? TRUE : FALSE );
+
+    if( aModal )
+    {
+        dialogDebugLog( widget, "on-show" );
+
+        scheduleActivationGuard( widget );
+
+        // Late diagnostic probe, only when explicitly debugging.
+        if( const char* env = getenv( "KICAD_DIALOG_DEBUG" ); env && *env )
+        {
+            DialogDebugCtx* probe = new DialogDebugCtx{ widget, false };
+            g_object_add_weak_pointer( G_OBJECT( widget ),
+                                       reinterpret_cast<gpointer*>( &probe->widget ) );
+            g_timeout_add( 2500, dialogDebugDelayed, probe );
+        }
+    }
+    else
+    {
+        dialogDebugLog( widget, "on-hide" );
+    }
+}
+
+
+void KIPLATFORM::UI::RaiseAndActivate( wxWindow* aWindow )
+{
+    if( !aWindow )
+        return;
+
+    GtkWidget* widget = static_cast<GtkWidget*>( aWindow->GetHandle() );
+
+    if( !widget || !GTK_IS_WINDOW( widget ) )
+        return;
+
+    GdkDisplay* display = gtk_widget_get_display( widget );
+
+    if( GDK_IS_WAYLAND_DISPLAY( display ) )
+    {
+        // No client-side stacking under Wayland: wxWindow::Raise() is an asynchronous hint
+        // at best, and mutter routinely denies activation to a freshly mapped toplevel,
+        // stacking it below the currently active window (often the maximized frame the
+        // user clicked from).  gtk_window_present() routes through xdg-activation so the
+        // compositor is asked to focus (and unminimize) the window; if activation is still
+        // denied, the remap guard forces a re-evaluation a couple of frames later.
+        gtk_window_present( GTK_WINDOW( widget ) );
+        scheduleActivationGuard( widget );
+    }
+    else
+    {
+        // X11 window managers honour raise requests.
+        aWindow->Raise();
+        aWindow->SetFocus();
+    }
+}
+
+
 void KIPLATFORM::UI::StabilizeWindowPosition( wxWindow* aWindow )
 {
     if( !aWindow )
@@ -768,6 +982,42 @@ static void initialize_wayland( wl_display* wldisp )
 }
 
 
+// GNOME's mutter (verified on GNOME Shell 50) only evaluates pointer constraints on
+// XWayland surfaces or Wayland subsurfaces: a constraint created on a plain toplevel
+// surface makes should_constraint_be_enabled() fail its runtime check, mutter logs
+// "WL: error in client communication" and kills our Wayland connection -- which exits
+// the whole application without a crash, a core file or any client-side trace.
+// Skip the pointer-constraints protocols there; the infinite-drag and cursor-warp
+// callers degrade to plain drags.  Set KICAD_WAYLAND_INFINITE_DRAG=1 to opt back in
+// (e.g. when testing a compositor that fixed the restriction).
+static bool waylandConstraintsKilledByCompositor()
+{
+    static const bool s_broken = []
+        {
+            wxString desktop;
+
+            if( wxGetEnv( wxT( "XDG_CURRENT_DESKTOP" ), &desktop )
+                    && desktop.Upper().Contains( wxT( "GNOME" ) ) )
+            {
+                wxString optin;
+
+                if( !wxGetEnv( wxT( "KICAD_WAYLAND_INFINITE_DRAG" ), &optin ) || optin.IsEmpty()
+                        || optin == wxT( "0" ) )
+                {
+                    wxLogTrace( traceWayland,
+                                wxS( "Pointer constraints disabled: mutter kills toplevel "
+                                     "constraints (WL: error in client communication)" ) );
+                    return true;
+                }
+            }
+
+            return false;
+        }();
+
+    return s_broken;
+}
+
+
 struct zwp_locked_pointer_v1* s_wl_locked_pointer = NULL;
 
 static int s_after_paint_handler_id = 0;
@@ -823,6 +1073,9 @@ static bool wayland_warp_pointer( GtkWidget* aWidget, GdkDisplay* aDisplay, GdkW
     }
 
     initialize_wayland( wldisp );
+
+    if( waylandConstraintsKilledByCompositor() )
+        return false;
 
     if( s_wl_locked_pointer )
     {
@@ -896,6 +1149,9 @@ bool KIPLATFORM::UI::InfiniteDragPrepareWindow( wxWindow* aWindow )
 
         gint x, y, width, height;
         gdk_window_get_geometry( gdk_window_get_toplevel( win ), &x, &y, &width, &height );
+
+        if( waylandConstraintsKilledByCompositor() )
+            return false;
 
         wxLogTrace( traceWayland, wxS( "Confine region: %d %d %d %d" ), x, y, width, height );
 

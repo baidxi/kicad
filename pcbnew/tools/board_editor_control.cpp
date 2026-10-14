@@ -2290,7 +2290,7 @@ int BOARD_EDITOR_CONTROL::EditFpInFpEditor( const TOOL_EVENT& aEvent )
             fp_editor->LoadFootprintFromLibrary( fp->GetFPID() );
 
         fp_editor->Show( true );
-        fp_editor->Raise();        // Iconize( false );
+        KIPLATFORM::UI::RaiseAndActivate( fp_editor );   // Iconize( false );
     }
 
     if( selection.IsHover() )

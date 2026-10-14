@@ -536,6 +536,12 @@ void PANEL_EESCHEMA_COLOR_SETTINGS::OnSize( wxSizeEvent& aEvent )
 
 void PANEL_EESCHEMA_COLOR_SETTINGS::updateAllowedSwatches()
 {
+    // Swatches are created lazily on the first show of the panel.  Before that there is
+    // nothing to update, and indexing m_labels / m_swatches here would insert null
+    // pointers into the maps and crash on dereference.
+    if( m_swatches.empty() )
+        return;
+
     // If the theme is not overriding individual item colors then don't show them so that
     // the user doesn't get seduced into thinking they'll have some effect.
 

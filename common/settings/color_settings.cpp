@@ -33,6 +33,7 @@
 const int colorsSchemaVersion = 6;
 const wxString COLOR_SETTINGS::COLOR_BUILTIN_DEFAULT = "_builtin_default";
 const wxString COLOR_SETTINGS::COLOR_BUILTIN_CLASSIC = "_builtin_classic";
+const wxString COLOR_SETTINGS::COLOR_BUILTIN_DARK = "_builtin_default_dark";
 
 
 COLOR_SETTINGS::COLOR_SETTINGS( const wxString& aFilename, bool aAbsolutePath ) :
@@ -491,10 +492,29 @@ std::vector<COLOR_SETTINGS*> COLOR_SETTINGS::CreateBuiltinColorSettings()
     for( const std::pair<int, COLOR4D> entry : s_classicTheme )
         classicTheme->m_colors[entry.first] = entry.second;
 
+    COLOR_SETTINGS* darkTheme = new COLOR_SETTINGS( COLOR_BUILTIN_DARK );
+    darkTheme->SetName( _( "KiCad Default Dark" ) );
+    darkTheme->m_writeFile = false;
+
+    for( PARAM_BASE* param : darkTheme->m_params )
+        delete param;
+
+    darkTheme->m_params.clear(); // Disable load/store
+
+    // Start from the full default theme so that PCB, Gerbview and 3D viewer
+    // layers keep their (already dark) default colors, then override the
+    // schematic layers with the dark variants.
+    for( const std::pair<int, COLOR4D> entry : s_defaultTheme )
+        darkTheme->m_colors[entry.first] = entry.second;
+
+    for( const std::pair<int, COLOR4D> entry : s_defaultThemeDark )
+        darkTheme->m_colors[entry.first] = entry.second;
+
     std::vector<COLOR_SETTINGS*> ret;
 
     ret.push_back( defaultTheme );
     ret.push_back( classicTheme );
+    ret.push_back( darkTheme );
 
     return ret;
 }

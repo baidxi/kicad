@@ -50,6 +50,7 @@ class PANEL_DISPLAY_OPTIONS_BASE : public RESETTABLE_PANEL
 		wxStaticText* m_netNamesLabel;
 		wxChoice* m_ShowNetNamesOption;
 		wxCheckBox* m_OptDisplayPadNumber;
+		wxCheckBox* m_OptDisplayPinNames;
 		wxStaticText* m_staticText4;
 		wxStaticLine* m_staticline4;
 		wxCheckBox* m_checkForceShowFieldsWhenFPSelected;

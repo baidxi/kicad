@@ -141,12 +141,12 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::Sync( FOOTPRINT_LIBRARY_ADAPTER* aLibs )
         bool pinned = alg::contains( cfg->m_Session.pinned_fp_libs, libName )
                         || alg::contains( project.m_PinnedFootprintLibs, libName );
 
-        std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( libName, true );
+        std::vector<std::shared_ptr<FOOTPRINT>> footprints = m_libs->GetFootprints( libName, true );
         std::vector<LIB_TREE_ITEM*> treeItems;
         treeItems.reserve( footprints.size() );
 
-        for( FOOTPRINT* fp : footprints )
-            treeItems.push_back( fp );
+        for( const std::shared_ptr<FOOTPRINT>& fp : footprints )
+            treeItems.push_back( fp.get() );
 
         DoAddLibrary( libName, ( *optRow )->Description(), treeItems, pinned, true );
         m_libMap.insert( libName );
@@ -171,12 +171,14 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNo
     // This picks up external modifications such as git branch switches.
     m_libs->RefreshLibraryIfChanged( aLibNode.m_Name );
 
-    std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( aLibNode.m_Name, true );
+    std::vector<std::shared_ptr<FOOTPRINT>> footprints = m_libs->GetFootprints( aLibNode.m_Name, true );
 
-    // Build a map of footprint names for quick lookup
-    std::map<wxString, FOOTPRINT*> fpMap;
+    // Build a map of footprint names for quick lookup.  Shared ownership keeps the footprints
+    // alive even if a background library re-enumeration replaces the adapter's cache while
+    // this loop is running (previously a use-after-free crash source).
+    std::map<wxString, std::shared_ptr<FOOTPRINT>> fpMap;
 
-    for( FOOTPRINT* fp : footprints )
+    for( const std::shared_ptr<FOOTPRINT>& fp : footprints )
         fpMap[fp->GetFPID().GetLibItemName()] = fp;
 
     // Remove items that no longer exist
@@ -186,7 +188,7 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNo
 
         if( fpIt != fpMap.end() )
         {
-            static_cast<LIB_TREE_NODE_ITEM*>( nodeIt->get() )->Update( fpIt->second );
+            static_cast<LIB_TREE_NODE_ITEM*>( nodeIt->get() )->Update( fpIt->second.get() );
             fpMap.erase( fpIt );
             ++nodeIt;
         }
@@ -198,7 +200,7 @@ void FP_TREE_SYNCHRONIZING_ADAPTER::updateLibrary( LIB_TREE_NODE_LIBRARY& aLibNo
 
     // Add new items
     for( auto& [name, fp] : fpMap )
-        aLibNode.AddItem( fp );
+        aLibNode.AddItem( fp.get() );
 
     aLibNode.AssignIntrinsicRanks( m_shownColumns );
     m_libMap.insert( aLibNode.m_Name );

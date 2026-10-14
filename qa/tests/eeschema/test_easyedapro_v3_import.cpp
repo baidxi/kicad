@@ -1003,6 +1003,286 @@ BOOST_AUTO_TEST_CASE( PluginLoadFillsRootSheetWithFirstPage )
  * horizontal token, so a bare CENTER match used to turn e.g. CENTER_BOTTOM into
  * center-justified text.
  */
+/**
+ * Regression test: an LCSC-style symbol (every pin exported with
+ * "Pin Type" = "Undefined") must keep its canvas layout when imported:
+ * - EasyEDA Pro canvas Y grows downward, so pins at negative Y appear at the
+ *   TOP of the body and pins at positive Y at the BOTTOM; positions must be
+ *   scaled without mirroring.
+ * - A pin body that grew toward the body edge in EasyEDA (rotation 90 at the
+ *   top edge, 270 at the bottom edge) must still point toward the body edge
+ *   in KiCad, i.e. keep the same numeric orientation.
+ * - Unknown pin types fall back to name-based inference.
+ */
+BOOST_AUTO_TEST_CASE( SymbolPinOrientationAndInferredTypes )
+{
+    wxString archivePath = makeTempElibz2Path( wxS( "easyedapro_v3_bq" ) );
+
+    const std::string symbolIndex = R"({
+        "devices": {},
+        "symbols": {
+            "bq_uuid": { "uuid": "bq_uuid", "display_title": "BQ25883RGER" }
+        },
+        "footprints": {},
+        "panelLibs": {}
+    })";
+
+    // Mirrors the LCSC BQ25883RGER.elibz2 layout:
+    //   pin 7  TS   bottom edge in canvas (y=-70), body rotation 90 (toward body)
+    //   pin 19 GND  top edge in canvas    (y=+70), body rotation 270 (toward body)
+    //   pin 24 D+   left edge             (x=-60), body rotation 0   (toward body)
+    //   pin 5  SCL  left edge             (x=-60), body rotation 0   (toward body)
+    const std::string elibu =
+        "{\"type\":\"DOCHEAD\"}||{\"docType\":\"SYMBOL\",\"uuid\":\"bq_uuid\","
+            "\"editVersion\":\"4.1.60\",\"user\":{}}|\n"
+        "{\"type\":\"META\",\"ticket\":1,\"id\":\"META\"}||{\"title\":\"BQ25883RGER\"}|\n"
+        "{\"type\":\"PART\",\"ticket\":2,\"id\":\"BQ.1\"}||"
+            "{\"BBOX\":[-50,-60,50,60],\"title\":\"BQ.1\"}|\n"
+        "{\"type\":\"PIN\",\"ticket\":4,\"id\":\"p7\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":-25,\"y\":-70,\"length\":10,\"rotation\":90,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":5,\"id\":\"a7n\"}||"
+            "{\"partId\":\"p7\",\"parentId\":\"p7\",\"key\":\"NAME\",\"value\":\"TS\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":6,\"id\":\"a7u\"}||"
+            "{\"partId\":\"p7\",\"parentId\":\"p7\",\"key\":\"NUMBER\",\"value\":\"7\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":7,\"id\":\"a7t\"}||"
+            "{\"partId\":\"p7\",\"parentId\":\"p7\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        "{\"type\":\"PIN\",\"ticket\":8,\"id\":\"p19\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":25,\"y\":70,\"length\":10,\"rotation\":270,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":9,\"id\":\"a19n\"}||"
+            "{\"partId\":\"p19\",\"parentId\":\"p19\",\"key\":\"NAME\",\"value\":\"GND\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":10,\"id\":\"a19u\"}||"
+            "{\"partId\":\"p19\",\"parentId\":\"p19\",\"key\":\"NUMBER\",\"value\":\"19\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":11,\"id\":\"a19t\"}||"
+            "{\"partId\":\"p19\",\"parentId\":\"p19\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        "{\"type\":\"PIN\",\"ticket\":12,\"id\":\"p24\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":-60,\"y\":25,\"length\":10,\"rotation\":0,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":13,\"id\":\"a24n\"}||"
+            "{\"partId\":\"p24\",\"parentId\":\"p24\",\"key\":\"NAME\",\"value\":\"D+\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":14,\"id\":\"a24u\"}||"
+            "{\"partId\":\"p24\",\"parentId\":\"p24\",\"key\":\"NUMBER\",\"value\":\"24\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":15,\"id\":\"a24t\"}||"
+            "{\"partId\":\"p24\",\"parentId\":\"p24\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        "{\"type\":\"PIN\",\"ticket\":16,\"id\":\"p5\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":-60,\"y\":-25,\"length\":10,\"rotation\":0,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":17,\"id\":\"a5n\"}||"
+            "{\"partId\":\"p5\",\"parentId\":\"p5\",\"key\":\"NAME\",\"value\":\"SCL\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":18,\"id\":\"a5u\"}||"
+            "{\"partId\":\"p5\",\"parentId\":\"p5\",\"key\":\"NUMBER\",\"value\":\"5\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":19,\"id\":\"a5t\"}||"
+            "{\"partId\":\"p5\",\"parentId\":\"p5\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        // Paralleled BAT outputs: only the first may stay a power output.
+        "{\"type\":\"PIN\",\"ticket\":20,\"id\":\"p13\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":60,\"y\":25,\"length\":10,\"rotation\":180,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":21,\"id\":\"a13n\"}||"
+            "{\"partId\":\"p13\",\"parentId\":\"p13\",\"key\":\"NAME\",\"value\":\"BAT\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":22,\"id\":\"a13u\"}||"
+            "{\"partId\":\"p13\",\"parentId\":\"p13\",\"key\":\"NUMBER\",\"value\":\"13\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":23,\"id\":\"a13t\"}||"
+            "{\"partId\":\"p13\",\"parentId\":\"p13\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        "{\"type\":\"PIN\",\"ticket\":24,\"id\":\"p14\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":60,\"y\":15,\"length\":10,\"rotation\":180,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":25,\"id\":\"a14n\"}||"
+            "{\"partId\":\"p14\",\"parentId\":\"p14\",\"key\":\"NAME\",\"value\":\"BAT\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":26,\"id\":\"a14u\"}||"
+            "{\"partId\":\"p14\",\"parentId\":\"p14\",\"key\":\"NUMBER\",\"value\":\"14\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":27,\"id\":\"a14t\"}||"
+            "{\"partId\":\"p14\",\"parentId\":\"p14\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        // Open-drain status output
+        "{\"type\":\"PIN\",\"ticket\":28,\"id\":\"p2\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":-60,\"y\":5,\"length\":10,\"rotation\":0,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":29,\"id\":\"a2n\"}||"
+            "{\"partId\":\"p2\",\"parentId\":\"p2\",\"key\":\"NAME\",\"value\":\"STAT\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":30,\"id\":\"a2u\"}||"
+            "{\"partId\":\"p2\",\"parentId\":\"p2\",\"key\":\"NUMBER\",\"value\":\"2\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":31,\"id\":\"a2t\"}||"
+            "{\"partId\":\"p2\",\"parentId\":\"p2\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n"
+        // Explicit NC pin
+        "{\"type\":\"PIN\",\"ticket\":32,\"id\":\"p10\"}||"
+            "{\"partId\":\"BQ.1\",\"x\":25,\"y\":-70,\"length\":10,\"rotation\":90,"
+            "\"pinShape\":\"NONE\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":33,\"id\":\"a10n\"}||"
+            "{\"partId\":\"p10\",\"parentId\":\"p10\",\"key\":\"NAME\",\"value\":\"NC\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":34,\"id\":\"a10u\"}||"
+            "{\"partId\":\"p10\",\"parentId\":\"p10\",\"key\":\"NUMBER\",\"value\":\"10\"}|\n"
+        "{\"type\":\"ATTR\",\"ticket\":35,\"id\":\"a10t\"}||"
+            "{\"partId\":\"p10\",\"parentId\":\"p10\",\"key\":\"Pin Type\",\"value\":\"Undefined\"}|\n";
+
+    writeV3LibraryArchive( archivePath, symbolIndex, std::string(), elibu );
+
+    EASYEDAPRO::V3_DOC_PARSER v3( archivePath );
+    BOOST_REQUIRE_NO_THROW( v3.LoadLibrary() );
+
+    const EASYEDAPRO::V3_DOC_RAW* raw = v3.FindRawDoc( wxS( "SYMBOL" ), wxS( "bq_uuid" ) );
+    BOOST_REQUIRE( raw );
+
+    SCH_EASYEDAPRO_V3_PARSER parser( nullptr, nullptr );
+    EASYEDAPRO::SYM_INFO     info = parser.ParseSymbol( *raw, {} );
+    BOOST_REQUIRE( info.libSymbol );
+
+    bool checkedBottom = false;
+    bool checkedTop = false;
+    bool checkedLeftBidi = false;
+    bool checkedLeftInput = false;
+
+    std::vector<SCH_PIN*> pins = info.libSymbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
+    BOOST_TEST_MESSAGE( "parsed pin count: " << pins.size() );
+
+    for( SCH_PIN* pin : pins )
+    {
+        const wxString& num = pin->GetNumber();
+        BOOST_TEST_MESSAGE( "pin number '" << num << "' name '" << pin->GetName()
+                << "' at (" << pin->GetPosition().x << ","
+                << pin->GetPosition().y << ") orient " << static_cast<int>( pin->GetOrientation() )
+                << " et " << static_cast<int>( pin->GetType() ) );
+
+        if( num == wxS( "7" ) )
+        {
+            // Canvas y=-70 is the BOTTOM edge in EasyEDA; the Y mirror must keep
+            // it at the bottom in KiCad (y>0), with the body pointing up (toward
+            // the body).
+            BOOST_CHECK_GT( pin->GetPosition().y, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_UP ) );
+            // Analog pin wired to an RC network infers passive.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_PASSIVE ) );
+            checkedBottom = true;
+        }
+        else if( num == wxS( "19" ) )
+        {
+            // Canvas y=+70 is the TOP edge in EasyEDA; the Y mirror must keep it
+            // at the top in KiCad (y<0), with the body pointing down (toward the
+            // body).
+            BOOST_CHECK_LT( pin->GetPosition().y, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_DOWN ) );
+            // Ground name infers power input.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_POWER_IN ) );
+            checkedTop = true;
+        }
+        else if( num == wxS( "24" ) )
+        {
+            BOOST_CHECK_LT( pin->GetPosition().x, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_RIGHT ) );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_BIDI ) );
+            checkedLeftBidi = true;
+        }
+        else if( num == wxS( "5" ) )
+        {
+            BOOST_CHECK_LT( pin->GetPosition().x, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_RIGHT ) );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_INPUT ) );
+            checkedLeftInput = true;
+        }
+        else if( num == wxS( "13" ) )
+        {
+            BOOST_CHECK_GT( pin->GetPosition().x, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_LEFT ) );
+            // First of two paralleled BAT pins stays a power output.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_POWER_OUT ) );
+            checkedTop = true;
+        }
+        else if( num == wxS( "14" ) )
+        {
+            BOOST_CHECK_GT( pin->GetPosition().x, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_LEFT ) );
+            // Second BAT pin of the pair is demoted to passive so that two
+            // power outputs never meet in the same net.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_PASSIVE ) );
+        }
+        else if( num == wxS( "2" ) )
+        {
+            BOOST_CHECK_LT( pin->GetPosition().x, 0 );
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetOrientation() ),
+                               static_cast<int>( PIN_ORIENTATION::PIN_RIGHT ) );
+            // Open-drain status output infers open collector.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR ) );
+        }
+        else if( num == wxS( "10" ) )
+        {
+            // NC pins infer passive so a stub wire never trips the NC checks.
+            BOOST_CHECK_EQUAL( static_cast<int>( pin->GetType() ),
+                               static_cast<int>( ELECTRICAL_PINTYPE::PT_PASSIVE ) );
+        }
+    }
+
+    BOOST_CHECK( checkedBottom );
+    BOOST_CHECK( checkedTop );
+    BOOST_CHECK( checkedLeftBidi );
+    BOOST_CHECK( checkedLeftInput );
+
+    BOOST_CHECK( wxRemoveFile( archivePath ) );
+}
+
+
+// Loads the real-world LCSC archive and verifies every one of its 25 pins is
+// imported with a sane position, orientation and electrical type.
+BOOST_AUTO_TEST_CASE( RealBQ25883ArchiveAll25Pins )
+{
+    wxString realArchive = wxS( "/home/juno/tools/kicad/BQ25883RGER.elibz2" );
+
+    if( !wxFileExists( realArchive ) )
+    {
+        BOOST_TEST_MESSAGE( "real BQ25883RGER.elibz2 not present, skipping" );
+        return; // environment-dependent, don't fail machines without the file
+    }
+
+    EASYEDAPRO::V3_DOC_PARSER v3( realArchive );
+    BOOST_REQUIRE_NO_THROW( v3.LoadLibrary() );
+
+    // find the SYMBOL doc
+    const EASYEDAPRO::V3_DOC_RAW* raw = nullptr;
+    const auto& symbolDocs = v3.GetRawDocs( wxS( "SYMBOL" ) );
+
+    for( const auto& [uuid, doc] : symbolDocs )
+        raw = &doc;
+
+    BOOST_REQUIRE_MESSAGE( raw, "no SYMBOL document found in archive" );
+
+    SCH_EASYEDAPRO_V3_PARSER parser( nullptr, nullptr );
+    EASYEDAPRO::SYM_INFO     info = parser.ParseSymbol( *raw, {} );
+    BOOST_REQUIRE( info.libSymbol );
+
+    std::vector<SCH_PIN*> pins = info.libSymbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
+    BOOST_TEST_MESSAGE( "real BQ25883RGER imported pin count: " << pins.size() );
+    BOOST_CHECK_EQUAL( pins.size(), 25 );
+
+    int unspecified = 0;
+
+    for( SCH_PIN* pin : pins )
+    {
+        int et = static_cast<int>( pin->GetType() );
+        int orient = static_cast<int>( pin->GetOrientation() );
+
+        BOOST_TEST_MESSAGE( "  pin " << pin->GetNumber() << " '" << pin->GetName()
+                            << "' at (" << pin->GetPosition().x << "," << pin->GetPosition().y
+                            << ") orient=" << orient << " et=" << et );
+
+        if( et == static_cast<int>( ELECTRICAL_PINTYPE::PT_UNSPECIFIED ) )
+            unspecified++;
+    }
+
+    BOOST_CHECK_EQUAL( unspecified, 0 );
+}
+
+
 BOOST_AUTO_TEST_CASE( AlignTokenMapsToJustify )
 {
     BOOST_CHECK_EQUAL( EASYEDAPRO::AlignToFontV( wxS( "CENTER_TOP" ) ), 0 );
@@ -1014,6 +1294,146 @@ BOOST_AUTO_TEST_CASE( AlignTokenMapsToJustify )
     BOOST_CHECK_EQUAL( EASYEDAPRO::AlignToFontH( wxS( "CENTER_BOTTOM" ) ), 1 );
     BOOST_CHECK_EQUAL( EASYEDAPRO::AlignToFontH( wxS( "LEFT_BOTTOM" ) ), 0 );
     BOOST_CHECK_EQUAL( EASYEDAPRO::AlignToFontH( wxS( "RIGHT_TOP" ) ), 2 );
+}
+
+
+// Real dual-role USB-C receptacle: its VBUS pins are fed from outside the
+// sheet (DRP), so the connector heuristic must demote them to passive while
+// GND stays a power input. Verifies every pin of the real LCSC archive.
+BOOST_AUTO_TEST_CASE( RealLailTypeCArchiveConnectorHeuristic )
+{
+    wxString realArchive = wxS( "/home/juno/tools/kicad/LAIL-TYPE-C-16PIN-08-WT.elibz2" );
+
+    if( !wxFileExists( realArchive ) )
+    {
+        BOOST_TEST_MESSAGE( "real LAIL-TYPE-C-16PIN-08-WT.elibz2 not present, skipping" );
+        return;
+    }
+
+    EASYEDAPRO::V3_DOC_PARSER v3( realArchive );
+    BOOST_REQUIRE_NO_THROW( v3.LoadLibrary() );
+
+    const EASYEDAPRO::V3_DOC_RAW* raw = nullptr;
+    const auto& symbolDocs = v3.GetRawDocs( wxS( "SYMBOL" ) );
+
+    for( const auto& [uuid, doc] : symbolDocs )
+        raw = &doc;
+
+    BOOST_REQUIRE_MESSAGE( raw, "no SYMBOL document found in archive" );
+
+    SCH_EASYEDAPRO_V3_PARSER parser( nullptr, nullptr );
+    EASYEDAPRO::SYM_INFO     info = parser.ParseSymbol( *raw, {} );
+    BOOST_REQUIRE( info.libSymbol );
+
+    std::vector<SCH_PIN*> pins = info.libSymbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
+    BOOST_TEST_MESSAGE( "real LAIL-TYPE-C imported pin count: " << pins.size() );
+    BOOST_CHECK_EQUAL( pins.size(), 16 );
+
+    int unspecified = 0;
+    int vbusCount = 0;
+
+    for( SCH_PIN* pin : pins )
+    {
+        int et = static_cast<int>( pin->GetType() );
+
+        BOOST_TEST_MESSAGE( "  pin " << pin->GetNumber() << " '" << pin->GetName()
+                            << "' at (" << pin->GetPosition().x << "," << pin->GetPosition().y
+                            << ") orient=" << static_cast<int>( pin->GetOrientation() )
+                            << " et=" << et );
+
+        if( et == static_cast<int>( ELECTRICAL_PINTYPE::PT_UNSPECIFIED ) )
+            unspecified++;
+
+        if( pin->GetName() == wxS( "VBUS" ) )
+        {
+            vbusCount++;
+            // Dual-role power pins of a connector must not claim power input.
+            BOOST_CHECK_EQUAL( et, static_cast<int>( ELECTRICAL_PINTYPE::PT_PASSIVE ) );
+        }
+        else if( pin->GetName() == wxS( "GND" ) )
+        {
+            BOOST_CHECK_EQUAL( et, static_cast<int>( ELECTRICAL_PINTYPE::PT_POWER_IN ) );
+        }
+    }
+
+    BOOST_CHECK_EQUAL( vbusCount, 2 );
+    BOOST_CHECK_EQUAL( unspecified, 0 );
+}
+
+
+// Real LCSC regulator/charger MP28167: IN is a power input (not a plain
+// input), OC is open-collector, OUT is a power output, switching/bootstrap
+// pins are passive, and the paralleled GND/AGND pins keep power input.
+BOOST_AUTO_TEST_CASE( RealMP28167ArchivePinTypes )
+{
+    wxString realArchive = wxS( "/home/juno/tools/kicad/MP28167GQ-A-Z.elibz2" );
+
+    if( !wxFileExists( realArchive ) )
+    {
+        BOOST_TEST_MESSAGE( "real MP28167GQ-A-Z.elibz2 not present, skipping" );
+        return;
+    }
+
+    EASYEDAPRO::V3_DOC_PARSER v3( realArchive );
+    BOOST_REQUIRE_NO_THROW( v3.LoadLibrary() );
+
+    const EASYEDAPRO::V3_DOC_RAW* raw = nullptr;
+    const auto& symbolDocs = v3.GetRawDocs( wxS( "SYMBOL" ) );
+
+    for( const auto& [uuid, doc] : symbolDocs )
+        raw = &doc;
+
+    BOOST_REQUIRE_MESSAGE( raw, "no SYMBOL document found in archive" );
+
+    SCH_EASYEDAPRO_V3_PARSER parser( nullptr, nullptr );
+    EASYEDAPRO::SYM_INFO     info = parser.ParseSymbol( *raw, {} );
+    BOOST_REQUIRE( info.libSymbol );
+
+    std::vector<SCH_PIN*> pins = info.libSymbol->GetGraphicalPins( ALL_UNITS, ALL_BODY_STYLES );
+    BOOST_TEST_MESSAGE( "real MP28167 imported pin count: " << pins.size() );
+    BOOST_CHECK_EQUAL( pins.size(), 16 );
+
+    std::map<wxString, std::pair<wxString, int>> byNumber; // number -> (name, et)
+
+    for( SCH_PIN* pin : pins )
+    {
+        int et = static_cast<int>( pin->GetType() );
+
+        BOOST_TEST_MESSAGE( "  pin " << pin->GetNumber() << " '" << pin->GetName()
+                            << "' at (" << pin->GetPosition().x << "," << pin->GetPosition().y
+                            << ") orient=" << static_cast<int>( pin->GetOrientation() )
+                            << " et=" << et );
+
+        byNumber[pin->GetNumber()] = { pin->GetName(), et };
+    }
+
+    auto checkEt = [&]( const wxString& num, ELECTRICAL_PINTYPE expected )
+    {
+        auto it = byNumber.find( num );
+        BOOST_REQUIRE_MESSAGE( it != byNumber.end(), "missing pin " << num );
+        BOOST_CHECK_EQUAL( static_cast<int>( it->second.second ),
+                           static_cast<int>( expected ) );
+    };
+
+    // internal ELECTRICAL_PINTYPE order:
+    // 0 INPUT 1 OUTPUT 2 BIDI 3 TRISTATE 4 PASSIVE 5 NIC 6 UNSPEC
+    // 7 POWER_IN 8 POWER_OUT 9 OPENCOLLECTOR 10 OPENEMITTER 11 NC
+    checkEt( wxString( wxS( "1" ) ),  ELECTRICAL_PINTYPE::PT_POWER_IN );      // IN
+    checkEt( wxString( wxS( "2" ) ),  ELECTRICAL_PINTYPE::PT_POWER_IN );      // GND
+    checkEt( wxString( wxS( "3" ) ),  ELECTRICAL_PINTYPE::PT_INPUT );         // EN
+    checkEt( wxString( wxS( "4" ) ),  ELECTRICAL_PINTYPE::PT_PASSIVE );       // ALT
+    checkEt( wxString( wxS( "5" ) ),  ELECTRICAL_PINTYPE::PT_INPUT );         // SCL
+    checkEt( wxString( wxS( "6" ) ),  ELECTRICAL_PINTYPE::PT_BIDI );          // SDA
+    checkEt( wxString( wxS( "7" ) ),  ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR ); // OC
+    checkEt( wxString( wxS( "8" ) ),  ELECTRICAL_PINTYPE::PT_INPUT );         // FB
+    checkEt( wxString( wxS( "9" ) ),  ELECTRICAL_PINTYPE::PT_POWER_OUT );     // VCC (internal LDO out)
+    checkEt( wxString( wxS( "10" ) ), ELECTRICAL_PINTYPE::PT_POWER_IN );      // AGND
+    checkEt( wxString( wxS( "11" ) ), ELECTRICAL_PINTYPE::PT_POWER_IN );      // GND
+    checkEt( wxString( wxS( "12" ) ), ELECTRICAL_PINTYPE::PT_POWER_OUT );     // OUT
+    checkEt( wxString( wxS( "13" ) ), ELECTRICAL_PINTYPE::PT_PASSIVE );       // BST2
+    checkEt( wxString( wxS( "14" ) ), ELECTRICAL_PINTYPE::PT_PASSIVE );       // SW2
+    checkEt( wxString( wxS( "15" ) ), ELECTRICAL_PINTYPE::PT_PASSIVE );       // SW1
+    checkEt( wxString( wxS( "16" ) ), ELECTRICAL_PINTYPE::PT_PASSIVE );       // BST1
 }
 
 

@@ -60,6 +60,7 @@ void PANEL_DISPLAY_OPTIONS::loadPCBSettings( PCBNEW_SETTINGS* aCfg )
     m_OptDisplayPadClearence->SetValue( aCfg->m_Display.m_PadClearance );
     m_OptUseViaColorForNormalTHPadstacks->SetValue( aCfg->m_Display.m_UseViaColorForNormalTHPadstacks );
     m_OptDisplayPadNumber->SetValue( aCfg->m_ViewersDisplay.m_DisplayPadNumbers );
+    m_OptDisplayPinNames->SetValue( aCfg->m_ViewersDisplay.m_DisplayPinNames );
     m_ShowNetNamesOption->SetSelection( aCfg->m_Display.m_NetNames );
     m_checkForceShowFieldsWhenFPSelected->SetValue( aCfg->m_Display.m_ForceShowFieldsWhenFPSelected );
     m_live3Drefresh->SetValue( aCfg->m_Display.m_Live3DRefresh );
@@ -99,6 +100,7 @@ bool PANEL_DISPLAY_OPTIONS::TransferDataFromWindow()
             cfg->m_Display.m_PadClearance = m_OptDisplayPadClearence->GetValue();
             cfg->m_Display.m_UseViaColorForNormalTHPadstacks = m_OptUseViaColorForNormalTHPadstacks->GetValue();
             cfg->m_ViewersDisplay.m_DisplayPadNumbers = m_OptDisplayPadNumber->GetValue();
+            cfg->m_ViewersDisplay.m_DisplayPinNames = m_OptDisplayPinNames->GetValue();
             cfg->m_Display.m_NetNames = m_ShowNetNamesOption->GetSelection();
             cfg->m_Display.m_ForceShowFieldsWhenFPSelected = m_checkForceShowFieldsWhenFPSelected->GetValue();
             cfg->m_Display.m_Live3DRefresh = m_live3Drefresh->GetValue();

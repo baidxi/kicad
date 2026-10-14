@@ -90,6 +90,7 @@ public:
     // Names for the built-in color settings
     static const wxString COLOR_BUILTIN_DEFAULT;
     static const wxString COLOR_BUILTIN_CLASSIC;
+    static const wxString COLOR_BUILTIN_DARK;
 
 private:
     bool migrateSchema0to1();

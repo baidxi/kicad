@@ -204,6 +204,11 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
         remoteSymbolItem->SetHelp( _( "Search signed-in remote symbol providers and download verified libraries." ) );
     }
 
+    showHidePanels->AppendSeparator();
+    showHidePanels->Add( _( "Dock All Floating Panels" ),
+                         _( "Dock all panels that have been floated back at their previous docked position" ),
+                         ID_DOCK_FLOATING_PANELS, BITMAPS::unknown );
+
     viewMenu->Add( showHidePanels );
 
     viewMenu->AppendSeparator();

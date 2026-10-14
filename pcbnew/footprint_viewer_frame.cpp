@@ -491,7 +491,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
     if( !nickname )
         return;
 
-    std::vector<FOOTPRINT*> footprints = adapter->GetFootprints( nickname, true );
+    std::vector<std::shared_ptr<FOOTPRINT>> footprints = adapter->GetFootprints( nickname, true );
 
     if( footprints.empty() )
         return;
@@ -507,7 +507,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
             const wxString       filterTerm = tokenizer.GetNextToken().Lower();
             EDA_COMBINED_MATCHER matcher( filterTerm, CTX_LIBITEM );
 
-            for( FOOTPRINT* footprint : footprints )
+            for( const std::shared_ptr<FOOTPRINT>& footprint : footprints )
             {
                 int matched = matcher.ScoreTerms( footprint->GetSearchTerms() );
 
@@ -520,7 +520,7 @@ void FOOTPRINT_VIEWER_FRAME::ReCreateFootprintList()
         }
     }
 
-    for( FOOTPRINT* footprint : footprints )
+    for( const std::shared_ptr<FOOTPRINT>& footprint : footprints )
     {
         wxString fpName = footprint->GetFPID().GetLibItemName();
 

@@ -60,9 +60,12 @@ public:
      * Retrieves a list of footprints contained in a given loaded library
      * @param aNickname is the library to query
      * @param aBestEfforts if true, don't throw on errors, just return a smaller or empty list.
-     * @return a list of footprints contained in the given library
+     * @return a list of footprints contained in the given library.  The shared ownership
+     *         guarantees the footprints stay alive while a background re-enumeration replaces
+     *         the cache; callers must not assume the pointers remain valid after releasing them.
      */
-    std::vector<FOOTPRINT*> GetFootprints( const wxString& aNickname, bool aBestEfforts = false );
+    std::vector<std::shared_ptr<FOOTPRINT>> GetFootprints( const wxString& aNickname,
+                                                           bool aBestEfforts = false );
 
 
     /**
@@ -201,7 +204,9 @@ private:
 
     /// Storage for preloaded footprints, indexed by library nickname.
     /// These are cloned during library enumeration so GetFootprints() returns instantly.
-    static LEAK_AT_EXIT<std::map<wxString, std::vector<std::unique_ptr<FOOTPRINT>>>> PreloadedFootprints;
+    /// shared_ptr so callers holding footprints across a cache re-enumeration (which replaces
+    /// the whole vector from a background thread) keep the old objects alive.
+    static LEAK_AT_EXIT<std::map<wxString, std::vector<std::shared_ptr<FOOTPRINT>>>> PreloadedFootprints;
     static std::shared_mutex PreloadedFootprintsMutex;
 
     /// Filesystem timestamps from when PreloadedFootprints was last populated, guarded by

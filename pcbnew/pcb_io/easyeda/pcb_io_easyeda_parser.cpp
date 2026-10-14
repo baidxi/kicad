@@ -126,6 +126,25 @@ PCB_LAYER_ID PCB_IO_EASYEDA_PARSER::LayerToKi( const wxString& aLayer )
 }
 
 
+// Strips leading zeros from all-numeric pad numbers (e.g. "01" -> "1") so converted
+// footprints match KiCad library conventions and stock KiCad symbols for the same part.
+static wxString NormalizePadNumber( const wxString& aNumber )
+{
+    if( aNumber.length() > 1 && aNumber[0] == wxS( '0' )
+        && aNumber.find_first_not_of( wxS( "0123456789" ) ) == wxString::npos )
+    {
+        size_t firstNonZero = aNumber.find_first_not_of( wxS( '0' ) );
+
+        if( firstNonZero == wxString::npos )
+            return wxS( "0" );
+
+        return aNumber.substr( firstNonZero );
+    }
+
+    return aNumber;
+}
+
+
 static LIB_ID EasyEdaToKiCadLibID( const wxString& aLibName, const wxString& aLibReference )
 {
     wxString libReference = EscapeString( aLibReference, CTX_LIBID );
@@ -967,7 +986,7 @@ void PCB_IO_EASYEDA_PARSER::ParseToBoardItemContainer(
             std::unique_ptr<PAD> pad = std::make_unique<PAD>( padContainer );
 
             pad->SetNet( getOrAddNetItem( arr[7] ) );
-            pad->SetNumber( arr[8] );
+            pad->SetNumber( NormalizePadNumber( arr[8] ) );
             pad->SetPosition( center );
             pad->SetPadstackMode( PADSTACK::MODE::NORMAL );     // EasyEDA doesn't have complex padstacks
             pad->SetSize( PADSTACK::ALL_LAYERS, size );

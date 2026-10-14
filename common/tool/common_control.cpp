@@ -33,6 +33,7 @@
 #include <gal/graphics_abstraction_layer.h>
 #include <base_screen.h>
 #include <tool/common_control.h>
+#include <kiplatform/ui.h>
 
 #include <api/api_plugin_manager.h>
 #include <id.h>
@@ -164,12 +165,12 @@ void showFrame( EDA_BASE_FRAME* aFrame )
     if( aFrame->IsIconized() )
         aFrame->Iconize( false );
 
-    aFrame->Raise();
-
-    // Raising the window does not set the focus on Linux.  This should work on
-    // any platform.
-    if( wxWindow::FindFocus() != aFrame )
-        aFrame->SetFocus();
+    // Under Wayland, Raise()/SetFocus() cannot bring a toplevel forward: the compositor
+    // (mutter) routinely denies activation to a freshly mapped frame and stacks it below
+    // the active window, leaving it invisible-but-listed and unrecoverable by repeated
+    // Raise() calls.  RaiseAndActivate() uses the platform-appropriate path
+    // (gtk_window_present() + activation guard on Wayland) instead.
+    KIPLATFORM::UI::RaiseAndActivate( aFrame );
 
     // If the player is currently blocked, focus the user attention on the correct window
     if( wxWindow* blocking_win = aFrame->Kiway().GetBlockingDialog() )

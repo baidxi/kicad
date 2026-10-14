@@ -27,6 +27,7 @@
 #include <tool/tool_manager.h>
 #include <tools/pcb_actions.h>
 #include <board.h>
+#include <pcb_draw_panel_gal.h>
 #include <collectors.h>
 #include <footprint.h>
 #include <layer_ids.h>
@@ -954,6 +955,13 @@ bool PANEL_SETUP_LAYERS::TransferDataFromWindow()
 
         for( PCB_LAYER_ID layer_id : removedLayers )
             modified |= m_pcb->RemoveAllItemsOnLayer( layer_id );
+
+        // RemoveAllItemsOnLayer() deletes the items directly instead of going through
+        // BOARD_COMMIT, so the doomed items were never removed from the GAL view: the
+        // next redraw then walked dangling view entries and took the whole application
+        // down with it (no crash dialog; the window just vanishes).  Rebuild the view
+        // from the now smaller board instead.
+        m_frame->GetCanvas()->DisplayBoard( m_pcb );
 
         // Undo state may have copies of pointers deleted above
         m_frame->ClearUndoRedoList();

@@ -520,6 +520,23 @@ bool DIALOG_SHIM::Show( bool show )
 
         if( savedDialogRect.GetSize().x != 0 && savedDialogRect.GetSize().y != 0 )
         {
+            // Reject a restored position whose title bar is not on any display.  Geometry
+            // recorded while the dialog sat off-screen (or shifted there by the window
+            // manager between sessions) would otherwise keep reproducing an invisible
+            // dialog that blocks its disabled parent until the app is killed.
+            wxPoint savedGrab = savedDialogRect.GetTopLeft();
+            savedGrab.x += savedDialogRect.GetWidth() / 2;
+            savedGrab.y += FromDIP( 15 );
+
+            if( wxDisplay::GetFromPoint( savedGrab ) == wxNOT_FOUND )
+            {
+                resetSize(); // drop the poisoned geometry from the settings
+                savedDialogRect = wxRect();
+            }
+        }
+
+        if( savedDialogRect.GetSize().x != 0 && savedDialogRect.GetSize().y != 0 )
+        {
             // Convert saved DIP size to logical pixels for the current monitor
             wxSize restoredSize = FromDIP( savedDialogRect.GetSize() );
 
@@ -581,6 +598,7 @@ bool DIALOG_SHIM::Show( bool show )
     }
     else
     {
+        KIPLATFORM::UI::SetDialogModal( this, false );
 
 #ifdef __WXMAC__
         if ( m_eventLoop )
@@ -712,13 +730,27 @@ void DIALOG_SHIM::SaveControlState()
     std::map<std::string, nlohmann::json>& dlgMap = settings->CsInternals().m_dialogControlValues[ dialogKey ];
 
     wxPoint pos = GetPosition();
-    wxSize  dipSize = ToDIP( GetSize() );
-    nlohmann::json geom;
-    geom[ "x" ] = pos.x;
-    geom[ "y" ] = pos.y;
-    geom[ "w" ] = dipSize.x;
-    geom[ "h" ] = dipSize.y;
-    dlgMap[ "__geometry" ] = geom;
+
+    // Don't persist off-screen geometry: restoring it would re-create an invisible dialog
+    // that blocks its disabled parent.  Drop any stale record instead of overwriting it.
+    wxPoint grabPoint = pos;
+    grabPoint.x += GetSize().x / 2;
+    grabPoint.y += FromDIP( 15 );
+
+    if( wxDisplay::GetFromPoint( grabPoint ) == wxNOT_FOUND )
+    {
+        dlgMap.erase( "__geometry" );
+    }
+    else
+    {
+        wxSize  dipSize = ToDIP( GetSize() );
+        nlohmann::json geom;
+        geom[ "x" ] = pos.x;
+        geom[ "y" ] = pos.y;
+        geom[ "w" ] = dipSize.x;
+        geom[ "h" ] = dipSize.y;
+        dlgMap[ "__geometry" ] = geom;
+    }
 
     std::function<void( wxWindow* )> saveFn =
             [&]( wxWindow* win )
@@ -1542,6 +1574,15 @@ void DIALOG_SHIM::OnPaint( wxPaintEvent &event )
 
         forceInitialFocus();
 
+#ifdef __WXGTK__
+        // GTK applies move/resize requests asynchronously, so the clamps in Show() ran
+        // against wx's cached (requested) geometry.  By the first paint the window
+        // manager has reported the real position, which can differ (restored geometry
+        // plus a window manager that offsets the window by its decorations) and can
+        // have landed off-screen.  Re-clamp against the true geometry.
+        clampToWorkArea();
+#endif
+
         m_firstPaintEvent = false;
     }
 
@@ -1612,6 +1653,9 @@ int DIALOG_SHIM::ShowModal()
     // window when it is raised.
     KIPLATFORM::UI::ReparentModal( this );
 
+    // Wayland: set the modal flag before the dialog is mapped (see ShowQuasiModal).
+    KIPLATFORM::UI::SetDialogModal( this, true );
+
     // Call the base class ShowModal() method
     return wxDialog::ShowModal();
 }
@@ -1665,6 +1709,11 @@ int DIALOG_SHIM::ShowQuasiModal()
     // the windows so that the quasi-modal will be pushed in front of the disabled
     // window when it is raised.
     KIPLATFORM::UI::ReparentModal( this );
+
+    // Wayland has no client-side stacking: declare the dialog modal *before* it is
+    // mapped so GTK takes the full modal path (transient + grab) from the start.
+    // Setting it after mapping is a no-op there.
+    KIPLATFORM::UI::SetDialogModal( this, true );
 
     Show( true );
 

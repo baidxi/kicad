@@ -101,8 +101,12 @@ bool PANEL_COLOR_SETTINGS::Show( bool show )
             if( settings )
                 *m_currentSettings = *settings;
 
-            onNewThemeSelected();
+            // The swatch controls are created lazily on first show.  They must exist before
+            // onNewThemeSelected() runs, as derived-class implementations (e.g.
+            // PANEL_EESCHEMA_COLOR_SETTINGS::updateAllowedSwatches()) index into m_labels /
+            // m_swatches, which would otherwise insert and dereference null pointers.
             updateSwatches();
+            onNewThemeSelected();
         }
     }
 

@@ -625,7 +625,7 @@ std::unique_ptr<PAD> PCB_IO_EASYEDAPRO_PARSER::createPAD( FOOTPRINT* aFootprint,
     int          layer = line.at( 4 ).get<int>();
     PCB_LAYER_ID klayer = LayerToKi( layer );
 
-    wxString padNumber = line.at( 5 );
+    wxString padNumber = EASYEDAPRO::NormalizePinNumber( line.at( 5 ) );
 
     VECTOR2D center;
     center.x = line.at( 6 );

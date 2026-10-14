@@ -1360,7 +1360,27 @@ int SCH_POINT_EDITOR::Main( const TOOL_EVENT& aEvent )
                 else if( shape->GetShape() == SHAPE_T::RECTANGLE && editedIndex >= RECT_TOPLEFT
                          && editedIndex <= RECT_BOTRIGHT )
                 {
-                    stationarySelfPoints.push_back( m_editPoints->Point( RECT_BOTRIGHT - editedIndex ).GetPosition() );
+                    // The opposite-corner index must land on a live point; if the points were
+                    // rebuilt or the shape type changed out from under us, indexing the deque
+                    // blind returns a destroyed EDIT_POINT and the virtual GetPosition() call
+                    // jumps through its stale vtable (observed as "segfault at 0, ip 0x0").
+                    int oppositeIndex = RECT_BOTRIGHT - editedIndex;
+
+                    if( oppositeIndex >= 0 && oppositeIndex < (int) m_editPoints->PointsSize() )
+                    {
+                        stationarySelfPoints.push_back(
+                                m_editPoints->Point( (unsigned) oppositeIndex ).GetPosition() );
+                    }
+                    else
+                    {
+                        // WXTRACE=eepointeditor to diagnose; leave a breadcrumb when the
+                        // invariant breaks so the rebuild path can be identified.
+                        wxLogTrace( wxS( "eepointeditor" ),
+                                    wxS( "Rectangle opposite-corner out of range: editedIndex=%d "
+                                         "points=%u lines=%u" ),
+                                    editedIndex, (unsigned) m_editPoints->PointsSize(),
+                                    (unsigned) m_editPoints->LinesSize() );
+                    }
                 }
                 else if( shape->GetShape() == SHAPE_T::RECTANGLE )
                 {

@@ -30,10 +30,34 @@
 
 
 class EDA_TEXT;
+class SCH_PIN;
 class SCH_SYMBOL;
 
 namespace EASYEDAPRO
 {
+/**
+ * Infer a KiCad electrical pin type from a pin name for symbols whose source
+ * file provides no usable type information (LCSC/EasyEDA Pro exports commonly
+ * set every pin to "Undefined"). Returns PT_UNSPECIFIED when the name is not
+ * recognized.
+ */
+ELECTRICAL_PINTYPE GuessPinTypeFromName( const wxString& aPinName );
+
+/**
+ * Connector heuristic: a symbol is treated as a passive interface (receptacle,
+ * cable, header) either when its name matches typical connector keywords
+ * (USB, TYPE-C, CONNECTOR, ...) or when it contains no driving pins at all
+ * (no power outputs, outputs or open collectors). Supply-rail pins of such
+ * symbols (VBUS/VIN/VCC...) cannot be driven from within this sheet, so they
+ * are demoted from power input to passive to avoid spurious "power input not
+ * driven" errors on dual-role (DRP) power pins. Ground and exposed-pad pins
+ * keep the power input type.
+ */
+void ApplyConnectorHeuristic( const std::vector<SCH_PIN*>& aPins, const wxString& aSymbolName,
+                              bool aIsPowerPort );
+
+bool IsConnectorSymbolName( const wxString& aName );
+
 struct PIN_INFO
 {
     EASYEDAPRO::SYM_PIN pin;

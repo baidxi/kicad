@@ -194,7 +194,7 @@ std::unique_ptr<PAD> PCB_IO_EASYEDAPRO_V3_PARSER::createV3PAD( FOOTPRINT* aFootp
     int          layer = V3GetInt( aRow.inner, "layerId", 1 );
     PCB_LAYER_ID klayer = m_v2Parser.LayerToKi( layer );
 
-    wxString padNumber = V3GetString( aRow.inner, "num" );
+    wxString padNumber = EASYEDAPRO::NormalizePinNumber( V3GetString( aRow.inner, "num" ) );
 
     VECTOR2D center;
     center.x = V3GetDouble( aRow.inner, "centerX" );

@@ -725,6 +725,11 @@ void HIERARCHY_PANE::onTreeEditFinished( wxTreeEvent& event )
     TREE_ITEM_DATA* data = static_cast<TREE_ITEM_DATA*>( m_tree->GetItemData( event.GetItem() ) );
     wxString        newName = event.GetLabel();
 
+    // A pushed commit rebuilds the hierarchy tree (DeleteAllItems + re-add), which frees
+    // this tree item's TREE_ITEM_DATA and the SCH_SHEET_PATH it references; `data` must
+    // not be touched afterwards.
+    bool treeRebuilt = false;
+
     if( data && data->m_SheetPath.Last() )
     {
         if( !newName.IsEmpty() )
@@ -751,6 +756,8 @@ void HIERARCHY_PANE::onTreeEditFinished( wxTreeEvent& event )
 
                 if( modifyScreen )
                 {
+                    bool isCurrentSheet = ( data->m_SheetPath == m_frame->GetCurrentSheet() );
+
                     commit.Modify( data->m_SheetPath.Last()->GetField( FIELD_T::SHEET_NAME ),
                                    modifyScreen );
 
@@ -759,14 +766,24 @@ void HIERARCHY_PANE::onTreeEditFinished( wxTreeEvent& event )
                     renameIdenticalSheets( data->m_SheetPath, newName, &commit );
 
                     if( !commit.Empty() )
-                        commit.Push( _( "Rename Sheet" ) );
-
-                    if( data->m_SheetPath == m_frame->GetCurrentSheet() )
                     {
-                        m_frame->OnPageSettingsChange();
+                        commit.Push( _( "Rename Sheet" ) );
+                        treeRebuilt = true;
                     }
+
+                    if( isCurrentSheet )
+                        m_frame->OnPageSettingsChange();
                 }
             }
+        }
+
+        if( treeRebuilt )
+        {
+            // The rebuild already shows the new name and page number; touching `data` here
+            // is use-after-free (observed as a segfault inside SCH_SHEET_PATH::GetPageNumber()
+            // with `this` pointing into memory reused by other strings).
+            event.Veto();
+            return;
         }
 
         m_tree->SetItemText( event.GetItem(), formatPageString( data->m_SheetPath.Last()->GetName(),

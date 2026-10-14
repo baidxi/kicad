@@ -38,7 +38,7 @@ LEAK_AT_EXIT<std::map<wxString, LIB_DATA>> FOOTPRINT_LIBRARY_ADAPTER::GlobalLibr
 
 LEAK_AT_EXIT<std::shared_mutex> FOOTPRINT_LIBRARY_ADAPTER::GlobalLibraryMutex;
 
-LEAK_AT_EXIT<std::map<wxString, std::vector<std::unique_ptr<FOOTPRINT>>>> FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprints;
+LEAK_AT_EXIT<std::map<wxString, std::vector<std::shared_ptr<FOOTPRINT>>>> FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprints;
 
 std::shared_mutex FOOTPRINT_LIBRARY_ADAPTER::PreloadedFootprintsMutex;
 
@@ -79,7 +79,7 @@ void FOOTPRINT_LIBRARY_ADAPTER::enumerateLibrary( LIB_DATA* aLib, const wxString
     // FootprintEnumerate populates the plugin's internal FP_CACHE with parsed footprints
     plugin->FootprintEnumerate( namesAS, aUri, false, &options );
 
-    std::vector<std::unique_ptr<FOOTPRINT>> footprints;
+    std::vector<std::shared_ptr<FOOTPRINT>> footprints;
     footprints.reserve( namesAS.size() );
 
     // For plugins with internal caches (like kicad_sexpr), GetEnumeratedFootprint returns
@@ -164,9 +164,10 @@ std::optional<LIB_STATUS> FOOTPRINT_LIBRARY_ADAPTER::LoadOne( const wxString& ni
 }
 
 
-std::vector<FOOTPRINT*> FOOTPRINT_LIBRARY_ADAPTER::GetFootprints( const wxString& aNickname, bool aBestEfforts )
+std::vector<std::shared_ptr<FOOTPRINT>> FOOTPRINT_LIBRARY_ADAPTER::GetFootprints( const wxString& aNickname,
+                                                                                  bool aBestEfforts )
 {
-    std::vector<FOOTPRINT*> footprints;
+    std::vector<std::shared_ptr<FOOTPRINT>> footprints;
 
     std::shared_lock lock( PreloadedFootprintsMutex );
     auto it = PreloadedFootprints.Get().find( aNickname );
@@ -177,7 +178,7 @@ std::vector<FOOTPRINT*> FOOTPRINT_LIBRARY_ADAPTER::GetFootprints( const wxString
     footprints.reserve( it->second.size() );
 
     for( const auto& fp : it->second )
-        footprints.push_back( fp.get() );
+        footprints.push_back( fp );
 
     return footprints;
 }
@@ -462,7 +463,7 @@ FOOTPRINT_LIBRARY_ADAPTER::SAVE_T FOOTPRINT_LIBRARY_ADAPTER::SaveFootprint( cons
                 {
                     auto& footprints = it->second;
                     std::erase_if( footprints,
-                                   [&fpName]( const std::unique_ptr<FOOTPRINT>& fp )
+                                   [&fpName]( const std::shared_ptr<FOOTPRINT>& fp )
                                    {
                                        return fp->GetFPID().GetLibItemName().wx_str() == fpName;
                                    } );
@@ -517,7 +518,7 @@ void FOOTPRINT_LIBRARY_ADAPTER::DeleteFootprint( const wxString& aNickname, cons
             {
                 auto& footprints = it->second;
                 std::erase_if( footprints,
-                               [&aFootprintName]( const std::unique_ptr<FOOTPRINT>& fp )
+                               [&aFootprintName]( const std::shared_ptr<FOOTPRINT>& fp )
                                {
                                    return fp->GetFPID().GetLibItemName().wx_str() == aFootprintName;
                                } );

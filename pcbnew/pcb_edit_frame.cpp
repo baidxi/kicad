@@ -2721,7 +2721,7 @@ void PCB_EDIT_FRAME::ShowFootprintPropertiesDialog( FOOTPRINT* aFootprint )
 
             fp_editor->LoadFootprintFromBoard( aFootprint );
             fp_editor->Show( true );
-            fp_editor->Raise();        // Iconize( false );
+            KIPLATFORM::UI::RaiseAndActivate( fp_editor );   // Iconize( false );
         }
     }
     else if( retvalue == DIALOG_FOOTPRINT_PROPERTIES::FP_PROPS_EDIT_LIBRARY_FP )
@@ -2732,7 +2732,7 @@ void PCB_EDIT_FRAME::ShowFootprintPropertiesDialog( FOOTPRINT* aFootprint )
 
             fp_editor->LoadFootprintFromLibrary( aFootprint->GetFPID() );
             fp_editor->Show( true );
-            fp_editor->Raise();        // Iconize( false );
+            KIPLATFORM::UI::RaiseAndActivate( fp_editor );   // Iconize( false );
         }
     }
     else if( retvalue == DIALOG_FOOTPRINT_PROPERTIES::FP_PROPS_UPDATE_FP )

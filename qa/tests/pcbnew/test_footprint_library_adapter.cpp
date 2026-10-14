@@ -376,7 +376,7 @@ BOOST_AUTO_TEST_CASE( RefreshChangedLibrariesPicksUpExternalAddition )
 
     bool found = false;
 
-    for( FOOTPRINT* fp : adapter.GetFootprints( nickname, true ) )
+    for( const std::shared_ptr<FOOTPRINT>& fp : adapter.GetFootprints( nickname, true ) )
     {
         if( fp && fp->GetFPID().GetLibItemName().wx_str() == wxS( "ZZ_PulledFootprint" ) )
             found = true;
@@ -434,7 +434,7 @@ BOOST_AUTO_TEST_CASE( RefreshChangedLibrariesSkipsUnchangedLibraries )
 
     // Re-enumeration frees every footprint in the library and allocates replacements.  A single
     // address could be reused by chance, a whole vector of them could not.
-    std::vector<FOOTPRINT*> untouched = adapter.GetFootprints( nickB, true );
+    std::vector<std::shared_ptr<FOOTPRINT>> untouched = adapter.GetFootprints( nickB, true );
 
     std::filesystem::copy_file( source, libPathA / "ZZ_Added.kicad_mod" );
 

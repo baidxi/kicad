@@ -191,9 +191,9 @@ static wxString filterFootprints( const wxString& aFilterJson )
 
         for( const wxString& nickname : adapter->GetLibraryNames() )
         {
-            std::vector<FOOTPRINT*> footprints = adapter->GetFootprints( nickname, true );
+            std::vector<std::shared_ptr<FOOTPRINT>> footprints = adapter->GetFootprints( nickname, true );
 
-            for( FOOTPRINT* fp : footprints )
+            for( const std::shared_ptr<FOOTPRINT>& fp : footprints )
             {
                 if( !fp )
                     continue;

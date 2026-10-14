@@ -111,6 +111,29 @@ void KIPLATFORM::UI::EnsureVisible( wxWindow* aWindow )
 }
 
 
+void KIPLATFORM::UI::RaiseAndActivate( wxWindow* aWindow )
+{
+    if( !aWindow )
+        return;
+
+    NSView* view = (NSView*) aWindow->GetHandle();
+
+    if( NSWindow* nsWindow = [view window] )
+    {
+        [nsWindow makeKeyAndOrderFront: nil];
+        [NSApp activateIgnoringOtherApps: YES];
+    }
+}
+
+
+void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
+{
+    // Not needed on this platform
+    wxUnusedVar( aWindow );
+    wxUnusedVar( aModal );
+}
+
+
 void KIPLATFORM::UI::StabilizeWindowPosition( wxWindow* aWindow )
 {
     // Not needed on this platform

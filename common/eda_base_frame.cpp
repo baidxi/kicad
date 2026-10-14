@@ -156,6 +156,13 @@ void EDA_BASE_FRAME::commonInit( FRAME_T aFrameType )
 
     m_auimgr.SetArtProvider( new WX_AUI_DOCK_ART() );
 
+    Bind( wxEVT_MENU,
+          [&]( wxCommandEvent& aEvent )
+          {
+              DockFloatingPanes();
+          },
+          ID_DOCK_FLOATING_PANELS );
+
     m_settingsManager = &Pgm().GetSettingsManager();
 
     // Set a reasonable minimal size for the frame
@@ -292,7 +299,9 @@ void EDA_BASE_FRAME::windowClosing( wxCloseEvent& event )
     {
         // Raise and notify; don't give the user a warning regarding "quasi-modal dialogs"
         // when they have no idea what those are.
-        quasiModal->Raise();
+        // Under Wayland a bare Raise() cannot bring the dialog forward (no client-side
+        // stacking), which would leave the user trapped behind a disabled frame.
+        KIPLATFORM::UI::RaiseAndActivate( quasiModal );
         wxBell();
 
         if( event.CanVeto() )
@@ -1402,6 +1411,28 @@ void EDA_BASE_FRAME::RestoreAuiLayout()
         if( panes.Item( i ).IsToolbar() )
             panes.Item( i ).Show( true );
     }
+}
+
+
+void EDA_BASE_FRAME::DockFloatingPanes()
+{
+    bool changed = false;
+
+    for( size_t i = 0; i < m_auimgr.GetAllPanes().GetCount(); ++i )
+    {
+        wxAuiPaneInfo& pane = m_auimgr.GetAllPanes().Item( i );
+
+        // wxAuiPaneInfo keeps the last dock_layer/dock_row/dock_pos when floating, so
+        // Dock() restores the pane to its previous docked position.
+        if( pane.IsFloating() && pane.IsDockable() )
+        {
+            pane.Dock();
+            changed = true;
+        }
+    }
+
+    if( changed )
+        m_auimgr.Update();
 }
 
 

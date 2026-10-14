@@ -73,6 +73,17 @@ void KIPLATFORM::UI::ForceFocus( wxWindow* aWindow )
 }
 
 
+void KIPLATFORM::UI::RaiseAndActivate( wxWindow* aWindow )
+{
+    if( !aWindow )
+        return;
+
+    // X11 and MSW window managers honour raise requests.
+    aWindow->Raise();
+    aWindow->SetFocus();
+}
+
+
 bool KIPLATFORM::UI::IsWindowActive( wxWindow* aWindow )
 {
     if(! aWindow )
@@ -87,6 +98,14 @@ bool KIPLATFORM::UI::IsWindowActive( wxWindow* aWindow )
 void KIPLATFORM::UI::EnsureVisible( wxWindow* aWindow )
 {
     // Not needed on this platform
+}
+
+
+void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
+{
+    // Not needed on this platform
+    wxUnusedVar( aWindow );
+    wxUnusedVar( aModal );
 }
 
 

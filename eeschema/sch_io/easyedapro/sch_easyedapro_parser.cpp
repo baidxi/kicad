@@ -75,6 +75,176 @@ double SCH_EASYEDAPRO_PARSER::SizeToKi( wxString aValue )
 }
 
 
+ELECTRICAL_PINTYPE EASYEDAPRO::GuessPinTypeFromName( const wxString& aPinName )
+{
+    wxString name = aPinName;
+    name.Trim( true ).Trim( false );
+    name.MakeUpper();
+
+    // Exposed pads and ground pins
+    if( name == wxS( "GND" ) || name == wxS( "AGND" ) || name == wxS( "DGND" )
+        || name == wxS( "PGND" ) || name == wxS( "GNDA" ) || name == wxS( "GNDD" )
+        || name == wxS( "VSS" ) || name == wxS( "VSSA" ) || name == wxS( "VSSD" )
+        || name == wxS( "EP" ) || name == wxS( "EPAD" ) || name == wxS( "PAD" )
+        || name == wxS( "EXP" ) || name == wxS( "EXPOSED_PAD" ) )
+        return ELECTRICAL_PINTYPE::PT_POWER_IN;
+
+    // Supply pins ("IN" is the power input of many LCSC regulator/charger
+    // symbols, e.g. MP28167 pin 1)
+    if( name == wxS( "VCC" ) || name == wxS( "VDD" ) || name == wxS( "VDDA" )
+        || name == wxS( "VCCA" ) || name == wxS( "VDDD" ) || name == wxS( "AVDD" )
+        || name == wxS( "AVCC" ) || name == wxS( "VBAT" ) || name == wxS( "VBUS" )
+        || name == wxS( "VIN" ) || name == wxS( "VPP" ) || name == wxS( "IN" ) )
+        return ELECTRICAL_PINTYPE::PT_POWER_IN;
+
+    // Regulated / switching power outputs: regulator LDO outputs, converter
+    // outputs and the power-path pins of battery chargers
+    if( name == wxS( "REGN" ) || name == wxS( "VOUT" ) || name == wxS( "VSYS" )
+        || name == wxS( "SYS" ) || name == wxS( "PMID" ) || name == wxS( "OUT" )
+        || name == wxS( "BAT" ) )
+        return ELECTRICAL_PINTYPE::PT_POWER_OUT;
+
+    // Switching nodes and bootstrap pins: wired to inductors/capacitors, not
+    // power sources (several of them are paralleled, so PT_POWER_OUT would
+    // trip the "power output to power output" ERC check)
+    if( name == wxS( "SW" ) || name == wxS( "SW1" ) || name == wxS( "SW2" )
+        || name == wxS( "LX" ) || name == wxS( "PH" ) || name == wxS( "BTST" )
+        || name == wxS( "BST" ) || name == wxS( "BST1" ) || name == wxS( "BST2" )
+        || name == wxS( "BOOT" ) )
+        return ELECTRICAL_PINTYPE::PT_PASSIVE;
+
+    // Analog pins wired to resistor/capacitor networks
+    if( name == wxS( "TS" ) || name == wxS( "ILIM" ) || name == wxS( "SENSE" )
+        || name == wxS( "VSENSE" ) )
+        return ELECTRICAL_PINTYPE::PT_PASSIVE;
+
+    // Feedback inputs
+    if( name == wxS( "FB" ) )
+        return ELECTRICAL_PINTYPE::PT_INPUT;
+
+    // Generic open-collector shorthand
+    if( name == wxS( "OC" ) )
+        return ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR;
+
+    // Alternate-mode / misc function pins of unknown direction: passive keeps
+    // them connectable without tripping direction-based ERC checks
+    if( name == wxS( "ALT" ) )
+        return ELECTRICAL_PINTYPE::PT_PASSIVE;
+
+    // Enable / chip-select inputs (active low included)
+    if( name == wxS( "EN" ) || name == wxS( "EN#" ) || name == wxS( "nEN" )
+        || name == wxS( "CE" ) || name == wxS( "CE#" ) || name == wxS( "CS" )
+        || name == wxS( "CS#" ) || name == wxS( "SHDN" ) || name == wxS( "SHDN#" )
+        || name == wxS( "nSHDN" ) || name == wxS( "SLEEP" ) || name == wxS( "nSLEEP" ) )
+        return ELECTRICAL_PINTYPE::PT_INPUT;
+
+    // Open-drain status / interrupt outputs
+    if( name == wxS( "STAT" ) || name == wxS( "STAT1" ) || name == wxS( "STAT2" )
+        || name == wxS( "PG" ) || name == wxS( "PG#" ) || name == wxS( "PGOOD" )
+        || name == wxS( "nPGOOD" ) || name == wxS( "INT" ) || name == wxS( "INT#" )
+        || name == wxS( "ALERT" ) || name == wxS( "FAULT" ) || name == wxS( "FAULT#" )
+        || name == wxS( "nFAULT" ) )
+        return ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR;
+
+    // Bidirectional data lines
+    if( name == wxS( "D+" ) || name == wxS( "D-" ) || name == wxS( "DP" )
+        || name == wxS( "DM" ) || name == wxS( "DD+" ) || name == wxS( "DD-" )
+        || name == wxS( "DP1" ) || name == wxS( "DP2" ) || name == wxS( "DN1" )
+        || name == wxS( "DN2" ) || name == wxS( "USB_DP" ) || name == wxS( "USB_DM" )
+        || name == wxS( "USB_D+" ) || name == wxS( "USB_D-" )
+        || name == wxS( "SDA" ) || name == wxS( "SDIO" ) )
+        return ELECTRICAL_PINTYPE::PT_BIDI;
+
+    // Type-C channel configuration pins (bidirectional CC communication),
+    // sideband pins and shield. Note: LCSC symbols often misspell the sideband
+    // pins as SUB instead of SBU, so both spellings are accepted.
+    if( name == wxS( "CC" ) || name == wxS( "CC1" ) || name == wxS( "CC2" ) )
+        return ELECTRICAL_PINTYPE::PT_BIDI;
+
+    if( name == wxS( "SBU" ) || name == wxS( "SBU1" ) || name == wxS( "SBU2" )
+        || name == wxS( "SUB" ) || name == wxS( "SUB1" ) || name == wxS( "SUB2" )
+        || name == wxS( "SHELL" ) || name == wxS( "SHIELD" ) )
+        return ELECTRICAL_PINTYPE::PT_PASSIVE;
+
+    // Bus clock lines (inputs in device-centric symbols)
+    if( name == wxS( "SCL" ) || name == wxS( "SCLK" ) )
+        return ELECTRICAL_PINTYPE::PT_INPUT;
+
+    // Explicit no-connect pins: passive keeps them connectable without
+    // tripping the "NC pin connected" check when a stub wire is attached.
+    if( name == wxS( "NC" ) || name == wxS( "N.C." ) || name == wxS( "N.C" ) )
+        return ELECTRICAL_PINTYPE::PT_PASSIVE;
+
+    return ELECTRICAL_PINTYPE::PT_UNSPECIFIED;
+}
+
+
+bool EASYEDAPRO::IsConnectorSymbolName( const wxString& aName )
+{
+    wxString name = aName;
+    name.Trim( true ).Trim( false );
+    name.MakeUpper();
+
+    return name.Contains( wxS( "USB" ) ) || name.Contains( wxS( "TYPE-C" ) )
+           || name.Contains( wxS( "TYPEC" ) ) || name.Contains( wxS( "TYPE_C" ) )
+           || name.Contains( wxS( "CONNECTOR" ) ) || name.Contains( wxS( "RECEPTACLE" ) )
+           || name.Contains( wxS( "RECEPT" ) ) || name.Contains( wxS( "HEADER" ) )
+           || name.Contains( wxS( "JACK" ) ) || name.Contains( wxS( "SOCKET" ) )
+           || name.Contains( wxS( "CON%" ) ) || name.Contains( wxS( "_CON" ) );
+}
+
+
+void EASYEDAPRO::ApplyConnectorHeuristic( const std::vector<SCH_PIN*>& aPins,
+                                          const wxString& aSymbolName, bool aIsPowerPort )
+{
+    if( aIsPowerPort || aPins.empty() )
+        return;
+
+    // A connector-named symbol, or a symbol without any driving pin, is a
+    // passive interface (receptacle, header, cable). Its supply-rail pins are
+    // fed from outside this sheet, so power input would raise a spurious
+    // "power input not driven" error (typical on dual-role DRP power pins).
+    bool isConnector = IsConnectorSymbolName( aSymbolName );
+    bool hasDrivers = false;
+
+    for( SCH_PIN* pin : aPins )
+    {
+        ELECTRICAL_PINTYPE type = pin->GetType();
+
+        if( type == ELECTRICAL_PINTYPE::PT_POWER_OUT
+            || type == ELECTRICAL_PINTYPE::PT_OUTPUT
+            || type == ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR )
+        {
+            hasDrivers = true;
+            break;
+        }
+    }
+
+    if( hasDrivers && !isConnector )
+        return;
+
+    for( SCH_PIN* pin : aPins )
+    {
+        if( pin->GetType() != ELECTRICAL_PINTYPE::PT_POWER_IN )
+            continue;
+
+        wxString name = pin->GetName();
+        name.Trim( true ).Trim( false );
+        name.MakeUpper();
+
+        // Ground and exposed-pad pins legitimately keep the power input type.
+        if( name == wxS( "GND" ) || name == wxS( "AGND" ) || name == wxS( "DGND" )
+            || name == wxS( "PGND" ) || name == wxS( "GNDA" ) || name == wxS( "GNDD" )
+            || name == wxS( "VSS" ) || name == wxS( "VSSA" ) || name == wxS( "VSSD" )
+            || name == wxS( "EP" ) || name == wxS( "EPAD" ) || name == wxS( "PAD" )
+            || name == wxS( "EXP" ) || name == wxS( "EXPOSED_PAD" ) )
+            continue;
+
+        pin->SetType( ELECTRICAL_PINTYPE::PT_PASSIVE );
+    }
+}
+
+
 static LINE_STYLE ConvertStrokeStyle( int aStyle )
 {
     if( aStyle == 0 )
@@ -655,6 +825,10 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
 
     for( auto& [unitId, parentedLines] : unitParentedLines )
     {
+        // Parallel output pins are de-duplicated per unit.
+        std::map<wxString, int> parallelOutputCounts;
+        std::vector<SCH_PIN*>   unitPins;
+
         for( auto& [pinId, lines] : parentedLines )
         {
             std::optional<EASYEDAPRO::SYM_PIN>       epin;
@@ -690,13 +864,16 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
 
             PIN_ORIENTATION orient = PIN_ORIENTATION::PIN_RIGHT;
 
+            // EasyEDA Pro and KiCad symbol libraries share the same rotation
+            // convention (90 = body towards -Y, 270 = body towards +Y), so the
+            // rotation value maps over unchanged.
             if( epin->rotation == 0 )
                 orient = PIN_ORIENTATION::PIN_RIGHT;
-            if( epin->rotation == 90 )
+            else if( epin->rotation == 90 )
                 orient = PIN_ORIENTATION::PIN_UP;
-            if( epin->rotation == 180 )
+            else if( epin->rotation == 180 )
                 orient = PIN_ORIENTATION::PIN_LEFT;
-            if( epin->rotation == 270 )
+            else if( epin->rotation == 270 )
                 orient = PIN_ORIENTATION::PIN_DOWN;
 
             pin->SetOrientation( orient );
@@ -730,8 +907,8 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
 
             if( pinNumAttr )
             {
-                pin->SetNumber( pinNumAttr->value );
-                pinInfo.number = pinNumAttr->value;
+                pin->SetNumber( EASYEDAPRO::NormalizePinNumber( pinNumAttr->value ) );
+                pinInfo.number = pin->GetNumber();
 
                 if( !pinNumAttr->valVisible )
                     pin->SetNumberTextSize( schIUScale.MilsToIU( 1 ) );
@@ -745,21 +922,53 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
             {
                 if( pinTypeAttr->value == wxS( "IN" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_INPUT );
-                if( pinTypeAttr->value == wxS( "OUT" ) )
+                else if( pinTypeAttr->value == wxS( "OUT" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_OUTPUT );
-                if( pinTypeAttr->value == wxS( "BI" ) )
+                else if( pinTypeAttr->value == wxS( "BI" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_BIDI );
+                else
+                    // LCSC/EasyEDA Pro exports often set "Undefined" on every
+                    // pin; fall back to name-based inference.
+                    pin->SetType( EASYEDAPRO::GuessPinTypeFromName( pin->GetName() ) );
+            }
+            else
+            {
+                pin->SetType( EASYEDAPRO::GuessPinTypeFromName( pin->GetName() ) );
             }
 
             if( get_opt( pinAttributes, "NO_CONNECT" ) )
                 pin->SetType( ELECTRICAL_PINTYPE::PT_NC );
 
+            // Paralleled output pins sharing a name inside one unit (e.g. two
+            // BAT pins of a charger) would trip the "power output to power
+            // output" and "output to output" ERC checks; keep only the first
+            // one as a driver and make the others passive.
+            wxString outputName = pin->GetName().Upper();
+
+            if( !outputName.IsEmpty()
+                && ( pin->GetType() == ELECTRICAL_PINTYPE::PT_POWER_OUT
+                     || pin->GetType() == ELECTRICAL_PINTYPE::PT_OUTPUT
+                     || pin->GetType() == ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR ) )
+            {
+                if( parallelOutputCounts[outputName]++ > 0 )
+                    pin->SetType( ELECTRICAL_PINTYPE::PT_PASSIVE );
+            }
+
             if( pin->GetNumberTextSize() * int( pin->GetNumber().size() ) > pin->GetLength() )
                 pin->SetNumberTextSize( pin->GetLength() / pin->GetNumber().size() );
 
             symInfo.pins.push_back( pinInfo );
+            unitPins.push_back( pin.get() );
             ksymbol->AddDrawItem( pin.release() );
         }
+
+        wxString symbolName;
+
+        if( auto symbolAttr = get_opt( unitAttributes[1], "Symbol" ) )
+            symbolName = symbolAttr->value;
+
+        EASYEDAPRO::ApplyConnectorHeuristic( unitPins, symbolName,
+                symInfo.head.symbolType == EASYEDAPRO::SYMBOL_TYPE::POWER_PORT );
     }
 
     symInfo.symbolAttr = get_opt( unitAttributes[1], "Symbol" ); // TODO: per-unit

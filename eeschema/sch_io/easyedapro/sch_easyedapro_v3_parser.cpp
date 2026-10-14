@@ -117,8 +117,11 @@ static VECTOR2<T> V3ScalePos( VECTOR2<T> aValue )
 template <typename T>
 static VECTOR2<T> V3ScalePosSym( VECTOR2<T> aValue )
 {
+    // EasyEDA Pro canvas coordinates are y-down, while KiCad symbol library
+    // coordinates are y-up, so the Y axis must be mirrored; otherwise every
+    // symbol comes in flipped top-bottom.
     return VECTOR2<T>( SCH_EASYEDAPRO_PARSER::ScaleSize( aValue.x ),
-                       SCH_EASYEDAPRO_PARSER::ScaleSize( aValue.y ) );
+                       -SCH_EASYEDAPRO_PARSER::ScaleSize( aValue.y ) );
 }
 
 
@@ -715,6 +718,10 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
     // Process pins
     for( auto& [unitId, parentedRows] : unitParentedRows )
     {
+        // Parallel output pins are de-duplicated per unit.
+        std::map<wxString, int> parallelOutputCounts;
+        std::vector<SCH_PIN*>   unitPins;
+
         for( auto& [pinId, rows] : parentedRows )
         {
             const V3_ROW*                            pinRow = nullptr;
@@ -759,13 +766,16 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
 
             PIN_ORIENTATION orient = PIN_ORIENTATION::PIN_RIGHT;
 
+            // EasyEDA Pro and KiCad symbol libraries share the same rotation
+            // convention (90 = body towards -Y, 270 = body towards +Y), so the
+            // rotation value maps over unchanged.
             if( pinInfo.pin.rotation == 0 )
                 orient = PIN_ORIENTATION::PIN_RIGHT;
-            if( pinInfo.pin.rotation == 90 )
+            else if( pinInfo.pin.rotation == 90 )
                 orient = PIN_ORIENTATION::PIN_UP;
-            if( pinInfo.pin.rotation == 180 )
+            else if( pinInfo.pin.rotation == 180 )
                 orient = PIN_ORIENTATION::PIN_LEFT;
-            if( pinInfo.pin.rotation == 270 )
+            else if( pinInfo.pin.rotation == 270 )
                 orient = PIN_ORIENTATION::PIN_DOWN;
 
             pin->SetOrientation( orient );
@@ -798,8 +808,8 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
 
             if( pinNumAttr )
             {
-                pin->SetNumber( pinNumAttr->value );
-                pinInfo.number = pinNumAttr->value;
+                pin->SetNumber( EASYEDAPRO::NormalizePinNumber( pinNumAttr->value ) );
+                pinInfo.number = pin->GetNumber();
 
                 if( !pinNumAttr->valVisible )
                     pin->SetNumberTextSize( schIUScale.MilsToIU( 1 ) );
@@ -813,21 +823,53 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
             {
                 if( pinTypeAttr->value == wxS( "IN" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_INPUT );
-                if( pinTypeAttr->value == wxS( "OUT" ) )
+                else if( pinTypeAttr->value == wxS( "OUT" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_OUTPUT );
-                if( pinTypeAttr->value == wxS( "BI" ) )
+                else if( pinTypeAttr->value == wxS( "BI" ) )
                     pin->SetType( ELECTRICAL_PINTYPE::PT_BIDI );
+                else
+                    // LCSC/EasyEDA Pro exports often set "Undefined" on every
+                    // pin; fall back to name-based inference.
+                    pin->SetType( EASYEDAPRO::GuessPinTypeFromName( pin->GetName() ) );
+            }
+            else
+            {
+                pin->SetType( EASYEDAPRO::GuessPinTypeFromName( pin->GetName() ) );
             }
 
             if( get_opt( pinAttributes, wxS( "NO_CONNECT" ) ) )
                 pin->SetType( ELECTRICAL_PINTYPE::PT_NC );
 
+            // Paralleled output pins sharing a name inside one unit (e.g. two
+            // BAT pins of a charger) would trip the "power output to power
+            // output" and "output to output" ERC checks; keep only the first
+            // one as a driver and make the others passive.
+            wxString outputName = pin->GetName().Upper();
+
+            if( !outputName.IsEmpty()
+                && ( pin->GetType() == ELECTRICAL_PINTYPE::PT_POWER_OUT
+                     || pin->GetType() == ELECTRICAL_PINTYPE::PT_OUTPUT
+                     || pin->GetType() == ELECTRICAL_PINTYPE::PT_OPENCOLLECTOR ) )
+            {
+                if( parallelOutputCounts[outputName]++ > 0 )
+                    pin->SetType( ELECTRICAL_PINTYPE::PT_PASSIVE );
+            }
+
             if( pin->GetNumberTextSize() * int( pin->GetNumber().size() ) > pin->GetLength() )
                 pin->SetNumberTextSize( pin->GetLength() / pin->GetNumber().size() );
 
             symInfo.pins.push_back( pinInfo );
+            unitPins.push_back( pin.get() );
             ksymbol->AddDrawItem( pin.release() );
         }
+
+        wxString symbolName;
+
+        if( auto symbolAttr = get_opt( unitAttributes[1], wxS( "Symbol" ) ) )
+            symbolName = symbolAttr->value;
+
+        EASYEDAPRO::ApplyConnectorHeuristic( unitPins, symbolName,
+                symInfo.head.symbolType == EASYEDAPRO::SYMBOL_TYPE::POWER_PORT );
     }
 
     symInfo.symbolAttr = get_opt( unitAttributes[1], wxS( "Symbol" ) );

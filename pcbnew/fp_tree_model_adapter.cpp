@@ -60,12 +60,12 @@ void FP_TREE_MODEL_ADAPTER::AddLibraries( EDA_BASE_FRAME* aParent )
         bool pinned = alg::contains( cfg->m_Session.pinned_fp_libs, libName )
                         || alg::contains( project.m_PinnedFootprintLibs, libName );
 
-        std::vector<FOOTPRINT*> footprints = m_libs->GetFootprints( libName, true );
+        std::vector<std::shared_ptr<FOOTPRINT>> footprints = m_libs->GetFootprints( libName, true );
         std::vector<LIB_TREE_ITEM*> treeItems;
         treeItems.reserve( footprints.size() );
 
-        for( FOOTPRINT* fp : footprints )
-            treeItems.push_back( fp );
+        for( const std::shared_ptr<FOOTPRINT>& fp : footprints )
+            treeItems.push_back( fp.get() );
 
         DoAddLibrary( libName, *m_libs->GetLibraryDescription( libName ), treeItems, pinned, true );
     }

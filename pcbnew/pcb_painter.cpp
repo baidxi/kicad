@@ -1936,8 +1936,16 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
 
         if( displayOpts && !dynamic_cast<CVPCB_SETTINGS*>( viewer_settings() ) )
         {
-            if( displayOpts->m_NetNames == 1 || displayOpts->m_NetNames == 3 )
+            // Pin names imported from the schematic take the netname line, when enabled.
+            if( viewer_settings()->m_ViewersDisplay.m_DisplayPinNames
+                    && !aPad->GetPinFunction().IsEmpty() )
+            {
+                netname = aPad->GetPinFunction();
+            }
+            else if( displayOpts->m_NetNames == 1 || displayOpts->m_NetNames == 3 )
+            {
                 netname = aPad->GetDisplayNetname();
+            }
 
             if( aPad->IsNoConnectPad() )
                 netname = wxT( "x" );

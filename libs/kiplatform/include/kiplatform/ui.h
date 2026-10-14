@@ -220,6 +220,41 @@ namespace KIPLATFORM
         void EnsureVisible( wxWindow* aWindow );
 
         /**
+         * Bring a top-level window to the foreground of the window manager and ask for
+         * keyboard focus.
+         *
+         * Wayland has no client-side window stacking, so wxWindow::Raise() is a hint at
+         * best there, and mutter routinely denies activation to a freshly mapped toplevel,
+         * stacking it below the currently active window.  A frame in that state looks like
+         * it flashed and vanished while it is still in the window list (dock/taskbar), and
+         * repeating Raise() cannot recover it.  On Wayland this goes through
+         * gtk_window_present() (xdg-activation) plus a short remap guard that forces the
+         * compositor to re-evaluate the placement; on X11 and the other platforms it
+         * degrades to the usual raise/set-focus sequence.
+         *
+         * @param aWindow top-level window to raise and activate
+         */
+        void RaiseAndActivate( wxWindow* aWindow );
+
+        /**
+         * Declare a top-level dialog modal with respect to its transient parent.
+         *
+         * Wayland has no client-side window stacking: raise requests are asynchronous hints
+         * at best, and a freshly mapped dialog whose parent is disabled is routinely denied
+         * activation by the compositor's focus-stealing prevention, leaving it stacked
+         * below its (disabled) parent.  A quasi-modal dialog in that state looks like it
+         * vanished while its parent stays blocked.  Declaring the dialog modal is the only
+         * window state the protocol guarantees: the compositor must keep it above its
+         * transient parent and deliver it keyboard focus.  This only takes effect on
+         * Wayland displays; X11 and the other platforms are nops so the quasi-modal
+         * semantics stay intact there.
+         *
+         * @param aWindow dialog window to mark modal or non-modal
+         * @param aModal true to declare the dialog modal
+         */
+        void SetDialogModal( wxWindow* aWindow, bool aModal );
+
+        /**
          * Prepare a top-level window for reliable position round-tripping.
          *
          * On GTK/X11, default window gravity lets window-manager decorations affect the

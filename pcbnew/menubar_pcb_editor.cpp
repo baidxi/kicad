@@ -238,6 +238,11 @@ void PCB_EDIT_FRAME::doReCreateMenuBar()
     if( ADVANCED_CFG::GetCfg().m_EnablePcbDesignBlocks )
         showHidePanels->Add( PCB_ACTIONS::showDesignBlockPanel, ACTION_MENU::CHECK, _( "Design Blocks" ) );
 
+    showHidePanels->AppendSeparator();
+    showHidePanels->Add( _( "Dock All Floating Panels" ),
+                         _( "Dock all panels that have been floated back at their previous docked position" ),
+                         ID_DOCK_FLOATING_PANELS, BITMAPS::unknown );
+
     viewMenu->Add( showHidePanels );
 
     viewMenu->AppendSeparator();
