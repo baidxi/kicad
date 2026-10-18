@@ -431,8 +431,14 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
         }
         else if( row.type == wxS( "POLY" ) )
         {
-            nlohmann::json flatPts = FlattenPoints(
-                    row.inner.value( "points", nlohmann::json::array() ) );
+            // Symbol graphics from .elibz2 device libraries carry the outline in
+            // "path" (matching the PCB-side parser); accept "points" as well.
+            nlohmann::json pointsSrc =
+                    row.inner.contains( "path" ) && row.inner.at( "path" ).is_array()
+                        ? row.inner.at( "path" )
+                        : row.inner.value( "points", nlohmann::json::array() );
+
+            nlohmann::json flatPts = FlattenPoints( pointsSrc );
             std::vector<double> points = flatPts;
 
             auto shape = std::make_unique<SCH_SHAPE>( SHAPE_T::POLY, LAYER_DEVICE );
@@ -456,11 +462,18 @@ SCH_EASYEDAPRO_V3_PARSER::ParseSymbol( const EASYEDAPRO::V3_DOC_RAW&       aDoc,
                 shape->AddPoint( pt );
             }
 
-            SHAPE_LINE_CHAIN& outline = shape->GetPolyShape().Outline( 0 );
+            // Paths that carry no usable vertices (command-only, or everything
+            // skipped as duplicates) are dropped entirely - indexing an empty
+            // outline would segfault.
+            if( shape->GetPolyShape().OutlineCount() == 0
+                || shape->GetPolyShape().Outline( 0 ).PointCount() == 0 )
+            {
+                continue;
+            }
 
-            if( outline.PointCount() > 2 && outline.CPoint( 0 ) == outline.CLastPoint() )
-                outline.Remove( outline.PointCount() - 1 );
-
+            // NOTE: do not strip the duplicated closing vertex.  EasyEDA paths are
+            // segment lists (A B B C C A = triangle edges A-B, B-C, C-A); the final
+            // vertex is what draws the last edge.
             shape->SetUnit( rowUnit );
             ApplyV3LineStyle( shape, row.inner );
 
@@ -1142,11 +1155,20 @@ void SCH_EASYEDAPRO_V3_PARSER::ParseSchematic(
         }
         else if( row.type == wxS( "POLY" ) )
         {
-            if( EASYEDAPRO::V3IsNullOrMissing( row.inner, "points" ) )
+            if( EASYEDAPRO::V3IsNullOrMissing( row.inner, "path" )
+                && EASYEDAPRO::V3IsNullOrMissing( row.inner, "points" ) )
+            {
                 continue;
+            }
 
-            nlohmann::json flatPts = FlattenPoints(
-                    row.inner.value( "points", nlohmann::json::array() ) );
+            // Symbol graphics from .elibz2 device libraries carry the outline in
+            // "path"; accept "points" as well.
+            nlohmann::json pointsSrc =
+                    row.inner.contains( "path" ) && row.inner.at( "path" ).is_array()
+                        ? row.inner.at( "path" )
+                        : row.inner.value( "points", nlohmann::json::array() );
+
+            nlohmann::json flatPts = FlattenPoints( pointsSrc );
             std::vector<double> pointsData = flatPts;
 
             if( pointsData.size() < 4 )
@@ -1170,10 +1192,14 @@ void SCH_EASYEDAPRO_V3_PARSER::ParseSchematic(
                 poly->AddPoint( pt );
             }
 
-            SHAPE_LINE_CHAIN& outline = poly->GetPolyShape().Outline( 0 );
+            if( poly->GetPolyShape().OutlineCount() == 0
+                || poly->GetPolyShape().Outline( 0 ).PointCount() == 0 )
+            {
+                continue;
+            }
 
-            if( outline.PointCount() > 2 && outline.CPoint( 0 ) == outline.CLastPoint() )
-                outline.Remove( outline.PointCount() - 1 );
+            // Same as above: keep the duplicated closing vertex - it draws the
+            // final segment of the EasyEDA segment list.
 
             SCH_SHAPE* polyPtr = poly.get();
             ApplyV3LineStyle( polyPtr, row.inner );
