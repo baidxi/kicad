@@ -139,6 +139,10 @@ private:
     bool finishInteractive();
     void saveRouterDebugLog();
 
+    /// Reattaches the PNS iface to the live board if its cached pointer went stale (a board
+    /// can be swapped without a tool reset, e.g. by a reload driven through the API).
+    void reattachBoardIfSwapped();
+
 private:
     std::shared_ptr<ACTION_MENU> m_diffPairMenu;
     std::shared_ptr<ACTION_MENU> m_trackViaMenu;

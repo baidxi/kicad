@@ -661,6 +661,10 @@ private:
 
     bool                     m_lockedItemsFiltered;
 
+    /// The long-press disambiguation timer fired while the button was still down; the popup
+    /// is opened from the click handler after the release so the release can't dismiss it.
+    bool                     m_deferredDisambiguation = false;
+
     /// Anchor cell for shift+click range selection in a PCB_TABLE.
     PCB_TABLECELL*           m_previousFirstCell;
 

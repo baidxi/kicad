@@ -2428,6 +2428,16 @@ int ROUTER_TOOL::OptimizeSelected( const TOOL_EVENT& aEvent )
 }
 
 
+void ROUTER_TOOL::reattachBoardIfSwapped()
+{
+    // A board can be swapped without a tool reset reaching us (e.g. a reload driven through the
+    // API); the iface's cached pointer would then dangle.  Reattach before syncing so the world
+    // is rebuilt against the live board.  Pointer comparison only; nothing is dereferenced.
+    if( m_iface->GetBoard() != board() )
+        m_iface->SetBoard( board() );
+}
+
+
 int ROUTER_TOOL::MainLoop( const TOOL_EVENT& aEvent )
 {
     if( m_inRouterTool )
@@ -2446,6 +2456,13 @@ int ROUTER_TOOL::MainLoop( const TOOL_EVENT& aEvent )
         else
             m_router->StopRouting();
     }
+
+    // The PNS world may be stale if the board has been modified since the last sync (e.g. by an
+    // undo, a cleanup pass, or an API-driven edit made while the router was idle).  Sync it now,
+    // before any hover-picking dereferences item parents, so the router cannot touch freed board
+    // items.
+    reattachBoardIfSwapped();
+    m_router->SyncWorld();
 
     // Deselect all items
     m_toolMgr->RunAction( ACTIONS::selectionClear );
@@ -2499,10 +2516,12 @@ int ROUTER_TOOL::MainLoop( const TOOL_EVENT& aEvent )
         }
         else if( evt->Action() == TA_UNDO_REDO_PRE )
         {
+            reattachBoardIfSwapped();
             m_router->ClearWorld();
         }
         else if( evt->Action() == TA_UNDO_REDO_POST || evt->Action() == TA_MODEL_CHANGE )
         {
+            reattachBoardIfSwapped();
             m_router->SyncWorld();
         }
         else if( evt->IsMotion() || evt->IsAction( &ACTIONS::refreshPreview ) )
@@ -2971,6 +2990,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
 
     // The PNS world may be stale if the board has been modified since the last sync (e.g. by
     // a Move operation). Sync it now so that FindItemByParent and joint lookups work correctly.
+    reattachBoardIfSwapped();
     m_router->SyncWorld();
 
     // A footprint with no copper the router can see cannot be dragged, and showing it in the

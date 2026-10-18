@@ -490,12 +490,27 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
                     }
                 }
             }
+            else if( m_deferredDisambiguation )
+            {
+                // The long-press timer popped while the button was still down, so the popup
+                // was deferred to here: the release that ends the long-press would otherwise
+                // dismiss the menu before an item can be chosen (a release closes a popup
+                // outright on Wayland/GTK).  The button is up now, so show the menu.
+                m_deferredDisambiguation = false;
+
+                m_frame->ClearFocus();
+
+                m_skip_heuristics = true;
+                selectPoint( m_originalCursor, false, &m_canceledMenu );
+                m_skip_heuristics = false;
+            }
 
             m_canceledMenu = false;
         }
         else if( evt->IsClick( BUT_RIGHT ) )
         {
             m_disambiguateTimer.Stop();
+            m_deferredDisambiguation = false;
 
             // Right click? if there is any object - show the context menu
             bool selectionCancelled = false;
@@ -560,6 +575,7 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         else if( evt->IsDblClick( BUT_LEFT ) || evt->IsAction( &ACTIONS::cursorDblClick ) )
         {
             m_disambiguateTimer.Stop();
+            m_deferredDisambiguation = false;
 
             // Double clicks make no sense in the footprint viewer
             if( frame && frame->IsType( FRAME_FOOTPRINT_VIEWER ) )
@@ -615,6 +631,7 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         else if( evt->IsDrag( BUT_LEFT ) )
         {
             m_disambiguateTimer.Stop();
+            m_deferredDisambiguation = false;
 
             // Is another tool already moving a new object?  Don't allow a drag start
             if( !m_selection.Empty() && m_selection[0]->HasFlag( IS_NEW | IS_MOVING ) )
@@ -766,6 +783,7 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
         else if( evt->IsCancel() )
         {
             m_disambiguateTimer.Stop();
+            m_deferredDisambiguation = false;
             m_frame->ClearFocus();
 
             if( CONSTRAINT_EDIT_TOOL* constraintTool = m_toolMgr->GetTool<CONSTRAINT_EDIT_TOOL>();
@@ -828,6 +846,7 @@ int PCB_SELECTION_TOOL::Main( const TOOL_EVENT& aEvent )
     m_previousFirstCell = nullptr;
     m_selection.Clear();
     m_disambiguateTimer.Stop();
+    m_deferredDisambiguation = false;
 
     return 0;
 }
@@ -1878,6 +1897,16 @@ int PCB_SELECTION_TOOL::disambiguateCursor( const TOOL_EVENT& aEvent )
     wxMouseState keyboardState = wxGetMouseState();
 
     setModifiersState( keyboardState.ShiftDown(), keyboardState.ControlDown(), keyboardState.AltDown() );
+
+    // The long-press popped while the button is still down.  Showing the menu now lets the
+    // pending release dismiss it before an item can be chosen (on Wayland/GTK the release
+    // closes the popup outright).  Defer the menu to the click handler that runs once the
+    // button is back up instead.
+    if( keyboardState.LeftIsDown() )
+    {
+        m_deferredDisambiguation = true;
+        return 0;
+    }
 
     m_skip_heuristics = true;
     selectPoint( m_originalCursor, false, &m_canceledMenu );

@@ -23,7 +23,7 @@ env:
   KICAD_CMAKE_EXTRA: >-
     -DKICAD_USE_SENTRY=OFF
     -DKICAD_INSTALL_DEMOS=ON
-    -DKICAD_BUILD_I18N=OFF
+    -DKICAD_BUILD_I18N=ON
     -DKICAD_BUILD_QA_TESTS=OFF
     -DKICAD_SPICE_QA=OFF
 
@@ -87,7 +87,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$PWD/stage" \
             -DKICAD_USE_SENTRY=OFF \
             -DKICAD_INSTALL_DEMOS=ON \
-            -DKICAD_BUILD_I18N=OFF \
+            -DKICAD_BUILD_I18N=ON \
             -DKICAD_BUILD_QA_TESTS=OFF \
             -DKICAD_SPICE_QA=OFF \
             -DKICAD_APPLE_MAKE_RELOCATEABLE_BUNDLE=ON \
@@ -171,7 +171,7 @@ jobs:
             libssl-dev libbz2-dev libzstd-dev zlib1g-dev \
             python3-dev libwebkit2gtk-4.1-dev \
             glslang-tools spirv-tools libvulkan-dev \
-            dpkg-dev file
+            gettext dpkg-dev file
 
       - name: Configure
         run: |
@@ -268,7 +268,7 @@ jobs:
             libssl-dev libbz2-dev libzstd-dev zlib1g-dev \
             python3-dev libwebkit2gtk-4.1-dev \
             glslang-tools spirv-tools libvulkan-dev \
-            desktop-file-utils file
+            gettext desktop-file-utils file
 
       - name: Configure
         run: |
@@ -612,7 +612,7 @@ jobs:
               -DKICAD_USE_PCH=OFF `
               -DKICAD_USE_SENTRY=OFF `
               -DKICAD_INSTALL_DEMOS=ON `
-              -DKICAD_BUILD_I18N=OFF `
+              -DKICAD_BUILD_I18N=ON `
               -DKICAD_BUILD_QA_TESTS=OFF `
               -DKICAD_SPICE_QA=OFF
             if( $LASTEXITCODE -eq 0 )
