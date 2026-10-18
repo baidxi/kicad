@@ -547,11 +547,28 @@ SNAP_RESULT EE_GRID_HELPER::ResolveSnap( const VECTOR2I& aOrigin, GRID_HELPER_GR
 
     if( constructionEnabled )
     {
+        // Construction items can outlive the objects they reference (e.g. when an
+        // undo-stack trim deletes the dragged wire copies while the batch
+        // persists).  Skip entries whose source item is gone from the screen -
+        // reading its KIID would be a use-after-free.
+        SCH_BASE_FRAME* schFrame = dynamic_cast<SCH_BASE_FRAME*>( m_toolMgr->GetToolHolder() );
+        SCH_SCREEN*     screen = schFrame ? schFrame->GetScreen() : nullptr;
+
         for( const CONSTRUCTION_MANAGER::CONSTRUCTION_ITEM_BATCH& batch : getSnapManager().GetConstructionItems() )
         {
             for( const CONSTRUCTION_MANAGER::CONSTRUCTION_ITEM& item : batch )
             {
-                SNAP_TARGET_ID target = item.Item ? SnapTargetId( item.Item->m_Uuid ) : SNAP_TARGET_ID{};
+                // item.Item may dangle, and both dynamic_cast and the default contains()
+                // overload dereference it (vptr / bounding box).  The robust contains()
+                // overload is a pure pointer-membership test against the screen's item
+                // set, so it is safe to run on a stale pointer; only after it passes may
+                // the item be downcast and read.
+                if( !screen || !screen->Items().contains( static_cast<const SCH_ITEM*>( item.Item ), true ) )
+                    continue;
+
+                const SCH_ITEM* schItem = static_cast<const SCH_ITEM*>( item.Item );
+
+                SNAP_TARGET_ID target = SnapTargetId( schItem->m_Uuid );
 
                 for( const CONSTRUCTION_MANAGER::CONSTRUCTION_ITEM::DRAWABLE_ENTRY& entry : item.Constructions )
                 {

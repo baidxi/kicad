@@ -295,6 +295,10 @@ void HIERARCHY_PANE::UpdateHierarchyTree( bool aClear )
         getCollapsedNodes( m_tree->GetRootItem() );
     }
 
+    // From here on every TREE_ITEM_DATA in the tree is freed; drop any label edit that started
+    // against the previous generation of the tree.
+    ++m_treeEpoch;
+
     m_tree->DeleteAllItems();
 
     // Create project root node (not associated with virtual root sheet)
@@ -706,6 +710,7 @@ void HIERARCHY_PANE::onRightClick( wxTreeItemId aItem )
         break;
     case RENAME:
         m_tree->SetItemText( aItem, itemData->m_SheetPath.Last()->GetName() );
+        m_labelEditEpoch = m_treeEpoch;
         m_tree->EditLabel( aItem );
         setIdenticalSheetsHighlighted( itemData->m_SheetPath );
         break;
@@ -721,6 +726,19 @@ void HIERARCHY_PANE::onTreeEditFinished( wxTreeEvent& event )
         event.Veto();
         return;
     }
+
+    // The tree can be rebuilt between the moment EditLabel() started and this event (the
+    // in-place editor survives a resync).  A rebuild frees every TREE_ITEM_DATA, so item data
+    // belonging to the previous generation of the tree is dangling; drop the event instead of
+    // touching it.
+    if( m_labelEditEpoch != m_treeEpoch )
+    {
+        m_labelEditEpoch = 0;
+        event.Veto();
+        return;
+    }
+
+    m_labelEditEpoch = 0;
 
     TREE_ITEM_DATA* data = static_cast<TREE_ITEM_DATA*>( m_tree->GetItemData( event.GetItem() ) );
     wxString        newName = event.GetLabel();

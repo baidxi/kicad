@@ -164,6 +164,12 @@ private:
     SCH_EDIT_FRAME* m_frame;
     HIERARCHY_TREE* m_tree;
 
+    /// Bumped on every tree rebuild.  A rebuild frees every TREE_ITEM_DATA (and the
+    /// SCH_SHEET_PATH inside it), so a label-edit event that started before the rebuild must
+    /// not touch the item data it carries.
+    unsigned        m_treeEpoch = 0;
+    unsigned        m_labelEditEpoch = 0;
+
     bool            m_events_bound;
     bool            m_contextMenuOpen;
     std::set<wxString> m_collapsedPaths;
