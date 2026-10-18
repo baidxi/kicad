@@ -179,7 +179,9 @@ private:
      * Update the leader and loop lines points based on a new endpoint (probably
      * a cursor position)
      */
-    void updateTemporaryLines( const VECTOR2I& aEndPoint,
+    // Takes the end point by value: it is often a reference into m_leaderPts,
+    // which is invalidated by the move-assignments this function performs.
+    void updateTemporaryLines( const VECTOR2I aEndPoint,
                                LEADER_MODE     aModifier = LEADER_MODE::DIRECT );
 
     /// The "user" of the polygon data that is informed when the geometry changes

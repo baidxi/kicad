@@ -139,7 +139,7 @@ std::optional<VECTOR2I> POLYGON_GEOM_MANAGER::DeleteLastCorner()
     // update the new last segment (was previously
     // locked in), reusing last constraints
     if( m_lockedPoints.PointCount() > 0 )
-        updateTemporaryLines( m_leaderPts.CLastPoint() );
+        updateTemporaryLines( VECTOR2I( m_leaderPts.CLastPoint() ) );
 
     m_client.OnGeometryChange( *this );
     return last;
@@ -239,7 +239,7 @@ static SHAPE_LINE_CHAIN build90DegLeader( const VECTOR2I& aEndPoint, const SHAPE
 }
 
 
-void POLYGON_GEOM_MANAGER::updateTemporaryLines( const VECTOR2I& aEndPoint, LEADER_MODE aModifier )
+void POLYGON_GEOM_MANAGER::updateTemporaryLines( const VECTOR2I aEndPoint, LEADER_MODE aModifier )
 {
     wxCHECK( m_lockedPoints.PointCount() > 0, /*void*/ );
     const VECTOR2I& last_pt = m_lockedPoints.CLastPoint();
