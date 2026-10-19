@@ -382,6 +382,10 @@ jobs:
           #!/bin/bash
           HERE="$(cd "$(dirname "$0")" && pwd)"
           export LD_LIBRARY_PATH="$HERE/usr/lib/kicad:$HERE/usr/lib/x86_64-linux-gnu:$HERE/usr/lib64:$HERE/usr/lib:${LD_LIBRARY_PATH}"
+          # Point PATHS::GetStockDataPath at the bundled stock data (API
+          # schemas, the icon archive, i18n) - the compiled-in
+          # /usr/share/kicad prefix is only correct for a conventional install.
+          export KICAD_STOCK_DATA_HOME="$HERE/usr/share/kicad"
           exec "$HERE/usr/bin/kicad" "$@"
           EOF
           chmod +x AppRun
