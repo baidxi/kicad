@@ -123,6 +123,60 @@ jobs:
           set -euo pipefail
           cmake --install build
 
+      # Bundle the official stock libraries (symbols/footprints/3D models/
+      # templates) so the dmg is fully self-contained out of the box.  They
+      # go into the bundle's SharedSupport kicad data directory, which
+      # GetOSXKicadDataDir() resolves at runtime; the library repos carry the
+      # default global tables that the first-run wizard copies from
+      # template/.  Also print dyld info for the main binary: entries should
+      # resolve to @executable_path/... (bundle) or /System/Library (host
+      # frameworks) - anything in /opt/homebrew would mean the refixup pass
+      # missed a dependency.
+      - name: Bundle stock libraries
+        run: |
+          set -euo pipefail
+          SCHEMA_DIR="$(find stage -type d -path '*kicad/schemas' | head -1)"
+          if [ -z "$SCHEMA_DIR" ]; then
+            echo "ERROR: could not locate the staged kicad data directory" >&2
+            find stage -maxdepth 5 -type d | sort >&2
+            exit 1
+          fi
+          DATA_DIR="$(dirname "$SCHEMA_DIR")"
+          echo "stock data dir: $DATA_DIR"
+          for spec in "symbols:symbols" "footprints:footprints" "packages3D:3dmodels" "templates:template"; do
+            repo="kicad-${spec%%:*}"; dest="${spec##*:}"
+            git clone --depth 1 \
+              "https://gitlab.com/kicad/libraries/$repo.git" \
+              "$RUNNER_TEMP/$repo"
+            mkdir -p "$DATA_DIR/$dest"
+            cp -a "$RUNNER_TEMP/$repo/." "$DATA_DIR/$dest/"
+          done
+          mkdir -p "$DATA_DIR/template"
+          for pair in "kicad-symbols:sym-lib-table" "kicad-footprints:fp-lib-table"; do
+            repo="${pair%%:*}"; table="${pair##*:}"
+            if [ -f "$RUNNER_TEMP/$repo/$table" ]; then
+              cp -f "$RUNNER_TEMP/$repo/$table" "$DATA_DIR/template/$table"
+            fi
+          done
+
+          echo "--- bundled stock data verification ---"
+          test -f "$DATA_DIR/resources/images.tar.gz" && echo "  icon archive        : OK"
+          test -f "$SCHEMA_DIR/api.v1.schema.json" && echo "  api schema          : OK"
+          test -f "$DATA_DIR/template/sym-lib-table" && echo "  default sym table   : OK"
+          test -f "$DATA_DIR/template/fp-lib-table" && echo "  default fp table    : OK"
+          NSYM=$(ls "$DATA_DIR/symbols/"*.kicad_sym 2>/dev/null | wc -l)
+          NFP=$(find "$DATA_DIR/footprints" -maxdepth 1 -name '*.pretty' 2>/dev/null | wc -l)
+          N3D=$(find "$DATA_DIR/3dmodels" -maxdepth 1 -name '*.3dshapes' 2>/dev/null | wc -l)
+          echo "  symbol libraries    : $NSYM"
+          echo "  footprint libraries : $NFP"
+          echo "  3d model libraries  : $N3D"
+          test "$NSYM" -gt 50 && test "$NFP" -gt 50 && test "$N3D" -gt 50
+
+          echo "--- dyld sources of the main binary (informational) ---"
+          MAIN_BIN="$(find stage -name kicad -type f -path '*MacOS*' | head -1)"
+          [ -n "$MAIN_BIN" ] || MAIN_BIN="$(find stage -type f -name kicad | head -1)"
+          otool -L "$MAIN_BIN" | sed -n '2,30p'
+
       - name: Package DMG
         run: |
           set -euo pipefail
