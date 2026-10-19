@@ -344,6 +344,15 @@ jobs:
           done
           export LD_LIBRARY_PATH="$PWD/AppDir/usr/lib:${LD_LIBRARY_PATH:-}"
 
+          # Bundle libstdc++/libgcc_s too: linuxdeploy treats them as always
+          # available on the target system, but carrying our own (built with
+          # a new toolchain) makes the AppImage start on older distros whose
+          # system libstdc++ lacks the required GLIBCXX_*/CXXABI_* versions.
+          for lib in /usr/lib/x86_64-linux-gnu/libstdc++.so.6 \
+                     /usr/lib/x86_64-linux-gnu/libgcc_s.so.1; do
+            if [ -e "$lib" ]; then cp -fL "$lib" AppDir/usr/lib/; fi
+          done
+
           # Custom AppRun: KiCad's internal libraries live outside the default
           # dynamic loader path inside the AppImage; cover the multiarch dir
           # and any other layout CMAKE_INSTALL_LIBDIR may resolve to.
@@ -377,6 +386,16 @@ jobs:
             --custom-apprun "$PWD/AppRun" \
             "${DESKTOP_ARGS[@]}" \
             --output appimage
+
+          # Self-containment diagnostics: list what the packaged binaries
+          # would still resolve from system paths at runtime.  Entries like
+          # glibc, libGL/Mesa, X11, DBus, input-method or fontconfig libs are
+          # expected and correct (they must come from the host); anything
+          # else indicates a gap worth looking at.
+          echo "--- runtime dependencies resolving from SYSTEM paths (informational) ---"
+          ldd AppDir/usr/bin/kicad 2>/dev/null \
+            | grep -Ev 'AppDir|/tmp/\.mount|linuxdeploy' || true
+          echo "------------------------------------------------------------------------"
 
           # Keep the AppImage under the name linuxdeploy produced from the
           # desktop entry (no renaming).  Only move the linuxdeploy tool
