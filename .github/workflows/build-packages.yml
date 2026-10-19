@@ -254,9 +254,13 @@ jobs:
   # ---------------------------------------------------------------------------
   linux-appimage:
     name: Linux AppImage (x86_64)
-    # AppImages bundle all libraries, so the built image runs on any distro
-    # including 26.04; the runner version only affects the build toolchain.
-    runs-on: ubuntu-26.04
+    # Build on the OLDEST supported LTS.  glibc is not bundled (it must come
+    # from the host) and is backward-incompatible: libraries pulled into the
+    # AppImage from an ubuntu-26.04 build machine carry GLIBC_2.42/2.43
+    # versioned symbol references that a 24.04 host (glibc 2.39) cannot
+    # resolve.  Building on 24.04 keeps the glibc requirement at <= 2.39 so
+    # the AppImage runs on 24.04 and anything newer.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
