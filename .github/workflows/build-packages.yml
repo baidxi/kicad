@@ -155,11 +155,19 @@ jobs:
   # Linux: build a .deb (Debian/Ubuntu x86_64)
   # ---------------------------------------------------------------------------
   linux-deb:
-    name: Linux DEB (x86_64)
-    # Built on the newest LTS so the package targets its library versions.
-    # The resulting .deb installs on 26.04; use ubuntu-24.04 here instead if you
-    # need a package for older releases.
-    runs-on: ubuntu-26.04
+    name: Linux DEB (x86_64 ${{ matrix.distro }})
+    # One package per LTS: a .deb carries the build host's glibc/dependency
+    # versions, so it only installs on that LTS or newer.  24.04 maximises
+    # portability, 26.04 targets the newest stack.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: '24.04'
+            runner: ubuntu-24.04
+          - distro: '26.04'
+            runner: ubuntu-26.04
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -206,6 +214,8 @@ jobs:
           cmake --build build -j"$(nproc)"
 
       - name: Assemble DEB
+        env:
+          DISTRO_ID: ${{ matrix.distro }}
         run: |
           set -euo pipefail
           VERSION="$(git describe --tags --always --dirty | sed 's/^v//')"
@@ -236,12 +246,12 @@ jobs:
           # Documentation of the dependency computation for debugging
           echo "$SHLIBS" > "$STAGE/DEBIAN/shlibs.deps"
 
-          dpkg-deb --root-owner-group --build "$STAGE" "kicad-linux-amd64-$VERSION.deb"
+          dpkg-deb --root-owner-group --build "$STAGE" "kicad-linux-amd64-$DISTRO_ID-$VERSION.deb"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-deb
+          name: linux-deb-${{ matrix.distro }}
           path: kicad-linux-amd64-*.deb
           if-no-files-found: error
           # .deb files are already compressed; store them verbatim inside the
@@ -253,14 +263,20 @@ jobs:
   # Linux: build an AppImage (x86_64)
   # ---------------------------------------------------------------------------
   linux-appimage:
-    name: Linux AppImage (x86_64)
-    # Build on the OLDEST supported LTS.  glibc is not bundled (it must come
-    # from the host) and is backward-incompatible: libraries pulled into the
-    # AppImage from an ubuntu-26.04 build machine carry GLIBC_2.42/2.43
-    # versioned symbol references that a 24.04 host (glibc 2.39) cannot
-    # resolve.  Building on 24.04 keeps the glibc requirement at <= 2.39 so
-    # the AppImage runs on 24.04 and anything newer.
-    runs-on: ubuntu-24.04
+    name: Linux AppImage (x86_64 ${{ matrix.distro }})
+    # One image per LTS.  glibc is not bundled (it must come from the host)
+    # and is backward-incompatible, so each image is built on the LTS it
+    # targets: the 24.04 build runs on 24.04 and anything newer
+    # (glibc <= 2.39), the 26.04 build targets the newest stack.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: '24.04'
+            runner: ubuntu-24.04
+          - distro: '26.04'
+            runner: ubuntu-26.04
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -313,6 +329,8 @@ jobs:
           DESTDIR="$PWD/AppDir" cmake --install build
 
       - name: Build AppImage
+        env:
+          DISTRO_ID: ${{ matrix.distro }}
         run: |
           set -euo pipefail
           # Find the KiCad internal libraries: the versioned shared libraries
@@ -402,16 +420,20 @@ jobs:
           echo "------------------------------------------------------------------------"
 
           # Keep the AppImage under the name linuxdeploy produced from the
-          # desktop entry (no renaming).  Only move the linuxdeploy tool
-          # itself out of the way so it is not uploaded alongside the
-          # artifact below.
+          # desktop entry (no renaming).  Move the linuxdeploy tool out of the
+          # way, then add a distro-suffixed copy so the two matrix variants
+          # (24.04/26.04) do not collide with each other in the release/artifact
+          # pages; only the suffixed copy is uploaded.
           mv linuxdeploy.AppImage linuxdeploy.tool
+          cp -f KiCad-x86_64.AppImage "KiCad-x86_64-$DISTRO_ID.AppImage"
 
       - name: Upload artifact
+        env:
+          DISTRO_ID: ${{ matrix.distro }}
         uses: actions/upload-artifact@v4
         with:
-          name: linux-appimage
-          path: KiCad*.AppImage
+          name: linux-appimage-${{ matrix.distro }}
+          path: KiCad-x86_64-*.AppImage
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
