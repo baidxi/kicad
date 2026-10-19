@@ -408,6 +408,28 @@ jobs:
           done
           du -sh AppDir/usr/share/kicad || true
 
+          # Verify the bundled stock data actually landed where the runtime
+          # expects it (AppRun exports KICAD_STOCK_DATA_HOME pointing at
+          # $APPDIR/usr/share/kicad).  Fail the build if anything is missing
+          # or implausibly small instead of shipping an image without icons
+          # or libraries.
+          echo "--- bundled stock data verification ---"
+          test -f AppDir/usr/share/kicad/resources/images.tar.gz \
+            && echo "  icon archive        : OK"
+          test -f AppDir/usr/share/kicad/schemas/api.v1.schema.json \
+            && echo "  api schema          : OK"
+          test -f AppDir/usr/share/kicad/template/sym-lib-table \
+            && echo "  default sym table   : OK"
+          test -f AppDir/usr/share/kicad/template/fp-lib-table \
+            && echo "  default fp table    : OK"
+          NSYM=$(ls AppDir/usr/share/kicad/symbols/*.kicad_sym 2>/dev/null | wc -l)
+          NFP=$(find AppDir/usr/share/kicad/footprints -maxdepth 1 -name '*.pretty' 2>/dev/null | wc -l)
+          N3D=$(find AppDir/usr/share/kicad/3dmodels -maxdepth 1 -name '*.3dshapes' 2>/dev/null | wc -l)
+          echo "  symbol libraries    : $NSYM"
+          echo "  footprint libraries : $NFP"
+          echo "  3d model libraries  : $N3D"
+          test "$NSYM" -gt 50 && test "$NFP" -gt 50 && test "$N3D" -gt 50
+
           # Custom AppRun: KiCad's internal libraries live outside the default
           # dynamic loader path inside the AppImage; cover the multiarch dir
           # and any other layout CMAKE_INSTALL_LIBDIR may resolve to.
