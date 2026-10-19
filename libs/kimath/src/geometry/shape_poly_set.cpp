@@ -704,6 +704,9 @@ void SHAPE_POLY_SET::RebuildHolesFromContours()
                 {
                     int erased = relParents.erase( pathId );
                     wxASSERT( erased > 0 );
+                    // 'erased' is only referenced by wxASSERT above, which
+                    // compiles away when built with wxDEBUG_LEVEL == 0.
+                    wxUnusedVar( erased );
                 }
 
                 wxASSERT( relParents.size() == 0 );

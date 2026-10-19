@@ -728,6 +728,8 @@ private:
     VERTEX* removeNullTriangles( VERTEX* aStart )
     {
         VERTEX* retval = nullptr;
+        // 'count' is only referenced by wxLogTrace below, whose argument
+        // expressions are discarded when built with wxDEBUG_LEVEL == 0.
         size_t count = 0;
 
         if( ( retval = simplifyList( aStart ) ) )
@@ -788,6 +790,7 @@ private:
         }
 
         wxLogTrace( TRIANGULATE_TRACE, "Removed %zu NULL triangles", count );
+        wxUnusedVar( count );
 
         return retval;
     }

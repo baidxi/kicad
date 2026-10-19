@@ -56,6 +56,10 @@ void kimathLogOverflow( double v, const char* aTypeName )
 {
     wxString typeName( aTypeName );
     wxFAIL_MSG( wxString::Format( wxT( "\n\nOverflow converting value %f to %s." ), v, typeName ) );
+    // 'typeName' is only referenced by wxFAIL_MSG above, which compiles away
+    // when built with wxDEBUG_LEVEL == 0; reference it to keep
+    // -Wunused-variable quiet.
+    wxUnusedVar( typeName );
 }
 
 
