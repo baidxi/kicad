@@ -74,8 +74,27 @@ jobs:
             spirv-cross \
             spirv-tools \
             vulkan-headers \
-            nng \
             unixodbc
+
+      # Homebrew now ships nng 2.0, whose headers/API are incompatible with
+      # KiCad's libs/kinng (written against the NNG 1.x API, e.g.
+      # nng/protocol/reqrep0/rep.h).  Build the last 1.x release from source
+      # into /usr/local - a CMake default search prefix, so Findnng picks it
+      # up without extra flags.  NNG 1.x builds a static library by default,
+      # so there is no runtime dylib to bundle.
+      - name: Build NNG 1.x from source
+        run: |
+          set -euo pipefail
+          brew uninstall --ignore-dependencies nng 2>/dev/null || true
+          git clone --depth 1 --branch v1.10.1 \
+            https://github.com/nanomsg/nng.git "$RUNNER_TEMP/nng-src"
+          cmake -S "$RUNNER_TEMP/nng-src" -B "$RUNNER_TEMP/nng-build" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNNG_TESTS=OFF \
+            -DNNG_TOOLS=OFF \
+            -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build "$RUNNER_TEMP/nng-build"
+          sudo cmake --install "$RUNNER_TEMP/nng-build"
 
       - name: Configure
         env:
