@@ -33,6 +33,7 @@
 #include <pcb_field.h>
 #include <pcb_group.h>
 #include <pcb_point.h>
+#include <pcb_3d_body.h>
 #include <pcb_text.h>
 #include <zone.h>
 
@@ -249,6 +250,7 @@ void BOARD::ExchangeFootprint( FOOTPRINT* aExisting, FOOTPRINT* aNew, BOARD_COMM
     aNew->SetUuid( aExisting->m_Uuid );
     aNew->Reference().SetUuid( aExisting->Reference().m_Uuid );
     aNew->Value().SetUuid( aExisting->Value().m_Uuid );
+    aNew->SetHeight( aExisting->GetHeight() );
 
     std::vector<PAD*> oldPads;
     oldPads.reserve( aExisting->Pads().size() );
@@ -653,10 +655,8 @@ void BOARD::ExchangeFootprint( FOOTPRINT* aExisting, FOOTPRINT* aNew, BOARD_COMM
         aNew->Models() = aExisting->Models();
 
         // Preserve extruded 3D body settings.
-        if( aExisting->HasExtrudedBody() )
-            aNew->SetExtrudedBody( std::make_unique<EXTRUDED_3D_BODY>( *aExisting->GetExtrudedBody() ) );
-        else
-            aNew->ClearExtrudedBody();
+        for( PCB_3D_BODY* body : aExisting->Bodies() )
+            aNew->Add( static_cast<PCB_3D_BODY*>( body->Clone() ), ADD_MODE::APPEND );
 
         for( const auto& [name, file] : aExisting->GetEmbeddedFiles()->EmbeddedFileMap() )
         {

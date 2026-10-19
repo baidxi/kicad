@@ -20,6 +20,10 @@
  */
 
 #include "pcb_control.h"
+
+#include <wx/hyperlink.h>
+#include <wx/filename.h>
+
 #include "convert_basic_shapes_to_polygon.h"
 
 #include <advanced_config.h>
@@ -27,6 +31,7 @@
 #include <kiplatform/ui.h>
 #include <kiway.h>
 #include <tools/edit_tool.h>
+#include <tools/pad_tool.h>
 #include <tools/board_inspection_tool.h>
 #include <router/router_tool.h>
 #include <pgm_base.h>
@@ -71,7 +76,6 @@
 #include <filename_resolver.h>
 #include <3d_cache/3d_cache.h>
 #include <embedded_files.h>
-#include <wx/filename.h>
 #include <zone.h>
 #include <confirm.h>
 #include <kidialog.h>
@@ -79,6 +83,8 @@
 #include <core/kicad_algo.h>
 #include <dialogs/hotkey_cycle_popup.h>
 #include <dialogs/dialog_map_layers.h>
+#include <drc/drc_engine.h>
+#include <drc/drc_rule.h>
 #include <pcb_io/common/plugin_common_layer_mapping.h>
 #include <kicad_clipboard.h>
 #include <origin_viewitem.h>
@@ -96,7 +102,6 @@
 #include <widgets/wx_progress_reporters.h>
 #include <widgets/wx_infobar.h>
 #include <pcb_io/pcb_io.h>
-#include <wx/hyperlink.h>
 
 
 using namespace std::placeholders;
@@ -1057,6 +1062,25 @@ void PCB_CONTROL::pruneItemLayers( std::vector<BOARD_ITEM*>& aItems )
 }
 
 
+/**
+ * Handle items that have been pasted. For example, notify the pad tool
+ * about pasted pads.
+ */
+static void recordPastedItems( TOOL_MANAGER* aToolMgr, const std::vector<BOARD_ITEM*>& aItems )
+{
+    PAD_TOOL* padTool = aToolMgr->GetTool<PAD_TOOL>();
+
+    if( !padTool )
+        return;
+
+    for( BOARD_ITEM* item : aItems )
+    {
+        if( PAD* pad = dynamic_cast<PAD*>( item ) )
+            padTool->RecordMasterPad( *pad );
+    }
+}
+
+
 int PCB_CONTROL::Paste( const TOOL_EVENT& aEvent )
 {
     // The viewer frames cannot paste
@@ -1318,6 +1342,9 @@ int PCB_CONTROL::Paste( const TOOL_EVENT& aEvent )
 
             cancelled = !placeBoardItems( &commit, pastedItems, true, true, mode == PASTE_MODE::UNIQUE_ANNOTATIONS,
                                           false );
+
+            if( !cancelled )
+                recordPastedItems( m_toolMgr, pastedItems );
         }
         else    // isBoardEditor
         {
@@ -1364,6 +1391,10 @@ int PCB_CONTROL::Paste( const TOOL_EVENT& aEvent )
         pruneItemLayers( pastedItems );
 
         cancelled = !placeBoardItems( &commit, pastedItems, true, true, mode == PASTE_MODE::UNIQUE_ANNOTATIONS, false );
+
+        if( !cancelled )
+            recordPastedItems( m_toolMgr, pastedItems );
+
         break;
     }
 

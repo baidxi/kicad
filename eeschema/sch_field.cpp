@@ -37,6 +37,7 @@
 #include <trace_helpers.h>
 #include <tool/tool_manager.h>
 #include <tools/sch_navigate_tool.h>
+#include <font/glyph_types.h>
 #include <font/outline_font.h>
 #include "sim/sim_lib_mgr.h"
 #include <properties/property.h>
@@ -239,6 +240,7 @@ bool SCH_FIELD::Deserialize( const kiapi::schematic::types::SchematicField& fiel
     if( m_parent && m_parent->Type() == SCH_SYMBOL_T )
         SetPosition( kiapi::common::UnpackVector2( field.text().position(), aScale ) );
 
+    kiapi::common::UnpackCustomProperties( field.custom_properties(), *this );
     return result;
 }
 

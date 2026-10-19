@@ -57,6 +57,7 @@ struct KICOMMON_API LIB_STATUS
 /// Storage for an actual loaded library (including library content owned by the plugin)
 struct KICOMMON_API LIB_DATA
 {
+    /// Never destroyed while holding the map's mutex; a plugin's worker thread may be blocked on it
     std::unique_ptr<IO_BASE> plugin;
     const LIBRARY_TABLE_ROW* row = nullptr;
     LIB_STATUS               status;
@@ -202,9 +203,21 @@ public:
     /// Creates the library (i.e. saves to disk) for the given row if it exists
     bool CreateLibrary( const wxString& aNickname );
 
-    virtual bool SupportsConfigurationDialog( const wxString& aNickname ) const { return false; }
+    /**
+     * Configuration works from the row itself, so libraries that failed to load or are not yet
+     * committed to a table can still be configured.
+     */
+    virtual bool SupportsConfigurationDialog( const LIBRARY_TABLE_ROW& aRow ) const { return false; }
 
-    virtual int ShowConfigurationDialog( const wxString& aNickname, wxWindow* aParent ) const { return wxID_CANCEL; }
+    /**
+     * Shows the plugin's configuration dialog for a library table row.  On OK, the committed library
+     * with the same nickname, type and URI in aScope is reloaded.
+     */
+    virtual int ShowConfigurationDialog( const LIBRARY_TABLE_ROW& aRow, LIBRARY_TABLE_SCOPE aScope,
+                                         wxWindow* aParent )
+    {
+        return wxID_CANCEL;
+    }
 
     virtual std::optional<LIBRARY_ERROR> LibraryError( const wxString& aNickname ) const;
 
@@ -240,7 +253,8 @@ protected:
     /// globalLibs() cache. The cached LIB_DATA::row pointers reference this manager's tables, so
     /// they must be dropped before the manager is destroyed or a later manager's fetchIfLoaded()
     /// would dereference freed rows. Derived destructors must call this while globalLibs() is
-    /// still resolvable.
+    /// still resolvable. Derived destructors must also call resetProjectCache() so plugin worker
+    /// threads are joined while the derived adapter is still alive.
     void evictOwnedGlobalEntries();
 
     /// Aborts any async load in progress; blocks until fully done aborting

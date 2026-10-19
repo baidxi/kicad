@@ -349,6 +349,7 @@ set( EESCHEMA_WIDGETS
     widgets/sch_search_pane.cpp
     widgets/search_handlers.cpp
     widgets/symbol_filter_combobox.cpp
+    widgets/db_lib_preview_panel.cpp
     widgets/symbol_preview_widget.cpp
     widgets/symbol_tree_pane.cpp
     )
@@ -370,8 +371,6 @@ set ( EESCHEMA_LIBEDIT_SRCS
     )
 
 set( EESCHEMA_IMPORT_GFX
-    import_gfx/dialog_import_gfx_sch_base.cpp
-    import_gfx/dialog_import_gfx_sch.cpp
     import_gfx/graphics_importer_lib_symbol.cpp
     import_gfx/graphics_importer_sch.cpp
     )

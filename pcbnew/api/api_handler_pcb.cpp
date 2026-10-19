@@ -54,6 +54,7 @@
 #include <pcb_track.h>
 #include <pcbnew_id.h>
 #include <pcb_marker.h>
+#include <pcb_3d_body.h>
 #include <pcb_point.h>
 #include <kiway.h>
 #include <drc/drc_item.h>
@@ -61,6 +62,7 @@
 #include <jobs/job_export_pcb_dxf.h>
 #include <jobs/job_export_pcb_drill.h>
 #include <jobs/job_export_pcb_gencad.h>
+#include <jobs/job_export_pcb_specctra_dsn.h>
 #include <jobs/job_export_pcb_gerber.h>
 #include <jobs/job_export_pcb_gerbers.h>
 #include <jobs/job_export_pcb_idf.h>
@@ -93,6 +95,9 @@
 #include <zone_filler.h>
 
 #include <api/common/types/base_types.pb.h>
+
+#include <specctra_import_export/specctra.h>
+#include <reporter.h>
 #include <api/board/board_rules.pb.h>
 #include <connectivity/connectivity_data.h>
 #include <google/protobuf/util/json_util.h>
@@ -150,6 +155,8 @@ API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext, PCB_EDI
             &API_HANDLER_PCB::handleGetNetClassForNets );
     registerHandler<RefillZones, Empty>( &API_HANDLER_PCB::handleRefillZones );
     registerHandler<ImportNetlist, ImportNetlistResponse>( &API_HANDLER_PCB::handleImportNetlist );
+    registerHandler<ImportSpecctraSession, ImportSpecctraSessionResponse>(
+            &API_HANDLER_PCB::handleImportSpecctraSession );
 
     registerHandler<GetBoardEditorAppearanceSettings, BoardEditorAppearanceSettings>(
             &API_HANDLER_PCB::handleGetBoardEditorAppearanceSettings );
@@ -190,6 +197,8 @@ API_HANDLER_PCB::API_HANDLER_PCB( std::shared_ptr<PCB_CONTEXT> aContext, PCB_EDI
             &API_HANDLER_PCB::handleRunBoardJobExportDrill );
     registerHandler<RunBoardJobExportPosition, types::RunJobResponse>(
             &API_HANDLER_PCB::handleRunBoardJobExportPosition );
+    registerHandler<RunBoardJobExportSpecctraDsn, types::RunJobResponse>(
+            &API_HANDLER_PCB::handleRunBoardJobExportSpecctraDsn );
     registerHandler<RunBoardJobExportGencad, types::RunJobResponse>(
             &API_HANDLER_PCB::handleRunBoardJobExportGencad );
     registerHandler<RunBoardJobExportIpc2581, types::RunJobResponse>(
@@ -472,7 +481,8 @@ static const std::vector<KICAD_T> s_allowedBoardTypes = {
     PCB_BARCODE_T,
     PCB_CONSTRAINT_T,
     PCB_GRID_ITEM_T,
-    PCB_POINT_T
+    PCB_POINT_T,
+    PCB_3D_BODY_T
 };
 
 
@@ -620,12 +630,17 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_PCB::handleGetItems( const HANDLER_
             typesInserted.insert( PCB_GROUP_T );
             break;
         }
-
         case PCB_POINT_T:
         {
             handledAnything = true;
             std::copy( board->Points().begin(), board->Points().end(), std::back_inserter( items ) );
             typesInserted.insert( PCB_POINT_T );
+            break;
+        }
+
+        case PCB_3D_BODY_T:
+        {
+            // Not supported on a board context yet
             break;
         }
 
@@ -1980,6 +1995,55 @@ HANDLER_RESULT<ImportNetlistResponse> API_HANDLER_PCB::handleImportNetlist( cons
 }
 
 
+HANDLER_RESULT<ImportSpecctraSessionResponse>
+API_HANDLER_PCB::handleImportSpecctraSession( const HANDLER_CONTEXT<ImportSpecctraSession>& aCtx )
+{
+    if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.board() ); !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    wxFileName sesPath( project().AbsolutePath( wxString::FromUTF8( aCtx.Request.session_path() ) ) );
+
+    if( !sesPath.IsOk() || !sesPath.FileExists() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message(
+                fmt::format( "session file '{}' could not be opened", sesPath.GetFullPath().ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    int                skippedCount = 0;
+    BOARD_COMMIT*      commit = static_cast<BOARD_COMMIT*>( getCurrentCommit( aCtx.ClientName ) );
+    WX_STRING_REPORTER reporter;
+
+    try
+    {
+        DSN::ImportSpecctraSession( board(), sesPath.GetFullPath(), *commit, &reporter, &skippedCount );
+    }
+    catch( const IO_ERROR& ioe )
+    {
+        commit->Revert();
+
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "failed to import session '{}': {}", sesPath.GetFullPath().ToStdString(),
+                                          ioe.What().ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    if( !m_activeClients.count( aCtx.ClientName ) )
+        pushCurrentCommit( aCtx.ClientName, _( "Imported Specctra session via API" ) );
+
+    ImportSpecctraSessionResponse response;
+    response.set_report( reporter.GetMessages().ToUTF8() );
+    response.set_skipped_count( skippedCount );
+    return response;
+}
+
+
 HANDLER_RESULT<BoardEditorAppearanceSettings> API_HANDLER_PCB::handleGetBoardEditorAppearanceSettings(
         const HANDLER_CONTEXT<GetBoardEditorAppearanceSettings>& aCtx )
 {
@@ -2763,6 +2827,23 @@ HANDLER_RESULT<types::RunJobResponse> API_HANDLER_PCB::handleRunBoardJobExportGe
     job.m_storeOriginCoords = aCtx.Request.store_origin_coords();
     job.m_useDrillOrigin = aCtx.Request.use_drill_origin();
     job.m_useUniquePins = aCtx.Request.use_unique_pins();
+
+    return ExecuteBoardJob( pcbContext(), job );
+}
+
+
+HANDLER_RESULT<types::RunJobResponse> API_HANDLER_PCB::handleRunBoardJobExportSpecctraDsn(
+        const HANDLER_CONTEXT<RunBoardJobExportSpecctraDsn>& aCtx )
+{
+    if( HANDLER_RESULT<bool> validation = validateDocument( aCtx.Request.job_settings().document() ); !validation )
+        return tl::unexpected( validation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    JOB_EXPORT_PCB_SPECCTRA_DSN job;
+    job.m_filename = pcbContext()->GetCurrentFileName();
+    job.SetConfiguredOutputPath( wxString::FromUTF8( aCtx.Request.job_settings().output_path() ) );
 
     return ExecuteBoardJob( pcbContext(), job );
 }

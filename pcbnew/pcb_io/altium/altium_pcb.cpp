@@ -30,6 +30,7 @@
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <board_design_settings_defaults.h>
 #include <project/net_settings.h>
 #include <footprint.h>
 #include <layer_range.h>
@@ -2054,6 +2055,7 @@ void ALTIUM_PCB::ParseComponents6Data( const ALTIUM_PCB_COMPOUND_FILE& aAltiumPc
         footprint->Reference().SetVisible( elem.nameon );
         footprint->Value().SetVisible( elem.commenton );
         footprint->SetLayer( elem.layer == ALTIUM_LAYER::TOP_LAYER ? F_Cu : B_Cu );
+        footprint->SetHeight( elem.height );
 
         m_components.emplace_back( footprint.get() );
         m_board->Add( footprint.release(), ADD_MODE::APPEND );
@@ -5738,7 +5740,7 @@ void ALTIUM_PCB::HelperSetFootprintMountingStyles()
 {
     // Altium has no per-component mounting style to copy, so derive it from the pads the way
     // KiCad's own footprint checker does.  Using the same heuristic keeps the imported value in
-    // agreement with FOOTPRINT::CheckFootprintAttributes(), which would otherwise report every
+    // agreement with FOOTPRINT_UTILS::CheckFootprintAttributes(), which would otherwise report every
     // footprint we just wrote as a type mismatch.
     //
     // Only m_components is walked, so importing into a board that already holds footprints

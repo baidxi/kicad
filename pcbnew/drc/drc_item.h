@@ -31,6 +31,17 @@ class DRC_TEST_PROVIDER;
 class PCB_MARKER;
 class BOARD;
 
+namespace PAD_UTILS
+{
+enum class PAD_CHECK_CODE;
+}
+
+/**
+ * Map a granular #PAD_UTILS::PAD_CHECK_CODE to the DRC error code
+ * used to report it at the DRC level (including reports and APIs).
+ */
+int ConvertPadCheckToDrcCode( PAD_UTILS::PAD_CHECK_CODE aCode );
+
 enum PCB_DRC_CODE
 {
     DRCE_FIRST = 1,
@@ -327,5 +338,22 @@ private:
     std::vector<PCB_MARKER*>           m_filteredMarkers;
 };
 
+
+/**
+ * Implements the RC_ITEM_RESOLVER interface to resolve PCB items by their KIID.
+ */
+class BOARD_RC_ITEM_RESOLVER : public RC_ITEM_RESOLVER
+{
+public:
+    explicit BOARD_RC_ITEM_RESOLVER( const BOARD& aBoard ) :
+            m_board( aBoard )
+    {
+    }
+
+    EDA_ITEM* doResolveItemById( const KIID& aKiid ) const override;
+
+private:
+    const BOARD& m_board;
+};
 
 #endif      // DRC_ITEM_H

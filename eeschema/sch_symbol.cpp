@@ -717,15 +717,30 @@ std::vector<PROPERTY_BASE*> SCH_SYMBOL::GetDynamicProperties( const SCH_SHEET_PA
 {
     std::vector<PROPERTY_BASE*> props;
 
-    auto getOrCreate = [&]( const wxString& aName, std::unique_ptr<PROPERTY_BASE> aProp )
-    {
-        auto it = m_dynamicPropertyCache.find( aName );
+    auto getOrCreateFieldProperty =
+            [&]( const wxString& aName )
+            {
+                auto it = m_fieldPropsStorageCache.find( aName );
 
-        if( it == m_dynamicPropertyCache.end() )
-            it = m_dynamicPropertyCache.emplace( aName, std::move( aProp ) ).first;
+                if( it == m_fieldPropsStorageCache.end() )
+                {
+                    auto prop = std::make_unique<SCH_SYMBOL_FIELD_PROPERTY>( aName );
+                    it = m_fieldPropsStorageCache.emplace( aName, std::move( prop ) ).first;
+                }
 
-        return it->second.get();
-    };
+                return it->second.get();
+            };
+
+    auto getOrCreatePinMapProperty =
+            [&]( const wxString& aName, const std::function<std::unique_ptr<PROPERTY_BASE>()>& aCreator )
+            {
+                auto it = m_pinMapPropsStorageCache.find( aName );
+
+                if( it == m_pinMapPropsStorageCache.end() )
+                    it = m_pinMapPropsStorageCache.emplace( aName, aCreator() ).first;
+
+                return it->second.get();
+            };
 
     for( const SCH_FIELD& field : GetFields() )
     {
@@ -740,7 +755,7 @@ std::vector<PROPERTY_BASE*> SCH_SYMBOL::GetDynamicProperties( const SCH_SHEET_PA
         if( PROPERTY_MANAGER::Instance().GetProperty( TYPE_HASH( SCH_SYMBOL ), name ) )
             continue;
 
-        props.push_back( getOrCreate( name, std::make_unique<SCH_SYMBOL_FIELD_PROPERTY>( name ) ) );
+        props.push_back( getOrCreateFieldProperty( name ) );
     }
 
     std::vector<const SCH_FIELD*> userFields;
@@ -762,7 +777,7 @@ std::vector<PROPERTY_BASE*> SCH_SYMBOL::GetDynamicProperties( const SCH_SHEET_PA
     for( const SCH_FIELD* field : userFields )
     {
         const wxString& name = field->GetUntranslatedName();
-        props.push_back( getOrCreate( name, std::make_unique<SCH_SYMBOL_FIELD_PROPERTY>( name ) ) );
+        props.push_back( getOrCreateFieldProperty( name ) );
     }
 
     for( PROPERTY_BASE* prop : GetCustomPropertiesAsInspectables() )
@@ -771,10 +786,21 @@ std::vector<PROPERTY_BASE*> SCH_SYMBOL::GetDynamicProperties( const SCH_SHEET_PA
     // Pin Map group: only meaningful when the symbol carries at least one effective associated footprint.
     if( HasEffectiveAssociatedFootprint() )
     {
-        props.push_back(
-                getOrCreate( PIN_MAP_FOOTPRINT_PROP, std::make_unique<SCH_SYMBOL_PIN_MAP_FOOTPRINT_PROPERTY>() ) );
-        props.push_back( getOrCreate( PIN_MAP_MODE_PROP, std::make_unique<SCH_SYMBOL_PIN_MAP_MODE_PROPERTY>() ) );
-        props.push_back( getOrCreate( PIN_MAP_NAME_PROP, std::make_unique<SCH_SYMBOL_PIN_MAP_NAME_PROPERTY>() ) );
+        props.push_back( getOrCreatePinMapProperty( PIN_MAP_FOOTPRINT_PROP,
+                []()
+                {
+                    return std::make_unique<SCH_SYMBOL_PIN_MAP_FOOTPRINT_PROPERTY>();
+                } ) );
+        props.push_back( getOrCreatePinMapProperty( PIN_MAP_MODE_PROP,
+                []()
+                {
+                    return std::make_unique<SCH_SYMBOL_PIN_MAP_MODE_PROPERTY>();
+                } ) );
+        props.push_back( getOrCreatePinMapProperty( PIN_MAP_NAME_PROP,
+                []()
+                {
+                    return std::make_unique<SCH_SYMBOL_PIN_MAP_NAME_PROPERTY>();
+                } ) );
 
         // One read-only row per symbol pin under a collapsible group, showing
         // the effective pad each pin resolves to.
@@ -789,8 +815,11 @@ std::vector<PROPERTY_BASE*> SCH_SYMBOL::GetDynamicProperties( const SCH_SHEET_PA
 
                     const wxString propName = PIN_MAP_ENTRY_PREFIX + number;
 
-                    props.push_back( getOrCreate(
-                            propName, std::make_unique<SCH_SYMBOL_PIN_MAP_ENTRY_PROPERTY>( propName, number ) ) );
+                    props.push_back( getOrCreatePinMapProperty( propName,
+                            [&]()
+                            {
+                                return std::make_unique<SCH_SYMBOL_PIN_MAP_ENTRY_PROPERTY>( propName, number );
+                            } ) );
                 }
             }
         }
@@ -1102,7 +1131,7 @@ void SCH_SYMBOL::SetLibSymbol( LIB_SYMBOL* aLibSymbol )
 
     // We've just reset the library symbol, so the lib_pins, which were just
     // pointers to the old symbol, need to be cleared.
-    for( auto& pin : m_pins )
+    for( std::unique_ptr<SCH_PIN>& pin : m_pins )
         pin->SetLibPin( nullptr );
 
     UpdatePins();
@@ -1651,7 +1680,7 @@ void SCH_SYMBOL::SetFieldText( SCH_FIELD* aField, const wxString& aFieldName, co
 
             if( instance->m_Variants.contains( aVariantName ) )
             {
-                auto& fields = instance->m_Variants[aVariantName].m_Fields;
+                std::map<wxString, wxString>& fields = instance->m_Variants[aVariantName].m_Fields;
 
                 if( aFieldText != defaultText )
                 {
@@ -1894,9 +1923,9 @@ void SCH_SYMBOL::setVariantAttribute( bool aEnable, const SCH_SHEET_PATH* aInsta
                      wxString::Format( wxS( "Cannot set attribute for invalid sheet path '%s'." ),
                                        aInstance->PathHumanReadable() ) );
 
-        auto variant = instance->m_Variants.find( aVariantName );
+        auto it = instance->m_Variants.find( aVariantName );
 
-        if( variant == instance->m_Variants.end() )
+        if( it == instance->m_Variants.end() )
         {
             if( aEnable == this->*aBase )
                 return;
@@ -1908,7 +1937,7 @@ void SCH_SYMBOL::setVariantAttribute( bool aEnable, const SCH_SHEET_PATH* aInsta
             return;
         }
 
-        attribute = &( variant->second.*aOverride );
+        attribute = &( it->second.*aOverride );
     }
 
     if( *attribute == aEnable )
@@ -1961,7 +1990,7 @@ void SCH_SYMBOL::SetPinMapOverride( const PIN_MAP_INSTANCE_OVERRIDE& aOverride, 
     {
         instance->m_Variants[aVariantName].m_PinMapOverride = aOverride;
     }
-    else if( !aOverride.IsDefault() )
+    else if( aOverride != m_pinMapOverride )
     {
         SCH_SYMBOL_VARIANT variant( aVariantName );
 
@@ -2324,8 +2353,8 @@ void SCH_SYMBOL::RemoveField( const wxString& aFieldName )
 
             for( SCH_SYMBOL_INSTANCE& instance : m_instances )
             {
-                for( auto& variant : instance.m_Variants )
-                    variant.second.m_Fields.erase( fieldName );
+                for( auto& [name, variant] : instance.m_Variants )
+                    variant.m_Fields.erase( fieldName );
             }
 
             invalidateConnectivity();
@@ -3135,8 +3164,8 @@ bool SCH_SYMBOL::ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, c
         auto resolvePinConnection =
                 [&]( const SCH_PIN& pin, const SCH_SHEET_PATH& path )
                 {
-                    const bool local = token->StartsWith( wxS( "SHORT_NET_NAME" ) );
-                    const auto name = pin.GetConnectionName( &path, local );
+                    const bool                    local = token->StartsWith( wxS( "SHORT_NET_NAME" ) );
+                    const std::optional<wxString> name = pin.GetConnectionName( &path, local );
 
                     if( !name )
                     {
@@ -3784,28 +3813,29 @@ void SCH_SYMBOL::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_
     SCH_SHEET_PATH* currentSheet = schframe ? &schframe->GetCurrentSheet() : nullptr;
     wxString        currentVariant = Schematic() ? Schematic()->GetCurrentVariant() : wxString();
 
-    auto addExcludes = [&]()
-    {
-        wxArrayString msgs;
+    auto addExcludes =
+            [&]()
+            {
+                wxArrayString msgs;
 
-        if( GetExcludedFromSim() )
-            msgs.Add( _( "Simulation" ) );
+                if( GetExcludedFromSim() )
+                    msgs.Add( _( "Simulation" ) );
 
-        if( GetExcludedFromBOM() )
-            msgs.Add( _( "BOM" ) );
+                if( GetExcludedFromBOM() )
+                    msgs.Add( _( "BOM" ) );
 
-        if( GetExcludedFromBoard() )
-            msgs.Add( _( "Board" ) );
+                if( GetExcludedFromBoard() )
+                    msgs.Add( _( "Board" ) );
 
-        if( GetDNP( currentSheet, currentVariant ) )
-            msgs.Add( _( "DNP" ) );
+                if( GetDNP( currentSheet, currentVariant ) )
+                    msgs.Add( _( "DNP" ) );
 
-        msg = wxJoin( msgs, '|' );
-        msg.Replace( '|', wxS( ", " ) );
+                msg = wxJoin( msgs, '|' );
+                msg.Replace( '|', wxS( ", " ) );
 
-        if( !msg.empty() )
-            aList.emplace_back( _( "Exclude from" ), msg );
-    };
+                if( !msg.empty() )
+                    aList.emplace_back( _( "Exclude from" ), msg );
+            };
 
     // part and alias can differ if alias is not the root
     if( m_part )
@@ -4107,6 +4137,9 @@ bool SCH_SYMBOL::HasConnectivityChanges( const SCH_ITEM* aItem, const SCH_SHEET_
 
     // Power symbol value field changes are connectivity changes.
     if( IsPower() && ( GetValue( aInstance, FOR_NETNAME ) != symbol->GetValue( aInstance, FOR_NETNAME ) ) )
+        return true;
+
+    if( IsLocalPower() != symbol->IsLocalPower() )
         return true;
 
     if( m_pins.size() != symbol->m_pins.size() )
@@ -4823,6 +4856,18 @@ bool SCH_SYMBOL::IsGlobalPower() const
 }
 
 
+void SCH_SYMBOL::SetLocalPowerProp( bool aLocal )
+{
+    if( !m_part || !m_part->IsPower() )
+        return;
+
+    if( aLocal )
+        m_part->SetLocalPower();
+    else
+        m_part->SetGlobalPower();
+}
+
+
 bool SCH_SYMBOL::IsPower() const
 {
     return IsLocalPower() || IsGlobalPower();
@@ -5405,6 +5450,17 @@ static struct SCH_SYMBOL_DESC
                             }
 
                             return choices;
+                        } );
+
+        propMgr.AddProperty( new PROPERTY<SCH_SYMBOL, bool>( _HKI( "Local Power" ), &SCH_SYMBOL::SetLocalPowerProp,
+                                                             &SCH_SYMBOL::IsLocalPower ) )
+                .SetAvailableFunc(
+                        []( INSPECTABLE* aItem ) -> bool
+                        {
+                            if( SCH_SYMBOL* symbol = dynamic_cast<SCH_SYMBOL*>( aItem ) )
+                                return symbol->IsPower();
+
+                            return false;
                         } );
 
         const wxString groupAttributes = _HKI( "Attributes" );

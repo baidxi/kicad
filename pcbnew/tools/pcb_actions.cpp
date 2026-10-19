@@ -546,6 +546,13 @@ TOOL_ACTION PCB_ACTIONS::placeReferenceImage( TOOL_ACTION_ARGS()
         .Flags( AF_ACTIVATE )
         .Parameter<PCB_REFERENCE_IMAGE*>( nullptr ) );
 
+TOOL_ACTION PCB_ACTIONS::convertImageToOutlines( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveDrawing.convertImageToOutlines" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Convert to Outlines..." ) )
+        .Tooltip( _( "Trace the image into board graphics" ) )
+        .Icon( BITMAPS::image ) );
+
 TOOL_ACTION PCB_ACTIONS::placeText( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveDrawing.text" )
         .Scope( AS_GLOBAL )
@@ -1582,9 +1589,45 @@ TOOL_ACTION PCB_ACTIONS::placePad( TOOL_ACTION_ARGS()
         .Name( "pcbnew.PadTool.placePad" )
         .Scope( AS_GLOBAL )
         .FriendlyName( _( "Add Pad" ) )
-        .Tooltip( _( "Add a pad" ) )
+        .Tooltip( _( "Add a pad of the most recently-placed type, or a copy of the selected pad" ) )
         .ToolbarState( TOOLBAR_STATE::TOGGLE )
         .Icon( BITMAPS::pad )
+        .Flags( AF_ACTIVATE ) );
+
+TOOL_ACTION PCB_ACTIONS::placeThtPad( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.PadTool.placeThtPad" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Add a THT Pad" ) )
+        .Tooltip( _( "Add a through-hole pad" ) )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Icon( BITMAPS::pad_tht )
+        .Flags( AF_ACTIVATE ) );
+
+TOOL_ACTION PCB_ACTIONS::placeSmdPad( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.PadTool.placeSmdPad" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Add an SMD Pad" ) )
+        .Tooltip( _( "Add a surface-mount pad" ) )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Icon( BITMAPS::pad_smd )
+        .Flags( AF_ACTIVATE ) );
+
+TOOL_ACTION PCB_ACTIONS::placeNpthPad( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.PadTool.placeNpthPad" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Add an NPTH Pad" ) )
+        .Tooltip( _( "Add a non-plated through-hole pad" ) )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Icon( BITMAPS::pad_npth )
+        .Flags( AF_ACTIVATE ) );
+
+TOOL_ACTION PCB_ACTIONS::placePasteAperturePad( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.PadTool.placePasteAperturePad" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Add a Paste Aperture Pad" ) )
+        .Tooltip( _( "Add a paste aperture pad" ) )
+        .ToolbarState( TOOLBAR_STATE::TOGGLE )
+        .Icon( BITMAPS::pad_paste_aperture )
         .Flags( AF_ACTIVATE ) );
 
 TOOL_ACTION PCB_ACTIONS::explodePad( TOOL_ACTION_ARGS()
@@ -1602,14 +1645,6 @@ TOOL_ACTION PCB_ACTIONS::recombinePad( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Finish Pad Edit" ) )
         .Tooltip( _( "Regroups all touching graphic shapes into the edited pad" ) )
         .Icon( BITMAPS::custom_pad_to_primitives ) );
-
-TOOL_ACTION PCB_ACTIONS::defaultPadProperties( TOOL_ACTION_ARGS()
-        .Name( "pcbnew.PadTool.defaultPadProperties" )
-        .Scope( AS_GLOBAL )
-        .FriendlyName( _( "Default Pad Properties..." ) )
-        .Tooltip( _( "Edit the pad properties used when creating new pads" ) )
-        .Icon( BITMAPS::options_pad ) );
-
 
 // BOARD_EDITOR_CONTROL
 //
@@ -3317,6 +3352,10 @@ TOOL_ACTION PCB_ACTIONS::ddImportFootprint( TOOL_ACTION_ARGS()
 
 TOOL_ACTION PCB_ACTIONS::ddImportGraphics( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveDrawing.ddImportGraphics" )
+        .Scope( AS_GLOBAL ) );
+
+TOOL_ACTION PCB_ACTIONS::ddPlaceReferenceImage( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.InteractiveDrawing.ddPlaceReferenceImage" )
         .Scope( AS_GLOBAL ) );
 
 // actions for footprint wizard frame

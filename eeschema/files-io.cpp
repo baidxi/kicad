@@ -713,9 +713,11 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
         // Older files can omit implied junctions. Repair them before publishing connectivity;
         // repairing current files could instead connect an intentional wire crossing.
         const bool nativeNeedsFixup = schFileType == SCH_IO_MGR::SCH_KICAD
-                                && Schematic().RootScreen()->GetFileFormatVersionAtLoad()
-                                           < SEXPR_SCHEMATIC_FILE_VERSION;
+                            && Schematic().RootScreen()->GetFileFormatVersionAtLoad() < SEXPR_SCHEMATIC_FILE_VERSION;
 
+        // Don't include in commit or call OnModify(); this fixup is necessary to move forward
+        // but isn't required in the older files.  If they discard this file and open it again,
+        // we'll just re-apply the fixup.
         if( schFileType == SCH_IO_MGR::SCH_LEGACY || nativeNeedsFixup )
             Schematic().FixupJunctionsAfterImport();
 
@@ -1365,7 +1367,7 @@ bool SCH_EDIT_FRAME::SaveProject( bool aSaveAs )
         if( !saveCopy && tmpFn.GetFullPath() != screen->GetFileName() )
             screen->AssignNewUuid();
 
-        bool savedThisSheet = saveSchematicFile( screens.GetSheet( i ), tmpFn.GetFullPath(), false );
+        bool savedThisSheet = saveSchematicFile( screens.GetSheet( i ), tmpFn.GetFullPath(), saveCopy );
 
         if( savedThisSheet )
             savedSheetPaths.push_back( tmpFn.GetFullPath() );
@@ -1424,7 +1426,7 @@ bool SCH_EDIT_FRAME::SaveProject( bool aSaveAs )
     // Record a full project snapshot so related files (symbols, libs, sheets) are captured.
     // Skip when running standalone without a project loaded - the save path can land
     // anywhere on the filesystem and there is no project context for a snapshot.
-    if( success && !Prj().IsNullProject() )
+    if( success && !saveCopy && !Prj().IsNullProject() )
     {
         Kiway().LocalHistory().RunRegisteredSaversAndCommit( Prj().GetProjectPath(), wxS( "SCH Save" ), wxS( "sch" ) );
 

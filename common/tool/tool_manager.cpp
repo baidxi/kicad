@@ -569,31 +569,34 @@ void TOOL_MANAGER::ShutdownTool( TOOL_BASE* aTool )
 {
     wxASSERT( aTool != nullptr );
 
-    TOOL_ID id = aTool->GetId();
-
     while( isActive( aTool ) )
     {
-        TOOL_MANAGER::ID_LIST::iterator it = std::find( m_activeTools.begin(),
-                                                        m_activeTools.end(), id );
+        TOOL_STATE* st = m_toolState[aTool];
 
-        TOOL_STATE* st = m_toolIdIndex[*it];
-
-        // the tool state handler is waiting for events (i.e. called Wait() method)
-        if( !st || !st->pendingWait || !st->cofunc )
-            break;
-
-        // Wake up the tool and tell it to shutdown
+        // Pop() restores saved contexts without the flag
         st->shutdown = true;
-        st->pendingWait = false;
-        st->waitEvents.clear();
 
-        wxLogTrace( kicadTraceToolStack, wxS( "TOOL_MANAGER::ShutdownTool - Shutting down tool %s" ),
-                    st->theTool->GetName() );
+        if( st->cofunc && st->cofunc->Running() )
+        {
+            // An executing handler is up the native stack and unwinds at its next Wait()
+            if( !st->pendingWait )
+                break;
 
-        setActiveState( st );
+            // Wake up the tool and tell it to shutdown
+            st->pendingWait = false;
+            st->waitEvents.clear();
 
-        if( st->cofunc->Resume() )
-            break;
+            wxLogTrace( kicadTraceToolStack, wxS( "TOOL_MANAGER::ShutdownTool - Shutting down tool %s" ),
+                        st->theTool->GetName() );
+
+            setActiveState( st );
+
+            if( st->cofunc->Resume() )
+            {
+                wxFAIL_MSG( wxS( "Tool suspended again during shutdown" ) );
+                break;
+            }
+        }
 
         // finishTool() restores the previous context when the same tool was re-entered
         // Keep unwinding until every saved context has seen the shutdown request
@@ -738,6 +741,10 @@ TOOL_EVENT* TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool, const TOOL_EVENT_LIST&
 {
     TOOL_STATE* st = m_toolState[aTool];
 
+    // A handler unwinding from shutdown must not suspend again, or nested loops outlive the resume
+    if( st->shutdown )
+        return nullptr;
+
     wxCHECK( !st->pendingWait, nullptr ); // everything collapses on two KiYield() in a row
 
     // indicate to the manager that we are going to sleep and we shall be
@@ -761,6 +768,8 @@ TOOL_EVENT* TOOL_MANAGER::ScheduleWait( TOOL_BASE* aTool, const TOOL_EVENT_LIST&
 bool TOOL_MANAGER::dispatchInternal( TOOL_EVENT& aEvent )
 {
     bool handled = false;
+
+    std::vector<COROUTINE<int, const TOOL_EVENT&>*> reactivated;
 
     wxLogTrace( kicadTraceToolStack, wxS( "TOOL_MANAGER::dispatchInternal - received event: %s" ),
                 aEvent.Format() );
@@ -800,6 +809,10 @@ bool TOOL_MANAGER::dispatchInternal( TOOL_EVENT& aEvent )
             wxLogTrace( kicadTraceToolStack, wxS( "TOOL_MANAGER::dispatchInternal - Waking tool %s for event: %s" ),
                         st->theTool->GetName(), aEvent.Format() );
 
+            bool ownActivation = aEvent.IsActivate() && st->initialEvent.IsActivate()
+                                 && st->initialEvent.Matches( aEvent );
+            auto resumed = st->cofunc;
+
             setActiveState( st );
             bool end = !st->cofunc->Resume();
 
@@ -807,6 +820,10 @@ bool TOOL_MANAGER::dispatchInternal( TOOL_EVENT& aEvent )
             {
                 it = finishTool( st );
                 increment = false;
+            }
+            else if( ownActivation )
+            {
+                reactivated.push_back( resumed );
             }
 
             // If the tool did not request the event be passed to other tools, we're done
@@ -837,6 +854,14 @@ bool TOOL_MANAGER::dispatchInternal( TOOL_EVENT& aEvent )
             {
                 if( tr.first.Matches( aEvent ) )
                 {
+                    // The live handler owns its reactivation, so a nested copy would only duplicate it
+                    if( st->cofunc && alg::contains( reactivated, st->cofunc ) )
+                    {
+                        handled = true;
+                        finished = true;
+                        break;
+                    }
+
                     auto func_copy = tr.second;
 
                     if( !aEvent.FirstResponder() )

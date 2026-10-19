@@ -174,6 +174,7 @@ set( KICOMMON_SRCS
     jobs/job_export_pcb_ps.cpp
     jobs/job_export_pcb_svg.cpp
     jobs/job_export_pcb_gencad.cpp
+    jobs/job_export_pcb_specctra_dsn.cpp
     jobs/job_export_pcb_3d.cpp
     jobs/job_export_sch_netlist.cpp
     jobs/job_export_sch_plot.cpp
@@ -267,6 +268,7 @@ set( KICOMMON_SRCS
     grid_tricks.cpp
     widgets/aui_json_serializer.cpp
     widgets/bitmap_button.cpp
+    widgets/field_warning_icon.cpp
     widgets/grid_combobox.cpp
     widgets/grid_icon_text_helpers.cpp
     widgets/grid_text_button_helpers.cpp
@@ -287,6 +289,7 @@ set( KICOMMON_SRCS
     widgets/wx_html_report_panel_base.cpp
     widgets/wx_html_report_box.cpp
 
+    database/database_autofill.cpp
     database/database_lib_settings.cpp
 
     design_block.cpp
@@ -579,6 +582,7 @@ set( COMMON_DLG_SRCS
     dialogs/dialog_kicad_diff_base.cpp
     dialogs/dialog_kicad_merge_3way.cpp
     dialogs/dialog_kicad_merge_3way_base.cpp
+    dialogs/dialog_convert_image_to_outlines.cpp
     dialogs/dialog_color_picker.cpp
     dialogs/dialog_color_picker_base.cpp
     dialogs/dialog_configure_paths.cpp
@@ -596,6 +600,8 @@ set( COMMON_DLG_SRCS
     dialogs/dialog_hotkey_list.cpp
     dialogs/dialog_import_choose_project.cpp
     dialogs/dialog_import_choose_project_base.cpp
+    dialogs/dialog_import_gfx.cpp
+    dialogs/dialog_import_gfx_base.cpp
     dialogs/dialog_multi_unit_entry.cpp
     dialogs/dialog_page_settings_base.cpp
     dialogs/dialog_paste_special.cpp
@@ -848,6 +854,7 @@ set ( COMMON_TRANSLINE_CALCULATION_SRCS
     )
 
 set( COMMON_IMPORT_GFX_SRCS
+    import_gfx/bitmap_import_plugin.cpp
     import_gfx/graphics_import_mgr.cpp
     import_gfx/graphics_importer.cpp
     import_gfx/graphics_importer_buffer.cpp
@@ -873,6 +880,7 @@ set( COMMON_SRCS
     base_screen.cpp
     bin_mod.cpp
     bitmap_base.cpp
+    bitmap_tracing.cpp
     board_printout.cpp
     clipboard.cpp
     column_formatter.cpp
@@ -1047,6 +1055,7 @@ target_link_libraries( common
     gal
     nanosvg
     dxflib_qcad
+    potrace
     tinyspline_lib
     nlohmann_json
     compoundfilereader
@@ -1117,6 +1126,7 @@ set( PCB_COMMON_SRCS
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_chart_template.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/drill/drill_symbol_assigner.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/board.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/board_item_index.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/board_exchange_footprint.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/board_text_var_adapter.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/component_classes/component_class.cpp
@@ -1128,6 +1138,7 @@ set( PCB_COMMON_SRCS
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_dimension.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_shape.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/pcb_group.cpp
+    ${CMAKE_SOURCE_DIR}/pcbnew/pcb_3d_body.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/constraints/constraint_builder.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/constraints/constraint_copy.cpp
     ${CMAKE_SOURCE_DIR}/pcbnew/constraints/pcb_constraint.cpp

@@ -35,6 +35,7 @@
 
 #include <board.h>
 #include <board_design_settings.h>
+#include <board_design_settings_defaults.h>
 #include <component_classes/component_class_manager.h>
 #include <project/net_settings.h>
 #include <embedded_files_parser.h>
@@ -58,6 +59,7 @@
 #include <generators_mgr.h>
 #include <zone.h>
 #include <footprint.h>
+#include <pcb_3d_body.h>
 #include <geometry/shape_line_chain.h>
 #include <font/font.h>
 #include <core/ignore.h>
@@ -1641,7 +1643,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::resolveGroups( BOARD_ITEM* aParent )
     FOOTPRINT* footprint = board ? nullptr : dynamic_cast<FOOTPRINT*>( aParent );
 
     // For footprint parents, build a one-time lookup map instead of scanning children
-    // on every call.  For board parents, use the board's existing item-by-id cache.
+    // on every call.  For board parents, resolve using BOARD::ResolveItem(), which
+    // goes to the board's item index cache and re-binds stale entries.
     std::unordered_map<KIID, BOARD_ITEM*> fpItemMap;
 
     if( footprint )
@@ -1659,10 +1662,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::resolveGroups( BOARD_ITEM* aParent )
             {
                 if( board )
                 {
-                    const auto& cache = board->GetItemByIdCache();
-                    auto        it = cache.find( aId );
-
-                    return it != cache.end() ? it->second : nullptr;
+                    return board->ResolveItem( aId, true );
                 }
                 else if( footprint )
                 {
@@ -2145,7 +2145,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseBoardStackup()
         // could end up being the same as a canonical name and corrupt the stack.
         PCB_LAYER_ID layerId = UNDEFINED_LAYER;
 
-        for( PCB_LAYER_ID candidate : m_board->GetEnabledLayers().Seq() )
+        for( PCB_LAYER_ID candidate : LSET::AllLayersMask() )
         {
             if( LSET::Name( candidate ) == name )
             {
@@ -3117,10 +3117,9 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseSetup()
 
         case T_pad_size:
         {
-            VECTOR2I sz;
-            sz.x = parseBoardUnits( "master pad width" );
-            sz.y = parseBoardUnits( "master pad height" );
-            bds.m_Pad_Master->SetSize( F_Cu, sz );
+            // master pad size no longer read
+            parseBoardUnits( "master pad width" );  // x
+            parseBoardUnits( "master pad height" ); // y
             m_board->m_LegacyDesignSettingsLoaded = true;
             NeedRIGHT();
             break;
@@ -3128,8 +3127,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseSetup()
 
         case T_pad_drill:
         {
-            int drillSize = parseBoardUnits( T_pad_drill );
-            bds.m_Pad_Master->SetDrillSize( VECTOR2I( drillSize, drillSize ) );
+            // master pad drill size no longer read
+            parseBoardUnits( T_pad_drill ); // drill size
             m_board->m_LegacyDesignSettingsLoaded = true;
             NeedRIGHT();
             break;
@@ -4234,9 +4233,9 @@ PCB_SHAPE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_SHAPE( BOARD_ITEM* aParent )
             break;
 
         default:
-            Expecting( "layer, width, fill, tstamp, uuid, locked, net, status, "
-                       "solder_mask_margin, center, major_radius, minor_radius, "
-                       "rotation_angle, start_angle, end_angle, start_shape, or end_shape" );
+            Expecting( "layer, width, fill, tstamp, uuid, locked, net, status, solder_mask_margin, center, "
+                       "major_radius, minor_radius, rotation_angle, start_angle, end_angle, start_shape, "
+                       "end_shape, or custom_property" );
         }
     }
 
@@ -4390,7 +4389,7 @@ PCB_REFERENCE_IMAGE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_REFERENCE_IMAGE( BOARD_
             break;
 
         default:
-            Expecting( "at, layer, scale, data, locked or uuid" );
+            Expecting( "at, layer, scale, data, locked, uuid, or custom_property" );
         }
     }
 
@@ -4606,9 +4605,9 @@ void PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT_effects( PCB_TEXT* aText, PCB_TEXT
 
         default:
             if( parentFP )
-                Expecting( "layer, hide, effects, locked, render_cache or tstamp" );
+                Expecting( "layer, hide, effects, locked, render_cache, tstamp, uuid, or custom_property" );
             else
-                Expecting( "layer, effects, locked, render_cache or tstamp" );
+                Expecting( "layer, effects, locked, render_cache, tstamp, uuid, or custom_property" );
         }
     }
 
@@ -4777,7 +4776,8 @@ PCB_BARCODE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_BARCODE( BOARD_ITEM* aParent )
             break;
 
         default:
-            Expecting( "at, layer, size, text, text_height, type, ecc_level, locked, hide, knockout, margins or uuid" );
+            Expecting( "at, layer, size, text, text_height, type, ecc_level, locked, hide, knockout, margins, "
+                       "uuid, or custom_property" );
         }
     }
 
@@ -4982,12 +4982,12 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseTextBoxContent( PCB_TEXTBOX* aTextBox )
             if( dynamic_cast<PCB_TABLECELL*>( aTextBox ) != nullptr )
             {
                 Expecting( "locked, start, pts, angle, width, margins, knockout, layer, effects, "
-                           "span, render_cache, uuid or tstamp" );
+                           "span, render_cache, uuid, tstamp, or custom_property" );
             }
             else
             {
                 Expecting( "locked, start, pts, angle, width, stroke, border, margins, knockout,"
-                           "layer, effects, render_cache, uuid or tstamp" );
+                           "layer, effects, render_cache, uuid, tstamp, or custom_property" );
             }
         }
     }
@@ -5476,8 +5476,8 @@ PCB_GENERATED_TABLE* PCB_IO_KICAD_SEXPR_PARSER::parseGeneratedTable( std::unique
     // manufacturing inputs that table artwork would corrupt rather than document
     if( !DocumentationLayers().Contains( aTable->GetLayer() ) )
     {
-        THROW_IO_ERROR(
-                wxString::Format( _( "Invalid %s: not on a documentation layer" ), aTable->GetFriendlyName() ) );
+        THROW_IO_ERROR( wxString::Format( _( "Invalid %s: not on a documentation layer" ),
+                                          aTable->GetFriendlyName() ) );
     }
 
     return aTable.release();
@@ -5615,8 +5615,7 @@ PCB_DIMENSION_BASE* PCB_IO_KICAD_SEXPR_PARSER::parseDIMENSION( BOARD_ITEM* aPare
         case T_leader:     dim = std::make_unique<PCB_DIM_LEADER>( aParent );     break;
         case T_center:     dim = std::make_unique<PCB_DIM_CENTER>( aParent );     break;
         case T_radial:     dim = std::make_unique<PCB_DIM_RADIAL>( aParent );     break;
-        default:           wxFAIL_MSG( wxT( "Cannot parse unknown dimension type " )
-                                       + GetTokenString( CurTok() ) );
+        default:           wxFAIL_MSG( wxT( "Cannot parse unknown dimension type " ) + GetTokenString( CurTok() ) );
         }
 
         NeedRIGHT();
@@ -5797,8 +5796,7 @@ PCB_DIMENSION_BASE* PCB_IO_KICAD_SEXPR_PARSER::parseDIMENSION( BOARD_ITEM* aPare
 
                 default:
                     std::cerr << "Unknown format token: " << GetTokenString( token ) << std::endl;
-                    Expecting( "prefix, suffix, units, units_format, precision, override_value, "
-                               "suppress_zeroes" );
+                    Expecting( "prefix, suffix, units, units_format, precision, override_value, suppress_zeroes" );
                 }
             }
             break;
@@ -6025,7 +6023,7 @@ PCB_DIMENSION_BASE* PCB_IO_KICAD_SEXPR_PARSER::parseDIMENSION( BOARD_ITEM* aPare
 
         default:
             Expecting( "layer, tstamp, uuid, gr_text, feature1, feature2, crossbar, arrow1a, "
-                       "arrow1b, arrow2a, or arrow2b" );
+                       "arrow1b, arrow2a, arrow2b, locked, or custom_property" );
         }
     }
 
@@ -6246,6 +6244,11 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
         case T_tags:
             NeedSYMBOLorNUMBER(); // some symbols can be 0508, so a number is also a symbol here
             footprint->SetKeywords( FromUTF8() );
+            NeedRIGHT();
+            break;
+
+        case T_height:
+            footprint->SetHeight( parseBoardUnits( "footprint height" ) );
             NeedRIGHT();
             break;
 
@@ -6720,7 +6723,12 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
                 {
                     NeedRIGHT(); // close (type extruded)
 
-                    EXTRUDED_3D_BODY& body = footprint->EnsureExtrudedBody();
+                    PCB_3D_BODY* bodyItem = footprint->GetBody();
+
+                    if( !bodyItem )
+                        bodyItem = &footprint->EnsureBody();
+
+                    EXTRUDED_3D_BODY& body = *bodyItem->MutableExtruded();
 
                     for( token = NextTok(); token != T_RIGHT; token = NextTok() )
                     {
@@ -6737,6 +6745,12 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
                             body.m_show = !hide;
                             break;
                         }
+
+                        case T_uuid:
+                            NextTok();
+                            bodyItem->SetUuidDirect( CurStrToKIID() );
+                            NeedRIGHT();
+                            break;
 
                         case T_overall_height:
                             body.m_height = parseBoardUnits( "overall height" );
@@ -6855,7 +6869,7 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
                             break;
 
                         default:
-                            Expecting( "hide, overall_height, body_pcb_gap, layer, material, "
+                            Expecting( "hide, uuid, overall_height, body_pcb_gap, layer, material, "
                                        "color, offset, scale, or rotate" );
                         }
                     }
@@ -6987,12 +7001,11 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
             break;
 
         default:
-            Expecting( "at, descr, locked, placed, tedit, tstamp, uuid, variant, "
-                       "autoplace_cost90, autoplace_cost180, attr, clearance, "
-                       "embedded_files, fp_arc, fp_circle, fp_curve, fp_line, fp_poly, "
-                       "fp_rect, fp_text, pad, group, generator, model, path, solder_mask_margin, "
-                       "solder_paste_margin, solder_paste_margin_ratio, tags, thermal_gap, "
-                       "version, zone, zone_connect, or component_classes" );
+            Expecting( "at, descr, locked, placed, tedit, tstamp, uuid, variant, autoplace_cost90, "
+                       "autoplace_cost180, attr, clearance, embedded_files, fp_arc, fp_circle, fp_curve, "
+                       "fp_line, fp_poly, fp_rect, fp_text, pad, group, generator, model, path, "
+                       "solder_mask_margin, solder_paste_margin, solder_paste_margin_ratio, tags, "
+                       "thermal_gap, version, zone, zone_connect, component_classes, or custom_property" );
         }
     }
 
@@ -7732,7 +7745,7 @@ PAD* PCB_IO_KICAD_SEXPR_PARSER::parsePAD( FOOTPRINT* aParent )
                        "solder_mask_margin, solder_paste_margin, solder_paste_margin_ratio, uuid, "
                        "clearance, tstamp, primitives, remove_unused_layers, keep_end_layers, "
                        "pinfunction, pintype, zone_connect, thermal_width, thermal_gap, padstack, "
-                       "teardrops, front_post_machining, or back_post_machining" );
+                       "teardrops, front_post_machining, back_post_machining, or custom_property" );
         }
     }
 
@@ -8463,10 +8476,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::resolveConstraints( BOARD_ITEM* aParent )
             {
                 if( board )
                 {
-                    const auto& cache = board->GetItemByIdCache();
-                    auto        it = cache.find( aId );
-
-                    return it != cache.end() ? it->second : nullptr;
+                    return board->ResolveItem( aId, true );
                 }
                 else if( footprint )
                 {

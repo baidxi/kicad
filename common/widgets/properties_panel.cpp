@@ -120,9 +120,9 @@ PROPERTIES_PANEL::PROPERTIES_PANEL( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) 
     m_grid->SetUnspecifiedValueAppearance( wxPGCell( wxT( "<...>" ) ) );
 
 #if wxCHECK_VERSION( 3, 3, 0 )
-    m_grid->SetValidationFailureBehavior( wxPGVFBFlags::MarkCell );
+    m_grid->SetValidationFailureBehavior( wxPGVFBFlags::StayInProperty );
 #else
-    m_grid->SetValidationFailureBehavior( wxPG_VFB_MARK_CELL );
+    m_grid->SetValidationFailureBehavior( wxPG_VFB_STAY_IN_PROPERTY );
 #endif
 
 #if wxCHECK_VERSION( 3, 3, 0 )
@@ -342,45 +342,27 @@ void PROPERTIES_PANEL::rebuildProperties( const SELECTION& aSelection )
         }
     }
 
-    for( const EDA_ITEM* item : aSelection )
+    std::vector<const INSPECTABLE*> inspectables( aSelection.begin(), aSelection.end() );
+
+    for( PROPERTY_BASE* prop : propMgr.GetCommonDynamicProperties( inspectables ) )
     {
-        for( PROPERTY_BASE* prop : item->GetDynamicProperties() )
+        if( commonProps.contains( prop->Name() ) )
+            continue;
+
+        commonProps.emplace( prop->Name(), prop );
+
+        auto maxOrderIt = std::ranges::max_element( displayOrder,
+                                                    []( const auto& aL, const auto& aR )
+                                                    {
+                                                        return aL.second < aR.second;
+                                                    } );
+        int  nextOrder = maxOrderIt == displayOrder.end() ? 0 : maxOrderIt->second + 1;
+        displayOrder.emplace( prop->Name(), nextOrder );
+
+        if( const wxString& dynGroup = prop->Group(); !dynGroup.IsEmpty() && !groups.contains( dynGroup ) )
         {
-            bool commonToAll = true;
-
-            for( const EDA_ITEM* other : aSelection )
-            {
-                std::vector<PROPERTY_BASE*> otherProps = other->GetDynamicProperties();
-
-                if( std::ranges::none_of( otherProps,
-                                          [&]( PROPERTY_BASE* p )
-                                          {
-                                              return p->Name() == prop->Name();
-                                          } ) )
-                {
-                    commonToAll = false;
-                    break;
-                }
-            }
-
-            if( !commonToAll || commonProps.contains( prop->Name() ) )
-                continue;
-
-            commonProps.emplace( prop->Name(), prop );
-
-            auto maxOrderIt = std::ranges::max_element( displayOrder,
-                                                        []( const auto& aL, const auto& aR )
-                                                        {
-                                                            return aL.second < aR.second;
-                                                        } );
-            int  nextOrder = maxOrderIt == displayOrder.end() ? 0 : maxOrderIt->second + 1;
-            displayOrder.emplace( prop->Name(), nextOrder );
-
-            if( const wxString& dynGroup = prop->Group(); !dynGroup.IsEmpty() && !groups.contains( dynGroup ) )
-            {
-                groupDisplayOrder.emplace_back( dynGroup );
-                groups.insert( dynGroup );
-            }
+            groupDisplayOrder.emplace_back( dynGroup );
+            groups.insert( dynGroup );
         }
     }
 
@@ -499,8 +481,17 @@ void PROPERTIES_PANEL::rebuildProperties( const SELECTION& aSelection )
 
     for( const wxString& groupName : groupDisplayOrder )
     {
-        if( groupName != _HKI( "Custom Properties" ) && !pgPropGroups.contains( groupName ) )
+        if( !pgPropGroups.contains( groupName )
+            && std::ranges::none_of( m_categoryButtons,
+                                     [&]( const CATEGORY_BUTTON& aButton )
+                                     {
+                                         return aButton.groupKey == groupName
+                                                && ( aButton.forceCategory || groupName == _HKI( "Custom Properties" ) )
+                                                && ( !aButton.enableFunc || aButton.enableFunc() );
+                                     } ) )
+        {
             continue;
+        }
 
         std::vector<wxPGProperty*> properties;
 
@@ -820,7 +811,14 @@ void PROPERTIES_PANEL::onCharHook( wxKeyEvent& aEvent )
         // the grid, so it never steps between properties.  Intercept Tab here to commit any
         // pending edit and move selection to the next (or previous, with Shift) editable
         // property, wrapping around at the ends.
-        m_grid->CommitChangesFromEditor();
+
+        // wxPropertyGrid::PerformValidation() fails to return true when the event is vetoed
+        // (though the code looks like it does it).  Anyway, for now make sure that we catch
+        // it.
+        m_ValueChangeVetoed = false;
+
+        if( !m_grid->CommitChangesFromEditor() || m_ValueChangeVetoed )
+            return;
 
         const bool forward = !aEvent.ShiftDown();
 
@@ -907,7 +905,13 @@ void PROPERTIES_PANEL::onCharHook( wxKeyEvent& aEvent )
     if( aEvent.GetKeyCode() == WXK_RETURN || aEvent.GetKeyCode() == WXK_NUMPAD_ENTER
         || aEvent.GetKeyCode() == WXK_DOWN || aEvent.GetKeyCode() == WXK_UP )
     {
-        m_grid->CommitChangesFromEditor();
+        // wxPropertyGrid::PerformValidation() fails to return true when the event is vetoed
+        // (though the code looks like it does it).  Anyway, for now make sure that we catch
+        // it.
+        m_ValueChangeVetoed = false;
+
+        if( !m_grid->CommitChangesFromEditor() || m_ValueChangeVetoed )
+            return;
 
         CallAfter(
                 [this]()

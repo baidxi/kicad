@@ -22,12 +22,11 @@
 
 #include "kiway_holder.h"
 #include "mail_type.h"
-#include <drc/drc_item.h>
 #include <base_units.h>
 #include <bitmaps.h>
 #include <board_commit.h>
 #include <board.h>
-#include <board_design_settings.h>
+#include <board_design_settings_defaults.h>
 #include <footprint.h>
 #include <confirm.h>
 #include <core/arraydim.h>
@@ -36,6 +35,7 @@
 #include <geometry/shape_segment.h>
 #include <dialog_pad_properties.h>
 #include <dialogs/html_message_box.h>
+#include <drc/drc_item.h>
 #include <macros.h>
 #include <pad.h>
 #include <pad_utils.h>
@@ -112,7 +112,7 @@ static PAD_ATTRIB code_type[] =
 #define APERTURE_DLG_TYPE 4
 
 
-void PCB_BASE_FRAME::ShowPadPropertiesDialog( PAD* aPad )
+void PCB_BASE_FRAME::ShowPadPropertiesDialog( PAD& aPad )
 {
     DIALOG_PAD_PROPERTIES dlg( this, aPad );
 
@@ -121,9 +121,11 @@ void PCB_BASE_FRAME::ShowPadPropertiesDialog( PAD* aPad )
 }
 
 
-DIALOG_PAD_PROPERTIES::DIALOG_PAD_PROPERTIES( PCB_BASE_FRAME* aParent, PAD* aPad ) :
+DIALOG_PAD_PROPERTIES::DIALOG_PAD_PROPERTIES( PCB_BASE_FRAME* aParent, PAD& aPad ) :
         DIALOG_PAD_PROPERTIES_BASE( aParent ),
         m_parent( aParent ),
+        m_currentPad( &aPad ),
+        m_previewPad( new PAD( (FOOTPRINT*) nullptr ) ),
         m_initialized( false ),
         m_editLayer( F_Cu ),
         m_posX( aParent, m_posXLabel, m_posXCtrl, m_posXUnits ),
@@ -161,10 +163,7 @@ DIALOG_PAD_PROPERTIES::DIALOG_PAD_PROPERTIES( PCB_BASE_FRAME* aParent, PAD* aPad
     SetName( PAD_PROPERTIES_DLG_NAME );
     m_isFpEditor = aParent->GetFrameType() == FRAME_FOOTPRINT_EDITOR;
 
-    m_currentPad = aPad;        // aPad can be NULL, if the dialog is called
-                                // from the footprint editor to set default pad setup
-
-    m_board      = m_parent->GetBoard();
+    m_board = m_parent->GetBoard();
 
     // Configure display origin transforms
     m_posX.SetCoordType( ORIGIN_TRANSFORMS::ABS_X_COORD );
@@ -180,24 +179,11 @@ DIALOG_PAD_PROPERTIES::DIALOG_PAD_PROPERTIES( PCB_BASE_FRAME* aParent, PAD* aPad
     m_launchCalculatorBtn->SetBitmap( KiBitmapBundle( BITMAPS::calculator ) );
     m_launchCalculatorBtn->SetToolTip( _( "Open the through-hole size calculator" ) );
 
-    m_masterPad = m_parent->GetDesignSettings().m_Pad_Master.get();
-    m_previewPad = new PAD( (FOOTPRINT*) nullptr );
+    SetTitle( _( "Pad Properties" ) );
 
-    if( aPad )
-    {
-        SetTitle( _( "Pad Properties" ) );
-
-        *m_previewPad = *aPad;
-        m_previewPad->GetTeardropParams() = aPad->GetTeardropParams();
-        m_previewPad->ClearFlags( SELECTED|BRIGHTENED );
-    }
-    else
-    {
-        SetTitle( _( "Default Pad Properties for Add Pad Tool" ) );
-
-        *m_previewPad = *m_masterPad;
-        m_previewPad->GetTeardropParams() = m_masterPad->GetTeardropParams();
-    }
+    *m_previewPad = aPad;
+    m_previewPad->GetTeardropParams() = aPad.GetTeardropParams();
+    m_previewPad->ClearFlags( SELECTED|BRIGHTENED );
 
     // Pads have a hardcoded internal rounding ratio which is 0.25 by default, even if
     // they're not a rounded shape. This makes it hard to detect an intentional 0.25
@@ -1625,15 +1611,23 @@ bool DIALOG_PAD_PROPERTIES::padValuesOK()
     wxArrayString error_msgs;
     wxArrayString warning_msgs;
 
-    m_previewPad->CheckPad( m_parentFrame, true,
-            [&]( int errorCode, const wxString& msg )
+    PAD_UTILS::CheckPad( *m_previewPad, *m_parentFrame, true,
+            [&]( const PAD_UTILS::PAD_CHECK_RESULT& aResult )
             {
-                if( errorCode == DRCE_PADSTACK_INVALID )
-                    error_msgs.Add( _( "Error: " ) + msg );
-                else if( errorCode == DRCE_PADSTACK )
-                    warning_msgs.Add( _( "Warning: " ) + msg );
-                else if( errorCode == DRCE_PAD_TH_WITH_NO_HOLE )
+                int drcCode = ConvertPadCheckToDrcCode( aResult.code );
+
+                if( drcCode == DRCE_PADSTACK_INVALID )
+                {
+                    error_msgs.Add( wxString::Format( wxT( "Error: %s" ), aResult.message ) );
+                }
+                else if( drcCode == DRCE_PADSTACK )
+                {
+                    warning_msgs.Add( wxString::Format( wxT( "Warning: %s" ), aResult.message ) );
+                }
+                else if( drcCode == DRCE_PAD_TH_WITH_NO_HOLE )
+                {
                     error_msgs.Add( _( "Error: Through hole pad has no hole." ) );
+                }
             } );
 
     if( error_msgs.GetCount() || warning_msgs.GetCount() )
@@ -1769,51 +1763,49 @@ bool DIALOG_PAD_PROPERTIES::TransferDataFromWindow()
     if( !padValuesOK() )
         return false;
 
-    if( !transferDataToPad( m_masterPad ) )
-        return false;
-
     m_padPreviewGAL->StopDrawing();
-
-    PAD_TOOL* padTool = m_parent->GetToolManager()->GetTool<PAD_TOOL>();
-    padTool->SetLastPadNumber( m_masterPad->GetNumber() );
-
-    // m_masterPad is a pattern: ensure there is no net for this pad:
-    m_masterPad->SetNetCode( NETINFO_LIST::UNCONNECTED );
-
-    if( !m_currentPad )   // Set current Pad parameters
-        return true;
 
     commit.Modify( m_currentPad );
 
+    // Build the final settings on the preview pad, then copy them onto the real pad below.
+    // Note that the preview inherits the real pad's parent footprint, so transferDataToPad()
+    // stores its position in the footprint's frame rather than in board coordinates.
+    if( !transferDataToPad( m_previewPad ) )
+        return false;
+
+    PAD_TOOL* padTool = m_parent->GetToolManager()->GetTool<PAD_TOOL>();
+    padTool->SetLastPadNumber( m_previewPad->GetNumber() );
+
     // Update values
 
-    // transferDataToPad only handles the current edit layer, so m_masterPad isn't accurate
+    // transferDataToPad() only handles the current edit layer, so use the preview padstack,
+    // which includes the edits made on all layers
     // TODO(JE) this could be cleaner
     m_currentPad->SetPadstack( m_previewPad->Padstack() );
 
-    m_currentPad->SetAttribute( m_masterPad->GetAttribute() );
-    m_currentPad->SetSimElectricalType( m_masterPad->GetSimElectricalType() );
-    m_currentPad->SetFPRelativeOrientation( m_masterPad->GetOrientation() );
-    m_currentPad->SetPadToDieLength( m_masterPad->GetPadToDieLength() );
-    m_currentPad->SetPadToDieDelay( m_masterPad->GetPadToDieDelay() );
-    m_currentPad->SetLayerSet( m_masterPad->GetLayerSet() );
-    m_currentPad->SetNumber( m_masterPad->GetNumber() );
+    m_currentPad->SetAttribute( m_previewPad->GetAttribute() );
+    m_currentPad->SetSimElectricalType( m_previewPad->GetSimElectricalType() );
+    m_currentPad->SetFPRelativeOrientation( m_previewPad->GetOrientation() );
+    m_currentPad->SetPadToDieLength( m_previewPad->GetPadToDieLength() );
+    m_currentPad->SetPadToDieDelay( m_previewPad->GetPadToDieDelay() );
+    m_currentPad->SetLayerSet( m_previewPad->GetLayerSet() );
+    m_currentPad->SetNumber( m_previewPad->GetNumber() );
 
     int padNetcode = NETINFO_LIST::UNCONNECTED;
 
     // For PAD_ATTRIB::NPTH, ensure there is no net name selected
-    if( m_masterPad->GetAttribute() != PAD_ATTRIB::NPTH  )
+    if( m_previewPad->GetAttribute() != PAD_ATTRIB::NPTH )
         padNetcode = m_padNetSelector->GetSelectedNetcode();
 
     m_currentPad->SetNetCode( padNetcode );
 
-    m_currentPad->GetTeardropParams() = m_masterPad->GetTeardropParams();
+    m_currentPad->GetTeardropParams() = m_previewPad->GetTeardropParams();
 
     // Set the fabrication property:
     m_currentPad->SetProperty( getSelectedProperty() );
 
     // define the way the clearance area is defined in zones
-    m_currentPad->SetCustomShapeInZoneOpt( m_masterPad->GetCustomShapeInZoneOpt() );
+    m_currentPad->SetCustomShapeInZoneOpt( m_previewPad->GetCustomShapeInZoneOpt() );
 
     if( m_currentPad->GetParentFootprint() && m_currentPad->GetParentFootprint()->IsFlipped() )
     {
@@ -1821,7 +1813,10 @@ bool DIALOG_PAD_PROPERTIES::TransferDataFromWindow()
         m_currentPad->Flip( m_currentPad->GetPosition(), FLIP_DIRECTION::TOP_BOTTOM );
     }
 
-    m_currentPad->SetPosition( m_masterPad->GetPosition() );
+    // Use the position from the dialog fields, which is the absolute position (which is
+    // only equal to the position in the FP in the FP editor). The preview pad's position is in
+    // frame-absolute coordinates, and we may be in the PCB frame.
+    m_currentPad->SetPosition( VECTOR2I( m_posX.GetIntValue(), m_posY.GetIntValue() ) );
 
     m_parent->SetMsgPanel( m_currentPad );
 

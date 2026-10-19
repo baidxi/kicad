@@ -22,6 +22,7 @@
 
 #include <confirm.h>
 #include <dialogs/dialog_schematic_setup.h>
+#include <dialogs/dialog_erc.h>
 #include <kiway.h>
 #include <symbol_edit_frame.h>
 #include <dialogs/panel_base_display_options.h>
@@ -162,7 +163,7 @@ void SCH_EDIT_FRAME::ShowSchematicSetupDialog( const wxString& aInitialPage )
         GetRenderSettings()->SetGapLengthRatio( Schematic().Settings().m_DashedLineGapRatio );
 
         GetCanvas()->GetView()->MarkDirty();
-        GetCanvas()->GetView()->UpdateAllItems( KIGFX::REPAINT );
+        GetCanvas()->GetView()->UpdateAllItems( KIGFX::LAYERS | KIGFX::GEOMETRY | KIGFX::REPAINT );
 
         std::map<wxString, std::vector<wxString>> newAliases = Prj().GetProjectFile().m_BusAliases;
 
@@ -180,6 +181,9 @@ void SCH_EDIT_FRAME::ShowSchematicSetupDialog( const wxString& aInitialPage )
 
         RefreshOperatingPointDisplay();
         GetCanvas()->Refresh();
+
+        if( DIALOG_ERC* ercDialog = GetErcDialog() )
+            ercDialog->UpdateData();
     }
 }
 

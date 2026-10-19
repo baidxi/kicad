@@ -22,8 +22,12 @@
 #define KICAD_DATABASE_LIB_SETTINGS_H
 
 #include <json_common.h>
+#include <functional>
 #include <settings/json_settings.h>
 #include <wx/string.h>
+
+#include <map>
+#include <memory>
 
 
 enum class DATABASE_SOURCE_TYPE
@@ -53,10 +57,15 @@ struct KICOMMON_API DATABASE_FIELD_MAPPING
     bool        visible_in_chooser; ///< Whether the column is shown by default in the chooser
     bool        show_name;   ///< Whether or not to show the field name as well as its value
     bool        inherit_properties; ///< Whether or not to inherit properties from symbol field
+    nlohmann::json source;          ///< Raw JSON as loaded; untouched keys are written back verbatim
+
+    DATABASE_FIELD_MAPPING();
 
     explicit DATABASE_FIELD_MAPPING( const std::string& aColumn, const std::string& aName,
                                      bool aVisibleOnAdd, bool aVisibleInChooser, bool aShowName,
                                      bool aInheritProperties );
+
+    void SetName( const std::string& aName );
 };
 
 
@@ -68,6 +77,8 @@ struct KICOMMON_API MAPPABLE_SYMBOL_PROPERTIES
     std::string exclude_from_sim;
     std::string exclude_from_bom;
     std::string exclude_from_board;
+
+    bool operator==( const MAPPABLE_SYMBOL_PROPERTIES& aOther ) const = default;
 };
 
 
@@ -95,15 +106,22 @@ struct KICOMMON_API DATABASE_LIB_TABLE
 
     MAPPABLE_SYMBOL_PROPERTIES properties;
     std::vector<DATABASE_FIELD_MAPPING> fields;
+
+    nlohmann::json source;         ///< Raw JSON as loaded; untouched keys are written back verbatim
 };
 
 
 struct KICOMMON_API DATABASE_CACHE_SETTINGS
 {
-    int max_size;    ///< Maximum number of single-row results to cache
-    int max_age;     ///< Max age of cached rows before they expire, in seconds
+    int max_size;    ///< Maximum number of tables to cache, each holding the rows read from it
+    int max_age;     ///< Max age of a cached table before it expires, in seconds
 };
 
+
+/**
+ * Keyring lookup signature, matching KIPLATFORM::SECRETS::GetSecretNoPrompt.
+ */
+using DATABASE_SECRET_LOOKUP = std::function<bool( const wxString& aService, const wxString& aKey, wxString& aSecret )>;
 
 class KICOMMON_API DATABASE_LIB_SETTINGS : public JSON_SETTINGS
 {
@@ -112,19 +130,100 @@ public:
 
     virtual ~DATABASE_LIB_SETTINGS() {}
 
-    DATABASE_SOURCE m_Source;
+    DATABASE_SOURCE m_Source{};
 
     std::vector<DATABASE_LIB_TABLE> m_Tables;
 
-    DATABASE_CACHE_SETTINGS m_Cache;
+    DATABASE_CACHE_SETTINGS m_Cache{};
 
-    bool m_GloballyUniqueKeys;
+    bool m_GloballyUniqueKeys = false;
+
+    std::string m_Name;
+    std::string m_Description;
+
+    /// Records the scalars as loaded; runs before a schema migration writes the file back
+    void Load() override;
+
+    /**
+     * Stores parameters, then restores the raw file value of every scalar the caller left unchanged
+     * so that hand-edited or newer-format values survive a save.
+     */
+    bool Store() override;
+
+    /**
+     * Fills in the source password from the keyring when the file has none. The password is
+     * treated as loaded, so Store() never writes it back to the file.
+     */
+    void ResolvePassword( const DATABASE_SECRET_LOOKUP& aLookup = nullptr );
 
 protected:
     wxString getFileExt() const override;
 
 private:
-    nlohmann::json m_librariesConfig;
+    static nlohmann::json tableToJson( const DATABASE_LIB_TABLE& aTable );
+    /// Missing or mistyped keys load as defaults so one incomplete entry cannot stop the others
+    static DATABASE_LIB_TABLE tableFromJson( const nlohmann::json& aEntry );
+    static nlohmann::json fieldToJson( const DATABASE_FIELD_MAPPING& aField );
+    static DATABASE_FIELD_MAPPING fieldFromJson( const nlohmann::json& aEntry );
+
+    /// Scalar settings as parsed at load, so Store() can tell which ones the caller changed
+    struct LOADED_SCALARS
+    {
+        std::string             name;
+        std::string             description;
+        DATABASE_SOURCE         source{};
+        DATABASE_CACHE_SETTINGS cache{};
+        bool                    globallyUniqueKeys = false;
+    } m_loaded;
 };
+
+
+/**
+ * Loads a database library settings file without allowing the load itself (e.g. a schema
+ * migration) to write back to disk.  Callers must SetReadOnly( false ) around an explicit save.
+ *
+ * @param aLoaded is set to false when the file exists but could not be read; saving such
+ *                settings would replace the file with defaults
+ */
+KICOMMON_API std::unique_ptr<DATABASE_LIB_SETTINGS> LoadDatabaseLibSettingsReadOnly( const wxString& aPath,
+                                                                                     bool* aLoaded = nullptr );
+
+/**
+ * @return a file name without extension for a new settings file, derived from the library name the
+ *         user typed, or a generic name when that leaves nothing usable
+ */
+KICOMMON_API wxString DefaultDatabaseLibFileName( const wxString& aLibName );
+
+/**
+ * The lookup used when none is injected, which must never prompt to unlock the keyring.
+ */
+KICOMMON_API DATABASE_SECRET_LOOKUP DefaultDatabaseSecretLookup();
+
+/**
+ * @return true when aLookup is the system keyring lookup that never prompts to unlock it.
+ */
+KICOMMON_API bool IsNoPromptSecretLookup( const DATABASE_SECRET_LOOKUP& aLookup );
+
+/**
+ * DSN passwords that are not saved in the (often shared) library file live in the system keyring,
+ * keyed by DSN and user name so every library on the same login shares one entry.
+ *
+ * @param aLookup replaces the system keyring when set, for tests.
+ * @return false when the source has no DSN login or the keyring holds no password for it
+ */
+KICOMMON_API bool GetDatabasePassword( const DATABASE_SOURCE& aSource, std::string& aPassword,
+                                       const DATABASE_SECRET_LOOKUP& aLookup = nullptr );
+
+/**
+ * Fills in the source password from the keyring, but only when the library file did not supply one.
+ */
+KICOMMON_API void ResolveDatabasePassword( DATABASE_SOURCE& aSource,
+                                           const DATABASE_SECRET_LOOKUP& aLookup = nullptr );
+
+/**
+ * Stores the password for the source's DSN login in the system keyring, or removes the entry when
+ * the password is empty.
+ */
+KICOMMON_API bool StoreDatabasePassword( const DATABASE_SOURCE& aSource, const std::string& aPassword );
 
 #endif //KICAD_DATABASE_LIB_SETTINGS_H
