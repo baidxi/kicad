@@ -94,7 +94,12 @@ private:
 };
 
 
-// Provides {fmt} formatting
-auto format_as( const KI_ERROR& aError );
+// Provides {fmt} formatting.  A concrete return type is required: GCC does
+// not treat calls to an undeduced auto function as SFINAE, so every
+// fmt::format() in a TU that sees the declaration would hard-error while
+// the compiler tries to deduce the return type.
+#include <string>
+
+std::string format_as( const KI_ERROR& aError );
 
 #endif // KI_ERROR_H_
