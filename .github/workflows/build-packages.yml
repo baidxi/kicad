@@ -286,6 +286,10 @@ jobs:
       - name: Install dependencies
         run: |
           set -euo pipefail
+          # Free runner disk space up front: the bundled stock libraries
+          # (packages3D alone is ~2 GB) plus the squashfs-compressed image
+          # need more headroom than the default preinstalled toolchains leave.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc 2>/dev/null || true
           sudo apt-get update
           # wxWidgets 3.2 was the 24.04 name; 26.04 may ship 3.3.  Try in order.
           sudo apt-get install -y --no-install-recommends \
@@ -374,6 +378,35 @@ jobs:
                      /usr/lib/x86_64-linux-gnu/libgcc_s.so.1; do
             if [ -e "$lib" ]; then cp -fL "$lib" AppDir/usr/lib/; fi
           done
+
+          # Bundle the official stock libraries so the image is fully
+          # self-contained out of the box: symbols, footprints, the (large!)
+          # 3D model set and the project templates.  Layouts follow what the
+          # default global library tables reference:
+          #   kicad-symbols    -> share/kicad/symbols   (*.kicad_sym)
+          #   kicad-footprints -> share/kicad/footprints (*.pretty dirs)
+          #   kicad-packages3D -> share/kicad/3dmodels   (*.3dshapes dirs)
+          #   kicad-templates  -> share/kicad/template
+          # The library repos also carry the default global tables; install
+          # them as stock templates so the first-run library-table wizard can
+          # copy them with one click.
+          for spec in "symbols:symbols" "footprints:footprints" "packages3D:3dmodels" "templates:template"; do
+            repo="kicad-${spec%%:*}"
+            dest="${spec##*:}"
+            git clone --depth 1 \
+              "https://gitlab.com/kicad/libraries/$repo.git" \
+              "$RUNNER_TEMP/$repo"
+            mkdir -p "AppDir/usr/share/kicad/$dest"
+            cp -a "$RUNNER_TEMP/$repo/." "AppDir/usr/share/kicad/$dest/"
+          done
+          mkdir -p AppDir/usr/share/kicad/template
+          for pair in "kicad-symbols:sym-lib-table" "kicad-footprints:fp-lib-table"; do
+            repo="${pair%%:*}"; table="${pair##*:}"
+            if [ -f "$RUNNER_TEMP/$repo/$table" ]; then
+              cp -f "$RUNNER_TEMP/$repo/$table" "AppDir/usr/share/kicad/template/$table"
+            fi
+          done
+          du -sh AppDir/usr/share/kicad || true
 
           # Custom AppRun: KiCad's internal libraries live outside the default
           # dynamic loader path inside the AppImage; cover the multiarch dir
