@@ -249,8 +249,11 @@ wxString PATHS::GetStockEDALibraryPath()
 #elif defined( __WXMSW__ )
     path = GetStockDataPath( false );
 #else
+    // Inside an AppImage the stock EDA libraries live under $APPDIR/usr/
+    // share/kicad (note the usr layer - the AppDir is the image root, not
+    // the install prefix).
     if( wxGetEnv( wxT( "APPDIR" ), &path ) )
-        path += wxT( "/share/kicad" );
+        path += wxT( "/usr/share/kicad" );
     else
         path = wxString::FromUTF8Unchecked( KICAD_LIBRARY_DATA );
 #endif
