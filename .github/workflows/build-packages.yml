@@ -135,7 +135,13 @@ jobs:
       - name: Bundle stock libraries
         run: |
           set -euo pipefail
-          SCHEMA_DIR="$(find stage -type d -path '*kicad/schemas' | head -1)"
+          # The relocatable macOS bundle keeps its stock data directly under
+          # Contents/SharedSupport (no kicad sublayer); fall back to the
+          # share/kicad layout just in case the bundle assembly changes.
+          SCHEMA_DIR="$(find stage -type d -path '*SharedSupport/schemas' | head -1)"
+          if [ -z "$SCHEMA_DIR" ]; then
+            SCHEMA_DIR="$(find stage -type d -path '*kicad/schemas' | head -1)"
+          fi
           if [ -z "$SCHEMA_DIR" ]; then
             echo "ERROR: could not locate the staged kicad data directory" >&2
             find stage -maxdepth 5 -type d | sort >&2
