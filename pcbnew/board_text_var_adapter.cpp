@@ -33,6 +33,26 @@ BOARD_TEXT_VAR_ADAPTER::BOARD_TEXT_VAR_ADAPTER( BOARD& aBoard ) :
     m_tracker.SetSourceKeyExtractor(
             [this]( EDA_ITEM* aItem ) -> std::vector<TEXT_VAR_REF_KEY>
             { return ExtractSourceKeys( aItem ); } );
+
+    // The dependency index holds raw EDA_ITEM pointers; a removal path that
+    // fails to reach unregisterItem() leaves a dangling entry which crashes
+    // the repaint listener (view->Update() on freed memory) during the next
+    // invalidation, e.g. when opening Board Setup. Re-check each candidate
+    // against the board's item index, which BOARD::Remove() keeps current via
+    // m_itemIndex.Unbind(). Only non-virtual member access is used here: a
+    // dangling entry's vptr cannot be trusted, so Type() and dynamic_cast are
+    // off-limits.
+    m_tracker.Index().SetItemValidator(
+            [this]( EDA_ITEM* aItem ) -> bool
+            {
+                if( !aItem )
+                    return false;
+
+                if( !aItem->IsBOARD_ITEM() )
+                    return true;   // drawing-sheet proxy: relies on its own detach path
+
+                return m_board.ResolveItem( aItem->m_Uuid ) == aItem;
+            } );
 }
 
 

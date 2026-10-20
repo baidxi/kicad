@@ -127,6 +127,40 @@ BOOST_AUTO_TEST_CASE( InvalidationReachesProxyViaListener )
 }
 
 
+BOOST_AUTO_TEST_CASE( ValidatorFiltersStaleDependentsButKeepsLive )
+{
+    // A removal path that skipped Unregister() leaves a dangling pointer in
+    // the index; the next invalidation used to hand it straight to the view
+    // repaint callback and crash. The validator (board/schematic liveness
+    // check) must suppress stale entries while still delivering live ones.
+    PAGE_INFO    page;
+    TITLE_BLOCK  tb;
+
+    TEXT_VAR_TRACKER tracker;
+
+    DS_PROXY_VIEW_ITEM proxy( unityScale, &page, nullptr, &tb, nullptr );
+    proxy.AttachToTracker( &tracker );
+
+    bool reached = false;
+    (void) tracker.AddInvalidateListener(
+            [&]( EDA_ITEM*, const TEXT_VAR_REF_KEY& ) { reached = true; } );
+
+    // Liveness check recognizes the live dependent.
+    tracker.Index().SetItemValidator( [&]( EDA_ITEM* aItem ) { return aItem == &proxy; } );
+
+    tracker.InvalidateKey( TEXT_VAR_REF_KEY::FromToken( wxT( "REVISION" ) ) );
+    BOOST_CHECK_EQUAL( reached, true );
+
+    // Simulate the stale entry: the liveness check rejects the item, so the
+    // callback (and any repaint on freed memory) must not fire.
+    reached = false;
+    tracker.Index().SetItemValidator( []( EDA_ITEM* ) { return false; } );
+
+    tracker.InvalidateKey( TEXT_VAR_REF_KEY::FromToken( wxT( "REVISION" ) ) );
+    BOOST_CHECK_EQUAL( reached, false );
+}
+
+
 BOOST_AUTO_TEST_CASE( DetachUnregistersProxy )
 {
     PAGE_INFO    page;

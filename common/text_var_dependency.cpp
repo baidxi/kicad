@@ -216,6 +216,14 @@ void TEXT_VAR_DEPENDENCY_INDEX::Unregister( EDA_ITEM* aItem )
 }
 
 
+void TEXT_VAR_DEPENDENCY_INDEX::SetItemValidator( std::function<bool( EDA_ITEM* )> aValidator )
+{
+    std::unique_lock lock( m_mutex );
+
+    m_validator = std::move( aValidator );
+}
+
+
 void TEXT_VAR_DEPENDENCY_INDEX::ForEachDependent( const TEXT_VAR_REF_KEY&                    aKey,
                                                   const std::function<void( EDA_ITEM* )>&    aFn ) const
 {
@@ -224,7 +232,8 @@ void TEXT_VAR_DEPENDENCY_INDEX::ForEachDependent( const TEXT_VAR_REF_KEY&       
     // during the callback (e.g. a dialog refresh that rebuilds its row list);
     // holding the lock across arbitrary code would deadlock on the writer
     // upgrade path.
-    std::vector<EDA_ITEM*> snapshot;
+    std::vector<EDA_ITEM*>           snapshot;
+    std::function<bool( EDA_ITEM* )> validator;
 
     {
         std::shared_lock lock( m_mutex );
@@ -236,6 +245,18 @@ void TEXT_VAR_DEPENDENCY_INDEX::ForEachDependent( const TEXT_VAR_REF_KEY&       
 
         snapshot.reserve( it->second.size() );
         snapshot.assign( it->second.begin(), it->second.end() );
+        validator = m_validator;
+    }
+
+    // Drop entries whose item no longer exists before any callback can
+    // dereference them. The validator runs outside the lock because it may
+    // re-enter the index (e.g. a board lookup through ResolveItem's cache).
+    if( validator )
+    {
+        std::erase_if( snapshot, [&validator]( EDA_ITEM* item ) { return !validator( item ); } );
+
+        if( snapshot.empty() )
+            return;
     }
 
     for( EDA_ITEM* item : snapshot )

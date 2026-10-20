@@ -155,6 +155,20 @@ public:
      */
     void Clear();
 
+    /**
+     * Optional liveness predicate consulted by ForEachDependent() before a
+     * dependent item is handed to the callback.
+     *
+     * The index holds raw EDA_ITEM pointers, so an entry whose item was
+     * removed through a path that did not reach Unregister() leaves a dangling
+     * pointer behind. The validator lets the owning module (board, schematic)
+     * re-check each candidate against its own live-item registry; returning
+     * false skips the callback instead of dereferencing freed memory. The
+     * predicate must not make any virtual call on the item (Type(),
+     * dynamic_cast, ...): a dangling entry's vptr cannot be trusted.
+     */
+    void SetItemValidator( std::function<bool( EDA_ITEM* )> aValidator );
+
     std::size_t DependentCount( const TEXT_VAR_REF_KEY& aKey ) const;
     std::size_t ItemCount() const;
 
@@ -174,6 +188,8 @@ private:
                        TEXT_VAR_REF_KEY_HASH> m_dependents;
 
     std::unordered_map<EDA_ITEM*, std::vector<TEXT_VAR_REF_KEY>> m_itemKeys;
+
+    std::function<bool( EDA_ITEM* )> m_validator;
 };
 
 
