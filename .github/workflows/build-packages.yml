@@ -149,20 +149,42 @@ jobs:
           fi
           DATA_DIR="$(dirname "$SCHEMA_DIR")"
           echo "stock data dir: $DATA_DIR"
-          for spec in "symbols:symbols" "footprints:footprints" "packages3D:3dmodels" "templates:template"; do
-            repo="kicad-${spec%%:*}"; dest="${spec##*:}"
-            git clone --depth 1 \
-              "https://gitlab.com/kicad/libraries/$repo.git" \
+          # Install the stock library repos through their own CMake install
+          # rules, straight into the bundle data directory.  On macOS the
+          # repos' APPLE branch installs relative to CMAKE_INSTALL_PREFIX
+          # without a share/kicad layer (symbols/, footprints/, 3dmodels/
+          # and template/ sit directly under it), so SharedSupport itself
+          # is the correct install prefix - no post-install copying.
+          #
+          # The CMake route is required, not cosmetic: kicad-symbols ships
+          # unpacked *.kicad_symdir shard directories, and its default
+          # "pack_symbols" target (KICAD_PACK_SYM_LIBRARIES=ON) generates the
+          # packed single-file *.kicad_sym libraries plus the matching
+          # sym-lib-table that the runtime and the first-run wizard expect.
+          # The install rules also drop the stock library tables under
+          # template/ and exclude .git and other repository bookkeeping.
+          # Mirrors of gitlab.com/kicad/libraries live under github.com/baidxi
+          # (explicit branches: the mirrors' default branches are unrelated).
+          for spec in "kicad-symbols:kicad-symbols:master" \
+                      "footprints:kicad-footprints.:master" \
+                      "packages3D:kicad-packages3D:dev" \
+                      "templates:kicad-templates.:master"; do
+            repo="${spec%%:*}"; rest="${spec#*:}"
+            mirror="${rest%%:*}"; branch="${rest##*:}"
+            git clone --depth 1 -b "$branch" \
+              "https://github.com/baidxi/$mirror.git" \
               "$RUNNER_TEMP/$repo"
-            mkdir -p "$DATA_DIR/$dest"
-            cp -a "$RUNNER_TEMP/$repo/." "$DATA_DIR/$dest/"
-          done
-          mkdir -p "$DATA_DIR/template"
-          for pair in "kicad-symbols:sym-lib-table" "kicad-footprints:fp-lib-table"; do
-            repo="${pair%%:*}"; table="${pair##*:}"
-            if [ -f "$RUNNER_TEMP/$repo/$table" ]; then
-              cp -f "$RUNNER_TEMP/$repo/$table" "$DATA_DIR/template/$table"
-            fi
+            # CMAKE_POLICY_VERSION_MINIMUM: kicad-packages3D still declares
+            # cmake_minimum_required(2.6.1), which CMake 4 refuses without it
+            # (harmlessly ignored by CMake 3.x).
+            cmake -S "$RUNNER_TEMP/$repo" -B "$RUNNER_TEMP/$repo-build" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_INSTALL_PREFIX="$DATA_DIR"
+            # kicad-symbols runs its pack_symbols target here; a no-op
+            # for the other repos.
+            cmake --build "$RUNNER_TEMP/$repo-build"
+            cmake --install "$RUNNER_TEMP/$repo-build"
           done
 
           echo "--- bundled stock data verification ---"
@@ -170,11 +192,11 @@ jobs:
           test -f "$SCHEMA_DIR/api.v1.schema.json" && echo "  api schema          : OK"
           test -f "$DATA_DIR/template/sym-lib-table" && echo "  default sym table   : OK"
           test -f "$DATA_DIR/template/fp-lib-table" && echo "  default fp table    : OK"
-          # The GitLab kicad-symbols repo stores each library as a
-          # *.kicad_symdir directory, so count the .kicad_sym files
-          # recursively.  The inner (find || true) keeps 'set -e' from
-          # aborting when a directory is missing; a zero count dumps the
-          # layouts for diagnosis.
+          # Count the packed *.kicad_sym files recursively: the CMake
+          # install lays them out flat under symbols/, and the recursion
+          # also tolerates stray subdirectories.  The inner (find || true)
+          # keeps 'set -e' from aborting when the directory is missing; a
+          # zero count dumps the layouts for diagnosis.
           NSYM=$( (find "$DATA_DIR/symbols" -name '*.kicad_sym' 2>/dev/null || true) | wc -l )
           NFP=$(find "$DATA_DIR/footprints" -maxdepth 1 -type d -name '*.pretty' 2>/dev/null | wc -l)
           N3D=$(find "$DATA_DIR/3dmodels" -maxdepth 1 -type d -name '*.3dshapes' 2>/dev/null | wc -l)
@@ -452,30 +474,43 @@ jobs:
 
           # Bundle the official stock libraries so the image is fully
           # self-contained out of the box: symbols, footprints, the (large!)
-          # 3D model set and the project templates.  Layouts follow what the
-          # default global library tables reference:
-          #   kicad-symbols    -> share/kicad/symbols   (*.kicad_sym)
+          # 3D model set and the project templates.  The library repos are
+          # CMake projects and MUST go through their own install rules;
+          # copying the working trees verbatim ships the *source* layout,
+          # which the runtime cannot use: kicad-symbols carries unpacked
+          # *.kicad_symdir shard directories, while KiCad expects the packed
+          # single-file *.kicad_sym libraries plus the packed sym-lib-table
+          # generated by the repo's default "pack_symbols" target
+          # (KICAD_PACK_SYM_LIBRARIES=ON, tools/kicad_lib_pack.py).  The
+          # CMake install also places the stock library tables under
+          # share/kicad/template and strips .git and other bookkeeping files.
+          #   kicad-symbols    -> share/kicad/symbols   (packed *.kicad_sym)
           #   kicad-footprints -> share/kicad/footprints (*.pretty dirs)
           #   kicad-packages3D -> share/kicad/3dmodels   (*.3dshapes dirs)
           #   kicad-templates  -> share/kicad/template
-          # The library repos also carry the default global tables; install
-          # them as stock templates so the first-run library-table wizard can
-          # copy them with one click.
-          for spec in "symbols:symbols" "footprints:footprints" "packages3D:3dmodels" "templates:template"; do
-            repo="kicad-${spec%%:*}"
-            dest="${spec##*:}"
-            git clone --depth 1 \
-              "https://gitlab.com/kicad/libraries/$repo.git" \
+          # Mirrors of gitlab.com/kicad/libraries live under github.com/baidxi;
+          # branches are explicit because the mirrors' default branches are
+          # unrelated forks.
+          for spec in "kicad-symbols:kicad-symbols:master" \
+                      "footprints:kicad-footprints.:master" \
+                      "packages3D:kicad-packages3D:dev" \
+                      "templates:kicad-templates.:master"; do
+            repo="${spec%%:*}"; rest="${spec#*:}"
+            mirror="${rest%%:*}"; branch="${rest##*:}"
+            git clone --depth 1 -b "$branch" \
+              "https://github.com/baidxi/$mirror.git" \
               "$RUNNER_TEMP/$repo"
-            mkdir -p "AppDir/usr/share/kicad/$dest"
-            cp -a "$RUNNER_TEMP/$repo/." "AppDir/usr/share/kicad/$dest/"
-          done
-          mkdir -p AppDir/usr/share/kicad/template
-          for pair in "kicad-symbols:sym-lib-table" "kicad-footprints:fp-lib-table"; do
-            repo="${pair%%:*}"; table="${pair##*:}"
-            if [ -f "$RUNNER_TEMP/$repo/$table" ]; then
-              cp -f "$RUNNER_TEMP/$repo/$table" "AppDir/usr/share/kicad/template/$table"
-            fi
+            # CMAKE_POLICY_VERSION_MINIMUM: kicad-packages3D still declares
+            # cmake_minimum_required(2.6.1), which CMake 4 refuses without it
+            # (harmlessly ignored by CMake 3.x).
+            cmake -S "$RUNNER_TEMP/$repo" -B "$RUNNER_TEMP/$repo-build" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_INSTALL_PREFIX="$PWD/AppDir/usr"
+            # kicad-symbols runs its pack_symbols target here; a no-op for
+            # the other repos.
+            cmake --build "$RUNNER_TEMP/$repo-build"
+            cmake --install "$RUNNER_TEMP/$repo-build"
           done
           du -sh AppDir/usr/share/kicad || true
 
@@ -493,8 +528,7 @@ jobs:
             && echo "  default sym table   : OK"
           test -f AppDir/usr/share/kicad/template/fp-lib-table \
             && echo "  default fp table    : OK"
-          # Same recursive counting as the macOS bundle step: the GitLab
-          # kicad-symbols repo uses *.kicad_symdir directories.
+          # Same recursive counting as the macOS bundle step.
           NSYM=$( (find AppDir/usr/share/kicad/symbols -name '*.kicad_sym' 2>/dev/null || true) | wc -l )
           NFP=$(find AppDir/usr/share/kicad/footprints -maxdepth 1 -type d -name '*.pretty' 2>/dev/null | wc -l)
           N3D=$(find AppDir/usr/share/kicad/3dmodels -maxdepth 1 -type d -name '*.3dshapes' 2>/dev/null | wc -l)
