@@ -43,6 +43,7 @@
 #include <connectivity/conn_facade.h>
 #include <advanced_config.h>
 #include <sch_commit.h>
+#include <tools/sch_actions.h>
 #include <string_utils.h>
 #include <sch_edit_frame.h>
 #include <io/kicad/kicad_io_utils.h>
@@ -3273,6 +3274,42 @@ HANDLER_RESULT<PlaceFromLibraryResponse> API_HANDLER_SCH::handlePlaceSymbolFromL
     {
         if( frame->eeconfig()->m_AutoplaceFields.enable )
             symbol->AutoplaceFields( nullptr, AUTOPLACE_AUTO );
+    }
+
+    // Interactive placement: hand the symbol to the placement tool instead of committing it
+    // at the request position.  The tool shows the symbol following the mouse; it is added
+    // to the schematic where the user clicks, with all subsequent placement clicks supported.
+    if( aCtx.Request.has_interactive() && aCtx.Request.interactive() )
+    {
+        SCH_EDIT_FRAME* editFrame = this->frame();
+
+        if( !editFrame )
+        {
+            ApiResponseStatus e;
+            e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+            e.set_error_message( "interactive placement requires the schematic editor GUI" );
+            return tl::unexpected( e );
+        }
+
+        // The tool previews the symbol before it is committed to the screen; without a
+        // parent, selecting it dereferences a null SCHEMATIC (SCH_SYMBOL::GetDNPProp).
+        symbol->SetParent( editFrame->GetScreen() );
+
+        // The tool previews the symbol before it is committed to the screen; without a
+        // parent, selecting it dereferences a null SCHEMATIC (SCH_SYMBOL::GetDNPProp).
+        symbol->SetParent( editFrame->GetScreen() );
+
+        SCH_ACTIONS::PLACE_SYMBOL_PARAMS params;
+        params.m_Symbol = symbol.release();     // Ownership passes to the tool
+        params.m_Reannotate = aCtx.Request.reference().empty();
+        params.m_PlaceAllUnits = libSymbol->GetUnitCount() > 1;
+
+        editFrame->Raise();
+        editFrame->GetToolManager()->PostAction( SCH_ACTIONS::placeSymbol, params );
+
+        PlaceFromLibraryResponse response;
+        response.mutable_header()->CopyFrom( aCtx.Request.header() );
+        return response;    // No item: it will exist once the user clicks
     }
 
     SCH_COMMIT* commit = static_cast<SCH_COMMIT*>( getCurrentCommit( aCtx.ClientName ) );

@@ -79,4 +79,9 @@ message PlaceSymbolFromLibrary
   // If unspecified, KiCad will either leave the symbol unannotated or automatically annotate it
   // depending on the user's current auto-annotation preference.
   optional string reference = 6;
+
+  // If true, hand the symbol to the interactive placement tool instead of committing it at the
+  // given position: the symbol will follow the mouse and be committed where the user clicks
+  // (position and orientation are ignored in this mode). Requires the schematic editor GUI.
+  optional bool interactive = 7;
 }

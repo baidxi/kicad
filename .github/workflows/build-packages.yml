@@ -873,6 +873,63 @@ jobs:
           $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
           cmake --install build
 
+      # cmake --install only carries KiCad's own artifacts.  The vcpkg dynamic
+      # triplet (x64-windows) leaves its runtime DLLs in the installed tree -
+      # wx*, icu*, libboost*, libssl/libcrypto, python3*, ngspice, libcairo and
+      # friends - and the packager is expected to deploy them (see the
+      # kicad_3d_model_preview_handler install comment in the sources).  Copy
+      # the whole set next to the executables in stage\bin (KICAD_BIN on WIN32)
+      # so the ZIP is self-contained.
+      - name: Deploy vcpkg runtime DLLs
+        run: |
+          $stageBin = Join-Path $PWD 'stage\bin'
+          $vcpkgBin = Join-Path $env:VCPKG_ROOT 'installed\x64-windows\bin'
+          if( -not ( Test-Path $stageBin ) )
+          {
+            throw "staged bin directory not found: $stageBin"
+          }
+          if( -not ( Test-Path $vcpkgBin ) )
+          {
+            throw "vcpkg runtime directory not found: $vcpkgBin"
+          }
+          Copy-Item ( Join-Path $vcpkgBin '*.dll' ) $stageBin -Force
+
+          # Also carry the MSVC runtime so the ZIP runs without installing the
+          # Visual C++ redistributable (the same set the official packaging
+          # bundles).
+          foreach( $msvcDll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll' )
+          {
+            $src = Join-Path $env:SystemRoot "System32\$msvcDll"
+            if( Test-Path $src )
+            {
+              Copy-Item $src $stageBin -Force
+            }
+            else
+            {
+              Write-Host "::warning::$msvcDll not found in System32; target machines will need the VC++ redistributable"
+            }
+          }
+          # python3 is linked dynamically (python3*.dll above); deploy its
+          # standard library next to the executables as well - Py_Initialize
+          # resolves <exe dir>\Lib, the same layout the official packaging
+          # uses.  Without it every "import" inside KiCad fails even though
+          # the interpreter loads.
+          $vcpkgPy = Join-Path $env:VCPKG_ROOT 'installed\x64-windows\tools\python3'
+          if( Test-Path ( Join-Path $vcpkgPy 'Lib' ) )
+          {
+            Copy-Item ( Join-Path $vcpkgPy 'Lib' ) $stageBin -Recurse -Force
+          }
+          else
+          {
+            Write-Host "::warning::vcpkg python3 stdlib not found; python scripting will have no standard library"
+          }
+          if( Test-Path ( Join-Path $vcpkgPy 'DLLs' ) )
+          {
+            Copy-Item ( Join-Path $vcpkgPy 'DLLs\*' ) $stageBin -Recurse -Force
+          }
+
+          Write-Host "Deployed $( ( Get-ChildItem $stageBin -Filter '*.dll' ).Count ) DLLs into stage\bin"
+
       - name: Package ZIP
         run: |
           $VERSION = ( git describe --tags --always --dirty ) -replace '^v',''
