@@ -170,12 +170,23 @@ jobs:
           test -f "$SCHEMA_DIR/api.v1.schema.json" && echo "  api schema          : OK"
           test -f "$DATA_DIR/template/sym-lib-table" && echo "  default sym table   : OK"
           test -f "$DATA_DIR/template/fp-lib-table" && echo "  default fp table    : OK"
-          NSYM=$(ls "$DATA_DIR/symbols/"*.kicad_sym 2>/dev/null | wc -l)
-          NFP=$(find "$DATA_DIR/footprints" -maxdepth 1 -name '*.pretty' 2>/dev/null | wc -l)
-          N3D=$(find "$DATA_DIR/3dmodels" -maxdepth 1 -name '*.3dshapes' 2>/dev/null | wc -l)
+          # The GitLab kicad-symbols repo stores each library as a
+          # *.kicad_symdir directory, so count the .kicad_sym files
+          # recursively.  The inner (find || true) keeps 'set -e' from
+          # aborting when a directory is missing; a zero count dumps the
+          # layouts for diagnosis.
+          NSYM=$( (find "$DATA_DIR/symbols" -name '*.kicad_sym' 2>/dev/null || true) | wc -l )
+          NFP=$(find "$DATA_DIR/footprints" -maxdepth 1 -type d -name '*.pretty' 2>/dev/null | wc -l)
+          N3D=$(find "$DATA_DIR/3dmodels" -maxdepth 1 -type d -name '*.3dshapes' 2>/dev/null | wc -l)
           echo "  symbol libraries    : $NSYM"
           echo "  footprint libraries : $NFP"
           echo "  3d model libraries  : $N3D"
+          if [ "$NSYM" -eq 0 ] || [ "$NFP" -eq 0 ] || [ "$N3D" -eq 0 ]; then
+            echo "WARNING: zero library count - dumping the layouts for diagnosis:" >&2
+            find "$DATA_DIR/symbols" -maxdepth 2 2>/dev/null | head -12 >&2 || true
+            find "$DATA_DIR/footprints" -maxdepth 2 2>/dev/null | head -12 >&2 || true
+            find "$DATA_DIR/3dmodels" -maxdepth 2 2>/dev/null | head -12 >&2 || true
+          fi
           test "$NSYM" -gt 50 && test "$NFP" -gt 50 && test "$N3D" -gt 50
 
           echo "--- dyld sources of the main binary (informational) ---"
@@ -482,12 +493,20 @@ jobs:
             && echo "  default sym table   : OK"
           test -f AppDir/usr/share/kicad/template/fp-lib-table \
             && echo "  default fp table    : OK"
-          NSYM=$(ls AppDir/usr/share/kicad/symbols/*.kicad_sym 2>/dev/null | wc -l)
-          NFP=$(find AppDir/usr/share/kicad/footprints -maxdepth 1 -name '*.pretty' 2>/dev/null | wc -l)
-          N3D=$(find AppDir/usr/share/kicad/3dmodels -maxdepth 1 -name '*.3dshapes' 2>/dev/null | wc -l)
+          # Same recursive counting as the macOS bundle step: the GitLab
+          # kicad-symbols repo uses *.kicad_symdir directories.
+          NSYM=$( (find AppDir/usr/share/kicad/symbols -name '*.kicad_sym' 2>/dev/null || true) | wc -l )
+          NFP=$(find AppDir/usr/share/kicad/footprints -maxdepth 1 -type d -name '*.pretty' 2>/dev/null | wc -l)
+          N3D=$(find AppDir/usr/share/kicad/3dmodels -maxdepth 1 -type d -name '*.3dshapes' 2>/dev/null | wc -l)
           echo "  symbol libraries    : $NSYM"
           echo "  footprint libraries : $NFP"
           echo "  3d model libraries  : $N3D"
+          if [ "$NSYM" -eq 0 ] || [ "$NFP" -eq 0 ] || [ "$N3D" -eq 0 ]; then
+            echo "WARNING: zero library count - dumping the layouts for diagnosis:" >&2
+            find AppDir/usr/share/kicad/symbols -maxdepth 2 2>/dev/null | head -12 >&2 || true
+            find AppDir/usr/share/kicad/footprints -maxdepth 2 2>/dev/null | head -12 >&2 || true
+            find AppDir/usr/share/kicad/3dmodels -maxdepth 2 2>/dev/null | head -12 >&2 || true
+          fi
           test "$NSYM" -gt 50 && test "$NFP" -gt 50 && test "$N3D" -gt 50
 
           # Custom AppRun: KiCad's internal libraries live outside the default
