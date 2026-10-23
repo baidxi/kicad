@@ -873,6 +873,80 @@ jobs:
           $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
           cmake --install build
 
+      # The other platform jobs bundle the stock libraries; without this step
+      # the ZIP ships configured global paths (KICAD10_FOOTPRINT_DIR & friends
+      # resolve to <root>\share\kicad\...) but empty library directories, so
+      # the footprint/symbol/3D model tables end up with nothing in them.
+      # The repos are CMake projects and MUST go through their own install
+      # rules: kicad-symbols' default pack_symbols target (KICAD_PACK_SYM_
+      # LIBRARIES=ON) generates the packed single-file *.kicad_sym libraries
+      # plus the matching sym-lib-table, and the install rules exclude .git
+      # and other repository bookkeeping.  Data lands in stage\share\kicad,
+      # the Windows stock data root.  Mirrors of gitlab.com/kicad/libraries
+      # live under github.com/baidxi (explicit branches: the mirrors' default
+      # branches are unrelated forks).
+      - name: Bundle stock libraries
+        run: |
+          # The kicad-packages3D clone is multi-GB; free the vcpkg build
+          # scratch space first.
+          foreach( $scratch in 'buildtrees', 'downloads', 'packages' )
+          {
+            $dir = Join-Path $env:VCPKG_ROOT $scratch
+            if( Test-Path $dir )
+            {
+              Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+          $specs = @(
+            @{ repo = 'kicad-symbols'; mirror = 'kicad-symbols';     branch = 'master' },
+            @{ repo = 'footprints';    mirror = 'kicad-footprints.'; branch = 'master' },
+            @{ repo = 'packages3D';    mirror = 'kicad-packages3D';  branch = 'dev' },
+            @{ repo = 'templates';     mirror = 'kicad-templates.';  branch = 'master' }
+          )
+          foreach( $spec in $specs )
+          {
+            $repoDir  = Join-Path $env:RUNNER_TEMP $spec.repo
+            $buildDir = "$($spec.repo)-build"
+            $buildDir = Join-Path $env:RUNNER_TEMP $buildDir
+            git clone --depth 1 -b $spec.branch "https://github.com/baidxi/$($spec.mirror).git" "$repoDir"
+            if( $LASTEXITCODE -ne 0 ) { throw "git clone $($spec.mirror) failed" }
+            # CMAKE_POLICY_VERSION_MINIMUM: kicad-packages3D still declares
+            # cmake_minimum_required(2.6.1), which CMake 4 refuses without it
+            # (harmlessly ignored by CMake 3.x).
+            cmake -S "$repoDir" -B "$buildDir" -G Ninja `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 `
+              -DCMAKE_INSTALL_PREFIX="$PWD\stage"
+            if( $LASTEXITCODE -ne 0 ) { throw "cmake configure $($spec.mirror) failed" }
+            # kicad-symbols runs its pack_symbols target here; a no-op for
+            # the other repos.
+            cmake --build $buildDir
+            if( $LASTEXITCODE -ne 0 ) { throw "cmake build $($spec.mirror) failed" }
+            cmake --install $buildDir
+            if( $LASTEXITCODE -ne 0 ) { throw "cmake install $($spec.mirror) failed" }
+          }
+
+          # Same self-containment checks as the other platform jobs.
+          $dataRoot = Join-Path $PWD 'stage\share\kicad'
+          $nsym = @( Get-ChildItem ( Join-Path $dataRoot 'symbols' ) -Filter '*.kicad_sym' -Recurse -ErrorAction SilentlyContinue ).Count
+          $nfp  = @( Get-ChildItem ( Join-Path $dataRoot 'footprints' ) -Filter '*.pretty' -Directory -ErrorAction SilentlyContinue ).Count
+          $n3d  = @( Get-ChildItem ( Join-Path $dataRoot '3dmodels' ) -Filter '*.3dshapes' -Directory -ErrorAction SilentlyContinue ).Count
+          Write-Host "symbol libraries    : $nsym"
+          Write-Host "footprint libraries : $nfp"
+          Write-Host "3d model libraries  : $n3d"
+          if( $nsym -lt 50 -or $nfp -lt 50 -or $n3d -lt 50 )
+          {
+            throw "stock library bundle incomplete (symbols=$nsym footprints=$nfp 3dmodels=$n3d)"
+          }
+          Get-ChildItem ( Join-Path $dataRoot 'template' ) -Filter '*lib-table' | Select-Object -ExpandProperty Name
+
+          # The clone and build directories are no longer needed.
+          foreach( $spec in $specs )
+          {
+            Remove-Item ( Join-Path $env:RUNNER_TEMP $spec.repo ) -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item ( Join-Path $env:RUNNER_TEMP "$($spec.repo)-build" ) -Recurse -Force -ErrorAction SilentlyContinue
+          }
+
       # cmake --install only carries KiCad's own artifacts.  The vcpkg dynamic
       # triplet (x64-windows) leaves its runtime DLLs in the installed tree -
       # wx*, icu*, libboost*, libssl/libcrypto, python3*, ngspice, libcairo and
