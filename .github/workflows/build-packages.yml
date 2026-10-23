@@ -625,7 +625,12 @@ jobs:
 
       - name: Checkout vcpkg
         run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+          # Pin to a release tag instead of master: the generated manifest's
+          # builtin-baseline becomes the cloned HEAD, and the pinned overrides
+          # in vcpkg.json (wxwidgets 3.3.3#2, ngspice 46#0, glm 0.9.9.8#2)
+          # stop resolving once the registry drifts away from them - the
+          # configure then dies inside "vcpkg install" with no visible cause.
+          git clone --depth 1 --branch 2026.10.16 https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
 
       - name: Bootstrap vcpkg
         run: |
@@ -820,6 +825,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path vcpkg-binary-cache | Out-Null
           $env:VCPKG_DEFAULT_BINARY_CACHE = ( Resolve-Path vcpkg-binary-cache ).Path
+          # Fail early with context if VCPKG_ROOT is not the workspace clone:
+          # a silently wrong value (e.g. the VS-bundled vcpkg) makes the
+          # toolchain run an old vcpkg.exe against a fresh manifest baseline,
+          # which fails deep inside vcpkg with no visible cause.
+          $toolchain = Join-Path $env:VCPKG_ROOT 'scripts\buildsystems\vcpkg.cmake'
+          Write-Host "VCPKG_ROOT   = $env:VCPKG_ROOT"
+          Write-Host "vcpkg tool   = $toolchain"
+          if( [string]::IsNullOrWhiteSpace( $env:VCPKG_ROOT ) -or -not ( Test-Path $toolchain ) )
+          {
+            throw "vcpkg toolchain not found at '$toolchain' (VCPKG_ROOT='$env:VCPKG_ROOT').  The 'Checkout vcpkg'/'Bootstrap vcpkg' steps must have failed, or VCPKG_ROOT resolved to a different installation."
+          }
           # Spell the build type out literally: a literal keeps the CMake
           # cache clean of any shell-quoting artefacts (a stray
           # '$env:CMAKE_BUILD_TYPE' leaked into the cache once and broke the
@@ -839,7 +855,7 @@ jobs:
             cmake -G Ninja -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$PWD\stage" `
-              -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+              -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
               -DVCPKG_MANIFEST_DIR="$PWD\vcpkg-variant" `
               -DVCPKG_OVERLAY_PORTS="$PWD\overlay-ports" `
               -DVCPKG_OVERLAY_TRIPLETS="$PWD\tools\custom_vcpkg_triplets" `
@@ -862,6 +878,17 @@ jobs:
             Write-Host "::warning::configure/vcpkg install failed (attempt $attempt/$maxAttempts); retrying after backoff"
             Start-Sleep -Seconds ( 20 * $attempt )
           }
+
+      # The vcpkg manifest install runs inside the CMake configure; its real
+      # error is only in build/vcpkg-manifest-install.log.  Upload it so a
+      # failure can be diagnosed from the run summary instead of a rerun.
+      - name: Upload vcpkg manifest log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcpkg-manifest-log-windows
+          path: build/vcpkg-manifest-install.log
+          if-no-files-found: ignore
 
       - name: Build
         run: |
@@ -887,6 +914,12 @@ jobs:
       # branches are unrelated forks).
       - name: Bundle stock libraries
         run: |
+          # kicad_lib_pack.py opens its files without an explicit encoding, so
+          # on Windows it inherits the cp1252 ANSI code page and dies on the
+          # first non-Latin-1 character in a symbol description (e.g. Greek
+          # Phi).  Force Python's UTF-8 mode (Linux/macOS already default).
+          $env:PYTHONUTF8 = '1'
+
           # The kicad-packages3D clone is multi-GB; free the vcpkg build
           # scratch space first.
           foreach( $scratch in 'buildtrees', 'downloads', 'packages' )
