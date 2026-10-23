@@ -22,6 +22,7 @@
 #include <confirm.h>
 #include <eda_base_frame.h>
 #include <kiface_base.h>
+#include <libraries/library_manager.h>
 #include <pgm_base.h>
 #include <wx/display.h>
 #include <wx/log.h>
@@ -159,6 +160,14 @@ STARTWIZARD_PROVIDER* STARTWIZARD::GetProvider( const wxString& aName )
 
 void STARTWIZARD::CheckAndRun( wxWindow* aParent )
 {
+    // Self-heal missing or empty global library tables before checking the
+    // providers: settings directories created by a build that shipped no
+    // stock libraries carry empty tables, which count as valid and would
+    // suppress the libraries wizard page forever.  Regenerating them is
+    // lossless; tables with content are left alone, and a truly broken table
+    // still triggers the wizard through the providers below.
+    LIBRARY_MANAGER::EnsureGlobalTables();
+
     m_providers.clear();
 
     m_providers.push_back( std::make_unique<STARTWIZARD_PROVIDER_SETTINGS>() );

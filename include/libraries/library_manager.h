@@ -348,6 +348,18 @@ public:
 
     static bool CreateGlobalTable( LIBRARY_TABLE_TYPE aType, bool aPopulateDefaultLibraries );
 
+    /**
+     * Silently (re)create global tables that are missing or completely empty.
+     *
+     * Settings directories created by an older build that shipped no stock
+     * libraries often carry empty global tables; an empty table counts as
+     * valid, so the start wizard never runs again and KiCad keeps reporting
+     * no libraries.  Missing and empty tables carry no user configuration,
+     * so regenerating them with the chained stock-table reference is
+     * lossless.  Tables with any content - valid or not - are left untouched.
+     */
+    static void EnsureGlobalTables();
+
     /// (Re)loads the global library tables in the given list, or all tables if no list is given
     void LoadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE> aTablesToLoad = {} );
 

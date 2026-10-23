@@ -584,6 +584,42 @@ bool LIBRARY_MANAGER::CreateGlobalTable( LIBRARY_TABLE_TYPE aType, bool aPopulat
 }
 
 
+void LIBRARY_MANAGER::EnsureGlobalTables()
+{
+    wxString basePath = PATHS::GetUserSettingsPath();
+
+    for( LIBRARY_TABLE_TYPE tableType : { LIBRARY_TABLE_TYPE::SYMBOL,
+                                          LIBRARY_TABLE_TYPE::FOOTPRINT,
+                                          LIBRARY_TABLE_TYPE::DESIGN_BLOCK } )
+    {
+        wxFileName fn( basePath, tableFileName( tableType ) );
+
+        if( !fn.IsFileReadable() )
+        {
+            // A missing table carries no configuration: regenerate it with the
+            // chained stock-table reference.
+            wxLogTrace( traceLibraries, wxT( "Global table '%s' is missing; regenerating from stock" ),
+                        fn.GetFullPath() );
+            CreateGlobalTable( tableType, true );
+            continue;
+        }
+
+        // An existing but completely empty table also carries no configuration
+        // (settings directories created by a build without stock libraries end
+        // up with these, and the start wizard then never offers to fix them).
+        // Tables with any content, valid or not, are left untouched.
+        LIBRARY_TABLE temp( fn, LIBRARY_TABLE_SCOPE::GLOBAL );
+
+        if( temp.IsOk() && temp.Rows().empty() )
+        {
+            wxLogTrace( traceLibraries, wxT( "Global table '%s' is empty; regenerating from stock" ),
+                        fn.GetFullPath() );
+            CreateGlobalTable( tableType, true );
+        }
+    }
+}
+
+
 void LIBRARY_MANAGER::LoadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE> aTablesToLoad )
 {
     // Cancel any in-progress load
