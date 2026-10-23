@@ -256,6 +256,19 @@ bool KIPLATFORM::UI::SupportsKeyState()
 }
 
 
+std::optional<bool> KIPLATFORM::UI::GetTouchpadDisableWhileTyping()
+{
+    // macOS does not have an equivalent of GNOME's disable-while-typing setting.
+    return std::nullopt;
+}
+
+
+bool KIPLATFORM::UI::SetTouchpadDisableWhileTyping( bool aEnable )
+{
+    return false;
+}
+
+
 wxPoint KIPLATFORM::UI::GetMousePosition()
 {
     // wxOSX flips the pointer against screen 0, which raises NSRangeException with no window

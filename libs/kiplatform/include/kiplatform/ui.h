@@ -21,6 +21,7 @@
 #ifndef KIPLATFORM_UI_H_
 #define KIPLATFORM_UI_H_
 
+#include <optional>
 #include <wx/cursor.h>
 
 class wxChoice;
@@ -170,6 +171,26 @@ namespace KIPLATFORM
          * On GTK, this requires an active X11 display.
          */
         bool SupportsKeyState();
+
+        /**
+         * Query the desktop's "disable touchpad while typing" setting (e.g. GNOME's DWT).
+         *
+         * When enabled, holding a character key freezes the touchpad, which makes panning
+         * with a non-modifier motion-pan key impossible.
+         *
+         * @return the current setting, or std::nullopt if the platform or desktop
+         *         does not support this setting.
+         */
+        std::optional<bool> GetTouchpadDisableWhileTyping();
+
+        /**
+         * Change the desktop's "disable touchpad while typing" setting.
+         *
+         * @param aEnable is the new value for the setting.
+         * @return true if the setting was changed, false if the platform or desktop
+         *         does not support it.
+         */
+        bool SetTouchpadDisableWhileTyping( bool aEnable );
 
         /**
          * Returns the mouse position in screen coordinates.

@@ -124,6 +124,10 @@ public:
 
         int motion_pan_modifier;
 
+        ///< Original user value of GNOME's disable-while-typing, saved when KiCad turns DWT
+        ///< off to make a non-modifier motion-pan key usable (-1 = KiCad has not touched it).
+        int dwt_original_value;
+
         MOUSE_DRAG_ACTION drag_left;
         MOUSE_DRAG_ACTION drag_middle;
         MOUSE_DRAG_ACTION drag_right;

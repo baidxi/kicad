@@ -277,22 +277,39 @@ void WX_VIEW_CONTROLS::onMotion( wxMouseEvent& aEvent )
         }
     }
 
-    if( m_settings.m_motionPanModifier != WXK_NONE
-        && wxGetKeyState( static_cast<wxKeyCode>( m_settings.m_motionPanModifier ) ) )
+    bool panKeyDown = false;
+
+    if( m_settings.m_motionPanModifier != WXK_NONE )
+    {
+        // Modifier keys are polled directly; other keys use the state tracked by KEY_TRACKER.
+        switch( static_cast<wxKeyCode>( m_settings.m_motionPanModifier ) )
+        {
+        case WXK_ALT:
+        case WXK_CONTROL: // Also WXK_RAW_CONTROL where the platform distinguishes them
+        case WXK_SHIFT:
+            panKeyDown = wxGetKeyState( static_cast<wxKeyCode>( m_settings.m_motionPanModifier ) );
+            break;
+        default:
+            panKeyDown = m_panKeyTrackedDown;
+            break;
+        }
+    }
+
+    if( panKeyDown )
     {
         if( !m_metaPanning )
         {
             m_metaPanning = true;
             m_metaPanStart = mousePos;
-            aEvent.StopPropagation();
+           aEvent.StopPropagation();
         }
         else
         {
-            VECTOR2D d = m_metaPanStart - mousePos;
-            m_metaPanStart = mousePos;
-            VECTOR2D delta = m_view->ToWorld( d, false );
-            m_view->SetCenter( m_view->GetCenter() + delta );
-            aEvent.StopPropagation();
+           VECTOR2D d = m_metaPanStart - mousePos;
+           m_metaPanStart = mousePos;
+           VECTOR2D delta = m_view->ToWorld( d, false );
+           m_view->SetCenter( m_view->GetCenter() + delta );
+           aEvent.StopPropagation();
         }
 
         if( m_updateCursor )
@@ -665,7 +682,6 @@ void WX_VIEW_CONTROLS::onEnter( wxMouseEvent& aEvent )
 #endif
 }
 
-
 void WX_VIEW_CONTROLS::onLeave( wxMouseEvent& aEvent )
 {
 #if !defined USE_MOUSE_CAPTURE
@@ -902,6 +918,13 @@ void WX_VIEW_CONTROLS::CaptureCursor( bool aEnabled )
 }
 
 
+void WX_VIEW_CONTROLS::TrackMotionPanKey( int aKeyCode, bool aDown )
+{
+    if( m_settings.m_motionPanModifier != WXK_NONE && aKeyCode == m_settings.m_motionPanModifier )
+        m_panKeyTrackedDown = aDown;
+}
+
+
 void WX_VIEW_CONTROLS::CancelDrag()
 {
     if( m_state == DRAG_PANNING || m_state == DRAG_ZOOMING )
@@ -915,6 +938,10 @@ void WX_VIEW_CONTROLS::CancelDrag()
     }
 
     m_metaPanning = false;
+
+    // The matching key-up event may happen elsewhere (e.g. after switching windows), so drop
+    // the tracked motion-pan key state here to avoid getting stuck in panning.
+    m_panKeyTrackedDown = false;
 }
 
 

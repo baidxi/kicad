@@ -31,6 +31,7 @@
 
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
+#include <gio/gio.h>
 
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
@@ -711,6 +712,57 @@ bool KIPLATFORM::UI::SupportsKeyState()
 #else
     return false;
 #endif
+}
+
+
+// GNOME's "disable touchpad while typing" (DWT) freezes the touchpad while a character key is
+// held down (including key auto-repeat).  That breaks panning with a non-modifier motion-pan
+// key, so KiCad offers to manage this setting for the user (see PANEL_MOUSE_SETTINGS).
+static GSettings* getTouchpadSettings()
+{
+    GSettingsSchemaSource* source = g_settings_schema_source_get_default();
+
+    if( !source )
+        return nullptr;
+
+    GSettingsSchema* schema = g_settings_schema_source_lookup(
+            source, "org.gnome.desktop.peripherals.touchpad", TRUE );
+
+    if( !schema )
+        return nullptr;
+
+    GSettings* settings = g_settings_new_full( schema, nullptr, nullptr );
+    g_settings_schema_unref( schema );
+
+    return settings;
+}
+
+
+std::optional<bool> KIPLATFORM::UI::GetTouchpadDisableWhileTyping()
+{
+    GSettings* settings = getTouchpadSettings();
+
+    if( !settings )
+        return std::nullopt;
+
+    std::optional<bool> result = g_settings_get_boolean( settings, "disable-while-typing" ) != FALSE;
+    g_object_unref( settings );
+
+    return result;
+}
+
+
+bool KIPLATFORM::UI::SetTouchpadDisableWhileTyping( bool aEnable )
+{
+    GSettings* settings = getTouchpadSettings();
+
+    if( !settings )
+        return false;
+
+    g_settings_set_boolean( settings, "disable-while-typing", aEnable ? TRUE : FALSE );
+    g_object_unref( settings );
+
+    return true;
 }
 
 

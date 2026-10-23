@@ -148,6 +148,16 @@ public:
     }
 
     /**
+     * Track the pressed state of the motion-pan key for platforms where it cannot be polled
+     * with wxGetKeyState() (e.g. non-modifier keys under Wayland). Called by the tool
+     * dispatcher for every key event passing through the canvas.
+     *
+     * @param aKeyCode is the key code of the key event.
+     * @param aDown is true when the key was pressed, false when released.
+     */
+    virtual void TrackMotionPanKey( int aKeyCode, bool aDown ) { }
+
+    /**
      * Turn on/off mouse grabbing.
      * When the mouse is grabbed, it cannot go outside the VIEW.
      *

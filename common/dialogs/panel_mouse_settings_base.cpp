@@ -162,7 +162,7 @@ PANEL_MOUSE_SETTINGS_BASE::PANEL_MOUSE_SETTINGS_BASE( wxWindow* parent, wxWindow
 	m_panMoveKeyLabel->Wrap( -1 );
 	fgSizer1->Add( m_panMoveKeyLabel, 0, wxALIGN_CENTER_VERTICAL|wxBOTTOM|wxRIGHT, 5 );
 
-	wxString m_choicePanMoveKeyChoices[] = { _("None"), _("Alt"), _("Ctrl"), _("Shift") };
+	wxString m_choicePanMoveKeyChoices[] = { _("None"), _("Alt"), _("Ctrl"), _("Shift"), _("Space") };
 	int m_choicePanMoveKeyNChoices = sizeof( m_choicePanMoveKeyChoices ) / sizeof( wxString );
 	m_choicePanMoveKey = new wxChoice( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, m_choicePanMoveKeyNChoices, m_choicePanMoveKeyChoices, 0 );
 	m_choicePanMoveKey->SetSelection( 0 );

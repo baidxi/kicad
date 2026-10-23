@@ -298,6 +298,7 @@ EDA_DRAW_PANEL_GAL::EDA_DRAW_PANEL_GAL( wxWindow* aParentWindow, wxWindowID aWin
         wxEVT_MOUSEWHEEL,
         wxEVT_CHAR,
         wxEVT_CHAR_HOOK,
+        wxEVT_KEY_UP,
         wxEVT_MAGNIFY,
         KIGFX::WX_VIEW_CONTROLS::EVT_REFRESH_MOUSE
     };

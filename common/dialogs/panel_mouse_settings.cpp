@@ -21,6 +21,7 @@
 #include <bitmaps.h>
 #include <dialogs/panel_mouse_settings.h>
 #include <kiplatform/touchpad.h>
+#include <kiplatform/ui.h>
 #include <pgm_base.h>
 #include <settings/common_settings.h>
 #include <widgets/paged_dialog.h>
@@ -127,7 +128,30 @@ bool PANEL_MOUSE_SETTINGS::TransferDataFromWindow()
     case 1: cfg->m_Input.motion_pan_modifier = WXK_ALT;     break;
     case 2: cfg->m_Input.motion_pan_modifier = WXK_CONTROL; break;
     case 3: cfg->m_Input.motion_pan_modifier = WXK_SHIFT;   break;
+    case 4: cfg->m_Input.motion_pan_modifier = WXK_SPACE;   break;
     default: cfg->m_Input.motion_pan_modifier = 0;          break;
+    }
+
+    // GNOME's "disable touchpad while typing" (DWT) freezes the touchpad whenever a character
+    // key is held down, which makes a non-modifier motion-pan key (e.g. Space) unusable on a
+    // touchpad.  Save the user's desktop setting on first use and restore it when switching
+    // back to a modifier key (or none).
+    const int  panKey            = cfg->m_Input.motion_pan_modifier;
+    const bool nonModifierPanKey = panKey != 0 && panKey != WXK_ALT && panKey != WXK_CONTROL
+                                   && panKey != WXK_SHIFT;
+    const std::optional<bool> dwt = KIPLATFORM::UI::GetTouchpadDisableWhileTyping();
+
+    if( nonModifierPanKey && dwt && *dwt )
+    {
+        if( cfg->m_Input.dwt_original_value < 0 )
+            cfg->m_Input.dwt_original_value = *dwt ? 1 : 0;
+
+        KIPLATFORM::UI::SetTouchpadDisableWhileTyping( false );
+    }
+    else if( !nonModifierPanKey && cfg->m_Input.dwt_original_value >= 0 )
+    {
+        KIPLATFORM::UI::SetTouchpadDisableWhileTyping( cfg->m_Input.dwt_original_value == 1 );
+        cfg->m_Input.dwt_original_value = -1;
     }
 
     cfg->m_Input.center_on_zoom        = m_checkZoomCenter->GetValue();
@@ -203,6 +227,7 @@ void PANEL_MOUSE_SETTINGS::applySettingsToPanel( const COMMON_SETTINGS& aSetting
     case WXK_ALT:     m_choicePanMoveKey->SetSelection( 1 ); break;
     case WXK_CONTROL: m_choicePanMoveKey->SetSelection( 2 ); break;
     case WXK_SHIFT:   m_choicePanMoveKey->SetSelection( 3 ); break;
+    case WXK_SPACE:   m_choicePanMoveKey->SetSelection( 4 ); break;
     default:          m_choicePanMoveKey->SetSelection( 0 ); break;
     }
 

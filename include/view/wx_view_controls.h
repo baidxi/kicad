@@ -112,6 +112,9 @@ public:
     /// End any mouse drag action still in progress.
     void CancelDrag();
 
+    /// @copydoc VIEW_CONTROLS::TrackMotionPanKey()
+    void TrackMotionPanKey( int aKeyCode, bool aDown ) override;
+
     void ForceCursorPosition( bool aEnabled, const VECTOR2D& aPosition = VECTOR2D( 0, 0 ) ) override;
 
     /// Applies VIEW_CONTROLS settings from the program #COMMON_SETTINGS.
@@ -214,6 +217,10 @@ private:
     /// Last mouse position when panning via the meta key.
     VECTOR2D m_metaPanStart;
 
+    /// True while a non-modifier motion-pan key is held down, tracked from key events because
+    /// wxGetKeyState cannot poll non-modifier keys on all platforms (e.g. Wayland).
+    bool m_panKeyTrackedDown = false;
+
     /// Flag to indicate if infinite panning works on this platform.
     bool m_infinitePanWorks;
 
@@ -223,6 +230,7 @@ private:
     /// Used to track gesture events.
     double   m_gestureLastZoomFactor;
     VECTOR2D m_gestureLastPos;
+
 };
 } // namespace KIGFX
 

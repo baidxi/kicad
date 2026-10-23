@@ -202,6 +202,19 @@ bool KIPLATFORM::UI::SupportsKeyState()
 }
 
 
+std::optional<bool> KIPLATFORM::UI::GetTouchpadDisableWhileTyping()
+{
+    // Windows does not have an equivalent of GNOME's disable-while-typing setting.
+    return std::nullopt;
+}
+
+
+bool KIPLATFORM::UI::SetTouchpadDisableWhileTyping( bool aEnable )
+{
+    return false;
+}
+
+
 wxPoint KIPLATFORM::UI::GetMousePosition()
 {
     return wxGetMousePosition();

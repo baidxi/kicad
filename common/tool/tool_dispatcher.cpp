@@ -709,6 +709,11 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
 
         evt = GetToolEvent( ke, &keyIsSpecial );
 
+        // Non-modifier motion-pan keys cannot be polled with wxGetKeyState() on some platforms
+        // (e.g. Wayland), so track their state here, where every key event is guaranteed to pass.
+        if( KIGFX::VIEW_CONTROLS* vc = m_toolMgr->GetViewControls() )
+            vc->TrackMotionPanKey( ke->GetKeyCode(), true );
+
         // Drop backlogged OS key auto-repeat events that arrive after the key was released so a
         // slow hotkey action (e.g. Rotate on a large selection) stops when the key is let go
         // instead of running the whole queued burst. Only ordinary hotkey presses are filtered;
@@ -724,6 +729,18 @@ void TOOL_DISPATCHER::DispatchWxEvent( wxEvent& aEvent )
             evt->SetMousePosition( m_lastMousePos );
             evt->SetHasPosition( true );
         }
+    }
+    else if( type == wxEVT_KEY_UP )
+    {
+        // Release of the motion-pan key tracked in the CHAR_HOOK/CHAR branch above. The
+        // dispatcher receives this event because EDA_DRAW_PANEL_GAL connects it; nothing else
+        // consumes it, so always skip.
+        wxKeyEvent* ke = static_cast<wxKeyEvent*>( &aEvent );
+
+        if( KIGFX::VIEW_CONTROLS* vc = m_toolMgr->GetViewControls() )
+            vc->TrackMotionPanKey( ke->GetKeyCode(), false );
+
+        aEvent.Skip();
     }
     else if( type == wxEVT_MENU_OPEN || type == wxEVT_MENU_CLOSE || type == wxEVT_MENU_HIGHLIGHT )
     {
