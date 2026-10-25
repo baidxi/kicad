@@ -63,6 +63,12 @@ add_custom_target(
         -P ${KICAD_CMAKE_MODULE_PATH}/CheckBannedFunctions.cmake
 )
 
+# Bundled virtualenv.pyz launcher used by the plugin manager to create Python
+# environments on systems whose interpreter lacks the ensurepip module (e.g.
+# Debian/Ubuntu without the python3-venv package).  Optional: the plugin manager
+# falls back to reporting install instructions when the file is not present.
+set( VIRTUALENV_PYZ ${CMAKE_SOURCE_DIR}/resources/python/virtualenv.pyz )
+
 if( NOT (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR} ) )
     file( GLOB REMOTE_PROVIDER_SCHEMA_FILES
         ${CMAKE_SOURCE_DIR}/resources/schemas/kicad-remote-*.json
@@ -76,6 +82,16 @@ if( NOT (${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR} ) )
         DEPENDS ${REMOTE_PROVIDER_SCHEMA_FILES}
         COMMENT "Copying remote provider schema files into build directory"
     )
+
+    if( EXISTS ${VIRTUALENV_PYZ} )
+        add_custom_target( bundled_virtualenv_build_copy ALL
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/python
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${VIRTUALENV_PYZ} ${CMAKE_BINARY_DIR}/python/virtualenv.pyz
+            DEPENDS ${VIRTUALENV_PYZ}
+            COMMENT "Copying virtualenv.pyz into build directory"
+        )
+    endif()
 endif()
 
 install( FILES
@@ -84,6 +100,12 @@ install( FILES
     DESTINATION ${KICAD_DATA}/schemas
     COMPONENT Runtime
 )
+
+if( EXISTS ${VIRTUALENV_PYZ} )
+    install( FILES ${VIRTUALENV_PYZ}
+             DESTINATION ${KICAD_DATA}/python
+             COMPONENT Runtime )
+endif()
 
 # A shared library used by multiple *.kiface files and one or two program
 # launchers.  Object files can migrate into here over time, but only if they are

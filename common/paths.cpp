@@ -317,6 +317,18 @@ wxString PATHS::GetStockScriptingPath()
 }
 
 
+wxString PATHS::GetBundledVirtualenvPath()
+{
+    wxFileName fn;
+
+    fn.AssignDir( GetStockDataPath() );
+    fn.AppendDir( "python" );
+    fn.SetFullName( "virtualenv.pyz" );
+
+    return fn.GetFullPath();
+}
+
+
 wxString PATHS::GetStockTemplatesPath()
 {
     wxFileName fn;

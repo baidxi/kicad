@@ -81,6 +81,13 @@ public:
      */
     static bool IsVenvStale( const wxString& aEnvPath, const wxString& aConfiguredInterpreter );
 
+    /**
+     * Returns true if the given interpreter can bootstrap venvs by itself, i.e. the
+     * ensurepip module is importable.  Some distros ship Python without it; on
+     * Debian/Ubuntu systems the python3-venv package provides it.
+     */
+    static bool EnsurepipAvailable( const wxString& aInterpreterPath );
+
 private:
     wxString m_interpreterPath;
 };

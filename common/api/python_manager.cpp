@@ -20,10 +20,12 @@
 
 #include <config.h>
 #include <gestfich.h>
+#include <wx/dir.h>
 #include <wx/process.h>
 #include <wx/textfile.h>
 
 #include <future>
+#include <mutex>
 #include <utility>
 
 #include <api/api_utils.h>
@@ -42,14 +44,53 @@ public:
             m_callback( std::move( aCallback ) )
     {}
 
+    /**
+     * Drains the child's stdout and stderr from the monitor thread while the child runs.
+     * Without this, a child that writes enough output to fill the pipe buffer would
+     * block on write() forever: OnTerminate() would never fire and the plugin job
+     * pipeline would stall with the plugin stuck in the busy state.
+     */
+    void PumpStreams()
+    {
+        std::lock_guard<std::mutex> lock( m_mutex );
+
+        if( !m_pumpStreams )
+            return;
+
+        wxInputStream* processOut = GetInputStream();
+
+        while( processOut->CanRead() )
+        {
+            char buffer[4096];
+            buffer[ processOut->Read( buffer, sizeof( buffer ) - 1 ).LastRead() ] = '\0';
+            wxString stdOut( buffer, processOut->LastRead() );
+            stdOut = stdOut.BeforeLast( '\n' );
+            wxLogTrace( traceApi, wxString::Format( "Python: %s", stdOut ) );
+        }
+
+        wxInputStream* processErr = GetErrorStream();
+
+        while( processErr->CanRead() && m_stderr.length() < MAX_OUTPUT_LEN )
+        {
+            char buffer[4096];
+            buffer[ processErr->Read( buffer, sizeof( buffer ) - 1 ).LastRead() ] = '\0';
+            m_stderr.append( buffer, processErr->LastRead() );
+        }
+    }
+
     void OnTerminate( int aPid, int aStatus ) override
     {
         // Print stdout trace info from the monitor thread
         wxLog::GetActiveTarget()->Flush();
 
-        if( m_callback )
+        wxString output, error;
+
         {
-            wxString output, error;
+            // All stream access is serialized against the monitor thread; from here on
+            // it will not touch the streams anymore.
+            std::lock_guard<std::mutex> lock( m_mutex );
+            m_pumpStreams = false;
+
             wxInputStream* processOut = GetInputStream();
             size_t bytesRead = 0;
 
@@ -61,24 +102,28 @@ public:
                 bytesRead += processOut->LastRead();
             }
 
-            processOut = GetErrorStream();
-            bytesRead = 0;
+            wxInputStream* processErr = GetErrorStream();
 
-            while( processOut->CanRead() && bytesRead < MAX_OUTPUT_LEN )
+            while( processErr->CanRead() && m_stderr.length() < MAX_OUTPUT_LEN )
             {
                 char buffer[4096];
-                buffer[ processOut->Read( buffer, sizeof( buffer ) - 1 ).LastRead() ] = '\0';
-                error.append( buffer, processOut->LastRead() );
-                bytesRead += processOut->LastRead();
+                buffer[ processErr->Read( buffer, sizeof( buffer ) - 1 ).LastRead() ] = '\0';
+                m_stderr.append( buffer, processErr->LastRead() );
             }
 
-            m_callback( aStatus, output, error );
+            error = m_stderr;
         }
+
+        if( m_callback )
+            m_callback( aStatus, output, error );
     }
 
     static constexpr size_t MAX_OUTPUT_LEN = 1024L * 1024L;
 
 private:
+    std::mutex m_mutex;
+    wxString m_stderr;
+    bool m_pumpStreams = true;
     std::function<void(int, const wxString&, const wxString&)> m_callback;
 };
 
@@ -120,19 +165,8 @@ long PYTHON_MANAGER::Execute( const std::vector<wxString>& aArgs,
     auto monitor =
         []( PYTHON_PROCESS* aProcess )
         {
-            wxInputStream* processOut = aProcess->GetInputStream();
-
             while( aProcess->IsInputOpened() )
-            {
-                if( processOut->CanRead() )
-                {
-                    char buffer[4096];
-                    buffer[processOut->Read( buffer, sizeof( buffer ) - 1 ).LastRead()] = '\0';
-                    wxString stdOut( buffer, processOut->LastRead() );
-                    stdOut = stdOut.BeforeLast( '\n' );
-                    wxLogTrace( traceApi, wxString::Format( "Python: %s", stdOut ) );
-                }
-            }
+                aProcess->PumpStreams();
         };
 
     wxString argsStr;
@@ -350,6 +384,53 @@ static wxString venvPythonPath( const wxString& aEnvPath )
 }
 
 
+/**
+ * Returns true if pip has been bootstrapped into the venv at aEnvPath.  A venv can be
+ * structurally complete (python binary, pyvenv.cfg) yet still be missing pip when its
+ * creation failed partway: the venv module does not clean up after itself, so on systems
+ * where the ensurepip module is missing (e.g. Debian/Ubuntu without the python3-venv
+ * package) a broken, partially-created environment is left behind.  Dependency
+ * installation can never succeed there, so such environments must not be considered
+ * usable.
+ */
+static bool venvHasPip( const wxString& aEnvPath )
+{
+    wxFileName sitePackages( aEnvPath, wxEmptyString );
+
+#ifdef _WIN32
+    sitePackages.AppendDir( "Lib" );
+    sitePackages.AppendDir( "site-packages" );
+    sitePackages.AppendDir( "pip" );
+
+    return sitePackages.DirExists();
+#else
+    sitePackages.AppendDir( "lib" );
+
+    wxDir libDir( sitePackages.GetPath() );
+
+    if( !libDir.IsOpened() )
+        return false;
+
+    wxString subdir;
+
+    if( !libDir.GetFirst( &subdir, wxEmptyString, wxDIR_DIRS ) )
+        return false;
+
+    while( !subdir.StartsWith( "python" ) )
+    {
+        if( !libDir.GetNext( &subdir ) )
+            return false;
+    }
+
+    sitePackages.AppendDir( subdir );
+    sitePackages.AppendDir( "site-packages" );
+    sitePackages.AppendDir( "pip" );
+
+    return sitePackages.DirExists();
+#endif
+}
+
+
 std::optional<wxString> PYTHON_MANAGER::GetVenvInterpreter( const wxString& aEnvPath )
 {
     wxFileName cfg( aEnvPath, wxS( "pyvenv.cfg" ) );
@@ -392,6 +473,9 @@ bool PYTHON_MANAGER::IsVenvUsable( const wxString& aEnvPath )
         if( wxFileName base( *interpreter ); !base.IsFileExecutable() )
             return false;
     }
+
+    if( !venvHasPip( aEnvPath ) )
+        return false;
 
     return true;
 }
@@ -445,4 +529,15 @@ bool PYTHON_MANAGER::IsVenvStale( const wxString& aEnvPath, const wxString& aCon
 
     wxFileName configuredFn( canonicalizePath( aConfiguredInterpreter ) );
     return canonicalizePath( home ) != configuredFn.GetPath();
+}
+
+
+bool PYTHON_MANAGER::EnsurepipAvailable( const wxString& aInterpreterPath )
+{
+    PYTHON_MANAGER manager( aInterpreterPath );
+    wxString output;
+    wxString error;
+
+    return manager.ExecuteSync( { wxS( "-m" ), wxS( "ensurepip" ), wxS( "--version" ) },
+                                &output, &error ) == 0;
 }

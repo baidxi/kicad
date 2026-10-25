@@ -55,5 +55,11 @@ thirdparty/json_schema_validator/**    -format.clang-format-kicad -whitespace
 *.sh    text eol=lf
 *.bat   text eol=crlf
 
+# Workflows: their shell heredocs use backslash line continuations, which
+# break when an editor checks the file out with CRLF endings (bash then
+# escapes a carriage return instead of the newline).
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
 # Turn off auto-crlf, these files are needed inplace
 *.csv       -text

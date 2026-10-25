@@ -615,7 +615,39 @@ void LIBRARY_MANAGER::EnsureGlobalTables()
             wxLogTrace( traceLibraries, wxT( "Global table '%s' is empty; regenerating from stock" ),
                         fn.GetFullPath() );
             CreateGlobalTable( tableType, true );
+            continue;
         }
+
+        if( !temp.IsOk() )
+            continue;  // unparseable content: the start wizard owns this case
+
+        // Repoint a dangling "KiCad" chained reference - the fingerprint of a
+        // table written by a previous run of a relocatable build, whose
+        // AppImage mount point changed on every launch.  Only the chained
+        // stock row is touched; user rows are left alone.  The comparison
+        // against the current reference makes the rewrite idempotent.
+        wxString stockRefUri = StockTableReferenceURI( tableType );
+
+        if( !IsTableValid( StockTablePath( tableType ) ) )
+            continue;  // nothing valid to repoint to
+
+        bool repointed = false;
+
+        for( LIBRARY_TABLE_ROW& row : temp.Rows() )
+        {
+            if( row.Type() == LIBRARY_TABLE_ROW::TABLE_TYPE_NAME && row.Nickname() == wxT( "KiCad" )
+                && row.URI() != stockRefUri && !IsTableValid( row.URI() ) )
+            {
+                wxLogTrace( traceLibraries,
+                            wxT( "Global table '%s': repointing dangling stock reference '%s' to '%s'" ),
+                            fn.GetFullPath(), row.URI(), stockRefUri );
+                row.SetURI( stockRefUri );
+                repointed = true;
+            }
+        }
+
+        if( repointed )
+            temp.Save();
     }
 }
 

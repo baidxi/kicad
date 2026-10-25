@@ -298,13 +298,63 @@ jobs:
           set -euo pipefail
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
-            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_PREFIX=/opt/kicad \
             $KICAD_CMAKE_EXTRA
 
       - name: Build
         run: |
           set -euo pipefail
           cmake --build build -j"$(nproc)"
+
+      # Bundle the official stock libraries the same way the AppImage job
+      # does: the repos are CMake projects and MUST go through their own
+      # install rules - kicad-symbols' default pack_symbols target generates
+      # the packed single-file *.kicad_sym libraries plus the matching
+      # sym-lib-table, and the install rules exclude .git and other
+      # repository bookkeeping.  Data lands in debstage/opt/kicad/share/kicad,
+      # matching the /opt/kicad install prefix of the KiCad binaries.
+      # Mirrors of gitlab.com/kicad/libraries live under github.com/baidxi
+      # (explicit branches: the mirrors' default branches are unrelated).
+      - name: Bundle stock libraries
+        run: |
+          set -euo pipefail
+          for spec in "kicad-symbols:kicad-symbols:master" \
+                      "footprints:kicad-footprints.:master" \
+                      "packages3D:kicad-packages3D:dev" \
+                      "templates:kicad-templates.:master"; do
+            repo="${spec%%:*}"; rest="${spec#*:}"
+            mirror="${rest%%:*}"; branch="${rest##*:}"
+            git clone --depth 1 -b "$branch" \
+              "https://github.com/baidxi/$mirror.git" \
+              "$RUNNER_TEMP/$repo"
+            # CMAKE_POLICY_VERSION_MINIMUM: kicad-packages3D still declares
+            # cmake_minimum_required(2.6.1), which CMake 4 refuses without it
+            # (harmlessly ignored by CMake 3.x).
+            cmake -S "$RUNNER_TEMP/$repo" -B "$RUNNER_TEMP/$repo-build" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_INSTALL_PREFIX="$PWD/debstage/opt/kicad"
+            # kicad-symbols runs its pack_symbols target here; a no-op for
+            # the other repos.
+            cmake --build "$RUNNER_TEMP/$repo-build"
+            cmake --install "$RUNNER_TEMP/$repo-build"
+          done
+
+          echo "--- bundled stock data verification ---"
+          NSYM=$( (find debstage/opt/kicad/share/kicad/symbols -name '*.kicad_sym' 2>/dev/null || true) | wc -l )
+          NFP=$(find debstage/opt/kicad/share/kicad/footprints -maxdepth 1 -type d -name '*.pretty' 2>/dev/null | wc -l)
+          N3D=$(find debstage/opt/kicad/share/kicad/3dmodels -maxdepth 1 -type d -name '*.3dshapes' 2>/dev/null | wc -l)
+          echo "  symbol libraries    : $NSYM"
+          echo "  footprint libraries : $NFP"
+          echo "  3d model libraries  : $N3D"
+          test -f debstage/opt/kicad/share/kicad/template/sym-lib-table
+          test -f debstage/opt/kicad/share/kicad/template/fp-lib-table
+          test "$NSYM" -gt 50 && test "$NFP" -gt 50 && test "$N3D" -gt 50
+
+          # The clone and build directories are no longer needed.
+          for repo in kicad-symbols footprints packages3D templates; do
+            rm -rf "$RUNNER_TEMP/$repo" "$RUNNER_TEMP/$repo-build"
+          done
 
       - name: Assemble DEB
         env:
@@ -313,14 +363,34 @@ jobs:
           set -euo pipefail
           VERSION="$(git describe --tags --always --dirty | sed 's/^v//')"
           STAGE="debstage"
-          install -d "$STAGE/DEBIAN" "$STAGE/usr"
+          PREFIX="opt/kicad"
+          install -d "$STAGE/DEBIAN" "$STAGE/$PREFIX"
           DESTDIR="$PWD/$STAGE" cmake --install build
 
-          # Auto-generate shared-library dependencies from the installed binaries
-          EXECUTABLES=$(find "$STAGE/usr" -type f -executable | sort)
-          LIBS=$(find "$STAGE/usr" -name '*.so' -o -name '*.kiface' | sort)
-          SHLIBS=$(dpkg-shlibdeps -O $EXECUTABLES $LIBS 2>/dev/null \
-                     | sed -n 's/^shlibs:Depends=//p' || true)
+          # Auto-generate shared-library dependencies from the installed
+          # binaries.  dpkg-shlibdeps requires a debian/control in its CWD
+          # and --ignore-missing-info to skip KiCad's own libraries
+          # (libkigal, the .kiface plugins), which ship inside the package
+          # and belong to no apt package; without both it fails and the
+          # Depends line silently falls back to bare libc6.
+          EXECUTABLES=$(find "$STAGE/$PREFIX" -type f -executable | sort)
+          LIBS=$(find "$STAGE/$PREFIX" \( -name '*.so' -o -name '*.kiface' \) | sort)
+          install -d "$RUNNER_TEMP/shlibs-root/debian"
+          cat > "$RUNNER_TEMP/shlibs-root/debian/control" <<EOF
+          Source: kicad
+          Section: electronics
+          Priority: optional
+          Maintainer: local build <local@invalid>
+
+          Package: kicad
+          Architecture: amd64
+          Description: KiCad EDA suite (unofficial build)
+          EOF
+          SHLIBS=$( cd "$RUNNER_TEMP/shlibs-root" \
+                    && LD_LIBRARY_PATH="$PWD/$STAGE/$PREFIX/lib/x86_64-linux-gnu:$PWD/$STAGE/$PREFIX/lib" \
+                       dpkg-shlibdeps -O --ignore-missing-info $EXECUTABLES $LIBS \
+                       2>"$RUNNER_TEMP/dpkg-shlibdeps.log" \
+                    | sed -n 's/^shlibs:Depends=//p' || true)
 
           cat > "$STAGE/DEBIAN/control" <<EOF
           Package: kicad
@@ -338,6 +408,28 @@ jobs:
 
           # Documentation of the dependency computation for debugging
           echo "$SHLIBS" > "$STAGE/DEBIAN/shlibs.deps"
+
+          # /opt libraries sit outside the default dynamic loader path: ship
+          # an ld.so configuration fragment pointing at the staged lib dirs
+          # and run ldconfig on install and removal.  Listed as a conffile so
+          # local edits survive package upgrades.
+          install -d "$STAGE/etc/ld.so.conf.d"
+          {
+            echo "/opt/kicad/lib"
+            echo "/opt/kicad/lib/x86_64-linux-gnu"
+          } > "$STAGE/etc/ld.so.conf.d/kicad.conf"
+          echo "/etc/ld.so.conf.d/kicad.conf" > "$STAGE/DEBIAN/conffiles"
+          cat > "$STAGE/DEBIAN/postinst" <<'EOF'
+          #!/bin/sh
+          set -e
+          ldconfig
+          EOF
+          cat > "$STAGE/DEBIAN/prerm" <<'EOF'
+          #!/bin/sh
+          set -e
+          ldconfig
+          EOF
+          chmod 755 "$STAGE/DEBIAN/postinst" "$STAGE/DEBIAN/prerm"
 
           dpkg-deb --root-owner-group --build "$STAGE" "kicad-linux-amd64-$DISTRO_ID-$VERSION.deb"
 
@@ -409,6 +501,12 @@ jobs:
       - name: Configure
         run: |
           set -euo pipefail
+          # The prefix is /usr, NOT /opt/kicad: every later step of this job
+          # hardcodes the usr/ layer (DESTDIR staging -> AppDir/usr, the
+          # internal-library scan, the stock-data bundle and AppRun's
+          # $HERE/usr paths).  /opt/kicad is the deb job's prefix only.
+          # (The comment sits above the command on purpose: inside a
+          # backslash-continuation a '#' line would terminate the sequence.)
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
             -DCMAKE_INSTALL_PREFIX=/usr \
@@ -472,6 +570,19 @@ jobs:
             if [ -e "$lib" ]; then cp -fL "$lib" AppDir/usr/lib/; fi
           done
 
+          # The GLVND dispatch libraries (libOpenGL, libGL, libEGL,
+          # libGLdispatch, libGLX, libGLESv2) are on linuxdeploy's blacklist,
+          # but unlike the actual drivers (mesa etc., dlopened at runtime from
+          # the host) they are driver-independent loaders: bundle them so the
+          # image also starts on machines without a full GL dev stack (e.g.
+          # missing libopengl0).
+          for lib in libOpenGL.so.0 libGL.so.1 libEGL.so.1 \
+                     libGLdispatch.so.0 libGLX.so.0 libGLESv2.so.2; do
+            if [ -e "/usr/lib/x86_64-linux-gnu/$lib" ]; then
+              cp -fL "/usr/lib/x86_64-linux-gnu/$lib" AppDir/usr/lib/
+            fi
+          done
+
           # Bundle the official stock libraries so the image is fully
           # self-contained out of the box: symbols, footprints, the (large!)
           # 3D model set and the project templates.  The library repos are
@@ -503,6 +614,10 @@ jobs:
             # CMAKE_POLICY_VERSION_MINIMUM: kicad-packages3D still declares
             # cmake_minimum_required(2.6.1), which CMake 4 refuses without it
             # (harmlessly ignored by CMake 3.x).
+            # The stock EDA libraries stay under usr/share/kicad (not the
+            # /opt/kicad prefix): PATHS::GetStockEDALibraryPath() resolves
+            # $APPDIR/usr/share/kicad when running as an AppImage
+            # (common/paths.cpp), ignoring the compiled-in prefix.
             cmake -S "$RUNNER_TEMP/$repo" -B "$RUNNER_TEMP/$repo-build" -G Ninja \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
@@ -551,9 +666,21 @@ jobs:
           HERE="$(cd "$(dirname "$0")" && pwd)"
           export LD_LIBRARY_PATH="$HERE/usr/lib/kicad:$HERE/usr/lib/x86_64-linux-gnu:$HERE/usr/lib64:$HERE/usr/lib:${LD_LIBRARY_PATH}"
           # Point PATHS::GetStockDataPath at the bundled stock data (API
-          # schemas, the icon archive, i18n) - the compiled-in
-          # /usr/share/kicad prefix is only correct for a conventional install.
+          # schemas, the icon archive, i18n) - the compiled-in /opt/kicad
+          # prefix is only correct for a conventional install into that
+          # exact location.
           export KICAD_STOCK_DATA_HOME="$HERE/usr/share/kicad"
+          # Export the versioned path variables as externally defined: the
+          # AppImage mount point changes on every run, and LIBRARY_MANAGER::
+          # StockTableReferenceURI only stores the re-resolvable
+          # "${KICAD10_TEMPLATE_DIR}/..." token - instead of an absolute path
+          # that dangles after the next remount - when these variables are
+          # externally defined.  The KICAD10_ prefix must match
+          # ENV_VAR::GetVersionedEnvVarName() of the built version.
+          export KICAD10_TEMPLATE_DIR="$KICAD_STOCK_DATA_HOME/template"
+          export KICAD10_SYMBOL_DIR="$KICAD_STOCK_DATA_HOME/symbols"
+          export KICAD10_FOOTPRINT_DIR="$KICAD_STOCK_DATA_HOME/footprints"
+          export KICAD10_3DMODEL_DIR="$KICAD_STOCK_DATA_HOME/3dmodels"
           exec "$HERE/usr/bin/kicad" "$@"
           EOF
           chmod +x AppRun
@@ -575,6 +702,11 @@ jobs:
             DESKTOP_ARGS+=( --desktop-file "$PWD/$DESKTOP_FILE" )
           fi
 
+          # linuxdeploy has no --runtime-file flag; it fetches the type-2
+          # runtime from GitHub itself while generating the squashfs.  The
+          # runners reach GitHub directly, so this stays as-is (the local
+          # tools/build-linux-packages.sh pins a cached runtime via
+          # appimagetool instead).
           ./linuxdeploy.AppImage --appimage-extract-and-run \
             --appdir "$PWD/AppDir" \
             --custom-apprun "$PWD/AppRun" \
@@ -1037,6 +1169,13 @@ jobs:
           # uses.  Without it every "import" inside KiCad fails even though
           # the interpreter loads.
           $vcpkgPy = Join-Path $PWD 'build\vcpkg_installed\x64-windows\tools\python3'
+          # The interpreter executables themselves (python.exe, pythonw.exe)
+          # live in tools\python3, not in the deployed bin: without them
+          # PYTHON_MANAGER::FindPythonInterpreter() falls through FindKicadFile
+          # and the stale compile-time PYTHON_EXECUTABLE to an empty path, and
+          # the API plugin manager fails with "error 5 access denied" on
+          # "<bin>\ -m ensurepip --version".
+          Copy-Item ( Join-Path $vcpkgPy '*.exe' ) $stageBin -Force -ErrorAction SilentlyContinue
           if( Test-Path ( Join-Path $vcpkgPy 'Lib' ) )
           {
             Copy-Item ( Join-Path $vcpkgPy 'Lib' ) $stageBin -Recurse -Force

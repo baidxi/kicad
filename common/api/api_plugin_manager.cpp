@@ -885,7 +885,22 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
                     Pgm().GetCommonSettings()->m_Api.python_interpreter );
         wxLogTrace( traceApi, wxString::Format( "Manager: creating Python env at %s",
                                                 job.env_path ) );
-        PYTHON_MANAGER manager( Pgm().GetCommonSettings()->m_Api.python_interpreter );
+
+        // Remove any environment directory left behind by a previous failed attempt.  The
+        // venv module does not clean up after itself when creation fails partway (e.g. when
+        // the ensurepip module is missing), and a partial directory would otherwise keep
+        // passing the usability checks on subsequent loads, preventing the environment from
+        // ever being properly re-created.
+        wxFileName envPath( job.env_path, wxEmptyString );
+
+        if( envPath.DirExists() && envPath.Rmdir( wxPATH_RMDIR_RECURSIVE ) )
+        {
+            wxLogTrace( traceApi, wxString::Format( "Manager: removed stale environment at %s",
+                                                    job.env_path ) );
+        }
+
+        wxString interpreter = Pgm().GetCommonSettings()->m_Api.python_interpreter;
+        PYTHON_MANAGER manager( interpreter );
         wxExecuteEnv   env;
 
 #ifdef _WIN32
@@ -901,51 +916,103 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
             env.env.erase( "PYTHONPATH" );
         }
 #endif
-        std::vector<wxString> args = {
-                "-m",
-                "venv",
-                "--system-site-packages",
-                job.env_path
-            };
 
-        long pid = manager.Execute( args,
-                [this, job]( int aRetVal, const wxString& aOutput, const wxString& aError )
-                {
-                    m_runningPids.erase( job.identifier );
+        std::vector<wxString> args;
 
-                    wxLogTrace( traceApi,
-                                wxString::Format( "Manager: created venv (python returned %d)", aRetVal ) );
+        if( PYTHON_MANAGER::EnsurepipAvailable( interpreter ) )
+        {
+            args = { "-m", "venv", "--system-site-packages", job.env_path };
+        }
+        else if( wxString venvPyz = PATHS::GetBundledVirtualenvPath();
+                 wxFileName( venvPyz ).IsFileReadable() )
+        {
+            // Some distros ship Python without ensurepip (Debian/Ubuntu without the
+            // python3-venv package).  The bundled virtualenv.pyz launcher can create the
+            // environment instead; it seeds pip from its own bundled wheels, offline.
+            wxLogTrace( traceApi, wxString::Format( "Manager: interpreter is missing ensurepip; "
+                                                    "using bundled virtualenv launcher %s",
+                                                    venvPyz ) );
+            args = { venvPyz, "--system-site-packages", job.env_path };
+        }
+        else
+        {
+            // Without ensurepip or the bundled launcher no environment can be created.
+            // Fail this job for good instead of leaving the plugin in the busy state.
+            wxLogTrace( traceApi, "Manager: interpreter is missing ensurepip and no bundled "
+                                  "virtualenv launcher was found" );
 
-                    if( !aError.IsEmpty() )
-                        wxLogTrace( traceApi, wxString::Format( "Manager: venv err: %s", aError ) );
+            wxString debug = _( "The configured Python interpreter cannot create virtual "
+                                "environments because the ensurepip module is not available. "
+                                "Install the python3-venv system package, or select a "
+                                "different Python interpreter in Preferences." );
 
-                    if( m_cancelledPlugins.contains( job.identifier ) )
+            reportPluginLoadMessage( m_reloadReporter.get(), pluginName( job.identifier ),
+                                     _( "Could not create plugin environment" ), debug );
+
+            m_busyPlugins.erase( job.identifier );
+
+            wxCommandEvent* evt = new wxCommandEvent( EDA_EVT_PLUGIN_MANAGER_JOB_FINISHED, wxID_ANY );
+            QueueEvent( evt );
+        }
+
+        if( !args.empty() )
+        {
+            long pid = manager.Execute( args,
+                    [this, job]( int aRetVal, const wxString& aOutput, const wxString& aError )
                     {
-                        recreateCancelledPlugin( job.identifier );
-                        return;
-                    }
+                        m_runningPids.erase( job.identifier );
 
-                    if( aRetVal != 0 )
-                    {
-                        wxString error = aError;
-                        error.Trim().Trim( false );
+                        wxLogTrace( traceApi,
+                                    wxString::Format( "Manager: created venv (python returned %d)", aRetVal ) );
 
-                        if( error.IsEmpty() )
-                            error = wxString::Format( _( "error code %d" ), aRetVal );
+                        if( !aError.IsEmpty() )
+                            wxLogTrace( traceApi, wxString::Format( "Manager: venv err: %s", aError ) );
 
-                        reportPluginLoadMessage( m_reloadReporter.get(), pluginName( job.identifier ),
-                                                 _( "Could not create plugin environment" ), error );
-                    }
+                        if( m_cancelledPlugins.contains( job.identifier ) )
+                        {
+                            recreateCancelledPlugin( job.identifier );
+                            return;
+                        }
 
-                    wxCommandEvent* evt = new wxCommandEvent( EDA_EVT_PLUGIN_MANAGER_JOB_FINISHED, wxID_ANY );
-                    QueueEvent( evt );
-                }, &env );
+                        if( aRetVal != 0 )
+                        {
+                            wxString error = aError;
+                            error.Trim().Trim( false );
 
-        m_runningPids[job.identifier] = pid;
+                            if( error.IsEmpty() )
+                                error = wxString::Format( _( "error code %d" ), aRetVal );
 
-        JOB nextJob( job );
-        nextJob.type = JOB_TYPE::SETUP_ENV;
-        m_jobs.emplace_back( nextJob );
+                            reportPluginLoadMessage( m_reloadReporter.get(), pluginName( job.identifier ),
+                                                     _( "Could not create plugin environment" ), error );
+
+                            // The environment is unusable, so any follow-up jobs queued for this
+                            // plugin can only fail as well.  Remove them and clear the busy state,
+                            // then delete the partial environment directory so that a later
+                            // attempt (e.g. after installing python3-venv) starts from scratch.
+                            std::erase_if( m_jobs,
+                                           [&job]( const JOB& aJob )
+                                           {
+                                               return aJob.identifier == job.identifier;
+                                           } );
+                            m_busyPlugins.erase( job.identifier );
+
+                            wxFileName partialEnv( job.env_path, wxEmptyString );
+
+                            if( partialEnv.DirExists() )
+                                partialEnv.Rmdir( wxPATH_RMDIR_RECURSIVE );
+                        }
+
+                        wxCommandEvent* evt = new wxCommandEvent( EDA_EVT_PLUGIN_MANAGER_JOB_FINISHED,
+                                                                  wxID_ANY );
+                        QueueEvent( evt );
+                    }, &env );
+
+            m_runningPids[job.identifier] = pid;
+
+            JOB nextJob( job );
+            nextJob.type = JOB_TYPE::SETUP_ENV;
+            m_jobs.emplace_back( nextJob );
+        }
     }
     else if( job.type == JOB_TYPE::SETUP_ENV )
     {

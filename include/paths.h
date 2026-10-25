@@ -127,6 +127,14 @@ public:
     static wxString GetStockScriptingPath();
 
     /**
+     * Gets the path of the bundled virtualenv.pyz launcher, which the plugin manager uses
+     * to create Python environments on systems whose interpreter cannot bootstrap venvs
+     * by itself (i.e. it is missing the ensurepip module, such as Debian/Ubuntu systems
+     * without the python3-venv package)
+     */
+    static wxString GetBundledVirtualenvPath();
+
+    /**
      * Gets the stock (install) plugins path
      */
     static wxString GetStockPluginsPath();
