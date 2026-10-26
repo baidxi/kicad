@@ -70,8 +70,11 @@ DIALOG_PCM::DIALOG_PCM( EDA_BASE_FRAME* parent, std::shared_ptr<PLUGIN_CONTENT_M
 
     m_defaultBitmap = KiBitmap( BITMAPS::icon_pcm );
 
-    m_pcm->SetDialogWindow( this );
+    // Stop the background update thread before registering the dialog window so a
+    // repository fetch running on that thread can never observe a non-null dialog
+    // pointer and attempt to show UI from a non-main thread.
     m_pcm->StopBackgroundUpdate();
+    m_pcm->SetDialogWindow( this );
 
     m_gridPendingActions->PushEventHandler( new GRID_TRICKS( m_gridPendingActions ) );
 

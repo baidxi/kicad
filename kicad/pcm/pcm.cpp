@@ -61,6 +61,22 @@ static const wxChar tracePcm[] = wxT( "KICAD_PCM" );
 static const std::string PCM_ACCEPT_V2 = "application/vnd.kicad.pcm.v2+json";
 
 
+/**
+ * @brief Show an error message parented to the PCM dialog
+ *
+ * A parentless message box stacks underneath the modal Plugin and Content Manager
+ * dialog, hiding the failure from the user, so UI-mode errors must be parented to
+ * the dialog itself.
+ *
+ * @param aDialog the PCM dialog to parent the message box to
+ * @param aMessage the error message to display
+ */
+static void showPcmError( DIALOG_PCM* aDialog, const wxString& aMessage )
+{
+    wxMessageBox( aMessage, _( "Plugin and Content Manager" ), wxOK | wxICON_ERROR, aDialog );
+}
+
+
 const std::tuple<int, int, int> PLUGIN_CONTENT_MANAGER::m_kicad_version =
         GetMajorMinorPatchTuple();
 
@@ -255,9 +271,9 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
         if( m_dialog )
         {
             if( code == CURLE_ABORTED_BY_CALLBACK && size_exceeded )
-                wxMessageBox( _( "Download is too large." ) );
+                showPcmError( m_dialog, _( "Download is too large." ) );
             else if( code != CURLE_ABORTED_BY_CALLBACK )
-                wxLogError( wxString( curl.GetErrorText( code ) ) );
+                showPcmError( m_dialog, curl.GetErrorText( code ) );
         }
 
         return false;
@@ -309,9 +325,11 @@ bool PLUGIN_CONTENT_MANAGER::FetchRepository( const wxString& aUrl, PCM_REPOSITO
     {
         if( m_dialog )
         {
-            wxLogError( _( "Unable to parse repository: %s" ), e.what() );
-            wxLogError( _( "The given repository URL does not look like a valid KiCad package "
-                           "repository. Please double check the URL." ) );
+            showPcmError( m_dialog, wxString::Format( _( "Unable to parse repository: %s" ),
+                                                      e.what() ) );
+            showPcmError( m_dialog,
+                          _( "The given repository URL does not look like a valid KiCad package "
+                             "repository. Please double check the URL." ) );
         }
 
         return false;
@@ -352,7 +370,7 @@ bool PLUGIN_CONTENT_MANAGER::fetchPackages( const wxString&                aUrl,
                            PCM_ACCEPT_V2 ) )
     {
         if( m_dialog )
-            wxLogError( _( "Unable to load repository packages url." ) );
+            showPcmError( m_dialog, _( "Unable to load repository packages url." ) );
 
         return false;
     }
@@ -362,7 +380,10 @@ bool PLUGIN_CONTENT_MANAGER::fetchPackages( const wxString&                aUrl,
     if( aHash && !VerifyHash( isstream, *aHash ) )
     {
         if( m_dialog )
-            wxLogError( _( "Packages hash doesn't match. Repository may be corrupted." ) );
+        {
+            showPcmError( m_dialog,
+                          _( "Packages hash doesn't match. Repository may be corrupted." ) );
+        }
 
         return false;
     }
@@ -383,8 +404,9 @@ bool PLUGIN_CONTENT_MANAGER::fetchPackages( const wxString&                aUrl,
     {
         if( m_dialog )
         {
-            wxLogError( wxString::Format( _( "Unable to parse packages metadata:\n\n%s" ),
-                                          e.what() ) );
+            showPcmError( m_dialog,
+                          wxString::Format( _( "Unable to parse packages metadata:\n\n%s" ),
+                                            e.what() ) );
         }
 
         return false;
@@ -473,7 +495,7 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
         catch( ... )
         {
             if( m_dialog )
-                wxLogError( _( "Failed to parse locally stored repository.json." ) );
+                showPcmError( m_dialog, _( "Failed to parse locally stored repository.json." ) );
         }
 
         if( saved_repo.packages.update_timestamp == current_repo.packages.update_timestamp )
@@ -501,8 +523,9 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
             {
                 if( m_dialog )
                 {
-                    wxLogError( _( "Packages cache for current repository is corrupted, it will "
-                                   "be redownloaded." ) );
+                    showPcmError( m_dialog,
+                                  _( "Packages cache for current repository is corrupted, it will "
+                                     "be redownloaded." ) );
                 }
             }
         }
@@ -575,8 +598,9 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
 
                     if( m_dialog )
                     {
-                        wxLogError( _( "Resources file hash doesn't match and will not be used. "
-                                       "Repository may be corrupted." ) );
+                        showPcmError( m_dialog,
+                                      _( "Resources file hash doesn't match and will not be used. "
+                                         "Repository may be corrupted." ) );
                     }
 
                     wxRemoveFile( resource_file.GetFullPath() );
