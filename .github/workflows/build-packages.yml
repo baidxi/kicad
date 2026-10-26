@@ -702,6 +702,15 @@ jobs:
             DESKTOP_ARGS+=( --desktop-file "$PWD/$DESKTOP_FILE" )
           fi
 
+          # Icon diagnostics: linuxdeploy deploys the icon named by the
+          # desktop file's Icon= key (kicad) - copying it to the AppDir root
+          # and linking .DirIcon.  Both must exist in the staged tree for
+          # that to work; without them file managers and the dock show a
+          # generic icon.
+          echo "--- icon / desktop diagnostics ---"
+          ls AppDir/usr/share/applications/ 2>/dev/null || true
+          find AppDir/usr/share/icons -name 'kicad*.svg' 2>/dev/null | head -3 || true
+
           # linuxdeploy has no --runtime-file flag; it fetches the type-2
           # runtime from GitHub itself while generating the squashfs.  The
           # runners reach GitHub directly, so this stays as-is (the local
@@ -712,6 +721,23 @@ jobs:
             --custom-apprun "$PWD/AppRun" \
             "${DESKTOP_ARGS[@]}" \
             --output appimage
+
+          # Fallback icon deployment: if linuxdeploy skipped it (e.g. the
+          # desktop entry was not matched), install the stock svg into the
+          # AppDir root by hand so the image and the dock still get an icon.
+          if [ ! -e AppDir/.DirIcon ]; then
+            echo "WARNING: linuxdeploy deployed no icon; installing the stock one"
+            ICON_SRC="$(find AppDir/usr/share/icons -name 'kicad.svg' 2>/dev/null | head -1)"
+            if [ -n "$ICON_SRC" ]; then
+              cp -f "$ICON_SRC" AppDir/kicad.svg
+              ln -sf kicad.svg AppDir/.DirIcon
+            else
+              echo "ERROR: no kicad.svg found anywhere in AppDir/usr/share/icons" >&2
+              find AppDir/usr/share/icons -maxdepth 4 2>/dev/null | sort >&2 | head -20
+              exit 1
+            fi
+          fi
+          echo "icon check: .DirIcon -> $(readlink AppDir/.DirIcon 2>/dev/null || echo file), $(du -h AppDir/.DirIcon | cut -f1)"
 
           # Self-containment diagnostics: list what the packaged binaries
           # would still resolve from system paths at runtime.  Entries like
@@ -1187,6 +1213,24 @@ jobs:
           if( Test-Path ( Join-Path $vcpkgPy 'DLLs' ) )
           {
             Copy-Item ( Join-Path $vcpkgPy 'DLLs\*' ) $stageBin -Recurse -Force
+          }
+
+          # fontconfig needs etc\fonts\fonts.conf inside the portable root: on startup
+          # KiCad points FONTCONFIG_PATH at "<root>\etc\fonts" and the library refuses
+          # to enumerate fonts when the file is missing (stderr: "Cannot load default
+          # config file").  WINDOWSFONTDIR and WINDOWSTEMPDIR_FONTCONFIG_CACHE are
+          # placeholders resolved by the Windows port of fontconfig itself.
+          $fcSrc = Join-Path $PWD 'build\vcpkg_installed\x64-windows\etc\fonts'
+          $fcDst = Join-Path $PWD 'stage\etc\fonts'
+          New-Item -ItemType Directory -Force -Path $fcDst | Out-Null
+          if( Test-Path ( Join-Path $fcSrc 'fonts.conf' ) )
+          {
+            Copy-Item ( Join-Path $fcSrc 'fonts.conf' ) $fcDst -Force
+          }
+          else
+          {
+            # vcpkg's fontconfig port does not ship the template; write a minimal one
+            Set-Content ( Join-Path $fcDst 'fonts.conf' ) -Encoding ascii -Value '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>WINDOWSFONTDIR</dir><cachedir>WINDOWSTEMPDIR_FONTCONFIG_CACHE</cachedir></fontconfig>'
           }
 
           Write-Host "Deployed $( ( Get-ChildItem $stageBin -Filter '*.dll' ).Count ) DLLs into stage\bin"

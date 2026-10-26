@@ -92,6 +92,56 @@ private:
 };
 
 
+#ifdef _WIN32
+/**
+ * Prepends the given interpreter's directory to the child process PATH.  The venv module
+ * spawns <venv>\Scripts\python.exe internally to run ensurepip, and that launcher may end
+ * up resolving the VC runtime DLLs (vcruntime140.dll) through PATH when they are not
+ * installed system-wide.  Without the interpreter's directory on PATH such launches fail
+ * with a missing-VCRUNTIME140.dll error.
+ */
+static void prependInterpreterDirToPath( wxExecuteEnv& aEnv, const wxString& aInterpreter )
+{
+    wxFileName dir( aInterpreter, wxEmptyString );
+
+    wxString path;
+
+    if( aEnv.env.contains( wxS( "PATH" ) ) )
+        path = aEnv.env.at( wxS( "PATH" ) );
+
+    aEnv.env[wxS( "PATH" )] = dir.GetPath() + wxS( ";" ) + path;
+}
+#endif
+
+
+#ifdef _WIN32
+/**
+ * Copies the VC runtime DLLs from the bundled interpreter's directory next to the
+ * given venv interpreter.  The application directory is always the first entry of
+ * the loader search path, so this guarantees the venv interpreters (and anything
+ * they spawn) can load the CRT even when no VC++ redistributable is installed
+ * system-wide and no PATH based resolution succeeds.
+ */
+static void copyVcRuntimeToVenv( const wxString& aVenvInterpreter,
+                                 const wxString& aBaseInterpreter )
+{
+    wxFileName venvDir( aVenvInterpreter, wxEmptyString );
+    wxFileName baseDir( aBaseInterpreter, wxEmptyString );
+
+    for( const wxString& dll :
+         { wxString( "vcruntime140.dll" ), wxString( "vcruntime140_1.dll" ),
+           wxString( "msvcp140.dll" ) } )
+    {
+        wxFileName src( baseDir.GetPath(), dll );
+        wxFileName dst( venvDir.GetPath(), dll );
+
+        if( src.FileExists() && !dst.FileExists() )
+            wxCopyFile( src.GetFullPath(), dst.GetFullPath() );
+    }
+}
+#endif
+
+
 static void reportPluginActionMessage( REPORTER* aReporter, const wxString& aActionName,
                                        const wxString& aMessage )
 {
@@ -519,6 +569,14 @@ int API_PLUGIN_MANAGER::doInvokeAction( const wxString& aIdentifier,
         wxGetEnv( wxS( "SYSTEMROOT" ), &systemRoot );
         env.env[wxS( "SYSTEMROOT" )] = systemRoot;
 
+        // The venv\Scripts\pythonw.exe launcher may resolve the VC runtime DLLs
+        // through PATH; make sure the interpreter's directory is there.  Also copy
+        // the runtime DLLs next to the venv interpreter as a guaranteed fallback:
+        // the application directory always precedes everything else in the loader
+        // search path.
+        prependInterpreterDirToPath( env, Pgm().GetCommonSettings()->m_Api.python_interpreter );
+        copyVcRuntimeToVenv( *py, Pgm().GetCommonSettings()->m_Api.python_interpreter );
+
         if( Pgm().GetCommonSettings()->m_Api.python_interpreter == FindKicadFile( "pythonw.exe" )
             || PATHS::RunningFromBuildDir() )
         {
@@ -901,12 +959,22 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
 
         wxString interpreter = Pgm().GetCommonSettings()->m_Api.python_interpreter;
         PYTHON_MANAGER manager( interpreter );
+
+        // Inherit the full parent environment: wxExecuteEnv::env REPLACES the child
+        // environment, and spawning the interpreter with a bare one (no PATH, TEMP,
+        // SYSTEMROOT, ...) breaks the child in various ways on Windows, including
+        // spurious vcruntime140.dll loading errors.
         wxExecuteEnv   env;
+        wxGetEnvMap( &env.env );
 
 #ifdef _WIN32
         wxString systemRoot;
         wxGetEnv( wxS( "SYSTEMROOT" ), &systemRoot );
         env.env[wxS( "SYSTEMROOT" )] = systemRoot;
+
+        // The venv module spawns <venv>\Scripts\python.exe internally; make sure it can
+        // resolve the VC runtime DLLs shipped next to the bundled interpreter.
+        prependInterpreterDirToPath( env, interpreter );
 
         if( Pgm().GetCommonSettings()->m_Api.python_interpreter == FindKicadFile( "pythonw.exe" )
             || PATHS::RunningFromBuildDir() )
@@ -1041,7 +1109,10 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
         else
         {
             PYTHON_MANAGER manager( *python );
+
+            // Inherit the full parent environment; see the note in the CREATE_ENV branch.
             wxExecuteEnv env;
+            wxGetEnvMap( &env.env );
 
             if( pythonHome )
                 env.env[wxS( "VIRTUAL_ENV" )] = *pythonHome;
@@ -1050,6 +1121,12 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
             wxString systemRoot;
             wxGetEnv( wxS( "SYSTEMROOT" ), &systemRoot );
             env.env[wxS( "SYSTEMROOT" )] = systemRoot;
+
+            // The venv\Scripts\python.exe launcher spawned by pip may resolve the VC
+            // runtime DLLs through PATH; make sure the interpreter's directory is there.
+            prependInterpreterDirToPath( env,
+                                         Pgm().GetCommonSettings()->m_Api.python_interpreter );
+            copyVcRuntimeToVenv( *python, Pgm().GetCommonSettings()->m_Api.python_interpreter );
 
             if( Pgm().GetCommonSettings()->m_Api.python_interpreter
                         == FindKicadFile( "pythonw.exe" )
@@ -1159,12 +1236,21 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
             wxLogTrace( traceApi, "Manager: Python exe '%s'", *python );
 
             PYTHON_MANAGER manager( *python );
+
+            // Inherit the full parent environment; see the note in the CREATE_ENV branch.
             wxExecuteEnv env;
+            wxGetEnvMap( &env.env );
 
 #ifdef _WIN32
             wxString systemRoot;
             wxGetEnv( wxS( "SYSTEMROOT" ), &systemRoot );
             env.env[wxS( "SYSTEMROOT" )] = systemRoot;
+
+            // The venv\Scripts\python.exe launcher spawned by pip may resolve the VC
+            // runtime DLLs through PATH; make sure the interpreter's directory is there.
+            prependInterpreterDirToPath( env,
+                                         Pgm().GetCommonSettings()->m_Api.python_interpreter );
+            copyVcRuntimeToVenv( *python, Pgm().GetCommonSettings()->m_Api.python_interpreter );
 
             // If we are using the KiCad-shipped Python interpreter we have to do hacks
             env.env.erase( "PYTHONHOME" );
