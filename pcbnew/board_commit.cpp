@@ -265,6 +265,13 @@ void BOARD_COMMIT::Push( const wxString& aMessage, int aCommitFlags )
 
     undoList.SetDescription( aMessage );
 
+    // Copies handed in through Modified() were not made by makeImage(), but the undo stack owns them all
+    for( const COMMIT_LINE& entry : m_entries )
+    {
+        if( entry.m_copy )
+            entry.m_copy->SetFlags( UR_TRANSIENT );
+    }
+
     TEARDROP_MANAGER                   teardropMgr( board, m_toolMgr );
     std::shared_ptr<CONNECTIVITY_DATA> connectivity = board->GetConnectivity();
 
@@ -524,12 +531,14 @@ void BOARD_COMMIT::Push( const wxString& aMessage, int aCommitFlags )
                         {
                             parentFP->Remove( boardItem );
                             connectivity->Remove( boardItem );
+                            itemsChanged.push_back( parentFP );
                         }
                     }
                     else if( FOOTPRINT* parentFP = boardItem->GetParentFootprint() )
                     {
                         parentFP->Remove( boardItem );
                         connectivity->Remove( boardItem );
+                        itemsChanged.push_back( parentFP );
                     }
                     else
                     {
@@ -561,11 +570,15 @@ void BOARD_COMMIT::Push( const wxString& aMessage, int aCommitFlags )
                     if( m_isFootprintEditor )
                     {
                         if( FOOTPRINT* parentFP = board->GetFirstFootprint() )
+                        {
                             parentFP->Remove( boardItem );
+                            itemsChanged.push_back( parentFP );
+                        }
                     }
                     else if( FOOTPRINT* parentFP = boardItem->GetParentFootprint() )
                     {
                         parentFP->Remove( boardItem );
+                        itemsChanged.push_back( parentFP );
                     }
                     else
                     {
@@ -929,11 +942,15 @@ void BOARD_COMMIT::RevertToCheckpoint( int aCheckpoint )
                 if( m_isFootprintEditor )
                 {
                     if( FOOTPRINT* parentFP = board->GetFirstFootprint() )
+                    {
                         parentFP->Remove( boardItem );
+                        itemsChanged.push_back( parentFP );
+                    }
                 }
                 else if( FOOTPRINT* parentFP = boardItem->GetParentFootprint() )
                 {
                     parentFP->Remove( boardItem );
+                    itemsChanged.push_back( parentFP );
                 }
                 else
                 {
@@ -965,12 +982,14 @@ void BOARD_COMMIT::RevertToCheckpoint( int aCheckpoint )
                 {
                     parentFP->Add( boardItem, ADD_MODE::INSERT );
                     connectivity->Add( boardItem );
+                    itemsChanged.push_back( parentFP );
                 }
             }
             else if( FOOTPRINT* parentFP = boardItem->GetParentFootprint() )
             {
                 parentFP->Add( boardItem, ADD_MODE::INSERT );
                 connectivity->Add( boardItem );
+                itemsChanged.push_back( parentFP );
             }
             else
             {
@@ -1051,7 +1070,7 @@ void BOARD_COMMIT::RevertToCheckpoint( int aCheckpoint )
         }
     }
 
-    m_entries.erase( m_entries.begin() + aCheckpoint, m_entries.end() );
+    dropEntriesAfter( aCheckpoint );
 }
 
 

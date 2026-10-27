@@ -17,9 +17,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-
-#ifndef QA_PCBNEW_UTILS_BOARD_FILE_UTILS__H
-#define QA_PCBNEW_UTILS_BOARD_FILE_UTILS__H
+#pragma once
 
 #include <filesystem>
 #include <iostream>
@@ -103,9 +101,19 @@ template <typename ITEM> std::unique_ptr<ITEM> ReadItemFromStream( std::istream&
 std::unique_ptr<BOARD> ReadBoardFromFileOrStream( const std::string& aFilename,
                                                   std::istream& aFallback = std::cin );
 
+std::unique_ptr<BOARD> ReadBoardFromFile( const std::filesystem::path& aFilename );
+
+/**
+ * Require a board from the path relative to the pcbnew QA data directory.
+ *
+ * @param aFilename the path relative to the pcbnew QA data directory
+ * @returns a new #BOARD, or a test failure if it cannot be obtained.
+ */
+std::unique_ptr<BOARD> RequireBoardFromPcbnewQAData( const std::filesystem::path& aFilename );
+
 std::unique_ptr<FOOTPRINT> ReadFootprintFromFileOrStream( const std::string& aFilename,
                                                           std::istream& aFallback = std::cin );
 
-} // namespace KI_TEST
+std::unique_ptr<FOOTPRINT> ReadFootprintFromFile( const std::filesystem::path& aFilename );
 
-#endif // QA_PCBNEW_UTILS_BOARD_FILE_UTILS__H
+} // namespace KI_TEST

@@ -66,6 +66,7 @@
 #include <symbol_import_reconciler.h>
 #include <tool/actions.h>
 #include <tool/tool_manager.h>
+#include <tools/sch_actions.h>
 #include <tools/sch_editor_control.h>
 #include <tools/sch_navigate_tool.h>
 #include <trace_helpers.h>
@@ -93,6 +94,35 @@
 #include "widgets/filedlg_hook_save_project.h"
 #include "widgets/panel_remote_symbol.h"
 #include "save_project_utils.h"
+
+
+bool SCH_EDIT_FRAME::ReloadFromDisk()
+{
+    wxString file = Schematic().GetFileName();
+
+    if( file.IsEmpty() )
+        return false;
+
+    // Resolve the filename before changing sheets.
+    file = Prj().AbsolutePath( file );
+
+    if( GetCurrentSheet().Last() != &Schematic().Root() )
+    {
+        // Use the hierarchy's root path so it includes the root sheet's KIID.
+        SCH_SHEET_PATH rootSheetPath = Schematic().Hierarchy().at( 0 );
+        GetToolManager()->RunAction<SCH_SHEET_PATH*>( SCH_ACTIONS::changeSheet, &rootSheetPath );
+    }
+
+    // The caller already handled confirmation, so skip the save prompt.
+    SCH_SCREENS screens( Schematic().Root() );
+
+    for( SCH_SCREEN* screen = screens.GetFirst(); screen; screen = screens.GetNext() )
+        screen->SetContentModified( false );
+
+    ReleaseFile();
+    return OpenProjectFiles( std::vector<wxString>( 1, file ), KICTL_REVERT );
+}
+
 
 bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, int aCtl )
 {
@@ -844,6 +874,9 @@ bool SCH_EDIT_FRAME::OpenProjectFiles( const std::vector<wxString>& aFileSet, in
 
     m_remoteSymbolPane->BindWebViewLoaded();
 
+    // A standalone editor has no project manager to attach the git session for it.
+    RefreshGitCommitPane();
+
     return true;
 }
 
@@ -1470,6 +1503,9 @@ bool SCH_EDIT_FRAME::SaveProject( bool aSaveAs )
         m_infoBar->ShowMessageFor( backupMsg.Trim(), 10000, wxICON_WARNING );
     }
 
+    if( success )
+        RefreshGitCommitPane();
+
     return success;
 }
 
@@ -1508,6 +1544,7 @@ bool SCH_EDIT_FRAME::importFile( const wxString& aFileName, int aFileType,
     case SCH_IO_MGR::SCH_PCAD:
     case SCH_IO_MGR::SCH_ORCAD:
     case SCH_IO_MGR::SCH_EASYPC:
+    case SCH_IO_MGR::SCH_TARGET3001:
     {
         // We insist on caller sending us an absolute path, if it does not, we say it's a bug.
         // Unless we are passing the files in aproperties, in which case aFileName can be empty.

@@ -186,15 +186,11 @@ void FP_CACHE::Load()
                 footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
                 m_footprints.insert( fpName, new FP_CACHE_ENTRY( footprint, fn ) );
 
-                // Collect any non-fatal parse warnings
+                // A warning leaves the footprint usable, and libraries load on worker threads that have no one to
+                // show a message to, so it is only traced
                 for( const wxString& warning : parser.GetParseWarnings() )
                 {
-                    if( !cacheError.IsEmpty() )
-                        cacheError += wxT( "\n\n" );
-
-                    cacheError += wxString::Format( _( "Warning in file '%s'" ) + '\n',
-                                                    fn.GetFullPath() );
-                    cacheError += warning;
+                    wxLogTrace( traceKicadPcbPlugin, wxT( "Warning in file '%s': %s" ), fn.GetFullPath(), warning );
                 }
             }
             catch( const IO_ERROR& ioe )
@@ -590,12 +586,11 @@ void PCB_IO_KICAD_SEXPR::formatSetup( const BOARD* aBoard ) const
     m_out->Print( "(setup" );
 
     // Save the board physical stackup structure
-    const BOARD_STACKUP& stackup = aBoard->GetDesignSettings().GetStackupDescriptor();
+    const BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
+    const BOARD_STACKUP&         stackup = bds.GetStackupDescriptor();
 
-    if( aBoard->GetDesignSettings().m_HasStackup )
+    if( bds.m_HasStackup )
         stackup.FormatBoardStackup( m_out, aBoard );
-
-    BOARD_DESIGN_SETTINGS& bds = aBoard->GetDesignSettings();
 
     m_out->Print( "(pad_to_mask_clearance %s)", formatInternalUnits( bds.m_SolderMaskExpansion ).c_str() );
 
@@ -761,9 +756,9 @@ void PCB_IO_KICAD_SEXPR::formatBoardLayers( const BOARD* aBoard ) const
                       layer,
                       m_out->Quotew( LSET::Name( layer ) ).c_str(),
                       LAYER::ShowType( aBoard->GetLayerType( layer ) ),
-                      LSET::Name( layer ) == m_board->GetLayerName( layer )
+                      LSET::Name( layer ) == aBoard->GetLayerName( layer )
                             ? ""
-                            : m_out->Quotew( m_board->GetLayerName( layer ) ).c_str() );
+                            : m_out->Quotew( aBoard->GetLayerName( layer ) ).c_str() );
 
     }
 
@@ -792,9 +787,9 @@ void PCB_IO_KICAD_SEXPR::formatBoardLayers( const BOARD* aBoard ) const
                       print_type
                             ? LAYER::ShowType( aBoard->GetLayerType( layer ) )
                             : "user",
-                      m_board->GetLayerName( layer ) == LSET::Name( layer )
+                      aBoard->GetLayerName( layer ) == LSET::Name( layer )
                             ? ""
-                            : m_out->Quotew( m_board->GetLayerName( layer ) ).c_str() );
+                            : m_out->Quotew( aBoard->GetLayerName( layer ) ).c_str() );
     }
 
     m_out->Print( ")" );
@@ -1334,8 +1329,14 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_REFERENCE_IMAGE* aBitmap ) const
 
     formatLayer( aBitmap->GetLayer() );
 
+    if( !refImage.GetOrientation().IsZero() )
+        m_out->Print( "(rotate %s)", EDA_UNIT_UTILS::FormatAngle( refImage.GetOrientation() ).c_str() );
+
     if( refImage.GetImageScale() != 1.0 )
         m_out->Print( "%s", fmt::format("(scale {:g})", refImage.GetImageScale()).c_str() );
+
+    if( refImage.GetOpacity() < 1.0 )
+        m_out->Print( "%s", fmt::format( "(opacity {:g})", refImage.GetOpacity() ).c_str() );
 
     if( aBitmap->IsLocked() )
         KICAD_FORMAT::FormatBool( m_out, "locked", true );
@@ -2504,6 +2505,10 @@ void PCB_IO_KICAD_SEXPR::format( const PAD* aPad ) const
                 if( layer == F_Cu )
                     continue;
 
+                // Without a board there is no layer count, so list only the layers the pad defines
+                if( !board && !aPad->Padstack().HasExplicitDefinitionForLayer( layer ) )
+                    continue;
+
                 m_out->Print( "(layer %s", m_out->Quotew( LSET::Name( layer ) ).c_str() );
                 formatPadLayer( layer );
                 m_out->Print( ")" );
@@ -2643,22 +2648,10 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_TEXT* aText ) const
 
     if( parentFP )
     {
-        EDA_TEXT*      mut = const_cast<EDA_TEXT*>( static_cast<const EDA_TEXT*>( aText ) );
-        const VECTOR2I savedSize = mut->GetTextSize();
-        const int      savedThickness = mut->GetTextThickness();
-        const bool     mutateThickness = !mut->GetAutoThickness();
-
-        mut->SetTextSize( unbakeSize( savedSize, parentFP ) );
-
-        if( mutateThickness )
-            mut->SetTextThickness( unbakeLinear( savedThickness, parentFP ) );
-
-        aText->EDA_TEXT::Format( m_out, ctl_flags );
-
-        mut->SetTextSize( savedSize );
-
-        if( mutateThickness )
-            mut->SetTextThickness( savedThickness );
+        // Footprint text accessors return board-frame sizes, so format the stored library-frame attributes
+        EDA_TEXT libText( pcbIUScale );
+        libText.SetAttributes( aText->GetAttributes() );
+        libText.Format( m_out, ctl_flags );
     }
     else
     {
@@ -3590,6 +3583,24 @@ void PCB_IO_KICAD_SEXPR::format( const ZONE* aZone ) const
             break;
         }
 
+        if( aZone->GetLinkSet() != niluuid )
+        {
+            const REPEAT_LAYOUT_OPTIONS& opts = aZone->GetRepeatOptions();
+
+            m_out->Print( "(link %s", m_out->Quotew( aZone->GetLinkSet().AsString() ).c_str() );
+            KICAD_FORMAT::FormatBool( m_out, "placement", opts.m_copyPlacement );
+            KICAD_FORMAT::FormatBool( m_out, "routing", opts.m_copyRouting );
+            KICAD_FORMAT::FormatBool( m_out, "connected_routing", opts.m_connectedRoutingOnly );
+            KICAD_FORMAT::FormatBool( m_out, "other_items", opts.m_copyOtherItems );
+            KICAD_FORMAT::FormatBool( m_out, "group_items", opts.m_groupItems );
+            KICAD_FORMAT::FormatBool( m_out, "locked_items", opts.m_includeLockedItems );
+
+            if( opts.m_anchor != niluuid )
+                m_out->Print( "(anchor %s)", m_out->Quotew( opts.m_anchor.AsString() ).c_str() );
+
+            m_out->Print( ")" );
+        }
+
         m_out->Print( ")" );
     }
 
@@ -4140,6 +4151,9 @@ void PCB_IO_KICAD_SEXPR::FootprintSave( const wxString& aLibraryPath, const FOOT
             footprint->Flip( footprint->GetPosition(), cfg->m_FlipDirection );
         else
             footprint->Flip( footprint->GetPosition(), FLIP_DIRECTION::TOP_BOTTOM );
+
+        // A left-right flip also turns the footprint half a turn
+        footprint->SetOrientation( ANGLE_0 );
     }
 
     // Detach it from the board and its group

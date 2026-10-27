@@ -126,7 +126,6 @@ set( KICOMMON_SRCS
     kicad_gl/gl_context_mgr.cpp
 
     # Git
-    git/git_add_to_index_handler.cpp
     git/git_branch_handler.cpp
     git/git_clone_handler.cpp
     git/git_commit_handler.cpp
@@ -138,17 +137,18 @@ set( KICOMMON_SRCS
     git/project_git_utils.cpp
     git/git_pull_handler.cpp
     git/git_push_handler.cpp
-    git/git_remove_from_index_handler.cpp
     git/git_remove_vcs_handler.cpp
-    git/git_resolve_conflict_handler.cpp
-    git/git_revert_handler.cpp
+    git/git_repo_mixin.cpp
     git/git_status_handler.cpp
     git/git_switch_branch_handler.cpp
-    git/git_sync_handler.cpp
     git/kicad_git_common.cpp
     git/kicad_git_errors.cpp
+    git/text_diff.cpp
     git/git_backend.cpp
     git/kigit_orphan_registry.cpp
+    git/kigit_failure.cpp
+    git/kigit_known_hosts.cpp
+    git/kigit_ssh_keys.cpp
     git/libgit_backend.cpp
 
     # Diff/merge engine
@@ -214,6 +214,7 @@ set( KICOMMON_SRCS
     jobs/job_import_utils.cpp
     jobs/job_pcb_import.cpp
     jobs/job_sch_import.cpp
+    jobs/job_sch_link_footprints.cpp
     jobs/job_pcb_render.cpp
     jobs/job_pcb_drc.cpp
     jobs/job_diff_base.cpp
@@ -291,6 +292,7 @@ set( KICOMMON_SRCS
     widgets/aui_json_serializer.cpp
     widgets/bitmap_button.cpp
     widgets/field_warning_icon.cpp
+    widgets/file_checklist_ctrl.cpp
     widgets/grid_combobox.cpp
     widgets/grid_icon_text_helpers.cpp
     widgets/grid_text_button_helpers.cpp
@@ -302,9 +304,11 @@ set( KICOMMON_SRCS
     widgets/progress_reporter_base.cpp
     widgets/report_severity.cpp
     widgets/std_bitmap_button.cpp
+    widgets/text_ctrl_eval.cpp
     widgets/ui_common.cpp
     widgets/up_down_tree.cpp
     widgets/wx_collapsible_pane.cpp
+    widgets/wx_dataviewctrl.cpp
     widgets/wx_grid.cpp
     widgets/wx_data_view_hyperlink_renderer.cpp
     widgets/wx_html_report_panel.cpp
@@ -579,12 +583,40 @@ set( COMMON_ABOUT_DLG_SRCS
     )
 
 set( COMMON_GIT_DLG_SRCS
-    dialogs/git/dialog_git_commit.cpp
     dialogs/git/dialog_git_switch.cpp
     dialogs/git/dialog_git_credentials.cpp
+    dialogs/git/git_credentials_prompt.cpp
     dialogs/git/dialog_git_credentials_base.cpp
     dialogs/git/dialog_git_repository.cpp
     dialogs/git/dialog_git_repository_base.cpp
+    dialogs/git/dialog_text_diff.cpp
+    dialogs/git/dialog_text_diff_base.cpp
+    dialogs/git/dialog_git_identity.cpp
+    dialogs/git/dialog_git_identity_base.cpp
+    dialogs/git/dialog_git_new_tag.cpp
+    dialogs/git/dialog_git_new_tag_base.cpp
+    dialogs/git/dialog_git_remote.cpp
+    dialogs/git/dialog_git_remote_base.cpp
+    dialogs/git/dialog_git_advanced_base.cpp
+    dialogs/git/git_advanced_dialog.cpp
+    dialogs/git/git_commit_pane.cpp
+    dialogs/git/git_commit_pane_base.cpp
+    dialogs/git/git_file_diff_area.cpp
+    dialogs/git/git_status_entries.cpp
+    dialogs/git/git_transfer.cpp
+    dialogs/git/git_ui_utils.cpp
+    dialogs/git/panel_git_branches.cpp
+    dialogs/git/panel_git_branches_base.cpp
+    dialogs/git/panel_git_history.cpp
+    dialogs/git/panel_git_history_base.cpp
+    dialogs/git/panel_git_remotes.cpp
+    dialogs/git/panel_git_remotes_base.cpp
+    dialogs/git/panel_git_repository.cpp
+    dialogs/git/panel_git_repository_base.cpp
+    dialogs/git/panel_git_stashes.cpp
+    dialogs/git/panel_git_stashes_base.cpp
+    dialogs/git/panel_git_tags.cpp
+    dialogs/git/panel_git_tags_base.cpp
     dialogs/git/panel_git_repos.cpp
     dialogs/git/panel_git_repos_base.cpp
 
@@ -732,7 +764,6 @@ set( COMMON_WIDGET_SRCS
     widgets/search_pane_tab.cpp
     widgets/split_button.cpp
     widgets/stepped_slider.cpp
-    widgets/text_ctrl_eval.cpp
     widgets/margin_offset_binder.cpp
     widgets/unit_binder.cpp
     widgets/widget_save_restore.cpp
@@ -741,7 +772,6 @@ set( COMMON_WIDGET_SRCS
     widgets/wx_aui_utils.cpp
     widgets/wx_busy_indicator.cpp
     widgets/wx_combobox.cpp
-    widgets/wx_dataviewctrl.cpp
     widgets/wx_debounced_action.cpp
     widgets/wx_ellipsized_static_text.cpp
     widgets/wx_listbox.cpp
@@ -795,6 +825,7 @@ set( PLOTTERS_CONTROL_SRCS
     plotters/PDF_plotter.cpp
     plotters/pdf_stroke_font.cpp
     plotters/pdf_outline_font.cpp
+    plotters/pdf_unicode.cpp
     plotters/PNG_plotter.cpp
     plotters/PS_plotter.cpp
     plotters/SVG_plotter.cpp
@@ -846,6 +877,10 @@ set( COMMON_IO_SRCS
     io/easypc/easypc_document.cpp
     io/easypc/easypc_file.cpp
     io/easypc/easypc_text_metrics.cpp
+
+    # TARGET 3001!
+    io/target3001/target3001_fonts.cpp
+    io/target3001/target3001_parser.cpp
 
     # P-CAD
     io/pcad/s_expr_loader.cpp

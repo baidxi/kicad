@@ -18,6 +18,7 @@
  */
 
 #include "board_design_settings.h"
+#include "widgets/report_severity.h"
 
 #include <algorithm>
 #include <cmath>
@@ -38,6 +39,7 @@
 #include <settings/parameters.h>
 #include <project/project_file.h>
 #include <advanced_config.h>
+#include <wx/debug.h>
 
 const int bdsSchemaVersion = 3;
 
@@ -176,6 +178,7 @@ BOARD_DESIGN_SETTINGS::BOARD_DESIGN_SETTINGS( JSON_SETTINGS* aParent, const std:
 
     m_DRCSeverities[ DRCE_DANGLING_TRACK ] = RPT_SEVERITY_WARNING;
     m_DRCSeverities[ DRCE_DANGLING_VIA ] = RPT_SEVERITY_WARNING;
+    m_DRCSeverities[ DRCE_COPPER_OUTSIDE_BOARD ] = RPT_SEVERITY_WARNING;
 
     m_DRCSeverities[DRCE_MICROVIA_CROSSES_CORE] = RPT_SEVERITY_WARNING;
     m_DRCSeverities[DRCE_MICROVIA_STACK_NOT_FILLED] = RPT_SEVERITY_WARNING;
@@ -1591,15 +1594,22 @@ bool BOARD_DESIGN_SETTINGS::LoadFromFile( const wxString& aDirectory )
 }
 
 
-SEVERITY BOARD_DESIGN_SETTINGS::GetSeverity( int aDRCErrorCode )
+SEVERITY BOARD_DESIGN_SETTINGS::GetSeverity( int aDRCErrorCode ) const
 {
-    return m_DRCSeverities[ aDRCErrorCode ];
+    auto it = m_DRCSeverities.find( aDRCErrorCode );
+
+    // If not found, return the default severity for unrecognized error codes.
+    // As constructed, the default severity for unrecognized error codes is RPT_SEVERITY_ERROR.
+    wxCHECK_MSG( it != m_DRCSeverities.end(), RPT_SEVERITY_ERROR,
+                 wxString::Format( wxT( "DRC error code %d not found" ), aDRCErrorCode ) );
+
+    return it->second;
 }
 
 
-bool BOARD_DESIGN_SETTINGS::Ignore( int aDRCErrorCode )
+bool BOARD_DESIGN_SETTINGS::Ignore( int aDRCErrorCode ) const
 {
-    return m_DRCSeverities[ aDRCErrorCode ] == RPT_SEVERITY_IGNORE;
+    return GetSeverity( aDRCErrorCode ) == RPT_SEVERITY_IGNORE;
 }
 
 

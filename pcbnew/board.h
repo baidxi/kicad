@@ -815,6 +815,7 @@ public:
      * Replace @a aExisting with @a aNew, preserving connectivity and metadata.
      */
     void ExchangeFootprint( FOOTPRINT* aExisting, FOOTPRINT* aNew, BOARD_COMMIT& aCommit,
+                            FLIP_DIRECTION aFlipDirection,
                             bool aMatchPadPositions,
                             bool aDeleteExtraTexts = true,
                             bool aResetTextLayers = true,
@@ -993,8 +994,10 @@ public:
     /**
      * @return the BOARD_DESIGN_SETTINGS for this BOARD
      */
-    BOARD_DESIGN_SETTINGS& GetDesignSettings() const;
-    void                   SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );
+    BOARD_DESIGN_SETTINGS&       GetDesignSettings();
+    const BOARD_DESIGN_SETTINGS& GetDesignSettings() const;
+
+    void SetDesignSettings( const BOARD_DESIGN_SETTINGS& aSettings );
 
     /**
      * Invalidate the clearance cache for a specific item.
@@ -1347,6 +1350,11 @@ public:
     const std::map<wxString, KIGFX::COLOR4D>& GetNetChainColors() const
     {
         return m_netChainColors;
+    }
+
+    void ClearNetChainColors()
+    {
+        m_netChainColors.clear();
     }
 
     /**

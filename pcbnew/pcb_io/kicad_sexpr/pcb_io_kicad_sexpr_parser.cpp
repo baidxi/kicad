@@ -108,6 +108,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::init()
     m_layerIndices.clear();
     m_layerMasks.clear();
     m_resetKIIDMap.clear();
+    m_linkedZones.clear();
 
     // Add untranslated default (i.e. English) layernames.
     // Some may be overridden later if parsing a board rather than a footprint.
@@ -1345,7 +1346,7 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
             break;
 
         case T_arc:
-            if( PCB_ARC* arc = parseARC() )
+            if( PCB_TRACK* arc = parseARC() )
             {
                 m_board->Add( arc, ADD_MODE::BULK_APPEND, true );
                 bulkAddedItems.push_back( arc );
@@ -1603,6 +1604,27 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
             ZONE* z = static_cast<ZONE*>( zone );
 
             z->SetLayerSetAndRemoveUnusedFills( z->GetLayerSet() & layers );
+        }
+    }
+
+    // Appended items get fresh UUIDs, so remap the links read in this parse and leave existing zones alone
+    // A link set is no item, so appended copies of one set get a set of their own
+    std::map<KIID, KIID> appendedSets;
+
+    for( ZONE* z : m_board->Zones() )
+    {
+        if( !m_linkedZones.contains( z->m_Uuid ) )
+            continue;
+
+        if( m_appendToExisting && z->GetLinkSet() != niluuid )
+            z->SetLinkSet( appendedSets.try_emplace( z->GetLinkSet(), KIID() ).first->second );
+
+        REPEAT_LAYOUT_OPTIONS opts = z->GetRepeatOptions();
+
+        if( auto it = m_resetKIIDMap.find( opts.m_anchor.AsString() ); it != m_resetKIIDMap.end() )
+        {
+            opts.m_anchor = it->second;
+            z->SetRepeatOptions( opts );
         }
     }
 
@@ -3877,7 +3899,7 @@ PCB_SHAPE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_SHAPE( BOARD_ITEM* aParent )
             arc_end.y = parseBoardUnits( "Y coordinate" );
             NeedRIGHT();
 
-            shape->SetArcGeometry( arc_start, arc_mid, arc_end );
+            shape->SetArcOrSegment( arc_start, arc_mid, arc_end );
         }
 
         break;
@@ -4328,6 +4350,22 @@ PCB_REFERENCE_IMAGE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_REFERENCE_IMAGE( BOARD_
             NeedRIGHT();
             break;
 
+        case T_rotate:
+        {
+            REFERENCE_IMAGE& refImage = bitmap->GetReferenceImage();
+            refImage.SetOrientation( EDA_ANGLE( parseDouble( "image rotation" ), DEGREES_T ) );
+            NeedRIGHT();
+            break;
+        }
+
+        case T_opacity:
+        {
+            REFERENCE_IMAGE& refImage = bitmap->GetReferenceImage();
+            refImage.SetOpacity( parseDouble( "image opacity" ) );
+            NeedRIGHT();
+            break;
+        }
+
         case T_scale:
         {
             REFERENCE_IMAGE& refImage = bitmap->GetReferenceImage();
@@ -4388,8 +4426,7 @@ PCB_REFERENCE_IMAGE* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_REFERENCE_IMAGE( BOARD_
             parseCustomProperty( bitmap.get() );
             break;
 
-        default:
-            Expecting( "at, layer, scale, data, locked, uuid, or custom_property" );
+        default: Expecting( "at, layer, rotate, opacity, scale, data, locked, uuid, or custom_property" );
         }
     }
 
@@ -6927,8 +6964,15 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
 
         case T_point:
         {
-            PCB_POINT* point = parsePCB_POINT();
+            PCB_POINT*     point = parsePCB_POINT();
+            const VECTOR2I filePos = point->GetPosition();
+
             footprint->Add( point, ADD_MODE::APPEND, true );
+
+            // Legacy files stored footprint points in board frame
+            if( m_requiredVersion < FIRST_FP_AFFINE_TRANSFORM )
+                point->SetPosition( filePos );
+
             break;
         }
 
@@ -7143,18 +7187,10 @@ PAD* PCB_IO_KICAD_SEXPR_PARSER::parsePAD( FOOTPRINT* aParent )
 
     case T_smd:
         pad->SetAttribute( PAD_ATTRIB::SMD );
-
-        // Default PAD object is thru hole with drill.
-        // SMD pads have no hole
-        pad->SetDrillSize( VECTOR2I( 0, 0 ) );
         break;
 
     case T_connect:
         pad->SetAttribute( PAD_ATTRIB::CONN );
-
-        // Default PAD object is thru hole with drill.
-        // CONN pads have no hole
-        pad->SetDrillSize( VECTOR2I( 0, 0 ) );
         break;
 
     case T_np_thru_hole:
@@ -7787,16 +7823,23 @@ PAD* PCB_IO_KICAD_SEXPR_PARSER::parsePAD( FOOTPRINT* aParent )
     }
 
     // Zero-sized pads are likely algorithmically unsafe.
-    if( pad->GetSizeX() <= 0 || pad->GetSizeY() <= 0 )
-    {
-        pad->SetSize( F_Cu, VECTOR2I( pcbIUScale.mmToIU( 0.001 ), pcbIUScale.mmToIU( 0.001 ) ) );
+    pad->Padstack().ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID aLayer )
+            {
+                VECTOR2I padSize = pad->GetSize( aLayer );
 
-        m_parseWarnings.push_back( wxString::Format( _( "Invalid zero-sized pad pinned to %s in\n"
-                                                        "file: %s\n"
-                                                        "line: %d\n"
-                                                        "offset: %d" ),
-                                                     wxT( "1µm" ), CurSource(), CurLineNumber(), CurOffset() ) );
-    }
+                if( padSize.x <= 0 || padSize.y <= 0 )
+                {
+                    pad->SetSize( aLayer, VECTOR2I( pcbIUScale.mmToIU( 0.001 ), pcbIUScale.mmToIU( 0.001 ) ) );
+
+                    m_parseWarnings.push_back( wxString::Format( _( "Invalid zero-sized pad pinned to %s in\n"
+                                                                    "file: %s\n"
+                                                                    "line: %d\n"
+                                                                    "offset: %d" ),
+                                                                 wxT( "1µm" ),
+                                                                 CurSource(), CurLineNumber(), CurOffset() ) );
+                }
+            } );
 
     return pad.release();
 }
@@ -8184,6 +8227,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::parsePadstack( PAD* aPad )
                     break;
 
                 case T_primitives:
+                    // the file lists every primitive of the layer, so none inherited from another layer stay
+                    aPad->DeletePrimitivesList( curLayer );
                     parsePAD_primitives( aPad, curLayer );
                     break;
 
@@ -8724,7 +8769,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseGENERATOR( BOARD_ITEM* aParent )
 }
 
 
-PCB_ARC* PCB_IO_KICAD_SEXPR_PARSER::parseARC()
+PCB_TRACK* PCB_IO_KICAD_SEXPR_PARSER::parseARC()
 {
     wxCHECK_MSG( CurTok() == T_arc, nullptr, wxT( "Cannot parse " ) + GetTokenString( CurTok() ) + wxT( " as ARC." ) );
 
@@ -8821,6 +8866,17 @@ PCB_ARC* PCB_IO_KICAD_SEXPR_PARSER::parseARC()
     {
         // No point in asserting; these usually come from hand-edited boards
         return nullptr;
+    }
+
+    // Collinear points have no arc center, so load them as the straight track they describe
+    if( IsStraightArc( arc->GetStart(), arc->GetMid(), arc->GetEnd() ) )
+    {
+        std::unique_ptr<PCB_TRACK> track = std::make_unique<PCB_TRACK>( m_board );
+
+        // Base assignment copies every track property except the item type and UUID
+        static_cast<PCB_TRACK&>( *track ) = *arc;
+        track->SetUuidDirect( arc->m_Uuid );
+        return track.release();
     }
 
     return arc.release();
@@ -9819,9 +9875,46 @@ ZONE* PCB_IO_KICAD_SEXPR_PARSER::parseZONE( BOARD_ITEM_CONTAINER* aParent )
 
                     break;
                 }
+                case T_link:
+                {
+                    REPEAT_LAYOUT_OPTIONS opts;
+
+                    NeedSYMBOL();
+                    zone->SetLinkSet( KIID( CurStr() ) );
+
+                    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                    {
+                        if( token == T_LEFT )
+                            token = NextTok();
+
+                        switch( token )
+                        {
+                        case T_placement: opts.m_copyPlacement = parseBool(); break;
+                        case T_routing: opts.m_copyRouting = parseBool(); break;
+                        case T_connected_routing: opts.m_connectedRoutingOnly = parseBool(); break;
+                        case T_other_items: opts.m_copyOtherItems = parseBool(); break;
+                        case T_group_items: opts.m_groupItems = parseBool(); break;
+                        case T_locked_items: opts.m_includeLockedItems = parseBool(); break;
+                        case T_anchor:
+                            NeedSYMBOL();
+                            opts.m_anchor = KIID( CurStr() );
+                            break;
+                        default:
+                            Expecting( "placement, routing, connected_routing, other_items, group_items, "
+                                       "locked_items or anchor" );
+                        }
+
+                        NeedRIGHT();
+                    }
+
+                    zone->SetRepeatOptions( opts );
+
+                    // The loop already consumed the closing paren
+                    continue;
+                }
                 default:
                 {
-                    Expecting( "enabled, sheetname, component_class, or group" );
+                    Expecting( "enabled, sheetname, component_class, group or link" );
                     break;
                 }
                 }
@@ -10193,6 +10286,10 @@ ZONE* PCB_IO_KICAD_SEXPR_PARSER::parseZONE( BOARD_ITEM_CONTAINER* aParent )
 
     // Clear flags used in zone edition:
     zone->SetNeedRefill( false );
+
+    // By UUID, since the caller may still discard the zone
+    if( zone->GetLinkSet() != niluuid || zone->GetRepeatOptions().m_anchor != niluuid )
+        m_linkedZones.insert( zone->m_Uuid );
 
     return zone.release();
 }

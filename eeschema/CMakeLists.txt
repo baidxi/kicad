@@ -115,6 +115,10 @@ set( EESCHEMA_SCH_IO
     sch_io/easypc/easypc_sch_builder.cpp
     sch_io/easypc/easypc_sch_items.cpp
 
+    # TARGET 3001! IO plugin
+    sch_io/target3001/sch_io_target3001.cpp
+    sch_io/target3001/target3001_sch_builder.cpp
+
     # P-CAD 2006 ASCII IO plugin
     sch_io/pcad/sch_io_pcad.cpp
     sch_io/pcad/pcad_sch_parser.cpp
@@ -464,10 +468,12 @@ set( EESCHEMA_SRCS
     files-io.cpp
     generate_alias_info.cpp
     gfx_import_utils.cpp
+    import_local_symbol_libs.cpp
     import_net_map.cpp
     junction_helpers.cpp
     lib_fields_data_model.cpp
     lib_symbol.cpp
+    link_imported_footprints.cpp
     menubar.cpp
     net_navigator.cpp
     picksymbol.cpp

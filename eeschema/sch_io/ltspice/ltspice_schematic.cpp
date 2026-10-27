@@ -32,6 +32,7 @@
 #include <wx/tokenzr.h>
 #include <wildcards_and_files_ext.h>
 #include <sch_sheet.h>
+#include <sch_sheet_pin.h>
 #include <schematic.h>
 #include <page_info.h>
 #include <project.h>
@@ -222,6 +223,55 @@ void LTSPICE_SCHEMATIC::Load( SCHEMATIC* aSchematic, SCH_SHEET* aRootSheet, cons
             aReporter->Report( e.What(), RPT_SEVERITY_ERROR );
         }
     }
+
+    // Fix label casing
+    std::set<SCH_SCREEN*> visitedScreens;
+
+    std::function<void( SCH_SCREEN*, std::map<wxString, wxString> )> fixLabelCase;
+    fixLabelCase = [&]( SCH_SCREEN* aScreen, std::map<wxString, wxString> aLabelMap )
+    {
+        // Collect additional special casing from labels on screen
+        for( SCH_ITEM* item : aScreen->Items() )
+        {
+            if( SCH_LABEL_BASE* lbl = dynamic_cast<SCH_LABEL_BASE*>( item ) )
+            {
+                wxString lower = lbl->GetText().Lower();
+
+                if( !aLabelMap.contains( lower ) && lbl->GetText() != lower )
+                    aLabelMap[lower] = lbl->GetText();
+            }
+        }
+
+        // Apply special casing to all labels and recurse
+        for( SCH_ITEM* item : aScreen->Items() )
+        {
+            if( SCH_LABEL_BASE* lbl = dynamic_cast<SCH_LABEL_BASE*>( item ) )
+            {
+                wxString lower = lbl->GetText().Lower();
+
+                if( aLabelMap.contains( lower ) )
+                    lbl->SetText( aLabelMap.at( lower ) );
+            }
+            else if( SCH_SHEET* sheet = dynamic_cast<SCH_SHEET*>( item ) )
+            {
+                SCH_SCREEN* sheetScreen = sheet->GetScreen();
+
+                if( visitedScreens.contains( sheetScreen ) )
+                    continue;
+
+                visitedScreens.insert( sheetScreen );
+
+                std::map<wxString, wxString> childLabelMap;
+
+                for( SCH_SHEET_PIN* pin : sheet->GetPins() )
+                    childLabelMap[pin->GetText().Lower()] = pin->GetText();
+
+                fixLabelCase( sheetScreen, childLabelMap );
+            }
+        }
+    };
+
+    fixLabelCase( aRootSheet->GetScreen(), {} );
 
     SCH_SHEET_LIST sheets = aSchematic->BuildUnorderedSheetList();
 
@@ -772,6 +822,28 @@ LTSPICE_SCHEMATIC::LT_SYMBOL LTSPICE_SCHEMATIC::ParseSymbol( const wxString& aSy
                 window.FontSize = 2;
 
             lt_symbol.Windows.push_back( window );
+        }
+        else if( element == "TEXT" )
+        {
+            aggregateAttributeValue( tokens, 5 );
+
+            tokensSizeRangeCheck( tokens.size(), 6, INT_MAX, lineNumber, aSymbolName );
+
+            wxString positionX = tokens[1];
+            wxString positionY = tokens[2];
+            wxString justification = tokens[3];
+            wxString fontSize = tokens[4];
+            wxString value = tokens[5];
+
+            TEXT text;
+            text.Offset = pointCheck( positionX, positionY, lineNumber, aSymbolName );
+            text.Justification = getTextJustification( justification );
+            text.FontSize = integerCheck( fontSize, lineNumber, aSymbolName );
+            text.Value = value;
+
+            text.Value.Replace( wxS( "\\n" ), wxS( "\n" ) );
+
+            lt_symbol.Texts.push_back( text );
         }
         else if( element == "SYMATTR" )
         {

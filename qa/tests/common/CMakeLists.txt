@@ -48,6 +48,7 @@ set( QA_COMMON_SRCS
     test_design_block_io.cpp
     test_design_block_library_adapter.cpp
     test_desktop_app_id.cpp
+    test_dialog_kicad_merge_3way.cpp
     test_dialog_shim.cpp
     test_eda_shape.cpp
     test_eda_text.cpp
@@ -110,6 +111,9 @@ set( QA_COMMON_SRCS
     test_snapping_options.cpp
     test_string_any_map.cpp
     test_string_utils.cpp
+    test_base64.cpp
+    test_target3001_arc.cpp
+    test_target3001_fonts.cpp
     test_richio.cpp
     test_template_fieldnames.cpp
     test_text_attributes.cpp
@@ -117,6 +121,7 @@ set( QA_COMMON_SRCS
     test_tool_prime.cpp
     git/test_libgit_backend.cpp
     git/test_git_compare_handler.cpp
+    git/test_text_diff.cpp
     text_eval/test_text_eval_parser.cpp
     text_eval/test_text_eval_parser_core.cpp
     text_eval/test_text_eval_parser_datetime.cpp
@@ -133,6 +138,7 @@ set( QA_COMMON_SRCS
     test_wx_any_utils.cpp
     test_wx_filename.cpp
 
+    libeval/test_libeval_string_literal.cpp
     libeval/test_numeric_evaluator.cpp
 
     transline_calculations/test_coax.cpp
@@ -162,10 +168,12 @@ set( QA_COMMON_SRCS
     io/pads/test_pads_unit_converter.cpp
 
     test_kigit_common.cpp
+    test_scratch_doc.cpp
     test_kigit_orphan_registry.cpp
     test_throttle.cpp
     view/test_zoom_controller.cpp
     view/test_view_null_safety.cpp
+    widgets/test_file_checklist_ctrl.cpp
 
     test_netclass.cpp
     test_netname_validator.cpp

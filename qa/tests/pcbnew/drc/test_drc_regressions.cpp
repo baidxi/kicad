@@ -32,6 +32,8 @@
 #include <widgets/report_severity.h>
 
 
+namespace
+{
 struct DRC_REGRESSION_TEST_FIXTURE
 {
     DRC_REGRESSION_TEST_FIXTURE()
@@ -40,6 +42,7 @@ struct DRC_REGRESSION_TEST_FIXTURE
     SETTINGS_MANAGER       m_settingsManager;
     std::unique_ptr<BOARD> m_board;
 };
+} // namespace
 
 
 BOOST_FIXTURE_TEST_CASE( DRCFalsePositiveRegressions, DRC_REGRESSION_TEST_FIXTURE )
@@ -142,7 +145,7 @@ BOOST_FIXTURE_TEST_CASE( DRCFalseNegativeRegressions, DRC_REGRESSION_TEST_FIXTUR
         { "issue6879", 6, {} },
         { "issue6945", 2, {} },
         { "issue7241", 1, {} },
-        { "issue7267", 5, {} },
+        { "issue7267", 6, {} },                            // One track sits wholly inside a footprint slot
         { "issue7325", 2, {} },
         { "issue8003", 2, {} },
         { "issue9081", 2, {} },

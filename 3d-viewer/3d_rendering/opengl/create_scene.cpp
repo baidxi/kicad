@@ -29,10 +29,7 @@
 #include <pcb_track.h>
 #include "convert_basic_shapes_to_polygon.h"
 #include <lset.h>
-#include <project.h>
 #include <core/profile.h>        // To use GetRunningMicroSecs or another profiling utility
-#include <footprint_library_adapter.h>
-#include <project_pcb.h>
 #include <geometry/shape_poly_set.h>
 #include <thread_pool.h>
 
@@ -821,7 +818,9 @@ void RENDER_3D_OPENGL::reload()
         m_canvas->InvalidateRaytracingHitTesting();
 
     freeAllLists();
-    createPlaceholderModel();
+
+    if( !m_boardAdapter.m_IsPreviewer )
+        createPlaceholderModel();
 
     OBJECT_2D_STATS::Instance().ResetStats();
 
@@ -905,8 +904,8 @@ void RENDER_3D_OPENGL::bgWorker( std::stop_token aStop )
     if( m_boardAdapter.GetBackCountersinkPolys().OutlineCount() > 0 )
         board_poly_with_holes.BooleanSubtract( m_boardAdapter.GetBackCountersinkPolys() );
 
-    if( m_boardAdapter.GetBackdrillPolys().OutlineCount() > 0 )
-        board_poly_with_holes.BooleanSubtract( m_boardAdapter.GetBackdrillPolys() );
+    if( m_boardAdapter.GetSecondarydrillPolys().OutlineCount() > 0 )
+        board_poly_with_holes.BooleanSubtract( m_boardAdapter.GetSecondarydrillPolys() );
 
     if( m_boardAdapter.GetTertiarydrillPolys().OutlineCount() > 0 )
         board_poly_with_holes.BooleanSubtract( m_boardAdapter.GetTertiarydrillPolys() );
@@ -1082,10 +1081,9 @@ void RENDER_3D_OPENGL::bgWorker( std::stop_token aStop )
             poly.BooleanSubtract( m_boardAdapter.GetNPTH_ODPolys() );
             poly.BooleanSubtract( m_boardAdapter.GetFrontCounterborePolys() );
             poly.BooleanSubtract( m_boardAdapter.GetFrontCountersinkPolys() );
-            poly.BooleanSubtract( m_boardAdapter.GetTertiarydrillPolys() );
+            poly.BooleanSubtract( m_boardAdapter.GetSecondarydrillPolys() );
 
-            assignRenderPtr( m_platedPadsFront,
-                             generateLayerList( m_boardAdapter.GetPlatedPadsFront(), &poly, F_Cu ) );
+            assignRenderPtr( m_platedPadsFront, generateLayerList( m_boardAdapter.GetPlatedPadsFront(), &poly, F_Cu ) );
 
             // An entry for F_Cu must exist in m_layers or we'll never look at m_platedPadsFront
             if( m_layers.count( F_Cu ) == 0 )
@@ -1100,10 +1098,9 @@ void RENDER_3D_OPENGL::bgWorker( std::stop_token aStop )
             poly.BooleanSubtract( m_boardAdapter.GetNPTH_ODPolys() );
             poly.BooleanSubtract( m_boardAdapter.GetBackCounterborePolys() );
             poly.BooleanSubtract( m_boardAdapter.GetBackCountersinkPolys() );
-            poly.BooleanSubtract( m_boardAdapter.GetBackdrillPolys() );
+            poly.BooleanSubtract( m_boardAdapter.GetTertiarydrillPolys() );
 
-            assignRenderPtr( m_platedPadsBack,
-                             generateLayerList( m_boardAdapter.GetPlatedPadsBack(), &poly, B_Cu ) );
+            assignRenderPtr( m_platedPadsBack, generateLayerList( m_boardAdapter.GetPlatedPadsBack(), &poly, B_Cu ) );
 
             // An entry for B_Cu must exist in m_layers or we'll never look at m_platedPadsBack
             if( m_layers.count( B_Cu ) == 0 )
@@ -1920,26 +1917,7 @@ void RENDER_3D_OPENGL::load3dModels( std::stop_token aStop )
     // Go for all footprints
     for( const FOOTPRINT* footprint : m_boardAdapter.GetBoard()->Footprints() )
     {
-        wxString libraryName = footprint->GetFPID().GetLibNickname();
-        wxString footprintBasePath = wxEmptyString;
-
-        if( m_boardAdapter.GetBoard()->GetProject() )
-        {
-            try
-            {
-                // FindRow() can throw an exception
-                std::optional<LIBRARY_TABLE_ROW*> fpRow =
-                    PROJECT_PCB::FootprintLibAdapter( m_boardAdapter.GetBoard()->GetProject() )
-                            ->GetRow( libraryName );
-
-                if( fpRow )
-                    footprintBasePath = LIBRARY_MANAGER::GetFullURI( *fpRow, true );
-            }
-            catch( ... )
-            {
-                // Do nothing if the libraryName is not found in lib table
-            }
-        }
+        const wxString footprintBasePath = m_boardAdapter.GetFootprintLibraryPath( footprint );
 
         for( const FP_3DMODEL& fp_model : footprint->Models() )
         {

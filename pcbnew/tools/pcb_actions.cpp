@@ -2697,7 +2697,7 @@ TOOL_ACTION PCB_ACTIONS::showFootprintAssociations( TOOL_ACTION_ARGS()
         .Scope( AS_GLOBAL )
         .FriendlyName( _( "Show Footprint Associations" ) )
         .Tooltip( _( "Show footprint library and schematic symbol associations" ) )
-        .Icon( BITMAPS::edit_cmp_symb_links ) );
+        .Icon( BITMAPS::link ) );
 
 //Geographic re-annotation tool
 TOOL_ACTION PCB_ACTIONS::boardReannotate( TOOL_ACTION_ARGS()
@@ -3043,6 +3043,34 @@ TOOL_ACTION PCB_ACTIONS::repeatLayout( TOOL_ACTION_ARGS()
         .Tooltip( _( "Clones placement & routing across multiple identical channels" ) )
         .Icon( BITMAPS::copy )
         );
+
+TOOL_ACTION PCB_ACTIONS::updateLinkedLayouts( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.Multichannel.updateLinkedLayouts" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Update Linked Layouts" ) )
+        .Tooltip( _( "Copies the selected Rule Area onto the Rule Areas linked to it" ) )
+        .Icon( BITMAPS::refresh ) );
+
+TOOL_ACTION PCB_ACTIONS::expandToMatchingTopology( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.Multichannel.expandToMatchingTopology" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Expand Selection by One Step" ) )
+        .Tooltip( _( "Adds the neighbouring parts, as long as the selection still repeats elsewhere on the board" ) )
+        .Icon( BITMAPS::select_same_sheet ) );
+
+TOOL_ACTION PCB_ACTIONS::expandToLargestTopology( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.Multichannel.expandToLargestTopology" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Expand Selection to Largest Matching Topology" ) )
+        .Tooltip( _( "Adds parts until the selection no longer repeats elsewhere on the board" ) )
+        .Icon( BITMAPS::select_same_sheet ) );
+
+TOOL_ACTION PCB_ACTIONS::unlinkLayout( TOOL_ACTION_ARGS()
+        .Name( "pcbnew.Multichannel.unlinkLayout" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Unlink Layout" ) )
+        .Tooltip( _( "Removes the selected Rule Areas from the set of linked layouts" ) )
+        .Icon( BITMAPS::group_ungroup ) );
 
 // ROUTER_TOOL
 //

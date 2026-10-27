@@ -69,12 +69,22 @@ set( BMAPS_SMALL
     e_96
     e_192
     git_add
+    git_branches
     git_changed_ahead
+    git_changes
     git_conflict
     git_delete
+    git_fetch
     git_good_check
+    git_history
     git_modified
     git_out_of_date
+    git_pull
+    git_push
+    git_remotes
+    git_repository
+    git_stashes
+    git_tags
     icon_eeschema_16
     icon_gerbview_16
     icon_kicad_16
@@ -276,7 +286,6 @@ set( BMAPS_MID
     edit_comp_ref
     edit_comp_value
     editor
-    edit_cmp_symb_links
     edit
     edge_to_copper_clearance
     enter_sheet
@@ -385,6 +394,7 @@ set( BMAPS_MID
     library_table
     lines_any
     lines90
+    link
     list_nets
     load_drill
     load_gerber

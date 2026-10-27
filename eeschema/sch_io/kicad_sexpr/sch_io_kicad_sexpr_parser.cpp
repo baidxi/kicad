@@ -1725,9 +1725,9 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSymbolArc()
 
     if( hasMidPoint )
     {
-        arc->SetArcGeometry( startPoint, midPoint, endPoint );
+        arc->SetArcOrLine( startPoint, midPoint, endPoint );
 
-        if( m_requiredVersion <= 20230121 ) // Versions before 7.0
+        if( arc->GetShape() == SHAPE_T::ARC && m_requiredVersion <= 20230121 ) // Versions before 7.0
         {
             // Should be not required. Unfortunately it is needed because some bugs created
             // incorrect data after conversion of old libraries to the new arc format using
@@ -4156,6 +4156,16 @@ SCH_BITMAP* SCH_IO_KICAD_SEXPR_PARSER::parseImage()
             NeedRIGHT();
             break;
 
+        case T_rotate:
+            refImage.SetOrientation( EDA_ANGLE( parseDouble( "image rotation" ), DEGREES_T ) );
+            NeedRIGHT();
+            break;
+
+        case T_opacity:
+            refImage.SetOpacity( parseDouble( "image opacity" ) );
+            NeedRIGHT();
+            break;
+
         case T_scale:
         {
             const double scale = parseDouble( "image scale factor" );
@@ -4206,8 +4216,7 @@ SCH_BITMAP* SCH_IO_KICAD_SEXPR_PARSER::parseImage()
             parseCustomProperty( bitmap.get() );
             break;
 
-        default:
-            Expecting( "at, scale, uuid, data, locked, or custom_property" );
+        default: Expecting( "at, rotate, opacity, scale, uuid, data, locked, or custom_property" );
         }
     }
 
@@ -5019,7 +5028,7 @@ SCH_SHAPE* SCH_IO_KICAD_SEXPR_PARSER::parseSchArc()
         }
     }
 
-    arc->SetArcGeometry( startPoint, midPoint, endPoint );
+    arc->SetArcOrLine( startPoint, midPoint, endPoint );
 
     return arc.release();
 }

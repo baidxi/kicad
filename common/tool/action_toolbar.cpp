@@ -868,7 +868,7 @@ void ACTION_TOOLBAR::onRightUp( wxMouseEvent& aEvent )
     // Hit-test the tool ourselves so the whole button works.
     wxAuiToolBarItem* item = FindToolByPosition( aEvent.GetX(), aEvent.GetY() );
 
-    if( !item )
+    if( !item || ( item->GetState() & wxAUI_BUTTON_STATE_DISABLED ) != 0 )
     {
         aEvent.Skip();
         return;
@@ -923,8 +923,8 @@ void ACTION_TOOLBAR::onMouseClick( wxMouseEvent& aEvent )
 
     if( item )
     {
-        // Ensure there is no active palette
-        if( m_palette )
+        // The release that ends the long press must not close the palette it opened
+        if( aEvent.LeftDown() && m_palette )
         {
             m_palette->Hide();
             m_palette->Destroy();

@@ -745,7 +745,7 @@ bool PCB_PAINTER::Draw( const VIEW_ITEM* aItem, int aLayer )
 
     if( const BOARD* board = item->GetBoard() )
     {
-        BOARD_DESIGN_SETTINGS& bds = board->GetDesignSettings();
+        const BOARD_DESIGN_SETTINGS& bds = board->GetDesignSettings();
         m_maxError = bds.m_MaxError;
         m_holePlatingThickness = bds.GetHolePlatingThickness();
         m_lockedShadowMargin = bds.GetLineThickness( F_SilkS ) * 4;
@@ -935,10 +935,10 @@ bool PCB_PAINTER::Draw( const VIEW_ITEM* aItem, int aLayer )
 
 void PCB_PAINTER::draw( const PCB_TRACK* aTrack, int aLayer )
 {
-    VECTOR2I start( aTrack->GetStart() );
-    VECTOR2I end( aTrack->GetEnd() );
-    int      track_width = aTrack->GetWidth();
-    COLOR4D  color       = m_pcbSettings.GetColor( aTrack, aLayer );
+    const VECTOR2I& start       = aTrack->GetStart();
+    const VECTOR2I& end         = aTrack->GetEnd();
+    int             track_width = aTrack->GetWidth();
+    COLOR4D         color       = m_pcbSettings.GetColor( aTrack, aLayer );
 
     // If a chain highlight is active and the track belongs to the highlighted chain, and the chain
     // has a colour override configured on the board, prefer that colour.  Only do this when we're
@@ -1030,13 +1030,11 @@ void PCB_PAINTER::renderNetNameForSegment( const SHAPE_SEGMENT& aSeg, const COLO
     viewport.SetEnd( VECTOR2D( matrix * screenSize ) );
     viewport.Normalize();
 
-    int num_char = (int) aNetName.size();
+    // Calc the approximate size of the netname (assume square chars)
+    int nameSize = (int) aNetName.size() * aSeg.GetWidth();
 
     // Check if the track is long enough to have a netname displayed
-    int         seg_minlength = aSeg.GetWidth() * num_char;
-    SEG::ecoord seg_minlength_sq = (SEG::ecoord)seg_minlength * seg_minlength;
-
-    if( aSeg.GetSeg().SquaredLength() < seg_minlength_sq )
+    if( aSeg.GetSeg().SquaredLength() < SEG::Square( nameSize ) )
         return;
 
     double    textSize = aSeg.GetWidth();
@@ -1122,7 +1120,7 @@ void PCB_PAINTER::draw( const PCB_ARC* aArc, int aLayer )
     EDA_ANGLE angle = aArc->GetAngle();
 
     // GetRadius() clamps a runaway centre but GetCenter() does not, thus the two disagree and
-    // the copper draws far from the track.  The plotter substitutes the chord for this reason
+    // the copper draws far from the track.  The plotter substitutes the chord for this reason.
     bool degenerate = aArc->IsDegenerated( 10 /* in IU */ );
 
     if( IsNetnameLayer( aLayer ) )
@@ -1146,10 +1144,11 @@ void PCB_PAINTER::draw( const PCB_ARC* aArc, int aLayer )
             return;
         }
 
-        // Arc length must accommodate the label width.
-        double arcLen = std::abs( radius * angle.AsRadians() );
+        // Calc the approximate size of the netname (assume square chars)
+        int nameSize = (int) netname.size() * width;
 
-        if( arcLen < (double) width * (double) netname.size() )
+        // Arc length must accommodate the label length.
+        if( aArc->GetLength() < nameSize )
             return;
 
         // Tangent at the arc midpoint is perpendicular to the radius there.
@@ -1296,7 +1295,7 @@ bool PCB_PAINTER::HasUniformColor( const VIEW_ITEM* aItem, int aLayer ) const
         if( aLayer != LAYER_PAD_HOLEWALLS )
             return true;
 
-        return pad->GetDrillSizeX() <= 0 || ( pad->GetSecondaryDrillSizeX() <= 0 && pad->GetTertiaryDrillSizeX() <= 0 );
+        return pad->GetDrillSize().x <= 0 || ( pad->GetSecondaryDrillSizeX() <= 0 && pad->GetTertiaryDrillSizeX() <= 0 );
     }
 
     case PCB_VIA_T:
@@ -2130,8 +2129,8 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
         m_gal->SetIsStroke( false );
         double widthFactor = ADVANCED_CFG::GetCfg().m_HoleWallPaintingMultiplier;
         double lineWidth = widthFactor * m_holePlatingThickness;
-        lineWidth = std::min( lineWidth, aPad->GetSizeX() / 2.0 );
-        lineWidth = std::min( lineWidth, aPad->GetSizeY() / 2.0 );
+        lineWidth = std::min( lineWidth, aPad->GetSize( PADSTACK::ALL_LAYERS ).x / 2.0 );
+        lineWidth = std::min( lineWidth, aPad->GetSize( PADSTACK::ALL_LAYERS ).y / 2.0 );
 
         m_gal->SetFillColor( color );
         m_gal->SetMinLineWidth( lineWidth );
@@ -2153,7 +2152,7 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
 
         // Draw backdrill indicators on top of the hole wall so they remain visible
         // regardless of layer rendering order
-        if( !m_pcbSettings.IsPrinting() && aPad->GetDrillSizeX() > 0 )
+        if( !m_pcbSettings.IsPrinting() && aPad->GetDrillSize().x > 0 )
         {
             const VECTOR2I& holePos = slot->GetSeg().A;
             const VECTOR2I& secDrill = aPad->GetSecondaryDrillSize();
@@ -2312,7 +2311,12 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
                 }
 
                 for( PCB_LAYER_ID layer : visibleLayers )
-                    margin = std::max( margin, getExpansion( layer ) );
+                {
+                    VECTOR2I expansion = getExpansion( layer );
+
+                    if( expansion.SquaredEuclideanNorm() > margin.SquaredEuclideanNorm() )
+                        margin = expansion;
+                }
 
                 margin.x += m_lockedShadowMargin / 2;
                 margin.y += m_lockedShadowMargin / 2;
@@ -2526,7 +2530,7 @@ void PCB_PAINTER::draw( const PAD* aPad, int aLayer )
         }
     }
 
-    if( !m_pcbSettings.IsPrinting() && IsCopperLayer( pcbLayer ) && aPad->GetDrillSizeX() > 0 )
+    if( !m_pcbSettings.IsPrinting() && IsCopperLayer( pcbLayer ) && aPad->GetDrillSize().x > 0 )
     {
         VECTOR2D holePos = aPad->GetPosition() + aPad->GetOffset( pcbLayer );
         drawPostMachiningIndicator( aPad, holePos, pcbLayer );
@@ -3192,6 +3196,8 @@ void PCB_PAINTER::draw( const PCB_REFERENCE_IMAGE* aBitmap, int aLayer )
     const REFERENCE_IMAGE& refImg = aBitmap->GetReferenceImage();
     m_gal->Translate( refImg.GetPosition() );
 
+    m_gal->Rotate( -refImg.GetOrientation().AsRadians() );
+
     // When the image scale factor is not 1.0, we need to modify the actual as the image scale
     // factor is similar to a local zoom
     const double img_scale = refImg.GetImageScale();
@@ -3199,7 +3205,7 @@ void PCB_PAINTER::draw( const PCB_REFERENCE_IMAGE* aBitmap, int aLayer )
     if( img_scale != 1.0 )
         m_gal->Scale( VECTOR2D( img_scale, img_scale ) );
 
-    const double imgAlpha = m_pcbSettings.GetColor( aBitmap, aBitmap->GetLayer() ).a;
+    double imgAlpha = refImg.GetOpacity();
 
     if( aBitmap->IsSelected() || aBitmap->IsBrightened() )
     {
@@ -3221,13 +3227,15 @@ void PCB_PAINTER::draw( const PCB_REFERENCE_IMAGE* aBitmap, int aLayer )
 
         m_gal->DrawRectangle( origin, end );
 
-        // Keep reference images opaque when selected (and not moving). Otherwise cached layers
-        // will not be rendered under the selected image because cached layers are rendered
-        // after non-cached layers (e.g. bitmaps), which will have a closer Z order.
-        m_gal->DrawBitmap( refImg.GetImage(), aBitmap->IsMoving() ? imgAlpha : 1.0 );
+        // Give it a floor when selected so you can't lose it too easily
+        imgAlpha = std::max( imgAlpha, 0.1 );
     }
     else
-        m_gal->DrawBitmap( refImg.GetImage(), imgAlpha );
+    {
+        imgAlpha *= m_pcbSettings.GetColor( aBitmap, aBitmap->GetLayer() ).a;
+    }
+
+    m_gal->DrawBitmap( refImg.GetImage(), imgAlpha );
 
     m_gal->Restore();
 }

@@ -169,6 +169,11 @@ void TUNING_STATUS_VIEW_ITEM::SetCurrent( const double aCurrent, const wxString&
 void TUNING_STATUS_VIEW_ITEM::SetIsTimeDomain( const bool aIsTimeDomain )
 {
     m_isTimeDomain = aIsTimeDomain;
+
+    const EDA_DATA_TYPE unitType = m_isTimeDomain ? EDA_DATA_TYPE::TIME : EDA_DATA_TYPE::DISTANCE;
+
+    m_chainMinText = m_frame->MessageTextFromValue( m_chainMin, false, unitType );
+    m_chainMaxText = m_frame->MessageTextFromValue( m_chainMax, false, unitType );
 }
 
 
@@ -2410,6 +2415,9 @@ std::vector<EDA_ITEM*> PCB_TUNING_PATTERN::GetPreviewItems( GENERATOR_TOOL* aToo
 
         TUNING_STATUS_VIEW_ITEM* statusItem = new TUNING_STATUS_VIEW_ITEM( aFrame );
 
+        // The unit type must be known before any value text is formatted
+        statusItem->SetIsTimeDomain( m_settings.m_isTimeDomain );
+
         // Build first line: "Net-(R1-Pad2) | Chain: Chain1" OR just net if no chain
         wxString scopeLine;
         BOARD* board = GetBoard();
@@ -2531,8 +2539,6 @@ std::vector<EDA_ITEM*> PCB_TUNING_PATTERN::GetPreviewItems( GENERATOR_TOOL* aToo
         {
             statusItem->ClearChainMinMax();
         }
-
-        statusItem->SetIsTimeDomain( m_settings.m_isTimeDomain );
 
         // Header label line (line 2)
         if( m_tuningMode == DIFF_PAIR_SKEW )

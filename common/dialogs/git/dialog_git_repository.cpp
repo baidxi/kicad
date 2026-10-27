@@ -19,10 +19,12 @@
 
 #include "dialog_git_repository.h"
 #include <confirm.h>
+#include <dialogs/git/git_credentials_prompt.h>
 
 #include <git2.h>
 #include <git/kicad_git_memory.h>
 #include <git/kicad_git_common.h>
+#include <git/kigit_ssh_keys.h>
 #include <git/git_repo_mixin.h>
 #include <gestfich.h>
 
@@ -44,6 +46,8 @@ DIALOG_GIT_REPOSITORY::DIALOG_GIT_REPOSITORY( wxWindow* aParent, git_repository*
         m_prevFile( wxEmptyString ),
         m_tempRepo( false )
 {
+    OptOut( this );
+
     m_txtURL->SetFocus();
 
     if( !m_repository )
@@ -99,8 +103,10 @@ bool DIALOG_GIT_REPOSITORY::extractClipboardData()
     if( clipboardText.empty() )
         return false;
 
-    if( std::get<0>( isValidHTTPS( clipboardText ) )
-        || std::get<0>( isValidSSH( clipboardText ) ) )
+    KIGIT_COMMON::REMOTE_URL parsed = KIGIT_COMMON::ParseRemoteURL( clipboardText );
+
+    if( parsed.connType != KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_LOCAL && !parsed.hostname.IsEmpty()
+        && clipboardText.find_first_of( " \t\r\n" ) == wxString::npos )
     {
         m_txtURL->SetValue( clipboardText );
         return true;
@@ -110,35 +116,20 @@ bool DIALOG_GIT_REPOSITORY::extractClipboardData()
 }
 
 
-void DIALOG_GIT_REPOSITORY::setDefaultSSHKey()
+void DIALOG_GIT_REPOSITORY::setDefaultSSHKey( const wxString& aHost )
 {
-    wxFileName sshKey;
-    sshKey.SetPath( wxGetUserHome() );
-    wxString retval;
+    std::vector<wxString> keys = KIGIT::DefaultSSHKeyCandidates( KIGIT::HomeDir(), aHost );
 
-    sshKey.AppendDir( ".ssh" );
-    sshKey.SetFullName( "id_rsa" );
+    if( keys.empty() )
+        return;
 
-    if( sshKey.FileExists() )
-    {
-        retval = sshKey.GetFullPath();
-    }
-    else if( sshKey.SetFullName( "id_dsa" ); sshKey.FileExists() )
-    {
-        retval = sshKey.GetFullPath();
-    }
-    else if( sshKey.SetFullName( "id_ecdsa" ); sshKey.FileExists() )
-    {
-        retval = sshKey.GetFullPath();
-    }
+    // Unticked greys out the picker and passphrase, hiding the key the connection will use
+    m_cbCustom->SetValue( true );
+    m_fpSSHKey->SetFileName( keys.front() );
 
-    if( !retval.empty() )
-    {
-        m_fpSSHKey->SetFileName( retval );
-        wxFileDirPickerEvent evt;
-        evt.SetPath( retval );
-        OnFileUpdated( evt );
-    }
+    wxFileDirPickerEvent evt;
+    evt.SetPath( keys.front() );
+    OnFileUpdated( evt );
 }
 
 
@@ -171,38 +162,7 @@ void DIALOG_GIT_REPOSITORY::SetEncrypted( bool aEncrypted )
 }
 
 
-std::tuple<bool,wxString,wxString,wxString> DIALOG_GIT_REPOSITORY::isValidHTTPS( const wxString& url )
-{
-    wxRegEx regex( R"((https?:\/\/)(([^:]+)(:([^@]+))?@)?([^\/]+\/[^\s]+))" );
-
-    if( regex.Matches( url ) )
-    {
-        wxString username = regex.GetMatch( url, 3 );
-        wxString password = regex.GetMatch( url, 5 );
-        wxString repoAddress = regex.GetMatch( url, 1 ) + regex.GetMatch( url, 6 );
-        return std::make_tuple( true, username, password, repoAddress );
-    }
-
-    return std::make_tuple( false, "", "", "" );
-}
-
-
-std::tuple<bool,wxString, wxString> DIALOG_GIT_REPOSITORY::isValidSSH( const wxString& url )
-{
-    wxRegEx regex( R"((?:ssh:\/\/)?([^@]+)@([^\/]+\/[^\s]+))" );
-
-    if( regex.Matches( url ) )
-    {
-        wxString username = regex.GetMatch( url, 1 );
-        wxString repoAddress = regex.GetMatch( url, 2 );
-        return std::make_tuple( true, username, repoAddress );
-    }
-
-    return std::make_tuple( false, "", "" );
-}
-
-
-static wxString get_repo_name( wxString& aRepoAddr )
+static wxString get_repo_name( const wxString& aRepoAddr )
 {
     wxString addr = aRepoAddr;
 
@@ -221,10 +181,10 @@ static wxString get_repo_name( wxString& aRepoAddr )
     if( addr.EndsWith( ".git" ) )
         addr.RemoveLast( 4 );
 
-    size_t last_slash = addr.find_last_of( '/' );
+    size_t last_slash = addr.find_last_of( "/\\" );
 
     if( last_slash == wxString::npos )
-        return addr;
+        return addr.AfterLast( ':' );
 
     return addr.substr( last_slash + 1 );
 }
@@ -245,68 +205,36 @@ void DIALOG_GIT_REPOSITORY::updateURLData()
     if( url.IsEmpty() )
         return;
 
-    if( url.Contains( "https://" ) || url.Contains( "http://" ) )
-    {
-        auto [valid, username, password, repoAddress] = isValidHTTPS( url );
+    KIGIT_COMMON::REMOTE_URL parsed = KIGIT_COMMON::ParseRemoteURL( url );
+    bool                     wasSSH = GetRepoType() == KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH;
+    m_ConnType->SetSelection( static_cast<int>( parsed.connType ) );
 
-        if( valid )
-        {
-            m_fullURL = url;
-            m_ConnType->SetSelection( static_cast<int>( KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_HTTPS ) );
+    if( parsed.connType == KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH && !wasSSH && m_fpSSHKey->GetPath().IsEmpty() )
+        setDefaultSSHKey( parsed.hostname );
 
-            if( !username.IsEmpty() )
-                SetUsername( username );
-            
-            if( !password.IsEmpty() )
-                SetPassword( password );
-            
-            m_txtURL->ChangeValue( repoAddress );
-            m_txtName->SetValue( get_repo_name( repoAddress ) );
-        }
-    }
-    else if( url.Contains( "ssh://" ) || url.Contains( "git@" ) )
-    {
-        auto [valid, username, repoAddress] = isValidSSH( url );
+    if( !parsed.username.IsEmpty() )
+        SetUsername( parsed.username );
 
-        if( valid )
-        {
-            m_fullURL = url;
-            m_ConnType->SetSelection( static_cast<int>( KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH ) );
-            m_txtUsername->SetValue( username );
-            m_txtURL->ChangeValue( repoAddress );
-            m_cbCustom->SetValue( false );
+    if( !parsed.password.IsEmpty() )
+        SetPassword( parsed.password );
 
-            m_txtName->SetValue( get_repo_name( repoAddress ) );
+    // Keep the SSH username and port in the address. Passwords belong in the password field.
+    if( parsed.url != url )
+        m_txtURL->ChangeValue( parsed.url );
 
-            setDefaultSSHKey();
-        }
-    }
-    else
-    {
-        if( m_fullURL.IsEmpty() )
-            m_fullURL = url;
-
-        // URL without user@ prefix (e.g. "host:path/repo.git")
-        size_t colonPos = url.find( ':' );
-        size_t slashPos = url.find( '/' );
-
-        if( colonPos != wxString::npos && ( slashPos == wxString::npos || colonPos < slashPos ) )
-        {
-            m_ConnType->SetSelection( static_cast<int>( KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH ) );
-            setDefaultSSHKey();
-
-            m_txtName->SetValue( get_repo_name( url ) );
-        }
-    }
+    m_txtName->SetValue( get_repo_name( parsed.url ) );
 }
 
 
 void DIALOG_GIT_REPOSITORY::OnTestClick( wxCommandEvent& event )
 {
-    if( m_txtURL->GetValue().Trim().Trim( false ).IsEmpty() )
+    wxString url = GetRepoURL();
+
+    if( wxString( url ).Trim().Trim( false ).IsEmpty() )
         return;
 
     wxString error;
+    wxString details;
     bool success = false;
     git_remote* remote = nullptr;
     git_remote_callbacks callbacks;
@@ -316,47 +244,86 @@ void DIALOG_GIT_REPOSITORY::OnTestClick( wxCommandEvent& event )
     // If we have, the server may come back to offer another connection
     // type, so we need to keep track of how many times we have tried.
 
-    wxString fullURL = m_fullURL.IsEmpty() ? m_txtURL->GetValue() : m_fullURL;
-
     KIGIT_COMMON common( m_repository );
-    common.SetRemote( fullURL );
+    common.SetRemote( url );
+
+    // SetUsername clears the fetched-secret flag, so it comes first. The other order tests the
+    // keychain's secret instead of the one just typed.
+    common.SetUsername( GetUsername() );
     common.SetPassword( m_txtPassword->GetValue() );
-    common.SetUsername( m_txtUsername->GetValue() );
     common.SetSSHKey( m_fpSSHKey->GetFileName().GetFullPath() );
     
     KIGIT_REPO_MIXIN repoMixin( &common );
     callbacks.payload = &repoMixin;
     callbacks.credentials = credentials_cb;
+    callbacks.certificate_check = certificate_check_cb;
 
     git_proxy_options proxyOpts;
     git_proxy_init_options( &proxyOpts, GIT_PROXY_OPTIONS_VERSION );
     proxyOpts.type = GIT_PROXY_AUTO;
     proxyOpts.url = "";
 
-    git_remote_create_anonymous( &remote, m_repository, fullURL.mbc_str() );
+    int                 result = git_remote_create_anonymous( &remote, m_repository, url.utf8_str() );
     KIGIT::GitRemotePtr remotePtr( remote );
 
-    if( git_remote_connect( remote, GIT_DIRECTION_FETCH, &callbacks, &proxyOpts, nullptr ) == GIT_OK )
-        success = true;
+    if( result == GIT_OK )
+    {
+        // url.insteadOf may have rewritten the URL, which would otherwise drop the credentials typed here
+        if( const char* remoteUrl = git_remote_url( remote ) )
+            common.FollowRewrittenUrl( wxString::FromUTF8( remoteUrl ) );
+
+        bool retriedAfterTrust = false;
+
+        while( true )
+        {
+            repoMixin.ResetTransferState();
+            result = git_remote_connect( remote, GIT_DIRECTION_FETCH, &callbacks, &proxyOpts, nullptr );
+
+            if( result == GIT_OK )
+            {
+                git_remote_disconnect( remote );
+                success = true;
+                break;
+            }
+
+            KIGIT_FAILURE_REPORT report = repoMixin.ReportTransferFailure( KIGIT_COMMON::GetLastGitErrorInfo( result ),
+                                                                           KIGIT_OPERATION::CONNECT, wxEmptyString );
+            git_remote_disconnect( remote );
+            error = report.summary;
+            details = report.details;
+
+            std::optional<KIGIT::HOST_KEY_FAILURE> hostKey = repoMixin.GetHostKeyFailure();
+
+            if( !hostKey )
+                break;
+
+            // The prompt has told the user why, so a declined key ends the test here
+            if( !KIGIT::PromptToTrustHost( this, *hostKey, retriedAfterTrust ) )
+                return;
+
+            retriedAfterTrust = true;
+        }
+    }
     else
-        error = KIGIT_COMMON::GetLastGitError();
+    {
+        KIGIT_FAILURE_CONTEXT context;
+        context.operation = KIGIT_OPERATION::CONNECT;
+        context.url = url;
 
-    git_remote_disconnect( remote );
+        KIGIT_FAILURE_REPORT report =
+                KIGIT::DescribeGitFailure( KIGIT_COMMON::GetLastGitErrorInfo( result ), {}, context );
+        error = report.summary;
+        details = report.details;
+    }
 
-    auto dlg = KICAD_MESSAGE_DIALOG( this, wxEmptyString, _( "Test Connection" ),
+    if( !success )
+    {
+        DisplayErrorMessage( this, error, details );
+        return;
+    }
+
+    auto dlg = KICAD_MESSAGE_DIALOG( this, _( "Connection successful" ), _( "Test Connection" ),
                                      wxOK | wxICON_INFORMATION );
-
-    if( success )
-    {
-        dlg.SetMessage( _( "Connection successful" ) );
-    }
-    else
-    {
-        dlg.SetMessage( wxString::Format( _( "Could not connect to '%s' " ),
-                                          m_txtURL->GetValue() ) );
-        dlg.SetExtendedMessage( error );
-    }
-
     dlg.ShowModal();
 }
 
@@ -438,9 +405,12 @@ void DIALOG_GIT_REPOSITORY::updateAuthControls()
 
         if( m_ConnType->GetSelection() == static_cast<int>( KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH ) )
         {
+            KIGIT_COMMON::REMOTE_URL parsed = KIGIT_COMMON::ParseRemoteURL( GetRepoURL() );
             m_cbCustom->Enable( true );
             m_fpSSHKey->Enable( m_cbCustom->IsChecked() );
-            m_txtUsername->Enable( m_cbCustom->IsChecked() );
+
+            // Edit an embedded SSH username in the address so the two fields cannot disagree.
+            m_txtUsername->Enable( m_cbCustom->IsChecked() && parsed.username.IsEmpty() );
             m_txtPassword->Enable( m_cbCustom->IsChecked() );
             m_labelPass1->SetLabel( _( "SSH key password:" ) );
         }

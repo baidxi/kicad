@@ -223,6 +223,7 @@ public:
         bool                        useDefaultAuthor;
         wxString                    authorName;
         wxString                    authorEmail;
+        bool                        showContributorAvatars;
     };
 
     struct API

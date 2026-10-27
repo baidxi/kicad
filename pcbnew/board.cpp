@@ -696,10 +696,11 @@ bool BOARD::ResolveTextVar( wxString* token, const wxString& aVariantName, int a
             FOOTPRINT* refFP = static_cast<FOOTPRINT*>( refItem );
 
             if( refFP->ResolveTextVar( &remainder, aVariantName, aDepth + 1 ) )
-            {
                 *token = std::move( remainder );
-                return true;
-            }
+            else
+                *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), refFP->GetReference(), remainder );
+
+            return true;
         }
 
         // If UUID resolution failed, try to resolve by reference designator
@@ -710,24 +711,19 @@ bool BOARD::ResolveTextVar( wxString* token, const wxString& aVariantName, int a
             {
                 if( footprint->GetReference().CmpNoCase( ref ) == 0 )
                 {
-                    wxString remainderCopy = remainder;
-
-                    if( footprint->ResolveTextVar( &remainderCopy, aVariantName, aDepth + 1 ) )
-                    {
-                        *token = std::move( remainderCopy );
-                    }
+                    if( footprint->ResolveTextVar( &remainder, aVariantName, aDepth + 1 ) )
+                        *token = std::move( remainder );
                     else
-                    {
-                        // Field/function not found on footprint
-                        *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), footprint->GetReference(), remainder );
-                    }
+                        *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), ref, remainder );
 
                     return true;
                 }
             }
+        }
 
-            // Reference not found - show error message
-            *token = wxString::Format( wxT( "<Unknown reference: %s>" ), ref );
+        if( !refItem )
+        {
+            *token = wxString::Format( wxT( "<Unresolved: %s:%s>" ), ref, remainder );
             return true;
         }
     }
@@ -1291,7 +1287,13 @@ bool BOARD::IsFootprintLayerVisible( PCB_LAYER_ID aLayer ) const
 }
 
 
-BOARD_DESIGN_SETTINGS& BOARD::GetDesignSettings() const
+BOARD_DESIGN_SETTINGS& BOARD::GetDesignSettings()
+{
+    return *m_designSettings;
+}
+
+
+const BOARD_DESIGN_SETTINGS& BOARD::GetDesignSettings() const
 {
     return *m_designSettings;
 }
@@ -3634,7 +3636,24 @@ bool BOARD::GetBoardPolygonOutlines( SHAPE_POLY_SET& aOutlines, bool aInferOutli
     }
 
     // Make polygon strictly simple to avoid issues (especially in 3D viewer)
-    aOutlines.Simplify();
+    if( aOutlines.ArcCount() > 0 && aOutlines.OutlineCount() > 1 )
+    {
+        // Boolean ops keep arcs only within a single outline, so simplify each island alone
+        SHAPE_POLY_SET simplified;
+
+        for( int ii = 0; ii < aOutlines.OutlineCount(); ++ii )
+        {
+            SHAPE_POLY_SET island( aOutlines.Polygon( ii ) );
+            island.Simplify();
+            simplified.Append( island );
+        }
+
+        aOutlines = std::move( simplified );
+    }
+    else
+    {
+        aOutlines.Simplify();
+    }
 
     return success;
 }

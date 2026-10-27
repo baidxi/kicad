@@ -543,6 +543,15 @@ void FOOTPRINT::Serialize( google::protobuf::Any &aContainer ) const
         }
     }
 
+    for( const FP_UNIT_INFO& unit : m_unitInfo )
+    {
+        types::FootprintUnitInfo* unitMsg = footprint.add_symbol_units();
+        unitMsg->set_name( unit.m_unitName.ToUTF8() );
+
+        for( const wxString& pinNumber : unit.m_pins )
+            unitMsg->add_pin_numbers( pinNumber.ToUTF8() );
+    }
+
     aContainer.PackFrom( footprint );
 }
 
@@ -896,6 +905,19 @@ bool FOOTPRINT::Deserialize( const google::protobuf::Any &aContainer )
 
         for( const auto& [fieldName, fieldValue] : variantMsg.fields() )
             variant.SetFieldValue( wxString::FromUTF8( fieldName ), wxString::FromUTF8( fieldValue ) );
+    }
+
+    m_unitInfo.clear();
+
+    for( const types::FootprintUnitInfo& unitMsg : footprint.symbol_units() )
+    {
+        FP_UNIT_INFO unit;
+        unit.m_unitName = wxString::FromUTF8( unitMsg.name() );
+
+        for( const std::string& pinNumber : unitMsg.pin_numbers() )
+            unit.m_pins.emplace_back( wxString::FromUTF8( pinNumber ) );
+
+        m_unitInfo.push_back( std::move( unit ) );
     }
 
     return true;
@@ -4554,7 +4576,22 @@ bool FOOTPRINT::operator==( const FOOTPRINT& aOther ) const
     if( !std::ranges::equal( m_zones, aOther.m_zones, equalItems ) )
         return false;
 
+    if( !std::ranges::equal( m_groups, aOther.m_groups, equalItems ) )
+        return false;
+
+    if( m_netTiePadGroups != aOther.m_netTiePadGroups )
+        return false;
+
+    if( m_jumperPadGroups != aOther.m_jumperPadGroups )
+        return false;
+
     if( m_points.size() != aOther.m_points.size() )
+        return false;
+
+    if( !std::ranges::equal( m_bodies, aOther.m_bodies, equalItems ) )
+        return false;
+
+    if( m_height != aOther.m_height )
         return false;
 
     // Compare fields in ordinally-sorted order
@@ -4809,11 +4846,11 @@ bool FOOTPRINT::cmp_padstack::operator()( const PAD* aFirst, const PAD* aSecond 
     if( aFirst->GetLayerSet() != aSecond->GetLayerSet() )
         return aFirst->GetLayerSet().Seq() < aSecond->GetLayerSet().Seq();
 
-    if( aFirst->GetDrillSizeX() != aSecond->GetDrillSizeX() )
-        return aFirst->GetDrillSizeX() < aSecond->GetDrillSizeX();
+    if( aFirst->GetDrillSize().x != aSecond->GetDrillSize().x )
+        return aFirst->GetDrillSize().x < aSecond->GetDrillSize().x;
 
-    if( aFirst->GetDrillSizeY() != aSecond->GetDrillSizeY() )
-        return aFirst->GetDrillSizeY() < aSecond->GetDrillSizeY();
+    if( aFirst->GetDrillSize().y != aSecond->GetDrillSize().y )
+        return aFirst->GetDrillSize().y < aSecond->GetDrillSize().y;
 
     if( aFirst->GetDrillShape() != aSecond->GetDrillShape() )
         return aFirst->GetDrillShape() < aSecond->GetDrillShape();

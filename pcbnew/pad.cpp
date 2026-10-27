@@ -304,7 +304,7 @@ VECTOR2I PAD::GetSize( PCB_LAYER_ID aLayer ) const
 }
 
 
-void PAD::SetSizeX( int aX )
+void PAD::SetSizeXProp( int aX )
 {
     if( aX <= 0 )
         return;
@@ -318,13 +318,13 @@ void PAD::SetSizeX( int aX )
 }
 
 
-int PAD::GetSizeX() const
+int PAD::GetSizeXProp() const
 {
     return GetSize( PADSTACK::ALL_LAYERS ).x;
 }
 
 
-void PAD::SetSizeY( int aY )
+void PAD::SetSizeYProp( int aY )
 {
     if( aY <= 0 )
         return;
@@ -338,7 +338,7 @@ void PAD::SetSizeY( int aY )
 }
 
 
-int PAD::GetSizeY() const
+int PAD::GetSizeYProp() const
 {
     return GetSize( PADSTACK::ALL_LAYERS ).y;
 }
@@ -803,7 +803,7 @@ void PAD::SetPrimaryDrillSizeX( const int aX )
 }
 
 
-void PAD::SetDrillSizeX( const int aX )
+void PAD::SetDrillSizeXProp( const int aX )
 {
     SetPrimaryDrillSizeX( aX );
 }
@@ -817,7 +817,7 @@ void PAD::SetPrimaryDrillSizeY( const int aY )
 }
 
 
-void PAD::SetDrillSizeY( const int aY )
+void PAD::SetDrillSizeYProp( const int aY )
 {
     SetPrimaryDrillSizeY( aY );
 }
@@ -1661,8 +1661,8 @@ void PAD::BuildEffectivePolygon( ERROR_LOC aErrorLoc ) const
                     }
                 } );
 
-        m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSizeX() / 2.0 ) );
-        m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSizeY() / 2.0 ) );
+        m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSize().x / 2.0 ) );
+        m_effectiveBoundingRadius = std::max( m_effectiveBoundingRadius, KiROUND( GetDrillSize().y / 2.0 ) );
     }
 
     // All done
@@ -1717,8 +1717,8 @@ void PAD::SetAttribute( PAD_ATTRIB aAttribute )
                     layerMask.set( copperLayers.Seq().front() );
             }
 
-            // No hole
-            m_padStack.Drill().size = VECTOR2I( 0, 0 );
+            // No hole, so no drilling of any kind
+            PAD_UTILS::RemoveAllDrillsFromPadstack( m_padStack );
             break;
         }
 
@@ -1921,17 +1921,48 @@ void PAD::SwapShapePositions( PAD* aLhs, PAD* aRhs )
 {
     wxCHECK( aLhs && aRhs, /* void */ );
 
-    VECTOR2I lhsShapePos = aLhs->ShapePos( PADSTACK::ALL_LAYERS );
-    VECTOR2I rhsShapePos = aRhs->ShapePos( PADSTACK::ALL_LAYERS );
+    LSET uniqueLayerUnion;
 
-    VECTOR2I lhsOffset = aLhs->GetOffset( PADSTACK::ALL_LAYERS );
-    VECTOR2I rhsOffset = aRhs->GetOffset( PADSTACK::ALL_LAYERS );
+    aLhs->Padstack().ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID layer )
+            {
+                uniqueLayerUnion.set( layer );
+            } );
 
-    RotatePoint( lhsOffset, aLhs->GetOrientation() );
-    RotatePoint( rhsOffset, aRhs->GetOrientation() );
+    aRhs->Padstack().ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID layer )
+            {
+                uniqueLayerUnion.set( layer );
+            } );
 
-    aLhs->SetPosition( rhsShapePos - lhsOffset );
-    aRhs->SetPosition( lhsShapePos - rhsOffset );
+    std::map<PCB_LAYER_ID, std::pair<VECTOR2I, VECTOR2I>> positions;
+
+    for( PCB_LAYER_ID layer : uniqueLayerUnion.Seq() )
+    {
+        VECTOR2I lhsShapePos = aLhs->ShapePos( layer );
+        VECTOR2I rhsShapePos = aRhs->ShapePos( layer );
+
+        VECTOR2I lhsOffset = aLhs->GetOffset( layer );
+        VECTOR2I rhsOffset = aRhs->GetOffset( layer );
+
+        RotatePoint( lhsOffset, aLhs->GetOrientation() );
+        RotatePoint( rhsOffset, aRhs->GetOrientation() );
+
+        positions[layer].first = rhsShapePos - lhsOffset;
+        positions[layer].second = lhsShapePos - rhsOffset;
+    }
+
+    aLhs->Padstack().ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID layer )
+            {
+                aLhs->SetPosition( positions[layer].first );
+            } );
+
+    aRhs->Padstack().ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID layer )
+            {
+                aRhs->SetPosition( positions[layer].second );
+            } );
 }
 
 
@@ -3034,8 +3065,8 @@ void PAD::ImportSettingsFrom( const PAD& aMasterPad )
     {
     case PAD_ATTRIB::SMD:
     case PAD_ATTRIB::CONN:
-        // These pads do not have a hole (they are expected to be on one external copper layer)
-        SetDrillSize( VECTOR2I( 0, 0 ) );
+        // These pads have no hole, or any kind of drilling.
+        PAD_UTILS::RemoveAllDrillsFromPadstack( m_padStack );
         break;
 
     default:
@@ -3753,11 +3784,11 @@ static struct PAD_DESC
                     groupPad );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size X" ),
-                    &PAD::SetSizeX, &PAD::GetSizeX, PROPERTY_DISPLAY::PT_SIZE ),
+                    &PAD::SetSizeXProp, &PAD::GetSizeXProp, PROPERTY_DISPLAY::PT_SIZE ),
                     groupPad )
                 .SetAvailableFunc( hasNormalPadstack );
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Size Y" ),
-                    &PAD::SetSizeY, &PAD::GetSizeY, PROPERTY_DISPLAY::PT_SIZE ),
+                    &PAD::SetSizeYProp, &PAD::GetSizeYProp, PROPERTY_DISPLAY::PT_SIZE ),
                     groupPad )
                 .SetAvailableFunc( []( INSPECTABLE* aItem ) -> bool
                                    {
@@ -3804,13 +3835,13 @@ static struct PAD_DESC
                 .SetWriteableFunc( padCanHaveHole );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size X" ),
-                    &PAD::SetDrillSizeX, &PAD::GetDrillSizeX, PROPERTY_DISPLAY::PT_SIZE ),
+                    &PAD::SetDrillSizeXProp, &PAD::GetDrillSizeXProp, PROPERTY_DISPLAY::PT_SIZE ),
                     groupPad )
                 .SetWriteableFunc( padCanHaveHole )
                 .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator );
 
         propMgr.AddProperty( new PROPERTY<PAD, int>( _HKI( "Hole Size Y" ),
-                    &PAD::SetDrillSizeY, &PAD::GetDrillSizeY, PROPERTY_DISPLAY::PT_SIZE ),
+                    &PAD::SetDrillSizeYProp, &PAD::GetDrillSizeYProp, PROPERTY_DISPLAY::PT_SIZE ),
                     groupPad )
                 .SetWriteableFunc( padCanHaveHole )
                 .SetValidator( PROPERTY_VALIDATORS::PositiveIntValidator )

@@ -40,9 +40,7 @@
 #include <board.h>
 #include <footprint.h>
 #include <pcb_3d_body.h>
-#include <footprint_library_adapter.h>
 #include <eda_3d_viewer_frame.h>
-#include <project_pcb.h>
 #include <pad.h>
 #include <pcb_track.h>
 
@@ -2267,7 +2265,6 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
             return;
 
         bool hasModels = !fp->Models().empty();
-        bool showMissing = m_boardAdapter.m_Cfg->m_Render.show_missing_models;
 
         // Placeholder is suppressed when an extrusion was built.
         bool hasExtrudedBody = false;
@@ -2275,34 +2272,14 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
         if( fp->HasBody() && fp->GetBody()->GetExtruded()->m_show && m_boardAdapter.IsFootprintShown( fp ) )
             hasExtrudedBody = addExtrudedBodyToRaytracer( aDstContainer, fp );
 
-        if( ( hasModels || showMissing ) && m_boardAdapter.IsFootprintShown( fp ) )
+        if( ( hasModels || m_boardAdapter.ShowMissingModels() ) && m_boardAdapter.IsFootprintShown( fp ) )
         {
             const glm::mat4 fpMatrix = m_boardAdapter.GetFootprintMatrix( *fp );
 
             // Get the list of model files for this model
             S3D_CACHE* cacheMgr = m_boardAdapter.Get3dCacheManager();
 
-            wxString                libraryName = fp->GetFPID().GetLibNickname();
-
-            wxString                footprintBasePath = wxEmptyString;
-
-            if( m_boardAdapter.GetBoard()->GetProject() )
-            {
-                try
-                {
-                    // FindRow() can throw an exception
-                    std::optional<LIBRARY_TABLE_ROW*> fpRow =
-                    PROJECT_PCB::FootprintLibAdapter( m_boardAdapter.GetBoard()->GetProject() )
-                            ->GetRow( libraryName );
-
-                    if( fpRow )
-                        footprintBasePath = LIBRARY_MANAGER::GetFullURI( *fpRow, true );
-                }
-                catch( ... )
-                {
-                    // Do nothing if the libraryName is not found in lib table
-                }
-            }
+            const wxString footprintBasePath = m_boardAdapter.GetFootprintLibraryPath( fp );
 
             bool placeholderAdded = false;
 
@@ -2330,7 +2307,7 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
                     addModels( aDstContainer, modelPtr, modelMatrix, (float) model.m_Opacity,
                                aSkipMaterialInformation, fp );
                 }
-                else if( showMissing && !placeholderAdded )
+                else if( m_boardAdapter.ShowMissingModels() && !placeholderAdded )
                 {
                     addPlaceholderToRaytracer( aDstContainer, fp, fpMatrix, hasExtrudedBody, (float) model.m_Opacity );
                     placeholderAdded = true;
@@ -2338,7 +2315,7 @@ void RENDER_3D_RAYTRACE_BASE::load3DModels( CONTAINER_3D& aDstContainer, bool aS
             }
 
             // Footprint with no models assigned at all
-            if( !hasModels && showMissing )
+            if( !hasModels && m_boardAdapter.ShowMissingModels() )
             {
                 addPlaceholderToRaytracer( aDstContainer, fp, fpMatrix, hasExtrudedBody, 1.0f );
             }

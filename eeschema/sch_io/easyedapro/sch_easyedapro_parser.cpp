@@ -517,6 +517,9 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
             partUnits[line.at( 1 )] = ++totalUnits;
     }
 
+    if( totalUnits == 0 )
+        totalUnits = 1;
+
     symInfo.partUnits = partUnits;
     ksymbol->SetUnitCount( totalUnits, false );
 
@@ -575,7 +578,7 @@ SCH_EASYEDAPRO_PARSER::ParseSymbol( const std::vector<nlohmann::json>&  aLines,
 
             auto shape = std::make_unique<SCH_SHAPE>( SHAPE_T::ARC, LAYER_DEVICE );
 
-            shape->SetArcGeometry( kstart, kmid, kend );
+            shape->SetArcOrLine( kstart, kmid, kend );
 
             shape->SetUnit( currentUnit );
             ApplyLineStyle( lineStyles, shape, styleStr );

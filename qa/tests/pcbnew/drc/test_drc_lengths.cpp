@@ -33,6 +33,8 @@
 #include <settings/settings_manager.h>
 
 
+namespace
+{
 struct DRC_REGRESSION_TEST_FIXTURE
 {
     DRC_REGRESSION_TEST_FIXTURE() {}
@@ -40,6 +42,7 @@ struct DRC_REGRESSION_TEST_FIXTURE
     SETTINGS_MANAGER       m_settingsManager;
     std::unique_ptr<BOARD> m_board;
 };
+} // namespace
 
 
 BOOST_FIXTURE_TEST_CASE( DRCLengths, DRC_REGRESSION_TEST_FIXTURE )
@@ -48,7 +51,7 @@ BOOST_FIXTURE_TEST_CASE( DRCLengths, DRC_REGRESSION_TEST_FIXTURE )
 
     std::vector<std::pair<wxString, int>> tests = {
         { "length_calculations", 0 },
-        { "time_calculations", 1 }, // Expect one skew DRC error from NET_P
+        { "time_calculations", 0 }, // Pair is skewed 4.45ps, which the CLASS7 rule asks for
         { "issue22536", 0 },        // Via electrical span calculation (GitLab #22536)
         { "via_off_center", 0 }     // Off-center VIA endpoints should not affect length calculation
     };

@@ -85,6 +85,34 @@ bool BoardHasConstraints( BOARD* aBoard )
 }
 
 
+std::vector<VECTOR2I> ConstraintPinnedPositions( BOARD* aBoard, const std::set<KIID>& aItems )
+{
+    std::vector<VECTOR2I> positions;
+
+    if( !aBoard )
+        return positions;
+
+    for( const PCB_CONSTRAINT* constraint : collectAllConstraints( aBoard ) )
+    {
+        if( constraint->GetConstraintType() != PCB_CONSTRAINT_TYPE::FIXED_POSITION )
+            continue;
+
+        for( const CONSTRAINT_MEMBER& member : constraint->GetMembers() )
+        {
+            if( !aItems.contains( member.m_item ) )
+                continue;
+
+            std::optional<VECTOR2I> pos = ConstraintAnchorPosition( aBoard, member );
+
+            if( pos && std::ranges::find( positions, *pos ) == positions.end() )
+                positions.push_back( *pos );
+        }
+    }
+
+    return positions;
+}
+
+
 bool ConstraintItemIsLocked( const BOARD_ITEM* aItem )
 {
     if( !aItem )
@@ -1291,7 +1319,9 @@ bool BOARD_CONSTRAINT_ADAPTER::Build( const std::vector<PCB_SHAPE*>&          aS
             continue;
         }
 
-        m_tagToConstraint[tag] = constraint->m_Uuid;
+        // A fixed position is enforced by grounding, not by a solver constraint
+        if( constraint->GetConstraintType() != PCB_CONSTRAINT_TYPE::FIXED_POSITION )
+            m_tagToConstraint[tag] = constraint->m_Uuid;
 
         if( !constraint->IsDriving() )
             m_nonDrivingTags.insert( tag );
@@ -1882,6 +1912,17 @@ bool BOARD_CONSTRAINT_ADAPTER::SolveRigidTranslation( const std::set<KIID>& aEdi
     if( state.points.empty() )
         return false;
 
+    const bool movesGroundedPoint =
+            std::ranges::any_of( state.points,
+                                 [&]( int aPointX )
+                                 {
+                                     return m_fixedParams.contains( aPointX ) || m_fixedParams.contains( aPointX + 1 );
+                                 } );
+
+    // A pinned or locked coordinate cannot travel
+    if( movesGroundedPoint && aTranslation != VECTOR2I() )
+        return false;
+
     const double            dx = aTranslation.x * m_invScale;
     const double            dy = aTranslation.y * m_invScale;
     std::map<int, VECTOR2I> exactTargets;
@@ -1894,17 +1935,8 @@ bool BOARD_CONSTRAINT_ADAPTER::SolveRigidTranslation( const std::set<KIID>& aEdi
                                                 KiROUND( denormalizeY( m_params[pointX + 1] ) ) ) );
     }
 
-    // A grounded coordinate cannot travel, so a translation that moves one still needs the solve
-    const bool movesGroundedPoint =
-            std::ranges::any_of( state.points,
-                                 [&]( int aPointX )
-                                 {
-                                     return m_fixedParams.contains( aPointX ) || m_fixedParams.contains( aPointX + 1 );
-                                 } );
-
-    // Translating the whole cluster leaves every relation as it found it, so solving would only
-    // re-judge the starting state and reject a move that cannot change it
-    if( !movesGroundedPoint && TravelsWhole( aEditedShapes ) )
+    // Moving every shape a constraint touches cannot change what it measures
+    if( TravelsWhole( aEditedShapes ) )
         return true;
 
     beginTemporaryParameters();

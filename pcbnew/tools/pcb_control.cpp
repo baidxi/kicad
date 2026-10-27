@@ -1731,8 +1731,7 @@ int PCB_CONTROL::ApplyDesignBlockLayout( const TOOL_EVENT& aEvent )
                                           .m_copyPlacement = true,
                                           .m_copyOtherItems = true,
                                           .m_groupItems = false,
-                                          .m_includeLockedItems = true,
-                                          .m_anchorFp = nullptr };
+                                          .m_includeLockedItems = true };
 
         // Give the appended block's auto-generated nets a private namespace so they cannot fuse by
         // name with a different part's net on the board, which would corrupt the topology match
@@ -2864,6 +2863,11 @@ int PCB_CONTROL::UpdateMessagePanel( const TOOL_EVENT& aEvent )
                             areaValid = false;
                             return;
                         }
+
+                        // An image has no physical area to contribute and no polygon
+                        // representation, so leave it out without invalidating the total.
+                        if( aItem->Type() == PCB_REFERENCE_IMAGE_T )
+                            return;
 
                         if( PCB_GROUP* group = dynamic_cast<PCB_GROUP*>( aItem ) )
                         {
