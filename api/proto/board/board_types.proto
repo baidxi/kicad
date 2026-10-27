@@ -1692,6 +1692,19 @@ enum DrillChartColumnId
   DCC_DESCRIPTION = 12;
 }
 
+// baidxi plugin extension: kicad-python (KiCad 11 dev generation) refers to
+// this type name for DrillChartColumn.align. Values mirror
+// kiapi.common.types.HorizontalAlignment so they map 1:1.
+// Since: 11.0
+enum DrillChartAlign
+{
+  DCA_UNKNOWN       = 0;
+  DCA_LEFT          = 1;
+  DCA_CENTER        = 2;
+  DCA_RIGHT         = 3;
+  DCA_INDETERMINATE = 4;
+}
+
 // Since: 11.0
 message DrillChartColumn
 {
