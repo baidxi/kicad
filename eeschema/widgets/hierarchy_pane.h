@@ -74,6 +74,7 @@ public:
         COLLAPSE_ALL,
         RENAME,
         NEW_TOP_LEVEL_SHEET,
+        ADD_EXISTING_TOP_LEVEL_SHEET,
         DELETE_TOP_LEVEL_SHEET
     };
 

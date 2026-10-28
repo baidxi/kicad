@@ -32,6 +32,8 @@
 #include <hierarchy_pane.h>
 #include <project/project_local_settings.h>
 #include <kiface_base.h>
+#include <wildcards_and_files_ext.h>
+#include <wx/filedlg.h>
 #include <wx/object.h>
 #include <wx/generic/textdlgg.h>
 #include <wx/menu.h>
@@ -557,6 +559,8 @@ void HIERARCHY_PANE::onRightClick( wxTreeItemId aItem )
 
     // Always allow creating new top-level sheets (root is hidden with wxTR_HIDE_ROOT)
     ctxMenu.Append( NEW_TOP_LEVEL_SHEET, _( "New Top-Level Sheet" ), _( "Create a new top-level sheet" ) );
+    ctxMenu.Append( ADD_EXISTING_TOP_LEVEL_SHEET, _( "Add Existing Schematic..." ),
+                    _( "Add an existing .kicad_sch file as a new top-level sheet" ) );
     ctxMenu.AppendSeparator();
 
     ctxMenu.Append( EXPAND_ALL, ACTIONS::expandAll.GetMenuItem() );
@@ -619,6 +623,92 @@ void HIERARCHY_PANE::onRightClick( wxTreeItemId aItem )
                 resyncAfterTopLevelSheetChange( previousSheet );
             }
         }
+        break;
+    }
+
+    case ADD_EXISTING_TOP_LEVEL_SHEET:
+    {
+        wxFileDialog openDialog( m_frame, _( "Add Existing Schematic" ),
+                                 m_frame->Prj().GetProjectPath(), wxEmptyString,
+                                 FILEEXT::KiCadSchematicFileWildcard(),
+                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST );
+
+        if( openDialog.ShowModal() == wxID_CANCEL )
+            break;
+
+        wxString fileName = openDialog.GetPath();
+
+        wxFileName candidateFn( fileName );
+        candidateFn.Normalize( wxPATH_NORM_ABSOLUTE, m_frame->Prj().GetProjectPath() );
+
+        // Refuse a file that is already one of this project's top-level sheets
+        bool alreadyPresent = false;
+
+        for( SCH_SHEET* sheet : m_frame->Schematic().GetTopLevelSheets() )
+        {
+            wxFileName existingFn( sheet->GetFileName() );
+            existingFn.Normalize( wxPATH_NORM_ABSOLUTE, m_frame->Prj().GetProjectPath() );
+
+            if( existingFn.GetFullPath() == candidateFn.GetFullPath() )
+            {
+                alreadyPresent = true;
+                break;
+            }
+        }
+
+        if( alreadyPresent )
+        {
+            wxMessageBox( _( "This schematic is already a top-level sheet of the project." ),
+                          _( "Add Existing Schematic" ), wxOK | wxICON_ERROR, m_frame );
+            break;
+        }
+
+        SCH_SHEET_PATH previousSheet = m_frame->GetCurrentSheet();
+
+        // The sheet name shown in the hierarchy derives from the file name
+        SCH_SHEET* newSheet = new SCH_SHEET( &m_frame->Schematic() );
+        newSheet->GetField( FIELD_T::SHEET_NAME )->SetText( candidateFn.GetName() );
+
+        // Keep the path relative to the project when the file lives inside it so the
+        // project stays portable; files outside need an absolute path.
+        if( candidateFn.GetFullPath().StartsWith( m_frame->Prj().GetProjectPath() ) )
+        {
+            wxFileName relFn( fileName );
+            relFn.MakeRelativeTo( m_frame->Prj().GetProjectPath() );
+            newSheet->SetFileName( relFn.GetFullPath() );
+        }
+        else
+        {
+            newSheet->SetFileName( fileName );
+        }
+
+        // LoadSheetFromFile fills the sheet with the file contents; it also handles format
+        // detection, recursion checks, symbol library table merging and instance data
+        SCH_SHEET_PATH currentSheet = m_frame->GetCurrentSheet();
+
+        if( !m_frame->LoadSheetFromFile( newSheet, &currentSheet, fileName ) )
+        {
+            delete newSheet;
+            break;
+        }
+
+        // Find the lowest unused page number
+        SCH_SHEET_LIST hierarchy = m_frame->Schematic().Hierarchy();
+        int            nextPage = 1;
+        wxString       pageStr;
+
+        do
+        {
+            pageStr = wxString::Format( "%d", nextPage++ );
+        } while( hierarchy.PageNumberExists( pageStr ) );
+
+        m_frame->Schematic().AddTopLevelSheet( newSheet );
+
+        SCH_SHEET_PATH newSheetPath;
+        newSheetPath.push_back( newSheet );
+        newSheetPath.SetPageNumber( pageStr );
+
+        resyncAfterTopLevelSheetChange( previousSheet );
         break;
     }
 
