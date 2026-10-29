@@ -35,6 +35,7 @@
 #include <wx/file.h>
 #include <wx/filefn.h>
 #include <wx/filename.h>
+#include <wx/hyperlink.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
 #include <wx/settings.h>
@@ -42,6 +43,7 @@
 #include <wx/statbox.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
+#include <wx/utils.h>
 #include <wx/weakref.h>
 
 #include <wx/choicdlg.h>
@@ -213,6 +215,7 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
     m_recentMessages->SetMaxSize( FromDIP( wxSize( 170, -1 ) ) );
     KIPLATFORM::UI::EllipsizeChoiceBox( m_recentMessages );
 
+    m_summaryCount->SetToolTip( _( "Git tools show up to 72 characters of the summary on one line." ) );
     updateSummaryCount();
 
     // Only a platform without a native hint for a multi line box gets the label laid over it.
@@ -264,6 +267,7 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
                                                 m_commitAndPushItem->GetId() );
     m_pullButton->Bind( wxEVT_BUTTON, &GIT_COMMIT_PANE::onPull, this );
     m_amendCheckbox->Bind( wxEVT_CHECKBOX, &GIT_COMMIT_PANE::onAmendToggled, this );
+    m_undoCommitButton->Bind( wxEVT_BUTTON, &GIT_COMMIT_PANE::onUndoCommit, this );
     m_summary->Bind( wxEVT_TEXT, &GIT_COMMIT_PANE::onMessageChanged, this );
     m_newBranchName->Bind( wxEVT_TEXT,
                            [this]( wxCommandEvent& )
@@ -305,6 +309,18 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
     // by side.
     m_inAdvancedWindow = aParent != aFrame;
 
+    // Otherwise the history is only reachable through the gear menu, where users did not find it
+    m_historyLink = new wxHyperlinkCtrl( this, wxID_ANY, _( "History..." ), wxEmptyString, wxDefaultPosition,
+                                         wxDefaultSize, wxHL_ALIGN_RIGHT | wxNO_BORDER );
+    m_historyLink->SetToolTip( _( "Show the commits made to this project" ) );
+    m_historyLink->Hide();
+    m_historyLink->Bind( wxEVT_HYPERLINK,
+                         [this]( wxHyperlinkEvent& )
+                         {
+                             ShowHistory();
+                         } );
+    GetSizer()->Add( m_historyLink, 0, wxALIGN_RIGHT | wxLEFT | wxRIGHT | wxBOTTOM, 4 );
+
     if( m_inAdvancedWindow )
         layoutWide();
 
@@ -324,6 +340,7 @@ void GIT_COMMIT_PANE::layoutWide()
     column->Detach( m_changesRow );
     column->Detach( m_emptyLabel );
     column->Detach( m_trustRow );
+    column->Detach( m_undoCommitButton );
     column->Detach( m_checklist );
     column->GetItem( m_description )->SetProportion( 1 );
     column->SetMinSize( FromDIP( wxSize( 280, -1 ) ) );
@@ -365,6 +382,7 @@ void GIT_COMMIT_PANE::layoutWide()
     files->Add( m_changesRow, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 8 );
     files->Add( m_emptyLabel, 0, wxALL, 8 );
     files->Add( m_trustRow, 0, wxEXPAND | wxBOTTOM | wxLEFT | wxRIGHT, 8 );
+    files->Add( m_undoCommitButton, 0, wxBOTTOM | wxLEFT | wxRIGHT, 8 );
     files->Add( m_checklist, 1, wxALL | wxEXPAND, 4 );
 
     wxBoxSizer* row = new wxBoxSizer( wxHORIZONTAL );
@@ -426,6 +444,7 @@ void GIT_COMMIT_PANE::syncListener()
 
     m_amendCheckbox->SetValue( false );
     m_amendHead = {};
+    m_undoHead = {};
     m_listenerAttached = true;
 
     // The remembered paths describe the previous project's file list, so a path that repeats in
@@ -450,6 +469,7 @@ struct GIT_COMMIT_PANE::STATUS
     bool                              operationInProgress = false;
     bool                              upstreamAhead = false;
     GitOperation                      operation = GitOperation::None;
+    std::pair<wxString, wxString>     head;
     wxString                          attachError;
     wxString                          attachTrustCommand;
     wxString                          currentBranch;
@@ -495,6 +515,7 @@ void GIT_COMMIT_PANE::RefreshFileList()
                 status->branches = aCommon.GetBranches();
                 KIGIT::SortBranchesForDisplay( status->branches );
                 status->currentBranch = aCommon.GetCurrentBranchName();
+                status->head = commitHead( aCommon.GetRepo() );
                 status->recentMessages = aCommon.GetRecentCommitMessages( 10 );
 
                 if( countLines )
@@ -540,6 +561,7 @@ void GIT_COMMIT_PANE::applyStatus( const STATUS& aStatus )
     // Amending is offered only while the last commit has not been pushed, so an already
     // published commit can never be rewritten from here.
     m_canAmend = aStatus.hasLocalCommits && !m_headDetached && !m_operationInProgress;
+    m_undoHead = aStatus.head;
 
     // Preserve unticked files across refreshes. New files start unchecked while amending.
     std::set<wxString> stillChecked;
@@ -614,6 +636,9 @@ void GIT_COMMIT_PANE::applyStatus( const STATUS& aStatus )
     }
 
     showTrustCommand( trustCommand );
+    m_historyLink->Show( m_hasRepo && !m_inAdvancedWindow );
+    m_undoCommitButton->Show( m_canAmend );
+    m_undoCommitButton->Enable( m_canAmend && !m_actionPending && !m_transfer.IsBusy() );
     updateCommitButton();
     Layout();
     updateDescriptionHint();
@@ -624,6 +649,12 @@ void GIT_COMMIT_PANE::ReloadAdvancedWindow()
 {
     if( GIT_ADVANCED_DIALOG* dialog = GIT_ADVANCED_DIALOG::Active() )
         dialog->ReloadPages();
+}
+
+
+void GIT_COMMIT_PANE::ShowHistory()
+{
+    GIT_ADVANCED_DIALOG::ShowForFrame( m_frame, this, GIT_ADVANCED_PAGE::HISTORY );
 }
 
 
@@ -656,6 +687,9 @@ void GIT_COMMIT_PANE::showDisabledState()
     m_canAmend = false;
     m_amendCheckbox->SetValue( false );
     m_amendHead = {};
+    m_undoHead = {};
+    m_undoCommitButton->Hide();
+    m_historyLink->Hide();
     updateMessageVisibility( false );
 
     setStatusText( _( "Version control is turned off in Preferences." ) );
@@ -785,8 +819,11 @@ void GIT_COMMIT_PANE::updateMessageVisibility( bool aHasChanges )
     bool show = aHasChanges || m_editorsDirty || m_amendCheckbox->IsChecked();
 
     m_summary->Show( show );
-    m_summaryCount->Show( show );
+    updateSummaryCount();
     m_description->Show( show );
+
+    // A pick only fills the message fields, so the list goes with them
+    m_recentMessages->Show( show && !m_recentMessageTexts.empty() );
 
     // The options box stays for a message only amend, with just the amend tick in it.
     m_optionsSizer->ShowItems( show || m_canAmend );
@@ -962,6 +999,15 @@ void GIT_COMMIT_PANE::updateSummaryCount()
     // Git tools show the first line whole up to 72 columns.
     int left = 72 - static_cast<int>( m_summary->GetValue().length() );
     m_summaryCount->SetLabel( wxString::Format( wxS( "%d" ), left ) );
+
+    // A count shown from the first character reads as a limit the user must work to
+    bool show = m_summary->IsShown() && left <= 10;
+
+    if( m_summaryCount->IsShown() != show )
+    {
+        m_summaryCount->Show( show );
+        Layout();
+    }
 }
 
 
@@ -1060,7 +1106,6 @@ void GIT_COMMIT_PANE::populateRecentMessages( const std::vector<wxString>& aMess
     }
 
     m_recentMessages->SetSelection( 0 );
-    m_recentMessages->Show( !m_recentMessageTexts.empty() );
 }
 
 
@@ -1550,6 +1595,101 @@ void GIT_COMMIT_PANE::onAmendToggled( wxCommandEvent& aEvent )
 }
 
 
+void GIT_COMMIT_PANE::onUndoCommit( wxCommandEvent& aEvent )
+{
+    syncListener();
+
+    if( m_actionPending || m_transfer.IsBusy() )
+    {
+        KIGIT::ShowBusyMessage( this );
+        return;
+    }
+
+    std::shared_ptr<KIGIT_COMMON> common = m_frame->Prj().GetGitCommon();
+    git_oid                       expectedHead;
+
+    if( !common->GetRepo() || git_oid_fromstr( &expectedHead, m_undoHead.second.utf8_string().c_str() ) != GIT_OK )
+        return;
+
+    UndoCommitResult    result = UndoCommitResult::Error;
+    KIGIT_ERROR_MESSAGE error;
+    wxString            message;
+
+    {
+        std::unique_lock<std::mutex> lock = KIGIT::TryLockAction( *common, this );
+
+        if( !lock.owns_lock() )
+            return;
+
+        GIT_COMMIT_HANDLER commitHandler( common->GetRepo() );
+        result = commitHandler.PerformUndoLastCommit( m_undoHead.first, expectedHead, message );
+        error = commitHandler.PopError();
+    }
+
+    common->NotifyRefreshListeners();
+
+    switch( result )
+    {
+    case UndoCommitResult::Success:
+    {
+        m_amendCheckbox->SetValue( false );
+        m_amendHead = {};
+        m_newBranchCheckbox->SetValue( false );
+        m_newBranchName->Clear();
+
+        wxString summary, description;
+        KIGIT::SplitCommitMessage( message, summary, description );
+
+        wxString                   restored = KIGIT::ComposeCommitMessage( summary, description, wxEmptyString );
+        wxString                   draft = GetCommitMessage();
+        wxWeakRef<GIT_COMMIT_PANE> pane( this );
+
+        if( !draft.IsEmpty() && draft != restored
+            && !IsOK( this, _( "Replace the current commit message with the undone commit's message?" ) ) )
+        {
+            if( pane && !pane->IsBeingDeleted() )
+            {
+                setBusy( false, _( "Undid the last commit. Its changes are back in the list, and your message was "
+                                   "kept." ) );
+            }
+
+            break;
+        }
+
+        if( !pane || pane->IsBeingDeleted() )
+            break;
+
+        SetCommitMessage( restored );
+
+        if( m_messageChangedHandler )
+            m_messageChangedHandler();
+
+        setBusy( false, _( "Undid the last commit. Its changes are back in the list, ready to commit again." ) );
+        break;
+    }
+
+    case UndoCommitResult::Published:
+        DisplayInfoMessage( this, wxString::Format( _( "This commit is already on the remote branch %s, so undoing "
+                                                       "it here would rewrite history others may have. Make a new "
+                                                       "commit that fixes it instead." ),
+                                                    message ) );
+        break;
+
+    case UndoCommitResult::TargetChanged:
+        DisplayInfoMessage( this, _( "The branch or its last commit changed. Review the latest commit and try "
+                                     "again." ) );
+        break;
+
+    case UndoCommitResult::NoCommit: DisplayInfoMessage( this, _( "This branch has no commit to undo." ) ); break;
+
+    case UndoCommitResult::Error:
+        DisplayErrorMessage( this, error.summary.IsEmpty() ? _( "Could not undo the commit." ) : error.summary,
+                             error.details );
+        break;
+    }
+}
+
+
 void GIT_COMMIT_PANE::BeginAmend( const wxString& aExpectedCommit )
 {
     struct AMEND_INFO
@@ -1956,6 +2096,7 @@ void GIT_COMMIT_PANE::setBusy( bool aBusy, const wxString& aStatus )
     m_checklist->Enable( !aBusy );
     m_commitButton->Enable( !aBusy );
     m_amendCheckbox->Enable( !aBusy );
+    m_undoCommitButton->Enable( !aBusy && m_canAmend );
     m_signOffCheckbox->Enable( !aBusy );
     m_newBranchCheckbox->Enable( !aBusy );
     m_newBranchName->Enable( !aBusy && m_newBranchCheckbox->IsChecked() );
@@ -2476,7 +2617,13 @@ void GIT_COMMIT_PANE::finishPullConflictPreparation( std::shared_ptr<KIGIT_COMMO
             return;
         }
 
-        std::unique_lock<std::mutex> lock = aCommon->TryLockAction();
+        std::unique_lock<std::mutex> lock;
+
+        // Saving the copies into the project wakes a status read, so give it time to let go
+        {
+            wxBusyCursor busy;
+            lock = aCommon->TryLockActionFor( KIGIT_COMMON::ACTION_LOCK_WAIT );
+        }
 
         if( lock.owns_lock() )
         {

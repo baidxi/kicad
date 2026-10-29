@@ -38,6 +38,7 @@ enum class GitOperation;
 class wxCommandEvent;
 class wxMenuItem;
 class wxDataViewEvent;
+class wxHyperlinkCtrl;
 class wxStaticText;
 
 
@@ -83,6 +84,9 @@ public:
     /// Reload the advanced window when it is open, for a preferences change it also shows.
     void ReloadAdvancedWindow();
 
+    /// Open the advanced window on its History page.
+    void ShowHistory();
+
     /// Get changes from the remote, as the Get Changes button does. The advanced window's
     /// Pull button lands here, so one place owns the merge and its conflict handling.
     void Pull();
@@ -110,6 +114,10 @@ private:
     void abandonOperation( std::shared_ptr<KIGIT_COMMON> aCommon );
     void finishAbandonOperation( std::shared_ptr<KIGIT_COMMON> aCommon, const std::vector<wxString>& aOutside );
     void onAmendToggled( wxCommandEvent& aEvent );
+
+    /// Take back the last commit while no remote has it, keeping its changes staged and its message.
+    void onUndoCommit( wxCommandEvent& aEvent );
+
     void onNewBranchToggled( wxCommandEvent& aEvent );
     void onRecentMessage( wxCommandEvent& aEvent );
     void onShowDiff( wxCommandEvent& aEvent );
@@ -207,7 +215,7 @@ private:
     /// Set what the commit buttons say, and whether they are enabled, for the current state.
     void updateCommitButton();
 
-    /// Show how many of the summary's 72 columns are left.
+    /// Show how many of the summary's 72 columns are left, once that is 10 or fewer.
     void updateSummaryCount();
 
     /// The noun for the operation in progress, for messages.
@@ -256,9 +264,15 @@ private:
     /// The branch and commit chosen when amend started. Keep them fixed while editing.
     std::pair<wxString, wxString> m_amendHead;
 
+    /// The branch and commit the last refresh showed, so Undo takes back only the commit the user saw.
+    std::pair<wxString, wxString> m_undoHead;
+
     /// The description box's hint, a label laid over it while it is empty. Null where the box
     /// shows its own.
     wxStaticText* m_descriptionHint = nullptr;
+
+    /// Opens the History page from the docked panel. Never shown inside the advanced window.
+    wxHyperlinkCtrl* m_historyLink = nullptr;
 
     /// The full messages behind the Recent messages dropdown, in its order after the caption.
     std::vector<wxString> m_recentMessageTexts;
