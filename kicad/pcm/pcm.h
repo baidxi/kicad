@@ -215,9 +215,16 @@ public:
      * any errors at this stage are ignored.
      *
      * @param aRepositoryId id of the repository to cache
+     * @param aAllowNetworkFetch when false, only on-disk caches are consulted and no
+     *                           network requests are made
      * @return true if packages metadata was cached successfully
      */
-    bool CacheRepository( const wxString& aRepositoryId );
+    bool CacheRepository( const wxString& aRepositoryId, bool aAllowNetworkFetch = true );
+
+    /**
+     * @brief Return true if the most recent network fetch was aborted by the user
+     */
+    bool WasFetchCancelled() const { return m_lastFetchCancelled; }
 
     /**
      * @brief Get the packages metadata from a previously cached repository
@@ -425,6 +432,14 @@ private:
                         int aSchemaVersion = 1 );
 
     /**
+     * @brief Load a repository from its on-disk cache without any network access
+     *
+     * @param aRepositoryId id of the repository
+     * @return true if the cached metadata was loaded into the in-memory repository cache
+     */
+    bool loadRepositoryFromDiskCache( const wxString& aRepositoryId );
+
+    /**
      * @brief Find a configured repository by id
      *
      * @param aRepositoryId id of the repository
@@ -479,6 +494,7 @@ private:
 
     std::shared_ptr<BACKGROUND_JOB>              m_updateBackgroundJob;
     bool                                         m_apiEnablePromptNeeded;
+    bool                                         m_lastFetchCancelled = false;
 };
 
 #endif // PCM_H_

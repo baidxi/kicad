@@ -339,12 +339,12 @@ void DIALOG_PCM::OnRefreshClicked( wxCommandEvent& event )
     if( m_selectedRepositoryId == ALL_REPOSITORIES )
     {
         m_pcm->DiscardAllRepositoryCaches();
-        setRepositoryDataMulti();
+        setRepositoryDataMulti( true );
     }
     else
     {
         m_pcm->DiscardRepositoryCache( m_selectedRepositoryId );
-        setRepositoryData( m_selectedRepositoryId );
+        setRepositoryData( m_selectedRepositoryId, true );
     }
 
     setInstalledPackages();
@@ -394,7 +394,7 @@ void DIALOG_PCM::OnRepositoryChoice( wxCommandEvent& event )
 }
 
 
-void DIALOG_PCM::setRepositoryData( const wxString& aRepositoryId )
+void DIALOG_PCM::setRepositoryData( const wxString& aRepositoryId, bool aAllowFetch )
 {
     wxCHECK2_MSG( aRepositoryId != ALL_REPOSITORIES, return, wxT( "should have been handled higher up" ) );
 
@@ -407,7 +407,7 @@ void DIALOG_PCM::setRepositoryData( const wxString& aRepositoryId )
     std::unordered_map<wxString, wxString>    repoIds;
     std::unordered_map<wxString, wxString>    repoNames;
 
-    if( m_pcm->CacheRepository( aRepositoryId ) )
+    if( m_pcm->CacheRepository( aRepositoryId, aAllowFetch ) )
     {
         m_packageBitmaps = m_pcm->GetRepositoryPackageBitmaps( aRepositoryId );
         wxString repoName = m_choiceRepository->GetStringSelection();
@@ -428,7 +428,7 @@ void DIALOG_PCM::setRepositoryData( const wxString& aRepositoryId )
     m_dialogNotebook->Thaw();
 }
 
-void DIALOG_PCM::setRepositoryDataMulti()
+void DIALOG_PCM::setRepositoryDataMulti( bool aAllowFetch )
 {
     m_dialogNotebook->Freeze();
 
@@ -443,8 +443,13 @@ void DIALOG_PCM::setRepositoryDataMulti()
 
     for( const auto& [repo_id, repo_url, repo_name] : m_pcm->GetRepositoryList() )
     {
-        if( !m_pcm->CacheRepository( repo_id ) )
+        if( !m_pcm->CacheRepository( repo_id, aAllowFetch ) )
+        {
+            if( m_pcm->WasFetchCancelled() )
+                break;
+
             continue;
+        }
 
         std::unordered_map<wxString, wxBitmap> repo_bitmaps = m_pcm->GetRepositoryPackageBitmaps( repo_id );
         const std::vector<PCM_PACKAGE>         packages = m_pcm->GetRepositoryPackages( repo_id );

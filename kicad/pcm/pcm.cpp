@@ -221,6 +221,7 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
                                                const std::string& aAccept )
 {
     bool size_exceeded = false;
+    m_lastFetchCancelled = false;
 
     TRANSFER_CALLBACK callback = [&]( size_t dltotal, size_t dlnow, size_t ultotal, size_t ulnow )
     {
@@ -258,6 +259,11 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
     // transfer rate stays below 100 B/s for 30 seconds.
     curl.SetStallTimeout( 100L, 30L );
 
+    // The transfer callback above only runs once data is flowing, so cancellation during
+    // the connection phase needs this bound; otherwise a cancelled fetch to an unreachable
+    // host hangs until libcurl's much longer default connect timeout.
+    curl.SetConnectTimeout( 15L );
+
     if( !aAccept.empty() )
         curl.SetHeader( "Accept", aAccept );
 
@@ -268,6 +274,9 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
 
     if( code != CURLE_OK )
     {
+        m_lastFetchCancelled = ( code == CURLE_ABORTED_BY_CALLBACK && !size_exceeded )
+                               || aReporter->IsCancelled();
+
         if( m_dialog )
         {
             if( code == CURLE_ABORTED_BY_CALLBACK && size_exceeded )
@@ -449,7 +458,54 @@ PLUGIN_CONTENT_MANAGER::getCachedRepository( const wxString& aRepositoryId ) con
 }
 
 
-bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
+bool PLUGIN_CONTENT_MANAGER::loadRepositoryFromDiskCache( const wxString& aRepositoryId )
+{
+    wxFileName repo_cache = wxFileName( PATHS::GetUserCachePath(), wxT( "repository.json" ) );
+    repo_cache.AppendDir( wxT( "pcm" ) );
+    repo_cache.AppendDir( aRepositoryId );
+    wxFileName packages_cache( repo_cache.GetPath(), wxT( "packages.json" ) );
+
+    if( !repo_cache.FileExists() || !packages_cache.FileExists() )
+        return false;
+
+    std::ifstream  repo_stream( repo_cache.GetFullPath().fn_str() );
+    nlohmann::json js;
+    PCM_REPOSITORY saved_repo;
+
+    try
+    {
+        repo_stream >> js;
+        saved_repo = js.get<PCM_REPOSITORY>();
+    }
+    catch( ... )
+    {
+        return false;
+    }
+
+    try
+    {
+        std::ifstream packages_cache_stream( packages_cache.GetFullPath().fn_str() );
+        js.clear();
+        packages_cache_stream >> js;
+        saved_repo.package_list = js["packages"].get<std::vector<PCM_PACKAGE>>();
+    }
+    catch( ... )
+    {
+        return false;
+    }
+
+    for( size_t i = 0; i < saved_repo.package_list.size(); i++ )
+    {
+        PreparePackage( saved_repo.package_list[i] );
+        saved_repo.package_map[saved_repo.package_list[i].identifier] = i;
+    }
+
+    m_repository_cache[aRepositoryId] = std::move( saved_repo );
+    return true;
+}
+
+
+bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId, bool aAllowNetworkFetch )
 {
     if( m_repository_cache.find( aRepositoryId ) != m_repository_cache.end() )
         return true;
@@ -458,6 +514,9 @@ bool PLUGIN_CONTENT_MANAGER::CacheRepository( const wxString& aRepositoryId )
 
     if( repository_tuple == m_repository_list.end() )
         return false;
+
+    if( !aAllowNetworkFetch )
+        return loadRepositoryFromDiskCache( aRepositoryId );
 
     wxString url = std::get<2>( *repository_tuple );
 

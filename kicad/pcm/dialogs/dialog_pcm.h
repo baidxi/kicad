@@ -91,13 +91,18 @@ private:
      * @brief Gets package data from PCM and displays it on repository tab
      *
      * @param aRepositoryId id of the repository
+     * @param aAllowFetch when true, missing repository caches are fetched from the
+     *                    network; when false only existing caches are shown
      */
-    void setRepositoryData( const wxString& aRepositoryId );
+    void setRepositoryData( const wxString& aRepositoryId, bool aAllowFetch = false );
 
     /**
      * @brief Aggregates and deduplicates packages from all configured repositories
+     *
+     * @param aAllowFetch when true, missing repository caches are fetched from the
+     *                    network; when false only existing caches are shown
      */
-    void setRepositoryDataMulti();
+    void setRepositoryDataMulti( bool aAllowFetch = false );
 
     /**
      * @brief Shared logic to render a given set of packages to the UI notebooks
