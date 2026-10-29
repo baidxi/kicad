@@ -126,6 +126,18 @@ private:
     HANDLER_RESULT<commands::GetOpenDocumentsResponse>
     handleGetOpenDocuments( const HANDLER_CONTEXT<commands::GetOpenDocuments>& aCtx );
 
+    HANDLER_RESULT<kiapi::schematic::commands::CreateTopLevelSheetResponse>
+    handleCreateTopLevelSheet(
+            const HANDLER_CONTEXT<kiapi::schematic::commands::CreateTopLevelSheet>& aCtx );
+
+    HANDLER_RESULT<kiapi::schematic::commands::DeleteTopLevelSheetResponse>
+    handleDeleteTopLevelSheet(
+            const HANDLER_CONTEXT<kiapi::schematic::commands::DeleteTopLevelSheet>& aCtx );
+
+    HANDLER_RESULT<kiapi::schematic::commands::SetCurrentSheetResponse>
+    handleSetCurrentSheet(
+            const HANDLER_CONTEXT<kiapi::schematic::commands::SetCurrentSheet>& aCtx );
+
     HANDLER_RESULT<commands::GetItemsResponse> handleGetItems( const HANDLER_CONTEXT<commands::GetItems>& aCtx );
 
     HANDLER_RESULT<commands::GetItemsResponse>

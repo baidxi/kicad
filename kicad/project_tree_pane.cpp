@@ -2447,7 +2447,9 @@ void PROJECT_TREE_PANE::onGitSyncTimer( wxTimerEvent& aEvent )
     wxLogTrace( traceGit, "onGitSyncTimer" );
     COMMON_SETTINGS::GIT& gitSettings = Pgm().GetCommonSettings()->m_Git;
 
-    if( !gitSettings.enableGit || gitSettings.updatInterval <= 0 || !m_TreeProject )
+    // 修复：同 gitStatusTimerHandler——退出阶段停止工作，避免嵌套事件循环里的 use-after-free
+    if( !gitSettings.enableGit || gitSettings.updatInterval <= 0 || !m_TreeProject
+        || !wxApp::IsMainLoopRunning() )
         return;
 
     // Skip the tick rather than stack a second fetch. Assigning over a running std::async
@@ -2544,7 +2546,9 @@ void PROJECT_TREE_PANE::reportGitSyncResult( bool aFetched, std::optional<KIGIT_
 
 void PROJECT_TREE_PANE::gitStatusTimerHandler()
 {
-    if( !m_TreeProject )
+    // 修复：程序退出阶段（wxEntryCleanup）面板尚未析构而定时器仍会触发；此时弹出的
+    // 日志消息框进入嵌套事件循环，gitCommon() 内部锁所属对象可能已销毁导致 SIGSEGV。
+    if( !m_TreeProject || !wxApp::IsMainLoopRunning() )
         return;
 
     // Pin the session on the UI thread, so a concurrent release cannot free it while

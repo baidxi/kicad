@@ -51,7 +51,12 @@ bool SaveSheetToFile( SCH_SHEET* aSheet, SCHEMATIC& aSchematic, const wxString& 
     wxFileName schematicFileName( aPath );
     schematicFileName.MakeAbsolute();
 
-    if( !schematicFileName.DirExists() && !wxMkdir( schematicFileName.GetPath() ) )
+    // 修复：实例方法 DirExists() 的语义与本意不符，导致 wxMkdir 对已存在的父目录
+    // 再次 mkdir 而失败（error 17），多页原理图保存必然中断。
+    // 改用静态 wxDirExists 检查父目录字符串本身。
+    const wxString parentDir = schematicFileName.GetPath();
+
+    if( !wxDirExists( parentDir ) && !wxMkdir( parentDir ) )
         return false;
 
     if( schematicFileName.FileExists() && !schematicFileName.IsFileWritable() )

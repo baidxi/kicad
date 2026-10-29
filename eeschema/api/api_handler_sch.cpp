@@ -143,6 +143,15 @@ API_HANDLER_SCH::API_HANDLER_SCH( std::shared_ptr<SCH_CONTEXT> aContext,
 
     registerHandler<GetOpenDocuments, GetOpenDocumentsResponse>(
             &API_HANDLER_SCH::handleGetOpenDocuments );
+    registerHandler<kiapi::schematic::commands::CreateTopLevelSheet,
+                    kiapi::schematic::commands::CreateTopLevelSheetResponse>(
+            &API_HANDLER_SCH::handleCreateTopLevelSheet );
+    registerHandler<kiapi::schematic::commands::DeleteTopLevelSheet,
+                    kiapi::schematic::commands::DeleteTopLevelSheetResponse>(
+            &API_HANDLER_SCH::handleDeleteTopLevelSheet );
+    registerHandler<kiapi::schematic::commands::SetCurrentSheet,
+                    kiapi::schematic::commands::SetCurrentSheetResponse>(
+            &API_HANDLER_SCH::handleSetCurrentSheet );
     registerHandler<SaveDocument, google::protobuf::Empty>(
             &API_HANDLER_SCH::handleSaveDocument );
     registerHandler<SaveCopyOfDocument, google::protobuf::Empty>(
@@ -327,6 +336,238 @@ API_HANDLER_SCH::validateDocumentInternal( const DocumentSpecifier& aDocument ) 
     return true;
 }
 
+
+HANDLER_RESULT<kiapi::schematic::commands::CreateTopLevelSheetResponse>
+API_HANDLER_SCH::handleCreateTopLevelSheet( const HANDLER_CONTEXT<kiapi::schematic::commands::CreateTopLevelSheet>& aCtx )
+{
+    if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    const wxString name = wxString::FromUTF8( aCtx.Request.name() );
+
+    if( name.IsEmpty() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "sheet name is required" );
+        return tl::unexpected( e );
+    }
+
+    // Derive the file name from the sheet name when not given (mirrors the hierarchy pane)
+    wxString filename = wxString::FromUTF8( aCtx.Request.filename() );
+
+    if( filename.IsEmpty() )
+    {
+        filename = name;
+        filename.Replace( wxS( " " ), wxS( "_" ) );
+        filename.LowerCase();
+    }
+
+    if( !filename.EndsWith( wxT( ".kicad_sch" ) ) )
+        filename += wxT( ".kicad_sch" );
+
+    // The screen file name must be absolute: the save path resolves it without a project
+    // context, and a bare name would be resolved against the process working directory.
+    const wxString absolutePath = project().GetProjectPath() + filename;
+
+    // Find the lowest unused page number when not given
+    SCH_SHEET_LIST hierarchy = schematic()->Hierarchy();
+    wxString       pageStr = wxString::FromUTF8( aCtx.Request.page_number() );
+
+    if( pageStr.IsEmpty() )
+    {
+        int nextPage = 1;
+
+        do
+        {
+            pageStr = wxString::Format( wxT( "%d" ), nextPage++ );
+        } while( hierarchy.PageNumberExists( pageStr ) );
+    }
+
+    SCH_SHEET*  newSheet = new SCH_SHEET( schematic() );
+    SCH_SCREEN* newScreen = new SCH_SCREEN( schematic() );
+
+    newSheet->SetScreen( newScreen );
+    newSheet->GetField( FIELD_T::SHEET_NAME )->SetText( name );
+    newSheet->SetFileName( filename );
+    newScreen->SetFileName( absolutePath );
+
+    schematic()->AddTopLevelSheet( newSheet );
+
+    SCH_SHEET_PATH newSheetPath;
+    newSheetPath.push_back( newSheet );
+    newSheetPath.SetPageNumber( pageStr );
+
+    if( SCH_EDIT_FRAME* editFrame = frame() )
+    {
+        // Adding a top-level sheet drops the connection graph; rebuild it and refresh the
+        // hierarchy navigator (mirrors HIERARCHY_PANE::resyncAfterTopLevelSheetChange)
+        SCH_COMMIT dummy( editFrame );
+        editFrame->RecalculateConnections( &dummy, NO_CLEANUP );
+        editFrame->UpdateHierarchyNavigator();
+        editFrame->OnModify();
+    }
+
+    kiapi::schematic::commands::CreateTopLevelSheetResponse response;
+    kiapi::schematic::types::SheetInstance* instance = response.mutable_sheet();
+    instance->set_name( name.ToUTF8().data() );
+    instance->set_filename( filename.ToUTF8().data() );
+    instance->set_page_number( pageStr.ToUTF8().data() );
+
+    return response;
+}
+
+
+HANDLER_RESULT<kiapi::schematic::commands::DeleteTopLevelSheetResponse>
+API_HANDLER_SCH::handleDeleteTopLevelSheet( const HANDLER_CONTEXT<kiapi::schematic::commands::DeleteTopLevelSheet>& aCtx )
+{
+    if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    const wxString identifier = wxString::FromUTF8( aCtx.Request.identifier() );
+
+    if( identifier.IsEmpty() )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "identifier (file name or sheet name) is required" );
+        return tl::unexpected( e );
+    }
+
+    std::vector<SCH_SHEET*> topLevelSheets = schematic()->GetTopLevelSheets();
+
+    if( topLevelSheets.size() <= 1 )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( "cannot delete the last top-level sheet" );
+        return tl::unexpected( e );
+    }
+
+    SCH_SHEET* target = nullptr;
+
+    for( SCH_SHEET* sheet : topLevelSheets )
+    {
+        const wxString sheetFile = wxFileName( sheet->GetScreen()->GetFileName() ).GetFullName();
+
+        if( sheetFile == identifier || sheet->GetName() == identifier )
+        {
+            target = sheet;
+            break;
+        }
+    }
+
+    if( !target )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message( fmt::format( "no top-level sheet matches '{}'", identifier.ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    SCH_SHEET_PATH previousSheet;
+
+    if( SCH_EDIT_FRAME* editFrame = frame() )
+        previousSheet = editFrame->GetCurrentSheet();
+
+    if( !schematic()->RemoveTopLevelSheet( target ) )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_INTERNAL_ERROR );
+        e.set_error_message( "failed to remove top-level sheet" );
+        return tl::unexpected( e );
+    }
+
+    if( SCH_EDIT_FRAME* editFrame = frame() )
+    {
+        SCH_COMMIT dummy( editFrame );
+        editFrame->RecalculateConnections( &dummy, NO_CLEANUP );
+        editFrame->UpdateHierarchyNavigator();
+
+        // Removing the displayed sheet moves the current sheet without telling the canvas,
+        // which otherwise keeps drawing the deleted screen
+        if( editFrame->GetCurrentSheet() != previousSheet )
+            editFrame->DisplayCurrentSheet();
+
+        editFrame->OnModify();
+    }
+
+    kiapi::schematic::commands::DeleteTopLevelSheetResponse response;
+    response.set_deleted( true );
+
+    return response;
+}
+
+
+HANDLER_RESULT<kiapi::schematic::commands::SetCurrentSheetResponse>
+API_HANDLER_SCH::handleSetCurrentSheet(
+        const HANDLER_CONTEXT<kiapi::schematic::commands::SetCurrentSheet>& aCtx )
+{
+    if( HANDLER_RESULT<bool> documentValidation = validateDocument( aCtx.Request.document() ); !documentValidation )
+        return tl::unexpected( documentValidation.error() );
+
+    if( std::optional<ApiResponseStatus> busy = checkForBusy() )
+        return tl::unexpected( *busy );
+
+    SCH_EDIT_FRAME* editFrame = frame();
+
+    if( !editFrame )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_UNIMPLEMENTED );
+        e.set_error_message( "SetCurrentSheet requires the schematic editor GUI" );
+        return tl::unexpected( e );
+    }
+
+    const wxString identifier = wxString::FromUTF8( aCtx.Request.identifier() );
+    std::vector<SCH_SHEET*> topLevelSheets = schematic()->GetTopLevelSheets();
+    SCH_SHEET* target = topLevelSheets.empty() ? nullptr : topLevelSheets.front();
+
+    if( !identifier.IsEmpty() )
+    {
+        target = nullptr;
+
+        for( SCH_SHEET* sheet : topLevelSheets )
+        {
+            const wxString sheetFile = wxFileName( sheet->GetScreen()->GetFileName() ).GetFullName();
+
+            if( sheetFile == identifier || sheet->GetName() == identifier )
+            {
+                target = sheet;
+                break;
+            }
+        }
+    }
+
+    if( !target )
+    {
+        ApiResponseStatus e;
+        e.set_status( ApiStatusCode::AS_BAD_REQUEST );
+        e.set_error_message(
+                fmt::format( "no top-level sheet matches '{}'", identifier.ToStdString() ) );
+        return tl::unexpected( e );
+    }
+
+    SCH_SHEET_PATH newSheetPath;
+    newSheetPath.push_back( target );
+
+    editFrame->SetCurrentSheet( newSheetPath );
+    editFrame->DisplayCurrentSheet();
+
+    kiapi::schematic::commands::SetCurrentSheetResponse response;
+    kiapi::schematic::types::SheetInstance* instance = response.mutable_current();
+    instance->set_name( target->GetName().ToUTF8().data() );
+    instance->set_filename(
+            wxFileName( target->GetScreen()->GetFileName() ).GetFullName().ToUTF8().data() );
+
+    return response;
+}
 
 HANDLER_RESULT<google::protobuf::Empty> API_HANDLER_SCH::handleSaveDocument( const HANDLER_CONTEXT<SaveDocument>& aCtx )
 {
@@ -1354,8 +1595,13 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 {
                     wxFileName fileName( ExpandTextVars( rawFilename, &schematic()->Project(), INTERNAL ) );
 
+                    // 修复：Normalize 的基准必须取父页文件所在【目录】。原实现传入父页文件
+                    // 全路径，相对名 'child.kicad_sch' 被解析成 '<父文件名>/child.kicad_sch'
+                    // （把父文件当目录），保存时 mkdir 同名目录遇 EEXIST，多页保存必然失败。
+                    wxFileName parentFile( targetPath.LastScreen()->GetFileName() );
+
                     if( !fileName.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS,
-                                             targetPath.LastScreen()->GetFileName() ) )
+                                             parentFile.GetPath() ) )
                     {
                         status.set_code( ItemStatusCode::ISC_INVALID_DATA );
                         status.set_error_message( fmt::format( "could not resolve sheet filename '{}' for new sheet",

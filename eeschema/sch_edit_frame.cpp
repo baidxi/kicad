@@ -969,7 +969,10 @@ void SCH_EDIT_FRAME::setupUIConditions()
     auto showAnnotateAutomaticallyCond =
             [this]( const SELECTION& )
             {
-                return eeconfig()->m_AnnotatePanel.automatic;
+                // Settings are released before the frames during shutdown; guard against
+                // idle UI update events arriving after that point.
+                EESCHEMA_SETTINGS* cfg = eeconfig();
+                return cfg && cfg->m_AnnotatePanel.automatic;
             };
 
     auto remapSymbolsCondition =

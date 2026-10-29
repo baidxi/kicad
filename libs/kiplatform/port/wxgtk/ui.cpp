@@ -303,18 +303,26 @@ void dialogDebugLog( GtkWidget* aWidget, const char* aTag )
 struct DialogDebugCtx
 {
     GtkWidget* widget;
-    bool       rescued;
-    int        attempts;   // escalation rounds left
+    int        rescued;     // forced remaps performed so far (bounded)
+    int        attempts;    // polite present() rounds left
+    int        patrolCount; // low-frequency patrol ticks while not active
+    int        intervalMs;  // delay before the next probe
 };
 
-// Run shortly after mapping.  Mutter occasionally maps a new transient toplevel
-// without activating it, stacking it below the (disabled) parent -- with no client-side
-// way to raise a window under Wayland, a quick unmap/remap forces the compositor to
-// re-evaluate placement, which then activates the dialog every time.  The denial is
-// however probabilistic and races against a busy compositor (slow map, delayed
-// focus-stealing-prevention decision), so a single 40ms probe is not enough: probe
-// repeatedly -- first asking politely through gtk_window_present() (xdg-activation),
-// then escalating to the unmap/remap -- until the window is active or we give up.
+// Patrols a freshly shown toplevel until it is activated or destroyed.
+//
+// Two failure modes are handled:
+//  1. Mutter occasionally maps a new transient toplevel without activating it, stacking
+//     it below the (disabled) parent.  Activation is requested politely through
+//     gtk_window_present() (xdg-activation) for a bounded number of rounds.
+//  2. The compositor can unmap the dialog while its (quasi-)modal event loop is still
+//     running.  Because the modal loop keeps the whole parent frame disabled, an
+//     invisible dialog leaves every window unclickable -- the guard restores visibility
+//     as soon as it notices the dialog vanished.
+//
+// The patrol runs for the lifetime of the dialog (the weak pointer self-clears when the
+// window is destroyed) but only issues a bounded number of present() calls so it never
+// steals focus from other applications the user switched to.
 static gboolean dialogActivationGuard( gpointer aData )
 {
     DialogDebugCtx* ctx = static_cast<DialogDebugCtx*>( aData );
@@ -326,34 +334,66 @@ static gboolean dialogActivationGuard( gpointer aData )
         return G_SOURCE_REMOVE;
     }
 
-    if( !gtk_widget_get_visible( ctx->widget )
-            || gtk_window_is_active( GTK_WINDOW( ctx->widget ) ) )
+    if( gtk_window_is_active( GTK_WINDOW( ctx->widget ) ) )
     {
-        // Already active (or gone): done.
+        // Active: done.  Clear any urgency hint set while the compositor had stacked the
+        // dialog below its parent.
+        gtk_window_set_urgency_hint( GTK_WINDOW( ctx->widget ), FALSE );
         g_object_remove_weak_pointer( G_OBJECT( ctx->widget ),
                                       reinterpret_cast<gpointer*>( &ctx->widget ) );
         delete ctx;
         return G_SOURCE_REMOVE;
     }
 
-    if( ctx->attempts > 1 )
+    if( !gtk_widget_get_visible( ctx->widget ) )
+    {
+        // The dialog vanished underneath a still-running modal loop; the weak pointer
+        // is valid so the dialog object exists.  Bring it back and re-arm the activation
+        // attempts.
+        dialogDebugLog( ctx->widget, "activation-guard:reshow" );
+        gtk_widget_show( ctx->widget );
+        gtk_window_present( GTK_WINDOW( ctx->widget ) );
+        ctx->attempts = 2;
+        ctx->patrolCount = 0;
+    }
+    else if( ctx->attempts > 0 )
     {
         // Ask the compositor to activate us via xdg-activation and re-check shortly.
         dialogDebugLog( ctx->widget, "activation-guard:present" );
         gtk_window_present( GTK_WINDOW( ctx->widget ) );
-
         ctx->attempts--;
-        return G_SOURCE_CONTINUE;
+        ctx->patrolCount = 0;
+    }
+    else if( ++ctx->patrolCount >= 8 && ctx->rescued < 2 )
+    {
+        // Activation was denied and the dialog never became active: the compositor
+        // stacked it below its (disabled) parent, which freezes the whole UI for as
+        // long as the modal loop runs.  After a 2s grace period force a remap --
+        // mutter re-evaluates the placement of a freshly mapped toplevel and then
+        // activates the dialog.  Bounded to two attempts per dialog so a pathological
+        // compositor cannot turn this into a flashing loop.
+        dialogDebugLog( ctx->widget, "activation-guard:remap" );
+        gtk_widget_hide( ctx->widget );
+        gtk_widget_show( ctx->widget );
+        gtk_window_present( GTK_WINDOW( ctx->widget ) );
+        ctx->rescued++;
+        ctx->attempts = 2;
+        ctx->patrolCount = 0;
+    }
+    else if( ctx->patrolCount == 12 )
+    {
+        // Still not active ~3s after the rescue attempts: the compositor keeps the dialog
+        // stacked below its (disabled) parent.  Mark it urgent so the taskbar/dock flashes
+        // -- a single click on the dock entry brings the dialog back and unblocks the UI.
+        dialogDebugLog( ctx->widget, "activation-guard:urgent" );
+        gtk_window_set_urgency_hint( GTK_WINDOW( ctx->widget ), TRUE );
     }
 
-    // Last resort: unmap/remap forces mutter to re-evaluate the placement.
-    dialogDebugLog( ctx->widget, "activation-guard:remap" );
-    g_object_remove_weak_pointer( G_OBJECT( ctx->widget ),
-                                  reinterpret_cast<gpointer*>( &ctx->widget ) );
-    gtk_widget_hide( ctx->widget );
-    gtk_widget_show( ctx->widget );
-
-    delete ctx;
+    // Keep patrolling: fast while activation attempts remain, then a gentle 250ms check
+    // that never calls present() on its own (so it cannot steal focus from the
+    // application the user switched to).
+    ctx->intervalMs = ( ctx->attempts > 1 ) ? 50 : 250;
+    g_timeout_add( ctx->intervalMs, dialogActivationGuard, ctx );
     return G_SOURCE_REMOVE;
 }
 
@@ -380,7 +420,7 @@ static gboolean dialogDebugDelayed( gpointer aData )
 // holds the widget through a weak pointer, so a destroyed window is a no-op.
 static void scheduleActivationGuard( GtkWidget* aWidget )
 {
-    DialogDebugCtx* ctx = new DialogDebugCtx{ aWidget, false, 3 };
+    DialogDebugCtx* ctx = new DialogDebugCtx{ aWidget, 0, 4, 0, 50 };
     g_object_add_weak_pointer( G_OBJECT( aWidget ),
                                reinterpret_cast<gpointer*>( &ctx->widget ) );
     g_timeout_add( 40, dialogActivationGuard, ctx );
@@ -407,18 +447,23 @@ void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
     // parent (no client-side stacking, focus-stealing prevention denies activation to
     // the newly mapped window).  The modal flag must be set before the window is
     // mapped so GTK takes the full modal path from the start.
+    // The modal flag MUST be set before the window is mapped: without it the failure
+    // rate of the mutter-compositing bug below goes to 100%.  Keep the activation guard
+    // disabled though -- WAYLAND_DEBUG traces prove the guard's present()/remap calls
+    // cannot help: the compositor already activates the window (wl_keyboard.enter is
+    // delivered) while its texture is never put on any output.
     gtk_window_set_modal( GTK_WINDOW( widget ), aModal ? TRUE : FALSE );
 
     if( aModal )
     {
         dialogDebugLog( widget, "on-show" );
 
-        scheduleActivationGuard( widget );
+        // scheduleActivationGuard( widget );
 
         // Late diagnostic probe, only when explicitly debugging.
         if( const char* env = getenv( "KICAD_DIALOG_DEBUG" ); env && *env )
         {
-            DialogDebugCtx* probe = new DialogDebugCtx{ widget, false };
+            DialogDebugCtx* probe = new DialogDebugCtx{ widget, 0, 0, 0, 0 };
             g_object_add_weak_pointer( G_OBJECT( widget ),
                                        reinterpret_cast<gpointer*>( &probe->widget ) );
             g_timeout_add( 2500, dialogDebugDelayed, probe );
