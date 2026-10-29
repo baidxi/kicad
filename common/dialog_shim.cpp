@@ -502,8 +502,14 @@ bool DIALOG_SHIM::Show( bool show )
 #ifndef __WINDOWS__
         wxDialog::Raise();  // Needed on OS X and some other window managers (i.e. Unity)
 #endif
-        ret = wxDialog::Show( show );
 
+        // Everything that touches the window geometry below MUST run before the window
+        // is mapped.  Sizing a mapped toplevel under Wayland makes the compositor
+        // re-configure the window right after its map animation, which races the
+        // compositor's texture assignment and can leave the dialog permanently
+        // invisible (while still holding keyboard focus and blocking its parent).
+        // GTK treats a resize on an unmapped window as the default size instead, so
+        // the first committed frame already carries the final geometry.
         wxRect      savedDialogRect;
         std::string key = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
 
@@ -605,6 +611,9 @@ bool DIALOG_SHIM::Show( bool show )
         clampToWorkArea();
 
         KIPLATFORM::UI::EnsureVisible( this );
+
+        // Map only after the final geometry is in place (see the comment above).
+        ret = wxDialog::Show( show );
     }
     else
     {
@@ -1712,11 +1721,19 @@ void DIALOG_SHIM::OnPaint( wxPaintEvent &event )
 
 #ifdef __WXGTK__
         // GTK applies move/resize requests asynchronously, so the clamps in Show() ran
-        // against wx's cached (requested) geometry.  By the first paint the window
-        // manager has reported the real position, which can differ (restored geometry
-        // plus a window manager that offsets the window by its decorations) and can
-        // have landed off-screen.  Re-clamp against the true geometry.
-        clampToWorkArea();
+        // against wx's cached (requested) geometry.  By the first paint the window manager
+        // has reported the real position, which can differ (restored geometry plus a window
+        // manager that offsets the window by its decorations) and can have landed off-screen.
+        // Re-clamp only when the dialog actually landed off-screen: resizing an already
+        // mapped window on Wayland makes the window manager replay its map animation, which
+        // reads as the dialog vanishing and reappearing for every dialog whose restored
+        // geometry differs from the clamped one by a few pixels.
+        wxPoint grabPoint = GetPosition();
+        grabPoint.x += GetSize().x / 2;
+        grabPoint.y += FromDIP( 15 );
+
+        if( wxDisplay::GetFromPoint( grabPoint ) == wxNOT_FOUND )
+            clampToWorkArea();
 #endif
 
         m_firstPaintEvent = false;
