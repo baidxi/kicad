@@ -548,6 +548,32 @@ bool DIALOG_SHIM::Show( bool show )
             }
         }
 
+        // A geometry recorded on another monitor can be inflated on the way in or out:
+        // ToDIP/FromDIP are asymmetric across mixed-DPI displays because the scale factor
+        // is taken from the window's current monitor, not the monitor the geometry was
+        // recorded on.  Reject a restored size that does not fit the target display's
+        // work area instead of opening a dialog stretched over the whole screen.
+        if( savedDialogRect.GetSize().x != 0 && savedDialogRect.GetSize().y != 0 )
+        {
+            int    targetDisplay = wxDisplay::GetFromPoint( savedDialogRect.GetPosition() );
+            wxSize restoredSize  = FromDIP( savedDialogRect.GetSize() );
+            wxRect targetWorkArea;
+
+            if( targetDisplay == wxNOT_FOUND && m_parent )
+                targetDisplay = wxDisplay::GetFromWindow( m_parent );
+
+            if( targetDisplay != wxNOT_FOUND )
+                targetWorkArea = wxDisplay( (unsigned int) targetDisplay ).GetClientArea();
+
+            if( targetWorkArea.width > 0
+                && ( restoredSize.x > targetWorkArea.width
+                     || restoredSize.y > targetWorkArea.height ) )
+            {
+                resetSize(); // drop the inflated geometry from the settings
+                savedDialogRect = wxRect();
+            }
+        }
+
         if( savedDialogRect.GetSize().x != 0 && savedDialogRect.GetSize().y != 0 )
         {
             // Convert saved DIP size to logical pixels for the current monitor
@@ -762,13 +788,31 @@ void DIALOG_SHIM::SaveControlState()
     }
     else
     {
-        wxSize  dipSize = ToDIP( GetSize() );
-        nlohmann::json geom;
-        geom[ "x" ] = pos.x;
-        geom[ "y" ] = pos.y;
-        geom[ "w" ] = dipSize.x;
-        geom[ "h" ] = dipSize.y;
-        dlgMap[ "__geometry" ] = geom;
+        // Self-consistency check: the DIP round-trip must reproduce the current size.  A
+        // window that just moved between mixed-DPI monitors can transiently report a size
+        // scaled for one monitor while ToDIP/FromDIP apply the other monitor's factor;
+        // storing such a value would poison the geometry and open the dialog grossly
+        // oversized later on.  Drop the stale record instead.
+        wxSize size      = GetSize();
+        wxSize roundTrip = FromDIP( ToDIP( size ) );
+
+        bool selfConsistent = roundTrip.x >= size.x - 2 && roundTrip.x <= size.x + 2
+                              && roundTrip.y >= size.y - 2 && roundTrip.y <= size.y + 2;
+
+        if( !selfConsistent )
+        {
+            dlgMap.erase( "__geometry" );
+        }
+        else
+        {
+            wxSize  dipSize = ToDIP( size );
+            nlohmann::json geom;
+            geom[ "x" ] = pos.x;
+            geom[ "y" ] = pos.y;
+            geom[ "w" ] = dipSize.x;
+            geom[ "h" ] = dipSize.y;
+            dlgMap[ "__geometry" ] = geom;
+        }
     }
 
     std::function<void( wxWindow* )> saveFn =
