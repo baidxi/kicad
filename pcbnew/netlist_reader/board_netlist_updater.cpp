@@ -2295,7 +2295,26 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
             }
             else
             {
-                match = footprint->GetReference().CmpNoCase( component->GetReference() ) == 0;
+                // Re-annotation moves designators without moving UUIDs: the footprint whose
+                // path matches is the same physical part even though its reference changed,
+                // and matching by reference alone would shuffle footprints between symbols
+                // whenever designators were re-annotated.  Prefer the path association and
+                // fall back to the reference match only when the path does not resolve
+                // (the original use case for reference-based relinking).
+                for( const KIID& uuid : component->GetKIIDs() )
+                {
+                    KIID_PATH base = component->GetPath();
+                    base.push_back( uuid );
+
+                    if( footprint->GetPath() == base )
+                    {
+                        match = true;
+                        break;
+                    }
+                }
+
+                if( !match )
+                    match = footprint->GetReference().CmpNoCase( component->GetReference() ) == 0;
             }
 
             if( match )
@@ -2521,6 +2540,13 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
                 component = aNetlist.GetComponentByPath( footprint->GetPath() );
             else
                 component = aNetlist.GetComponentByReference( footprint->GetReference() );
+
+            // Re-annotation safety net: in reference-based relink mode a footprint whose
+            // path still resolves in the netlist belongs to a symbol that was merely
+            // re-annotated, not one that was deleted from the schematic.  Keep it instead
+            // of letting the "delete extra footprints" option remove it.
+            if( !component && !footprint->GetPath().empty() )
+                component = aNetlist.GetComponentByPath( footprint->GetPath() );
 
             if( component && component->GetProperties().count( wxT( "exclude_from_board" ) ) == 0 )
             {
