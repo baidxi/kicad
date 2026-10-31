@@ -244,6 +244,7 @@ keep_end_layers
 keep_text_aligned
 keep_upright
 kicad_pcb
+kicad_footprint_lib
 knockout
 last_trace_width
 layer
@@ -393,6 +394,7 @@ span
 spec_frequency
 square
 stackup
+stackup_table
 start
 start_angle
 start_end_only

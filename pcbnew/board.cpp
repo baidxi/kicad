@@ -1528,7 +1528,10 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode, bool aSkipConnectivity 
     switch( aBoardItem->Type() )
     {
     case PCB_NETINFO_T:
-        m_NetInfo.AppendNet( (NETINFO_ITEM*) aBoardItem );
+        // A duplicate net is deleted here, so nothing below may touch it
+        if( !m_NetInfo.AppendNet( (NETINFO_ITEM*) aBoardItem ) )
+            return;
+
         break;
 
     // this one uses a vector
@@ -1607,6 +1610,7 @@ void BOARD::Add( BOARD_ITEM* aBoardItem, ADD_MODE aMode, bool aSkipConnectivity 
     case PCB_TEXTBOX_T:
     case PCB_TABLE_T:
     case PCB_DRILL_CHART_T:
+    case PCB_STACKUP_TABLE_T:
     case PCB_DRILL_MAP_T:
     case PCB_TARGET_T:
     case PCB_GRID_ITEM_T:
@@ -1769,6 +1773,7 @@ void BOARD::Remove( BOARD_ITEM* aBoardItem, REMOVE_MODE aRemoveMode )
     case PCB_TEXTBOX_T:
     case PCB_TABLE_T:
     case PCB_DRILL_CHART_T:
+    case PCB_STACKUP_TABLE_T:
     case PCB_DRILL_MAP_T:
     case PCB_TARGET_T:
     case PCB_GRID_ITEM_T:
@@ -1884,6 +1889,7 @@ void BOARD::RemoveAll( std::initializer_list<KICAD_T> aTypes )
         case PCB_TEXTBOX_T:
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         case PCB_DRILL_MAP_T:
         case PCB_TARGET_T:
         case PCB_BARCODE_T:
@@ -2677,6 +2683,7 @@ INSPECT_RESULT BOARD::Visit( INSPECTOR inspector, void* testData, const std::vec
         case PCB_TEXTBOX_T:
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         case PCB_DRILL_MAP_T:
         case PCB_TABLECELL_T:
         case PCB_DIM_ALIGNED_T:
@@ -2810,6 +2817,17 @@ NETINFO_ITEM* BOARD::FindNet( int aNetcode ) const
 NETINFO_ITEM* BOARD::FindNet( const wxString& aNetname ) const
 {
     return m_NetInfo.GetNetItem( aNetname );
+}
+
+
+NETINFO_ITEM* BOARD::FindOrAddNet( const wxString& aNetName, int aNetCode, ADD_MODE aMode, bool aSkipConnectivity )
+{
+    if( NETINFO_ITEM* existing = FindNet( aNetName ) )
+        return existing;
+
+    NETINFO_ITEM* net = new NETINFO_ITEM( this, aNetName, aNetCode );
+    Add( net, aMode, aSkipConnectivity );
+    return net;
 }
 
 
@@ -4160,6 +4178,7 @@ void BOARD::ConvertBrdLayerToPolygonalContours( PCB_LAYER_ID aLayer, SHAPE_POLY_
 
         case PCB_TABLE_T:
         case PCB_DRILL_CHART_T:
+        case PCB_STACKUP_TABLE_T:
         {
             const PCB_TABLE* table = static_cast<const PCB_TABLE*>( item );
             table->TransformGraphicItemsToPolySet( aOutlines, maxError, ERROR_INSIDE, aRenderSettings );

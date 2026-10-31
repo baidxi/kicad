@@ -410,16 +410,17 @@ int EESCHEMA_JOBS_HANDLER::JobExportPlot( JOB* aJob )
     case JOB_PAGE_SIZE::PAGE_SIZE_AUTO: pageSizeSelect = PageFormatReq::PAGE_SIZE_AUTO; break;
     }
 
-    if( !aPlotJob->GetOutputPathIsDirectory() && aPlotJob->GetConfiguredOutputPath().IsEmpty() )
-    {
-        wxFileName fn = sch->GetFileName();
-        fn.SetName( fn.GetName() );
-        fn.SetExt( GetDefaultPlotExtension( format ) );
+    wxFileName defaultFn = sch->GetFileName();
+    defaultFn.SetExt( GetDefaultPlotExtension( format ) );
 
-        aPlotJob->SetConfiguredOutputPath( fn.GetFullName() );
-    }
+    if( !aPlotJob->GetOutputPathIsDirectory() && aPlotJob->GetConfiguredOutputPath().IsEmpty() )
+        aPlotJob->SetConfiguredOutputPath( defaultFn.GetFullName() );
 
     wxString outPath = aPlotJob->GetFullOutputPath( &sch->Project() );
+
+    // A folder in file mode gets the default name inside it
+    if( !aPlotJob->GetOutputPathIsDirectory() )
+        outPath = JOB::AppendDefaultFileName( outPath, defaultFn.GetFullName() );
 
     if( !PATHS::EnsurePathExists( outPath, !aPlotJob->GetOutputPathIsDirectory() ) )
     {
@@ -583,16 +584,14 @@ int EESCHEMA_JOBS_HANDLER::JobExportNetlist( JOB* aJob )
         return CLI::EXIT_CODES::ERR_UNKNOWN;
     }
 
+    wxFileName defaultFn = sch->GetFileName();
+    defaultFn.SetExt( fileExt );
+
     if( aNetJob->GetConfiguredOutputPath().IsEmpty() )
-    {
-        wxFileName fn = sch->GetFileName();
-        fn.SetName( fn.GetName() );
-        fn.SetExt( fileExt );
+        aNetJob->SetConfiguredOutputPath( defaultFn.GetFullName() );
 
-        aNetJob->SetConfiguredOutputPath( fn.GetFullName() );
-    }
-
-    wxString outPath = aNetJob->GetFullOutputPath( &sch->Project() );
+    wxString outPath = JOB::AppendDefaultFileName( aNetJob->GetFullOutputPath( &sch->Project() ),
+                                                   defaultFn.GetFullName() );
 
     if( !PATHS::EnsurePathExists( outPath, true ) )
     {
@@ -922,14 +921,11 @@ int EESCHEMA_JOBS_HANDLER::JobExportBom( JOB* aJob )
         fmt.includeByteOrderMark = aBomJob->m_includeByteOrderMark;
     }
 
-    if( aBomJob->GetConfiguredOutputPath().IsEmpty() )
-    {
-        wxFileName fn = sch->GetFileName();
-        fn.SetName( fn.GetName() );
-        fn.SetExt( FILEEXT::CsvFileExtension );
+    wxFileName defaultFn = sch->GetFileName();
+    defaultFn.SetExt( FILEEXT::CsvFileExtension );
 
-        aBomJob->SetConfiguredOutputPath( fn.GetFullName() );
-    }
+    if( aBomJob->GetConfiguredOutputPath().IsEmpty() )
+        aBomJob->SetConfiguredOutputPath( defaultFn.GetFullName() );
 
     wxString configuredPath = aBomJob->GetConfiguredOutputPath();
     bool     hasVariantPlaceholder = configuredPath.Contains( wxS( "${VARIANT}" ) );
@@ -968,6 +964,8 @@ int EESCHEMA_JOBS_HANDLER::JobExportBom( JOB* aJob )
         {
             outPath = aBomJob->GetFullOutputPath( &sch->Project() );
         }
+
+        outPath = JOB::AppendDefaultFileName( outPath, defaultFn.GetFullName() );
 
         if( !PATHS::EnsurePathExists( outPath, true ) )
         {
@@ -1040,16 +1038,15 @@ int EESCHEMA_JOBS_HANDLER::JobExportPythonBom( JOB* aJob )
 
     std::unique_ptr<NETLIST_EXPORTER_XML> xmlNetlist = std::make_unique<NETLIST_EXPORTER_XML>( sch, m_kiway );
 
+    wxFileName defaultFn = sch->GetFileName();
+    defaultFn.SetName( defaultFn.GetName() + "-bom" );
+    defaultFn.SetExt( FILEEXT::XmlFileExtension );
+
     if( aNetJob->GetConfiguredOutputPath().IsEmpty() )
-    {
-        wxFileName fn = sch->GetFileName();
-        fn.SetName( fn.GetName() + "-bom" );
-        fn.SetExt( FILEEXT::XmlFileExtension );
+        aNetJob->SetConfiguredOutputPath( defaultFn.GetFullName() );
 
-        aNetJob->SetConfiguredOutputPath( fn.GetFullName() );
-    }
-
-    wxString outPath = aNetJob->GetFullOutputPath( &sch->Project() );
+    wxString outPath = JOB::AppendDefaultFileName( aNetJob->GetFullOutputPath( &sch->Project() ),
+                                                   defaultFn.GetFullName() );
 
     if( !PATHS::EnsurePathExists( outPath, true ) )
     {
@@ -1362,22 +1359,21 @@ int EESCHEMA_JOBS_HANDLER::JobSchErc( JOB* aJob )
     aJob->SetTitleBlock( sch->RootScreen()->GetTitleBlock() );
     sch->Project().ApplyTextVars( aJob->GetVarOverrides() );
 
+    wxFileName defaultFn = sch->GetFileName();
+    defaultFn.SetName( defaultFn.GetName() + wxS( "-erc" ) );
+
+    if( ercJob->m_format == JOB_SCH_ERC::OUTPUT_FORMAT::JSON )
+        defaultFn.SetExt( FILEEXT::JsonFileExtension );
+    else
+        defaultFn.SetExt( FILEEXT::ReportFileExtension );
+
+    // Use a transient working path so an empty configured output filename isn't persisted
+    // back into the jobset file. Mirrors the PCB DRC handler.
     if( ercJob->GetConfiguredOutputPath().IsEmpty() )
-    {
-        wxFileName fn = sch->GetFileName();
-        fn.SetName( fn.GetName() + wxS( "-erc" ) );
+        ercJob->SetWorkingOutputPath( defaultFn.GetFullName() );
 
-        if( ercJob->m_format == JOB_SCH_ERC::OUTPUT_FORMAT::JSON )
-            fn.SetExt( FILEEXT::JsonFileExtension );
-        else
-            fn.SetExt( FILEEXT::ReportFileExtension );
-
-        // Use a transient working path so an empty configured output filename isn't persisted
-        // back into the jobset file. Mirrors the PCB DRC handler.
-        ercJob->SetWorkingOutputPath( fn.GetFullName() );
-    }
-
-    wxString outPath = ercJob->GetFullOutputPath( &sch->Project() );
+    wxString outPath = JOB::AppendDefaultFileName( ercJob->GetFullOutputPath( &sch->Project() ),
+                                                   defaultFn.GetFullName() );
 
     if( !PATHS::EnsurePathExists( outPath, true ) )
     {

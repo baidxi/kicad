@@ -58,6 +58,11 @@ set( QA_PCBNEW_SRCS
     test_convert_tool.cpp
     test_generator_load_save.cpp
     test_glb_utils.cpp
+    test_block_drag_capability.cpp
+    test_block_drag_dependents.cpp
+    test_block_drag_displacement.cpp
+    test_block_drag_pick.cpp
+    test_block_drag_validation.cpp
     test_graphics_load_save.cpp
     test_graphic_extend.cpp
     test_graphic_trim.cpp
@@ -78,6 +83,7 @@ set( QA_PCBNEW_SRCS
     test_footprint_realignment.cpp
     test_cross_probe_selection.cpp
     test_footprint_transform_sync.cpp
+    test_ref_suffix_split.cpp
     test_footprint_rescue_layer.cpp
     test_issue24735.cpp
     test_issue24901.cpp
@@ -103,6 +109,7 @@ set( QA_PCBNEW_SRCS
     test_odb_soldermask_shape_export.cpp
     test_issue25074_odb_knockout_textbox.cpp
     test_pcb_control_rehatch.cpp
+    test_pcb_handle_key.cpp
     test_pns_basics.cpp
     test_pad_check.cpp
     test_pad_flashing.cpp
@@ -120,6 +127,7 @@ set( QA_PCBNEW_SRCS
     test_pad_swap_positions.cpp
     test_pad_tenting.cpp
     test_plot_edge_cuts_drill_marks.cpp
+    test_plot_job_layers.cpp
     test_plot_pad_mask.cpp
     test_plot_footprint_scaled_text.cpp
     test_pcb_textbox.cpp
@@ -567,6 +575,7 @@ set( PCBNEW_EXCLUDED_FROM_OTHER
 :!RegressionShallowArcZoneFill\
 :!RegressionIterativeRefillRespectsKeepouts\
 :!RegressionTHPadInnerLayerFlashing\
+:!RegressionThermalReliefAnnularRing45\
 :!RegressionRoundRectTeardropGeometry\
 :!OvalPadTeardropGeometry\
 :!LargeCircleTeardropGeometry\

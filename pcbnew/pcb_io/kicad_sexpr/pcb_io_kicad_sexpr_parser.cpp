@@ -53,6 +53,7 @@
 #include <pcb_track.h>
 #include <pcb_textbox.h>
 #include <pcb_drill_chart.h>
+#include <pcb_stackup_table.h>
 #include <pcb_drill_map.h>
 #include <pcb_table.h>
 #include <pad.h>
@@ -1127,9 +1128,17 @@ BOARD_ITEM* PCB_IO_KICAD_SEXPR_PARSER::Parse()
         THROW_PARSE_ERROR( err, CurSource(), CurLine(), CurLineNumber(), CurOffset() );
     }
 
-    const std::vector<wxString>* embeddedFonts = item->GetEmbeddedFiles()->UpdateFontFiles();
+    finishItem( item );
 
-    item->RunOnChildren(
+    return item;
+}
+
+
+void PCB_IO_KICAD_SEXPR_PARSER::finishItem( BOARD_ITEM* aItem )
+{
+    const std::vector<wxString>* embeddedFonts = aItem->GetEmbeddedFiles()->UpdateFontFiles();
+
+    aItem->RunOnChildren(
             [&]( BOARD_ITEM* aChild )
             {
                 if( EDA_TEXT* textItem = dynamic_cast<EDA_TEXT*>( aChild ) )
@@ -1137,10 +1146,130 @@ BOARD_ITEM* PCB_IO_KICAD_SEXPR_PARSER::Parse()
             },
             RECURSE_MODE::RECURSE );
 
-    resolveGroups( item );
-    resolveConstraints( item );
+    resolveGroups( aItem );
+    resolveConstraints( aItem );
 
-    return item;
+    // The next footprint in a file must not resolve against these
+    m_groupInfos.clear();
+    m_generatorInfos.clear();
+    m_constraintInfos.clear();
+}
+
+
+void PCB_IO_KICAD_SEXPR_PARSER::ParseFootprintLib(
+        boost::ptr_map<wxString, FP_CACHE_ENTRY, std::less<wxString>,
+                       boost::heap_clone_allocator,
+                       std::allocator<std::pair<const wxString, void*>>>& aFootprints )
+{
+    T token;
+
+    std::unique_ptr<wxArrayString> initial_comments( ReadCommentLines() );
+
+    auto parseFp = [&]()
+    {
+        std::unique_ptr<FOOTPRINT> footprint( parseFOOTPRINT( initial_comments.release() ) );
+
+        if( footprint )
+        {
+            wxString fpName = footprint->GetFPID().GetLibItemName();
+            footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
+
+            // Locking a footprint has no meaning outside of a board
+            footprint->SetLocked( false );
+            footprint->SetFileFormatVersionAtLoad( m_requiredVersion );
+
+            finishItem( footprint.get() );
+
+            WX_FILENAME fn( wxEmptyString, fpName );
+            aFootprints.insert( fpName, new FP_CACHE_ENTRY( footprint.release(), fn ) );
+        }
+    };
+
+    for( token = CurTok(); token != T_RIGHT; token = NextTok() )
+    {
+        if( token != T_LEFT )
+            Expecting( T_LEFT );
+
+        token = NextTok();
+
+        switch( token )
+        {
+        case T_module:              // legacy token
+        case T_footprint:           // This is a footprint file prior to the header addition.
+            parseFp();              // There is only a single footprint so the closing ')' has already been parsed.
+            return;
+
+        case T_kicad_footprint_lib:
+        {
+            bool hasVersion = false;
+
+            // Version gates in the footprint parser need this before they run
+            auto checkVersion =
+                    [&]()
+                    {
+                        if( !hasVersion )
+                            Expecting( "version" );
+
+                        if( m_tooRecent )
+                            throw FUTURE_FORMAT_ERROR( fmt::format( "{}", m_requiredVersion ), m_generatorVersion );
+                    };
+
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                if( token != T_LEFT )
+                    Expecting( T_LEFT );
+
+                token = NextTok();
+
+                switch( token )
+                {
+                case T_version:
+                {
+                    if( hasVersion )
+                        Unexpected( token );
+
+                    hasVersion = true;
+
+                    int versionNumber = parseInt( "version" );
+
+                    m_requiredVersion = versionNumber;
+                    m_tooRecent = ( versionNumber > SEXPR_FOOTPRINT_LIB_FILE_VERSION );
+                    SetKnowsBar( m_requiredVersion >= 20240706 ); // Bar token is known from this version
+                    NeedRIGHT();
+                    break;
+                }
+
+                case T_generator:
+                    NeedSYMBOL();
+                    NeedRIGHT();
+                    break;
+
+                case T_generator_version:
+                    NeedSYMBOL();
+                    m_generatorVersion = FromUTF8();
+                    NeedRIGHT();
+                    break;
+
+                case T_footprint:
+                    checkVersion();
+                    parseFp();
+                    break;
+
+                default:
+                    checkVersion();
+                    Expecting( "footprint, generator, generator_version, or version" );
+                }
+            }
+
+            checkVersion();
+
+            return;
+        }
+
+        default:
+            Expecting( "footprint or kicad_footprint_lib" );
+        }
+    }
 }
 
 
@@ -1307,6 +1436,12 @@ BOARD* PCB_IO_KICAD_SEXPR_PARSER::parseBOARD_unchecked()
 
         case T_drill_chart:
             item = parseGeneratedTable( std::make_unique<PCB_DRILL_CHART>( m_board ) );
+            m_board->Add( item, ADD_MODE::BULK_APPEND, true );
+            bulkAddedItems.push_back( item );
+            break;
+
+        case T_stackup_table:
+            item = parseGeneratedTable( std::make_unique<PCB_STACKUP_TABLE>( m_board ) );
             m_board->Add( item, ADD_MODE::BULK_APPEND, true );
             bulkAddedItems.push_back( item );
             break;
@@ -2355,7 +2490,6 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseBoardStackup()
                 item->AddDielectricPrms( sublayer_idx );
             }
         }
-
     }
 
     if( token != T_RIGHT )
@@ -3499,8 +3633,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parseNETINFO_ITEM()
     // (TODO: a better test.)
     if( netCode > NETINFO_LIST::UNCONNECTED || !m_board->FindNet( NETINFO_LIST::UNCONNECTED ) )
     {
-        NETINFO_ITEM* net = new NETINFO_ITEM( m_board, name, netCode );
-        m_board->Add( net, ADD_MODE::INSERT, true );
+        NETINFO_ITEM* net = m_board->FindOrAddNet( name, netCode, ADD_MODE::INSERT, true );
 
         // Store the new code mapping
         pushValueIntoMap( netCode, net->GetNetCode() );
@@ -4523,9 +4656,10 @@ PCB_TEXT* PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT( BOARD_ITEM* aParent, PCB_TEX
 }
 
 
-void PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT_effects( PCB_TEXT* aText, PCB_TEXT* aBaseText )
+bool PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT_effects( PCB_TEXT* aText, PCB_TEXT* aBaseText )
 {
     FOOTPRINT* parentFP = dynamic_cast<FOOTPRINT*>( aText->GetParent() );
+    bool       sawEffects = false;
     bool hasAngle       = false;    // Old files do not have a angle specified.
                                     // in this case it is 0 expected to be 0
     bool hasPos         = false;
@@ -4629,6 +4763,7 @@ void PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT_effects( PCB_TEXT* aText, PCB_TEXT
             break;
 
         case T_effects:
+            sawEffects = true;
             parseEDA_TEXT( static_cast<EDA_TEXT*>( aText ) );
             break;
 
@@ -4674,6 +4809,8 @@ void PCB_IO_KICAD_SEXPR_PARSER::parsePCB_TEXT_effects( PCB_TEXT* aText, PCB_TEXT
         if( !aText->GetAutoThickness() )
             aText->SetLibTextThickness( aText->GetTextThickness() );
     }
+
+    return sawEffects;
 }
 
 
@@ -5356,7 +5493,7 @@ PCB_GENERATED_TABLE* PCB_IO_KICAD_SEXPR_PARSER::parseGeneratedTable( std::unique
     const GENERATED_TABLE_SCHEMA& schema = aTable->Schema();
 
     // The file's columns replace the defaults a new table starts with rather than adding to them
-    aTable->Columns().clear();
+    std::vector<GENERATED_TABLE_COLUMN> columns;
 
     // The writer omits units and precision equal to these, whatever the constructor chose
     aTable->SetUnits( schema.DefaultUnits() );
@@ -5455,13 +5592,18 @@ PCB_GENERATED_TABLE* PCB_IO_KICAD_SEXPR_PARSER::parseGeneratedTable( std::unique
                     NeedRIGHT();
                     break;
 
+                case T_hide:
+                    col.m_Visible = !parseBool();
+                    NeedRIGHT();
+                    break;
+
                 default:
                     skipCurrent();
                     break;
                 }
             }
 
-            aTable->Columns().push_back( col );
+            columns.push_back( col );
             break;
         }
 
@@ -5499,15 +5641,27 @@ PCB_GENERATED_TABLE* PCB_IO_KICAD_SEXPR_PARSER::parseGeneratedTable( std::unique
         }
     }
 
-    if( aTable->Columns().empty() )
-        aTable->Columns() = schema.Defaults();
+    if( columns.empty() )
+        columns = schema.Defaults();
+
+    const auto anyShown =
+            []( const std::vector<GENERATED_TABLE_COLUMN>& aColumns )
+            {
+                return std::any_of( aColumns.begin(), aColumns.end(),
+                                    []( const GENERATED_TABLE_COLUMN& aCol )
+                                    {
+                                        return aCol.m_Visible;
+                                    } );
+            };
 
     // No columns leaves every later consumer dividing by the column count. Repeats and
     // implausible widths reach table geometry
-    if( aTable->GetColCount() < 1 || !schema.Validate( aTable->Columns() ) )
+    if( aTable->GetColCount() < 1 || !schema.Validate( columns ) || !anyShown( columns ) )
     {
         THROW_IO_ERROR( wxString::Format( _( "Invalid %s: bad column set" ), aTable->GetFriendlyName() ) );
     }
+
+    aTable->RestoreColumns( columns );
 
     // Copper, silkscreen, mask, paste, adhesive, Edge.Cuts, Margin and courtyard are all
     // manufacturing inputs that table artwork would corrupt rather than document
@@ -5554,7 +5708,7 @@ bool PCB_IO_KICAD_SEXPR_PARSER::parseGeneratedTableExtra( PCB_GENERATED_TABLE* a
             return true;
 
         case T_totals:
-            chart->SetShowTotals( parseBool() );
+            chart->RestoreShowTotals( parseBool() );
             NeedRIGHT();
             return true;
 
@@ -6125,7 +6279,7 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
     auto checkVersion =
             [&]()
             {
-                if( m_requiredVersion > SEXPR_BOARD_FILE_VERSION )
+                if( m_requiredVersion > SEXPR_FOOTPRINT_LIB_FILE_VERSION )
                     throw FUTURE_FORMAT_ERROR( fmt::format( "{}", m_requiredVersion ), m_generatorVersion );
             };
 
@@ -6144,7 +6298,7 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
             int this_version = parseInt( FromUTF8().mb_str( wxConvUTF8 ) );
             NeedRIGHT();
             m_requiredVersion = std::max( m_requiredVersion, this_version );
-            m_tooRecent       = ( m_requiredVersion > SEXPR_BOARD_FILE_VERSION );
+            m_tooRecent       = ( m_requiredVersion > SEXPR_FOOTPRINT_LIB_FILE_VERSION );
             SetKnowsBar( m_requiredVersion >= 20240706 ); // Bar token is known from this version
             footprint->SetFileFormatVersionAtLoad( this_version );
             break;
@@ -6335,6 +6489,7 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
 
             PCB_FIELD* field = nullptr;
             std::unique_ptr<PCB_FIELD> unusedField;
+            bool                       newField = false;
 
             // 8.0.0rc3 had a bug where these properties were mistakenly added to the footprint as
             // fields, this will remove them as fields but still correctly set the footprint filters
@@ -6369,8 +6524,7 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
                 field->SetText( pValue );
                 field->SetLayer( footprint->GetLayer() == F_Cu ? F_Fab : B_Fab );
 
-                if( m_board )   // can be null when reading a lib
-                    field->StyleFromSettings( m_board->GetDesignSettings(), true );
+                newField = true;
             }
 
             // Hide the field by default if it is a legacy field that did not have
@@ -6380,7 +6534,12 @@ FOOTPRINT* PCB_IO_KICAD_SEXPR_PARSER::parseFOOTPRINT_unchecked( wxArrayString* a
             else
                 field->SetVisible( true );
 
-            parsePCB_TEXT_effects( field );
+            bool sawEffects = parsePCB_TEXT_effects( field );
+
+            // Fields too old to carry effects have no style of their own, so give them the
+            // board's. A file that did carry effects has said all it means to say.
+            if( newField && !sawEffects && m_board ) // m_board is null when reading a lib
+                field->StyleFromSettings( m_board->GetDesignSettings(), true );
         }
             break;
 

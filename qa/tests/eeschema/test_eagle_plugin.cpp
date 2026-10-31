@@ -464,7 +464,7 @@ BOOST_AUTO_TEST_CASE( BinaryNetLabelAndHighVariantImported )
 
     int symbolCount = 0;
     SCH_SYMBOL* c4 = nullptr;
-    SCH_LABEL_BASE* netLabel = nullptr;
+    SCH_LABEL_BASE* vssLabel = nullptr;
 
     for( const SCH_SHEET_PATH& sheetPath : schematic->BuildSheetListSortedByPageNumbers() )
     {
@@ -478,7 +478,10 @@ BOOST_AUTO_TEST_CASE( BinaryNetLabelAndHighVariantImported )
             if( item->Type() == SCH_LABEL_T || item->Type() == SCH_GLOBAL_LABEL_T
                 || item->Type() == SCH_HIER_LABEL_T )
             {
-                netLabel = static_cast<SCH_LABEL_BASE*>( item );
+                SCH_LABEL_BASE* label = static_cast<SCH_LABEL_BASE*>( item );
+
+                if( label->GetText() == wxS( "VSS" ) )
+                    vssLabel = label;
             }
             else if( item->Type() == SCH_SYMBOL_T )
             {
@@ -491,14 +494,46 @@ BOOST_AUTO_TEST_CASE( BinaryNetLabelAndHighVariantImported )
         }
     }
 
-    // single placed net label on VSS, previously dropped entirely
-    BOOST_REQUIRE_MESSAGE( netLabel, "placed net label was not imported" );
-    BOOST_CHECK_EQUAL( netLabel->GetText(), wxS( "VSS" ) );
+    // placed net label on VSS, previously dropped entirely; a dropped one comes back as a generated 40 mil label
+    BOOST_REQUIRE_MESSAGE( vssLabel, "VSS net label was not imported" );
+    BOOST_CHECK_NE( vssLabel->GetTextSize().x, schIUScale.MilsToIU( 40 ) );
 
     // 36 placed instances, C4 is CPOL-EU with variant ordinal 131
     BOOST_CHECK_EQUAL( symbolCount, 36 );
     BOOST_REQUIRE_MESSAGE( c4, "CPOL-EU symbol C4 (variant ordinal 131) was not imported" );
     BOOST_CHECK( c4->GetLibSymbolRef() != nullptr );
+}
+
+
+// a lone wired segment of an Eagle-generated N$ net needs no label, so every N$ label joins at least two places
+BOOST_AUTO_TEST_CASE( AutoNamedNetsLabelledOnlyWhenJoinedByName )
+{
+    const wxFileName eagleFn = getEagleTestSchematic( "issue24829_brenner.sch" );
+    BOOST_REQUIRE( wxFileExists( eagleFn.GetFullPath() ) );
+
+    std::unique_ptr<SCHEMATIC> schematic;
+    loadEagleSchematic( eagleFn, wxS( "eagle_auto_net_labels" ), schematic );
+
+    std::map<wxString, int> autoLabelCounts;
+
+    for( const SCH_SHEET_PATH& sheetPath : schematic->BuildSheetListSortedByPageNumbers() )
+    {
+        SCH_SCREEN* screen = sheetPath.LastScreen();
+
+        if( !screen )
+            continue;
+
+        for( SCH_ITEM* item : screen->Items().OfType( SCH_GLOBAL_LABEL_T ) )
+        {
+            const wxString& text = static_cast<SCH_LABEL_BASE*>( item )->GetText();
+
+            if( text.StartsWith( wxS( "N$" ) ) )
+                autoLabelCounts[text]++;
+        }
+    }
+
+    for( const auto& [text, count] : autoLabelCounts )
+        BOOST_CHECK_MESSAGE( count > 1, text << " labels a lone wired segment" );
 }
 
 

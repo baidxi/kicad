@@ -74,6 +74,7 @@ set( QA_EESCHEMA_SRCS
     sch_io/orcad/test_orcad_sch_import.cpp
     sch_io/cadstar/test_issue14447_arc_connection.cpp
 
+    erc/test_erc_annotation.cpp
     erc/test_erc_empty_label.cpp
     erc/test_erc_empty_power_value.cpp
     erc/test_erc_four_way.cpp
@@ -168,6 +169,7 @@ set( QA_EESCHEMA_SRCS
     test_issue24943_variant_unit_sync.cpp
     test_issue25119_bom_netlist_variant.cpp
     test_issue25198_multi_top_level_plot.cpp
+    test_job_export_sch_plot_path.cpp
     test_issue25869_variant_lib_symbols.cpp
     test_issue24961_group_promotion.cpp
     test_issue24663_sheet_dnp_fields.cpp
@@ -297,6 +299,8 @@ set( QA_EESCHEMA_SRCS
     test_autoplace_fields.cpp
     test_field_case_conflicts.cpp
     test_variant_symbol_compatibility.cpp
+    test_ref_suffix.cpp
+    test_sheet_suffix_properties.cpp
     test_variant_field_resolution.cpp
     test_sch_dynamic_properties.cpp
 

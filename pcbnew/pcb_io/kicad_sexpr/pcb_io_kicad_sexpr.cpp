@@ -111,26 +111,19 @@ void FP_CACHE::Save( FOOTPRINT* aFootprintFilter )
         if( aFootprintFilter && footprint.get() != aFootprintFilter )
             continue;
 
-        // If we've requested to embed the fonts in the footprint, do so.  Otherwise, clear the
-        // embedded fonts from the footprint.  Embedded fonts will be used if available.
-        if( footprint->GetAreFontsEmbedded() )
-            footprint->EmbedFonts();
-        else
-            footprint->GetEmbeddedFiles()->ClearEmbeddedFonts();
-
         WX_FILENAME fn = fpCacheEntry->GetFileName();
         wxString    fileName = fn.GetFullPath();
 
         // Allow file output stream to go out of scope to close the file stream before
         // renaming the file.
         {
-            wxLogTrace( traceKicadPcbPlugin, wxT( "Writing library file '%s'." ),
-                        fileName );
+            wxLogTrace( traceKicadPcbPlugin, wxT( "Writing library file '%s'." ), fileName );
 
             PRETTIFIED_FILE_OUTPUTFORMATTER formatter( fileName );
 
             m_owner->SetOutputFormatter( &formatter );
-            m_owner->Format( footprint.get() );
+
+            m_owner->FormatFootprintLibFile( footprint.get() );
             formatter.Finish();
         }
 
@@ -174,14 +167,18 @@ void FP_CACHE::Load()
             // Queue I/O errors so only files that fail to parse don't get loaded.
             try
             {
+                boost::ptr_map<wxString, FP_CACHE_ENTRY> tmp;
                 FILE_LINE_READER reader( fn.GetFullPath() );
-                PCB_IO_KICAD_SEXPR_PARSER       parser( &reader, nullptr, nullptr );
+                PCB_IO_KICAD_SEXPR_PARSER parser( &reader, nullptr, nullptr );
 
-                FOOTPRINT* footprint = dynamic_cast<FOOTPRINT*>( parser.Parse() );
+                parser.ParseFootprintLib( tmp );
                 wxString fpName = fn.GetName();
 
-                if( !footprint )
+                if( tmp.empty() )
                     THROW_IO_ERROR( wxEmptyString );   // caught locally, just below...
+
+                // The parser's entry has no file name, and saving uses the one cached here
+                FOOTPRINT* footprint = tmp.release( tmp.begin() )->GetFootprint().release();
 
                 footprint->SetFPID( LIB_ID( wxEmptyString, fpName ) );
                 m_footprints.insert( fpName, new FP_CACHE_ENTRY( footprint, fn ) );
@@ -354,6 +351,26 @@ BOARD_ITEM* PCB_IO_KICAD_SEXPR::Parse( const wxString& aClipboardSourceInput )
 }
 
 
+void PCB_IO_KICAD_SEXPR::FormatFootprintLibFile( FOOTPRINT* aFootprint ) const
+{
+    // If we've requested to embed the fonts in the footprint, do so.  Otherwise, clear the
+    // embedded fonts from the footprint.  Embedded fonts will be used if available.
+    if( aFootprint->GetAreFontsEmbedded() )
+        aFootprint->EmbedFonts();
+    else
+        aFootprint->GetEmbeddedFiles()->ClearEmbeddedFonts();
+
+    formatInitialComments( aFootprint );
+
+    m_out->Print( "(kicad_footprint_lib (version %d) (generator \"kicad_footprint_editor\")"
+                  " (generator_version \"%s\")\n",
+                  SEXPR_FOOTPRINT_LIB_FILE_VERSION,
+                  GetMajorMinorVersion().c_str().AsChar() );
+    format( aFootprint, true );
+    m_out->Print( ")\n" );
+}
+
+
 void PCB_IO_KICAD_SEXPR::Format( const BOARD_ITEM* aItem ) const
 {
     switch( aItem->Type() )
@@ -419,6 +436,7 @@ void PCB_IO_KICAD_SEXPR::Format( const BOARD_ITEM* aItem ) const
         break;
 
     case PCB_DRILL_CHART_T:
+    case PCB_STACKUP_TABLE_T:
         format( static_cast<const PCB_GENERATED_TABLE*>( aItem ) );
         break;
 
@@ -1431,7 +1449,7 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GRID_ITEM* aGridItem ) const
 }
 
 
-void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint ) const
+void PCB_IO_KICAD_SEXPR::formatInitialComments( const FOOTPRINT* aFootprint ) const
 {
     if( !( m_ctl & CTL_OMIT_INITIAL_COMMENTS ) )
     {
@@ -1443,6 +1461,13 @@ void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint ) const
                 m_out->Print( "%s\n", TO_UTF8( (*initial_comments)[i] ) );
         }
     }
+}
+
+
+void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint, bool aInLibFile ) const
+{
+    if( !aInLibFile )
+        formatInitialComments( aFootprint );
 
     if( m_ctl & CTL_OMIT_LIBNAME )
     {
@@ -1455,7 +1480,7 @@ void PCB_IO_KICAD_SEXPR::format( const FOOTPRINT* aFootprint ) const
                       m_out->Quotes( aFootprint->GetFPID().Format() ).c_str() );
     }
 
-    if( !( m_ctl & CTL_OMIT_FOOTPRINT_VERSION ) )
+    if( !aInLibFile && !( m_ctl & CTL_OMIT_FOOTPRINT_VERSION ) )
     {
         m_out->Print( "(version %d) (generator \"pcbnew\") (generator_version %s)", SEXPR_BOARD_FILE_VERSION,
                       m_out->Quotew( GetMajorMinorVersion() ).c_str() );
@@ -2620,13 +2645,13 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_TEXT* aText ) const
     if( !field )
     {
         m_out->Print( "(%s_text %s %s",
-                      prefix.c_str(),
-                      type.c_str(),
-                      m_out->Quotew( aText->GetText() ).c_str() );
-
-        if( aText->IsLocked() )
-            KICAD_FORMAT::FormatBool( m_out, "locked", true );
+                        prefix.c_str(),
+                        type.c_str(),
+                        m_out->Quotew( aText->GetText() ).c_str() );
     }
+
+    if( aText->IsLocked() )
+        KICAD_FORMAT::FormatBool( m_out, "locked", true );
 
     m_out->Print( "(at %s %s)",
                   formatInternalUnits( pos ).c_str(),
@@ -2839,7 +2864,8 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GENERATED_TABLE* aTable ) const
 
     switch( aTable->Type() )
     {
-    case PCB_DRILL_CHART_T: m_out->Print( "(drill_chart " ); break;
+    case PCB_DRILL_CHART_T:   m_out->Print( "(drill_chart " ); break;
+    case PCB_STACKUP_TABLE_T: m_out->Print( "(stackup_table " ); break;
 
     default:
         wxFAIL_MSG( wxT( "Unhandled generated table type " ) + aTable->GetClass() );
@@ -2863,7 +2889,7 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GENERATED_TABLE* aTable ) const
     if( aTable->GetPrecision() != schema.DefaultPrecision() )
         m_out->Print( "(precision %d)", aTable->GetPrecision() );
 
-    for( const GENERATED_TABLE_COLUMN& col : aTable->Columns() )
+    for( const GENERATED_TABLE_COLUMN& col : aTable->AllColumns() )
     {
         const GENERATED_TABLE_COLUMN_DEF* def = schema.Find( col.m_Id );
 
@@ -2879,6 +2905,9 @@ void PCB_IO_KICAD_SEXPR::format( const PCB_GENERATED_TABLE* aTable ) const
 
         if( col.m_Width > 0 )
             m_out->Print( "(width %s)", formatInternalUnits( col.m_Width ).c_str() );
+
+        if( !col.m_Visible )
+            KICAD_FORMAT::FormatBool( m_out, "hide", true );
 
         m_out->Print( ")" );
     }
@@ -4015,20 +4044,26 @@ std::unique_ptr<FOOTPRINT> PCB_IO_KICAD_SEXPR::ImportFootprint( const wxString& 
                                                                 wxString&                          aFootprintNameOut,
                                                                 const std::map<std::string, UTF8>* aProperties )
 {
-    wxString fcontents;
-    wxFFile  f( aFootprintPath );
+    boost::ptr_map<wxString, FP_CACHE_ENTRY> footprints;
 
     // Suppress font substitution warnings (RAII - automatically restored on scope exit)
     FONTCONFIG_REPORTER_SCOPE fontconfigScope( nullptr );
+    FILE_LINE_READER          reader( aFootprintPath );
+    PCB_IO_KICAD_SEXPR_PARSER parser( &reader, nullptr, nullptr );
 
-    if( !f.IsOpened() )
+    parser.ParseFootprintLib( footprints );
+
+    if( footprints.empty() )
         return nullptr;
 
-    f.ReadAll( &fcontents );
+    auto it = footprints.begin();
 
     aFootprintNameOut = wxFileName( aFootprintPath ).GetName();
+    FOOTPRINT* fp = it->second->GetFootprint().release();
+    std::unique_ptr<FOOTPRINT> retv;
+    retv.reset( fp );
 
-    return std::unique_ptr<FOOTPRINT>( dynamic_cast<FOOTPRINT*>( Parse( fcontents ) ) );
+    return retv;
 }
 
 

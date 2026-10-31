@@ -436,7 +436,6 @@ set( PCBNEW_CLASS_SRCS
     board_statistics.cpp
     board_statistics_report.cpp
     board_tables/board_characteristics_table.cpp
-    board_tables/board_stackup_table.cpp
     build_BOM_from_board.cpp
     cleanup_item.cpp
     board_outline_splitter.cpp
@@ -486,6 +485,7 @@ set( PCBNEW_CLASS_SRCS
     pcbplot.cpp
     plot_board_layers.cpp
     plot_brditems_plotter.cpp
+    ref_suffix_split.cpp
     specctra_import_export/specctra.cpp
     specctra_import_export/specctra_export.cpp
     specctra_import_export/specctra_import.cpp
@@ -510,6 +510,11 @@ set( PCBNEW_CLASS_SRCS
     api/pcb_context.cpp
 
     tools/array_tool.cpp
+    tools/block_drag_capability.cpp
+    tools/block_drag_dependents.cpp
+    tools/block_drag_displacement.cpp
+    tools/block_drag_pick.cpp
+    tools/block_drag_validation.cpp
     tools/board_editor_control.cpp
     tools/board_inspection_tool.cpp
     tools/board_reannotate_tool.cpp
@@ -536,6 +541,7 @@ set( PCBNEW_CLASS_SRCS
     tools/pcb_control.cpp
     tools/pcb_design_block_control.cpp
     tools/pcb_group_tool.cpp
+    tools/pcb_handle_key.cpp
     tools/pcb_picker_tool.cpp
     tools/pcb_selection.cpp
     tools/pcb_selection_conditions.cpp
@@ -573,6 +579,8 @@ set( PCBNEW_CLASS_SRCS
     widgets/net_inspector_panel.cpp
     widgets/pcb_net_inspector_panel.cpp
     widgets/vertex_editor_pane.cpp
+    widgets/via_cross_section_geometry.cpp
+    widgets/via_cross_section_preview.cpp
 
     component_classes/component_class.cpp
     component_classes/component_class_cache_proxy.cpp
