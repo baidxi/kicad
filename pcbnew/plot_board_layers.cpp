@@ -372,19 +372,37 @@ void PlotStandardLayer( BOARD* aBoard, PLOTTER* aPlotter, const LSET& aLayerMask
 
     // Plot edge layer and graphic items
     for( const BOARD_ITEM* item : aBoard->Drawings() )
+    {
+        if( !aPlotter->PassesOutlineFilter( *item ) )
+            continue;
+
         itemplotter.PlotBoardGraphicItem( item );
+    }
 
     // Draw footprint texts:
     for( const FOOTPRINT* footprint : aBoard->Footprints() )
+    {
+        if( !aPlotter->PassesOutlineFilter( *footprint ) )
+            continue;
+
         itemplotter.PlotFootprintTextItems( footprint );
+    }
 
     // Draw footprint other graphic items:
     for( const FOOTPRINT* footprint : aBoard->Footprints() )
+    {
+        if( !aPlotter->PassesOutlineFilter( *footprint ) )
+            continue;
+
         itemplotter.PlotFootprintGraphicItems( footprint );
+    }
 
     // Plot footprint pads
     for( FOOTPRINT* footprint : aBoard->Footprints() )
     {
+        if( !aPlotter->PassesOutlineFilter( *footprint ) )
+            continue;
+
         const bool dnp = footprint->GetDNPForVariant( variantName );
 
         aPlotter->StartBlock( nullptr );
@@ -771,6 +789,9 @@ void PlotStandardLayer( BOARD* aBoard, PLOTTER* aPlotter, const LSET& aLayerMask
 
         const PCB_VIA* via = static_cast<const PCB_VIA*>( track );
 
+        if( !aPlotter->PassesOutlineFilter( *via ) )
+            continue;
+
         // vias are not plotted if not on selected layer
         LSET via_mask_layer = via->GetLayerSet();
 
@@ -849,6 +870,9 @@ void PlotStandardLayer( BOARD* aBoard, PLOTTER* aPlotter, const LSET& aLayerMask
         if( !( aLayerMask & track->GetLayerSet() ).any() )
             continue;
 
+        if( !aPlotter->PassesOutlineFilter( *track ) )
+            continue;
+
         // Some track segments can be not connected (no net).
         // Set the m_NotInNet for these segments to force a empty net name in gerber file
         gbr_metadata.m_NetlistMetadata.m_NotInNet = track->GetNetname().IsEmpty();
@@ -905,6 +929,23 @@ void PlotStandardLayer( BOARD* aBoard, PLOTTER* aPlotter, const LSET& aLayerMask
                 continue;
 
             SHAPE_POLY_SET mainArea = zone->GetFilledPolysList( layer )->CloneDropTriangulation();
+
+            // Multi-outline filter: clip zone filled area to the active outline region
+            // so zones spanning multiple outlines are correctly split.
+            if( const SHAPE_POLY_SET* outlineRegion = aPlotter->GetOutlineRegion() )
+            {
+                if( mainArea.OutlineCount() > 0 )
+                {
+                    SHAPE_POLY_SET clipped = mainArea;
+                    clipped.BooleanIntersection( *outlineRegion );
+
+                    if( clipped.OutlineCount() > 0 )
+                        mainArea = std::move( clipped );
+                    else
+                        continue;   // Zone fill is entirely outside this outline
+                }
+            }
+
             SHAPE_POLY_SET islands;
 
             for( int i = mainArea.OutlineCount() - 1; i >= 0; i-- )
@@ -1125,6 +1166,9 @@ void GenerateLayerPoly( SHAPE_POLY_SET* aResult, BOARD *aBoard, PLOTTER* aPlotte
         // Plot footprint pads and graphics
         for( const FOOTPRINT* footprint : aBoard->Footprints() )
         {
+            if( !aPlotter->PassesOutlineFilter( *footprint ) )
+                continue;
+
             if( inflate != 0 )
                 footprint->TransformPadsToPolySet( exactPolys, aLayer, 0, maxError, ERROR_OUTSIDE );
 
@@ -1191,6 +1235,9 @@ void GenerateLayerPoly( SHAPE_POLY_SET* aResult, BOARD *aBoard, PLOTTER* aPlotte
             if( !track->IsOnLayer( aLayer ) )
                 continue;
 
+            if( !aPlotter->PassesOutlineFilter( *track ) )
+                continue;
+
             int clearance = track->GetSolderMaskExpansion();
 
             if( inflate != 0 )
@@ -1203,6 +1250,9 @@ void GenerateLayerPoly( SHAPE_POLY_SET* aResult, BOARD *aBoard, PLOTTER* aPlotte
         {
             if( item->IsOnLayer( aLayer ) )
             {
+                if( !aPlotter->PassesOutlineFilter( *item ) )
+                    continue;
+
                 if( item->Type() == PCB_TEXT_T )
                 {
                     const PCB_TEXT* text = static_cast<const PCB_TEXT*>( item );
@@ -1252,6 +1302,19 @@ void GenerateLayerPoly( SHAPE_POLY_SET* aResult, BOARD *aBoard, PLOTTER* aPlotte
                 continue;
 
             SHAPE_POLY_SET area = *fillData;
+
+            // Multi-outline filter: clip zone fill to the active outline region so
+            // solder mask openings stay inside the outline being plotted.
+            if( const SHAPE_POLY_SET* outlineRegion = aPlotter->GetOutlineRegion() )
+            {
+                if( area.OutlineCount() > 0 )
+                {
+                    area.BooleanIntersection( *outlineRegion );
+
+                    if( area.OutlineCount() == 0 )
+                        continue;   // Zone fill is entirely outside this outline
+                }
+            }
 
             if( inflate != 0 )
                 exactPolys.Append( area );

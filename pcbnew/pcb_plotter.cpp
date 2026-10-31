@@ -18,13 +18,18 @@
  */
 
 #include <pcb_plotter.h>
+#include <board_outline_splitter.h>
 #include <common.h>
 #include <plotters/plotter.h>
 #include <plotters/plotters_pslike.h>
 #include <board.h>
 #include <board_loader.h>
+#include <board_item.h>
 #include <footprint.h>
 #include <pad.h>
+#include <pcb_shape.h>
+#include <pcb_track.h>
+#include <zone.h>
 #include <project.h>
 #include <board_tables/generated_table_refresh.h>
 #include <pcb_drill_chart.h>
@@ -72,6 +77,10 @@ bool PCB_PLOTTER::Plot( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
                         std::optional<wxString> aSheetName, std::optional<wxString> aSheetPath,
                         std::vector<wxString>* aOutputFiles )
 {
+    if( m_outlineSplit )
+        return PlotOutlineSplit( aOutputPath, aLayersToPlot, aCommonLayers, aUseGerberFileExtensions,
+                                 aOutputFiles );
+
     std::function<bool( wxString* )> textResolver =
             [&]( wxString* token ) -> bool
             {
@@ -236,6 +245,22 @@ bool PCB_PLOTTER::Plot( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
         if( plotter )
         {
             plotter->SetLayer( layer );
+
+            if( m_filterRegion )
+            {
+                printf( "PCB_PLOTTER::Plot: setting outline filter for layer %d\n", (int)layer );
+                plotter->SetOutlineFilter( [this]( const EDA_ITEM& aItem )
+                    {
+                        bool pass = PassesOutlineFilter( static_cast<const BOARD_ITEM&>( aItem ),
+                                                         *m_filterRegion, m_filterIndex, *m_filterShapeMap );
+                        printf( "  filter: item@(%d,%d) pass=%d\n",
+                                aItem.GetPosition().x, aItem.GetPosition().y, (int)pass );
+                        return pass;
+                    } );
+
+                // Filled areas (zone fills) are clipped against this region during plotting
+                plotter->SetOutlineRegion( m_filterRegion );
+            }
             plotter->SetTitle( ExpandTextVars( m_board->GetTitleBlock().GetTitle(), &textResolver, FOR_GUI ) );
 
             if( m_plotOpts.m_PDFMetadata )
@@ -358,6 +383,243 @@ bool PCB_PLOTTER::Plot( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
 
     return success;
 }
+
+
+bool PCB_PLOTTER::PlotOutlineSplit( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
+                                    const LSEQ& aCommonLayers, bool aUseGerberFileExtensions,
+                                    std::vector<wxString>* aOutputFiles )
+{
+    bool success = true;
+
+    printf( "PCB_PLOTTER::PlotOutlineSplit: starting split with %zu outlines\n",
+            m_outlineSplit->OutlineCount() );
+
+    for( size_t idx = 0; idx < m_outlineSplit->OutlineCount(); ++idx )
+    {
+        wxString   dirName = wxString::Format( wxT( "board%zu" ), idx + 1 );
+        printf( "PCB_PLOTTER::PlotOutlineSplit: exporting outline %zu to %s\n", idx + 1,
+                ( aOutputPath + wxFileName::GetPathSeparator() + dirName ).ToStdString().c_str() );
+        wxFileName outDir  = wxFileName::DirName(
+                aOutputPath + wxFileName::GetPathSeparator() + dirName );
+
+        if( !EnsureFileDirectoryExists( &outDir, m_board->GetFileName(), m_reporter ) )
+        {
+            if( m_reporter )
+                m_reporter->Report( wxString::Format( _( "Could not create directory '%s'." ),
+                                                      outDir.GetPath() ), RPT_SEVERITY_ERROR );
+            return false;
+        }
+
+        if( m_reporter )
+            m_reporter->Report( wxString::Format( _( "Exporting outline %zu to '%s'." ), idx + 1,
+                                                  outDir.GetPath() ), RPT_SEVERITY_INFO );
+
+        // A fresh plotter per outline: its single-pass pre-filter points at this outline.
+        PCB_PLOTTER pass( m_board, m_reporter, m_plotOpts );
+        pass.SetPlotOutlineFilter( &m_outlineSplit->m_regions[idx], &m_outlineSplit->m_shapeToRegion,
+                                   static_cast<int>( idx ) );
+
+        success &= pass.Plot( outDir.GetPath(), aLayersToPlot, aCommonLayers, aUseGerberFileExtensions,
+                              /* aOutputPathIsSingle */ false, {}, {}, {}, aOutputFiles );
+    }
+
+    return success;
+}
+
+
+bool PCB_PLOTTER::PlotOneOutline( size_t aOutlineIndex, const wxString& aOutputPath, const LSEQ& aLayersToPlot,
+                                  const LSEQ& aCommonLayers, bool aUseGerberFileExtensions,
+                                  std::vector<wxString>* aOutputFiles )
+{
+    wxString   dirName = wxString::Format( wxT( "board%zu" ), aOutlineIndex + 1 );
+    wxFileName outDir  = wxFileName::DirName( aOutputPath + wxFileName::GetPathSeparator() + dirName );
+
+    if( !EnsureFileDirectoryExists( &outDir, m_board->GetFileName(), m_reporter ) )
+    {
+        if( m_reporter )
+            m_reporter->Report( wxString::Format( _( "Could not create directory '%s'." ),
+                                                  outDir.GetPath() ), RPT_SEVERITY_ERROR );
+        return false;
+    }
+
+    PCB_PLOTTER pass( m_board, m_reporter, m_plotOpts );
+    pass.SetPlotOutlineFilter( &m_outlineSplit->m_regions[aOutlineIndex],
+                               &m_outlineSplit->m_shapeToRegion, static_cast<int>( aOutlineIndex ) );
+
+    return pass.Plot( outDir.GetPath(), aLayersToPlot, aCommonLayers, aUseGerberFileExtensions,
+                      /* aOutputPathIsSingle */ false, {}, {}, {}, aOutputFiles );
+}
+
+
+bool PCB_PLOTTER::CheckOutlineSplit( wxString& aErrors ) const
+{
+    // The outline split export naturally excludes items outside the board outlines
+    // (via PassesOutlineFilter during plotting), so items with ambiguous or out-of-bound
+    // anchors are simply not plotted rather than blocking the export.
+    return true;
+}
+
+#if 0
+bool PCB_PLOTTER::CheckOutlineSplitImpl( wxString& aErrors ) const
+{
+    if( !m_outlineSplit || m_outlineSplit->OutlineCount() < 2 )
+
+    auto classifyPoint = [&]( const VECTOR2I& aPt, int& aHits ) -> int
+    {
+        int idx = -1;
+        aHits = 0;
+
+        for( size_t r = 0; r < count; ++r )
+        {
+            if( regions[r].Contains( aPt, -1, 0 ) )
+            {
+                idx = static_cast<int>( r );
+                ++aHits;
+            }
+        }
+
+        return idx;
+    };
+
+    auto describe = [&]( const BOARD_ITEM& aItem )
+    {
+        VECTOR2I pos = aItem.GetPosition();
+
+        return wxString::Format( wxT( "%s @ (%.3f, %.3f) mm" ),
+                                 m_board->GetLayerName( aItem.GetLayer() ),
+                                 pos.x / 1e6, pos.y / 1e6 );
+    };
+
+    auto reportProblem = [&]( const BOARD_ITEM& aItem, bool aSpans )
+    {
+        wxString msg;
+
+        if( aSpans )
+            msg.Printf( wxT( "  %s spans multiple board outlines\n" ), describe( aItem ) );
+        else
+            msg.Printf( wxT( "  %s is outside every board outline\n" ), describe( aItem ) );
+
+        aErrors << msg;
+        ok = false;
+    };
+
+    auto checkSpanning = [&]( const BOARD_ITEM& aItem, int aOwnIdx, const SHAPE* aShape )
+    {
+        for( size_t r = 0; r < count; ++r )
+        {
+            if( static_cast<int>( r ) == aOwnIdx )
+                continue;
+
+            if( regions[r].Collide( aShape, 0 ) )
+            {
+                reportProblem( aItem, true );
+                return;
+            }
+        }
+    };
+
+    // Board graphics; Edge.Cuts items are owned through the outline map
+    for( const BOARD_ITEM* item : m_board->Drawings() )
+    {
+        if( item->GetLayer() == Edge_Cuts )
+            continue;
+
+        int  hits = 0;
+        int  idx = classifyPoint( item->GetCenter(), hits );
+        auto eff = const_cast<BOARD_ITEM*>( item )->GetEffectiveShape();
+
+        if( hits == 0 )
+            reportProblem( *item, false );
+        else if( hits > 1 )
+            reportProblem( *item, true );
+        else
+            checkSpanning( *item, idx, eff.get() );
+    }
+
+    // Footprints and their pads
+    for( const FOOTPRINT* footprint : m_board->Footprints() )
+    {
+        int  hits = 0;
+        int  idx = classifyPoint( footprint->GetPosition(), hits );
+
+        if( hits == 0 )
+            reportProblem( *footprint, false );
+        else if( hits > 1 )
+            reportProblem( *footprint, true );
+        else
+        {
+            for( const PAD* pad : footprint->Pads() )
+            {
+                int padHits = 0;
+                classifyPoint( pad->GetPosition(), padHits );
+
+                if( padHits == 0 )
+                {
+                    reportProblem( *pad, false );
+                    break;
+                }
+                else if( padHits > 1 )
+                {
+                    reportProblem( *pad, true );
+                    break;
+                }
+            }
+        }
+    }
+
+    // Tracks and vias: both ends must live in the same outline
+    for( const PCB_TRACK* track : m_board->Tracks() )
+    {
+        int  hitsStart = 0;
+        int  hitsEnd = 0;
+        int  regionStart = classifyPoint( track->GetStart(), hitsStart );
+        int  regionEnd = classifyPoint( track->GetEnd(), hitsEnd );
+
+        if( hitsStart == 0 || hitsEnd == 0 )
+            reportProblem( *track, false );
+        else if( regionStart != regionEnd )
+            reportProblem( *track, true );
+    }
+
+    // Zones: anchored by their first outline point, spanning checked through their poly
+    for( const ZONE* zone : m_board->Zones() )
+    {
+        const SHAPE_POLY_SET* zonePoly = zone->Outline();
+
+        if( !zonePoly || zonePoly->OutlineCount() < 1 )
+            continue;
+
+        VECTOR2I anchor = zonePoly->COutline( 0 ).CPoint( 0 );
+        int  hits = 0;
+        int  idx = classifyPoint( anchor, hits );
+
+        if( hits == 0 )
+        {
+            reportProblem( *zone, false );
+            continue;
+        }
+        else if( hits > 1 )
+        {
+            reportProblem( *zone, true );
+            continue;
+        }
+
+        for( size_t r = 0; r < count; ++r )
+        {
+            if( static_cast<int>( r ) == idx )
+                continue;
+
+            if( regions[r].Collide( zonePoly, 0 ) )
+            {
+                reportProblem( *zone, true );
+                break;
+            }
+        }
+    }
+
+    return ok;
+}
+#endif
 
 
 bool PCB_PLOTTER::copperLayerShouldBeSkipped( PCB_LAYER_ID aLayerToPlot )

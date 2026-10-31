@@ -27,6 +27,7 @@
 #define PLACEFILE_GERBER_WRITER_H
 
 #include <layer_ids.h>
+#include <geometry/shape_poly_set.h>
 #include <math/vector2d.h>
 
 class BOARD;
@@ -63,6 +64,12 @@ public:
      * When set, DNP, BOM, and position file exclusion will check variant-specific status.
      */
     void SetVariant( const wxString& aVariant ) { m_variant = aVariant; }
+
+    /**
+     * Multi-board-outline support: when set, only footprints anchored inside this outline
+     * are exported (see pcbnew/board_outline_splitter.h).
+     */
+    void SetOutlineRegion( const SHAPE_POLY_SET* aRegion ) { m_outlineRegion = aRegion; }
 
     /**
      * Create an pnp gerber file.
@@ -116,6 +123,7 @@ private:
                                          // This is a flashed 0 sized round pad
 
     wxString     m_variant;          // Variant name for variant-aware filtering
+    const SHAPE_POLY_SET* m_outlineRegion = nullptr;   // Optional outline filter
 };
 
 #endif  //  #ifndef PLACEFILE_GERBER_WRITER_H

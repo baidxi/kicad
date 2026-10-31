@@ -128,6 +128,9 @@ std::string PLACE_FILE_EXPORTER::GenPositionData()
 
     for( FOOTPRINT* footprint : m_board->Footprints() )
     {
+        if( m_outlineRegion && !m_outlineRegion->Contains( footprint->GetPosition(), -1, 0 ) )
+            continue;
+
         if( m_side != PCB_BOTH_SIDES )
         {
             if( footprint->GetLayer() == B_Cu && m_side != PCB_BACK_SIDE )
@@ -326,7 +329,12 @@ std::string PLACE_FILE_EXPORTER::GenReportData()
     std::vector<FOOTPRINT*> sortedFootprints;
 
     for( FOOTPRINT* footprint : m_board->Footprints() )
+    {
+        if( m_outlineRegion && !m_outlineRegion->Contains( footprint->GetPosition(), -1, 0 ) )
+            continue;
+
         sortedFootprints.push_back( footprint );
+    }
 
     std::sort( sortedFootprints.begin(), sortedFootprints.end(),
                []( FOOTPRINT* a, FOOTPRINT* b ) -> bool

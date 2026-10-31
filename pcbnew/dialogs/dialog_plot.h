@@ -102,6 +102,9 @@ private:
 
     JOB_EXPORT_PCB_PLOT* m_job;
 
+    /// Multi-board-outline split option (dynamic, not part of the wxFormBuilder layout)
+    wxCheckBox*         m_splitByOutline = nullptr;
+
     /// The plot on all layers ordering the last time the dialog was opened.
     static LSEQ         s_lastAllLayersOrder;
 };

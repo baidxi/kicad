@@ -21,6 +21,7 @@
 #ifndef PLOT_COMMON_H_
 #define PLOT_COMMON_H_
 
+#include <functional>
 #include <set>
 #include <vector>
 #include <eda_fill.h>
@@ -42,6 +43,7 @@ class SHAPE_LINE_CHAIN;
 class GBR_NETLIST_METADATA;
 class PROJECT;
 class FOOTPRINT;
+class EDA_ITEM;
 
 using KIGFX::COLOR4D;
 using KIGFX::RENDER_SETTINGS;
@@ -191,6 +193,32 @@ public:
     virtual void SetTitle( const wxString& aTitle ) { m_title = aTitle; }
     virtual void SetAuthor( const wxString& aAuthor ) { m_author = aAuthor; }
     virtual void SetSubject( const wxString& aSubject ) { m_subject = aSubject; }
+
+    /**
+     * Multi-outline plotting (pcbnew multi-board-outline export): when a filter is set,
+     * it must return true for every item that belongs to the outline currently being
+     * plotted.  See pcbnew/board_outline_splitter.h.
+     */
+    void SetOutlineFilter( std::function<bool( const EDA_ITEM& )> aFilter )
+        { m_outlineFilter = std::move( aFilter ); }
+
+    /**
+     * Return true when @a aItem passes the active outline filter (always true when no
+     * filter was set).
+     */
+    bool PassesOutlineFilter( const EDA_ITEM& aItem ) const
+        { return m_outlineFilter ? m_outlineFilter( aItem ) : true; }
+
+    /**
+     * Set the active outline region used to clip filled areas (e.g. zone fills) during
+     * multi-outline plotting.  Not owned by the plotter.
+     */
+    void SetOutlineRegion( const SHAPE_POLY_SET* aRegion ) { m_outlineRegion = aRegion; }
+
+    /**
+     * Return the active outline filter region (null when no filter is set).
+     */
+    const SHAPE_POLY_SET* GetOutlineRegion() const { return m_outlineRegion; }
 
     /**
      * Add a line to the list of free lines to print at the beginning of the file.
@@ -720,6 +748,12 @@ protected:
 
 
 protected:      // variables used in most of plotters:
+
+    /// Multi-outline filter (see SetOutlineFilter); empty when no filtering is active
+    std::function<bool( const EDA_ITEM& )> m_outlineFilter;
+
+    /// Active outline region for multi-outline plotting (see SetOutlineFilter)
+    const SHAPE_POLY_SET* m_outlineRegion = nullptr;
 
     /// Plot scale - chosen by the user (even implicitly with 'fit in a4')
     double           m_plotScale;

@@ -158,7 +158,50 @@ void GENDRILL_WRITER_BASE::buildHolesList( const DRILL_SPAN& aSpan, bool aGenera
             || hole.m_BackPostMachining.m_Mode == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK
             || hole.IsBackdrill() )
             m_toolListBuffer.back().m_HasPostMachining = true;
+}
+
+// Multi-board-outline support: remove holes outside the active outline region.
+// This allows each outline to be exported as its own set of drill files.
+if( m_outlineRegion )
+{
+    m_holeListBuffer.erase(
+        std::remove_if( m_holeListBuffer.begin(), m_holeListBuffer.end(),
+            [&]( const DRILL_OPERATION& op )
+            {
+                return !m_outlineRegion->Contains( op.m_Position, -1, 0 );
+            } ),
+        m_holeListBuffer.end() );
+
+    // Rebuild tool references after filtering
+    m_holeToolReferences.clear();
+    m_holeToolReferences.resize( m_holeListBuffer.size(), -1 );
+    m_toolListBuffer.clear();
+
+    int last_hole_f = -1;
+    bool last_np = false;
+    HOLE_ATTRIBUTE last_attr = HOLE_ATTRIBUTE::HOLE_UNKNOWN;
+    DRILL_TOOL tool( 0, false );
+
+    for( unsigned ii = 0; ii < m_holeListBuffer.size(); ii++ )
+    {
+        const DRILL_OPERATION& hole = m_holeListBuffer[ii];
+
+        if( hole.m_Diameter != last_hole_f || hole.m_NotPlated != last_np
+                || hole.m_Attribute != last_attr )
+        {
+            tool.m_Diameter = hole.m_Diameter;
+            tool.m_Hole_NotPlated = hole.m_NotPlated;
+            tool.m_HoleAttribute = hole.m_Attribute;
+            m_toolListBuffer.push_back( tool );
+            last_hole_f = tool.m_Diameter;
+            last_np = tool.m_Hole_NotPlated;
+            last_attr = tool.m_HoleAttribute;
+        }
+
+        m_holeToolReferences[ii] = m_toolListBuffer.size();
+        m_toolListBuffer.back().m_TotalCount++;
     }
+}
 }
 
 

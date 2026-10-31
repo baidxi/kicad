@@ -169,6 +169,8 @@ public:
      *                PLOT_FORMAT_SVG, PLOT_FORMAT_PDF
      *                the most useful are PLOT_FORMAT_PDF and PLOT_FORMAT_POST.
      */
+    void SetOutlineRegion( const SHAPE_POLY_SET* aRegion ) { m_outlineRegion = aRegion; }
+
     void SetMapFileFormat( PLOT_FORMAT aMapFmt )
     {
         m_mapFileFmt = aMapFmt;
@@ -369,6 +371,7 @@ protected:
     void AddCreatedFile( const wxString& aPath ) { m_createdFiles.emplace_back( aPath ); }
 
     BOARD*                   m_pcb;
+    const SHAPE_POLY_SET*    m_outlineRegion = nullptr;   // Optional outline filter (see SetOutlineRegion)
     wxString                 m_drillFileExtension;      // .drl or .gbr, depending on format
     bool                     m_unitsMetric;             // true = mm, false = inches
     ZEROS_FMT                m_zeroFormat;              // the zero format option for output file

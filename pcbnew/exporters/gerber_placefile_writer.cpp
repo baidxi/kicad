@@ -64,6 +64,9 @@ int PLACEFILE_GERBER_WRITER::CreatePlaceFile( const wxString& aFullFilename, PCB
 
     for( FOOTPRINT* footprint : m_pcb->Footprints() )
     {
+        if( m_outlineRegion && !m_outlineRegion->Contains( footprint->GetPosition(), -1, 0 ) )
+            continue;
+
         if( footprint->GetExcludedFromPosFilesForVariant( m_variant ) )
              continue;
 

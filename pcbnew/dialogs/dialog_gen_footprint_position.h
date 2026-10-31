@@ -23,6 +23,7 @@
 #include <jobs/job_export_pcb_pos.h>
 
 class PCB_EDIT_FRAME;
+class wxCheckBox;
 
 /**
  * The dialog to create footprint position files and choose options (one or 2 files, units
@@ -80,4 +81,7 @@ private:
     PCB_EDIT_FRAME*     m_editFrame;
     JOB_EXPORT_PCB_POS* m_job;
     wxString            m_outputDirectory;
+
+    /// Multi-board-outline split option (dynamic, not part of the wxFormBuilder layout)
+    wxCheckBox*         m_splitByOutline = nullptr;
 };

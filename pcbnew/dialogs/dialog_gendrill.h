@@ -85,6 +85,7 @@ private:
 private:
     PCB_EDIT_FRAME*       m_pcbEditFrame;
     BOARD*                m_board;
+    wxCheckBox*           m_splitByOutline = nullptr;
     PCB_PLOT_PARAMS       m_plotOpts;
     JOB_EXPORT_PCB_DRILL* m_job;
 };

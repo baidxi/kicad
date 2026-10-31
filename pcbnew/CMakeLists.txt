@@ -439,6 +439,7 @@ set( PCBNEW_CLASS_SRCS
     board_tables/board_stackup_table.cpp
     build_BOM_from_board.cpp
     cleanup_item.cpp
+    board_outline_splitter.cpp
     convert_shape_list_to_polygon.cpp
     cross-probing.cpp
     downgrade/board_downgrade.cpp

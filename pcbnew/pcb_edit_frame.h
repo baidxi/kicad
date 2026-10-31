@@ -29,6 +29,7 @@
 
 class PCB_SCREEN;
 class BOARD;
+class SHAPE_POLY_SET;
 class BOARD_COMMIT;
 class BOARD_ITEM_CONTAINER;
 class DESIGN_BLOCK;
@@ -370,7 +371,8 @@ public:
     int DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM, bool aOnlySMD,
                                      bool aNoTHItems, bool aExcludeDNP, bool aExcludeBOM, bool aTopSide,
                                      bool aBottomSide, bool aFormatCSV, bool aUseAuxOrigin,
-                                     bool aNegateBottomX );
+                                     bool aNegateBottomX,
+                                     const SHAPE_POLY_SET* aOutlineRegion = nullptr );
 
     void OnFileHistory( wxCommandEvent& event );
     void OnClearFileHistory( wxCommandEvent& aEvent );

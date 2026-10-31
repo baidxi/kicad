@@ -90,6 +90,12 @@ public:
      */
     void SetVariant( const wxString& aVariant ) { m_variant = aVariant; }
 
+    /**
+     * Multi-board-outline support: when set, only footprints anchored inside this outline
+     * are exported (see pcbnew/board_outline_splitter.h).
+     */
+    void SetOutlineRegion( const SHAPE_POLY_SET* aRegion ) { m_outlineRegion = aRegion; }
+
     // Use standard board side name. do not translate them,
     // they are keywords in place file
     static std::string GetFrontSideName() { return std::string( "top" ); }
@@ -110,6 +116,7 @@ private:
     int      m_fpCount;         // Number of footprints in list, for info
     VECTOR2I m_place_Offset;    // Offset for coordinates in generated data.
     wxString m_variant;         // Variant name for variant-aware field values and filtering
+    const SHAPE_POLY_SET* m_outlineRegion = nullptr;   // Optional outline filter (see SetOutlineRegion)
 };
 
 #endif      // #ifndef EXPORT_FOOTPRINTS_PLACEFILE_H

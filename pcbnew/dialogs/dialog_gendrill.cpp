@@ -30,6 +30,8 @@
 #include <core/arraydim.h>
 #include <widgets/std_bitmap_button.h>
 #include <pcb_edit_frame.h>
+#include <board_outline_splitter.h>
+#include <geometry/shape_poly_set.h>
 #include <pcbplot.h>
 #include <gendrill_excellon_writer.h>
 #include <gendrill_gerber_writer.h>
@@ -71,6 +73,19 @@ DIALOG_GENDRILL::DIALOG_GENDRILL( PCB_EDIT_FRAME* aPcbEditFrame, wxWindow* aPare
         m_job( nullptr )
 {
     m_browseButton->SetBitmap( KiBitmapBundle( BITMAPS::small_folder ) );
+
+    // Multi-board-outline split option (dynamic: not part of the wxFormBuilder layout)
+    m_splitByOutline = new wxCheckBox( this, wxID_ANY,
+                                       _( "Split by board outline (one output folder per outline)" ) );
+    m_splitByOutline->SetToolTip( _( "Detect the independent Edge.Cuts outlines and export one set of "
+                                     "drill files per outline into board1/, board2/, ... sub-folders of "
+                                     "the output directory." ) );
+    // Place below the "Generate map" checkbox for visual grouping with the export options
+    if( m_cbGenerateMap && m_cbGenerateMap->GetContainingSizer() )
+        m_cbGenerateMap->GetContainingSizer()->Add( m_splitByOutline, 0,
+                                                    wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM, 5 );
+    else
+        bMainSizer->Prepend( m_splitByOutline, 0, wxALL, 5 );
 
     SetupStandardButtons( { { wxID_OK,     _( "Generate" ) },
                             { wxID_CANCEL, _( "Close" ) } } );
@@ -298,9 +313,8 @@ void DIALOG_GENDRILL::genDrillAndMapFiles( bool aGenDrill, bool aGenMap, bool aG
     WX_TEXT_CTRL_REPORTER reporter( m_messagesBox );
 
     const PLOT_FORMAT filefmt[] = {
-        // Keep these format ids in the same order than m_Choice_Drill_Map choices
         PLOT_FORMAT::POST,
-        PLOT_FORMAT::GERBER,    // Only X2 format because we need the .FileFunction attribute
+        PLOT_FORMAT::GERBER,
         PLOT_FORMAT::DXF,
         PLOT_FORMAT::SVG,
         PLOT_FORMAT::PDF
@@ -309,15 +323,11 @@ void DIALOG_GENDRILL::genDrillAndMapFiles( bool aGenDrill, bool aGenMap, bool aG
     unsigned choice = (unsigned) m_choiceDrillMap->GetSelection();
 
     if( choice >= arrayDim( filefmt ) )
-        choice = arrayDim( filefmt )-1;     // Last choice = PDF
-
-    // Create output directory if it does not exist (also transform it in absolute form).
-    // Bail if it fails.
+        choice = arrayDim( filefmt )-1;
 
     std::function<bool( wxString* )> textResolver =
             [&]( wxString* token ) -> bool
             {
-                // Handles m_board->GetTitleBlock() *and* m_board->GetProject()
                 return m_board->ResolveTextVar( token, 0 );
             };
 
@@ -346,31 +356,75 @@ void DIALOG_GENDRILL::genDrillAndMapFiles( bool aGenDrill, bool aGenMap, bool aG
     else
         precision = precisionListForInches;
 
-    if( m_rbExcellon->GetValue() )
-    {
-        EXCELLON_WRITER excellonWriter( m_board );
-        excellonWriter.SetFormat( m_units->GetSelection() == 0, (EXCELLON_WRITER::ZEROS_FMT) m_zeros->GetSelection(),
-                                  precision.m_Lhs, precision.m_Rhs );
-        excellonWriter.SetOptions( m_Check_Mirror->IsChecked(), m_Check_Minimal->IsChecked(), drillFileOffset,
-                                   m_Check_Merge_PTH_NPTH->IsChecked() );
-        excellonWriter.SetRouteModeForOvalHoles( !m_altDrillMode->GetValue() );
-        excellonWriter.SetMapFileFormat( filefmt[choice] );
-        excellonWriter.SetPageInfo( &m_board->GetPageSettings() );
+    // Multi-outline split: pre-flight + boardN sub-directories
+    BOARD_OUTLINE_SPLIT   boardSplit;
+    bool                  splitActive = false;
+    std::vector<wxString> outDirs;
 
-        excellonWriter.CreateDrillandMapFilesSet( outputDir.GetFullPath(), aGenDrill, aGenMap, &reporter );
+    if( m_splitByOutline->GetValue() )
+    {
+        if( !SplitBoardOutlines( m_board, boardSplit ) )
+        {
+            DisplayError( this, boardSplit.m_error );
+            return;
+        }
+
+        if( boardSplit.OutlineCount() >= 2 )
+        {
+            splitActive = true;
+
+            for( size_t r = 0; r < boardSplit.OutlineCount(); ++r )
+                outDirs.push_back( outputDir.GetPath() + wxFileName::GetPathSeparator()
+                                   + wxString::Format( wxT( "board%zu" ), r + 1 ) );
+        }
+        else
+        {
+            DisplayInfoMessage( this, _( "Only one board outline detected; the output will "
+                                         "not be split." ) );
+        }
     }
-    else
-    {
-        GERBER_WRITER gerberWriter( m_board );
-        // Set gerber precision: only 5 or 6 digits for mantissa are allowed
-        // (SetFormat() accept 5 or 6, and any other value set the precision to 5)
-        // the integer part precision is always 4, and units always mm
-        gerberWriter.SetFormat( m_plotOpts.GetGerberPrecision() );
-        gerberWriter.SetOptions( drillFileOffset );
-        gerberWriter.SetMapFileFormat( filefmt[choice] );
-        gerberWriter.SetPageInfo( &m_board->GetPageSettings() );
 
-        gerberWriter.CreateDrillandMapFilesSet( outputDir.GetFullPath(), aGenDrill, aGenMap, aGenTenting, &reporter );
+    if( outDirs.empty() )
+        outDirs.push_back( outputDir.GetPath() );
+
+    for( size_t outIdx = 0; outIdx < outDirs.size(); ++outIdx )
+    {
+        wxFileName subDir = wxFileName::DirName( outDirs[outIdx] );
+
+        if( !EnsureFileDirectoryExists( &subDir, boardFilename, &reporter ) )
+        {
+            DisplayError( this, wxString::Format( _( "Could not write drill files to folder '%s'." ),
+                                                  subDir.GetPath() ) );
+            return;
+        }
+
+        const SHAPE_POLY_SET* outlineRegion = splitActive ? &boardSplit.m_regions[outIdx] : nullptr;
+
+        if( m_rbExcellon->GetValue() )
+        {
+            EXCELLON_WRITER excellonWriter( m_board );
+            excellonWriter.SetFormat( m_units->GetSelection() == 0, (EXCELLON_WRITER::ZEROS_FMT) m_zeros->GetSelection(),
+                                      precision.m_Lhs, precision.m_Rhs );
+            excellonWriter.SetOptions( m_Check_Mirror->IsChecked(), m_Check_Minimal->IsChecked(), drillFileOffset,
+                                       m_Check_Merge_PTH_NPTH->IsChecked() );
+            excellonWriter.SetRouteModeForOvalHoles( !m_altDrillMode->GetValue() );
+            excellonWriter.SetMapFileFormat( filefmt[choice] );
+            excellonWriter.SetPageInfo( &m_board->GetPageSettings() );
+            excellonWriter.SetOutlineRegion( outlineRegion );
+
+            excellonWriter.CreateDrillandMapFilesSet( subDir.GetFullPath(), aGenDrill, aGenMap, &reporter );
+        }
+        else
+        {
+            GERBER_WRITER gerberWriter( m_board );
+            gerberWriter.SetFormat( m_plotOpts.GetGerberPrecision() );
+            gerberWriter.SetOptions( drillFileOffset );
+            gerberWriter.SetMapFileFormat( filefmt[choice] );
+            gerberWriter.SetPageInfo( &m_board->GetPageSettings() );
+            gerberWriter.SetOutlineRegion( outlineRegion );
+
+            gerberWriter.CreateDrillandMapFilesSet( subDir.GetFullPath(), aGenDrill, aGenMap, aGenTenting, &reporter );
+        }
     }
 }
 

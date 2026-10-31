@@ -30,6 +30,8 @@
 #include <board.h>
 #include <confirm.h>
 #include <pcb_edit_frame.h>
+#include <board_outline_splitter.h>
+#include <geometry/shape_poly_set.h>
 #include <project/project_file.h>
 #include <bitmaps.h>
 #include <reporter.h>
@@ -72,7 +74,15 @@ DIALOG_GEN_FOOTPRINT_POSITION::DIALOG_GEN_FOOTPRINT_POSITION( PCB_EDIT_FRAME* aE
         m_variantChoiceCtrl->SetSelection( 0 );
     }
 
-    SetupStandardButtons( { { wxID_OK, _( "Generate Position File" ) },
+        // Multi-board-outline split option (dynamic: not part of the wxFormBuilder layout)
+    m_splitByOutline = new wxCheckBox( this, wxID_ANY,
+                                       _( "Split by board outline (one output folder per outline)" ) );
+    m_splitByOutline->SetToolTip( _( "Detect the independent Edge.Cuts outlines and export one set of "
+                                     "placement files per outline into board1/, board2/, ... sub-folders "
+                                     "of the output directory." ) );
+    m_MainSizer->Prepend( m_splitByOutline, 0, wxALL, 5 );
+
+SetupStandardButtons( { { wxID_OK, _( "Generate Position File" ) },
                             { wxID_CANCEL, _( "Close" ) } } );
 
     // DIALOG_SHIM needs a unique hash_key because classname will be the same for both job and
@@ -307,8 +317,43 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateGerberFiles()
         return false;
     }
 
+    // Multi-outline split: pre-flight + boardN sub-directories
+    BOARD_OUTLINE_SPLIT   split;
+    bool                  splitActive = false;
+    std::vector<wxString> outDirs;
+
+    if( m_splitByOutline->GetValue() )
+    {
+        if( !SplitBoardOutlines( brd, split ) )
+        {
+            DisplayError( this, split.m_error );
+            return false;
+        }
+
+        if( split.OutlineCount() >= 2 )
+        {
+            splitActive = true;
+
+            for( size_t r = 0; r < split.OutlineCount(); ++r )
+                outDirs.push_back( outputDir.GetPath() + wxFileName::GetPathSeparator()
+                                   + wxString::Format( wxT( "board%zu" ), r + 1 ) );
+        }
+        else
+        {
+            DisplayInfoMessage( this, _( "Only one board outline detected; the output will "
+                                         "not be split." ) );
+        }
+    }
+
+    if( outDirs.empty() )
+        outDirs.push_back( outputDir.GetPath() );
+
+    for( size_t outIdx = 0; outIdx < outDirs.size(); ++outIdx )
+    {
     wxFileName fn = m_editFrame->GetBoard()->GetFileName();
-    fn.SetPath( outputDir.GetPath() );
+    fn.SetPath( outDirs[outIdx] );
+
+    const SHAPE_POLY_SET* outlineRegion = splitActive ? &split.m_regions[outIdx] : nullptr;
 
     // Create the Front and Top side placement files. Gerber P&P files are always separated.
     // Not also they include all footprints
@@ -362,6 +407,7 @@ bool DIALOG_GEN_FOOTPRINT_POSITION::CreateGerberFiles()
     fullcount += fpcount;
     msg.Printf( _( "Full component count: %d." ), fullcount );
     reporter->Report( msg, RPT_SEVERITY_INFO );
+    } // for( size_t outIdx = ... )
 
     reporter->Report( _( "Done." ), RPT_SEVERITY_INFO );
 
@@ -540,7 +586,8 @@ int BOARD_EDITOR_CONTROL::GeneratePosFile( const TOOL_EVENT& aEvent )
 int PCB_EDIT_FRAME::DoGenFootprintsPositionFile( const wxString& aFullFileName, bool aUnitsMM,
                                                  bool aOnlySMD, bool aNoTHItems, bool aExcludeDNP,
                                                  bool aExcludeBOM, bool aTopSide, bool aBottomSide,
-                                                 bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX )
+                                                 bool aFormatCSV, bool aUseAuxOrigin, bool aNegateBottomX,
+                                                 const SHAPE_POLY_SET* aOutlineRegion )
 {
     FILE * file = nullptr;
 
@@ -556,6 +603,7 @@ int PCB_EDIT_FRAME::DoGenFootprintsPositionFile( const wxString& aFullFileName, 
     PLACE_FILE_EXPORTER exporter( GetBoard(), aUnitsMM, aOnlySMD, aNoTHItems, aExcludeDNP,
                                   aExcludeBOM, aTopSide, aBottomSide, aFormatCSV, aUseAuxOrigin,
                                   aNegateBottomX );
+    exporter.SetOutlineRegion( aOutlineRegion );
 
     // Set the current variant for variant-aware DNP/BOM/position file filtering
     exporter.SetVariant( GetBoard()->GetCurrentVariant() );

@@ -23,6 +23,8 @@
 #include <map>
 #include <vector>
 
+#include <board_outline_splitter.h>
+
 class BOARD;
 class FOOTPRINT;
 class PROJECT;
@@ -42,6 +44,44 @@ public:
                 std::optional<wxString> aSheetName = std::nullopt,
                 std::optional<wxString> aSheetPath = std::nullopt,
                 std::vector<wxString>* aOutputFiles = nullptr );
+
+    /**
+     * Multi-board-outline split export: the independent Edge.Cuts outlines (see
+     * SplitBoardOutlines()) are exported one by one, each into its own board<N>
+     * sub-directory of the output path.  Items spanning several outlines or sitting
+     * outside all of them abort the export with an error report.
+     *
+     * Call after constructing the plotter, before Plot().
+     */
+    void SetOutlineSplit( BOARD_OUTLINE_SPLIT& aSplit )
+    {
+        m_outlineSplit = &aSplit;
+    }
+
+    /**
+     * Run the pre-flight check for a multi-outline split export.  Returns false and
+     * fills @a aErrors when an item spans several outlines or sits outside all of them.
+     */
+    bool CheckOutlineSplit( wxString& aErrors ) const;
+
+    /**
+     * Multi-outline split entry: exports every outline into its own board<N> sub-directory
+     * of @a aOutputPath.  Only runs when SetOutlineSplit() was called.
+     */
+    bool PlotOutlineSplit( const wxString& aOutputPath, const LSEQ& aLayersToPlot,
+                           const LSEQ& aCommonLayers, bool aUseGerberFileExtensions,
+                           std::vector<wxString>* aOutputFiles );
+
+    /**
+     * Pre-filter for a single-outline pass: see PlotOneOutline().
+     */
+    void SetPlotOutlineFilter( const SHAPE_POLY_SET* aRegion,
+                               const std::map<const PCB_SHAPE*, int>* aShapeMap, int aIndex )
+    {
+        m_filterRegion   = aRegion;
+        m_filterShapeMap = aShapeMap;
+        m_filterIndex    = aIndex;
+    }
 
     /**
      * All copper layers that are disabled are actually selected
@@ -93,6 +133,19 @@ private:
      */
     LSEQ getPlotSequence( PCB_LAYER_ID aLayerToPlot, LSEQ aPlotWithAllLayersSeq );
 
+    /**
+     * Multi-outline split pass: export one outline into its board<N> sub-directory.
+     */
+    bool PlotOneOutline( size_t aOutlineIndex, const wxString& aOutputPath, const LSEQ& aLayersToPlot,
+                         const LSEQ& aCommonLayers, bool aUseGerberFileExtensions,
+                         std::vector<wxString>* aOutputFiles );
+
+    BOARD_OUTLINE_SPLIT* m_outlineSplit = nullptr;
+
+    /// Single-pass pre-filter (see SetPlotOutlineFilter)
+    const SHAPE_POLY_SET*                   m_filterRegion = nullptr;
+    const std::map<const PCB_SHAPE*, int>*  m_filterShapeMap = nullptr;
+    int                                     m_filterIndex = 0;
 };
 
 

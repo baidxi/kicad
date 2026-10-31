@@ -31,6 +31,7 @@
 #include <project/project_file.h>
 #include <pcbplot.h>
 #include <pgm_base.h>
+#include <board_outline_splitter.h>
 #include <gerber_jobfile_writer.h>
 #include <reporter.h>
 #include <wildcards_and_files_ext.h>
@@ -258,6 +259,18 @@ DIALOG_PLOT::DIALOG_PLOT( PCB_EDIT_FRAME* aEditFrame, wxWindow* aParent, JOB_EXP
 
     m_bpMoveUp->Bind( wxEVT_COMMAND_BUTTON_CLICKED, &DIALOG_PLOT::onPlotAllListMoveUp, this );
     m_bpMoveDown->Bind( wxEVT_COMMAND_BUTTON_CLICKED, &DIALOG_PLOT::onPlotAllListMoveDown, this );
+
+    // Multi-board-outline split option (dynamic: not part of the wxFormBuilder layout).
+    // Only meaningful for the interactive plot (the CLI job has no board).
+    m_splitByOutline = new wxCheckBox( this, wxID_ANY,
+                                       _( "Split by board outline (one output folder per outline)" ) );
+    m_splitByOutline->SetToolTip( _( "Detect the independent Edge.Cuts outlines and export one set of "
+                                     "files per outline into board1/, board2/, ... sub-folders of the "
+                                     "output directory." ) );
+    m_PlotOptionsSizer->Add( m_splitByOutline, 0, wxALL, 5 );
+
+    if( m_job )
+        m_splitByOutline->Hide();
 
     m_layerCheckListBox->Connect( wxEVT_RIGHT_DOWN, wxMouseEventHandler( DIALOG_PLOT::OnRightClickLayers ),
                                   nullptr, this );
@@ -1363,6 +1376,41 @@ void DIALOG_PLOT::Plot( wxCommandEvent& event )
                 PCB_LAYER_ID client_layer = getLayerClientData( m_plotAllLayersList, index )->Layer();
 
                 commonLayers.push_back( client_layer );
+            }
+        }
+
+        BOARD_OUTLINE_SPLIT boardSplit;
+        bool                splitActive = true;
+
+        if( m_splitByOutline->GetValue() )
+        {
+            if( !SplitBoardOutlines( board, boardSplit ) )
+            {
+                DisplayError( this, boardSplit.m_error );
+                board->SetCurrentVariant( oldVariant );
+                return;
+            }
+
+            if( boardSplit.OutlineCount() < 2 )
+            {
+                DisplayInfoMessage( this, _( "Only one board outline detected; the output will "
+                                             "not be split." ) );
+                splitActive = false;
+            }
+            else
+            {
+                pcbPlotter.SetOutlineSplit( boardSplit );
+
+                wxString checkErrors;
+
+                if( !pcbPlotter.CheckOutlineSplit( checkErrors ) )
+                {
+                    DisplayError( this, _( "The board cannot be split because some items span "
+                                           "multiple outlines or sit outside all of them:\n" )
+                                          + checkErrors );
+                    board->SetCurrentVariant( oldVariant );
+                    return;
+                }
             }
         }
 
