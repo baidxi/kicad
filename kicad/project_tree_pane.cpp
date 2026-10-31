@@ -771,13 +771,14 @@ void PROJECT_TREE_PANE::onRight( wxTreeEvent& Event )
     // Ensure item is selected (Under Windows right click does not select the item)
     m_TreeProject->SelectItem( curr_item );
 
-    // The tree control still uses the clicked item after this returns, so a menu command
-    // that closes the project must not run inside the click.
-    CallAfter(
-            [this]
-            {
-                showContextMenu();
-            } );
+    // The menu must be popped up while the right button is still down.  Deferring the
+    // popup past the button release (e.g. via CallAfter) makes that release land inside
+    // the menu's own grab, and GTK dismisses the freshly opened menu immediately.
+    //
+    // Menu commands run inside PopupMenu()'s own nested event loop rather than inside
+    // this tree event, and this handler touches nothing after the call returns, so a
+    // command that closes the project cannot re-enter the click processing here.
+    showContextMenu();
 }
 
 
