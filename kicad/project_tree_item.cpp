@@ -238,8 +238,10 @@ void PROJECT_TREE_ITEM::Activate( PROJECT_TREE_PANE* aTreePrjFrame )
     {
     case TREE_FILE_TYPE::LEGACY_PROJECT:
     case TREE_FILE_TYPE::JSON_PROJECT:
-        // Select a new project if this is not the current project:
-        if( id != aTreePrjFrame->m_TreeProject->GetRootItem() )
+        // Select a new project if this is not the current project.  Compare by path: the
+        // tree holds several project entries side by side, so the root-id test no longer
+        // applies.
+        if( fullFileName != frame->GetProjectFileName() )
             frame->LoadProject( fullFileName );
 
         break;

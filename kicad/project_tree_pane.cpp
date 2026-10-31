@@ -82,6 +82,7 @@
 #include "pgm_kicad.h"
 #include "kicad_id.h"
 #include "kicad_manager_frame.h"
+#include <file_history.h>
 
 #include "project_tree_pane.h"
 #include <widgets/kistatusbar.h>
@@ -516,7 +517,6 @@ wxTreeItemId PROJECT_TREE_PANE::addItemToProjectTree( const wxString& aName,
                 return wxTreeItemId();
         }
     }
-
     // also check to see if it is already there.
     wxTreeItemIdValue cookie;
     wxTreeItemId      kid = m_TreeProject->GetFirstChild( aParent, cookie );
@@ -706,16 +706,25 @@ void PROJECT_TREE_PANE::ReCreateTreePrj()
         fn.SetExt( FILEEXT::ProjectFileExtension );
     }
 
-    // root tree:
+    // Root tree (hidden): acts as the container holding every top-level project entry.
+    // Keeping it hidden lets the current project and the other recently-opened projects
+    // sit beside each other at the same visual level.
     m_root = m_TreeProject->AddRoot( fn.GetFullName(), static_cast<int>( TREE_FILE_TYPE::ROOT ),
                                      static_cast<int>( TREE_FILE_TYPE::ROOT ) );
-    m_TreeProject->SetItemBold( m_root, true );
 
     // The main project file is now a JSON file
     PROJECT_TREE_ITEM* data = new PROJECT_TREE_ITEM( TREE_FILE_TYPE::JSON_PROJECT, fn.GetFullPath(),
                                                      m_TreeProject );
 
     m_TreeProject->SetItemData( m_root, data );
+
+    // Visible top-level entry of the current project:
+    PROJECT_TREE_ITEM* prjData = new PROJECT_TREE_ITEM( TREE_FILE_TYPE::JSON_PROJECT, fn.GetFullPath(),
+                                                        m_TreeProject );
+    m_projectRootId = m_TreeProject->AppendItem( m_root, fn.GetFullName(),
+                                                 static_cast<int>( TREE_FILE_TYPE::ROOT ),
+                                                 static_cast<int>( TREE_FILE_TYPE::ROOT ), prjData );
+    m_TreeProject->SetItemBold( m_projectRootId, true );
 
     // Now adding all current files if available
     if( prjOpened )
@@ -737,7 +746,7 @@ void PROJECT_TREE_PANE::ReCreateTreePrj()
 
                     // Add items living in the project directory, and populate the item
                     // if it is a directory (sub directories will be not populated)
-                    addItemToProjectTree( name, m_root, &projects, true );
+                    addItemToProjectTree( name, m_projectRootId, &projects, true );
                 }
 
                 haveFile = dir.GetNext( &filename );
@@ -746,13 +755,64 @@ void PROJECT_TREE_PANE::ReCreateTreePrj()
     }
     else
     {
-        m_TreeProject->AppendItem( m_root, wxT( "Empty project" ) );
+        m_TreeProject->AppendItem( m_projectRootId, wxT( "Empty project" ) );
     }
 
-    m_TreeProject->Expand( m_root );
+    m_TreeProject->Expand( m_projectRootId );
 
     // Sort filenames by alphabetic order
-    m_TreeProject->SortChildren( m_root );
+    m_TreeProject->SortChildren( m_projectRootId );
+
+    // Other recently-opened projects, each rendered as its own "<project>.kicad_pro" group
+    // with its schematic and board files beneath it.  Double-clicking a group switches to
+    // that project; double-clicking its schematic or board opens that file standalone
+    // without switching the current project.
+    FILE_HISTORY& fileHistory = m_Parent->GetFileHistory();
+    wxString      currentPrjFn = m_Parent->GetProjectFileName();
+
+    for( size_t ii = 0; ii < fileHistory.GetCount(); ++ii )
+    {
+        wxString projFn = fileHistory.GetHistoryFile( ii );
+
+        if( projFn == currentPrjFn )
+            continue;
+
+        wxFileName projFile( projFn );
+
+        if( !projFile.FileExists() )
+            continue;
+
+        wxDir projDir( projFile.GetPath() );
+
+        if( !projDir.IsOpened() )
+            continue;
+
+        PROJECT_TREE_ITEM* groupData = new PROJECT_TREE_ITEM( TREE_FILE_TYPE::JSON_PROJECT, projFn,
+                                                              m_TreeProject );
+        wxTreeItemId group = m_TreeProject->AppendItem( m_root, projFile.GetFullName() );
+        m_TreeProject->SetItemData( group, groupData );
+        m_TreeProject->SetItemBold( group, true );
+
+        // Populate the group with the exact same filtering/recursion rules used for the
+        // current project (directories, schematics including hierarchy sub-sheets, boards,
+        // design rules, etc.), so every project entry looks the same in the tree.
+        wxString filename;
+        bool     haveFile = projDir.GetFirst( &filename );
+
+        while( haveFile )
+        {
+            if( filename != projFile.GetFullName() )
+            {
+                wxString name = projFile.GetPath() + wxFileName::GetPathSeparator() + filename;
+                addItemToProjectTree( name, group, nullptr, true );
+            }
+
+            haveFile = projDir.GetNext( &filename );
+        }
+
+        m_TreeProject->SortChildren( group );
+        m_TreeProject->Expand( group );
+    }
 
     CallAfter(
             [this] ()
@@ -842,7 +902,7 @@ void PROJECT_TREE_PANE::showContextMenu()
         case TREE_FILE_TYPE::LEGACY_PROJECT:
             can_rename = false;
 
-            if( item->GetId() == m_TreeProject->GetRootItem() )
+            if( item->GetFileName() == m_Parent->GetProjectFileName() )
             {
                 can_switch_to_project = false;
             }
@@ -1287,11 +1347,11 @@ wxTreeItemId PROJECT_TREE_PANE::findSubdirTreeItem( const wxString& aSubDir )
     // If the subdir is the current working directory, return m_root
     // in main list:
     if( prj_dir == aSubDir )
-        return m_root;
+        return m_projectRootId;
 
     // The subdir is in the main tree or in a subdir: Locate it
     wxTreeItemIdValue        cookie;
-    wxTreeItemId             root_id = m_root;
+    wxTreeItemId             root_id = m_projectRootId;
     std::stack<wxTreeItemId> subdirs_id;
 
     wxTreeItemId child = m_TreeProject->GetFirstChild( root_id, cookie );
@@ -1575,7 +1635,7 @@ void PROJECT_TREE_PANE::FileWatcherReset()
 
     // Add subdirs
     wxTreeItemIdValue  cookie;
-    wxTreeItemId       root_id = m_root;
+    wxTreeItemId       root_id = m_projectRootId;
 
     std::stack < wxTreeItemId > subdirs_id;
 

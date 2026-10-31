@@ -283,7 +283,8 @@ public:
 
 private:
     bool                    m_isRenaming;       // Are we in the process of renaming a file
-    wxTreeItemId            m_root;
+    wxTreeItemId            m_root;             // hidden root; children are the project entries
+    wxTreeItemId            m_projectRootId;    // visible entry of the current project
     std::vector<wxString>   m_filters;
     wxFileSystemWatcher*    m_watcher;          // file system watcher
     PROJECT_TREE_ITEM*      m_selectedItem;

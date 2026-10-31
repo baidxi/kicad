@@ -41,7 +41,8 @@ IMPLEMENT_ABSTRACT_CLASS( PROJECT_TREE, wxTreeCtrl )
 
 PROJECT_TREE::PROJECT_TREE( PROJECT_TREE_PANE* parent ) :
         wxTreeCtrl( parent, ID_PROJECT_TREE, wxDefaultPosition, wxDefaultSize,
-                    PLATFORM_STYLE | wxTR_HAS_BUTTONS | wxTR_MULTIPLE, wxDefaultValidator,
+                    PLATFORM_STYLE | wxTR_HAS_BUTTONS | wxTR_MULTIPLE | wxTR_HIDE_ROOT,
+                    wxDefaultValidator,
                     wxT( "EDATreeCtrl" ) ),
         m_statusImageList( nullptr )
 {
