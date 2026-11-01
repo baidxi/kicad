@@ -1216,13 +1216,16 @@ void API_PLUGIN_MANAGER::processNextJob( wxCommandEvent& aEvent )
         }
         else if( !reqs.IsFileReadable() )
         {
+            // 无 requirements.txt 是合法状态:插件可能没有 pip 依赖,或在动作启动时
+            // 自行引导依赖(如 lceda-kicad-plugin 用随包 pip.pyz 兜底)。依赖流水线
+            // (processPluginDependencies) 对所有 Python 插件执行、与 action 的 scopes
+            // 无关,因此 scopes 仅为 schematic 的插件也会在 pcbnew 中走到这里;若按
+            // ERROR 上报,每次编辑器重载插件都会弹出无关的
+            // "requirements.txt could not be read" 错误。降级为 trace 并保持 ready。
             wxLogTrace( traceApi,
-                        wxString::Format( "Manager: error: requirements.txt not found at %s",
+                        wxString::Format( "Manager: no requirements.txt at %s; no pip "
+                                          "dependencies to install",
                                           job.plugin_path ) );
-            wxString debug = wxString::Format( wxS( "Expected at %s" ), reqs.GetFullPath() );
-
-            reportPluginLoadMessage( m_reloadReporter.get(), pluginName( job.identifier ),
-                                     _( "requirements.txt could not be read" ), debug );
 
             // No requirements to install; the plugin is complete.
             m_readyPlugins.insert( job.identifier );
