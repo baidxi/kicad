@@ -1,16 +1,27 @@
 #!/bin/bash
+# Dependencies for a local KiCad build, kept aligned with
+# .github/workflows/build-packages.yml (linux jobs).
+#
+# Not included here on purpose (they match what the workflow does NOT enable):
+#   - doxygen/dblatex/po4a/asciidoc/source-highlight: only for the docs build
+#   - python3-pytest/python3-cairosvg/python3-numpy: only for the QA suite
+#   - debhelper: the workflow packs the .deb with dpkg-deb directly
+
 sudo apt-get update && sudo apt-get install -y \
   debhelper \
   cmake \
   cmake-curses-gui \
   build-essential \
   pkg-config \
-  grep \
-  doxygen \
-  dblatex \
-  po4a \
-  asciidoc \
-  source-highlight \
+  gettext \
+  dpkg-dev \
+  file \
+  ninja-build \
+  glslang-tools \
+  spirv-tools \
+  libvulkan-dev \
+  libwebkit2gtk-4.1-dev \
+  desktop-file-utils \
   libcairo2-dev \
   libpng-dev \
   libglu1-mesa-dev \
@@ -26,9 +37,6 @@ sudo apt-get update && sudo apt-get install -y \
   libzstd-dev \
   zlib1g-dev \
   python3-dev \
-  python3-pytest \
-  python3-cairosvg \
-  python3-numpy \
   libocct-modeling-algorithms-dev \
   libocct-modeling-data-dev \
   libocct-data-exchange-dev \
