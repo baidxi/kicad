@@ -49,6 +49,7 @@
 #include <convert_basic_shapes_to_polygon.h>
 #include <widgets/msgpanel.h>
 #include <pcb_painter.h>
+#include <pcbnew_settings.h>
 #include <properties/property_validators.h>
 #include <properties/property.h>
 #include <properties/property_mgr.h>
@@ -62,7 +63,6 @@
 #include <macros.h>
 #include <magic_enum.hpp>
 #include "kiface_base.h"
-#include "pcbnew_settings.h"
 
 #include <pcb_group.h>
 #include <gal/graphics_abstraction_layer.h>
@@ -663,11 +663,17 @@ PCB_LAYER_ID PAD::GetLayer() const
 
 PCB_LAYER_ID PAD::GetPrincipalLayer() const
 {
-    if( m_attribute == PAD_ATTRIB::SMD || m_attribute == PAD_ATTRIB::CONN || GetLayerSet().none() )
+    if( m_attribute == PAD_ATTRIB::SMD
+         || m_attribute == PAD_ATTRIB::CONN
+         || m_attribute == PAD_ATTRIB::NON_COMPONENT
+         || GetLayerSet().none() )
+    {
         return m_layer;
+    }
     else
+    {
         return GetLayerSet().Seq().front();
-
+    }
 }
 
 
@@ -1566,18 +1572,21 @@ void PAD::SetAttribute( PAD_ATTRIB aAttribute )
 
         case PAD_ATTRIB::SMD:
         case PAD_ATTRIB::CONN:
+        case PAD_ATTRIB::NON_COMPONENT:
         {
             // Trim down to no more than one copper layer
-            LSET copperLayers = layerMask & LSET::AllCuMask();
+            const LSET copperLayers = layerMask & LSET::AllCuMask();
 
             if( copperLayers.count() > 1 )
             {
                 layerMask &= ~LSET::AllCuMask();
 
                 if( copperLayers.test( B_Cu ) )
-                    layerMask.set( B_Cu );
+                    m_layer = B_Cu;
                 else
-                    layerMask.set( copperLayers.Seq().front() );
+                    m_layer = copperLayers.Seq().front();
+
+                layerMask.set( m_layer );
             }
 
             // No hole, so no drilling of any kind
@@ -1697,39 +1706,7 @@ void PAD::Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
 
     SetFPRelativeOrientation( -GetFPRelativeOrientation() );
 
-    auto mirrorBitFlags = []( int& aBitfield, int a, int b )
-                          {
-                              bool temp = aBitfield & a;
-
-                              if( aBitfield & b )
-                                  aBitfield |= a;
-                              else
-                                  aBitfield &= ~a;
-
-                              if( temp )
-                                  aBitfield |= b;
-                              else
-                                  aBitfield &= ~b;
-                          };
-
-    Padstack().ForEachUniqueLayer(
-            [&]( PCB_LAYER_ID aLayer )
-            {
-                if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
-                {
-                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_LEFT,
-                                    RECT_CHAMFER_TOP_RIGHT );
-                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_BOTTOM_LEFT,
-                                    RECT_CHAMFER_BOTTOM_RIGHT );
-                }
-                else
-                {
-                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_LEFT,
-                                    RECT_CHAMFER_BOTTOM_LEFT );
-                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_RIGHT,
-                                    RECT_CHAMFER_BOTTOM_RIGHT );
-                }
-            } );
+    mirrorChamferPositions( aFlipDirection );
 
     m_padStack.FlipLayers( GetBoard() );
 
@@ -1763,6 +1740,80 @@ void PAD::FlipPrimitives( FLIP_DIRECTION aFlipDirection )
             } );
 
     SetDirty();
+}
+
+
+void PAD::Mirror( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection )
+{
+    Mirror( MIRROR_AXIS( aCentre, aFlipDirection ) );
+}
+
+
+void PAD::Mirror( const SEG& aAxis )
+{
+    // Unlike Flip(), a mirror keeps the pad on its side, so only the geometry moves, which
+    // is relative to the pad's own origin.
+    const SEG       padXAxis( VECTOR2I( 0, 0 ), VECTOR2I( 1, 0 ) );
+    const EDA_ANGLE axisAngle = -EDA_ANGLE( aAxis.B - aAxis.A );
+
+    SetPosition( aAxis.ReflectPoint( GetPosition() ) );
+    SetOrientation( GetOrientation().Reflect( axisAngle ) );
+
+    mirrorChamferPositions( FLIP_DIRECTION::TOP_BOTTOM );
+
+    m_padStack.ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID aLayer )
+            {
+                MIRROR( m_padStack.Offset( aLayer ), VECTOR2I{ 0, 0 }, FLIP_DIRECTION::TOP_BOTTOM );
+                MIRROR( m_padStack.TrapezoidDeltaSize( aLayer ), VECTOR2I{ 0, 0 }, FLIP_DIRECTION::TOP_BOTTOM );
+
+                for( const std::shared_ptr<PCB_SHAPE>& primitive : m_padStack.Primitives( aLayer ) )
+                {
+                    primitive->SetParent( this );
+                    primitive->Mirror( padXAxis );
+                }
+            } );
+
+    SetDirty();
+}
+
+
+void PAD::mirrorChamferPositions( FLIP_DIRECTION aFlipDirection )
+{
+    const auto mirrorBitFlags =
+            []( int& aBitfield, int a, int b )
+            {
+                bool temp = aBitfield & a;
+
+                if( aBitfield & b )
+                    aBitfield |= a;
+                else
+                    aBitfield &= ~a;
+
+                if( temp )
+                    aBitfield |= b;
+                else
+                    aBitfield &= ~b;
+            };
+
+    m_padStack.ForEachUniqueLayer(
+            [&]( PCB_LAYER_ID aLayer )
+            {
+                if( aFlipDirection == FLIP_DIRECTION::LEFT_RIGHT )
+                {
+                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_LEFT,
+                                    RECT_CHAMFER_TOP_RIGHT );
+                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_BOTTOM_LEFT,
+                                    RECT_CHAMFER_BOTTOM_RIGHT );
+                }
+                else
+                {
+                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_LEFT,
+                                    RECT_CHAMFER_BOTTOM_LEFT );
+                    mirrorBitFlags( m_padStack.ChamferPositions( aLayer ), RECT_CHAMFER_TOP_RIGHT,
+                                    RECT_CHAMFER_BOTTOM_RIGHT );
+                }
+            } );
 }
 
 
@@ -2145,8 +2196,12 @@ void PAD::GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& 
             aList.emplace_back( _( "Status" ), _( "Locked" ) );
     }
 
-    if( GetAttribute() == PAD_ATTRIB::SMD || GetAttribute() == PAD_ATTRIB::CONN )
+    if( GetAttribute() == PAD_ATTRIB::SMD
+        || GetAttribute() == PAD_ATTRIB::CONN
+        || GetAttribute() == PAD_ATTRIB::NON_COMPONENT )
+    {
         aList.emplace_back( _( "Layer" ), LayerMaskDescribe() );
+    }
 
     if( aFrame->GetName() == FOOTPRINT_EDIT_FRAME_NAME )
     {
@@ -2503,11 +2558,12 @@ wxString PAD::ShowPadAttr() const
 {
     switch( GetAttribute() )
     {
-    case PAD_ATTRIB::PTH:    return _( "PTH" );
-    case PAD_ATTRIB::SMD:    return _( "SMD" );
-    case PAD_ATTRIB::CONN:   return _( "Conn" );
-    case PAD_ATTRIB::NPTH:   return _( "NPTH" );
-    default:                 return wxT( "???" );
+    case PAD_ATTRIB::PTH:           return _( "PTH" );
+    case PAD_ATTRIB::SMD:           return _( "SMD" );
+    case PAD_ATTRIB::CONN:          return _( "Conn" );
+    case PAD_ATTRIB::NPTH:          return _( "NPTH" );
+    case PAD_ATTRIB::NON_COMPONENT: return _( "Non-component" );
+    default:                        return wxT( "???" );
     }
 }
 
@@ -2529,7 +2585,9 @@ wxString PAD::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) c
     }
     else if( GetNumber().IsEmpty() )
     {
-        if( GetAttribute() == PAD_ATTRIB::SMD || GetAttribute() == PAD_ATTRIB::CONN )
+        if( GetAttribute() == PAD_ATTRIB::SMD
+            || GetAttribute() == PAD_ATTRIB::CONN
+            || GetAttribute() == PAD_ATTRIB::NON_COMPONENT )
         {
             if( parentFP )
             {
@@ -2560,7 +2618,9 @@ wxString PAD::GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) c
     }
     else
     {
-        if( GetAttribute() == PAD_ATTRIB::SMD || GetAttribute() == PAD_ATTRIB::CONN )
+        if( GetAttribute() == PAD_ATTRIB::SMD
+            || GetAttribute() == PAD_ATTRIB::CONN
+            || GetAttribute() == PAD_ATTRIB::NON_COMPONENT )
         {
             if( parentFP )
             {
@@ -2902,6 +2962,7 @@ void PAD::ImportSettingsFrom( const PAD& aMasterPad )
     {
     case PAD_ATTRIB::SMD:
     case PAD_ATTRIB::CONN:
+    case PAD_ATTRIB::NON_COMPONENT:
         // These pads have no hole, or any kind of drilling.
         PAD_UTILS::RemoveAllDrillsFromPadstack( m_padStack );
         break;
@@ -3456,7 +3517,8 @@ static struct PAD_DESC
                 .Map( PAD_ATTRIB::PTH,             _HKI( "Through-hole" ) )
                 .Map( PAD_ATTRIB::SMD,             _HKI( "SMD" ) )
                 .Map( PAD_ATTRIB::CONN,            _HKI( "Edge connector" ) )
-                .Map( PAD_ATTRIB::NPTH,            _HKI( "NPTH, mechanical" ) );
+                .Map( PAD_ATTRIB::NPTH,            _HKI( "NPTH, mechanical" ) )
+                .Map( PAD_ATTRIB::NON_COMPONENT,   _HKI( "Non-component" ) );
 
         ENUM_MAP<PAD_SHAPE>::Instance()
                 .Map( PAD_SHAPE::CIRCLE,           _HKI( "Circle" ) )

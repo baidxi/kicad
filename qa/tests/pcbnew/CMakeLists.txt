@@ -79,6 +79,7 @@ set( QA_PCBNEW_SRCS
     test_import_design_rules.cpp
     test_footprint_library_adapter.cpp
     test_footprint_load_save.cpp
+    test_footprint_net_tie.cpp
     test_footprint_pad_fixup.cpp
     test_footprint_realignment.cpp
     test_cross_probe_selection.cpp
@@ -114,6 +115,7 @@ set( QA_PCBNEW_SRCS
     test_pad_check.cpp
     test_pad_flashing.cpp
     test_pad_numbering.cpp
+    test_pad_roundtrip.cpp
     test_pcb_differ.cpp
     test_diff_canvas_context.cpp
     test_pcb_merge_applier.cpp

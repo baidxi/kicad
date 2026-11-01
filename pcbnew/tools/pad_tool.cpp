@@ -67,6 +67,7 @@ public:
         SMD,
         NPTH,
         CONNECTOR,
+        NON_COMPONENT,
         PASTE,
         MASK,
     };
@@ -242,6 +243,19 @@ public:
                                                 } );
             break;
         }
+        case PAD_MASTER_PROVIDER::TYPE::NON_COMPONENT:
+        {
+            pad->SetAttribute( PAD_ATTRIB::NON_COMPONENT );
+            pad->SetLayerSet( { F_Cu } );
+            pad->SetShape( PADSTACK::ALL_LAYERS, PAD_SHAPE::ROUNDRECT );
+
+            const VECTOR2D size = VECTOR2D{
+                pcbIUScale.mmToIU( DEFAULT_PAD_SMD_WIDTH_MM ),
+                pcbIUScale.mmToIU( DEFAULT_PAD_SMD_HEIGHT_MM ),
+            };
+            pad->SetSize( PADSTACK::ALL_LAYERS, size );
+            break;
+        }
         // No Default: handle every case explicitly
         case PAD_MASTER_PROVIDER::TYPE::AUTO:
         {
@@ -318,6 +332,8 @@ public:
         }
         if( aPad.GetAttribute() == PAD_ATTRIB::CONN )
             return TYPE::CONNECTOR;
+        if( aPad.GetAttribute() == PAD_ATTRIB::NON_COMPONENT )
+            return TYPE::NON_COMPONENT;
         if( aPad.GetAttribute() == PAD_ATTRIB::NPTH )
             return TYPE::NPTH;
 
@@ -525,6 +541,24 @@ int PAD_TOOL::copyPadSettings( const TOOL_EVENT& aEvent )
 }
 
 
+/**
+ * Check if the sizes of two pads match on all relevant layers.
+ * Returns true if all sizes match, false otherwise.
+ */
+static bool padSizesMatch( const PAD& aPad1, const PAD& aPad2 )
+{
+    LSET relevantLayers = aPad1.Padstack().RelevantShapeLayers( aPad2.Padstack() );
+
+    for( PCB_LAYER_ID aLayer : relevantLayers )
+    {
+        if( aPad1.GetSize( aLayer ) != aPad2.GetSize( aLayer ) )
+            return false;
+    }
+
+    return true;
+}
+
+
 static void doPushPadProperties( BOARD& board, const PAD& aSrcPad, BOARD_COMMIT& commit, bool aSameFootprints,
                                  bool aPadShapeFilter, bool aPadSizeFilter, bool aPadOrientFilter, bool aPadLayerFilter,
                                  bool aPadTypeFilter )
@@ -568,7 +602,7 @@ static void doPushPadProperties( BOARD& board, const PAD& aSrcPad, BOARD_COMMIT&
 
             EDA_ANGLE padAngle = pad->GetOrientation() - footprint->GetOrientation();
 
-            if( aPadSizeFilter && ( pad->GetSize( PADSTACK::ALL_LAYERS ) != aSrcPad.GetSize( PADSTACK::ALL_LAYERS ) ) )
+            if( aPadSizeFilter && ( !padSizesMatch( *pad, aSrcPad ) ) )
                 continue;
 
             if( aPadOrientFilter && ( padAngle != srcPadAngle ) )

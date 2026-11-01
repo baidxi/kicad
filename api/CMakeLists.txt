@@ -20,6 +20,7 @@ set( Protobuf_IMPORT_DIRS ${Protobuf_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/pr
 
 set( KIAPI_PROTO_SRCS
     common/envelope.proto
+    common/tasks.proto
 
     common/types/base_types.proto
     common/types/embedded_files.proto
@@ -42,11 +43,13 @@ set( KIAPI_PROTO_SRCS
     board/board_jobs.proto
     board/board_types.proto
     board/board_rules.proto
+    board/board_tasks.proto
 
     schematic/schematic_types.proto
     schematic/schematic_commands.proto
     schematic/schematic_jobs.proto
     schematic/schematic_rules.proto
+    schematic/schematic_tasks.proto
     )
 
 # Generated C++ code must be in the build dir; it is dependent on the version of protoc installed
