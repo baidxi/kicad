@@ -459,7 +459,7 @@ bool BOARD_NETLIST_UPDATER::updateFootprintParameters( FOOTPRINT* aFootprint, CO
 
     const COMPONENT_VARIANT* firstAssociatedVariant = nullptr;
 
-    if( fpidsEquivalent( aFootprint->GetFPID(), aNetlistComponent->GetFPID() ) )
+    if( !fpidsEquivalent( aFootprint->GetFPID(), aNetlistComponent->GetFPID() ) )
     {
         for( const auto& [_, test] : aNetlistComponent->GetVariants() )
         {
@@ -1780,9 +1780,12 @@ void BOARD_NETLIST_UPDATER::applyComponentVariants( COMPONENT* aComponent,
                                             fieldName,
                                             info.name );
                             }
+
+                            currentVariant->RemoveFieldValue( fieldName );
                         }
 
-                        currentVariant->RemoveFieldValue( fieldName );
+                        m_reporter->Report( msg, RPT_SEVERITY_ACTION );
+                        changed = true;
                     }
                 }
             }
@@ -2525,9 +2528,6 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
         bool matched = false;
         bool doDelete = m_deleteUnusedFootprints;
 
-        if( ( footprint->GetAttributes() & FP_BOARD_ONLY ) > 0 )
-            doDelete = false;
-
         bool isStaleVariantFootprint = false;
 
         if( usedFootprints.count( footprint ) )
@@ -2569,6 +2569,9 @@ bool BOARD_NETLIST_UPDATER::UpdateNetlist( NETLIST& aNetlist )
         // regardless of m_deleteUnusedFootprints setting.
         if( isStaleVariantFootprint )
             doDelete = true;
+
+        if( ( footprint->GetAttributes() & FP_BOARD_ONLY ) > 0 )
+            doDelete = false;
 
         if( doDelete && !matched && footprint->IsLocked() && !m_overrideLocks )
         {

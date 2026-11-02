@@ -724,8 +724,8 @@ bool FOOTPRINT::DeserializeDefinition( const kiapi::board::types::Footprint& aIn
     Models().clear();
     Points().clear();
 
-    for( PCB_3D_BODY* body : m_bodies )
-        Remove( body );
+    while( !m_bodies.empty() )
+        Remove( m_bodies.back() );
 
     for( const google::protobuf::Any& itemMsg : aInput.items() )
     {
@@ -1434,6 +1434,13 @@ FOOTPRINT& FOOTPRINT::operator=( const FOOTPRINT& aOther )
     // Copy auxiliary data
     m_3D_Drawings   = aOther.m_3D_Drawings;
     m_height        = aOther.m_height;
+
+    // Clear the other item's containers since this is a move
+
+    for( PCB_3D_BODY* body : m_bodies )
+        delete body;
+
+    m_bodies.clear();
 
     for( PCB_3D_BODY* body : aOther.m_bodies )
         Add( static_cast<PCB_3D_BODY*>( body->Clone() ), ADD_MODE::APPEND );
@@ -3166,8 +3173,8 @@ PCB_3D_BODY& FOOTPRINT::EnsureBody()
 
 void FOOTPRINT::ClearBody()
 {
-    for( PCB_3D_BODY* body : m_bodies )
-        Remove( body );
+    while( !m_bodies.empty() )
+        Remove( m_bodies.back() );
 }
 
 bool FOOTPRINT::Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const
