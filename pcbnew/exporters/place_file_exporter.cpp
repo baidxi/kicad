@@ -339,7 +339,7 @@ std::string PLACE_FILE_EXPORTER::GenReportData()
     std::sort( sortedFootprints.begin(), sortedFootprints.end(),
                []( FOOTPRINT* a, FOOTPRINT* b ) -> bool
                {
-                   return StrNumCmp( a->GetReference(), b->GetReference(), true ) < 0;
+                   return StrNumCmp( a->GetReference(), b->GetReference(), CMP_T::IGNORE_CASE ) < 0;
                });
 
     for( FOOTPRINT* footprint : sortedFootprints )
@@ -391,7 +391,7 @@ std::string PLACE_FILE_EXPORTER::GenReportData()
         std::sort( sortedPads.begin(), sortedPads.end(),
                    []( PAD* a, PAD* b ) -> bool
                    {
-                       return StrNumCmp( a->GetNumber(), b->GetNumber(), true ) < 0;
+                       return StrNumCmp( a->GetNumber(), b->GetNumber(), CMP_T::IGNORE_CASE ) < 0;
                    });
 
         for( PAD* pad : sortedPads )

@@ -772,6 +772,9 @@ int SCH_EDITOR_CONTROL::SimProbe( const TOOL_EVENT& aEvent )
                         std::vector<EMBEDDED_FILES*> embeddedFilesStack;
                         embeddedFilesStack.push_back( m_frame->Schematic().GetEmbeddedFiles() );
 
+                        if( symbol->GetLibSymbolRef() )
+                            symbol->GetLibSymbolRef()->AppendParentEmbeddedFiles( embeddedFilesStack );
+
                         if( EMBEDDED_FILES* symbolEmbeddedFile = symbol->GetEmbeddedFiles() )
                             embeddedFilesStack.push_back( symbolEmbeddedFile );
 
@@ -2458,7 +2461,7 @@ int SCH_EDITOR_CONTROL::Paste( const TOOL_EVENT& aEvent )
           {
               SCH_SHEET* firstSheet = static_cast<SCH_SHEET*>( firstItem );
               SCH_SHEET* secondSheet = static_cast<SCH_SHEET*>( secondItem );
-              return StrNumCmp( firstSheet->GetName(), secondSheet->GetName(), false ) < 0;
+              return StrNumCmp( firstSheet->GetName(), secondSheet->GetName(), CMP_T::CASE_SENSITIVE ) < 0;
           } );
 
 

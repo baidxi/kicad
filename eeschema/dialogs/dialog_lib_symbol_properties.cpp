@@ -90,15 +90,7 @@ DIALOG_LIB_SYMBOL_PROPERTIES::DIALOG_LIB_SYMBOL_PROPERTIES( SYMBOL_EDIT_FRAME* a
         m_delayedFocusPage( -1 )
 {
     std::vector<EMBEDDED_FILES*> embeddedFilesStack;
-
-    if( std::shared_ptr<LIB_SYMBOL> parent = m_libEntry->GetParent().lock() )
-    {
-        while( parent )
-        {
-            embeddedFilesStack.push_back( parent->GetEmbeddedFiles() );
-            parent = parent->GetParent().lock();
-        }
-    }
+    m_libEntry->AppendParentEmbeddedFiles( embeddedFilesStack );
 
     m_embeddedFiles = new PANEL_EMBEDDED_FILES( m_NoteBook, m_libEntry->GetEmbeddedFiles(), 0, embeddedFilesStack );
     m_NoteBook->AddPage( m_embeddedFiles, _( "Embedded Files" ) );
@@ -480,7 +472,7 @@ bool DIALOG_LIB_SYMBOL_PROPERTIES::TransferDataToWindow()
             // Sort the list of symbols for easier search
             symbolNames.Sort( []( const wxString& a, const wxString& b ) -> int
                               {
-                                  return StrNumCmp( a, b, true );
+                                  return StrNumCmp( a, b, CMP_T::IGNORE_CASE );
                               } );
 
             // Don't allow a symbol to be derived from itself

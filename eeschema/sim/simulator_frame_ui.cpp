@@ -909,7 +909,7 @@ void sortSignals( std::vector<wxString>& signals )
                 else if( !lhs.Upper().StartsWith( 'V' ) && rhs.Upper().StartsWith( 'V' ) )
                     return false;
 
-                return StrNumCmp( lhs, rhs, true /* ignore case */ ) < 0;
+                return StrNumCmp( lhs, rhs, CMP_T::IGNORE_CASE ) < 0;
             } );
 }
 
@@ -1928,11 +1928,11 @@ void SIMULATOR_FRAME_UI::UpdateTunerValue( const SCH_SHEET_PATH& aSheetPath, con
     std::vector<EMBEDDED_FILES*> embeddedFilesStack;
     embeddedFilesStack.push_back( m_schematicFrame->Schematic().GetEmbeddedFiles() );
 
-    if( EMBEDDED_FILES* symbolEmbeddedFiles = symbol->GetEmbeddedFiles() )
-    {
-        embeddedFilesStack.push_back( symbolEmbeddedFiles );
+    if( symbol->GetLibSymbolRef() )
         symbol->GetLibSymbolRef()->AppendParentEmbeddedFiles( embeddedFilesStack );
-    }
+
+    if( EMBEDDED_FILES* symbolEmbeddedFiles = symbol->GetEmbeddedFiles() )
+        embeddedFilesStack.push_back( symbolEmbeddedFiles );
 
     mgr.SetFilesStack( std::move( embeddedFilesStack ) );
 
