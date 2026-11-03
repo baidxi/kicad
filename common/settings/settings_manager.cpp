@@ -1019,7 +1019,7 @@ static wxString projectKey( const wxString& aFullPath )
 }
 
 
-bool SETTINGS_MANAGER::LoadProject( const wxString& aFullPath, bool aSetActive )
+bool SETTINGS_MANAGER::LoadProject( const wxString& aFullPath, bool aSetActive, bool aOverrideLock )
 {
     wxString   fullPath = projectKey( aFullPath );
     wxFileName path( fullPath );
@@ -1032,6 +1032,9 @@ bool SETTINGS_MANAGER::LoadProject( const wxString& aFullPath, bool aSetActive )
 
     // A passive load only inspects the lock rather than taking it
     LOCKFILE lockFile = aSetActive ? LOCKFILE( fullPath ) : LOCKFILE::Inspect( fullPath );
+
+    if( !lockFile.Valid() && aSetActive && aOverrideLock )
+        lockFile.OverrideLock();
 
     if( !lockFile.Valid() )
         wxLogTrace( traceSettings, wxT( "Project %s is locked; opening read-only" ), fullPath );
