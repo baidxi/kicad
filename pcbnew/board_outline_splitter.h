@@ -27,6 +27,7 @@
 #include <wx/string.h>
 
 class BOARD;
+class BOARD_ITEM;
 class PCB_SHAPE;
 
 /**

@@ -713,6 +713,25 @@ jobs:
           ls AppDir/usr/share/applications/ 2>/dev/null || true
           find AppDir/usr/share/icons -name 'kicad*.svg' 2>/dev/null | head -3 || true
 
+          # Pre-seed the root icon and .DirIcon BEFORE packing: this
+          # linuxdeploy release copies the desktop-entry icon into the AppDir
+          # root (as a hard link) but does not create .DirIcon, which is what
+          # file managers display - so the generated AppImage ends up without
+          # an icon.  Patching the AppDir after linuxdeploy ran would be too
+          # late; the image is already built by then.
+          if [ ! -e AppDir/.DirIcon ]; then
+            if [ ! -e AppDir/kicad.svg ]; then
+              ICON_SRC="$(find AppDir/usr/share/icons -name 'kicad.svg' 2>/dev/null | head -1)"
+              if [ -z "$ICON_SRC" ]; then
+                echo "ERROR: no kicad.svg found anywhere in AppDir/usr/share/icons" >&2
+                find AppDir/usr/share/icons -maxdepth 4 2>/dev/null | sort | head -20 >&2
+                exit 1
+              fi
+              cp -f "$ICON_SRC" AppDir/kicad.svg
+            fi
+            ln -sf kicad.svg AppDir/.DirIcon
+          fi
+
           # linuxdeploy has no --runtime-file flag; it fetches the type-2
           # runtime from GitHub itself while generating the squashfs.  The
           # runners reach GitHub directly, so this stays as-is (the local
@@ -724,21 +743,9 @@ jobs:
             "${DESKTOP_ARGS[@]}" \
             --output appimage
 
-          # Fallback icon deployment: if linuxdeploy skipped it (e.g. the
-          # desktop entry was not matched), install the stock svg into the
-          # AppDir root by hand so the image and the dock still get an icon.
-          if [ ! -e AppDir/.DirIcon ]; then
-            echo "WARNING: linuxdeploy deployed no icon; installing the stock one"
-            ICON_SRC="$(find AppDir/usr/share/icons -name 'kicad.svg' 2>/dev/null | head -1)"
-            if [ -n "$ICON_SRC" ]; then
-              cp -f "$ICON_SRC" AppDir/kicad.svg
-              ln -sf kicad.svg AppDir/.DirIcon
-            else
-              echo "ERROR: no kicad.svg found anywhere in AppDir/usr/share/icons" >&2
-              find AppDir/usr/share/icons -maxdepth 4 2>/dev/null | sort >&2 | head -20
-              exit 1
-            fi
-          fi
+          # Final icon verification (the AppDir was fixed up before packing).
+          test -e AppDir/.DirIcon \
+            || { echo "ERROR: AppDir has no .DirIcon after packing" >&2; exit 1; }
           echo "icon check: .DirIcon -> $(readlink AppDir/.DirIcon 2>/dev/null || echo file), $(du -h AppDir/.DirIcon | cut -f1)"
 
           # Self-containment diagnostics: list what the packaged binaries
