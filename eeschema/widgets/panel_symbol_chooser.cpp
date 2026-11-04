@@ -60,8 +60,8 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
                                             std::vector<PICKED_SYMBOL>&  aHistoryList,
                                             std::vector<PICKED_SYMBOL>&  aAlreadyPlaced,
                                             bool aAllowFieldEdits, bool aShowFootprints, bool& aCancelled,
-                                            std::function<void()> aAcceptHandler,
-                                            std::function<void()> aEscapeHandler ) :
+            std::function<void()> aAcceptHandler,
+            std::function<void()> aEscapeHandler ) :
         wxPanel( aParent, wxID_ANY, wxDefaultPosition, wxDefaultSize ),
         m_symbol_preview( nullptr ),
         m_hsplitter( nullptr ),
@@ -88,7 +88,26 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
     GetAppSettings<EESCHEMA_SETTINGS>( "eeschema" );
     GetAppSettings<SYMBOL_EDITOR_SETTINGS>( "symbol_editor" );
 
-    m_adapter = SYMBOL_TREE_MODEL_ADAPTER::Create( m_frame, libmgr );
+    // Rebuilding the tree for every open costs a noticeable fraction of a second with large
+    // library tables, while the underlying symbol data is already cached per project. So the
+    // plain dialog chooser reuses the tree a previous open built, refreshing only the
+    // per-invocation groups. A filtered chooser (power symbols) and the persistent chooser
+    // frame keep building their own. The placement tool passes a filter object that selects
+    // nothing, which still qualifies as plain.
+    const bool unfiltered = ( aFilter == nullptr )
+                            || ( !aFilter->GetFilterPowerSymbols()
+                                 && aFilter->GetAllowedLibList().empty() );
+
+    const bool cacheable = ( unfiltered && aParent != m_frame );
+
+    if( cacheable )
+        m_adapter = m_frame->GetSymbolChooserAdapter();
+
+    const bool reused = m_adapter != nullptr;
+
+    if( !reused )
+        m_adapter = SYMBOL_TREE_MODEL_ADAPTER::Create( m_frame, libmgr );
+
     SYMBOL_TREE_MODEL_ADAPTER* adapter = static_cast<SYMBOL_TREE_MODEL_ADAPTER*>( m_adapter.get() );
 
     if( aFilter )
@@ -171,6 +190,14 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
     processList( aHistoryList, history_list_storage, history_list );
     processList( aAlreadyPlaced, already_placed_storage, already_placed );
 
+    if( reused )
+    {
+        // The previous open's groups make room for this invocation's lists. No view is
+        // attached yet, so freeing the nodes needs no model reset; the LIB_TREE below
+        // attaches to the tree as it is now.
+        adapter->RemoveGroup( true, true );
+    }
+
     adapter->DoAddLibrary( wxT( "-- " ) + _( "Recently Used" ) + wxT( " --" ), wxEmptyString, history_list,
                            false, true )
             .m_IsRecentlyUsedGroup = true;
@@ -182,7 +209,13 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
                            false, true )
             .m_IsAlreadyPlacedGroup = true;
 
-    adapter->AddLibraries( m_frame );
+    if( !reused )
+    {
+        adapter->AddLibraries( m_frame );
+
+        if( cacheable )
+            m_frame->SetSymbolChooserAdapter( m_adapter );
+    }
 
     // -------------------------------------------------------------------------------------
     // Construct the actual panel
@@ -250,7 +283,10 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
 
     m_hsplitter->SetSashGravity( 0.8 );
     m_hsplitter->SetMinimumPaneSize( 20 );
-    m_hsplitter->SplitVertically( treePanel, constructRightPanel( m_hsplitter ) );
+
+    wxPanel* rightPanel = constructRightPanel( m_hsplitter );
+
+    m_hsplitter->SplitVertically( treePanel, rightPanel );
 
     m_dbl_click_timer = new wxTimer( this );
     m_open_libs_timer = new wxTimer( this );
@@ -284,6 +320,10 @@ PANEL_SYMBOL_CHOOSER::PANEL_SYMBOL_CHOOSER( SCH_BASE_FRAME* aFrame, wxWindow* aP
 
 PANEL_SYMBOL_CHOOSER::~PANEL_SYMBOL_CHOOSER()
 {
+    // A cached adapter outlives this panel, and its lazy load timer can still fire. The
+    // handler points into the dialog that is going away with this panel.
+    m_adapter->RegisterLazyLoadHandler( std::function<void()>() );
+
     m_frame->Unbind( wxEVT_MENU_OPEN, &PANEL_SYMBOL_CHOOSER::onMenuOpen, this );
     m_frame->Unbind( wxEVT_MENU_CLOSE, &PANEL_SYMBOL_CHOOSER::onMenuClose, this );
     Unbind( wxEVT_TIMER, &PANEL_SYMBOL_CHOOSER::onCloseTimer, this );

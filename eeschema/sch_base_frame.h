@@ -23,6 +23,7 @@
 
 #include <eda_draw_frame.h>
 #include <frame_type.h>
+#include <lib_tree_model_adapter.h>
 #include <libraries/library_table.h>
 #include <sch_draw_panel.h>
 #include <sch_screen.h>
@@ -322,6 +323,29 @@ protected:
 
     /// Only used by symbol_editor.  Eeschema should be using the one inside the SCHEMATIC.
     SCHEMATIC_SETTINGS          m_base_frame_defaults;
+
+    /**
+     * The unfiltered symbol chooser's tree, kept between chooser opens. Rebuilding it for
+     * every open costs a noticeable fraction of a second with large library tables, while
+     * the underlying symbol data is already cached per project.
+     */
+    wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER> m_symbolChooserAdapter;
+
+public:
+    /**
+     * The cached adapter of the unfiltered symbol chooser, or null when no open built it yet.
+     * The returned pointer shares ownership: the chooser keeps using it while this frame
+     * holds the cache.
+     */
+    wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER> GetSymbolChooserAdapter() const
+    {
+        return m_symbolChooserAdapter;
+    }
+
+    void SetSymbolChooserAdapter( wxObjectDataPtr<LIB_TREE_MODEL_ADAPTER> aAdapter )
+    {
+        m_symbolChooserAdapter = std::move( aAdapter );
+    }
 
 private:
 
