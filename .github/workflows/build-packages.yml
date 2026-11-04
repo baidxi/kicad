@@ -74,7 +74,8 @@ jobs:
             spirv-cross \
             spirv-tools \
             vulkan-headers \
-            unixodbc
+            unixodbc \
+            sqlite
 
       # Homebrew now ships nng 2.0, whose headers/API are incompatible with
       # KiCad's libs/kinng (written against the NNG 1.x API, e.g.
@@ -111,7 +112,8 @@ jobs:
             -DKICAD_SPICE_QA=OFF \
             -DKICAD_APPLE_MAKE_RELOCATEABLE_BUNDLE=ON \
             -DNGSPICE_LIB_NAME=libngspice.dylib \
-            -DOCC_INCLUDE_DIR=/opt/homebrew/include/opencascade
+            -DOCC_INCLUDE_DIR=/opt/homebrew/include/opencascade \
+            -DSQLite3_ROOT=/opt/homebrew/opt/sqlite
 
       - name: Build
         run: |
