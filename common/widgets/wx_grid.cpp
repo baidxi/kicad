@@ -121,18 +121,33 @@ void WX_GRID::SetMinVisibleRows( wxWindow* aDialog, int aMinRows )
 
     // Floor the grid at a few rows, then re-derive the dialog's minimum so it can be shrunk down to
     // that floor with the grid scrolling past it.
-    SetMinSize( wxSize( GetMinSize().x, CapHeightToVisibleRows( allRowsHeight, GetColLabelSize(),
-                                                               rowHeights, aMinRows ) ) );
+    int cappedHeight = CapHeightToVisibleRows( allRowsHeight, GetColLabelSize(), rowHeights, aMinRows );
+
+    SetMinSize( wxSize( GetMinSize().x, cappedHeight ) );
 
     aDialog->SetMinSize( wxDefaultSize );
     aDialog->InvalidateBestSize();
     aDialog->SetMinSize( aDialog->GetBestSize() );
 
     // Open tall enough to show every row; Show() clamps the result to the monitor work area.
-    int grow = allRowsHeight - GetSize().y;
+    // The target height must be derived from the content (the dialog's sizer minimum with every
+    // row visible) rather than by adding a delta to the dialog's current height: the grid's
+    // reported height during dialog init can be stale under Wayland, and re-applying a positive
+    // delta on every open ratchets the dialog larger each time.
+    SetMinSize( wxSize( GetMinSize().x, allRowsHeight ) );
+    aDialog->InvalidateBestSize();
+    int neededHeight = aDialog->GetBestSize().y;
+    SetMinSize( wxSize( GetMinSize().x, cappedHeight ) );
+    aDialog->InvalidateBestSize();
 
-    if( grow > 0 )
-        aDialog->SetSize( aDialog->GetSize().x, aDialog->GetSize().y + grow );
+    if( getenv( "KICAD_GEOM_DEBUG" ) )
+    {
+        fprintf( stderr, "[MVR] allRows=%d gridH=%d dlgH=%d needed=%d\n", allRowsHeight,
+                 GetSize().y, aDialog->GetSize().y, neededHeight );
+    }
+
+    if( neededHeight > aDialog->GetSize().y )
+        aDialog->SetSize( aDialog->GetSize().x, neededHeight );
 }
 
 

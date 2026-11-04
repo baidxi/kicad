@@ -578,6 +578,13 @@ bool DIALOG_SHIM::Show( bool show )
             // Convert saved DIP size to logical pixels for the current monitor
             wxSize restoredSize = FromDIP( savedDialogRect.GetSize() );
 
+            if( getenv( "KICAD_GEOM_DEBUG" ) )
+            {
+                fprintf( stderr, "[GEOM-RESTORE] %s saved=%dx%d cur=%dx%d\n", key.c_str(),
+                         restoredSize.x, restoredSize.y, wxDialog::GetSize().x,
+                         wxDialog::GetSize().y );
+            }
+
             if( m_useCalculatedSize || ( GetWindowStyleFlag() & wxRESIZE_BORDER ) == 0 )
             {
                 SetSize( savedDialogRect.GetPosition().x, savedDialogRect.GetPosition().y,
@@ -805,6 +812,10 @@ void DIALOG_SHIM::SaveControlState()
         else
         {
             wxSize  dipSize = ToDIP( size );
+
+            if( getenv( "KICAD_GEOM_DEBUG" ) )
+                fprintf( stderr, "[GEOM-SAVE] %s %dx%d\n", dialogKey.c_str(), size.x, size.y );
+
             nlohmann::json geom;
             geom[ "x" ] = pos.x;
             geom[ "y" ] = pos.y;
