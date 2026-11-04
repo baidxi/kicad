@@ -314,3 +314,9 @@ void KIPLATFORM::UI::KeepAboveExternalRendering( wxWindow* aChild )
 {
     // Child windows are native and clip their parent's surface
 }
+
+
+void KIPLATFORM::UI::ReleaseExternalRenderingSurface( wxWindow* aWindow )
+{
+    // The GPU API owns Win32 surfaces natively
+}

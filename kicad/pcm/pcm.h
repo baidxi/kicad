@@ -260,9 +260,13 @@ public:
      *
      * @param aRepositoryId repository id
      * @param aPackageId package id
+     * @param aAllowNetworkFetch when true, missing repository caches are fetched from the
+     *                           network; when false only existing caches are consulted and
+     *                           installed packages fall back to PPS_INSTALLED
      * @return PCM_PACKAGE_STATE
      */
-    PCM_PACKAGE_STATE GetPackageState( const wxString& aRepositoryId, const wxString& aPackageId );
+    PCM_PACKAGE_STATE GetPackageState( const wxString& aRepositoryId, const wxString& aPackageId,
+                                       bool aAllowNetworkFetch = false );
 
     /**
      * @brief Find the cached repository that publishes a given package
@@ -287,9 +291,11 @@ public:
     /**
      * @brief Repair the repository id of every installed package
      *
-     * Fetches configured repositories as needed and rewrites the recorded repository of
-     * each installed package to the one that currently publishes it. Also refreshes the
-     * installed package metadata of every repository this fetches.
+     * Consults only repositories already cached on disk or in memory and rewrites the
+     * recorded repository of each installed package to the one that currently publishes
+     * it. Also refreshes the installed package metadata of every repository this loads.
+     * Never fetches from the network; repositories are (re)cached by the explicit
+     * refresh action or the background updater.
      */
     void ResolveInstalledPackageRepositories();
 

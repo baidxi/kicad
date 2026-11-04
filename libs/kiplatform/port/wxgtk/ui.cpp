@@ -45,7 +45,10 @@
 
 #ifdef KICAD_WAYLAND
 #include "wayland-pointer-constraints-unstable-v1.h"
+#include <wayland-client.h>
 #endif
+
+#include <cstring>
 
 // Set WXTRACE=KICAD_WAYLAND to see logs
 const wxString traceWayland = wxS( "KICAD_WAYLAND" );
@@ -1317,6 +1320,263 @@ wxPoint KIPLATFORM::UI::GetMousePosition()
 #endif
 
 
+#if defined( GDK_WINDOWING_WAYLAND ) && defined( KICAD_WAYLAND )
+// The render target for a canvas that draws outside of GTK. GTK3 child windows have no
+// native surface of their own: making the canvas widget's window native gets it mapped by
+// GDK as its own xdg_toplevel, which the compositor then places and stacks separately from
+// the frame. Like wx's EGL canvas, the GPU therefore renders into a surface of our own,
+// stacked over the frame as a subsurface of the toplevel.
+struct EXTERNAL_RENDER_SURFACE
+{
+    GtkWidget*               widget = nullptr;
+    struct wl_display*       display = nullptr;      // the GDK connection, not owned
+    struct wl_registry*      registry = nullptr;
+    struct wl_compositor*    compositor = nullptr;
+    struct wl_subcompositor* subcompositor = nullptr;
+    struct wl_region*        inputRegion = nullptr;  // stays empty: input stays with the toolkit
+    struct wl_surface*       surface = nullptr;      // the render target
+    struct wl_subsurface*    subsurface = nullptr;
+    struct wl_surface*       parentSurface = nullptr; // the toplevel's, not owned
+    gulong                   sizeAllocateHandler = 0;
+    gulong                   mapHandler = 0;
+    gulong                   unmapHandler = 0;
+};
+
+static const char s_externalRenderSurfaceKey[] = "kicad_external_render_surface";
+
+// The subsurface is destroyed by the compositor together with its parent surface, so a
+// request on it is only in protocol while the recorded parent is still the toplevel's
+static void ExternalSurfaceDestroySubsurface( EXTERNAL_RENDER_SURFACE* aState )
+{
+    if( !aState->subsurface )
+        return;
+
+    GdkWindow* toplevelWindow = gtk_widget_get_window( gtk_widget_get_toplevel( aState->widget ) );
+
+    if( toplevelWindow )
+    {
+        struct wl_surface* currentParent = gdk_wayland_window_get_wl_surface( toplevelWindow );
+
+        if( currentParent && currentParent == aState->parentSurface )
+            wl_subsurface_destroy( aState->subsurface );
+    }
+
+    aState->subsurface = nullptr;
+    aState->parentSurface = nullptr;
+}
+
+
+static void ExternalSurfaceFinalize( gpointer aData )
+{
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>( aData );
+
+    // The render thread is no longer presenting by the time the widget goes away or the
+    // surface is explicitly released
+    ExternalSurfaceDestroySubsurface( state );
+
+    if( state->surface )
+        wl_surface_destroy( state->surface );
+
+    if( state->inputRegion )
+        wl_region_destroy( state->inputRegion );
+
+    if( state->subcompositor )
+        wl_subcompositor_destroy( state->subcompositor );
+
+    if( state->compositor )
+        wl_compositor_destroy( state->compositor );
+
+    if( state->registry )
+        wl_registry_destroy( state->registry );
+
+    delete state;
+}
+
+
+static void ExternalSurfaceReposition( EXTERNAL_RENDER_SURFACE* aState )
+{
+    GdkWindow* gdkWindow = gtk_widget_get_window( aState->widget );
+
+    if( !aState->subsurface || !gdkWindow )
+        return;
+
+    // On Wayland the origin is relative to the parent surface, which is what the subsurface
+    // position is relative to as well
+    int x = 0;
+    int y = 0;
+    gdk_window_get_origin( gdkWindow, &x, &y );
+    wl_subsurface_set_position( aState->subsurface, x, y );
+}
+
+
+static void ExternalSurfaceOnSizeAllocate( GtkWidget*, GdkRectangle*, gpointer aData )
+{
+    ExternalSurfaceReposition( static_cast<EXTERNAL_RENDER_SURFACE*>( aData ) );
+}
+
+
+static void ExternalSurfaceOnMap( GtkWidget*, gpointer aData )
+{
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>( aData );
+
+    if( !state->subcompositor || !state->surface )
+        return;
+
+    // The toplevel's surface is destroyed while the window is hidden and replaced when it is
+    // shown again, so the subsurface has to follow
+    GdkWindow* toplevelWindow = gtk_widget_get_window( gtk_widget_get_toplevel( state->widget ) );
+
+    if( !toplevelWindow )
+        return;
+
+    struct wl_surface* parent = gdk_wayland_window_get_wl_surface( toplevelWindow );
+
+    if( !parent )
+        return;
+
+    if( state->subsurface && state->parentSurface == parent )
+    {
+        ExternalSurfaceReposition( state );
+        return;
+    }
+
+    ExternalSurfaceDestroySubsurface( state );
+
+    state->subsurface = wl_subcompositor_get_subsurface( state->subcompositor, state->surface, parent );
+    state->parentSurface = parent;
+
+    wl_subsurface_set_desync( state->subsurface );
+    wl_surface_set_input_region( state->surface, state->inputRegion );
+    ExternalSurfaceReposition( state );
+}
+
+
+static void ExternalSurfaceOnUnmap( GtkWidget*, gpointer aData )
+{
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>( aData );
+
+    if( !state->surface )
+        return;
+
+    // Attaching a null buffer unmaps the surface without removing its role, so a present
+    // racing this from the render thread stays in protocol
+    wl_surface_attach( state->surface, nullptr, 0, 0 );
+    wl_surface_commit( state->surface );
+}
+
+
+static void ExternalSurfaceRegistryGlobal( void* aData, struct wl_registry* aRegistry, uint32_t aName,
+                                           const char* aInterface, uint32_t aVersion )
+{
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>( aData );
+
+    if( strcmp( aInterface, "wl_compositor" ) == 0 )
+    {
+        state->compositor = static_cast<struct wl_compositor*>(
+                wl_registry_bind( aRegistry, aName, &wl_compositor_interface, aVersion < 4 ? aVersion : 4 ) );
+    }
+    else if( strcmp( aInterface, "wl_subcompositor" ) == 0 )
+    {
+        state->subcompositor = static_cast<struct wl_subcompositor*>(
+                wl_registry_bind( aRegistry, aName, &wl_subcompositor_interface, 1 ) );
+    }
+}
+
+
+static void ExternalSurfaceRegistryRemove( void*, struct wl_registry*, uint32_t )
+{
+}
+
+
+static const struct wl_registry_listener ExternalSurfaceRegistryListener = {
+        ExternalSurfaceRegistryGlobal,
+        ExternalSurfaceRegistryRemove,
+};
+
+
+/**
+ * Returns the widget's external rendering surface, creating it on the first calls. The
+ * registry globals arrive with the toolkit's event dispatch, which is always after the
+ * first call, so the state object is owned by the widget from its creation on and
+ * completion happens across two calls.
+ */
+static EXTERNAL_RENDER_SURFACE* AcquireExternalRenderSurface( GtkWidget* aWidget )
+{
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>(
+            g_object_get_data( G_OBJECT( aWidget ), s_externalRenderSurfaceKey ) );
+
+    if( !state )
+    {
+        GtkWidget* toplevel = gtk_widget_get_toplevel( aWidget );
+
+        // The parent surface only exists for a mapped toplevel, and it dies with the window
+        if( !gtk_widget_get_realized( toplevel ) || !gtk_widget_get_mapped( toplevel ) )
+            return nullptr;
+
+        GdkWindow* toplevelWindow = gtk_widget_get_window( toplevel );
+
+        if( !toplevelWindow )
+            return nullptr;
+
+        struct wl_surface* parentSurface = gdk_wayland_window_get_wl_surface( toplevelWindow );
+
+        if( !parentSurface )
+            return nullptr;
+
+        state = new EXTERNAL_RENDER_SURFACE();
+        state->widget = aWidget;
+        state->display = gdk_wayland_display_get_wl_display( gtk_widget_get_display( aWidget ) );
+
+        // The toolkit owns the display connection; this registry only binds the two
+        // interfaces that GTK3 does not hand out
+        state->registry = wl_display_get_registry( state->display );
+        wl_registry_add_listener( state->registry, &ExternalSurfaceRegistryListener, state );
+        state->parentSurface = parentSurface;
+
+        g_object_set_data_full( G_OBJECT( aWidget ), s_externalRenderSurfaceKey, state,
+                                static_cast<GDestroyNotify>( ExternalSurfaceFinalize ) );
+
+        // The globals have not arrived yet; the caller retries on its next frame
+        return nullptr;
+    }
+
+    if( !state->compositor || !state->subcompositor )
+        return nullptr;
+
+    if( state->surface )
+        return state;
+
+    GdkWindow* toplevelWindow = gtk_widget_get_window( gtk_widget_get_toplevel( aWidget ) );
+
+    if( !toplevelWindow )
+        return nullptr;
+
+    struct wl_surface* parentSurface = gdk_wayland_window_get_wl_surface( toplevelWindow );
+
+    if( !parentSurface )
+        return nullptr;
+
+    state->surface = wl_compositor_create_surface( state->compositor );
+    state->inputRegion = wl_compositor_create_region( state->compositor );
+    state->subsurface = wl_subcompositor_get_subsurface( state->subcompositor, state->surface, parentSurface );
+    state->parentSurface = parentSurface;
+
+    // Presents come from the render thread, which must not wait on the toolkit's commits
+    wl_subsurface_set_desync( state->subsurface );
+    wl_surface_set_input_region( state->surface, state->inputRegion );
+
+    state->sizeAllocateHandler =
+            g_signal_connect( aWidget, "size-allocate", G_CALLBACK( ExternalSurfaceOnSizeAllocate ), state );
+    state->mapHandler = g_signal_connect( aWidget, "map", G_CALLBACK( ExternalSurfaceOnMap ), state );
+    state->unmapHandler = g_signal_connect( aWidget, "unmap", G_CALLBACK( ExternalSurfaceOnUnmap ), state );
+
+    ExternalSurfaceReposition( state );
+
+    return state;
+}
+#endif
+
+
 void KIPLATFORM::UI::GetNativeWindowHandles( wxWindow* aWindow, void** aHandle, void** aDisplay,
                                               int* aDisplayType )
 {
@@ -1340,51 +1600,51 @@ void KIPLATFORM::UI::GetNativeWindowHandles( wxWindow* aWindow, void** aHandle, 
     if( !gdkWindow )
         return;
 
-    if( !gdk_window_ensure_native( gdkWindow ) )
-    {
-        wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: gdk_window_ensure_native failed "
-                                    "widget=%p window=%p" ),
-                    static_cast<void*>( gtkWidget ),
-                    static_cast<void*>( gdkWindow ) );
-        return;
-    }
+    GdkDisplay* gdkDisplay = gtk_widget_get_display( gtkWidget );
 
-    if( !gdk_window_is_viewable( gdkWindow ) )
+#ifdef GDK_WINDOWING_X11
+    if( GDK_IS_X11_DISPLAY( gdkDisplay ) )
     {
-        // Hide() unmaps the GDK window, and mapping it anyway would put a hidden preview canvas back
-        // on screen over its replacement.
-        if( !gtk_widget_get_visible( gtkWidget ) )
+        if( !gdk_window_ensure_native( gdkWindow ) )
         {
-            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: widget hidden, skipping "
-                                        "native window map widget=%p window=%p" ),
+            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: gdk_window_ensure_native failed "
+                                        "widget=%p window=%p" ),
                         static_cast<void*>( gtkWidget ),
                         static_cast<void*>( gdkWindow ) );
             return;
         }
 
-        wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: mapping native window "
-                                    "widget=%p window=%p mapped=%s viewable=%s" ),
-                    static_cast<void*>( gtkWidget ),
-                    static_cast<void*>( gdkWindow ),
-                    gtk_widget_get_mapped( gtkWidget ) ? "yes" : "no",
-                    gdk_window_is_viewable( gdkWindow ) ? "yes" : "no" );
+        if( !gdk_window_is_viewable( gdkWindow ) )
+        {
+            // Hide() unmaps the GDK window, and mapping it anyway would put a hidden preview canvas back
+            // on screen over its replacement.
+            if( !gtk_widget_get_visible( gtkWidget ) )
+            {
+                wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: widget hidden, skipping "
+                                            "native window map widget=%p window=%p" ),
+                            static_cast<void*>( gtkWidget ),
+                            static_cast<void*>( gdkWindow ) );
+                return;
+            }
 
-        gdk_window_show_unraised( gdkWindow );
+            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: mapping native window "
+                                        "widget=%p window=%p mapped=%s viewable=%s" ),
+                        static_cast<void*>( gtkWidget ),
+                        static_cast<void*>( gdkWindow ),
+                        gtk_widget_get_mapped( gtkWidget ) ? "yes" : "no",
+                        gdk_window_is_viewable( gdkWindow ) ? "yes" : "no" );
 
-        wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: native window map result "
-                                    "window=%p viewable=%s" ),
-                    static_cast<void*>( gdkWindow ),
-                    gdk_window_is_viewable( gdkWindow ) ? "yes" : "no" );
-    }
+            gdk_window_show_unraised( gdkWindow );
 
-    GdkDisplay* gdkDisplay = gtk_widget_get_display( gtkWidget );
+            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: native window map result "
+                                        "window=%p viewable=%s" ),
+                        static_cast<void*>( gdkWindow ),
+                        gdk_window_is_viewable( gdkWindow ) ? "yes" : "no" );
+        }
 
-    // The render thread uses its own display connection and must see the window before creating a surface
-    gdk_display_flush( gdkDisplay );
+        // The render thread uses its own display connection and must see the window before creating a surface
+        gdk_display_flush( gdkDisplay );
 
-#ifdef GDK_WINDOWING_X11
-    if( GDK_IS_X11_DISPLAY( gdkDisplay ) )
-    {
         *aHandle = reinterpret_cast<void*>( GDK_WINDOW_XID( gdkWindow ) );
         *aDisplay = gdk_x11_display_get_xdisplay( gdkDisplay );
 
@@ -1401,17 +1661,40 @@ void KIPLATFORM::UI::GetNativeWindowHandles( wxWindow* aWindow, void** aHandle, 
     }
 #endif
 
-#ifdef GDK_WINDOWING_WAYLAND
+#if defined( GDK_WINDOWING_WAYLAND ) && defined( KICAD_WAYLAND )
     if( GDK_IS_WAYLAND_DISPLAY( gdkDisplay ) )
     {
-        *aHandle = gdk_wayland_window_get_wl_surface( gdkWindow );
-        *aDisplay = gdk_wayland_display_get_wl_display( gdkDisplay );
+        // A canvas that is not on screen must not present: mapping it anyway would put a
+        // hidden preview canvas back on screen over its replacement
+        if( !gtk_widget_get_visible( gtkWidget ) || !gtk_widget_get_mapped( gtkWidget ) )
+        {
+            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: widget not on screen, skipping "
+                                        "widget=%p window=%p" ),
+                        static_cast<void*>( gtkWidget ),
+                        static_cast<void*>( gdkWindow ) );
+            return;
+        }
+
+        EXTERNAL_RENDER_SURFACE* state = AcquireExternalRenderSurface( gtkWidget );
+
+        if( !state || !state->surface )
+        {
+            wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: external render surface not "
+                                        "ready, retrying next frame widget=%p" ),
+                        static_cast<void*>( gtkWidget ) );
+            return;
+        }
+
+        gdk_display_flush( gdkDisplay );
+
+        *aHandle = state->surface;
+        *aDisplay = state->display;
 
         if( aDisplayType )
             *aDisplayType = NATIVE_DISPLAY_TYPE::DISPLAY_WAYLAND;
 
         wxLogTrace( traceRhi, wxS( "GetNativeWindowHandles: Wayland widget=%p window=%p "
-                                    "surface=%p display=%p" ),
+                                    "surface=%p (subsurface of toplevel) display=%p" ),
                     static_cast<void*>( gtkWidget ),
                     static_cast<void*>( gdkWindow ),
                     *aHandle,
@@ -1527,5 +1810,36 @@ void KIPLATFORM::UI::KeepAboveExternalRendering( wxWindow* aChild )
 
     if( !gdk_window_ensure_native( window ) )
         wxLogTrace( traceRhi, wxS( "KeepAboveExternalRendering: gdk_window_ensure_native failed" ) );
+#endif
+}
+
+
+void KIPLATFORM::UI::ReleaseExternalRenderingSurface( wxWindow* aWindow )
+{
+#if defined( GDK_WINDOWING_WAYLAND ) && defined( KICAD_WAYLAND )
+    if( !aWindow || !aWindow->GetHandle() )
+        return;
+
+    GtkWidget* gtkWidget = static_cast<GtkWidget*>( aWindow->GetHandle() );
+
+    gpointer data = g_object_steal_data( G_OBJECT( gtkWidget ), s_externalRenderSurfaceKey );
+
+    if( !data )
+        return;
+
+    EXTERNAL_RENDER_SURFACE* state = static_cast<EXTERNAL_RENDER_SURFACE*>( data );
+
+    // Called with the swapchain already torn down on the render thread, so nothing presents
+    // to the surface while it goes away
+    if( state->sizeAllocateHandler )
+        g_signal_handler_disconnect( state->widget, state->sizeAllocateHandler );
+
+    if( state->mapHandler )
+        g_signal_handler_disconnect( state->widget, state->mapHandler );
+
+    if( state->unmapHandler )
+        g_signal_handler_disconnect( state->widget, state->unmapHandler );
+
+    ExternalSurfaceFinalize( state );
 #endif
 }

@@ -158,6 +158,11 @@ void EDA_DRAW_PANEL_GAL::releaseCachedNativeWindowHandle()
         RhiMetalDetachHostView( m_cachedNativeHandle.nativeHandle );
 #endif
 
+#ifdef __WXGTK__
+    // The Wayland subsurface is torn down only after the render thread stopped presenting
+    KIPLATFORM::UI::ReleaseExternalRenderingSurface( this );
+#endif
+
     m_cachedNativeHandle = {};
     m_nativeHandleValid = false;
 }
@@ -1188,12 +1193,13 @@ void EDA_DRAW_PANEL_GAL::UpdateOverlayExclusions()
         }
     }
 
-    // On Wayland the OpenGL canvas is a subsurface stacked above everything the toolkit draws
-    // in the frame, so an infobar overlaid on it cannot show. The canvas makes room instead.
+    // On Wayland the accelerated canvas is a subsurface stacked above everything the toolkit
+    // draws in the frame, so an infobar overlaid on it cannot show. The canvas makes room instead.
     int inset = 0;
 
 #ifdef __WXGTK__
-    if( m_backend == GAL_TYPE_OPENGL && wxGetDisplayInfo().type == wxDisplayType::wxDisplayWayland )
+    if( ( m_backend == GAL_TYPE_OPENGL || m_backend == GAL_TYPE_MODERN )
+            && wxGetDisplayInfo().type == wxDisplayType::wxDisplayWayland )
         inset = infobarsBottom;
 #endif
 

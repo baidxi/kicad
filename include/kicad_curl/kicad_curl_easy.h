@@ -74,6 +74,24 @@ public:
     int Perform();
 
     /**
+     * Perform the request on a multi handle, invoking \a aPollFn at least every
+     * \a aPollIntervalMs for as long as the transfer is in progress.
+     *
+     * Unlike Perform(), which blocks inside curl_easy_perform for the whole operation,
+     * this variant drives curl_multi_perform() in a loop and returns control between
+     * socket waits. The poll function therefore runs during DNS resolution and
+     * connection establishment as well, not only once payload data is flowing, and
+     * libcurl's progress callback is not relied on to keep a UI pumped.
+     *
+     * @param aPollFn called between waits; returning false aborts the transfer
+     *                immediately with CURLE_ABORTED_BY_CALLBACK
+     * @param aPollIntervalMs maximum delay in milliseconds between two poll invocations
+     * @return the CURLcode of the finished transfer, CURLE_ABORTED_BY_CALLBACK when
+     *         \a aPollFn aborted it, or CURLE_FAILED_INIT on setup errors
+     */
+    int Perform( const std::function<bool()>& aPollFn, int aPollIntervalMs = 100 );
+
+    /**
      * Set an arbitrary header for the HTTP(s) request.
      *
      * @param aName is the left hand side of the header, i.e. Accept without the colon.

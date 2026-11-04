@@ -216,6 +216,68 @@ int KICAD_CURL_EASY::Perform()
 }
 
 
+int KICAD_CURL_EASY::Perform( const std::function<bool()>& aPollFn, int aPollIntervalMs )
+{
+    if( !aPollFn )
+        return Perform();
+
+    if( aPollIntervalMs <= 0 )
+        aPollIntervalMs = 100;
+
+    if( m_headers )
+        curl_easy_setopt( m_CURL, CURLOPT_HTTPHEADER, m_headers );
+
+    m_buffer.clear();
+
+    CURLM* multi_handle = curl_multi_init();
+
+    if( !multi_handle )
+        return CURLE_FAILED_INIT;
+
+    curl_multi_add_handle( multi_handle, m_CURL );
+
+    int         still_running = 1;
+    int         result = CURLE_FAILED_INIT;
+
+    do
+    {
+        if( curl_multi_perform( multi_handle, &still_running ) != CURLM_OK )
+            break;
+
+        // Reap completion messages even when still_running has dropped to zero
+        int      msgs_left = 0;
+        CURLMsg* message = nullptr;
+
+        while( ( message = curl_multi_info_read( multi_handle, &msgs_left ) ) != nullptr )
+        {
+            if( message->msg == CURLMSG_DONE )
+                result = message->data.result;
+        }
+
+        if( still_running == 0 )
+            break;
+
+        if( !aPollFn() )
+        {
+            result = CURLE_ABORTED_BY_CALLBACK;
+            break;
+        }
+
+        // Wait for socket activity, but no longer than the poll interval. DNS lookups
+        // run on libcurl's resolver thread, so waiting here keeps the loop responsive
+        // while no socket exists yet.
+        if( curl_multi_wait( multi_handle, nullptr, 0, aPollIntervalMs, nullptr ) != CURLM_OK )
+            break;
+    } while( true );
+
+    // Detaching a still-running transfer aborts it; for a finished one this is a no-op
+    curl_multi_remove_handle( multi_handle, m_CURL );
+    curl_multi_cleanup( multi_handle );
+
+    return result;
+}
+
+
 void KICAD_CURL_EASY::SetHeader( const std::string& aName, const std::string& aValue )
 {
     std::string header = aName + ':' + aValue;

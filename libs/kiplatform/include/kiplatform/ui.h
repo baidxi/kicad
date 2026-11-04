@@ -391,6 +391,14 @@ namespace KIPLATFORM
          * This makes the realized child's window native so the present is clipped around it.
          */
         void KeepAboveExternalRendering( wxWindow* aChild );
+
+        /**
+         * Release the Wayland external rendering surface handed out by GetNativeWindowHandles().
+         *
+         * Call once the render thread has torn down the swapchain built on the surface, so
+         * nothing presents to it while it goes away. No-op on other platforms.
+         */
+        void ReleaseExternalRenderingSurface( wxWindow* aWindow );
     }
 }
 

@@ -259,15 +259,17 @@ bool PLUGIN_CONTENT_MANAGER::DownloadToStream( const wxString& aUrl, std::ostrea
     // transfer rate stays below 100 B/s for 30 seconds.
     curl.SetStallTimeout( 100L, 30L );
 
-    // The transfer callback above only runs once data is flowing, so cancellation during
-    // the connection phase needs this bound; otherwise a cancelled fetch to an unreachable
-    // host hangs until libcurl's much longer default connect timeout.
+    // The transfer callback only runs once data is flowing, so keep the connect timeout
+    // as a bound for unreachable hosts; user cancellation does not depend on it.
     curl.SetConnectTimeout( 15L );
 
     if( !aAccept.empty() )
         curl.SetHeader( "Accept", aAccept );
 
-    int code = curl.Perform();
+    // Drive the transfer from a multi handle so the reporter is pumped at a steady rate
+    // and the user can abort during DNS resolution and connection establishment as well,
+    // not only once payload data starts flowing.
+    int code = curl.Perform( [&]() { return aReporter->KeepRefreshing(); } );
 
     if( !aReporter->IsCancelled() )
         aReporter->SetCurrentProgress( 1.0 );
@@ -980,11 +982,12 @@ void PLUGIN_CONTENT_MANAGER::MarkUninstalled( const PCM_PACKAGE& aPackage )
 
 
 PCM_PACKAGE_STATE PLUGIN_CONTENT_MANAGER::GetPackageState( const wxString& aRepositoryId,
-                                                           const wxString& aPackageId )
+                                                           const wxString& aPackageId,
+                                                           bool            aAllowNetworkFetch )
 {
     bool installed = m_installed.find( aPackageId ) != m_installed.end();
 
-    if( aRepositoryId.IsEmpty() || !CacheRepository( aRepositoryId ) )
+    if( aRepositoryId.IsEmpty() || !CacheRepository( aRepositoryId, aAllowNetworkFetch ) )
         return installed ? PPS_INSTALLED : PPS_UNAVAILABLE;
 
     const PCM_REPOSITORY* repo;
@@ -1063,10 +1066,12 @@ wxString PLUGIN_CONTENT_MANAGER::ResolveRepositoryId(
 bool PLUGIN_CONTENT_MANAGER::resolveInstalledPackageRepository( PCM_INSTALLATION_ENTRY& aEntry )
 {
     // An id that still names a configured repository is authoritative. Widening the search
-    // because its download happened to fail would hand the package to another publisher
+    // because its download happened to fail would hand the package to another publisher.
+    // Runs while the package manager window opens, so only caches already on disk or in
+    // memory are consulted; the refresh button is the only path that fetches repositories.
     if( findRepository( aEntry.repository_id ) != m_repository_list.end() )
     {
-        if( !CacheRepository( aEntry.repository_id ) )
+        if( !CacheRepository( aEntry.repository_id, false ) )
             return false;
 
         return getCachedRepository( aEntry.repository_id )
@@ -1074,7 +1079,7 @@ bool PLUGIN_CONTENT_MANAGER::resolveInstalledPackageRepository( PCM_INSTALLATION
     }
 
     for( const auto& [id, name, url] : m_repository_list )
-        CacheRepository( id );
+        CacheRepository( id, false );
 
     wxString resolved = ResolveRepositoryId( aEntry.package.identifier, aEntry.repository_name,
                                              m_repository_list, m_repository_cache );
