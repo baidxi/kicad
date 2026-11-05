@@ -93,6 +93,13 @@ public:
     void UpdateHierarchySelection();
 
     /**
+     * Move the tree's selection and focus to the row of the current sheet,
+     * resolving the row afresh from the current sheet path.  Guarded so the
+     * programmatic selection does not re-enter changeSheet.
+     */
+    void syncSelectionToCurrentSheet();
+
+    /**
      * Update the labels of the hierarchical tree of the schematic.
      * Must be called only for an up to date tree, to update displayed labels after
      * a sheet name or a sheet number change.
@@ -175,6 +182,11 @@ private:
 
     bool            m_events_bound;
     bool            m_contextMenuOpen;
+
+    /// True while the selection is being synced programmatically to the current
+    /// sheet; suppresses the wxEVT_TREE_SEL_CHANGED that this sync generates so
+    /// it is not mistaken for a user click.
+    bool            m_syncingSelection = false;
     std::set<wxString> m_collapsedPaths;
     wxString           m_highlightedNet;
 };

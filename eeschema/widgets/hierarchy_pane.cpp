@@ -95,9 +95,14 @@ HIERARCHY_PANE::HIERARCHY_PANE( SCH_EDIT_FRAME* aParent ) :
     UpdateHierarchyTree();
 
     // Enable selection events
-    Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-    Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-    Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+    //
+    // Tree events must be bound on the tree control itself: wxTreeEvent derives
+    // from wxNotifyEvent, which does not propagate to parent windows, so bindings
+    // made on the pane never fire (and clicked rows would never change sheets).
+    // This mirrors the net navigator, which binds its tree events on the tree.
+    m_tree->Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+    m_tree->Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+    m_tree->Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
     Bind( wxEVT_CHAR_HOOK, &HIERARCHY_PANE::onCharHook, this );
     m_tree->Bind( wxEVT_TREE_END_LABEL_EDIT, &HIERARCHY_PANE::onTreeEditFinished, this );
     m_tree->Bind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
@@ -113,9 +118,9 @@ HIERARCHY_PANE::~HIERARCHY_PANE()
     if( m_tree->GetEditControl() )
         m_tree->EndEditLabel( m_tree->GetSelection(), true );
 
-    Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-    Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-    Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+    m_tree->Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+    m_tree->Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+    m_tree->Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
     Unbind( wxEVT_CHAR_HOOK, &HIERARCHY_PANE::onCharHook, this );
     m_tree->Unbind( wxEVT_TREE_END_LABEL_EDIT, &HIERARCHY_PANE::onTreeEditFinished, this );
     m_tree->Unbind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
@@ -160,9 +165,9 @@ void HIERARCHY_PANE::UpdateHierarchySelection()
     if( eventsWereBound )
     {
         // Disable selection events
-        Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+        m_tree->Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
         m_tree->Unbind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
 
         m_events_bound = false;
@@ -207,11 +212,18 @@ void HIERARCHY_PANE::UpdateHierarchySelection()
                         m_tree->EnsureVisible( id );
 
                     m_tree->SetItemBold( id, true );
+                    // Mark the current sheet's row with the selected (blue) icon directly:
+                    // on some platforms (observed on wxGTK) the native selection does not
+                    // render on the top-level row, so the image is set explicitly instead
+                    // of relying on the control's selected-image state.
+                    m_tree->SetItemImage( id, 1 /* selected image */ );
                     m_tree->SetFocusedItem( id );
+                    m_tree->SelectItem( id );
                 }
                 else
                 {
                     m_tree->SetItemBold( id, false );
+                    m_tree->SetItemImage( id, 0 /* normal image */ );
                 }
 
                 wxTreeItemIdValue cookie;
@@ -229,13 +241,60 @@ void HIERARCHY_PANE::UpdateHierarchySelection()
     if( eventsWereBound )
     {
         // Enable selection events
-        Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+        m_tree->Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
         m_tree->Bind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
 
         m_events_bound = true;
     }
+
+    // Tree rebuilds (which reset the wx selection) can run between this call and
+    // the next event-loop iteration, leaving the current sheet's row visually
+    // unselected.  Re-sync the selection once the loop settles; the row is
+    // resolved afresh from the current sheet path so no stale item ids are held.
+    CallAfter( [this]() { syncSelectionToCurrentSheet(); } );
+}
+
+
+void HIERARCHY_PANE::syncSelectionToCurrentSheet()
+{
+    const size_t curHash = m_frame->GetCurrentSheet().GetCurrentHash();
+
+    std::function<bool( const wxTreeItemId& )> find =
+            [&]( const wxTreeItemId& id ) -> bool
+            {
+                wxCHECK( id.IsOk(), false );
+
+                TREE_ITEM_DATA* data = static_cast<TREE_ITEM_DATA*>( m_tree->GetItemData( id ) );
+
+                if( data && data->m_SheetPath.GetCurrentHash() == curHash )
+                {
+
+                    // The selection-changed event fired by these calls is a programmatic
+                    // sync, not a user click; suppress it so it cannot re-enter changeSheet
+                    m_syncingSelection = true;
+                    m_tree->SetFocusedItem( id );
+                    m_tree->SelectItem( id );
+                    m_syncingSelection = false;
+                    return true;
+                }
+
+                wxTreeItemIdValue cookie;
+                wxTreeItemId      child = m_tree->GetFirstChild( id, cookie );
+
+                while( child.IsOk() )
+                {
+                    if( find( child ) )
+                        return true;
+
+                    child = m_tree->GetNextChild( id, cookie );
+                }
+
+                return false;
+            };
+
+    find( m_tree->GetRootItem() );
 }
 
 
@@ -253,9 +312,9 @@ void HIERARCHY_PANE::UpdateHierarchyTree( bool aClear )
     if( eventsWereBound )
     {
         // Disable selection events
-        Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+        m_tree->Unbind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Unbind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Unbind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
         m_tree->Unbind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
 
         m_events_bound = false;
@@ -375,9 +434,9 @@ void HIERARCHY_PANE::UpdateHierarchyTree( bool aClear )
     if( eventsWereBound )
     {
         // Enable selection events
-        Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
-        Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
+        m_tree->Bind( wxEVT_TREE_ITEM_ACTIVATED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Bind( wxEVT_TREE_SEL_CHANGED, &HIERARCHY_PANE::onSelectSheetPath, this );
+        m_tree->Bind( wxEVT_TREE_ITEM_RIGHT_CLICK, &HIERARCHY_PANE::onTreeItemRightClick, this );
         m_tree->Bind( wxEVT_CONTEXT_MENU, &HIERARCHY_PANE::onContextMenu, this );
 
         m_events_bound = true;
@@ -387,7 +446,14 @@ void HIERARCHY_PANE::UpdateHierarchyTree( bool aClear )
 
 void HIERARCHY_PANE::onSelectSheetPath( wxTreeEvent& aEvent )
 {
-    wxTreeItemId  itemSel = m_tree->GetSelection();
+    wxUnusedVar( aEvent );
+
+    // A selection change generated by syncSelectionToCurrentSheet() is a programmatic
+    // sync to the current sheet, not a user click; ignore it
+    if( m_syncingSelection )
+        return;
+
+    wxTreeItemId itemSel = m_tree->GetSelection();
 
     if( !itemSel.IsOk() )
         return;
