@@ -792,6 +792,22 @@ EOF
   ls "${APPDIR}/usr/share/applications/" 2>/dev/null || true
   find "${APPDIR}/usr/share/icons" -name 'kicad*.svg' 2>/dev/null | head -3 || true
 
+  # Pre-seed the root icon and .DirIcon BEFORE packing: this linuxdeploy
+  # release copies the desktop-entry icon into the AppDir root (as a hard
+  # link) but does not create .DirIcon, which is what file managers display -
+  # so the generated AppImage ends up without an icon.  Patching the AppDir
+  # after linuxdeploy ran would be too late; the image is already built.
+  if [[ ! -e "${APPDIR}/.DirIcon" ]]; then
+    if [[ ! -e "${APPDIR}/kicad.svg" ]]; then
+      local icon_src
+      icon_src="$(find "${APPDIR}/usr/share/icons" -name 'kicad.svg' 2>/dev/null | head -1 || true)"
+      [[ -n "${icon_src}" ]] \
+        || die "no kicad.svg found anywhere in ${APPDIR}/usr/share/icons - the icons component did not install"
+      cp -f "${icon_src}" "${APPDIR}/kicad.svg"
+    fi
+    ln -sf kicad.svg "${APPDIR}/.DirIcon"
+  fi
+
   log "Running linuxdeploy"
   mkdir -p "${DIST_DIR}"
   (
@@ -809,20 +825,8 @@ EOF
     [[ -n "${generated}" ]] || die "linuxdeploy produced no AppImage"
     mv -f "${generated}" "KiCad-${arch}-${distro_id}.AppImage"
   )
-  # Fallback icon deployment: if linuxdeploy skipped it (e.g. the desktop
-  # entry was not matched), install the stock svg into the AppDir root by
-  # hand so the image and the dock still get an icon.
-  if [[ ! -e "${APPDIR}/.DirIcon" ]]; then
-    log "WARNING: linuxdeploy deployed no icon; installing the stock one"
-    local icon_src
-    icon_src="$(find "${APPDIR}/usr/share/icons" -name 'kicad.svg' 2>/dev/null | head -1 || true)"
-    if [[ -n "${icon_src}" ]]; then
-      cp -f "${icon_src}" "${APPDIR}/kicad.svg"
-      ln -sf kicad.svg "${APPDIR}/.DirIcon"
-    else
-      die "no kicad.svg found anywhere in ${APPDIR}/usr/share/icons - the icons component did not install"
-    fi
-  fi
+  # Final icon verification (the AppDir was fixed up before packing).
+  [[ -e "${APPDIR}/.DirIcon" ]] || die "AppDir has no .DirIcon after packing"
   log "Icon check: .DirIcon -> $(readlink "${APPDIR}/.DirIcon" 2>/dev/null || echo file)"
 
   echo "Built ${DIST_DIR}/KiCad-${arch}-${distro_id}.AppImage"
