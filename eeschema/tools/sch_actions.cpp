@@ -209,6 +209,13 @@ TOOL_ACTION SCH_ACTIONS::saveLibraryAsUnpacked( TOOL_ACTION_ARGS()
         .FriendlyName( _( "Save Library As Unpacked..." ) )
         .Tooltip( _( "Save the current packed library to a new unpacked library folder" ) ) );
 
+TOOL_ACTION SCH_ACTIONS::mergeSymbolLibraries( TOOL_ACTION_ARGS()
+       .Name( "eeschema.SymbolLibraryControl.MergeSymbolLibraries" )
+       .Scope( AS_GLOBAL )
+       .FriendlyName( _( "Merge Symbol Libraries..." ) )
+       .Tooltip( _( "Merge the symbols of multiple libraries into one library" ) )
+       .Icon( BITMAPS::library_archive ) );
+
 TOOL_ACTION SCH_ACTIONS::compareLibraryWithFile( TOOL_ACTION_ARGS()
         .Name( "eeschema.SymbolLibraryControl.CompareLibraryWithFile" )
         .Scope( AS_GLOBAL )

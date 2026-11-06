@@ -84,6 +84,9 @@ public:
     /// Diff the currently-open symbol library against another .kicad_sym file.
     int CompareLibraryWithFile( const TOOL_EVENT& aEvent );
 
+    /// Merge multiple symbol libraries into a single library.
+    int MergeSymbolLibraries( const TOOL_EVENT& aEvent );
+
 private:
     /// Set up handlers for various events.
     void setTransitions() override;

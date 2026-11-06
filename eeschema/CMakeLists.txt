@@ -202,6 +202,8 @@ set( EESCHEMA_DLGS
     dialogs/dialog_sheet_properties_base.cpp
     dialogs/dialog_symbol_chooser.cpp
     dialogs/dialog_symbol_fields_table.cpp
+    dialogs/dialog_symbol_lib_merge.cpp
+    dialogs/dialog_symbol_merge_conflict.cpp
     dialogs/dialog_symbol_properties.cpp
     dialogs/dialog_symbol_properties_base.cpp
     dialogs/dialog_symbol_remap.cpp

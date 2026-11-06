@@ -34,6 +34,7 @@
 #include <lib_symbol_library_manager.h>
 #include <libraries/symbol_library_adapter.h>
 #include <pgm_base.h>
+#include <dialogs/dialog_symbol_lib_merge.h>
 #include <project_sch.h>
 #include <sch_painter.h>
 #include <string_utils.h>
@@ -1132,6 +1133,28 @@ int SYMBOL_EDITOR_CONTROL::CloseTab( const TOOL_EVENT& aEvent )
 }
 
 
+int SYMBOL_EDITOR_CONTROL::MergeSymbolLibraries( const TOOL_EVENT& aEvent )
+{
+   SYMBOL_EDIT_FRAME* editFrame = getEditFrame<SYMBOL_EDIT_FRAME>();
+
+   wxCHECK( editFrame, 0 );
+
+   // The merge writes to library files and deletes the source libraries, so it
+   // cannot run while there are unsaved library edits
+   if( editFrame->GetLibManager().HasModifications() )
+   {
+       editFrame->ShowInfoBarError(
+               _( "Save or revert all modified libraries before merging libraries." ) );
+       return 0;
+   }
+
+   DIALOG_SYMBOL_LIB_MERGE dlg( editFrame );
+   dlg.ShowQuasiModal();
+
+   return 0;
+}
+
+
 int SYMBOL_EDITOR_CONTROL::CompareLibraryWithFile( const TOOL_EVENT& aEvent )
 {
     SYMBOL_EDIT_FRAME* editFrame = getEditFrame<SYMBOL_EDIT_FRAME>();
@@ -1313,6 +1336,9 @@ void SYMBOL_EDITOR_CONTROL::setTransitions()
 
     Go( &SYMBOL_EDITOR_CONTROL::CompareLibraryWithFile,
         SCH_ACTIONS::compareLibraryWithFile.MakeEvent() );
+
+    Go( &SYMBOL_EDITOR_CONTROL::MergeSymbolLibraries,
+        SCH_ACTIONS::mergeSymbolLibraries.MakeEvent() );
 
     Go( &SYMBOL_EDITOR_CONTROL::ChangeUnit,            SCH_ACTIONS::previousUnit.MakeEvent() );
     Go( &SYMBOL_EDITOR_CONTROL::ChangeUnit,            SCH_ACTIONS::nextUnit.MakeEvent() );

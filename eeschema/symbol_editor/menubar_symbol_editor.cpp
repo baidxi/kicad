@@ -204,6 +204,9 @@ void SYMBOL_EDIT_FRAME::doReCreateMenuBar()
 
     toolsMenu->Add( submenuActionPlugins );
 
+    toolsMenu->AppendSeparator();
+    toolsMenu->Add( SCH_ACTIONS::mergeSymbolLibraries );
+
     //-- Menubar -------------------------------------------------------------
     //
     menuBar->Append( fileMenu,    _( "&File" ) );
