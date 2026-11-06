@@ -181,6 +181,7 @@ public:
     static TOOL_ACTION explodeStackedPin;
     static TOOL_ACTION changeSymbols;
     static TOOL_ACTION updateSymbols;
+    static TOOL_ACTION migrateSymbols;
     static TOOL_ACTION changeSymbol;
     static TOOL_ACTION updateSymbol;
     static TOOL_ACTION setVariantSymbol;

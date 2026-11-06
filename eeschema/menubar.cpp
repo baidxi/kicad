@@ -321,6 +321,7 @@ void SCH_EDIT_FRAME::doReCreateMenuBar()
     toolsMenu->AppendSeparator();
     toolsMenu->Add( ACTIONS::showSymbolEditor );
     toolsMenu->Add( SCH_ACTIONS::updateSymbols );
+    toolsMenu->Add( SCH_ACTIONS::migrateSymbols );
 
     toolsMenu->AppendSeparator();
     toolsMenu->Add( SCH_ACTIONS::rescueSymbols );

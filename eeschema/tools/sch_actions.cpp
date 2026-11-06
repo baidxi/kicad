@@ -1052,6 +1052,13 @@ TOOL_ACTION SCH_ACTIONS::updateSymbols( TOOL_ACTION_ARGS()
         .Tooltip( _( "Update symbols to include any changes from the library" ) )
         .Icon( BITMAPS::refresh ) );
 
+TOOL_ACTION SCH_ACTIONS::migrateSymbols( TOOL_ACTION_ARGS()
+        .Name( "eeschema.InteractiveEdit.migrateSymbols" )
+        .Scope( AS_GLOBAL )
+        .FriendlyName( _( "Migrate Symbols..." ) )
+        .Tooltip( _( "Find symbols that no longer resolve to a library and migrate them" ) )
+        .Icon( BITMAPS::exchange ) );
+
 TOOL_ACTION SCH_ACTIONS::changeSymbol( TOOL_ACTION_ARGS()
         .Name( "eeschema.InteractiveEdit.changeSymbol" )
         .Scope( AS_GLOBAL )
