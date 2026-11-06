@@ -2076,13 +2076,40 @@ void SYMBOL_EDIT_FRAME::KiwayMailIn( KIWAY_MAIL_EVENT& mail )
     {
         wxLogTrace( wxT( "KICAD_TABS_DBG" ), wxT( "SYMBOL_EDIT_FRAME::KiwayMailIn MAIL_RELOAD_LIB -> SyncLibraries" ) );
 
-        FreezeLibraryTree();
+        // Untouched buffers hold the files as they were, and a pull may have changed them since
+        std::vector<wxString> dropped = m_libMgr->DropUnmodifiedBuffers();
+
+        // Only the pane is frozen. A frozen adapter hides every parent, and the view rebuilt from it
+        // at the end of the sync is left with rows that no longer exist.
+        m_treePane->Freeze();
 
         // Suppress the progress dialog for this background reload. It would steal focus from the
         // editor that broadcast the reload, and the tree is already frozen around the sync.
         SyncLibraries( false );
-        ThawLibraryTree();
+        m_treePane->Thaw();
         RefreshLibraryTree();
+
+        LIB_SYMBOL* current = GetCurSymbol();
+        wxString    lib = current ? current->GetLibId().GetLibNickname().wx_str() : wxString();
+
+        // The open symbol is a copy, so an unedited one is refreshed when nothing holds on to it
+        if( current && !IsContentModified() && !IsSymbolFromSchematic() && IsEnabled()
+            && !Kiway().HasBlockingDialog() && ToolStackIsEmpty() && alg::contains( dropped, lib ) )
+        {
+            const wxString name = current->GetName();
+
+            if( m_libMgr->SymbolExists( name, lib ) )
+            {
+                if( LIB_SYMBOL* refreshed = m_libMgr->GetBufferedSymbol( name, lib ) )
+                {
+                    SetCurSymbol( new LIB_SYMBOL( *refreshed ), false );
+                    RebuildSymbolUnitAndBodyStyleLists();
+
+                    if( m_toolManager )
+                        m_toolManager->ResetTools( TOOL_BASE::MODEL_RELOAD );
+                }
+            }
+        }
 
         break;
     }

@@ -32,43 +32,59 @@
 
 namespace TEXT_EVAL_VCS
 {
-// Override that anchors repo-scoped queries to a specific path (for example the loaded
-// project directory). When empty, repo discovery falls back to the process cwd.
-//
-// The stores are deliberately leaked (the OS reclaims them at process exit): they are
-// also written by SETTINGS_MANAGER's destructor during static teardown, which runs after
-// the main thread's thread_local storage has already been destroyed.  A thread_local
-// here would therefore be written after free during every shutdown.
+// Per-thread override that anchors repo-scoped queries to a specific path (for example the
+// loaded project directory). When empty, repo discovery falls back to the process cwd.
 namespace
 {
-    wxString& ContextPathStore()   { static wxString* s_store = new wxString; return *s_store; }
-    bool&     ContextIsFileStore() { static bool*     s_store = new bool;     return *s_store; }
+    // Static destructors such as ~SETTINGS_MANAGER run after the main thread's thread_local objects are
+    // destroyed. A bool has no destructor, so it stays readable and tells them the context is gone.
+    thread_local bool tl_contextGone = false;
+
+    struct CONTEXT
+    {
+        ~CONTEXT() { tl_contextGone = true; }
+
+        wxString path;
+        bool     isFile = false;
+    };
+
+    thread_local CONTEXT tl_context;
+
+    void setContext( const wxString& aPath, bool aIsFile )
+    {
+        if( tl_contextGone )
+            return;
+
+        tl_context.path = aPath;
+        tl_context.isFile = aIsFile;
+    }
 }
 
 
 void SetContextPath( const wxString& aPath )
 {
-    const bool isFile = !aPath.IsEmpty() && wxFileName( aPath ).FileExists();
-    ContextPathStore() = aPath;
-    ContextIsFileStore() = isFile;
+    setContext( aPath, !aPath.IsEmpty() && wxFileName( aPath ).FileExists() );
 }
 
 
 wxString GetContextPath()
 {
-    return ContextPathStore().IsEmpty() ? wxString( wxT( "." ) ) : ContextPathStore();
+    if( tl_contextGone || tl_context.path.IsEmpty() )
+        return wxString( wxT( "." ) );
+
+    return tl_context.path;
 }
 
 
 bool GetContextIsFile()
 {
-    return ContextIsFileStore();
+    return !tl_contextGone && tl_context.isFile;
 }
 
 
 CONTEXT_PATH_SCOPE::CONTEXT_PATH_SCOPE( const wxString& aPath ) :
-        m_previous( ContextPathStore() ),
-        m_previousIsFile( ContextIsFileStore() )
+        m_previous( tl_contextGone ? wxString() : tl_context.path ),
+        m_previousIsFile( GetContextIsFile() )
 {
     SetContextPath( aPath );
 }
@@ -76,8 +92,7 @@ CONTEXT_PATH_SCOPE::CONTEXT_PATH_SCOPE( const wxString& aPath ) :
 
 CONTEXT_PATH_SCOPE::~CONTEXT_PATH_SCOPE()
 {
-    ContextPathStore() = m_previous;
-    ContextIsFileStore() = m_previousIsFile;
+    setContext( m_previous, m_previousIsFile );
 }
 
 
@@ -95,7 +110,7 @@ namespace
         {
             wxFileName context( GetContextPath() );
             context.MakeAbsolute();
-            path.MakeAbsolute( ContextIsFileStore() ? context.GetPath() : context.GetFullPath() );
+            path.MakeAbsolute( GetContextIsFile() ? context.GetPath() : context.GetFullPath() );
         }
 
         return path.GetFullPath();
@@ -112,7 +127,7 @@ namespace
         {
             wxFileName path = wxFileName::DirName( ResolveEffectivePath( aPath ) );
             path.MakeAbsolute();
-            const bool contextFile = ContextIsFileStore() && ( aPath.empty() || aPath == "." );
+            const bool contextFile = GetContextIsFile() && ( aPath.empty() || aPath == "." );
             return environment->VcsValue( { aQuery,
                                             path.GetPath( (int) wxPATH_GET_VOLUME ),
                                             aArgument,
@@ -132,7 +147,7 @@ namespace
 
         wxFileName effective( ResolveEffectivePath( aPath ) );
 
-        if( ( !aPath.empty() && aPath != "." ) || ContextIsFileStore() )
+        if( ( !aPath.empty() && aPath != "." ) || GetContextIsFile() )
         {
             effective.MakeAbsolute();
             return KIGIT::PROJECT_GIT_UTILS::GetRepositoryForFile( TO_UTF8( effective.GetPath() ) );
