@@ -76,7 +76,9 @@ void PCB_TABLECELL::Serialize( google::protobuf::Any& aContainer ) const
 {
     kiapi::board::types::TableCell cell;
     Serialize( cell );
-    aContainer.PackFrom( cell );
+
+    if( !aContainer.PackFrom( cell ) )
+        wxFAIL_MSG( wxT( "Failed to pack PCB_TABLECELL" ) );
 }
 
 
@@ -412,20 +414,22 @@ static struct PCB_TABLECELL_DESC
                     return !IsGeneratedTableCell( dynamic_cast<PCB_TABLECELL*>( aItem ) );
                 } );
 
-        auto isGeneratedCell =
+        const auto isGeneratedCell =
                 []( INSPECTABLE* aItem ) -> bool
                 {
                     return IsGeneratedTableCell( dynamic_cast<PCB_TABLECELL*>( aItem ) );
                 };
 
-        auto isPlainCell =
+        const auto isPlainCell =
                 [=]( INSPECTABLE* aItem ) -> bool
                 {
                     return !isGeneratedCell( aItem );
                 };
 
+        const std::vector<wxString> fontGroupProps = { _HKI( "Font" ), _HKI( "Width" ), _HKI( "Height" ) };
+
         // A generated cell takes its font and size through the Font group, the same as its table
-        for( const wxString& name : { _HKI( "Font" ), _HKI( "Width" ), _HKI( "Height" ) } )
+        for( const wxString& name : fontGroupProps )
             propMgr.OverrideAvailability( TYPE_HASH( PCB_TABLECELL ), TYPE_HASH( EDA_TEXT ), name, isPlainCell );
 
         const wxString fontProps = _HKI( "Font" );

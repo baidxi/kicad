@@ -258,7 +258,11 @@ bool API_HANDLER_SCH::packSchItem( google::protobuf::Any& aOut, SCH_ITEM* aItem,
         if( !PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( aItem ), aPath ) )
             return false;
 
-        aOut.PackFrom( symbol );
+        if( !aOut.PackFrom( symbol ) )
+        {
+            wxFAIL_MSG( wxT( "Failed to pack SCH_SYMBOL" ) );
+            return false;
+        }
     }
     else if( aItem->Type() == SCH_SHEET_T )
     {
@@ -267,7 +271,11 @@ bool API_HANDLER_SCH::packSchItem( google::protobuf::Any& aOut, SCH_ITEM* aItem,
         if( !PackSheet( &sheet, static_cast<SCH_SHEET*>( aItem ), aPath ) )
             return false;
 
-        aOut.PackFrom( sheet );
+        if( !aOut.PackFrom( sheet ) )
+        {
+            wxFAIL_MSG( wxT( "Failed to pack SCH_SHEET" ) );
+            return false;
+        }
     }
     else
     {
@@ -1024,10 +1032,10 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItemsById( const HAND
 
     GetItemsResponse response;
     SCH_ITEM* item = nullptr;
-    google::protobuf::Any any;
 
     for( const types::KIID& idProto : aCtx.Request.items() )
     {
+        google::protobuf::Any any;
         KIID id( idProto.value() );
 
         SCH_SHEET_PATH itemPath;
@@ -1052,7 +1060,8 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItemsById( const HAND
             if( !PackSymbol( &symbol, static_cast<SCH_SYMBOL*>( item ), itemPath ) )
                 continue;
 
-            any.PackFrom( symbol );
+            if( !any.PackFrom( symbol ) )
+                continue;
         }
         else if( item->Type() == SCH_SHEET_T )
         {
@@ -1061,7 +1070,8 @@ HANDLER_RESULT<GetItemsResponse> API_HANDLER_SCH::handleGetItemsById( const HAND
             if( !PackSheet( &sheet, static_cast<SCH_SHEET*>( item ), itemPath ) )
                 continue;
 
-            any.PackFrom( sheet );
+            if( !any.PackFrom( sheet ) )
+                continue;
         }
         else
         {
@@ -1604,14 +1614,10 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 if( wxString rawFilename = sheet->GetFileName(); !rawFilename.IsEmpty() )
                 {
                     wxFileName fileName( ExpandTextVars( rawFilename, &schematic()->Project(), INTERNAL ) );
-
-                    // 修复：Normalize 的基准必须取父页文件所在【目录】。原实现传入父页文件
-                    // 全路径，相对名 'child.kicad_sch' 被解析成 '<父文件名>/child.kicad_sch'
-                    // （把父文件当目录），保存时 mkdir 同名目录遇 EEXIST，多页保存必然失败。
-                    wxFileName parentFile( targetPath.LastScreen()->GetFileName() );
+                    wxFileName parentFileName( targetPath.LastScreen()->GetFileName() );
 
                     if( !fileName.Normalize( FN_NORMALIZE_FLAGS | wxPATH_NORM_ENV_VARS,
-                                             parentFile.GetPath() ) )
+                                             parentFileName.GetPath() ) )
                     {
                         status.set_code( ItemStatusCode::ISC_INVALID_DATA );
                         status.set_error_message( fmt::format( "could not resolve sheet filename '{}' for new sheet",
@@ -1704,7 +1710,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 }
 
                 if( PackSymbol( &packed, symbol, targetPath, schematic() ) )
-                    newItem.PackFrom( packed );
+                    (void) newItem.PackFrom( packed );
             }
             else if( createdItem->Type() == SCH_SHEET_T )
             {
@@ -1721,7 +1727,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 }
 
                 if( PackSheet( &packed, sheet, targetPath ) )
-                    newItem.PackFrom( packed );
+                    (void) newItem.PackFrom( packed );
             }
             else
             {
@@ -1773,7 +1779,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 }
 
                 if( PackSymbol( &packed, symbol, existingPath ) )
-                    newItem.PackFrom( packed );
+                    (void) newItem.PackFrom( packed );
             }
             else if( existingItem->Type() == SCH_SHEET_T )
             {
@@ -1790,7 +1796,7 @@ HANDLER_RESULT<ItemRequestStatus> API_HANDLER_SCH::handleCreateUpdateItemsIntern
                 }
 
                 if( PackSheet( &packed, sheet, existingPath ) )
-                    newItem.PackFrom( packed );
+                    (void) newItem.PackFrom( packed );
             }
             else
             {
@@ -3615,7 +3621,7 @@ HANDLER_RESULT<PlaceFromLibraryResponse> API_HANDLER_SCH::handlePlaceSymbolFromL
     kiapi::schematic::types::SchematicSymbolInstance packed;
 
     if( PackSymbol( &packed, placed, targetPath, schematic() ) )
-        response.mutable_item()->PackFrom( packed );
+        (void) response.mutable_item()->PackFrom( packed );
 
     return response;
 }

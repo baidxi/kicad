@@ -195,6 +195,7 @@ SCH_PIN::SCH_PIN( SCH_SYMBOL* aParentSymbol, SCH_PIN* aLibPin ) :
 
     SetName( m_libPin->GetName() );
     SetNumber( m_libPin->GetNumber() );
+    SetCustomProperties( m_libPin->GetCustomProperties() );
     m_position = m_libPin->GetPosition();
 
     m_layer = LAYER_PIN;
@@ -326,7 +327,9 @@ void SCH_PIN::Serialize( google::protobuf::Any& aContainer ) const
         pin.set_active_alternate( m_alt.ToUTF8() );
 
     kiapi::common::PackCustomProperties( pin.mutable_custom_properties(), *this );
-    aContainer.PackFrom( pin );
+
+    if( !aContainer.PackFrom( pin ) )
+        wxFAIL_MSG( wxT( "Failed to pack SCH_PIN" ) );
 }
 
 

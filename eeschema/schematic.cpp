@@ -1771,7 +1771,7 @@ bool SCHEMATIC::resolveCrossReference( wxString* token, int aDepth ) const
     KIID_PATH      path( ref );
     KIID           uuid( 0 );
 
-    if( path.size() > 1 )
+    if( path.size() > 0 )
         uuid = path.back();
 
     SCH_SHEET_PATH sheetPath;
@@ -3501,22 +3501,24 @@ void SCHEMATIC::AddVariant( const wxString& aVariantName )
 }
 
 
-void SCHEMATIC::DeleteVariant( const wxString& aVariantName, SCH_COMMIT* aCommit )
+void SCHEMATIC::DeleteVariantDefinition( const wxString& aVariantName )
 {
-    if( aCommit )
-    {
-        wxCHECK( m_rootSheet, /* void */ );
-
-        SCH_SCREENS allScreens( m_rootSheet );
-
-        allScreens.DeleteVariant( aVariantName, aCommit );
-    }
-
     if( m_currentVariant == aVariantName )
         SetCurrentVariant( wxEmptyString );
 
     m_variantNames.erase( aVariantName );
     Settings().m_VariantDescriptions.erase( aVariantName );
+}
+
+
+void SCHEMATIC::DeleteVariant( const wxString& aVariantName, SCH_COMMIT* aCommit )
+{
+    wxCHECK( m_rootSheet, /* void */ );
+
+    SCH_SCREENS allScreens( m_rootSheet );
+
+    allScreens.DeleteVariant( aVariantName, aCommit );
+    DeleteVariantDefinition( aVariantName );
 }
 
 
