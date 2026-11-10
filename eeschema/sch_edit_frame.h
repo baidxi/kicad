@@ -166,6 +166,24 @@ public:
      */
     bool LoadProjectSettings();
 
+    /// Apply the project file's render settings.  The drawing sheet name is left alone because
+    /// Page Settings holds an unsaved choice in BASE_SCREEN until the schematic is saved.
+    void ApplyProjectFileSettings();
+
+    /**
+     * Bring the frame in line with a project file that was reread from disk.
+     *
+     * Every value this frame copies out of the project file and writes back on save must be
+     * refreshed here; a copy left stale silently undoes the new file on the next save.
+     */
+    void ReloadProjectFileSettings();
+
+    /**
+     * Update what depends on the schematic's project settings after they changed in memory.
+     * @param aAliasesChanged rebuilds connectivity for the new bus alias members.
+     */
+    void RefreshProjectSettings( bool aAliasesChanged );
+
     /**
      * Load the drawing sheet file.
      */

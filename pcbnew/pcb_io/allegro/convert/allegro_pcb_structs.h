@@ -282,7 +282,11 @@ struct FILE_HEADER
      */
     struct LINKED_LIST
     {
+        // Chain terminator: a chain ends when a block's next key equals this value.
+        // It is normally not the key of any block.
         uint32_t m_Tail;
+
+        // Key of the first block in the chain, or 0 if the chain is empty.
         uint32_t m_Head;
     };
 
@@ -314,13 +318,9 @@ struct FILE_HEADER
     COND_GE<FMT_VER::V_180, uint32_t> m_StringCount_V18;
     COND_GE<FMT_VER::V_180, uint32_t> m_Unknown2g_V18;          // 0x00
 
-    // V180 has 6 additional linked lists in the header
-    // 5 of them are at the start
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_1;
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_2;
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_3;
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_4;
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_5;
+    // V18 inserts 9 words between the fields above and the linked lists. They are not
+    // list descriptors, and their meaning has not been determined.
+    COND_GE<FMT_VER::V_180, std::array<uint32_t, 9>> m_Unknown2h_V18;
 
     // Linked lists grouping top-level elements by type
     LINKED_LIST m_LL_0x04;              // Net assignments
@@ -341,27 +341,19 @@ struct FILE_HEADER
     LINKED_LIST m_LL_0x2C;              // Tables
     LINKED_LIST m_LL_0x0C_2;            // Secondary pin definitions
     LINKED_LIST m_LL_Unknown3;
+    LINKED_LIST m_LL_0x35;              // 0x35 file records.
+    LINKED_LIST m_LL_0x36;              // Definition tables
+    LINKED_LIST m_LL_Unknown4;
+    LINKED_LIST m_LL_Unknown5;
+    LINKED_LIST m_LL_0x0A_2;            // A second DRC element list
 
-    // For some reason the 0x35 extents are recorded in the header
-    COND_LT<FMT_VER::V_180, uint32_t> m_0x35_Start_preV18;
-    COND_LT<FMT_VER::V_180, uint32_t> m_0x35_End_preV18;
+    // Only V18 onwards has this one. It holds field objects, which earlier versions
+    // keep in m_LL_0x03_0x30 instead.
+    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_0x03_2;
 
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_Unknown5_V18;
-    LINKED_LIST m_LL_0x36;
-    COND_LT<FMT_VER::V_180, LINKED_LIST> m_LL_Unknown5_preV18;
-
-    LINKED_LIST m_LL_Unknown6;
-    LINKED_LIST m_LL_0x0A_2;
-
-    COND_LT<FMT_VER::V_180, uint32_t> m_Unknown3;
-
-    COND_GE<FMT_VER::V_180, LINKED_LIST> m_LL_V18_6;
-
-    COND_GE<FMT_VER::V_180, uint32_t> m_0x35_Start_V18;
+    uint32_t m_Unknown_LlTrailer;
 
     COND_GE<FMT_VER::V_181, std::array<uint32_t, 8>> m_Unknown_V181;
-
-    COND_GE<FMT_VER::V_180, uint32_t> m_0x35_End_V18;
 
     // Fixed length string field
     std::array<char, 60> m_AllegroVersion;
@@ -418,14 +410,6 @@ struct FILE_HEADER
             return m_0x27_End_V18.value();
 
         return m_0x27_End_preV18.value();
-    }
-
-    const LINKED_LIST& GetUnknown5() const
-    {
-        if( m_LL_Unknown5_V18.has_value() )
-            return m_LL_Unknown5_V18.value();
-
-        return m_LL_Unknown5_preV18.value();
     }
 };
 
@@ -2113,6 +2097,9 @@ struct BLK_0x30_STR_WRAPPER
 
     COND_LT<FMT_VER::V_172, uint32_t> m_PtrGroup_16x;
 
+    /// Zero or key of a 0x3E block.
+    COND_GE<FMT_VER::V_181, uint32_t> m_Ptr0x3E_V181;
+
     uint32_t GetGroupPtr() const
     {
         return m_PtrGroup_17x.value_or( m_PtrGroup_16x.value_or( 0 ) );
@@ -2253,16 +2240,36 @@ struct BLK_0x34_KEEPOUT
 
 /**
  * File path references to Allegro log and report files (terminator.log, eclrpt.txt).
- * Content is a 120-byte fixed buffer with null-terminated path strings. Not imported.
  */
 struct BLK_0x35_FILE_REF
 {
     static constexpr uint8_t BLOCK_TYPE_CODE = 0x35;
 
     uint8_t  m_T2;
-    uint16_t m_T3;
+    uint16_t m_T3; // Always 0x01 so far
 
-    std::array<uint8_t, 120> m_Content;
+    uint32_t m_Next;
+
+    uint32_t m_Unknown1; // 0x7fffffff usually
+
+    std::array<char, 20> m_LogFile; // Usually "terminator.log"
+
+    uint32_t m_Unknown2; // 0x01010101 usually
+
+    std::array<char, 20> m_UnusedFile;    // Always 0x00
+    std::array<char, 20> m_EclReportFile; // "eclrpt.txt"
+    std::array<char, 20> m_EclLogFile;    // "eclrep.log"
+
+    uint32_t m_Unknown3;
+
+    std::array<char, 8> m_Version; // Always '1.0'
+
+    uint32_t m_Unknown4;
+    uint32_t m_Unknown5;
+    uint32_t m_Unknown6;
+
+    /// Key of this record.
+    uint32_t m_Key;
 };
 
 
@@ -2384,9 +2391,11 @@ struct BLK_0x36_DEF_TABLE
 
 
 /**
- * Fixed-capacity pointer array (100 entries). Used in zone net resolution where
- * m_Ptrs[0] points to the owning 0x1B NET block. m_Count indicates how many entries
- * are valid.
+ * Pointer array. Used in zone net resolution where m_Ptrs[0] points to the owning
+ * 0x1B NET block. m_Count indicates how many entries are valid, counted from the
+ * start.
+ *
+ * m_Capacity is usually 100, but a 25.1 board was seen with 4096 (TinyCircularTMR).
  */
 struct BLK_0x37_PTR_ARRAY
 {
@@ -2403,7 +2412,7 @@ struct BLK_0x37_PTR_ARRAY
 
     COND_GE<FMT_VER::V_174, uint32_t> m_Unknown3;
 
-    std::array<uint32_t, 100> m_Ptrs;
+    std::vector<uint32_t> m_Ptrs;
 };
 
 

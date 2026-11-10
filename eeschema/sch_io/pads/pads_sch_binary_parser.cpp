@@ -449,40 +449,29 @@ namespace
     }
 
 
-    // PADS nine-way text justification.  Valid codes are a sparse 3x3 table: 4 is center-bottom and 6 is
-    // center-top.
+    // PADS justification is a bitfield where center wins: bit 2 centers and bit 0 right-aligns horizontally
     MODEL_JUSTIFICATION horizontalJustification( uint16_t aValue )
     {
-        switch( aValue & 0x00FF )
-        {
-        case 1:
-        case 3:
-        case 9: return MODEL_JUSTIFICATION::RIGHT;
+        if( aValue & 0x0004 )
+            return MODEL_JUSTIFICATION::CENTER;
 
-        case 4:
-        case 5:
-        case 6:
-        case 12: return MODEL_JUSTIFICATION::CENTER;
+        if( aValue & 0x0001 )
+            return MODEL_JUSTIFICATION::RIGHT;
 
-        default: return MODEL_JUSTIFICATION::LEFT;
-        }
+        return MODEL_JUSTIFICATION::LEFT;
     }
 
 
+    // Bit 3 centers and bit 1 top-aligns vertically; LEFT and RIGHT stand for top and bottom
     MODEL_JUSTIFICATION verticalJustification( uint16_t aValue )
     {
-        switch( aValue & 0x00FF )
-        {
-        case 2:
-        case 3:
-        case 6: return MODEL_JUSTIFICATION::LEFT;   // KiCad TOP mapping
+        if( aValue & 0x0008 )
+            return MODEL_JUSTIFICATION::CENTER;
 
-        case 8:
-        case 9:
-        case 12: return MODEL_JUSTIFICATION::CENTER;
+        if( aValue & 0x0002 )
+            return MODEL_JUSTIFICATION::LEFT;
 
-        default: return MODEL_JUSTIFICATION::RIGHT; // KiCad BOTTOM mapping
-        }
+        return MODEL_JUSTIFICATION::RIGHT;
     }
 
 
@@ -509,24 +498,6 @@ namespace
         return aValue;
     }
 
-
-    MODEL_JUSTIFICATION freeTextHorizontalJustification( uint16_t aValue )
-    {
-        switch( aValue & 0x000F )
-        {
-        case 0:
-        case 2:
-        case 8: return MODEL_JUSTIFICATION::LEFT;
-
-        case 4:
-        case 6:
-        case 10:
-        case 12:
-        case 14: return MODEL_JUSTIFICATION::CENTER;
-
-        default: return MODEL_JUSTIFICATION::RIGHT;
-        }
-    }
 
     constexpr uint32_t CP1252_HIGH[] = { 0x20AC, 0xFFFD, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
                                          0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0xFFFD, 0x017D, 0xFFFD,
@@ -1769,9 +1740,9 @@ namespace
                 definitionPin.presentationFlags = presentationFlags;
                 definitionPin.visibilityAndNumberPresentationFlags = visibilityFlags;
 
-                // PADS binary stores the same terminal-local X/Y mirror state as the ASCII T-line xym field,
+                // PADS binary stores the same terminal-local X/Y mirror state as the ASCII T-line side field,
                 // shifted left by one because bit 0 carries the terminal quarter-turn flag.
-                definitionPin.xym = ( presentationFlags & 0x0006 ) >> 1;
+                definitionPin.side = ( presentationFlags & 0x0006 ) >> 1;
 
                 definitionPin.angle = ( presentationFlags & 0x0001 ) != 0 ? 900 : 0;
                 definitionPin.numberAngle = ( presentationFlags & 0x0100 ) != 0 ? 900 : 0;
@@ -1883,7 +1854,7 @@ namespace
 
                 definitionPin.properties.push_back( sourceProperty(
                         wxS( "pin_name_height_half_mils" ),
-                        wxString::Format( wxS( "%lld" ), definitionPin.presentation.height ), pinSource ) );
+                        wxString::Format( wxS( "%lld" ), definitionPin.namePresentation.height ), pinSource ) );
                 definitionPin.properties.push_back( sourceProperty(
                         wxS( "pin_number_height_half_mils" ),
                         wxString::Format( wxS( "%lld" ), definitionPin.numberPresentation.height ), pinSource ) );
@@ -1894,8 +1865,20 @@ namespace
                         wxS( "pin_number_width_half_mils" ),
                         wxString::Format( wxS( "%lld" ), definitionPin.numberPresentation.width ), pinSource ) );
                 definitionPin.properties.push_back(
-                        sourceProperty( wxS( "terminal_xym" ),
-                                        wxString::Format( wxS( "%u" ), definitionPin.xym ), pinSource ) );
+                        sourceProperty( wxS( "terminal_side" ),
+                                        wxString::Format( wxS( "%u" ), definitionPin.side ), pinSource ) );
+
+                // Keep the ASCII P-line positions; PADS draws nothing at them so their meaning is unknown
+                for( int pair = 0; pair < 2; ++pair )
+                {
+                    const size_t pairOffset = terminalOffset + 14 + pair * 4;
+                    definitionPin.properties.push_back( sourceProperty(
+                            wxString::Format( wxS( "terminal_p_line_position_%d" ), pair + 1 ),
+                            wxString::Format( wxS( "%lld,%lld" ), decodeLocalCoordinate( aCursor.U16At( pairOffset ) ),
+                                              decodeLocalCoordinate( aCursor.U16At( pairOffset + 2 ) ) ),
+                            pinSource ) );
+                }
+
                 decal.definition->pins.push_back( std::move( definitionPin ) );
             }
         }
@@ -3898,7 +3881,8 @@ namespace
                                                         wxString::Format( wxS( "%u" ), offpageMirrorFlags ),
                                                         mirrorSource ) );
 
-            if( offpageMirrorFlags & ~3U )
+            // Real designs carry unrelated data in the high byte, so only unknown low bits warrant a warning
+            if( offpageMirrorFlags & 0x00FC )
             {
                 SOURCE_PROPERTY& property = label.properties.back();
                 property.disposition = PROPERTY_DISPOSITION::UNSUPPORTED;
@@ -5132,7 +5116,7 @@ namespace
             text.presentation.width = aCursor.U8At( recordOffset + 30 );
             const uint8_t displayFlags = aCursor.U8At( recordOffset + 31 );
             text.presentation.visible = ( displayFlags & 1 ) == 0;
-            text.presentation.horizontalJustification = freeTextHorizontalJustification( justification );
+            text.presentation.horizontalJustification = horizontalJustification( justification );
             text.presentation.verticalJustification = verticalJustification( justification );
 
             SOURCE_PROVENANCE fontHandleSource = textSource;

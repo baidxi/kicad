@@ -9,7 +9,7 @@ as implemented in this importer. This is not an official specification.
 Offset 0x0000: File Header (~4KB)
   - Magic number (4 bytes)
   - Object count
-  - Linked lists: 22 for pre-V180, 28 for V180+
+  - Linked lists: 23 for pre-V180, 24 for V180+
   - Allegro version string (60 bytes)
   - Board units (1 byte: 0x01=Imperial, 0x02=Metric)
   - Units divisor (4 bytes)
@@ -22,7 +22,6 @@ Offset 0x1200: String Table
 After strings: Object Blocks
   - Repeated: [1-byte type tag] [type-specific data]
   - Each block type has a fixed layout with version-conditional fields
-  - V180 files may have zero-padded gaps between block groups
 ```
 
 ## Version Detection
@@ -78,9 +77,14 @@ placed instance are board-absolute with final layers already applied.
 ## Linked Lists
 
 Most block types form singly-linked lists via a `m_Next` field containing
-the key of the next block. The header contains 22 linked list descriptors
-with head and tail keys. Walking a linked list starts from the head key,
-looks up each block by key, and follows `m_Next` until 0 or the tail key.
+the key of the next block. The header list descriptors. Each descriptor is
+a tail word followed by a head word. Walking a linked list starts from the
+head key, looks up each block by key, and follows `m_Next` until 0 or the tail key.
+
+The tail is a per-list terminator: within a file the tails form one
+consecutive run of values, and each list ends when a block's `m_Next`
+equals its own tail. The run starts at 0x65 in most files, and at 0x01
+or 0x1001 in some later ones.
 
 The `m_Key` field serves as a global block identifier. All blocks are
 indexed by key in a flat hash map (`m_ObjectKeyMap`).
@@ -106,6 +110,42 @@ while version 18 introduces significant changes.
 
 The next block of 7 fields seems to have different meanings in v18 compared to
 earlier versions.
+
+## Linked List Descriptors
+
+The header holds many linked list descriptors, representing top-level element
+list. Each descriptor.
+
+Pre-V18 files have 23 descriptors starting at offset 0x3c. V18 and later files
+have 24 descriptors starting at offset 0x60.
+
+
+| Pos | Field               | Contents | Notes |
+|-----|---------------------|----------|-------|
+| 0   | m_LL_0x04           | 0x04 net assignments | Usually empty. Assignments are reached per net through NET.m_Assignment instead. |
+| 1   | m_LL_0x06           | 0x06 component definitions | |
+| 2   | m_LL_0x0C           | 0x0C pin definitions | |
+| 3   | m_LL_Shapes         | 0x28 shapes | |
+| 4   | m_LL_0x14           | 0x14 graphics containers | |
+| 5   | m_LL_0x1B_Nets      | 0x1B nets | |
+| 6   | m_LL_0x1C           | 0x1C padstacks | |
+| 7   | m_LL_0x24_0x28      | 0x24 rects and 0x28 shapes | |
+| 8   | m_LL_Unknown1       | (unknown) | Usually empty. |
+| 9   | m_LL_0x2B           | 0x2B footprint definitions | |
+| 10  | m_LL_0x03_0x30      | 0x30 string wrappers and 0x03 fields | V18 moves the 0x03 objects to position 23, leaving only wrappers here. |
+| 11  | m_LL_0x0A           | 0x0A DRC elements | |
+| 12  | m_LL_0x1D_0x1E_0x1F | 0x1D, 0x1E, 0x1F | Constraint sets, signal integrity models and padstack dimensions. |
+| 13  | m_LL_Unknown2       | (unknown) | Usually empty |
+| 14  | m_LL_0x38           | 0x38 films | |
+| 15  | m_LL_0x2C           | 0x2C tables | |
+| 16  | m_LL_0x0C_2         | 0x0C pin definitions | A second pin list. |
+| 17  | m_LL_Unknown3       | (unknown) | Usually empty |
+| 18  | m_LL_0x35           | 0x35 file records | |
+| 19  | m_LL_0x36           | 0x36 definition tables | |
+| 20  | m_LL_Unknown4       | (unknown) | |
+| 21  | m_LL_Unknown5       | (unknown) | Usually empty |
+| 22  | m_LL_0x0A_2         | 0x0A DRC elements | A second DRC list. |
+| 23  | m_LL_0x03_2         | 0x03 fields | V18+ only. Holds 0x03s that were together with 0x30s in earlier versions|
 
 ## Block Types
 
@@ -937,29 +977,8 @@ different nets.
 
 ## V18 Header Changes (0x00150000)
 
-V18 restructures the file header with significant differences from
-V16/V17.
-
-### Linked Lists
-
-V18 has 28 linked lists compared to 22 in pre-V18 files.
-
-| V18 Position | Pre-V18 Position | Field            |
-|-------------|-----------------|------------------|
-| 0-4         | (new)           | m_LL_V18_1..5    |
-| 5-22        | 0-17            | Same 18 shared   |
-| 23          | 19              | m_LL_Unknown5    |
-| 24          | 18              | m_LL_0x36        |
-| 25-26       | 20-21           | Same 2 shared    |
-| 27          | (new)           | m_LL_V18_6       |
-
-Note positions 23-24: m_LL_0x36 and m_LL_Unknown5 are swapped
-relative to their pre-V18 order.
-
-### Head/Tail Word Order
-
-Each linked list descriptor is two 32-bit words. Pre-V18 reads
-word1=tail, word2=head. V18 reverses this to word1=head, word2=tail.
+V18 adds many new fields to the file header. Most of these aren't
+understood yet.
 
 ### String Count
 
@@ -968,19 +987,15 @@ after the layer map. V18 stores it in `m_Unknown2[5]` (read during
 early header parsing) and has no separate field. Similarly,
 `m_0x27_End` is relocated to `m_Unknown2[2]`.
 
-### 0x35 File References
+### Object Stream Termination
 
-Pre-V18 stores 0x35 extents (start/end) between the first 18 LLs
-and the last 4 LLs. V18 stores them after all 28 linked lists as
-two scalar uint32 values.
+The object stream ends when the file ends, or when a 0x00 type byte is
+reached. There is no padding between blocks: every block is a whole number
+of 4-byte words and the next type tag follows immediately.
 
-### Object Stream Gaps
-
-V18 files can have zero-padded gaps between groups of object blocks.
-After encountering the end-of-objects marker (0x00 type byte), the
-parser skips consecutive zero bytes, then checks if a valid block
-type tag (0x01-0x3C) follows. If so, parsing continues from the
-4-byte-aligned position before that tag.
+Some files include zero padding after the last real block. This is only
+valid if all remaining bytes to the end of the file are zero, otherwise
+encountering a zero type tag is a mis-read of a previous block's length.
 
 ### Padstack Trailer
 

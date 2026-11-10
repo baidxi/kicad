@@ -21,6 +21,7 @@
 #define KI_ERROR_H_
 
 #include <chrono>
+#include <string>
 
 #include <kicommon.h>
 #include <wx/string.h>
@@ -93,13 +94,7 @@ private:
     std::chrono::system_clock::time_point m_timestamp;
 };
 
-
-// Provides {fmt} formatting.  A concrete return type is required: GCC does
-// not treat calls to an undeduced auto function as SFINAE, so every
-// fmt::format() in a TU that sees the declaration would hard-error while
-// the compiler tries to deduce the return type.
-#include <string>
-
+// Provides {fmt} formatting
 std::string format_as( const KI_ERROR& aError );
 
 #endif // KI_ERROR_H_
