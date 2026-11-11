@@ -23,6 +23,7 @@
 #include <dialogs/git/git_ui_utils.h>
 #include <confirm.h>
 #include <eda_base_frame.h>
+#include <wx/app.h>
 #include <wx/utils.h>
 #include <wx/weakref.h>
 #include <mutex>
@@ -68,6 +69,33 @@ static void resolveMissingRemote( KIGIT_COMMON* aCommon )
 }
 
 
+// The window that asked can close while a prompt waits, freeing it and its project with it
+static bool askerGone( const wxWeakRef<wxWindow>& aParent, bool aHadParent )
+{
+    if( !aHadParent )
+        return false;
+
+    if( !aParent )
+        return true;
+
+    // Destroy() on a top level window only queues the delete, so its weak ref still answers
+    for( wxWindow* window = aParent.get(); window; window = window->GetParent() )
+    {
+        if( window->IsBeingDeleted() || wxTheApp->IsScheduledForDestruction( window ) )
+            return true;
+    }
+
+    return false;
+}
+
+
+// Any modal here can outlast its parent, so every answer short of acceptance says whether it did
+static KIGIT::PROMPT_ANSWER refusal( const wxWeakRef<wxWindow>& aParent, bool aHadParent )
+{
+    return askerGone( aParent, aHadParent ) ? KIGIT::PROMPT_ANSWER::ABANDONED : KIGIT::PROMPT_ANSWER::DECLINED;
+}
+
+
 // The project's key outlives the session's list, which a host change regathers, but a deleted one is never offered
 static wxString initialSSHKey( KIGIT_COMMON* aCommon, PROJECT* aProject )
 {
@@ -82,8 +110,8 @@ static wxString initialSSHKey( KIGIT_COMMON* aCommon, PROJECT* aProject )
 }
 
 
-bool KIGIT::PromptForCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, PROJECT* aProject,
-                                  const wxString& aExplanation )
+KIGIT::PROMPT_ANSWER KIGIT::PromptForCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, PROJECT* aProject,
+                                                  const wxString& aExplanation )
 {
     resolveMissingRemote( aCommon );
 
@@ -93,11 +121,12 @@ bool KIGIT::PromptForCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, PROJ
     if( shownUsername.IsEmpty() && aProject )
         shownUsername = aProject->GetLocalSettings().m_GitRepoUsername;
 
+    wxWeakRef<wxWindow>    parent( aParent );
     DIALOG_GIT_CREDENTIALS dlg( aParent, identity.remote, aExplanation, identity.connType, shownUsername,
                                 initialSSHKey( aCommon, aProject ) );
 
-    if( dlg.ShowModal() != wxID_OK )
-        return false;
+    if( dlg.ShowModal() != wxID_OK || askerGone( parent, aParent != nullptr ) )
+        return refusal( parent, aParent != nullptr );
 
     bool ssh = dlg.GetConnType() == KIGIT_COMMON::GIT_CONN_TYPE::GIT_CONN_SSH;
 
@@ -119,15 +148,28 @@ bool KIGIT::PromptForCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, PROJ
     {
         wxLogTrace( traceGit, "Credential prompt discarded, the remote changed while it was open" );
         DisplayInfoMessage( aParent, _( "The remote changed while this window was open. Try the operation again." ) );
-        return false;
+        return refusal( parent, aParent != nullptr );
     }
 
     wxString username = entered.username ? *entered.username : identity.username;
 
-    if( dlg.SaveCredentials() && !KIPLATFORM::SECRETS::StoreSecret( identity.remote, username, entered.password ) )
+    if( dlg.SaveCredentials() )
     {
-        DisplayInfoMessage( aParent, _( "The credentials could not be saved to the system keychain, so they "
-                                        "are kept for this session only." ) );
+        // A locked keyring prompts to unlock, which must not hold the event loop
+        KIPLATFORM::SECRETS::StoreSecretAsync(
+                identity.remote, username, entered.password,
+                [parent]( bool aStored )
+                {
+                    if( !aStored && parent )
+                    {
+                        DisplayInfoMessage( parent, _( "The credentials could not be saved to the system keychain, "
+                                                       "so they are kept for this session only." ) );
+                    }
+                } );
+
+        // Windows answers inline, so a failed save has already shown its message
+        if( askerGone( parent, aParent != nullptr ) )
+            return PROMPT_ANSWER::ABANDONED;
     }
 
     // A correction only in the session would be reverted by the next attach.
@@ -143,13 +185,15 @@ bool KIGIT::PromptForCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, PROJ
             aProject->GetLocalSettings().m_GitRepoType = ssh ? wxS( "ssh" ) : wxS( "https" );
     }
 
-    return true;
+    return PROMPT_ANSWER::ACCEPTED;
 }
 
 
-bool KIGIT::PromptToTrustHost( wxWindow* aParent, const HOST_KEY_FAILURE& aFailure, bool aRetriedAfterTrust )
+KIGIT::PROMPT_ANSWER KIGIT::PromptToTrustHost( wxWindow* aParent, const HOST_KEY_FAILURE& aFailure,
+                                               bool aRetriedAfterTrust )
 {
-    wxString host = aFailure.host;
+    wxWeakRef<wxWindow> parent( aParent );
+    wxString            host = aFailure.host;
 
     if( aFailure.port != 22 )
         host << wxS( ":" ) << aFailure.port;
@@ -157,7 +201,7 @@ bool KIGIT::PromptToTrustHost( wxWindow* aParent, const HOST_KEY_FAILURE& aFailu
     if( !MayOfferTrust( aFailure, aRetriedAfterTrust ) )
     {
         DisplayErrorMessage( aParent, HostKeyRefusalMessage( aFailure ) );
-        return false;
+        return refusal( parent, aParent != nullptr );
     }
 
     wxString question;
@@ -178,8 +222,8 @@ bool KIGIT::PromptToTrustHost( wxWindow* aParent, const HOST_KEY_FAILURE& aFailu
                                      _( "Verify Server" ), wxYES_NO | wxNO_DEFAULT | wxICON_WARNING | wxCENTER );
     dlg.SetYesNoLabels( _( "&Connect" ), _( "Cancel" ) );
 
-    if( dlg.ShowModal() != wxID_YES )
-        return false;
+    if( dlg.ShowModal() != wxID_YES || askerGone( parent, aParent != nullptr ) )
+        return refusal( parent, aParent != nullptr );
 
     if( !AddKnownHost( aFailure ) )
     {
@@ -188,10 +232,66 @@ bool KIGIT::PromptToTrustHost( wxWindow* aParent, const HOST_KEY_FAILURE& aFailu
                                                   "made. Check that your .ssh folder can be written to." ),
                                                host ),
                              KnownHostsPath() );
-        return false;
+        return refusal( parent, aParent != nullptr );
     }
 
-    return true;
+    return PROMPT_ANSWER::ACCEPTED;
+}
+
+
+KIGIT::TRANSFER_RETRY KIGIT::AnswerTransferFailure( wxWindow* aParent, const std::weak_ptr<bool>& aAlive,
+                                                    KIGIT_COMMON* aCommon, PROJECT* aProject,
+                                                    const TRANSFER_FAILURE& aFailure, bool aRetriedAfterTrust,
+                                                    int& aPrompts )
+{
+    if( aFailure.cancelled )
+    {
+        aPrompts = 0;
+        return TRANSFER_RETRY::CANCELLED;
+    }
+
+    // A prompt runs an event loop in which the window can close
+    if( aFailure.hostKey )
+    {
+        PROMPT_ANSWER answer = PromptToTrustHost( aParent, *aFailure.hostKey, aRetriedAfterTrust );
+
+        if( aAlive.expired() || answer == PROMPT_ANSWER::ABANDONED )
+            return TRANSFER_RETRY::GONE;
+
+        if( answer == PROMPT_ANSWER::DECLINED )
+        {
+            aPrompts = 0;
+            return TRANSFER_RETRY::HOST_DECLINED;
+        }
+
+        return TRANSFER_RETRY::RETRY_TRUSTED;
+    }
+
+    // A remote that keeps changing could otherwise send the request back to the keyring forever
+    if( !aFailure.authFailure || aPrompts >= MAX_CREDENTIAL_PROMPTS )
+    {
+        aPrompts = 0;
+        return TRANSFER_RETRY::REPORT;
+    }
+
+    ++aPrompts;
+
+    // A stored secret answers before anyone is asked to type one
+    if( !aCommon->SecretRead() )
+        return TRANSFER_RETRY::RETRY;
+
+    PROMPT_ANSWER answer = PromptForCredentials( aParent, aCommon, aProject, aFailure.error );
+
+    if( aAlive.expired() || answer == PROMPT_ANSWER::ABANDONED )
+        return TRANSFER_RETRY::GONE;
+
+    if( answer == PROMPT_ANSWER::DECLINED )
+    {
+        aPrompts = 0;
+        return TRANSFER_RETRY::CANCELLED;
+    }
+
+    return TRANSFER_RETRY::RETRY;
 }
 
 

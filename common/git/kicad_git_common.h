@@ -22,6 +22,7 @@
 
 #include <git/git_backend.h>
 #include <git/git_compare_handler.h>
+#include <git/git_transfer_busy.h>
 #include <git/kicad_git_errors.h>
 #include <git/kigit_known_hosts.h>
 #include <import_export.h>
@@ -30,6 +31,7 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -313,7 +315,25 @@ public:
         return m_username;
     }
 
+    /// The secret for the remote, read without ever prompting, so it is safe on a transfer worker
     wxString GetPassword();
+
+    /**
+     * Read the remote's secret from the keyring on the UI thread without blocking it, so an unlock prompt
+     * can show before a transfer starts. Returns false when nothing needs reading. Otherwise aRetry runs on
+     * the UI thread once the read finishes, unless aOwner or aCommon has gone by then. A locked,
+     * dismissed or empty keyring still runs aRetry, so the transfer goes ahead and prompts as usual.
+     */
+    static bool DeferForSecret( const std::shared_ptr<KIGIT_COMMON>& aCommon, const std::weak_ptr<bool>& aOwner,
+                                std::function<void()> aRetry );
+
+    /// False while the keyring has not been read for the current remote
+    bool SecretRead() const
+    {
+        std::lock_guard<std::mutex> lock( m_credentialsMutex );
+        return secretReadLocked();
+    }
+
     GIT_CONN_TYPE GetConnType() const;
 
     /// For a remote whose address names no transport, the user picks one in the prompt.
@@ -375,11 +395,6 @@ public:
      * starts over with these. Returns false, leaving everything alone, when the identity moved.
      */
     bool ApplyPromptedCredentials( const CREDENTIAL_IDENTITY& aFor, const PROMPTED_CREDENTIALS& aEntered );
-
-    // Holds a temporary variable that can be used by the authentication callback
-    // to remember which types of authentication have been tested so that we
-    // don't loop forever.
-    std::atomic<unsigned>& TestedTypes() { return m_testedTypes; }
 
     /// True when HEAD has commits its upstream does not, or has no upstream yet.
     /// False for a detached or unborn HEAD.
@@ -545,6 +560,9 @@ public:
     /// fallback policy used by push/pull/fetch paths.
     wxString GetRemoteNameOrDefault() const;
 
+    /// The address a push to aRemoteName connects to, its push URL or else its URL. Empty without one
+    wxString GetPushUrl( const wxString& aRemoteName ) const;
+
     /**
      * Keep symlinks in the repository path so Git status paths match the project tree.
      */
@@ -601,13 +619,6 @@ public:
         std::lock_guard<std::mutex> lock( m_credentialsMutex );
         return m_remote;
     }
-
-    /// Offer the agent's keys once, then the next key file, recording in aAttempt which file was offered.
-    int HandleSSHKeyAuthentication( git_cred** aOut, const wxString& aUsername, KIGIT_AUTH_ATTEMPT& aAttempt );
-
-    int HandlePlaintextAuthentication( git_cred** aOut, const wxString& aUsername );
-
-    int HandleSSHAgentAuthentication( git_cred** aOut, const wxString& aUsername );
 
     /// libgit2's last message, without credentials from any URL it quotes, so it is safe to show or trace.
     static wxString GetLastGitError();
@@ -698,6 +709,9 @@ public:
     void RemoveRefreshListener( void* aOwner );
     void NotifyRefreshListeners();
 
+    /// The transfers running on this repository, which every window shows and may cancel. UI thread only
+    GIT_TRANSFER_BUSY& Transfers() { return m_transfers; }
+
 protected:
     git_repository* m_repo;
 
@@ -714,8 +728,6 @@ protected:
     wxString m_username;
     wxString m_password;
 
-    std::atomic<unsigned> m_testedTypes;
-
     std::mutex m_gitActionMutex;
 
     /// Serializes the credential fields between the UI thread and the authentication
@@ -724,6 +736,8 @@ protected:
     mutable std::mutex m_credentialsMutex;
 
     std::vector<std::pair<void*, std::function<void()>>> m_refreshListeners;
+
+    GIT_TRANSFER_BUSY m_transfers;
 
     // Make git handlers friends so they can access the mutex
     friend class GIT_PUSH_HANDLER;
@@ -739,6 +753,12 @@ private:
     {
         std::lock_guard<std::mutex> lock( m_operationMutex );
         return m_activeCancel;
+    }
+
+    /// SecretRead() for a caller already holding m_credentialsMutex
+    bool secretReadLocked() const
+    {
+        return m_secretFetched || m_connType == GIT_CONN_TYPE::GIT_CONN_LOCAL || m_remote.IsEmpty();
     }
 
     /// Remote to use when HEAD names no upstream, empty when several remotes leave it ambiguous.
@@ -768,36 +788,10 @@ private:
     mutable std::mutex m_operationMutex;
     CANCEL_TOKEN       m_activeCancel;
     bool               m_shutdown = false;
-
-    // Create a dummy flag to tell if we have tested ssh agent credentials separately
-    // from the ssh key credentials. Our own bit, so it must clear every git_credential_t
-    // value. The highest is GIT_CREDENTIAL_SSH_MEMORY at 1 << 6.
-    static const unsigned KIGIT_CREDENTIAL_SSH_AGENT = 1u << ( sizeof( unsigned ) * 8 - 1 );
 };
-
-extern "C" APIEXPORT int  progress_cb( const char* str, int len, void* data );
-extern "C" APIEXPORT void clone_progress_cb( const char* str, size_t len, size_t total, void* data );
-extern "C" APIEXPORT int transfer_progress_cb( const git_transfer_progress* aStats, void* aPayload );
-extern "C" APIEXPORT int update_cb( const char* aRefname, const git_oid* aFirst, const git_oid* aSecond,
-                                    void* aPayload );
-extern "C" APIEXPORT int push_transfer_progress_cb( unsigned int aCurrent, unsigned int aTotal,
-                                                    size_t aBytes, void* aPayload );
-extern "C" APIEXPORT int push_update_reference_cb( const char* aRefname, const char* aStatus,
-                                                   void* aPayload );
 
 extern "C" APIEXPORT int fetchhead_foreach_cb( const char*, const char*,
                                                const git_oid* aOID, unsigned int aIsMerge, void* aPayload );
-extern "C" APIEXPORT int credentials_cb( git_cred** aOut, const char* aUrl, const char* aUsername,
-                                         unsigned int aAllowedTypes, void* aPayload );
-
-/**
- * Check an SSH host key against known_hosts, which decides alone. A listed key returns 0, and any other
- * state fails with GIT_ECERTIFICATE and is recorded with KIGIT_REPO_MIXIN::SetHostKeyFailure. A key KiCad
- * cannot read, or a host or port that does not match the synced remote, fails without a record. Other
- * certificates, such as HTTPS ones, are left to libgit2. Never returns a positive value, which libgit2 1.9
- * takes as accepting an unverified SSH host.
- */
-extern "C" APIEXPORT int certificate_check_cb( git_cert* aCert, int aValid, const char* aHost, void* aPayload );
 
 
 class wxWindow;

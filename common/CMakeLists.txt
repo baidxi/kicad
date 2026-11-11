@@ -141,6 +141,7 @@ set( KICOMMON_SRCS
     git/git_repo_mixin.cpp
     git/git_status_handler.cpp
     git/git_switch_branch_handler.cpp
+    git/git_transfer_busy.cpp
     git/kicad_git_common.cpp
     git/kicad_git_errors.cpp
     git/text_diff.cpp
@@ -149,6 +150,7 @@ set( KICOMMON_SRCS
     git/kigit_failure.cpp
     git/kigit_known_hosts.cpp
     git/kigit_ssh_keys.cpp
+    git/kigit_transport.cpp
     git/libgit_backend.cpp
 
     # Diff/merge engine

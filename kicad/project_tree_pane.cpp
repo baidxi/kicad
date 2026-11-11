@@ -1881,7 +1881,7 @@ void KICAD_MANAGER_FRAME::OnChangeWatchedPaths( wxCommandEvent& aEvent )
 // Prompts for git credentials after an auth failure. Returns false if cancelled.
 static bool promptForGitCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, const wxString& aExplanation )
 {
-    return KIGIT::PromptForCredentials( aParent, aCommon, &Prj(), aExplanation );
+    return KIGIT::PromptForCredentials( aParent, aCommon, &Prj(), aExplanation ) == KIGIT::PROMPT_ANSWER::ACCEPTED;
 }
 
 
@@ -1889,9 +1889,10 @@ static bool promptForGitCredentials( wxWindow* aParent, KIGIT_COMMON* aCommon, c
 // local settings. Runs only after the remote itself was set up successfully.
 static void saveAcceptedRemoteSettings( PROJECT& aProject, const RemoteConfig& aConfig )
 {
-    // Keyed like the attach-time lookup, which never sees credentials embedded in the address
-    KIPLATFORM::SECRETS::StoreSecret( KIGIT_COMMON::ParseRemoteURL( aConfig.url ).url, aConfig.username,
-                                      aConfig.password );
+    // Keyed like the attach-time lookup, which never sees credentials embedded in the address. Async so an
+    // unlock prompt cannot hold the event loop
+    KIPLATFORM::SECRETS::StoreSecretAsync( KIGIT_COMMON::ParseRemoteURL( aConfig.url ).url, aConfig.username,
+                                           aConfig.password );
     aProject.GetLocalSettings().m_GitRepoUsername = aConfig.username;
     aProject.GetLocalSettings().m_GitSSHKey = aConfig.sshKey;
 
@@ -1991,7 +1992,7 @@ void PROJECT_TREE_PANE::onGitInitializeProject( wxCommandEvent& aEvent )
 
         if( std::optional<KIGIT::HOST_KEY_FAILURE> hostKey = handler.GetHostKeyFailure() )
         {
-            if( !KIGIT::PromptToTrustHost( m_parent, *hostKey, retriedAfterTrust ) )
+            if( KIGIT::PromptToTrustHost( m_parent, *hostKey, retriedAfterTrust ) != KIGIT::PROMPT_ANSWER::ACCEPTED )
                 break;
 
             retriedAfterTrust = true;
@@ -2052,16 +2053,48 @@ void PROJECT_TREE_PANE::onGitRemoteSettings( wxCommandEvent& aEvent )
         }
     }
 
-    wxWindow*             topLevelParent = wxGetTopLevelParent( this );
-    DIALOG_GIT_REPOSITORY dlg( topLevelParent, repo, existingURL );
-    dlg.SetTitle( _( "Configure Default Remote" ) );
-
     // Credentials are stored separately from the remote URL.
     KIGIT_COMMON credentials( nullptr );
     credentials.SetUsername( common->GetUsername() );
     credentials.SetRemote( existingURL );
-    dlg.SetUsername( credentials.GetUsername() );
-    dlg.SetPassword( credentials.GetPassword() );
+
+    if( credentials.SecretRead() )
+    {
+        showGitRemoteSettings( existingURL, credentials.GetUsername(), credentials.GetPassword() );
+        return;
+    }
+
+    wxWeakRef<PROJECT_TREE_PANE>  self( this );
+    std::shared_ptr<KIGIT_COMMON> session = gitCommon();
+    wxString                      username = credentials.GetUsername();
+
+    // Saving the dialog stores its password, so a locked keyring must unlock rather than read as empty
+    KIPLATFORM::SECRETS::GetSecretAsync(
+            credentials.GetRemote(), username,
+            [self, session, existingURL, username]( bool aFound, const wxString& aSecret )
+            {
+                if( !self || self->gitCommon() != session || session->IsShuttingDown() || !session->GetRepo() )
+                    return;
+
+                self->showGitRemoteSettings( existingURL, username, aFound ? aSecret : wxString() );
+            } );
+}
+
+
+void PROJECT_TREE_PANE::showGitRemoteSettings( const wxString& aExistingURL, const wxString& aUsername,
+                                               const wxString& aPassword )
+{
+    KIGIT_COMMON*   common = gitCommon().get();
+    git_repository* repo = common ? common->GetRepo() : nullptr;
+
+    if( !repo )
+        return;
+
+    wxWindow*             topLevelParent = wxGetTopLevelParent( this );
+    DIALOG_GIT_REPOSITORY dlg( topLevelParent, repo, aExistingURL );
+    dlg.SetTitle( _( "Configure Default Remote" ) );
+    dlg.SetUsername( aUsername );
+    dlg.SetPassword( aPassword );
     dlg.SetRepoSSHPath( Prj().GetLocalSettings().m_GitSSHKey );
 
     if( dlg.ShowModal() != wxID_OK )

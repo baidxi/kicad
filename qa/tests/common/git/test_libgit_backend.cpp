@@ -40,6 +40,7 @@
 #include <git/git_push_handler.h>
 #include <git/git_commit_handler.h>
 #include <git/git_clone_handler.h>
+#include <git/kigit_transport.h>
 #include <qa_utils/git_test_fixture.h>
 
 #include <git2.h>
@@ -437,16 +438,36 @@ BOOST_AUTO_TEST_CASE( PushProgressStopsWhenTheOperationIsCancelled )
     BOOST_TEST_REQUIRE( repo );
     KIGIT::GitRepositoryPtr repoPtr( repo );
 
-    KIGIT_COMMON     common( repo );
-    GIT_PUSH_HANDLER handler( &common );
+    BOOST_REQUIRE( addOrigin( repo ) );
 
-    // Running normally, the push carries on.
-    BOOST_CHECK_EQUAL( push_transfer_progress_cb( 1, 10, 128, &handler ), 0 );
+    git_oid  local = createCommit( repo, wxT( "pushed.txt" ), wxT( "new\n" ), wxT( "Push me" ) );
+    wxString refspec = wxString::FromUTF8( git_oid_tostr_s( &local ) ) + wxS( ":refs/heads/master" );
 
-    handler.CancelThisOperation();
+    git_remote* remote = nullptr;
+    BOOST_REQUIRE_EQUAL( git_remote_lookup( &remote, repo, "origin" ), GIT_OK );
+    KIGIT::GitRemotePtr remotePtr( remote );
 
-    BOOST_CHECK_MESSAGE( push_transfer_progress_cb( 2, 10, 256, &handler ) != 0,
+    KIGIT_COMMON            common( repo );
+    GIT_PUSH_HANDLER        handler( &common );
+    KIGIT::REMOTE_TRANSPORT transport( &handler, remote );
+
+    // Cancelled once connected, so only a transfer tick is left to notice
+    BOOST_CHECK_MESSAGE( transport.Push(
+                                 [&]()
+                                 {
+                                     handler.CancelThisOperation();
+                                     return refspec;
+                                 } )
+                                 != GIT_OK,
                          "a cancelled push should stop at its next progress tick" );
+
+    git_repository* bare = nullptr;
+    BOOST_REQUIRE_EQUAL( git_repository_open( &bare, remotePath().ToUTF8().data() ), GIT_OK );
+    KIGIT::GitRepositoryPtr barePtr( bare );
+
+    git_oid remoteHead;
+    BOOST_REQUIRE_EQUAL( git_reference_name_to_id( &remoteHead, bare, "refs/heads/master" ), GIT_OK );
+    BOOST_CHECK( !git_oid_equal( &remoteHead, &local ) );
 }
 
 
@@ -3040,6 +3061,62 @@ BOOST_AUTO_TEST_CASE( MergeConflictFinishesWithAnUntrackedFilePresent )
                     == MergeCommitResult::Success,
             "refused with an untracked file present: " + error.summary.ToStdString() );
 
+    git_repository_free( repo );
+}
+
+
+// Under core.autocrlf a hand-merged file written with CRLF must be committed with LF, as git add would
+BOOST_AUTO_TEST_CASE( MergeConflictResolutionPassesCleanFilters )
+{
+    BOOST_TEST_REQUIRE( ready() );
+
+    git_repository* repo = openRepo();
+    BOOST_TEST_REQUIRE( repo );
+
+    git_config* config = nullptr;
+    BOOST_REQUIRE_EQUAL( git_repository_config( &config, repo ), GIT_OK );
+    BOOST_REQUIRE_EQUAL( git_config_set_bool( config, "core.autocrlf", 1 ), GIT_OK );
+    git_config_free( config );
+
+    git_reference* headRef = nullptr;
+    BOOST_REQUIRE_EQUAL( git_repository_head( &headRef, repo ), GIT_OK );
+    git_oid baseOid = *git_reference_target( headRef );
+    git_reference_free( headRef );
+
+    createCommit( repo, wxT( "file.txt" ), wxT( "mine\n" ), wxT( "Local change" ) );
+    git_oid remoteCommitOid = createDetachedCommit( repo, baseOid, wxT( "file.txt" ), "remote\n", "Remote change" );
+    writeFetchHead( remoteCommitOid );
+
+    KIGIT_COMMON common( repo );
+
+    wxString                          stageDir = tempBase() + wxFileName::GetPathSeparator() + wxT( "stages" );
+    wxString                          headOid, theirsOid, conflictsError;
+    KIGIT_ERROR_MESSAGE               error;
+    std::vector<KIGIT_CONFLICT_SIDES> conflicts;
+
+    BOOST_REQUIRE_MESSAGE( common.GetMergeConflicts( stageDir, headOid, theirsOid, conflicts, conflictsError ),
+                           "GetMergeConflicts failed: " + conflictsError.ToStdString() );
+    BOOST_REQUIRE_EQUAL( conflicts.size(), 1u );
+
+    wxString mergedFile = tempBase() + wxFileName::GetPathSeparator() + wxT( "merged.txt" );
+    {
+        std::ofstream f( mergedFile.ToStdString(), std::ios::binary );
+        f << "mine\r\nremote\r\n";
+    }
+
+    BOOST_REQUIRE_MESSAGE( common.CreateMergedCommit( headOid, theirsOid, { { conflicts[0].path, mergedFile } }, error )
+                                   == MergeCommitResult::Success,
+                           "CreateMergedCommit failed: " + error.summary.ToStdString() );
+
+    git_object* blob = nullptr;
+    BOOST_REQUIRE_EQUAL( git_revparse_single( &blob, repo, "HEAD:file.txt" ), GIT_OK );
+
+    const git_blob* contents = reinterpret_cast<const git_blob*>( blob );
+    BOOST_CHECK_EQUAL( std::string( static_cast<const char*>( git_blob_rawcontent( contents ) ),
+                                    static_cast<size_t>( git_blob_rawsize( contents ) ) ),
+                       "mine\nremote\n" );
+
+    git_object_free( blob );
     git_repository_free( repo );
 }
 

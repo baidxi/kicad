@@ -115,9 +115,14 @@ void LTSPICE_SCHEMATIC::Load( SCHEMATIC* aSchematic, SCH_SHEET* aRootSheet, cons
 
     // TODO: Custom paths go here (non-recursive)
 
-    // Default LTspice libs
-    GetAscAndAsyFilePaths( m_ltspiceDataDir.GetPathWithSep() + wxS( "sub" ), true, m_ascNamesMap, m_asyNamesMap );
-    GetAscAndAsyFilePaths( m_ltspiceDataDir.GetPathWithSep() + wxS( "sym" ), true, m_ascNamesMap, m_asyNamesMap );
+    // Default LTspice libs, which are absent when LTspice is not installed
+    for( const wxString& libDir : { wxS( "sub" ), wxS( "sym" ) } )
+    {
+        wxString path = m_ltspiceDataDir.GetPathWithSep() + libDir;
+
+        if( wxDirExists( path ) )
+            GetAscAndAsyFilePaths( path, true, m_ascNamesMap, m_asyNamesMap );
+    }
 
     wxString              rootElementName = aLibraryFileName.GetName().Lower();
     std::vector<wxString> uniqueAscNameKeys;
@@ -1003,8 +1008,9 @@ LTSPICE_SCHEMATIC::ParseAscFiles( const std::map<wxString, wxString>& aAscFilesC
                 }
                 catch( IO_ERROR& e )
                 {
-                    if( m_reporter )
-                        m_reporter->Report( e.What(), RPT_SEVERITY_ERROR );
+                    // the box stands in for the part, so this is not an error, and once per symbol is enough
+                    if( m_reporter && m_missingSymbols.insert( symbolName.Lower() ).second )
+                        m_reporter->Report( e.What(), RPT_SEVERITY_WARNING );
 
                     // Use dummy symbol
                     LT_SYMBOL lt_symbol = MakeDummySymbol( symbolName );
