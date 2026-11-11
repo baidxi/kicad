@@ -416,6 +416,9 @@ message FocusOnItems
   repeated kiapi.common.types.KIID items = 2;
 
   optional kiapi.common.types.Distance margin = 3;
+
+  // If true, only center the view on the items without changing the current zoom level
+  optional bool keep_zoom = 4;
 }
 
 // Tests if a certain point falls within tolerance of an item's geometry

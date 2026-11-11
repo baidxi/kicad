@@ -46,6 +46,8 @@
 #include <tools/sch_actions.h>
 #include <string_utils.h>
 #include <sch_edit_frame.h>
+#include <view/view.h>       // KIGFX::VIEW (FocusOnItems keep_zoom)
+#include <sch_draw_panel.h>  // GetCanvas()->GetView()/ForceRefresh()
 #include <io/kicad/kicad_io_utils.h>
 #include <ki_error.h>
 #include <pgm_base.h>
@@ -1289,7 +1291,21 @@ HANDLER_RESULT<Empty> API_HANDLER_SCH::handleFocusOnItems( const HANDLER_CONTEXT
     if( aCtx.Request.has_margin() )
         bbox.Inflate( UnpackDistance( aCtx.Request.margin(), schIUScale ) );
 
-    m_context->GetToolManager()->GetTool<COMMON_TOOLS>()->ZoomFitBox( bbox );
+    if( aCtx.Request.has_keep_zoom() && aCtx.Request.keep_zoom() )
+    {
+        // Center the view on the items without changing the current zoom level
+        if( SCH_EDIT_FRAME* editFrame = this->frame() )
+        {
+            KIGFX::VIEW* view = editFrame->GetCanvas()->GetView();
+            VECTOR2I    c = bbox.GetCenter();
+            view->SetCenter( VECTOR2D( c.x, c.y ) );
+            editFrame->GetCanvas()->ForceRefresh();
+        }
+    }
+    else
+    {
+        m_context->GetToolManager()->GetTool<COMMON_TOOLS>()->ZoomFitBox( bbox );
+    }
 
     return Empty();
 }

@@ -34,6 +34,8 @@
 #include <kicad_clipboard.h>
 #include <pad.h>
 #include <pcb_base_edit_frame.h>
+#include <view/view.h>            // KIGFX::VIEW (FocusOnItems keep_zoom)
+#include <pcb_draw_panel_gal.h>   // GetCanvas()->GetView()/ForceRefresh()
 #include <pcb_field.h>
 #include <pcb_group.h>
 #include <tools/generator_tool.h>
@@ -975,7 +977,22 @@ HANDLER_RESULT<Empty> API_HANDLER_BOARD::handleFocusOnItems( const HANDLER_CONTE
     if( aCtx.Request.has_margin() )
         bbox->Inflate( UnpackDistance( aCtx.Request.margin() ) );
 
-    toolManager()->GetTool<COMMON_TOOLS>()->ZoomFitBox( *bbox );
+    if( aCtx.Request.has_keep_zoom() && aCtx.Request.keep_zoom() )
+    {
+        // Center the view on the items without changing the current zoom level
+        if( PCB_BASE_EDIT_FRAME* editFrame =
+                dynamic_cast<PCB_BASE_EDIT_FRAME*>( m_frame ) )
+        {
+            KIGFX::VIEW* view = editFrame->GetCanvas()->GetView();
+            VECTOR2I    c = bbox->GetCenter();
+            view->SetCenter( VECTOR2D( c.x, c.y ) );
+            editFrame->GetCanvas()->ForceRefresh();
+        }
+    }
+    else
+    {
+        toolManager()->GetTool<COMMON_TOOLS>()->ZoomFitBox( *bbox );
+    }
 
     return Empty();
 }
