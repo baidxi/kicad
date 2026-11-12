@@ -302,13 +302,11 @@ public:
     void CopyVariant();
 
     /**
-     * Update the variant name control on the main toolbar.
+     * Refill the toolbar variant control and any open symbol fields table from the schematic.
      *
-     * Updating will attempt to maintain the current selection if it's available.  If the current
-     * selection is no longer available, the default (no variant) will be selected.
-     *
+     * The control selects the schematic's current variant.
      */
-    void UpdateVariantSelectionCtrl( const wxArrayString& aVariantNames );
+    void SyncVariantUI();
 
     void SetCurrentVariant( const wxString& aVariantName );
 
@@ -538,6 +536,20 @@ public:
      * @return false when there is no filename or the reload fails.
      */
     bool ReloadFromDisk();
+
+    /**
+     * Ask whether to reload when that would discard unsaved edits.
+     *
+     * @return true when there are no unsaved edits or the user chose to reload.
+     */
+    bool ConfirmReloadFromDisk( const wxString& aMessage, const wxString& aTitle );
+
+    /**
+     * Check whether the last read of the project file brought a top-level sheet list that the
+     * open schematic does not have.  An unsaved change made here is not one.  A reread list that
+     * matches the open sheets is settled.
+     */
+    bool TopLevelSheetsChangedOnDisk();
 
     void SetSchematic( SCHEMATIC* aSchematic );
 
@@ -1071,6 +1083,12 @@ protected:
     void onPluginAvailabilityChanged( wxCommandEvent& aEvt );
 
 private:
+    /// Register the loaded schematic and its project for autosave history. A no-op when they already are.
+    void registerHistorySaver();
+
+    /// Select the schematic's current variant in the toolbar control, which must exist.
+    void selectCurrentVariant();
+
     // Called when resizing the Hierarchy Navigator panel
     void OnResizeHierarchyNavigator( wxSizeEvent& aEvent );
 

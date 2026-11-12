@@ -20,6 +20,7 @@
 #include <sch_screen.h>
 #include <sch_sheet_path.h>
 #include <sch_symbol.h>
+#include <sch_view.h>
 #include <schematic.h>
 #include <set>
 #include <widgets/widget_diff_canvas.h>
@@ -121,8 +122,11 @@ void ConfigureSchDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, SCHEMATIC* aRef
                                     const KIGFX::COLOR4D& aColor, const std::map<KIID, KIGFX::COLOR4D>& aOverrides,
                                     const std::vector<KIGFX::VIEW_ITEM*>&       aExtraItems,
                                     const std::map<KIID, KICAD_DIFF::CATEGORY>& aCategories,
-                                    SCH_SCREEN* aReferenceScreen, SCH_SCREEN* aComparisonScreen )
+                                    SCH_SCREEN* aReferenceScreen, SCH_SCREEN* aComparisonScreen,
+                                    std::shared_ptr<const void> aOwner )
 {
+    // The canvas defaults to board units, which caps a schematic's zoom a hundredfold too low
+    aCanvas.SetWorldUnitLength( SCH_WORLD_UNIT );
     aCanvas.SetContextPainter( MakeSchDiffContextPainter( aCanvas.GetGAL(),
                                                           aReference ? aReference : aComparison,
                                                           aColor, aOverrides ) );
@@ -182,7 +186,7 @@ void ConfigureSchDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, SCHEMATIC* aRef
         }
     }
 
-    aCanvas.SetContextItems( items );
+    aCanvas.SetContextItems( items, std::move( aOwner ) );
 
     aCanvas.SetItemDimmer(
             [overrides = aOverrides]( KIGFX::VIEW_ITEM* aItem, bool aDim )

@@ -289,8 +289,15 @@ bool PGM_KICAD::OnPgmInit()
 
     if( appType == FRAME_MERGETOOL )
     {
-        MERGETOOL_PATHS paths{ parser.GetParam( 0 ), parser.GetParam( 1 ),
-                               parser.GetParam( 2 ), parser.GetParam( 3 ) };
+        // A later project load can change the working directory, so resolve git's relative paths now
+        auto absolute = [&]( size_t aIndex )
+        {
+            wxFileName fn( parser.GetParam( aIndex ) );
+            fn.MakeAbsolute();
+            return fn.GetFullPath();
+        };
+
+        MERGETOOL_PATHS paths{ absolute( 0 ), absolute( 1 ), absolute( 2 ), absolute( 3 ) };
         mergetoolFrame = new MERGETOOL_FRAME( &Kiway, nullptr, paths );
         frame          = mergetoolFrame;
     }
@@ -652,33 +659,7 @@ struct APP_KICAD : public wxApp
 
     int FilterEvent( wxEvent& aEvent ) override
     {
-        if( aEvent.GetEventType() == wxEVT_SHOW )
-        {
-            wxShowEvent& event = static_cast<wxShowEvent&>( aEvent );
-            wxDialog*    dialog = dynamic_cast<wxDialog*>( event.GetEventObject() );
-
-            std::vector<void*>& dlgs = Pgm().m_ModalDialogs;
-
-            if( dialog )
-            {
-                if( event.IsShown() && dialog->IsModal() )
-                {
-                    dlgs.push_back( dialog );
-                }
-                // Under GTK, sometimes the modal flag is cleared before hiding
-                else if( !event.IsShown() && !dlgs.empty() )
-                {
-                    // If we close the expected dialog, remove it from our stack
-                    if( dlgs.back() == dialog )
-                        dlgs.pop_back();
-                    // If an out-of-order, remove all dialogs added after the closed one
-                    else if( auto it = std::find( dlgs.begin(), dlgs.end(), dialog ) ; it != dlgs.end() )
-                        dlgs.erase( it, dlgs.end() );
-                }
-            }
-        }
-
-        return Event_Skip;
+        return Pgm().FilterAppEvent( aEvent );
     }
 
 #if defined( DEBUG )

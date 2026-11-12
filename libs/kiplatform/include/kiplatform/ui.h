@@ -25,6 +25,7 @@
 #include <wx/cursor.h>
 
 class wxChoice;
+class wxDataViewColumn;
 class wxDataViewCtrl;
 class wxDialog;
 class wxNonOwnedWindow;
@@ -288,6 +289,18 @@ namespace KIPLATFORM
         void StabilizeWindowPosition( wxWindow* aWindow );
 
         /**
+         * Return the point that wxWindow::Move() needs to put a stabilized window back where it is.
+         *
+         * Static gravity makes GTK place a window by its client origin, while GetPosition() reports
+         * the origin of the decorations.  On GTK the point is pulled down and right as needed to put
+         * the decorations back inside the work area.  Other platforms, and hidden windows, return
+         * GetPosition().
+         *
+         * @param aWindow window previously prepared by StabilizeWindowPosition()
+         */
+        wxPoint GetRestorablePosition( wxWindow* aWindow );
+
+        /**
          * Intended to set the floating window level in macOS on a window
          */
         void SetFloatLevel( wxWindow* aWindow );
@@ -346,6 +359,15 @@ namespace KIPLATFORM
          * controls do not exhibit this race.
          */
         void CancelPendingScroll( wxDataViewCtrl* aCtrl );
+
+        /**
+         * The width last asked of aColumn, by SetWidth or by the user dragging its border.
+         *
+         * wxGTK reports the width GTK last laid out, which lags a SetWidth until the next
+         * layout, so reading it back right after setting it returns the old width.  The
+         * generic control used on MSW also reports the stretch it gives its last column.
+         */
+        int GetColumnWidth( const wxDataViewColumn* aColumn );
 
         /**
          * Tag a top-level window with the freedesktop application id of its installed

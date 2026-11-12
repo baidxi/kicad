@@ -25,6 +25,7 @@
 #include <wx/datetime.h>
 #include <wx/intl.h>
 #include <wx/listctrl.h>
+#include <wx/sizer.h>
 #include <wx/string.h>
 #include <wx/splitter.h>
 #include <wx/utils.h>
@@ -33,6 +34,7 @@
 #include <diff_merge/diff_scene.h>
 #include <git/kicad_git_common.h>
 #include <kiplatform/ui.h>
+#include <widgets/wx_splitter_window.h>
 
 
 void KIGIT::ShowBusyMessage( wxWindow* aParent )
@@ -126,6 +128,18 @@ void KIGIT::UnsplitKeepingSash( wxSplitterWindow* aSplitter, wxWindow* aPane, in
 
     aSashPos = aSplitter->GetSashPosition();
     aSplitter->Unsplit( aPane );
+}
+
+
+void KIGIT::KeepDetailWidth( WX_SPLITTER_WINDOW* aSplitter )
+{
+    wxWindow* detail = aSplitter->GetWindow2();
+    int       detailMin = detail->GetSizer()->CalcMin().x;
+    int       frame = aSplitter->GetSashSize() + 2 * aSplitter->GetBorderSize();
+
+    detail->SetMinSize( wxSize( detailMin, -1 ) );
+    aSplitter->SetMinSize( wxSize( aSplitter->GetMinimumPaneSize() + frame + detailMin, -1 ) );
+    aSplitter->SetPaneMinimums( aSplitter->GetMinimumPaneSize(), frame + detailMin );
 }
 
 

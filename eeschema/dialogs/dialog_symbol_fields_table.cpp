@@ -507,6 +507,8 @@ bool DIALOG_SYMBOL_FIELDS_TABLE::TransferDataToWindow()
     // user's current selection.
     EnableSelectionEvents();
 
+    rememberLoadedPresets();
+
     return true;
 }
 
@@ -1104,14 +1106,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onAddVariant( wxCommandEvent& aEvent )
     if( !m_parent->ShowAddVariantDialog( this ) )
         return;
 
-    wxArrayString ctrlContents;
-    ctrlContents.Add( GetDefaultVariantName() );
-
-    for( const wxString& variant : m_parent->Schematic().GetVariantNames() )
-        ctrlContents.Add( variant );
-
-    ctrlContents.Sort( SortVariantNames );  // SortVariantNames ensures the default is always first
-    m_variantListBox->Set( ctrlContents );
+    m_variantListBox->Set( m_parent->Schematic().GetVariantNamesForUI() );
 
     wxString currentVariant = m_parent->Schematic().GetCurrentVariant();
 
@@ -1178,7 +1173,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onDeleteVariant( wxCommandEvent& aEvent )
     }
 
     updateVariantButtonStates();
-    m_parent->UpdateVariantSelectionCtrl( m_parent->Schematic().GetVariantNamesForUI() );
+    m_parent->SyncVariantUI();
 }
 
 
@@ -1248,7 +1243,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onRenameVariant( wxCommandEvent& aEvent )
     m_variantListBox->SetStringSelection( newVariantName );
 
     updateVariantButtonStates();
-    m_parent->UpdateVariantSelectionCtrl( m_parent->Schematic().GetVariantNamesForUI() );
+    m_parent->SyncVariantUI();
 
     if( wasCurrent )
         m_parent->SetCurrentVariant( newVariantName );
@@ -1306,7 +1301,7 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onCopyVariant( wxCommandEvent& aEvent )
     m_variantListBox->SetStringSelection( newVariantName );
 
     onVariantSelectionChange( aEvent );
-    m_parent->UpdateVariantSelectionCtrl( m_parent->Schematic().GetVariantNamesForUI() );
+    m_parent->SyncVariantUI();
 }
 
 
@@ -1363,14 +1358,17 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onVariantSelectionChange( wxCommandEvent& aEven
     if( !m_grid->CommitPendingChanges() )
         return;
 
-    wxString selectedVariant = getSelectedVariant();
-
-    // Activating a variant only selects its staged values. Apply writes all edited variants.
-    m_dataModel->SetCurrentVariant( selectedVariant );
-
     if( !m_job && m_parent )
-        m_parent->SetCurrentVariant( selectedVariant );
+        m_parent->SetCurrentVariant( getSelectedVariant() );
 
+    showSelectedVariant();
+}
+
+
+void DIALOG_SYMBOL_FIELDS_TABLE::showSelectedVariant()
+{
+    // Activating a variant only selects its staged values. Apply writes all edited variants.
+    m_dataModel->SetCurrentVariant( getSelectedVariant() );
     m_dataModel->RebuildRows();
 
     if( m_nbPages->GetSelection() == 1 )
@@ -1380,6 +1378,37 @@ void DIALOG_SYMBOL_FIELDS_TABLE::onVariantSelectionChange( wxCommandEvent& aEven
 
     updateVariantButtonStates();
     syncBomFmtPresetSelection();
+}
+
+
+void DIALOG_SYMBOL_FIELDS_TABLE::ReloadVariants()
+{
+    const wxString shown = m_variantListBox->GetStringSelection();
+
+    m_variantListBox->Set( m_parent->Schematic().GetVariantNamesForUI() );
+
+    // A job keeps its own variant, otherwise follow the schematic, which an undo may be restoring
+    selectVariant( m_job ? shown : m_parent->Schematic().GetCurrentVariant(), shown );
+}
+
+
+void DIALOG_SYMBOL_FIELDS_TABLE::FollowCurrentVariant()
+{
+    if( !m_job )
+        selectVariant( m_parent->Schematic().GetCurrentVariant(), m_variantListBox->GetStringSelection() );
+}
+
+
+void DIALOG_SYMBOL_FIELDS_TABLE::selectVariant( const wxString& aVariant, const wxString& aShown )
+{
+    // Variant names are case sensitive, but the list box's own lookup is not
+    int index = m_variantListBox->FindString( aVariant, true );
+    m_variantListBox->SetSelection( index == wxNOT_FOUND ? 0 : index );
+
+    if( m_variantListBox->GetStringSelection() == aShown )
+        updateVariantButtonStates();
+    else
+        showSelectedVariant();
 }
 
 

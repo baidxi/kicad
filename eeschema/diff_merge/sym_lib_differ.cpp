@@ -124,6 +124,45 @@ namespace
                     { wxS( "Footprint Filters" ), DIFF_VALUE::FromString( before ), DIFF_VALUE::FromString( after ) } );
         }
 
+        // Unit and body style names are not properties, so a merge could drop one unnoticed
+        auto unitNames = []( const LIB_SYMBOL* aSymbol )
+        {
+            wxArrayString names;
+
+            for( const auto& [unit, name] : aSymbol->GetUnitDisplayNames() )
+                names.Add( wxString::Format( wxS( "%d: %s" ), unit, name ) );
+
+            return wxJoin( names, ',' );
+        };
+
+        before = unitNames( aBefore );
+        after = unitNames( aAfter );
+
+        if( before != after )
+        {
+            deltas.push_back(
+                    { wxS( "Unit Names" ), DIFF_VALUE::FromString( before ), DIFF_VALUE::FromString( after ) } );
+        }
+
+        auto bodyStyleNames = []( const LIB_SYMBOL* aSymbol )
+        {
+            wxArrayString names;
+
+            for( const wxString& name : aSymbol->GetBodyStyleNames() )
+                names.Add( name );
+
+            return wxJoin( names, ',' );
+        };
+
+        before = bodyStyleNames( aBefore );
+        after = bodyStyleNames( aAfter );
+
+        if( before != after )
+        {
+            deltas.push_back( { wxS( "Body Style Names" ), DIFF_VALUE::FromString( before ),
+                                DIFF_VALUE::FromString( after ) } );
+        }
+
         return deltas;
     }
 
@@ -168,19 +207,7 @@ DOCUMENT_DIFF SYM_LIB_DIFFER::Diff()
         std::unique_ptr<LIB_SYMBOL> after = afterIt->second->Flatten();
 
         change.properties = symbolDeltas( before.get(), after.get() );
-
-        for( const SYM_ELEMENT& element : DiffSymbolElements( before.get(), after.get() ) )
-        {
-            ITEM_CHANGE child;
-            child.typeName = element.typeName;
-            child.kind = element.kind;
-            child.properties = element.deltas;
-
-            if( !element.key.IsEmpty() )
-                child.refdes = element.key;
-
-            change.children.push_back( std::move( child ) );
-        }
+        AppendElementChanges( change, DiffSymbolElements( before.get(), after.get() ) );
     }
 
     return result;

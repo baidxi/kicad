@@ -68,6 +68,7 @@
 #include <text_eval/text_eval_wrapper.h>
 #include <tool/tool_manager.h>
 #include <undo_redo_container.h>
+#include <wildcards_and_files_ext.h>
 #include <local_history.h>
 #include <richio.h>
 #include <sch_io/sch_io_mgr.h>
@@ -75,6 +76,7 @@
 #include <sch_io/sch_io.h>
 
 #include <connectivity/conn_facade.h>
+#include <wx/filename.h>
 #include <wx/log.h>
 
 SCHEMATIC::SCHEMATIC( PROJECT* aPrj ) :
@@ -3339,6 +3341,70 @@ SCH_SHEET* SCHEMATIC::GetTopLevelSheet( int aIndex ) const
 }
 
 
+std::vector<TOP_LEVEL_SHEET_INFO> SCHEMATIC::TopLevelSheetInfos() const
+{
+    std::vector<TOP_LEVEL_SHEET_INFO> infos;
+    wxString                          projectPath = m_project ? m_project->GetProjectPath() : wxString();
+
+    for( SCH_SHEET* sheet : GetTopLevelSheets() )
+    {
+        if( !sheet->GetScreen() )
+            continue;
+
+        // A top-level sheet's file is its screen's; the SHEET_FILENAME field is for instances
+        wxFileName sheetFn( sheet->GetScreen()->GetFileName() );
+
+        if( sheetFn.IsAbsolute() )
+            sheetFn.MakeRelativeTo( projectPath );
+
+        infos.emplace_back( sheet->m_Uuid, sheet->GetName(), sheetFn.GetFullPath() );
+    }
+
+    return infos;
+}
+
+
+bool SCHEMATIC::TopLevelSheetsMatch( const std::vector<TOP_LEVEL_SHEET_INFO>& aSheets ) const
+{
+    std::vector<TOP_LEVEL_SHEET_INFO> loaded = TopLevelSheetInfos();
+
+    if( loaded.size() != aSheets.size() )
+        return false;
+
+    wxString projectPath = m_project ? m_project->GetProjectPath() : wxString();
+
+    for( size_t ii = 0; ii < loaded.size(); ++ii )
+    {
+        wxFileName have( loaded[ii].filename );
+        have.MakeAbsolute( projectPath );
+
+        wxFileName want = TopLevelSheetFile( aSheets[ii], projectPath,
+                                             have.GetExt() == FILEEXT::LegacySchematicFileExtension );
+
+        if( ( aSheets[ii].uuid != niluuid && aSheets[ii].uuid != loaded[ii].uuid )
+                || aSheets[ii].name != loaded[ii].name || !have.SameAs( want ) )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+wxFileName SCHEMATIC::TopLevelSheetFile( const TOP_LEVEL_SHEET_INFO& aSheet, const wxString& aProjectPath,
+                                         bool aLegacy )
+{
+    wxFileName fn( aSheet.filename );
+    fn.MakeAbsolute( aProjectPath );
+
+    if( aLegacy )
+        fn.SetExt( FILEEXT::LegacySchematicFileExtension );
+
+    return fn;
+}
+
+
 bool SCHEMATIC::IsTopLevelSheetUuid( const KIID& aUuid ) const
 {
     if( !m_rootSheet )
@@ -3696,6 +3762,24 @@ void SCHEMATIC::LoadVariants()
 }
 
 
+bool SCHEMATIC::ReloadProjectVariants()
+{
+    std::set<wxString> before;
+    before.swap( m_variantNames );
+    LoadVariants();
+
+    bool changed = m_variantNames != before;
+
+    if( !m_currentVariant.IsEmpty() && !m_variantNames.contains( m_currentVariant ) )
+    {
+        SetCurrentVariant( wxEmptyString );
+        changed = true;
+    }
+
+    return changed;
+}
+
+
 void SCHEMATIC::SaveToHistory( const wxString& aProjectPath, std::vector<HISTORY_FILE_DATA>& aFileData )
 {
     if( !IsValid() )
@@ -3750,7 +3834,8 @@ void SCHEMATIC::SaveToHistory( const wxString& aProjectPath, std::vector<HISTORY
 
         wxString absPath = abs.GetFullPath();
 
-        if( absPath.IsEmpty() || !absPath.StartsWith( projPath ) )
+        if( absPath.IsEmpty()
+            || !absPath.Left( projPath.length() ).IsSameAs( projPath, wxFileName::IsCaseSensitive() ) )
             continue;
 
         wxString rel = absPath.Mid( projPath.length() );

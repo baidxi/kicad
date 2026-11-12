@@ -1072,8 +1072,15 @@ bool SETTINGS_MANAGER::LoadProject( const wxString& aFullPath, bool aSetActive, 
         wxSetEnv( PROJECT_VAR_NAME, projectPath.GetPath() );
 
         // set the cwd but don't impact kicad-cli
-        if( !projectPath.GetPath().IsEmpty() && wxTheApp && wxTheApp->IsGUI() )
-            wxSetWorkingDirectory( projectPath.GetPath() );
+        if( wxTheApp && wxTheApp->IsGUI() )
+        {
+            // The null project has no directory, and the one being replaced may be deleted. At
+            // startup there is none, and the launch directory resolves relative command-line paths
+            if( !projectPath.GetPath().IsEmpty() )
+                wxSetWorkingDirectory( projectPath.GetPath() );
+            else if( switching )
+                wxSetWorkingDirectory( PATHS::GetUserSettingsPath() );
+        }
 
         // Anchor text_eval VCS lookups to the project directory. The GUI relies on cwd,
         // which is deliberately left untouched for kicad-cli; an explicit context is
@@ -1224,13 +1231,12 @@ bool SETTINGS_MANAGER::UnloadProject( PROJECT* aProject, bool aSave )
         // Drop the VCS context so lingering text_eval queries don't probe a stale project dir.
         TEXT_EVAL_VCS::SetContextPath( wxString() );
 
-#ifdef _WIN32
         // On Windows, processes hold a handle to their current working directory, preventing
         // it from being deleted. Reset to the user settings path to release the project
-        // directory. This mirrors the wxSetWorkingDirectory call in LoadProject.
+        // directory. This mirrors the wxSetWorkingDirectory call in LoadProject. Elsewhere a
+        // deleted project directory would leave every later relative path unresolvable.
         if( wxTheApp && wxTheApp->IsGUI() )
             wxSetWorkingDirectory( PATHS::GetUserSettingsPath() );
-#endif
 
         if( m_kiway )
             m_kiway->ProjectChanged();

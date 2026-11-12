@@ -50,6 +50,7 @@
 
 #include <wx/choicdlg.h>
 
+#include <bitmap_store.h>
 #include <bitmaps.h>
 #include <clipboard.h>
 #include <confirm.h>
@@ -204,7 +205,7 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
         m_hasUnpushedCommits( false ),
         m_hasRemote( false ),
         m_headDetached( false ),
-        m_upstreamAhead( false ),
+        m_upstreamAhead( 0 ),
         m_operationInProgress( false ),
         m_operation( GitOperation::None ),
         m_editorsDirty( false )
@@ -221,19 +222,14 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
     m_summaryCount->SetToolTip( _( "Git tools show up to 72 characters of the summary on one line." ) );
     updateSummaryCount();
 
-    // Only a platform without a native hint for a multi line box gets the label laid over it.
-    if( !m_description->SetHint( _( "Extended Description (optional)" ) ) )
-    {
-        m_descriptionHint = new wxStaticText( this, wxID_ANY, _( "Extended Description (optional)" ) );
-        m_descriptionHint->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
-        m_descriptionHint->Bind( wxEVT_LEFT_DOWN,
-                                 [this]( wxMouseEvent& )
-                                 {
-                                     m_description->SetFocus();
-                                 } );
-    }
+    // No platform hints a multi line box natively, and wx's stand-in text is wiped by ChangeValue
+    m_descriptionHint = new wxStaticText( this, wxID_ANY, _( "Extended Description (optional)" ) );
+    m_descriptionHint->Bind( wxEVT_LEFT_DOWN,
+                             [this]( wxMouseEvent& )
+                             {
+                                 m_description->SetFocus();
+                             } );
 
-    m_settingsButton->SetBitmap( KiBitmapBundle( BITMAPS::config ) );
     m_settingsButton->Bind( wxEVT_BUTTON, &GIT_COMMIT_PANE::onSettings, this );
     m_commitButton->Bind( wxEVT_BUTTON, &GIT_COMMIT_PANE::onCommit, this );
 
@@ -280,6 +276,7 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
     m_newBranchCheckbox->Bind( wxEVT_CHECKBOX, &GIT_COMMIT_PANE::onNewBranchToggled, this );
     m_recentMessages->Bind( wxEVT_CHOICE, &GIT_COMMIT_PANE::onRecentMessage, this );
     m_showDiffButton->Bind( wxEVT_BUTTON, &GIT_COMMIT_PANE::onShowDiff, this );
+    Bind( wxEVT_SYS_COLOUR_CHANGED, &GIT_COMMIT_PANE::onThemeChanged, this );
     m_copyTrustCommand->Bind( wxEVT_BUTTON,
                               [this]( wxCommandEvent& )
                               {
@@ -317,6 +314,7 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
                                          wxDefaultSize, wxHL_ALIGN_RIGHT | wxNO_BORDER );
     m_historyLink->SetToolTip( _( "Show the commits made to this project" ) );
     m_historyLink->Hide();
+    KIUI::FollowSystemLinkColour( m_historyLink );
     m_historyLink->Bind( wxEVT_HYPERLINK,
                          [this]( wxHyperlinkEvent& )
                          {
@@ -324,14 +322,26 @@ GIT_COMMIT_PANE::GIT_COMMIT_PANE( wxWindow* aParent, EDA_BASE_FRAME* aFrame ) :
                          } );
     GetSizer()->Add( m_historyLink, 0, wxALIGN_RIGHT | wxLEFT | wxRIGHT | wxBOTTOM, 4 );
 
+    // A short dock scrolls, and the list must still show a few files when it does
+    m_checklist->SetMinSize( FromDIP( wxSize( -1, 100 ) ) );
+
     if( m_inAdvancedWindow )
         layoutWide();
+
+    applyTheme();
 
     // Sized by hand, or a long branch name would set the width of the whole row. Wide enough
     // for an ordinary name, with the tooltip carrying the rest when one is longer.
 
-    // Measured while every control is still shown.
-    m_minDockWidth = GetSizer()->CalcMin().x;
+    // Measured while every control is still shown, leaving room for the scrollbar a short dock adds
+    m_minDockWidth = GetSizer()->CalcMin().x + wxSystemSettings::GetMetric( wxSYS_VSCROLL_X, this );
+
+    // The advanced window takes its minimum from this, and the branch row stays hidden until the status arrives
+    if( m_inAdvancedWindow )
+        SetMinSize( wxSize( m_minDockWidth, -1 ) );
+
+    // A dock shorter than the controls scrolls them rather than drawing them over each other
+    SetScrollRate( 0, FromDIP( 10 ) );
 
     OnGitTransfersChanged();
     RefreshFileList();
@@ -349,21 +359,20 @@ void GIT_COMMIT_PANE::layoutWide()
     column->GetItem( m_description )->SetProportion( 1 );
     column->SetMinSize( FromDIP( wxSize( 280, -1 ) ) );
 
+    // The docked pane's cap is for a narrow dock; here the caption and most of a message fit
+    m_recentMessages->SetMaxSize( wxDefaultSize );
+    m_recentMessages->SetMinSize( FromDIP( wxSize( 170, -1 ) ) );
+
     wxStaticText* heading = new wxStaticText( this, wxID_ANY, _( "Commit Message" ) );
     heading->SetFont( heading->GetFont().Bold() );
     column->Insert( 0, heading, 0, wxLEFT | wxRIGHT | wxTOP, 8 );
 
-    // Use the diff colors for the summary's line counts.
     wxStaticBoxSizer* summary = new wxStaticBoxSizer( wxVERTICAL, this, _( "Summary" ) );
     wxWindow*         box = summary->GetStaticBox();
 
     m_summaryFiles = new wxStaticText( box, wxID_ANY, wxEmptyString );
     m_summaryAdded = new wxStaticText( box, wxID_ANY, wxEmptyString );
     m_summaryRemoved = new wxStaticText( box, wxID_ANY, wxEmptyString );
-
-    const KICAD_DIFF::DIFF_COLOR_THEME theme = KICAD_DIFF::DIFF_COLOR_THEME::ForText( KIPLATFORM::UI::IsDarkTheme() );
-    m_summaryAdded->SetForegroundColour( theme.added.ToColour() );
-    m_summaryRemoved->SetForegroundColour( theme.removed.ToColour() );
 
     wxBoxSizer* lines = new wxBoxSizer( wxHORIZONTAL );
     lines->Add( m_summaryAdded, 0, wxRIGHT, 8 );
@@ -388,6 +397,9 @@ void GIT_COMMIT_PANE::layoutWide()
     files->Add( m_trustRow, 0, wxEXPAND | wxBOTTOM | wxLEFT | wxRIGHT, 8 );
     files->Add( m_undoCommitButton, 0, wxBOTTOM | wxLEFT | wxRIGHT, 8 );
     files->Add( m_checklist, 1, wxALL | wxEXPAND, 4 );
+
+    // The list is the only part that stretches, so without a floor the docked split leaves it one row tall
+    m_checklist->SetMinSize( FromDIP( wxSize( -1, 120 ) ) );
 
     wxBoxSizer* row = new wxBoxSizer( wxHORIZONTAL );
     row->Add( files, 1, wxEXPAND );
@@ -482,7 +494,8 @@ struct GIT_COMMIT_PANE::STATUS
     bool                              hasRemote = false;
     bool                              headDetached = false;
     bool                              operationInProgress = false;
-    bool                              upstreamAhead = false;
+    size_t                            upstreamAhead = 0;
+    size_t                            unpushed = 0;
     GitOperation                      operation = GitOperation::None;
     std::pair<wxString, wxString>     head;
     wxString                          attachError;
@@ -521,12 +534,18 @@ void GIT_COMMIT_PANE::RefreshFileList()
             {
                 status->hasRepo = true;
                 status->entries = BuildGitChangeEntries( aCommon, projectPath, dark );
-                status->hasLocalCommits = aCommon.HasLocalCommits();
                 status->hasRemote = aCommon.HasPushAndPullRemote();
                 status->headDetached = aCommon.IsHeadDetached();
                 status->operationInProgress = aCommon.IsOperationInProgress();
                 status->operation = aCommon.OperationInProgress();
-                status->upstreamAhead = aCommon.HasUpstreamCommits();
+
+                if( std::optional<KIGIT_UPSTREAM_STATUS> upstream = aCommon.UpstreamStatus() )
+                {
+                    status->hasLocalCommits = upstream->HasLocalCommits();
+                    status->upstreamAhead = upstream->divergence.behind;
+                    status->unpushed = upstream->divergence.ahead;
+                }
+
                 status->branches = aCommon.GetBranches();
                 KIGIT::SortBranchesForDisplay( status->branches );
                 status->currentBranch = aCommon.GetCurrentBranchName();
@@ -566,6 +585,7 @@ void GIT_COMMIT_PANE::applyStatus( const STATUS& aStatus )
 
     // Without a remote there is nowhere to push to, so local commits are not waiting for it.
     m_hasUnpushedCommits = aStatus.hasLocalCommits && m_hasRemote;
+    m_unpushedCount = m_hasUnpushedCommits ? aStatus.unpushed : 0;
     m_lineStats = aStatus.lineStats;
     populateBranches( aStatus );
     populateRecentMessages( aStatus.recentMessages );
@@ -641,7 +661,16 @@ void GIT_COMMIT_PANE::applyStatus( const STATUS& aStatus )
             setStatusText( _( "This project is not under version control. To set it up, right click "
                               "the project in the project manager and choose Version Control." ) );
         else if( m_upstreamAhead )
-            setStatusText( _( "The tracked branch has changes this project does not. Get Changes brings them in." ) );
+            setStatusText( wxString::Format( wxPLURAL( "The tracked branch has %zu commit this project does not. "
+                                                       "Get Changes brings it in.",
+                                                       "The tracked branch has %zu commits this project does not. "
+                                                       "Get Changes brings them in.",
+                                                       m_upstreamAhead ),
+                                             m_upstreamAhead ) );
+        else if( m_unpushedCount )
+            setStatusText( wxString::Format( wxPLURAL( "%zu commit is waiting to be pushed.",
+                                                       "%zu commits are waiting to be pushed.", m_unpushedCount ),
+                                             m_unpushedCount ) );
         else if( m_hasUnpushedCommits )
             setStatusText( _( "Committed changes are waiting to be pushed." ) );
         else
@@ -685,11 +714,12 @@ void GIT_COMMIT_PANE::showDisabledState()
     }
     m_hasRepo = false;
     m_hasUnpushedCommits = false;
+    m_unpushedCount = 0;
     m_hasRemote = false;
     m_headDetached = false;
     m_operationInProgress = false;
     m_operation = GitOperation::None;
-    m_upstreamAhead = false;
+    m_upstreamAhead = 0;
     m_editorsDirty = false;
 
     m_shownPaths.clear();
@@ -734,6 +764,10 @@ void GIT_COMMIT_PANE::setStatusText( const wxString& aText )
 
 bool GIT_COMMIT_PANE::Layout()
 {
+    // Rows shown or hidden change the content height without the size event wx refits the scroll area on
+    if( GetBestVirtualSize() != GetVirtualSize() )
+        FitInside();
+
     bool done = layoutAndWrapStatus();
 
     // AUI sizes a pane from its pane info alone and squeezes the controls past their minimum
@@ -821,6 +855,35 @@ void GIT_COMMIT_PANE::updateDockMinHeight()
     {
         manager->Update();
     }
+}
+
+
+void GIT_COMMIT_PANE::applyTheme()
+{
+    m_settingsButton->SetBitmap( KiBitmapBundle( BITMAPS::config ) );
+    m_descriptionHint->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_GRAYTEXT ) );
+
+    // The summary's line counts use the diff colours
+    if( m_summaryAdded )
+    {
+        const KICAD_DIFF::DIFF_COLOR_THEME theme =
+                KICAD_DIFF::DIFF_COLOR_THEME::ForText( KIPLATFORM::UI::IsDarkTheme() );
+
+        m_summaryAdded->SetForegroundColour( theme.added.ToColour() );
+        m_summaryRemoved->SetForegroundColour( theme.removed.ToColour() );
+    }
+}
+
+
+void GIT_COMMIT_PANE::onThemeChanged( wxSysColourChangedEvent& aEvent )
+{
+    // Icons and colours picked at construction belong to the theme that was active then
+    applyTheme();
+
+    // The list's row colours are chosen when its status is read
+    RefreshFileList();
+
+    aEvent.Skip();
 }
 
 
@@ -980,14 +1043,18 @@ void GIT_COMMIT_PANE::updateCommitButton()
         return;
     }
 
-    m_pullButton->SetLabel( _( "Get Changes" ) );
-
     // The empty state label only shows when there is nothing to commit, so the button carries
     // the notice the rest of the time.
     if( m_upstreamAhead )
+    {
+        m_pullButton->SetLabel( wxString::Format( _( "Get Changes (%zu)" ), m_upstreamAhead ) );
         m_pullButton->SetToolTip( _( "The tracked branch has commits this project does not have." ) );
+    }
     else
+    {
+        m_pullButton->SetLabel( _( "Get Changes" ) );
         m_pullButton->UnsetToolTip();
+    }
 
     bool hasCheckedChanges = !m_checklist->GetCheckedPaths().empty();
     bool amend = m_amendCheckbox->IsChecked();
@@ -1035,7 +1102,11 @@ void GIT_COMMIT_PANE::updateCommitButton()
     }
     else if( m_hasUnpushedCommits )
     {
-        mainLabel = _( "Push" );
+        if( m_unpushedCount )
+            mainLabel = wxString::Format( _( "Push (%zu)" ), m_unpushedCount );
+        else
+            mainLabel = _( "Push" );
+
         mainEnabled = true;
         m_commitButtonPushes = true;
     }
@@ -1224,9 +1295,6 @@ void GIT_COMMIT_PANE::onRecentMessage( wxCommandEvent& aEvent )
 
 void GIT_COMMIT_PANE::updateDescriptionHint()
 {
-    if( !m_descriptionHint )
-        return;
-
     // Over the box's top left corner, where typed text would start.
     bool    show = m_description->IsShown() && m_description->IsEmpty();
     wxPoint at = m_description->GetPosition() + wxPoint( FromDIP( 6 ), FromDIP( 4 ) );
@@ -2670,13 +2738,18 @@ void GIT_COMMIT_PANE::finishPullConflictPreparation( std::shared_ptr<KIGIT_COMMO
     // A conflicted rebase was already abandoned by the time it got here, and settling it from
     // this window can only produce a merge commit. Someone who asked for rebases is told that
     // before one is made.
-    if( aPreparation->rebaseConfigured
-        && !IsOK( this, _( "This project is set to rebase when getting changes, but a conflict can only be "
-                           "settled here by merging. Carry on and make a merge commit, or cancel and rebase "
-                           "from a git command line?" ) ) )
+    if( aPreparation->rebaseConfigured )
     {
-        setBusy( false, _( "Getting changes was cancelled. Your files are unchanged." ) );
-        return;
+        if( OKOrCancelDialog( this, _( "Get Changes" ),
+                              _( "This project is set to rebase when getting changes, but a conflict can only be "
+                                 "settled here by merging. Make a merge commit, or cancel and rebase from a git "
+                                 "command line." ),
+                              wxEmptyString, _( "Make Merge Commit" ) )
+            != wxID_OK )
+        {
+            setBusy( false, _( "Getting changes was cancelled. Your files are unchanged." ) );
+            return;
+        }
     }
 
     if( !canResolve() )

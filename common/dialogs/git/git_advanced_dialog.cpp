@@ -19,6 +19,7 @@
 
 #include <dialogs/git/git_advanced_dialog.h>
 
+#include <bitmap_store.h>
 #include <bitmaps.h>
 #include <dialogs/git/git_file_diff_area.h>
 #include <dialogs/git/git_status_entries.h>
@@ -90,18 +91,11 @@ GIT_ADVANCED_DIALOG::GIT_ADVANCED_DIALOG( EDA_BASE_FRAME* aParent, GIT_COMMIT_PA
     m_book->SetFont( KIUI::GetControlFont( this ) );
 
     m_repoName->SetFont( KIUI::GetControlFont( this ).Bold() );
-    m_book->SetFitToCurrentPage( true );
 
-    // One icon per page, in page order, as the About dialog does for its tabs.
-    wxVector<wxBitmapBundle> pageIcons;
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_changes, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_history, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_branches, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_remotes, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_stashes, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_tags, 16 ) );
-    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_repository, 16 ) );
-    m_book->SetImages( pageIcons );
+    // The window's minimum must fit every page, not only the one open when it is built
+    m_book->SetFitToCurrentPage( false );
+
+    setIcons();
 
     m_book->AddPage( buildChangesPage( m_book ), _( "Changes" ), true, 0 );
     m_historyPage = new PANEL_GIT_HISTORY( m_book, this, m_parent );
@@ -123,10 +117,6 @@ GIT_ADVANCED_DIALOG::GIT_ADVANCED_DIALOG( EDA_BASE_FRAME* aParent, GIT_COMMIT_PA
     m_book->AddPage( m_repositoryPage, _( "Repository" ), false, 6 );
 
     // Pull and Push run through the docked panel, which owns the merge and its conflict handling.
-    m_fetchButton->SetBitmap( KiBitmapBundle( BITMAPS::git_fetch ) );
-    m_pullButton->SetBitmap( KiBitmapBundle( BITMAPS::git_pull ) );
-    m_pushButton->SetBitmap( KiBitmapBundle( BITMAPS::git_push ) );
-
     m_fetchButton->Bind( wxEVT_BUTTON,
                          [this]( wxCommandEvent& )
                          {
@@ -188,8 +178,12 @@ GIT_ADVANCED_DIALOG::GIT_ADVANCED_DIALOG( EDA_BASE_FRAME* aParent, GIT_COMMIT_PA
     m_book->GetTreeCtrl()->SetMinSize( treeSize );
 
     // A page is a bare list whose natural size is a few rows, so without a floor the first
-    // open is a stamp. A saved size still wins once there is one.
-    m_book->SetMinSize( FromDIP( wxSize( 800, 600 ) ) );
+    // open is a stamp. A saved size still wins once there is one. The fitted size keeps the
+    // widest page's right-hand controls inside the window.
+    wxSize bookMin = FromDIP( wxSize( 800, 600 ) );
+    m_book->InvalidateBestSize();
+    bookMin.IncTo( m_book->GetBestSize() );
+    m_book->SetMinSize( bookMin );
     m_book->Layout();
 
     Bind(
@@ -204,6 +198,13 @@ GIT_ADVANCED_DIALOG::GIT_ADVANCED_DIALOG( EDA_BASE_FRAME* aParent, GIT_COMMIT_PA
 
     // A commit, push or pull from any surface broadcasts a change, so the window never goes stale.
     syncListener();
+
+    Bind( wxEVT_SYS_COLOUR_CHANGED,
+          [this]( wxSysColourChangedEvent& aEvent )
+          {
+              setIcons();
+              aEvent.Skip();
+          } );
 
     finishDialogSettings();
 }
@@ -387,6 +388,25 @@ void GIT_ADVANCED_DIALOG::ShowAmend( const wxString& aCommitHash )
 
     selectPage( GIT_ADVANCED_PAGE::CHANGES );
     m_changesPane->BeginAmend( aCommitHash );
+}
+
+
+void GIT_ADVANCED_DIALOG::setIcons()
+{
+    // One icon per page, in page order, as the About dialog does for its tabs.
+    wxVector<wxBitmapBundle> pageIcons;
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_changes, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_history, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_branches, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_remotes, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_stashes, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_tags, 16 ) );
+    pageIcons.push_back( KiBitmapBundleDef( BITMAPS::git_repository, 16 ) );
+    m_book->SetImages( pageIcons );
+
+    m_fetchButton->SetBitmap( KiBitmapBundle( BITMAPS::git_fetch ) );
+    m_pullButton->SetBitmap( KiBitmapBundle( BITMAPS::git_pull ) );
+    m_pushButton->SetBitmap( KiBitmapBundle( BITMAPS::git_push ) );
 }
 
 

@@ -136,6 +136,9 @@ private:
     void onChecklistChanged( wxDataViewEvent& aEvent );
     void onMessageChanged( wxCommandEvent& aEvent );
     void onIdle( wxIdleEvent& aEvent );
+    /// Set the icons and colours that follow the light or dark theme.
+    void applyTheme();
+    void onThemeChanged( wxSysColourChangedEvent& aEvent );
 
     /// The gear's menu: the advanced window and the author.
     void onSettings( wxCommandEvent& aEvent );
@@ -260,6 +263,9 @@ private:
 
     bool m_hasUnpushedCommits;
 
+    /// Commits waiting to be pushed, or 0 when the branch has no upstream to count them against
+    size_t m_unpushedCount = 0;
+
     bool m_hasRemote;
 
     /// Whether the last completed status snapshot had a repository.
@@ -268,8 +274,8 @@ private:
     /// True when HEAD is a commit rather than a branch, so nothing can be committed or pushed.
     bool m_headDetached;
 
-    /// True when the upstream has commits this project does not, so Get Changes has work to do.
-    bool m_upstreamAhead;
+    /// Commits the upstream has that this project does not, which Get Changes brings in.
+    size_t m_upstreamAhead;
 
     /// True while a merge or rebase is in progress. The network button then reads Abandon.
     bool m_operationInProgress;
@@ -289,8 +295,7 @@ private:
     /// The branch and commit the last refresh showed, so Undo takes back only the commit the user saw.
     std::pair<wxString, wxString> m_undoHead;
 
-    /// The description box's hint, a label laid over it while it is empty. Null where the box
-    /// shows its own.
+    /// The description box's hint, a label laid over it while it is empty.
     wxStaticText* m_descriptionHint = nullptr;
 
     /// Opens the History page from the docked panel. Never shown inside the advanced window.

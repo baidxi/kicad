@@ -2857,11 +2857,8 @@ double PAD::ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const
         }
         else
         {
-            LSET visible = board->GetVisibleLayers();
-            visible &= board->GetEnabledLayers();
-
             // Hide netnames unless pad is flashed to a visible layer
-            if( !FlashLayer( visible ) )
+            if( !FlashLayer( viewVisibleLayers( aView ) ) )
                 return LOD_HIDE;
         }
 
@@ -3329,6 +3326,9 @@ bool PAD::operator==( const BOARD_ITEM& aBoardItem ) const
 
 bool PAD::operator==( const PAD& aOther ) const
 {
+    if( GetNumber() != aOther.GetNumber() )
+        return false;
+
     if( Padstack() != aOther.Padstack() )
         return false;
 

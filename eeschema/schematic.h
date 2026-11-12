@@ -41,6 +41,7 @@
 
 
 struct HISTORY_FILE_DATA;
+struct TOP_LEVEL_SHEET_INFO;
 class BUS_ALIAS;
 class CONNECTION_GRAPH;
 class EDA_BASE_FRAME;
@@ -56,6 +57,7 @@ class SCH_GLOBALLABEL;
 class SCH_REFERENCE;
 class PROGRESS_REPORTER;
 class TOOL_MANAGER;
+class wxFileName;
 class PICKED_ITEMS_LIST;
 
 namespace SCH_CONNECTIVITY
@@ -290,6 +292,19 @@ public:
     std::vector<SCH_SHEET*> GetTopLevelSheets() const;
 
     SCH_SHEET* GetTopLevelSheet( int aIndex = 0 ) const;
+
+    /// The top-level sheets as the project file records them, with file names relative to the project.
+    std::vector<TOP_LEVEL_SHEET_INFO> TopLevelSheetInfos() const;
+
+    /**
+     * Check a project file's top-level sheet list against the sheets this schematic loaded.  A nil
+     * UUID in the list matches any sheet, as it does when loading.
+     */
+    bool TopLevelSheetsMatch( const std::vector<TOP_LEVEL_SHEET_INFO>& aSheets ) const;
+
+    /// The file loaded for a listed top-level sheet. A legacy project reads it under the legacy extension.
+    static wxFileName TopLevelSheetFile( const TOP_LEVEL_SHEET_INFO& aSheet, const wxString& aProjectPath,
+                                         bool aLegacy );
 
     /**
      * Check if a UUID names one of this schematic's top level sheets.
@@ -789,6 +804,14 @@ public:
      * @param aVariantName
      */
     void DeleteVariantDefinition( const wxString& aVariantName );
+
+    /**
+     * Take the variant list from the project file again after it was reread.  Variants the
+     * symbols use are kept.  A current variant the file no longer names falls back to the default.
+     *
+     * @return true if the variant list or the current variant changed.
+     */
+    bool ReloadProjectVariants();
 
 #if defined(DEBUG)
     void Show( int nestLevel, std::ostream& os ) const override {}

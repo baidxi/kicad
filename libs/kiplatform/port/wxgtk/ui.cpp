@@ -20,9 +20,12 @@
 
 #include <kiplatform/ui.h>
 
+#include <algorithm>
+
 #include <wx/choice.h>
 #include <wx/dataview.h>
 #include <wx/dialog.h>
+#include <wx/display.h>
 #include <wx/nonownedwnd.h>
 #include <wx/popupwin.h>
 #include <wx/settings.h>
@@ -523,6 +526,38 @@ void KIPLATFORM::UI::StabilizeWindowPosition( wxWindow* aWindow )
 }
 
 
+wxPoint KIPLATFORM::UI::GetRestorablePosition( wxWindow* aWindow )
+{
+    GtkWidget* widget = static_cast<GtkWidget*>( aWindow->GetHandle() );
+
+    if( aWindow->IsShown() && widget && GTK_IS_WINDOW( widget )
+        && gtk_window_get_gravity( GTK_WINDOW( widget ) ) == GDK_GRAVITY_STATIC )
+    {
+        if( GdkWindow* gdkWindow = gtk_widget_get_window( widget ) )
+        {
+            wxPoint      origin;
+            GdkRectangle frame;
+            gdk_window_get_origin( gdkWindow, &origin.x, &origin.y );
+            gdk_window_get_frame_extents( gdkWindow, &frame );
+
+            // Heal a position that crept up before static gravity, so the title bar comes back on screen
+            int displayIdx = wxDisplay::GetFromWindow( aWindow );
+
+            if( displayIdx != wxNOT_FOUND )
+            {
+                wxRect workArea = wxDisplay( (unsigned int) displayIdx ).GetClientArea();
+                origin.x += std::max( 0, workArea.x - frame.x );
+                origin.y += std::max( 0, workArea.y - frame.y );
+            }
+
+            return origin;
+        }
+    }
+
+    return aWindow->GetPosition();
+}
+
+
 static const char* const WM_CLASS_DATA_KEY = "kicad-wm-class";
 
 
@@ -957,6 +992,15 @@ void KIPLATFORM::UI::AllowNetworkFileSystems( wxDialog* aDialog )
 
     if( widget && GTK_IS_FILE_CHOOSER( widget ) )
         gtk_file_chooser_set_local_only( GTK_FILE_CHOOSER( widget ), FALSE );
+}
+
+
+int KIPLATFORM::UI::GetColumnWidth( const wxDataViewColumn* aColumn )
+{
+    int requested = gtk_tree_view_column_get_fixed_width( GTK_TREE_VIEW_COLUMN( aColumn->GetGtkHandle() ) );
+
+    // A column never given a width has no request to report
+    return requested > 0 ? requested : aColumn->GetWidth();
 }
 
 

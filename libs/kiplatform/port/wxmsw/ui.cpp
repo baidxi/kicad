@@ -23,6 +23,7 @@
 #include <kiplatform/ui.h>
 
 #include <wx/cursor.h>
+#include <wx/dataview.h>
 #include <wx/dialog.h>
 #include <wx/display.h>
 #include <wx/nonownedwnd.h>
@@ -112,6 +113,12 @@ void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
 void KIPLATFORM::UI::StabilizeWindowPosition( wxWindow* aWindow )
 {
     // Not needed on this platform
+}
+
+
+wxPoint KIPLATFORM::UI::GetRestorablePosition( wxWindow* aWindow )
+{
+    return aWindow->GetPosition();
 }
 
 
@@ -274,6 +281,12 @@ void KIPLATFORM::UI::ReleaseChildWindow( wxNonOwnedWindow* aWindow )
 void KIPLATFORM::UI::AllowNetworkFileSystems( wxDialog* aDialog )
 {
     // Not needed on Windows - file dialogs show network filesystems by default
+}
+
+
+int KIPLATFORM::UI::GetColumnWidth( const wxDataViewColumn* aColumn )
+{
+    return aColumn->WXGetSpecifiedWidth();
 }
 
 

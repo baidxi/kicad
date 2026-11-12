@@ -36,7 +36,8 @@
 namespace KICAD_DIFF
 {
 
-void ConfigureSymDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, LIB_SYMBOL* aBefore, LIB_SYMBOL* aAfter )
+void ConfigureSymDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, LIB_SYMBOL* aBefore, LIB_SYMBOL* aAfter,
+                                    std::shared_ptr<const void> aOwner )
 {
     if( !aBefore && !aAfter )
     {
@@ -46,22 +47,12 @@ void ConfigureSymDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, LIB_SYMBOL* aBe
 
     const DIFF_COLOR_THEME theme;
 
-    auto colorFor = [&]( CHANGE_KIND aKind ) -> KIGFX::COLOR4D
-    {
-        switch( aKind )
-        {
-        case CHANGE_KIND::ADDED: return theme.added;
-        case CHANGE_KIND::REMOVED: return theme.removed;
-        default: return theme.modified;
-        }
-    };
-
-    std::vector<SYM_ELEMENT>       elements = DiffSymbolElements( aBefore, aAfter );
+    std::vector<LIB_ELEMENT>       elements = DiffSymbolElements( aBefore, aAfter );
     std::map<KIID, KIGFX::COLOR4D> overrides;
 
-    for( const SYM_ELEMENT& element : elements )
+    for( const LIB_ELEMENT& element : elements )
     {
-        overrides[element.item->m_Uuid] = colorFor( element.kind );
+        overrides[element.item->m_Uuid] = theme.ForKind( element.kind );
         const_cast<EDA_ITEM*>( element.item )->SetBrightened();
     }
 
@@ -73,7 +64,7 @@ void ConfigureSymDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, LIB_SYMBOL* aBe
             items.push_back( &item );
     }
 
-    for( const SYM_ELEMENT& element : elements )
+    for( const LIB_ELEMENT& element : elements )
     {
         if( element.kind == CHANGE_KIND::REMOVED )
             items.push_back( const_cast<EDA_ITEM*>( element.item ) );
@@ -81,8 +72,24 @@ void ConfigureSymDiffCanvasContext( WIDGET_DIFF_CANVAS& aCanvas, LIB_SYMBOL* aBe
 
     aCanvas.SetWorldUnitLength( SCH_WORLD_UNIT );
     aCanvas.SetContextPainter( MakeSchDiffContextPainter( aCanvas.GetGAL(), nullptr, theme.reference, overrides ) );
-    aCanvas.SetContextItems( items );
+    aCanvas.SetContextItems( items, std::move( aOwner ) );
     aCanvas.ZoomToFit();
+}
+
+
+void ShowSymbolPair( WIDGET_DIFF_CANVAS& aCanvas, const SYM_LIB_DIFFER::SYMBOL_MAP& aBefore,
+                     const SYM_LIB_DIFFER::SYMBOL_MAP& aAfter, const wxString& aName )
+{
+    auto flatten = [&]( const SYM_LIB_DIFFER::SYMBOL_MAP& aSide ) -> std::unique_ptr<LIB_SYMBOL>
+    {
+        auto symbol = aSide.find( aName );
+        return symbol != aSide.end() ? symbol->second->Flatten() : nullptr;
+    };
+
+    auto pair = std::make_shared<std::pair<std::unique_ptr<LIB_SYMBOL>, std::unique_ptr<LIB_SYMBOL>>>(
+            flatten( aBefore ), flatten( aAfter ) );
+
+    ConfigureSymDiffCanvasContext( aCanvas, pair->first.get(), pair->second.get(), pair );
 }
 
 } // namespace KICAD_DIFF
