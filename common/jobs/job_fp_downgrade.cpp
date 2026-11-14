@@ -17,27 +17,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#pragma once
+#include <jobs/job_fp_downgrade.h>
 
-#include <dialogs/dialog_export_older_version_base.h>
-
-class DIALOG_EXPORT_OLDER_VERSION : public DIALOG_EXPORT_OLDER_VERSION_BASE
+JOB_FP_DOWNGRADE::JOB_FP_DOWNGRADE() :
+        JOB( "fpdowngrade", true ),
+        m_libraryPath(),
+        m_outputLibraryPath(),
+        m_target(),
+        m_force( false ),
+        m_dryRun( false ),
+        m_dropInsteadOfApproximate( false )
 {
-public:
-    DIALOG_EXPORT_OLDER_VERSION( wxWindow* aParent, const wxArrayString& aTargets, const wxArrayString& aVariants,
-                                 const wxString& aDefaultPath );
-
-    wxString GetTarget() const;
-
-    /// The variant to flatten, or empty for the base design.
-    wxString GetVariant() const;
-
-    wxString GetPath() const;
-
-    bool GetDropInsteadOfApproximate() const;
-
-private:
-    void updateVariantChoice();
-
-    bool TransferDataFromWindow() override;
-};
+}

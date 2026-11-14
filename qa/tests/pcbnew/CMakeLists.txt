@@ -232,6 +232,7 @@ set( QA_PCBNEW_SRCS
     drc/test_drc_tuner_agreement.cpp
     drc/test_drc_length_item_order.cpp
     drc/test_drc_skew_arc.cpp
+    drc/test_drc_linewidth.cpp
     drc/test_drc_unconnected_items_exclusion_loss.cpp
     drc/test_drc_via_dangling.cpp
     drc/test_drc_keepout_disallow.cpp
@@ -255,6 +256,7 @@ set( QA_PCBNEW_SRCS
     drc/test_drc_creepage_issue24875.cpp
     drc/test_drc_creepage_issue24885.cpp
     drc/test_drc_creepage_issue25439.cpp
+    drc/test_drc_creepage_issue25821.cpp
     drc/test_drc_creepage_circle_prune.cpp
     drc/test_creepage_engine_parity.cpp
     drc/test_creepage_engine_incremental.cpp
