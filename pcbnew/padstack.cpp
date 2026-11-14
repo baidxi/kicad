@@ -1218,6 +1218,11 @@ PADSTACK::COPPER_LAYER_PROPS& PADSTACK::CopperLayer( PCB_LAYER_ID aLayer )
             key = INNER_LAYERS;
     }
 
+    // A write for an undefined non-copper layer must land where the readers look. Copper layers
+    // keep their own entry, which per-layer padstacks rely on.
+    if( m_mode == MODE::CUSTOM && IsNonCopperLayer( aLayer ) )
+        return const_cast<COPPER_LAYER_PROPS&>( std::as_const( *this ).CopperLayer( aLayer ) );
+
     // A layer without an entry reads through to another one, so a new entry starts from what was read
     const bool readsThrough = m_copperProps.contains( ALL_LAYERS )
                               || ( m_mode == MODE::CUSTOM && !m_copperProps.empty() );
