@@ -405,7 +405,8 @@ bool PCB_PLOTTER::PlotOutlineSplit( const wxString& aOutputPath, const LSEQ& aLa
                                    static_cast<int>( idx ) );
 
         success &= pass.Plot( outDir.GetPath(), aLayersToPlot, aCommonLayers, aUseGerberFileExtensions,
-                              /* aOutputPathIsSingle */ false, {}, {}, {}, aOutputFiles );
+                              /* aPlotAllLayersToSingleFile */ false, /* aForceAllLayersToSinglePage */ false,
+                              {}, {}, {}, aOutputFiles );
     }
 
     return success;
@@ -432,7 +433,8 @@ bool PCB_PLOTTER::PlotOneOutline( size_t aOutlineIndex, const wxString& aOutputP
                                &m_outlineSplit->m_shapeToRegion, static_cast<int>( aOutlineIndex ) );
 
     return pass.Plot( outDir.GetPath(), aLayersToPlot, aCommonLayers, aUseGerberFileExtensions,
-                      /* aOutputPathIsSingle */ false, {}, {}, {}, aOutputFiles );
+                      /* aPlotAllLayersToSingleFile */ false, /* aForceAllLayersToSinglePage */ false,
+                      {}, {}, {}, aOutputFiles );
 }
 
 

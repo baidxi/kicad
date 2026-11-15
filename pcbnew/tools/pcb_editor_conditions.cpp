@@ -143,37 +143,57 @@ bool PCB_EDITOR_CONDITIONS::hasItemsFunc( const SELECTION& aSelection, PCB_BASE_
 
 bool PCB_EDITOR_CONDITIONS::padNumberDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayPadNumbers;
+    // The settings are released during kiface teardown, but UI update events can still be
+    // dispatched to frames that are not destroyed yet, so the settings may be null here.
+    if( PCB_VIEWERS_SETTINGS_BASE* cfg = aFrame->GetViewerSettingsBase() )
+        return cfg->m_ViewersDisplay.m_DisplayPadNumbers;
+
+    return false;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::padFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayPadFill;
+    if( PCB_VIEWERS_SETTINGS_BASE* cfg = aFrame->GetViewerSettingsBase() )
+        return cfg->m_ViewersDisplay.m_DisplayPadFill;
+
+    return false;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::textFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayTextFill;
+    if( PCB_VIEWERS_SETTINGS_BASE* cfg = aFrame->GetViewerSettingsBase() )
+        return cfg->m_ViewersDisplay.m_DisplayTextFill;
+
+    return false;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::graphicsFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetViewerSettingsBase()->m_ViewersDisplay.m_DisplayGraphicsFill;
+    if( PCB_VIEWERS_SETTINGS_BASE* cfg = aFrame->GetViewerSettingsBase() )
+        return cfg->m_ViewersDisplay.m_DisplayGraphicsFill;
+
+    return false;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::viaFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetPcbNewSettings()->m_Display.m_DisplayViaFill;
+    if( PCBNEW_SETTINGS* cfg = aFrame->GetPcbNewSettings() )
+        return cfg->m_Display.m_DisplayViaFill;
+
+    return false;
 }
 
 
 bool PCB_EDITOR_CONDITIONS::trackFillDisplayFunc( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return aFrame->GetPcbNewSettings()->m_Display.m_DisplayPcbTrackFill;
+    if( PCBNEW_SETTINGS* cfg = aFrame->GetPcbNewSettings() )
+        return cfg->m_Display.m_DisplayPcbTrackFill;
+
+    return false;
 }
 
 
@@ -186,5 +206,8 @@ bool PCB_EDITOR_CONDITIONS::zoneDisplayModeFunc( const SELECTION& aSelection, PC
 
 bool PCB_EDITOR_CONDITIONS::footprintViewerAutoZoom( const SELECTION& aSelection, PCB_BASE_FRAME* aFrame )
 {
-    return static_cast<PCB_VIEWERS_SETTINGS_BASE*>( aFrame->config() )->m_FootprintViewerAutoZoomOnSelect;
+    if( PCB_VIEWERS_SETTINGS_BASE* cfg = static_cast<PCB_VIEWERS_SETTINGS_BASE*>( aFrame->config() ) )
+        return cfg->m_FootprintViewerAutoZoomOnSelect;
+
+    return false;
 }
