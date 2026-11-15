@@ -2840,6 +2840,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
 
                 plotTab->SetDottedSecondary( tab_js.value( "dottedSecondary", false ) );
                 plotTab->ShowGrid( tab_js.value( "showGrid", true ) );
+                plotTab->EnableTrackCursor( tab_js.value( "showTrackCursor", false ) );
 
                 if( tab_js.value( "smithMode", false ) )
                 {
@@ -2901,10 +2902,7 @@ bool SIMULATOR_FRAME_UI::loadJsonWorkbook( const wxString& aPath )
                             double max = max_js.get<double>();
 
                             if( min < max )
-                            {
                                 aSetter( min, max );
-                                plotTab->GetPlotWin()->LockY( true );
-                            }
                         };
 
                 loadScale( "fixedY1scale",
@@ -3277,6 +3275,7 @@ bool SIMULATOR_FRAME_UI::SaveWorkbook( const wxString& aPath )
             }
 
             tab_js["viewCount"] = plotTab->GetViewCount();
+            tab_js["showTrackCursor"] = plotTab->IsTrackCursorEnabled();
 
             double min, max;
 

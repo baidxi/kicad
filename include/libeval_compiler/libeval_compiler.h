@@ -216,13 +216,13 @@ public:
             m_isDeferredStr( false )
     {}
 
-    VALUE( const wxString& aStr, bool aIsWildcard = false ) :
+    VALUE( const wxString& aStr, bool aIsWildcard = false, bool aIsLiteral = true ) :
             m_type( VT_STRING ),
             m_units( EDA_UNITS::UNSCALED ),
             m_valueDbl( 0 ),
             m_valueStr( aStr ),
             m_stringIsWildcard( aIsWildcard ),
-            m_stringIsLiteral( true ),
+            m_stringIsLiteral( aIsLiteral ),
             m_isDeferredDbl( false ),
             m_isDeferredStr( false )
     {}
@@ -306,6 +306,7 @@ public:
         m_type = val.m_type;
         m_valueDbl = val.m_valueDbl;
         m_stringIsWildcard = val.m_stringIsWildcard;
+        m_stringIsLiteral = val.m_stringIsLiteral;
         m_units = val.m_units;
 
         if( m_type == VT_STRING )
