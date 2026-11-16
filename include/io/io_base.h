@@ -171,6 +171,19 @@ public:
     virtual void ResumeLoad() noexcept {}
 
     /**
+     * Have the destructor leave the library cache unfreed.  Only for use as the process exits, since freeing the
+     * caches of thousands of libraries one item at a time holds it up for seconds.  The cache stays usable until the
+     * plugin is destroyed, so threads still reading it are safe.  Plugins without a large cache ignore it.
+     */
+    virtual void LeakCacheAtExit() {}
+
+    /**
+     * Stop and join any thread that reads other libraries through the library adapter.  Called before the plugin
+     * is retired, while every library such a thread could reach is still alive.  The plugin is not used again.
+     */
+    virtual void StopBackgroundRefresh() {}
+
+    /**
      * Return true if the library at @a aLibraryPath is writable.
      *
      * The system libraries are typically read only because of where they are installed..

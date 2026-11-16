@@ -29,6 +29,7 @@
 #include <callback_gal.h>
 #include <component_classes/component_class.h>
 #include <confirm.h>
+#include <core/leak_at_exit.h>
 #include <convert_basic_shapes_to_polygon.h> // for enum RECT_CHAMFER_POSITIONS definition
 #include <fmt/format.h>
 #include <font/fontconfig.h>
@@ -3802,7 +3803,10 @@ PCB_IO_KICAD_SEXPR::PCB_IO_KICAD_SEXPR( int aControlFlags ) :
 
 PCB_IO_KICAD_SEXPR::~PCB_IO_KICAD_SEXPR()
 {
-    delete m_cache;
+    if( m_leakCacheAtExit )
+        LSAN_IGNORE( m_cache );
+    else
+        delete m_cache;
 }
 
 

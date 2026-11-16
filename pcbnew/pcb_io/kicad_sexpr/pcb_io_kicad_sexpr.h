@@ -413,6 +413,8 @@ public:
 
     bool CachesEnumeratedFootprints() const override { return true; }
 
+    void LeakCacheAtExit() override { m_leakCacheAtExit = true; }
+
     bool FootprintExists( const wxString& aLibraryPath, const wxString& aFootprintName,
                           const std::map<std::string, UTF8>* aProperties = nullptr ) override;
 
@@ -576,6 +578,7 @@ protected:
     wxString               m_error;      ///< for throwing exceptions
 
     FP_CACHE*              m_cache;      ///< Footprint library cache
+    bool                   m_leakCacheAtExit = false;
 
     LINE_READER*           m_reader;     ///< no ownership
     wxString               m_filename;   ///< for saves only, name is in m_reader for loads

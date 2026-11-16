@@ -32,6 +32,7 @@
 #include <base_units.h>
 #include <bitmap_base.h>
 #include <common.h> // ExpandTextVars
+#include <core/leak_at_exit.h>
 #include <wildcards_and_files_ext.h>
 #include <build_version.h>
 #include <sch_selection.h>
@@ -85,7 +86,10 @@ SCH_IO_KICAD_SEXPR::SCH_IO_KICAD_SEXPR() : SCH_IO( wxS( "Eeschema s-expression" 
 
 SCH_IO_KICAD_SEXPR::~SCH_IO_KICAD_SEXPR()
 {
-    delete m_cache;
+    if( m_leakCacheAtExit )
+        LSAN_IGNORE( m_cache );
+    else
+        delete m_cache;
 }
 
 

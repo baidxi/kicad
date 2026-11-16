@@ -1632,6 +1632,10 @@ void SYMBOL_EDIT_FRAME::SyncLibraries( bool aShowProgress, bool aPreloadCancelle
         for( const LIB_ID& libId : expanded )
             GetLibTree()->ExpandLibId( libId );
 
+        // A filter selects its best match, which tree actions would take for the user's choice
+        if( selected.GetLibNickname().empty() )
+            GetLibTree()->Unselect();
+
         // Try to select the parent library, in case the symbol is not found
         if( !found && selected.IsValid() )
         {
@@ -2273,6 +2277,13 @@ bool SYMBOL_EDIT_FRAME::IsContentModified() const
     }
 
     return false;
+}
+
+
+bool SYMBOL_EDIT_FRAME::hasUnsavedLibraryEdits( const wxString& aLibNickname ) const
+{
+    // Edits in any tab of the library live in its buffer, which a reload replaces
+    return SCH_BASE_FRAME::hasUnsavedLibraryEdits( aLibNickname ) || m_libMgr->IsLibraryModified( aLibNickname );
 }
 
 
