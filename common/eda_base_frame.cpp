@@ -311,11 +311,8 @@ void EDA_BASE_FRAME::windowClosing( wxCloseEvent& event )
     }
 
 
-    if( event.GetId() == wxEVT_QUERY_END_SESSION || event.GetId() == wxEVT_END_SESSION )
-    {
-        // End session means the OS is going to terminate us
-        m_isNonUserClose = true;
-    }
+    // End session means the OS is going to terminate us
+    SCOPED_SET_RESET<bool> nonUserClose( m_isNonUserClose, m_isNonUserClose || Pgm().IsSessionEnding() );
 
     SCOPED_SET_RESET<bool> closeGuard( m_closeInProgress, true );
 
@@ -343,6 +340,12 @@ void EDA_BASE_FRAME::windowClosing( wxCloseEvent& event )
         if( event.CanVeto() )
             event.Veto();
     }
+}
+
+
+bool EDA_BASE_FRAME::isBlockableSessionEnd() const
+{
+    return KIPLATFORM::APP::SupportsShutdownBlockReason() && Pgm().IsSessionEnding();
 }
 
 

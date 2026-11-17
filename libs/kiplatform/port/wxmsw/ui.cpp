@@ -96,12 +96,6 @@ bool KIPLATFORM::UI::IsWindowActive( wxWindow* aWindow )
 }
 
 
-void KIPLATFORM::UI::EnsureVisible( wxWindow* aWindow )
-{
-    // Not needed on this platform
-}
-
-
 void KIPLATFORM::UI::SetDialogModal( wxWindow* aWindow, bool aModal )
 {
     // Not needed on this platform

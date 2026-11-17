@@ -56,6 +56,8 @@
 #include <jobs/job_export_pcb_svg.h>
 #include <plotters/plotters_pslike.h>
 #include <pcb_plotter.h>
+#include <settings/color_settings.h>
+#include <settings/settings_manager.h>
 
 
 LSEQ DIALOG_PLOT::s_lastAllLayersOrder;
@@ -159,6 +161,8 @@ DIALOG_PLOT::DIALOG_PLOT( PCB_EDIT_FRAME* aEditFrame, wxWindow* aParent, JOB_EXP
     // DIALOG_SHIM needs a unique hash_key because classname will be the same for both job and
     // non-job versions.
     m_hash_key = TO_UTF8( GetTitle() );
+
+    populateColorThemeSelector();
 
     m_variantChoiceCtrl->Append( board->GetVariantNamesForUI() );
     m_variantChoiceCtrl->SetSelection( 0 );
@@ -297,6 +301,91 @@ DIALOG_PLOT::~DIALOG_PLOT()
 }
 
 
+void DIALOG_PLOT::populateColorThemeSelector()
+{
+    m_colorTheme->Clear();
+
+    for( COLOR_SETTINGS* settings : Pgm().GetSettingsManager().GetColorSettingsList() )
+        m_colorTheme->Append( settings->GetName(), static_cast<void*>( settings ) );
+}
+
+
+void DIALOG_PLOT::setColorThemeSelection( const wxString& aTheme )
+{
+    wxString target = aTheme;
+
+    if( target.IsEmpty() )
+    {
+        PCBNEW_SETTINGS* cfg = GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
+        target = cfg ? cfg->m_ColorTheme : DEFAULT_THEME;
+    }
+
+    for( int ii = 0; ii < (int) m_colorTheme->GetCount(); ++ii )
+    {
+        COLOR_SETTINGS* settings = static_cast<COLOR_SETTINGS*>( m_colorTheme->GetClientData( ii ) );
+
+        if( settings && ( settings->GetFilename() == target || settings->GetName().Lower() == target.Lower() ) )
+        {
+            m_colorTheme->SetSelection( ii );
+            return;
+        }
+    }
+
+    if( m_colorTheme->GetCount() > 0 )
+        m_colorTheme->SetSelection( 0 );
+}
+
+
+COLOR_SETTINGS* DIALOG_PLOT::getEditorColorSettings() const
+{
+    PCBNEW_SETTINGS* cfg = GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
+    return ::GetColorSettings( cfg ? cfg->m_ColorTheme : DEFAULT_THEME );
+}
+
+
+COLOR_SETTINGS* DIALOG_PLOT::getColorSettings() const
+{
+    int selection = m_colorTheme->GetSelection();
+
+    if( selection >= 0 && selection < (int) m_colorTheme->GetCount() )
+    {
+        if( COLOR_SETTINGS* settings = static_cast<COLOR_SETTINGS*>( m_colorTheme->GetClientData( selection ) ) )
+        {
+            return settings;
+        }
+    }
+
+    return getEditorColorSettings();
+}
+
+
+bool DIALOG_PLOT::formatUsesColorTheme()
+{
+    switch( getPlotFormat() )
+    {
+    case PLOT_FORMAT::SVG:
+    case PLOT_FORMAT::PDF:
+    case PLOT_FORMAT::PNG: return true;
+
+    default: return false;
+    }
+}
+
+
+void DIALOG_PLOT::updateColorThemeControl()
+{
+    bool enable = formatUsesColorTheme();
+
+    if( getPlotFormat() == PLOT_FORMAT::SVG )
+        enable = enable && m_SVGColorChoice->GetSelection() == 0;
+    else if( getPlotFormat() == PLOT_FORMAT::PDF )
+        enable = enable && m_PDFColorChoice->GetSelection() == 0;
+
+    m_colorThemeLabel->Enable( enable );
+    m_colorTheme->Enable( enable );
+}
+
+
 bool DIALOG_PLOT::TransferDataToWindow()
 {
     BOARD*      board = m_editFrame->GetBoard();
@@ -333,6 +422,8 @@ bool DIALOG_PLOT::TransferDataToWindow()
                 m_variantChoiceCtrl->SetSelection( idx );
         }
     }
+
+    setColorThemeSelection( m_job ? m_job->m_colorTheme : wxString() );
 
     if( !m_job && !projectFile.m_PcbLastPath[ LAST_PATH_PLOT ].IsEmpty() )
         m_plotOpts.SetOutputDirectory( projectFile.m_PcbLastPath[ LAST_PATH_PLOT ] );
@@ -619,6 +710,12 @@ void DIALOG_PLOT::transferPlotParamsToJob()
     m_job->m_plotLayerSequence = m_plotOpts.GetLayerSelection().SeqStackupForPlotting();
     m_job->m_plotAllCopperLayers = m_allCopperLayers->GetValue() && allCopperLayersChecked();
     m_job->m_plotOnAllLayersSequence = m_plotOpts.GetPlotOnAllLayersSequence();
+
+    // An empty theme follows the PCB editor at run time, so leave it that way until the user picks one.
+    if( formatUsesColorTheme() && ( !m_job->m_colorTheme.IsEmpty() || getColorSettings() != getEditorColorSettings() ) )
+    {
+        m_job->m_colorTheme = getColorSettings()->GetFilename();
+    }
 
     if( m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::SVG ||
         m_job->m_plotFormat == JOB_EXPORT_PCB_PLOT::PLOT_FORMAT::PDF )
@@ -1109,6 +1206,8 @@ void DIALOG_PLOT::SetPlotFormat( wxCommandEvent& event )
         m_PlotOptionsSizer->Show( formatSizer, formatSizer == shownFormatSizer );
     }
 
+    updateColorThemeControl();
+
     Layout();
     m_MainSizer->SetSizeHints( this );
 }
@@ -1363,9 +1462,8 @@ void DIALOG_PLOT::Plot( wxCommandEvent& event )
 
         applyPlotSettings();
 
-        PCBNEW_SETTINGS* cfg = GetAppSettings<PCBNEW_SETTINGS>( "pcbnew" );
-
-        m_plotOpts.SetColorSettings( ::GetColorSettings( cfg ? cfg->m_ColorTheme : DEFAULT_THEME ) );
+        // The formats without a selector keep plotting with the editor theme.
+        m_plotOpts.SetColorSettings( formatUsesColorTheme() ? getColorSettings() : getEditorColorSettings() );
 
         m_plotOpts.SetSketchPadLineWidth( board->GetDesignSettings().GetLineThickness( F_Fab ) );
 
@@ -1607,6 +1705,14 @@ void DIALOG_PLOT::updatePdfColorOptions()
         m_pdfBackgroundColorSwatch->Enable();
         m_pdfBackgroundColorText->Enable();
     }
+
+    updateColorThemeControl();
+}
+
+
+void DIALOG_PLOT::onSVGColorChoice( wxCommandEvent& aEvent )
+{
+    updateColorThemeControl();
 }
 
 

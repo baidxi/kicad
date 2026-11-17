@@ -239,14 +239,6 @@ namespace KIPLATFORM
         void InfiniteDragReleaseWindow();
 
         /**
-         * Ensure that a window is visible on the screen.  On MacOS, this will make it visible
-         * in all Spaces.  Other platforms are nops.
-         *
-         * @param aWindow window to make visible
-         */
-        void EnsureVisible( wxWindow* aWindow );
-
-        /**
          * Bring a top-level window to the foreground of the window manager and ask for
          * keyboard focus.
          *

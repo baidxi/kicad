@@ -32,6 +32,7 @@
 #endif
 
 #include <libeval_compiler/libeval_compiler.h>
+#include <libeval/numeric_evaluator.h>
 
 /* The (generated) lemon parser is written in C.
  * In order to keep its symbol from the global namespace include the parser code with
@@ -468,18 +469,26 @@ bool COMPILER::lexDefault( T_TOKEN& aToken )
         return true;
     }
 
-    auto isDecimalSeparator =
-            [&]( wxUniChar ch ) -> bool
-            {
-                return ( ch == m_localeDecimalSeparator || ch == '.' || ch == ',' );
-            };
-
     // Lambda: get value as string, store into clToken.token and update current index.
     auto extractNumber =
             [&]()
             {
                 bool      haveSeparator = false;
+                bool      haveDigit = false;
                 wxUniChar ch = m_tokenizer.GetChar();
+
+                auto isDecimalSeparator =
+                        [&]( wxUniChar c ) -> bool
+                            {
+                                double dummy;
+
+                                if( c == m_localeDecimalSeparator || c == '.' || c == ',' )
+                                    return true;
+
+                                // Infix only between digits so 4k7 scales while 5mm and 100ps keep their units
+                                return haveDigit && wxIsdigit( m_tokenizer.GetChar( 1 ) )
+                                       && NUMERIC_EVALUATOR::IsOldSchoolDecimalSeparator( c, &dummy );
+                            };
 
                 do
                 {
@@ -490,15 +499,18 @@ bool COMPILER::lexDefault( T_TOKEN& aToken )
 
                     if( isDecimalSeparator( ch ) )
                         haveSeparator = true;
+                    else
+                        haveDigit = true;
 
                     m_tokenizer.NextChar();
                     ch = m_tokenizer.GetChar();
                 } while( isdigit( ch ) || isDecimalSeparator( ch ) );
 
-                // Ensure that the systems decimal separator is used
+                // Ensure that the systems decimal separator is used.  Keep infix for now, as we'll need it later
+                // to scale the number.
                 for( int i = current.length(); i; i-- )
                 {
-                    if( isDecimalSeparator( current[i - 1] ) )
+                    if( current[i - 1] == '.' || current[i - 1] == ',' )
                         current[i - 1] = m_localeDecimalSeparator;
                 }
             };
@@ -708,6 +720,10 @@ void CONTEXT::stackOverflow()
     ReportError( _( "Expression evaluation stack overflow" ) );
     throw STACK_OVERFLOW{};
 }
+
+#if defined( __MINGW64__ ) // needed on MINGW to avoid a link issue
+constexpr int CONTEXT::STACK_CAPACITY;
+#endif
 
 
 void COMPILER::reportError( COMPILATION_STAGE stage, const wxString& aErrorMsg, int aPos )

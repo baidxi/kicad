@@ -839,9 +839,7 @@ bool SYMBOL_EDIT_FRAME::canCloseWindow( wxCloseEvent& aEvent )
 {
     // Shutdown blocks must be determined and vetoed as early as possible, before any modal prompt.
     // IsContentModified only sees the active tab, so also account for dirty inactive instance tabs.
-    if( KIPLATFORM::APP::SupportsShutdownBlockReason()
-            && aEvent.GetId() == wxEVT_QUERY_END_SESSION
-            && ( IsContentModified() || hasDirtyInactiveInstanceTabs() ) )
+    if( isBlockableSessionEnd() && ( IsContentModified() || hasDirtyInactiveInstanceTabs() ) )
     {
         aEvent.Veto();
         return false;
@@ -1804,21 +1802,6 @@ bool SYMBOL_EDIT_FRAME::IsCurrentSymbol( const LIB_ID& aLibId ) const
 
     // Now we can compare the libId of the current symbol and the root symbol
     return ( symbol && m_symbol && symbol->GetLibId() == m_symbol->GetLibId() );
-}
-
-
-void SYMBOL_EDIT_FRAME::emptyScreen()
-{
-    GetLibTree()->Unselect();
-
-    // Tear down every tab first so no context observes the about-to-be-deleted working symbol.
-    closeAllSymbolTabsSilently();
-
-    SetCurSymbol( nullptr, false );
-    SetScreen( m_dummyScreen );
-    ClearUndoRedoList();
-    m_toolManager->RunAction( ACTIONS::zoomFitScreen );
-    Refresh();
 }
 
 

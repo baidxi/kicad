@@ -398,6 +398,14 @@ BOOST_FIXTURE_TEST_CASE( PersistentMoveSessionFallsBackAfterRejectedObject, DRAG
     SNAP_STABLE_ID objectId = testSnapId( "blocked" );
     SNAP_STABLE_ID gridId = testSnapId( "grid-x", SNAP_ID_KIND::GRID_X );
     SNAP_RESOLVER  resolver;
+
+    // The rejected object solve can outlast the frame budget in a debug build, which would skip
+    // the grid fallback this test is about
+    resolver.SetClock(
+            []
+            {
+                return SNAP_RESOLVER::CLOCK::time_point();
+            } );
     resolver.SetFeasibilityCallback(
             [session]( const SNAP_SOURCE_CONTEXT& aContext, const std::vector<SNAP_CANDIDATE>& aCandidates )
             {
@@ -410,7 +418,7 @@ BOOST_FIXTURE_TEST_CASE( PersistentMoveSessionFallsBackAfterRejectedObject, DRAG
             SNAP_CANDIDATE::AxisX( gridId, SNAP_PRIORITY_TIER::GRID, SNAP_CANDIDATE_SUBTYPE::GRID_AXIS, 0, 1.0 ) );
 
     SNAP_RESULT result = resolver.Resolve( context );
-    BOOST_REQUIRE( result.status == SNAP_RESULT_STATUS::SUCCESS );
+    BOOST_REQUIRE_EQUAL( result.status, SNAP_RESULT_STATUS::SUCCESS );
     BOOST_CHECK( !result.Accepted( objectId ) );
     BOOST_CHECK( result.Accepted( gridId ) );
     BOOST_CHECK_EQUAL( result.position, VECTOR2I( 0, 0 ) );

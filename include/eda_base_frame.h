@@ -50,6 +50,7 @@
 #include <undo_redo_container.h>
 #include <units_provider.h>
 #include <origin_transforms.h>
+#include <scoped_set_reset.h>
 #include <ui_events.h>
 
 // Option for main frames
@@ -634,7 +635,9 @@ public:
 
     bool NonUserClose( bool aForce )
     {
-        m_isNonUserClose = true;
+        // Close() runs the whole close synchronously, so a vetoed or re-entrant close cannot leave the flag set
+        SCOPED_SET_RESET<bool> nonUserClose( m_isNonUserClose, true );
+
         return Close( aForce );
     }
 
@@ -726,6 +729,13 @@ protected:
 
     virtual bool canCloseWindow( wxCloseEvent& aCloseEvent ) { return true; }
     virtual void doCloseWindow() { }
+
+    /**
+     * Return true when the session is ending on a platform that shows a shutdown block reason.
+     * A frame with unsaved changes then vetoes the close without prompting, and the OS shows
+     * the reason set by KIPLATFORM::APP::SetShutdownBlockReason().
+     */
+    bool isBlockableSessionEnd() const;
 
     void onSystemColorChange( wxSysColourChangedEvent& aEvent );
 

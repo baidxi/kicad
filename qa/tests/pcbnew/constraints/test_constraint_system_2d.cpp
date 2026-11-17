@@ -156,4 +156,134 @@ BOOST_AUTO_TEST_CASE( LargeParameterHandlingRecordsTelemetry )
 }
 
 
+// Unknown order sets the Jacobian columns and so the rounding, so it follows the declaration and
+// not the heap layout that moved an MSVC block edit by 28 nm between sessions
+BOOST_AUTO_TEST_CASE( SubsystemKeepsTheDeclaredUnknownOrder )
+{
+    std::vector<double> storage{ 1.0, 2.0, 3.0, 4.0 };
+    GCS::VEC_pD         declared{ &storage[3], &storage[1], &storage[2], &storage[0] };
+
+    GCS::ConstraintEqual          first( &storage[0], &storage[3] );
+    GCS::ConstraintEqual          second( &storage[1], &storage[2] );
+    std::vector<GCS::Constraint*> constraints{ &first, &second };
+
+    GCS::SubSystem subsystem( constraints, declared );
+    GCS::VEC_pD    unknowns;
+    subsystem.getParamList( unknowns );
+
+    BOOST_CHECK( unknowns == declared );
+
+    // An equality folds its second parameter into the first, which keeps its declared place
+    GCS::MAP_pD_pD reduction{ { &storage[2], &storage[1] } };
+    GCS::SubSystem reduced( constraints, declared, reduction );
+    GCS::VEC_pD    reducedUnknowns;
+    reduced.getParamList( reducedUnknowns );
+
+    BOOST_CHECK( reducedUnknowns == GCS::VEC_pD( { &storage[3], &storage[1], &storage[0] } ) );
+}
+
+
+// A soft solve orders its variables as declared too, so moving the parameters must not move the result
+BOOST_AUTO_TEST_CASE( SoftSolveDoesNotDependOnParameterAddresses )
+{
+    const std::vector<double> start{ 0.0, 0.0, 10.0, 5.0, 20.0, 0.0, 20.0, 10.0 };
+
+    const auto solve = [&]( bool aReversed ) -> std::vector<double>
+    {
+        std::vector<double> storage( start.size() );
+        std::vector<double> targets = start;
+        GCS::VEC_pD         unknowns;
+
+        for( std::size_t i = 0; i < start.size(); ++i )
+        {
+            double* param = &storage[aReversed ? start.size() - 1 - i : i];
+            *param = start[i];
+            unknowns.push_back( param );
+        }
+
+        GCS::Line first;
+        GCS::Line second;
+        first.p1 = GCS::Point( unknowns[0], unknowns[1] );
+        first.p2 = GCS::Point( unknowns[2], unknowns[3] );
+        second.p1 = GCS::Point( unknowns[4], unknowns[5] );
+        second.p2 = GCS::Point( unknowns[6], unknowns[7] );
+
+        GCS::System system;
+        system.addConstraintPerpendicular( first, second, 1 );
+
+        for( std::size_t i = 0; i < start.size(); ++i )
+            system.addConstraintEqual( unknowns[i], &targets[i], GCS::DefaultTemporaryConstraint );
+
+        system.declareUnknowns( unknowns );
+        system.initSolution();
+        system.solve();
+        system.applySolution();
+
+        std::vector<double> result;
+
+        for( double* param : unknowns )
+            result.push_back( *param );
+
+        return result;
+    };
+
+    BOOST_CHECK( solve( false ) == solve( true ) );
+}
+
+
+// A block edit in the adapter's millimetre frame, one corner commanded and the rest held at the stay-put weight
+BOOST_AUTO_TEST_CASE( SoftSolveDoesNotDependOnTheDeclarationOrder )
+{
+    const std::vector<double> start{ 0.0, 0.0, 10.0, 5.0, 20.0, 0.0, 20.0, 10.0 };
+    const double              nanometre = 1e-6;
+
+    const auto solve = [&]( const std::vector<std::size_t>& aOrder ) -> std::vector<double>
+    {
+        std::vector<double> storage = start;
+        std::vector<double> targets = start;
+
+        GCS::Line first;
+        GCS::Line second;
+        first.p1 = GCS::Point( &storage[0], &storage[1] );
+        first.p2 = GCS::Point( &storage[2], &storage[3] );
+        second.p1 = GCS::Point( &storage[4], &storage[5] );
+        second.p2 = GCS::Point( &storage[6], &storage[7] );
+
+        GCS::System system;
+        system.addConstraintPerpendicular( first, second, 1 );
+
+        for( std::size_t i = 0; i < start.size(); ++i )
+        {
+            int id = system.addConstraintEqual( &storage[i], &targets[i], GCS::DefaultTemporaryConstraint );
+
+            if( i != 2 && i != 3 )
+                system.rescaleConstraint( id, 1e-4 );
+        }
+
+        GCS::VEC_pD unknowns;
+
+        for( std::size_t i : aOrder )
+            unknowns.push_back( &storage[i] );
+
+        system.declareUnknowns( unknowns );
+        system.initSolution();
+        system.solve();
+        system.applySolution();
+        return storage;
+    };
+
+    const std::vector<double> reference = solve( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+
+    for( const std::vector<std::size_t>& order : { std::vector<std::size_t>{ 4, 5, 6, 7, 0, 1, 2, 3 },
+                                                   std::vector<std::size_t>{ 7, 6, 5, 4, 3, 2, 1, 0 },
+                                                   std::vector<std::size_t>{ 1, 0, 3, 2, 5, 4, 7, 6 } } )
+    {
+        const std::vector<double> result = solve( order );
+
+        for( std::size_t i = 0; i < start.size(); ++i )
+            BOOST_CHECK_SMALL( result[i] - reference[i], nanometre );
+    }
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()

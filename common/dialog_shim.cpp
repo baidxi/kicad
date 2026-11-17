@@ -658,8 +658,6 @@ bool DIALOG_SHIM::Show( bool show )
         // (re)established above, so the clamp is not overwritten.
         clampToWorkArea();
 
-        KIPLATFORM::UI::EnsureVisible( this );
-
         // Map only after the final geometry is in place (see the comment above).
         ret = wxDialog::Show( show );
     }
@@ -2022,25 +2020,6 @@ void DIALOG_SHIM::EndQuasiModal( int retCode )
     m_qmodal_parent_disabler = nullptr;
 
     Show( false );
-}
-
-
-void DIALOG_SHIM::resetUndoRedoForNewContent( wxWindowList& aChildren )
-{
-    m_undoStack.clear();
-    m_redoStack.clear();
-    m_currentValues.clear();
-    m_controlsWithPendingChanges.clear();
-    registerUndoRedoHandlers( aChildren );
-}
-
-
-void DIALOG_SHIM::unregisterUnitBinders( wxWindow* aWindow )
-{
-    m_unitBinders.erase( aWindow );
-
-    for( wxWindow* child : aWindow->GetChildren() )
-        unregisterUnitBinders( child );
 }
 
 
