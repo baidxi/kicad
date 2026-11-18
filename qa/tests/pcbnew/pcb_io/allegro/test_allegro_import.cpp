@@ -1058,6 +1058,53 @@ BOOST_AUTO_TEST_CASE( RectsZoneVsCopperPolygon )
 
 
 /**
+ * Calculated fills absent from a boundary's pointer array still join their source zone
+ * through the shared 0x2C table.
+ */
+BOOST_AUTO_TEST_CASE( UnlinkedCalculatedFillsJoinZones )
+{
+    std::unique_ptr<BOARD> board = LoadAllegroBoard( "ABX00162_UNOQ/20250806_UNOQ.brd" );
+    BOOST_REQUIRE( board );
+
+    int fixedCopperPolygons = 0;
+
+    for( const BOARD_ITEM* item : board->Drawings() )
+    {
+        if( item->Type() == PCB_SHAPE_T && IsCopperLayer( item->GetLayer() )
+            && static_cast<const PCB_SHAPE*>( item )->GetShape() == SHAPE_T::POLY )
+        {
+            fixedCopperPolygons++;
+        }
+    }
+
+    // These 62 copper drawings have no confirmed zone owner in this fixture.
+    BOOST_CHECK_EQUAL( fixedCopperPolygons, 62 );
+}
+
+
+BOOST_AUTO_TEST_CASE( CopperZonesInheritNetClearance )
+{
+    std::unique_ptr<BOARD> board = LoadAllegroBoard( "ABX00162_UNOQ/20250806_UNOQ.brd" );
+    BOOST_REQUIRE( board );
+
+    int copperZones = 0;
+    int unexpectedClearances = 0;
+
+    for( const ZONE* zone : board->Zones() )
+    {
+        if( zone->GetIsRuleArea() || !zone->IsOnCopperLayer() )
+            continue;
+
+        copperZones++;
+        unexpectedClearances += zone->GetLocalClearance().value_or( -1 ) != 0;
+    }
+
+    BOOST_CHECK_GT( copperZones, 0 );
+    BOOST_CHECK_EQUAL( unexpectedClearances, 0 );
+}
+
+
+/**
  * Test that copper_text.brd imports the "TESTING" text on F.Cu.
  */
 BOOST_AUTO_TEST_CASE( CopperText )

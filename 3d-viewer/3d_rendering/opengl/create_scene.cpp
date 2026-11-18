@@ -531,7 +531,7 @@ void RENDER_3D_OPENGL::backfillPostMachine()
                 plugZTop = std::min( plugZTop, viaZTop - depth );
                 plugR = std::max( plugR, drillRadius );
             }
-            else if( backdrill.end == B_Cu && backdrill.size.x > 0 )
+            else if( backdrill.start == B_Cu && backdrill.size.x > 0 )
             {
                 int          depthIU = stackup.GetLayerDistance( backdrill.end, backdrill.start );
                 PCB_LAYER_ID mustNotCut = FabBackdrillMustNotCut( cuStack, backdrill.start, backdrill.end );
@@ -635,7 +635,7 @@ void RENDER_3D_OPENGL::backfillPostMachine()
                     plugZTop = std::min( plugZTop, padZTop - depth );
                     plugR = std::max( plugR, drillRadius );
                 }
-                else if( backdrill.end == B_Cu && backdrill.size.x > 0 )
+                else if( backdrill.start == B_Cu && backdrill.size.x > 0 )
                 {
                     int          depthIU = stackup.GetLayerDistance( backdrill.end, backdrill.start );
                     PCB_LAYER_ID mustNotCut = FabBackdrillMustNotCut( cuStack, backdrill.start, backdrill.end );
@@ -1631,8 +1631,11 @@ void RENDER_3D_OPENGL::generateComplexHoles( float aPlatingThickness3d, float aU
         unsigned int nrSegments = m_boardAdapter.GetCircleSegmentCount( via->GetDrillValue() );
         float        holeInnerR = (float) via->GetDrillValue() * 0.5f * aUnitScale;
 
-        float ztop = m_boardAdapter.GetLayerBottomZPos( F_Cu ) + m_boardAdapter.GetFrontCopperThickness() * 0.99f;
-        float zbot = m_boardAdapter.GetLayerBottomZPos( B_Cu ) - m_boardAdapter.GetBackCopperThickness() * 0.99f;
+        PCB_LAYER_ID top_layer, bottom_layer;
+        via->LayerPair( &top_layer, &bottom_layer );
+
+        float ztop = m_boardAdapter.GetLayerTopZPos( top_layer );
+        float zbot = m_boardAdapter.GetLayerBottomZPos( bottom_layer );
 
         float ztop_plated = ztop;
         float zbot_plated = zbot;
@@ -1658,7 +1661,7 @@ void RENDER_3D_OPENGL::generateComplexHoles( float aPlatingThickness3d, float aU
                     ztop_plated = std::min( ztop_plated, zEnd );
                 }
             }
-            else if( backdrill.end == B_Cu && backdrill.size.x > 0 )
+            else if( backdrill.start == B_Cu && backdrill.size.x > 0 )
             {
                 int          depthIU = stackup.GetLayerDistance( backdrill.end, backdrill.start );
                 PCB_LAYER_ID mustNotCut = FabBackdrillMustNotCut( cuStack, backdrill.start, backdrill.end );
@@ -1713,9 +1716,6 @@ void RENDER_3D_OPENGL::generateComplexHoles( float aPlatingThickness3d, float aU
     float ztop = m_boardAdapter.GetLayerBottomZPos( F_Cu ) + m_boardAdapter.GetFrontCopperThickness() * 0.99f;
     float zbot = m_boardAdapter.GetLayerBottomZPos( B_Cu ) - m_boardAdapter.GetBackCopperThickness() * 0.99f;
 
-    float ztop_plated = ztop;
-    float zbot_plated = zbot;
-
     for( const FOOTPRINT* footprint : m_boardAdapter.GetBoard()->Footprints() )
     {
         for( const PAD* pad : footprint->Pads() )
@@ -1738,6 +1738,8 @@ void RENDER_3D_OPENGL::generateComplexHoles( float aPlatingThickness3d, float aU
                                     - (float) pad->GetPosition().y * aUnitScale );
             unsigned int nrSegments = m_boardAdapter.GetCircleSegmentCount( pad->GetDrillSize().x );
             float        holeInnerR = (float) pad->GetDrillSize().x * 0.5f * aUnitScale;
+            float        ztop_plated = ztop;
+            float        zbot_plated = zbot;
 
             if( pad->GetFrontPostMachiningMode() == PAD_DRILL_POST_MACHINING_MODE::COUNTERBORE
                     || pad->GetFrontPostMachiningMode() == PAD_DRILL_POST_MACHINING_MODE::COUNTERSINK )
