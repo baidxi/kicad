@@ -827,13 +827,23 @@ void GIT_COMMIT_PANE::updateDockMinHeight()
     if( !pane.IsOk() )
         return;
 
-    // A refresh passes through shorter states, so compare with what the manager already has
-    const bool changed = pane.min_size.y != m_dockMinHeight;
+    wxAuiFloatingFrame* floating = wxDynamicCast( pane.frame, wxAuiFloatingFrame );
+    int                 minHeight = m_dockMinHeight;
 
-    pane.MinSize( pane.min_size.x, m_dockMinHeight );
+    if( manager->GetManagedWindow() )
+        m_dockFrameHeight = manager->GetManagedWindow()->GetClientSize().y;
+
+    // A minimum taller than the frame makes AUI place the pane past the bottom, so let the pane scroll instead
+    if( !floating && m_dockFrameHeight >= 0 )
+        minHeight = std::min( minHeight, m_dockFrameHeight );
+
+    // A refresh passes through shorter states, so compare with what the manager already has
+    const bool changed = pane.min_size.y != minHeight;
+
+    pane.MinSize( pane.min_size.x, minHeight );
 
     // A floating pane is laid out by a copy of its info in the floating frame's own manager
-    if( wxAuiFloatingFrame* floating = wxDynamicCast( pane.frame, wxAuiFloatingFrame ) )
+    if( floating )
     {
         wxAuiManager&  inner = floating->GetAuiManager();
         wxAuiPaneInfo& innerPane = inner.GetPane( this );
@@ -892,6 +902,15 @@ void GIT_COMMIT_PANE::onThemeChanged( wxSysColourChangedEvent& aEvent )
 void GIT_COMMIT_PANE::onIdle( wxIdleEvent& aEvent )
 {
     aEvent.Skip();
+
+    // The clamp follows the frame, which resizes without the pane's layout changing
+    wxAuiManager* manager = wxAuiManager::GetManager( this );
+
+    if( manager && manager->GetManagedWindow()
+        && manager->GetManagedWindow()->GetClientSize().y != m_dockFrameHeight )
+    {
+        m_dockUpdatePending = true;
+    }
 
     // Update() from inside Layout() would recurse, and during a sash drag it would drop the drag
     if( m_dockUpdatePending && !wxWindow::GetCapture() )
@@ -2656,8 +2675,8 @@ void GIT_COMMIT_PANE::onPushDone( std::shared_ptr<KIGIT_COMMON> aCommon, int aRe
     // again, rather than force over them.
     if( result == PushResult::NonFastForward )
     {
-        // Getting their changes needs a clean tree. Files left unticked at the commit, or edits
-        // still in an editor, block it, and offering the click anyway would only fail later.
+        // Edits still in an editor block getting their changes, and offering the click anyway would only fail
+        // later. Uncommitted files are left to the pull, as a merge keeps unrelated ones and a rebase refuses
         auto     worktree = std::make_shared<GIT_WORKTREE_STATUS>();
         wxString projectPath = m_frame->Prj().GetProjectPath();
 
@@ -2669,7 +2688,7 @@ void GIT_COMMIT_PANE::onPushDone( std::shared_ptr<KIGIT_COMMON> aCommon, int aRe
                 },
                 [this, aCommon, worktree]()
                 {
-                    if( !ProjectSafeToRewrite( m_frame, this, *worktree ) )
+                    if( !ProjectSafeToRewrite( m_frame, this, *worktree, true ) )
                         return;
 
                     if( IsOK( this, _( "Someone else pushed changes first.\n\n"
@@ -3100,7 +3119,8 @@ void GIT_COMMIT_PANE::submitPull( std::shared_ptr<KIGIT_COMMON> aCommon, bool aT
             },
             [this, aCommon, aThenPush, aRetriedAfterTrust, result]()
             {
-                if( !ProjectSafeToRewrite( m_frame, this, result->worktree ) )
+                // The backend decides, refusing a fast-forward only over files it changes
+                if( !ProjectSafeToRewrite( m_frame, this, result->worktree, true ) )
                     return;
 
                 // A non-fast-forward pull creates a commit, so obtain its identity before
@@ -3112,7 +3132,7 @@ void GIT_COMMIT_PANE::submitPull( std::shared_ptr<KIGIT_COMMON> aCommon, bool aT
                     return;
 
                 // The identity prompt can allow new editor changes while it is open.
-                if( !ProjectSafeToRewrite( m_frame, this, result->worktree ) )
+                if( !ProjectSafeToRewrite( m_frame, this, result->worktree, true ) )
                     return;
 
                 startPull( aCommon, aThenPush, aRetriedAfterTrust );
@@ -3273,8 +3293,8 @@ void GIT_COMMIT_PANE::onPullDone( std::shared_ptr<KIGIT_COMMON> aCommon, int aRe
         return;
     }
 
-    // Something uncommitted appeared after the pre-pull check, or an untracked file collides
-    // with an incoming one. This is the panel's own job to fix, not the command line's.
+    // An uncommitted change is in the way of the incoming files, or an untracked file collides
+    // with an incoming one. This is the panel's own job to fix, not the command line's
     if( result == PullResult::DirtyWorkdir )
     {
         setBusy( false, _( "Commit your changes first." ) );

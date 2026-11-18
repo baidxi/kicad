@@ -304,6 +304,10 @@ void LIBRARY_MANAGER::createEmptyTable( LIBRARY_TABLE_TYPE aType, LIBRARY_TABLE_
 
         m_tables[aType] = std::make_unique<LIBRARY_TABLE>( fn, LIBRARY_TABLE_SCOPE::GLOBAL );
         m_tables[aType]->SetType( aType );
+
+        // A file that exists but could not be read must stay not ok, so it is never saved over
+        if( !fn.FileExists() )
+            m_tables[aType]->SetOk();
     }
     else if( aScope == LIBRARY_TABLE_SCOPE::PROJECT )
     {
@@ -656,6 +660,16 @@ void LIBRARY_MANAGER::EnsureGlobalTables()
 
 void LIBRARY_MANAGER::LoadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE> aTablesToLoad )
 {
+    loadGlobalTables( aTablesToLoad );
+
+    // A passive load must not maintain or save the active user's library tables.
+    if( !IsProjectScoped() )
+        maintainPcmLibraries();
+}
+
+
+void LIBRARY_MANAGER::loadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE> aTablesToLoad )
+{
     // Cancel any in-progress load
     {
         std::scoped_lock lock( m_adaptersMutex );
@@ -665,11 +679,11 @@ void LIBRARY_MANAGER::LoadGlobalTables( std::initializer_list<LIBRARY_TABLE_TYPE
     }
 
     loadTables( PATHS::GetUserSettingsPath(), LIBRARY_TABLE_SCOPE::GLOBAL, aTablesToLoad );
+}
 
-    // A passive load must not maintain or save the active user's library tables.
-    if( IsProjectScoped() )
-        return;
 
+void LIBRARY_MANAGER::maintainPcmLibraries()
+{
     SETTINGS_MANAGER& mgr = Pgm().GetSettingsManager();
     KICAD_SETTINGS*   settings = mgr.GetAppSettings<KICAD_SETTINGS>( "kicad" );
 
@@ -1058,6 +1072,32 @@ void LIBRARY_MANAGER::LoadProjectTables( const wxString& aProjectPath,
         for( const std::unique_ptr<LIBRARY_MANAGER_ADAPTER>& adapter : m_adapters | std::views::values )
             adapter->ProjectTablesReloaded( aTablesToLoad );
     }
+}
+
+
+void LIBRARY_MANAGER::ReloadChangedTables( LIBRARY_TABLE_TYPE aType )
+{
+    auto changed = [aType]( const auto& aTables )
+    {
+        auto it = aTables.find( aType );
+
+        if( it == aTables.end() || !it->second->DiskChanged() )
+            return false;
+
+        wxLogTrace( traceLibraries, "Reloading %s, its file changed after it was loaded", it->second->Path() );
+        return true;
+    };
+
+    // Opening a dialog must never save, so this skips the PCM maintenance that can
+    if( changed( m_tables ) )
+        loadGlobalTables( { aType } );
+
+    // The dialogs always need a global table to edit, even when its file is missing
+    if( !m_tables.contains( aType ) )
+        createEmptyTable( aType, LIBRARY_TABLE_SCOPE::GLOBAL );
+
+    if( changed( m_projectTables ) )
+        ReloadTables( LIBRARY_TABLE_SCOPE::PROJECT, { aType } );
 }
 
 

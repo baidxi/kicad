@@ -41,6 +41,8 @@
 #include <wx/log.h>
 #include <gestfich.h>
 #include <paths.h>
+#include <pgm_base.h>
+#include <settings/common_settings.h>
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -120,13 +122,36 @@ bool LIBGIT_BACKEND::IsLibraryAvailable()
 }
 
 
-// git_signature_default answers GIT_ENOTFOUND only when user.name or user.email is not set
+// defaultSignature answers GIT_ENOTFOUND only when no name or no email is set anywhere
 static KIGIT_ERROR_MESSAGE describeSignatureFailure( int aRc )
 {
     if( aRc == GIT_ENOTFOUND )
         return { _( "Set your name and email before committing (gear menu > Set Author...)." ), wxEmptyString };
 
     return { _( "Could not record the commit author." ), KIGIT_COMMON::GetLastGitError() };
+}
+
+
+// The commit pane records the same author
+static int defaultSignature( git_signature** aSignature, git_repository* aRepo )
+{
+    GitUserConfig local;
+    GitUserConfig global;
+    KIGIT::ReadAuthorConfig( aRepo, local, global );
+
+    COMMON_SETTINGS::GIT prefs{};
+    prefs.useDefaultAuthor = true;
+
+    if( PGM_BASE* pgm = PgmOrNull(); pgm && pgm->GetCommonSettings() )
+        prefs = pgm->GetCommonSettings()->m_Git;
+
+    GitUserConfig author = KIGIT::ResolveAuthor( prefs, local, global );
+
+    if( !author.hasName || !author.hasEmail )
+        return GIT_ENOTFOUND;
+
+    return git_signature_now( aSignature, author.authorName.utf8_string().c_str(),
+                              author.authorEmail.utf8_string().c_str() );
 }
 
 
@@ -1330,38 +1355,6 @@ wxString LIBGIT_BACKEND::GetWorkingDirectory( GIT_STATUS_HANDLER* aHandler )
 }
 
 
-bool LIBGIT_BACKEND::GetConfigString( GIT_CONFIG_HANDLER* aHandler, const wxString& aKey, wxString& aValue )
-{
-    git_repository* repo = aHandler->GetRepo();
-
-    if( !repo )
-        return false;
-
-    git_config* config = nullptr;
-
-    if( git_repository_config( &config, repo ) != GIT_OK )
-    {
-        wxLogTrace( traceGit, "Failed to get repository config: %s", KIGIT_COMMON::GetLastGitError() );
-        return false;
-    }
-
-    KIGIT::GitConfigPtr configPtr( config );
-
-    git_config_entry* entry = nullptr;
-    int                      result = git_config_get_entry( &entry, config, aKey.utf8_string().c_str() );
-    KIGIT::GitConfigEntryPtr entryPtr( entry );
-
-    if( result != GIT_OK || entry == nullptr )
-    {
-        wxLogTrace( traceGit, "Config key '%s' not found", aKey );
-        return false;
-    }
-
-    aValue = wxString( entry->value );
-    return true;
-}
-
-
 bool LIBGIT_BACKEND::IsRepository( GIT_INIT_HANDLER* aHandler, const wxString& aPath )
 {
     git_repository* repo = nullptr;
@@ -1879,11 +1872,11 @@ static std::vector<std::string> changedPaths( git_repository* aRepo )
 
 // Tracked files only. Callers read CLEAN as permission to roll back over the tree, so an
 // unreadable status gets its own answer rather than passing as clean.
-static TREE_STATE trackedTreeState( git_repository* aRepo )
+static TREE_STATE trackedTreeState( git_repository* aRepo, git_status_show_t aShow = GIT_STATUS_SHOW_INDEX_AND_WORKDIR )
 {
     git_status_options statusOpts;
     git_status_init_options( &statusOpts, GIT_STATUS_OPTIONS_VERSION );
-    statusOpts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+    statusOpts.show = aShow;
 
     git_status_list* statusList = nullptr;
 
@@ -1935,16 +1928,152 @@ static bool untrackedFilesOverwrittenBy( git_repository* aRepo, git_tree* aIncom
 }
 
 
-static wxString describeUntrackedCollisions( const std::vector<wxString>& aPaths )
+static KIGIT::GitTreePtr commitTree( git_repository* aRepo, const git_oid* aCommit )
+{
+    git_commit* commit = nullptr;
+    git_tree*   tree = nullptr;
+
+    if( git_commit_lookup( &commit, aRepo, aCommit ) == GIT_OK )
+    {
+        KIGIT::GitCommitPtr commitPtr( commit );
+        git_commit_tree( &tree, commit );
+    }
+
+    return KIGIT::GitTreePtr( tree );
+}
+
+
+// A rename reports two paths, and both count
+static bool pathsChangedBetween( git_repository* aRepo, git_tree* aFrom, git_tree* aTo, std::set<std::string>& aPaths )
+{
+    git_diff* diff = nullptr;
+
+    if( git_diff_tree_to_tree( &diff, aRepo, aFrom, aTo, nullptr ) != GIT_OK )
+        return false;
+
+    KIGIT::GitDiffPtr diffPtr( diff );
+
+    KIGIT::CollectDiffDeltas( diff,
+                              [&]( const git_diff_delta& aDelta )
+                              {
+                                  for( const char* path : { aDelta.old_file.path, aDelta.new_file.path } )
+                                  {
+                                      if( path )
+                                          aPaths.insert( path );
+                                  }
+                              } );
+
+    return true;
+}
+
+
+// Deletions and renames overlap too, and an unreadable status or diff must not read as none
+static bool dirtyFilesChangedBy( git_repository* aRepo, git_tree* aBase, git_tree* aIncoming,
+                                 std::vector<wxString>& aOverlap )
+{
+    git_status_options statusOpts;
+    git_status_init_options( &statusOpts, GIT_STATUS_OPTIONS_VERSION );
+    statusOpts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+
+    git_status_list* statusList = nullptr;
+
+    if( git_status_list_new( &statusList, aRepo, &statusOpts ) != GIT_OK )
+        return false;
+
+    KIGIT::GitStatusListPtr statusListPtr( statusList );
+    git_config*             config = nullptr;
+    int                     ignoreCase = 0;
+
+    if( git_repository_config( &config, aRepo ) != GIT_OK )
+        return false;
+
+    KIGIT::GitConfigPtr configPtr( config );
+    git_config_get_bool( &ignoreCase, config, "core.ignorecase" );
+
+    // A case-only twin is the same file on such a file system
+    auto key = [&]( const char* aPath )
+    {
+        wxString path = wxString::FromUTF8( aPath );
+        return ignoreCase ? path.Lower() : path;
+    };
+
+    std::map<wxString, wxString> dirty;
+
+    for( size_t ii = 0; ii < git_status_list_entrycount( statusList ); ++ii )
+    {
+        const git_status_entry* entry = git_status_byindex( statusList, ii );
+
+        for( const git_diff_delta* delta : { entry->head_to_index, entry->index_to_workdir } )
+        {
+            if( !delta )
+                continue;
+
+            for( const char* path : { delta->old_file.path, delta->new_file.path } )
+            {
+                if( path )
+                    dirty.emplace( key( path ), wxString::FromUTF8( path ) );
+            }
+        }
+    }
+
+    if( dirty.empty() )
+        return true;
+
+    std::set<std::string> incoming;
+
+    if( !pathsChangedBetween( aRepo, aBase, aIncoming, incoming ) )
+        return false;
+
+    std::set<wxString> overlap;
+
+    for( const std::string& path : incoming )
+    {
+        if( auto it = dirty.find( key( path.c_str() ) ); it != dirty.end() )
+            overlap.insert( it->second );
+    }
+
+    aOverlap.insert( aOverlap.end(), overlap.begin(), overlap.end() );
+    return true;
+}
+
+
+static wxString pathList( const std::vector<wxString>& aPaths )
 {
     wxString listed;
 
     for( const wxString& path : aPaths )
         listed += wxS( "\n    " ) + path;
 
+    return listed;
+}
+
+
+// A skipped file would leave the local edit reading as a reversal of the incoming change
+static std::optional<PullResult> refuseDirtyOverlap( GIT_PULL_HANDLER* aHandler, git_tree* aBase, git_tree* aIncoming )
+{
+    std::vector<wxString> overlap;
+
+    if( !dirtyFilesChangedBy( aHandler->GetRepo(), aBase, aIncoming, overlap ) )
+    {
+        aHandler->AddGitError( _( "Could not read the status of the project files, so getting changes was stopped." ) );
+        return PullResult::Error;
+    }
+
+    if( overlap.empty() )
+        return std::nullopt;
+
+    aHandler->AddErrorString( wxString::Format( _( "The incoming changes would run over changes that are not "
+                                                   "committed yet:%s\n\nCommit them first." ),
+                                                pathList( overlap ) ) );
+    return PullResult::DirtyWorkdir;
+}
+
+
+static wxString describeUntrackedCollisions( const std::vector<wxString>& aPaths )
+{
     return wxString::Format( _( "Getting changes would overwrite files that were never committed:%s\n\n"
                                 "Commit or discard them first." ),
-                             listed );
+                             pathList( aPaths ) );
 }
 
 
@@ -2286,22 +2415,16 @@ PullResult LIBGIT_BACKEND::handleFastForward( GIT_PULL_HANDLER* aHandler )
     }
 
     KIGIT::GitTreePtr targetTreePtr( targetTree );
+    KIGIT::GitTreePtr headTree( KIGIT::ResolveRefToTree( aHandler->GetRepo(), wxS( "HEAD" ) ) );
 
-    // A skipped file would leave the local edit reading as a reversal of the remote change.
-    TREE_STATE treeState = trackedTreeState( aHandler->GetRepo() );
-
-    if( treeState == TREE_STATE::UNKNOWN )
+    if( !headTree )
     {
-        aHandler->AddGitError( _( "Could not read the status of the project files, so getting changes was stopped." ) );
+        aHandler->AddErrorString( _( "Could not read the current commit." ) );
         return PullResult::Error;
     }
 
-    if( treeState == TREE_STATE::DIRTY )
-    {
-        aHandler->AddErrorString( _( "There are changes that are not committed yet, and getting changes would "
-                                     "run over them. Commit them first." ) );
-        return PullResult::DirtyWorkdir;
-    }
+    if( std::optional<PullResult> refused = refuseDirtyOverlap( aHandler, headTree.get(), targetTree ) )
+        return *refused;
 
     std::vector<wxString> collisions;
 
@@ -2407,53 +2530,37 @@ PullResult LIBGIT_BACKEND::handleFastForward( GIT_PULL_HANDLER* aHandler )
 }
 
 
-bool LIBGIT_BACKEND::hasUnstagedChanges( git_repository* aRepo )
+// A rebase aborts with a hard reset of the whole tree, so it needs every tracked change committed.
+// A merge commits the whole index, so it needs only the staged ones
+static std::optional<PullResult> refuseUncommittedChanges( GIT_PULL_HANDLER* aHandler, bool aStagedOnly )
 {
-    if( !aRepo )
-        return false;
-
-    git_status_options opts;
-    git_status_init_options( &opts, GIT_STATUS_OPTIONS_VERSION );
-
-    // Only check workdir changes (unstaged), not index changes (staged)
-    opts.show = GIT_STATUS_SHOW_WORKDIR_ONLY;
-    opts.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED;
-
-    git_status_list* status_list = nullptr;
-
-    if( git_status_list_new( &status_list, aRepo, &opts ) != GIT_OK )
+    switch( trackedTreeState( aHandler->GetRepo(),
+                              aStagedOnly ? GIT_STATUS_SHOW_INDEX_ONLY : GIT_STATUS_SHOW_INDEX_AND_WORKDIR ) )
     {
-        wxLogTrace( traceGit, "Failed to get status list: %s", KIGIT_COMMON::GetLastGitError() );
-        return false;
+    case TREE_STATE::CLEAN: return std::nullopt;
+
+    case TREE_STATE::DIRTY:
+        aHandler->AddErrorString( aStagedOnly ? _( "Combining the incoming changes with your own commits would "
+                                                   "also commit the changes staged for your next commit. Commit "
+                                                   "them, then get changes again." )
+                                              : _( "Combining the incoming changes with your own commits needs "
+                                                   "every change committed first. Commit them, then get changes "
+                                                   "again." ) );
+        return PullResult::DirtyWorkdir;
+
+    case TREE_STATE::UNKNOWN: break;
     }
 
-    KIGIT::GitStatusListPtr status_list_ptr( status_list );
-    size_t count = git_status_list_entrycount( status_list );
-
-    // Check if any of the entries are actual modifications (not just untracked files)
-    for( size_t ii = 0; ii < count; ++ii )
-    {
-        const git_status_entry* entry = git_status_byindex( status_list, ii );
-
-        // Check for actual workdir modifications, not just untracked files
-        if( entry->status & ( GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED | GIT_STATUS_WT_TYPECHANGE ) )
-            return true;
-    }
-
-    return false;
+    aHandler->AddGitError( _( "Could not read the status of the project files, so getting changes was stopped." ) );
+    return PullResult::Error;
 }
 
 
 PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_annotated_commit** aMergeHeads,
                                         size_t aMergeHeadsCount )
 {
-    // Check for unstaged changes before attempting merge
-    if( hasUnstagedChanges( aHandler->GetRepo() ) )
-    {
-        aHandler->AddErrorString( _( "Cannot merge: you have unstaged changes. Please commit or stash them "
-                                     "before pulling." ) );
-        return PullResult::DirtyWorkdir;
-    }
+    if( std::optional<PullResult> refused = refuseUncommittedChanges( aHandler, true ) )
+        return *refused;
 
     git_repository* repo = aHandler->GetRepo();
 
@@ -2461,7 +2568,7 @@ PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_an
     {
         git_signature* probe = nullptr;
 
-        if( int rc = git_signature_default( &probe, repo ); rc != GIT_OK )
+        if( int rc = defaultSignature( &probe, repo ); rc != GIT_OK )
         {
             KIGIT_ERROR_MESSAGE failure = describeSignatureFailure( rc );
             aHandler->AddError( failure );
@@ -2472,34 +2579,60 @@ PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_an
     }
 
     {
-        git_commit* theirs = nullptr;
+        const git_oid*    theirsOid = git_annotated_commit_id( aMergeHeads[0] );
+        git_oid           headOid;
+        git_oid           baseOid;
+        int               baseRc = GIT_ERROR;
+        KIGIT::GitTreePtr theirsTree = commitTree( repo, theirsOid );
+        KIGIT::GitTreePtr baseTree;
 
-        if( git_commit_lookup( &theirs, repo, git_annotated_commit_id( aMergeHeads[0] ) ) == GIT_OK )
+        // The merge writes only what changed on the incoming side since the shared history
+        if( git_reference_name_to_id( &headOid, repo, "HEAD" ) == GIT_OK )
+            baseRc = git_merge_base( &baseOid, repo, &headOid, theirsOid );
+
+        // Unrelated histories have no base, so every incoming path counts as changed
+        if( baseRc == GIT_OK )
+            baseTree = commitTree( repo, &baseOid );
+        else if( baseRc == GIT_ENOTFOUND )
+            git_error_clear();
+
+        if( !theirsTree || ( baseRc != GIT_ENOTFOUND && !baseTree ) )
         {
-            KIGIT::GitCommitPtr theirsPtr( theirs );
-            git_tree*           theirsTree = nullptr;
+            aHandler->AddGitError( _( "Could not read the fetched commit." ) );
+            return PullResult::Error;
+        }
 
-            if( git_commit_tree( &theirsTree, theirs ) == GIT_OK )
-            {
-                KIGIT::GitTreePtr     theirsTreePtr( theirsTree );
-                std::vector<wxString> collisions;
+        if( std::optional<PullResult> refused = refuseDirtyOverlap( aHandler, baseTree.get(), theirsTree.get() ) )
+            return *refused;
 
-                if( !untrackedFilesOverwrittenBy( repo, theirsTree, collisions ) )
-                {
-                    aHandler->AddErrorString( _( "Could not read the status of the project files, so getting "
-                                                 "changes was stopped. Files that were never committed could "
-                                                 "have been overwritten." ) );
-                    return PullResult::Error;
-                }
+        std::vector<wxString> collisions;
 
-                if( !collisions.empty() )
-                {
-                    aHandler->AddErrorString( describeUntrackedCollisions( collisions ) );
-                    return PullResult::DirtyWorkdir;
-                }
-            }
+        if( !untrackedFilesOverwrittenBy( repo, theirsTree.get(), collisions ) )
+        {
+            aHandler->AddErrorString( _( "Could not read the status of the project files, so getting "
+                                         "changes was stopped. Files that were never committed could "
+                                         "have been overwritten." ) );
+            return PullResult::Error;
+        }
+
+        if( !collisions.empty() )
+        {
+            aHandler->AddErrorString( describeUntrackedCollisions( collisions ) );
+            return PullResult::DirtyWorkdir;
         }
     }
+
+    // Only the paths the merge wrote, so uncommitted edits elsewhere survive
+    auto undoMerge = [&]()
+    {
+        wxString error;
+
+        if( AbandonOperation( repo, error ) )
+            return true;
+
+        aHandler->AddError( _( "Could not undo the merge, so the project files may be left part way merged." ), error );
+        return false;
+    };
 
     if( git_merge( repo, aMergeHeads, aMergeHeadsCount, nullptr, nullptr ) )
     {
@@ -2512,26 +2645,14 @@ PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_an
     if( git_repository_index( &index, repo ) != GIT_OK )
     {
         aHandler->AddErrorString( _( "Could not read repository index after merge." ) );
+        undoMerge();
         return PullResult::MergeFailed;
     }
 
     KIGIT::GitIndexPtr indexPtr( index );
 
     if( git_index_has_conflicts( index ) )
-    {
-        // Abort the merge and restore the pre-pull state
-        git_object* head_obj = nullptr;
-
-        if( git_revparse_single( &head_obj, repo, "HEAD" ) == GIT_OK )
-        {
-            KIGIT::GitObjectPtr headObjPtr( head_obj );
-            git_reset( repo, head_obj, GIT_RESET_HARD, nullptr );
-        }
-
-        git_repository_state_cleanup( repo );
-
-        return PullResult::Conflict;
-    }
+        return undoMerge() ? PullResult::Conflict : PullResult::MergeFailed;
 
     git_oid        tree_oid;
     git_tree*      tree = nullptr;
@@ -2540,20 +2661,6 @@ PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_an
     git_commit*    head_commit = nullptr;
     git_commit*    merge_commit = nullptr;
     git_signature* signature = nullptr;
-
-    // Merged on disk but not recorded, so a failure from here puts the tree back at HEAD.
-    auto undoMerge = [&]()
-    {
-        git_object* headObj = nullptr;
-
-        if( git_revparse_single( &headObj, repo, "HEAD" ) == GIT_OK )
-        {
-            KIGIT::GitObjectPtr headObjPtr( headObj );
-            git_reset( repo, headObj, GIT_RESET_HARD, nullptr );
-        }
-
-        git_repository_state_cleanup( repo );
-    };
 
     if( git_index_write_tree( &tree_oid, index ) != GIT_OK || git_tree_lookup( &tree, repo, &tree_oid ) != GIT_OK )
     {
@@ -2585,7 +2692,7 @@ PullResult LIBGIT_BACKEND::handleMerge( GIT_PULL_HANDLER* aHandler, const git_an
     KIGIT::GitCommitPtr headCommitPtr( head_commit );
     KIGIT::GitCommitPtr mergeCommitPtr( merge_commit );
 
-    if( int rc = git_signature_default( &signature, repo ); rc != GIT_OK )
+    if( int rc = defaultSignature( &signature, repo ); rc != GIT_OK )
     {
         KIGIT_ERROR_MESSAGE failure = describeSignatureFailure( rc );
         aHandler->AddError( failure );
@@ -2617,7 +2724,7 @@ static PullResult rebaseOnto( GIT_PULL_HANDLER* aHandler, git_repository* aRepo,
 {
     git_signature* signature = nullptr;
 
-    if( int rc = git_signature_default( &signature, aRepo ); rc != GIT_OK )
+    if( int rc = defaultSignature( &signature, aRepo ); rc != GIT_OK )
     {
         KIGIT_ERROR_MESSAGE failure = describeSignatureFailure( rc );
         aHandler->AddError( failure );
@@ -2688,13 +2795,8 @@ static PullResult rebaseOnto( GIT_PULL_HANDLER* aHandler, git_repository* aRepo,
 PullResult LIBGIT_BACKEND::handleRebase( GIT_PULL_HANDLER* aHandler, const git_annotated_commit** aMergeHeads,
                                          size_t aMergeHeadsCount )
 {
-    // Check for unstaged changes before attempting rebase
-    if( hasUnstagedChanges( aHandler->GetRepo() ) )
-    {
-        aHandler->AddErrorString( _( "Cannot pull with rebase: you have unstaged changes. Please commit or stash "
-                                     "them before pulling." ) );
-        return PullResult::DirtyWorkdir;
-    }
+    if( std::optional<PullResult> refused = refuseUncommittedChanges( aHandler, false ) )
+        return *refused;
 
     return rebaseOnto( aHandler, aHandler->GetRepo(), aMergeHeads[0] );
 }
@@ -2801,7 +2903,7 @@ bool LIBGIT_BACKEND::StashSave( git_repository* aRepo, const wxString& aMessage 
 
     git_signature* signature = nullptr;
 
-    if( git_signature_default( &signature, aRepo ) != GIT_OK )
+    if( defaultSignature( &signature, aRepo ) != GIT_OK )
         return false;
 
     KIGIT::GitSignaturePtr signaturePtr( signature );
@@ -2921,7 +3023,7 @@ bool LIBGIT_BACKEND::CreateTag( git_repository* aRepo, const wxString& aName, co
     // An annotated tag carries the message, and who made it, from the repository's identity.
     git_signature* tagger = nullptr;
 
-    if( git_signature_default( &tagger, aRepo ) != GIT_OK )
+    if( defaultSignature( &tagger, aRepo ) != GIT_OK )
         return false;
 
     KIGIT::GitSignaturePtr taggerPtr( tagger );
@@ -3176,7 +3278,8 @@ static bool restorePathsFromCommit( git_repository* aRepo, git_commit* aCommit, 
 
     git_checkout_options checkoutOpts;
     git_checkout_init_options( &checkoutOpts, GIT_CHECKOUT_OPTIONS_VERSION );
-    checkoutOpts.checkout_strategy = GIT_CHECKOUT_FORCE | GIT_CHECKOUT_REMOVE_UNTRACKED;
+    checkoutOpts.checkout_strategy =
+            GIT_CHECKOUT_FORCE | GIT_CHECKOUT_REMOVE_UNTRACKED | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
     checkoutOpts.paths.strings = pathSpec.data();
     checkoutOpts.paths.count = pathSpec.size();
 
@@ -3229,28 +3332,11 @@ static bool rollbackWorkingTree( git_repository* aRepo, git_commit* aHeadCommit,
     if( git_commit_tree( &previousTree, aHeadCommit ) != GIT_OK )
         return false;
 
-    KIGIT::GitTreePtr previousTreePtr( previousTree );
-
-    git_diff* diff = nullptr;
-
-    if( git_diff_tree_to_tree( &diff, aRepo, previousTree, aWrittenTree, nullptr ) != GIT_OK )
-        return false;
-
-    KIGIT::GitDiffPtr diffPtr( diff );
-
+    KIGIT::GitTreePtr     previousTreePtr( previousTree );
     std::set<std::string> touched;
 
-    for( size_t ii = 0; ii < git_diff_num_deltas( diff ); ii++ )
-    {
-        const git_diff_delta* delta = git_diff_get_delta( diff, ii );
-
-        // A rename reports two paths, and both need putting back.
-        for( const char* path : { delta->old_file.path, delta->new_file.path } )
-        {
-            if( path )
-                touched.emplace( path );
-        }
-    }
+    if( !pathsChangedBetween( aRepo, previousTree, aWrittenTree, touched ) )
+        return false;
 
     std::vector<std::string> restorable;
     bool                     leftBehind = false;
@@ -3286,11 +3372,37 @@ static PUBLISH_RESULT publishPreparedCommit( git_repository* aRepo, git_tree* aT
                                              git_reference* aHeadRef, git_commit* aRollbackCommit,
                                              const char* aReflogLabel, wxString& aGitError )
 {
+    git_tree*             previousTree = nullptr;
+    std::set<std::string> touched;
+
+    if( git_commit_tree( &previousTree, aRollbackCommit ) != GIT_OK )
+    {
+        aGitError = KIGIT_COMMON::GetLastGitError();
+        return PUBLISH_RESULT::CHECKOUT_FAILED_ROLLED_BACK;
+    }
+
+    KIGIT::GitTreePtr previousTreePtr( previousTree );
+
+    if( !pathsChangedBetween( aRepo, previousTree, aTree, touched ) )
+    {
+        aGitError = KIGIT_COMMON::GetLastGitError();
+        return PUBLISH_RESULT::CHECKOUT_FAILED_ROLLED_BACK;
+    }
+
+    // Forced, so only the paths the commit changes, or uncommitted edits elsewhere are reverted.
+    // No paths at all would mean every path
+    std::vector<char*> paths;
+
+    for( const std::string& path : touched )
+        paths.push_back( const_cast<char*>( path.c_str() ) );
+
     git_checkout_options checkoutOpts;
     git_checkout_options_init( &checkoutOpts, GIT_CHECKOUT_OPTIONS_VERSION );
-    checkoutOpts.checkout_strategy = GIT_CHECKOUT_FORCE;
+    checkoutOpts.checkout_strategy = GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
+    checkoutOpts.paths.strings = paths.data();
+    checkoutOpts.paths.count = paths.size();
 
-    if( git_checkout_tree( aRepo, reinterpret_cast<git_object*>( aTree ), &checkoutOpts ) != GIT_OK )
+    if( !paths.empty() && git_checkout_tree( aRepo, reinterpret_cast<git_object*>( aTree ), &checkoutOpts ) != GIT_OK )
     {
         aGitError = KIGIT_COMMON::GetLastGitError();
 
@@ -3502,7 +3614,7 @@ RestoreResult LIBGIT_BACKEND::RestoreVersion( KIGIT_COMMON& aCommon, const wxStr
 
     git_signature* signature = nullptr;
 
-    if( int rc = git_signature_default( &signature, repo ); rc != GIT_OK )
+    if( int rc = defaultSignature( &signature, repo ); rc != GIT_OK )
     {
         aError = describeSignatureFailure( rc );
         return RestoreResult::Error;
@@ -3805,7 +3917,7 @@ bool LIBGIT_BACKEND::AbandonOperation( git_repository* aRepo, wxString& aError )
 
         git_checkout_options checkoutOpts;
         git_checkout_options_init( &checkoutOpts, GIT_CHECKOUT_OPTIONS_VERSION );
-        checkoutOpts.checkout_strategy = GIT_CHECKOUT_FORCE;
+        checkoutOpts.checkout_strategy = GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
         checkoutOpts.paths.strings = paths.data();
         checkoutOpts.paths.count = paths.size();
 
@@ -3928,33 +4040,6 @@ MergeCommitResult LIBGIT_BACKEND::CreateMergedCommit( git_repository* aRepo, con
         return MergeCommitResult::FailedCleanly;
     }
 
-    // The lock is released while the user resolves, so anything dirty now appeared during
-    // resolution and the checkout below would revert it. Untracked files do not count, since
-    // the recovery copies the panel writes beside a conflicted file are untracked.
-    {
-        git_status_options statusOpts;
-        git_status_init_options( &statusOpts, GIT_STATUS_OPTIONS_VERSION );
-        statusOpts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
-
-        git_status_list* statusList = nullptr;
-
-        if( git_status_list_new( &statusList, aRepo, &statusOpts ) != GIT_OK )
-        {
-            aError.details = _( "Could not read the repository status." );
-            return MergeCommitResult::FailedCleanly;
-        }
-
-        KIGIT::GitStatusListPtr statusListPtr( statusList );
-
-        if( git_status_list_entrycount( statusList ) > 0 )
-        {
-            aError.details = _( "Files changed while the conflicts were being resolved, and finishing the "
-                                "merge would overwrite those changes. Get changes again to redo the merge "
-                                "with the current files." );
-            return MergeCommitResult::FailedCleanly;
-        }
-    }
-
     KIGIT::GitIndexPtr  mergedIndex;
     KIGIT::GitCommitPtr ours;
     KIGIT::GitCommitPtr theirs;
@@ -4059,9 +4144,44 @@ MergeCommitResult LIBGIT_BACKEND::CreateMergedCommit( git_repository* aRepo, con
 
     KIGIT::GitTreePtr treePtr( tree );
 
+    // The lock is released while the user resolves, so a dirty or untracked file where the merge writes
+    // appeared meanwhile. The recovery copies the panel writes beside a conflicted file lie elsewhere
+    {
+        KIGIT::GitTreePtr     oursTree = commitTree( aRepo, git_commit_id( ours.get() ) );
+        std::vector<wxString> overlap;
+
+        if( !oursTree || !dirtyFilesChangedBy( aRepo, oursTree.get(), tree, overlap ) )
+        {
+            aError.details = _( "Could not read the repository status." );
+            return MergeCommitResult::FailedCleanly;
+        }
+
+        if( !overlap.empty() )
+        {
+            aError.details = _( "Files changed while the conflicts were being resolved, and finishing the "
+                                "merge would overwrite those changes. Get changes again to redo the merge "
+                                "with the current files." );
+            return MergeCommitResult::FailedCleanly;
+        }
+
+        std::vector<wxString> collisions;
+
+        if( !untrackedFilesOverwrittenBy( aRepo, tree, collisions ) )
+        {
+            aError.details = _( "Could not read the repository status." );
+            return MergeCommitResult::FailedCleanly;
+        }
+
+        if( !collisions.empty() )
+        {
+            aError.details = describeUntrackedCollisions( collisions );
+            return MergeCommitResult::FailedCleanly;
+        }
+    }
+
     git_signature* signature = nullptr;
 
-    if( int rc = git_signature_default( &signature, aRepo ); rc != GIT_OK )
+    if( int rc = defaultSignature( &signature, aRepo ); rc != GIT_OK )
     {
         aError = describeSignatureFailure( rc );
         return MergeCommitResult::FailedCleanly;

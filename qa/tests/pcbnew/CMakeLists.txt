@@ -41,6 +41,7 @@ set( QA_PCBNEW_SRCS
     test_board_design_settings.cpp
     test_board_item_index.cpp
     test_board_loader.cpp
+    test_project_file_implicit_save.cpp
     test_board_item.cpp
     test_drill_chart.cpp
     test_board_commit.cpp
@@ -83,6 +84,7 @@ set( QA_PCBNEW_SRCS
     test_footprint_net_tie.cpp
     test_footprint_pad_fixup.cpp
     test_footprint_realignment.cpp
+    test_exchange_pad_changes.cpp
     test_cross_probe_selection.cpp
     test_footprint_transform_sync.cpp
     test_ref_suffix_split.cpp

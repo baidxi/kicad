@@ -139,6 +139,7 @@ public:
             mpFXYVector( aName ),
             m_type( aType ),
             m_isMultiRun( false ),
+            m_vectorName( aName ),
             m_view( nullptr ),
             m_yScaleView( nullptr )
     {
@@ -202,7 +203,10 @@ public:
 
     SIM_TRACE_TYPE GetType() const { return m_type; }
 
-    void SetTraceColour( const wxColour& aColour ) { m_traceColour = aColour; }
+    /// The plotted vector ("V(out)", "user3"); the layer name may be renamed instead.
+    const wxString& GetVectorName() const { return m_vectorName; }
+
+    void     SetTraceColour( const wxColour& aColour ) { m_traceColour = aColour; }
     wxColour GetTraceColour() const { return m_traceColour; }
 
     void SetIsMultiRun( bool aIsMultiRun ) { m_isMultiRun = aIsMultiRun; }
@@ -237,6 +241,7 @@ protected:
     SIM_TRACE_TYPE         m_type;
     wxColour               m_traceColour;
     bool                   m_isMultiRun;
+    wxString               m_vectorName;
     std::vector<wxString>  m_multiRunLabels;
     SIM_VIEW*              m_view;       // No ownership; the SIM_PLOT_TAB owns the SIM_VIEWs
     SIM_VIEW*              m_yScaleView; // No ownership; nullptr means "same as m_view"
@@ -508,7 +513,9 @@ public:
 
     void SetLegendPosition( const wxPoint& aPosition )
     {
-        m_legend->Move( aPosition );
+        // Move() offsets from the reference, which is no longer the origin since the legend starts inset
+        m_legend->UpdateReference();
+        m_legend->Move( aPosition - m_legend->GetPosition() );
         m_legend->UpdateReference();
         m_lastLegendPosition = aPosition;
     }
@@ -521,7 +528,29 @@ public:
 
     void UpdateAxisVisibility();
 
+    void UpdateMargins();
+
+    /// Pin user-entered margins; the left one never drops below what the Y1 labels need.  A negative
+    /// argument lets that margin follow the plot.
+    void SetUserMargins( int aTop, int aRight, int aBottom, int aLeft );
+
+    /// A user-entered margin (0 top, 1 right, 2 bottom, 3 left), or -1 if it follows the plot.
+    int GetUserMargin( int aIndex ) const { return m_userMargins[aIndex]; }
+
     void EnsureThirdYAxisExists();
+
+    int calcBottomMargin() const;
+
+    /// Left margin used unless the user entered one, and the padding added to the widest Y1 label.
+    static constexpr int MIN_MARGIN_LEFT = 70;
+    static constexpr int LABEL_MARGIN_PADDING = 12;
+
+    /// Hysteresis so a few pixels of label-width jitter between paints doesn't re-fit the plot each time.
+    static constexpr int MARGIN_SHRINK_SLACK = 12;
+    static constexpr int MAX_MARGIN_REFITS = 3;
+
+    /// Left margin fitting the Y1 labels of every view, so the stacked views line up.
+    int calcLeftMargin() const;
 
     // ---- Smith chart --------------------------------------------------------------------
 
@@ -597,11 +626,26 @@ private:
 
     void onPlotMouseMove( wxMouseEvent& aEvent );
     void onPlotMouseLeave( wxMouseEvent& aEvent );
+    void onPaintFinished() override;
 
 private:
     SIM_PLOT_TAB* m_plotTab;
 
     TRACK_CURSOR* m_trackCursor;
+    /// Set while re-fitting after a margin change, so the X range isn't mirrored onto siblings.
+    bool m_suppressXSync;
+
+    /// Set while a margin re-check is queued.
+    bool m_marginCheckPending;
+
+    /// Consecutive post-paint re-fits; reset once the margin settles.
+    int m_marginRefits = 0;
+
+    /// Set while UpdateMargins() runs for a post-paint re-fit.
+    bool m_inMarginRefit = false;
+
+    /// User-entered margins (top, right, bottom, left); -1 if unset.
+    int m_userMargins[4] = { -1, -1, -1, -1 };
 
     SMITH_GRID* m_smithGrid;
 
@@ -702,6 +746,36 @@ public:
 
     bool GetDottedSecondary() const { return m_dotted_cp; }
 
+    /// Trace pen widths offered by the plot settings dialog.
+    static constexpr int MIN_TRACE_WIDTH = 1;
+    static constexpr int MAX_TRACE_WIDTH = 4;
+
+    void SetTraceWidth( int aWidth )
+    {
+        m_traceWidth = std::clamp( aWidth, MIN_TRACE_WIDTH, MAX_TRACE_WIDTH );
+
+        for( const auto& [name, trace] : m_traces )
+            UpdateTraceStyle( trace );
+
+        for( SIM_VIEW* view : m_views )
+            view->UpdateAll();
+    }
+
+    int GetTraceWidth() const { return m_traceWidth; }
+
+    /// Margins apply to every view of the tab.  See SIM_VIEW::SetUserMargins().
+    void SetUserMargins( int aTop, int aRight, int aBottom, int aLeft )
+    {
+        for( SIM_VIEW* view : m_views )
+            view->SetUserMargins( aTop, aRight, aBottom, aLeft );
+
+        // The left margin is shared, so views updated early saw their siblings' old values.
+        for( SIM_VIEW* view : m_views )
+            view->UpdateMargins();
+    }
+
+    int GetUserMargin( int aIndex ) const { return m_views.empty() ? -1 : m_views[0]->GetUserMargin( aIndex ); }
+
     /// Smith mode is tab-wide: every view of the tab shows a Smith chart while it is on.
     void SetSmithMode( bool aEnable );
     bool IsSmithMode() const { return m_smithMode; }
@@ -780,6 +854,9 @@ public:
 public:
     wxPoint m_LastLegendPosition;
 
+    /// Plot window size at which the legend position was observed.
+    wxSize m_LastPlotWinSize;
+
 private:
     static mpWindow::MouseWheelActionSet convertMouseWheelActions( const SIM_MOUSE_WHEEL_ACTION_SET& s )
     {
@@ -822,6 +899,8 @@ private:
     std::map<wxString, TRACE*>    m_traces;
 
     bool m_dotted_cp;
+
+    int m_traceWidth;
 
     // Re-entrancy guard for SyncXView()
     bool m_syncingXView;
