@@ -27,10 +27,6 @@
 #include <thread>
 #include <vector>
 
-#ifdef __unix__
-#include <unistd.h>
-#endif
-
 #include <qa_utils/file_utils.h>
 #include <qa_utils/wx_utils/unit_test_utils.h>
 #include <pcbnew_utils/board_test_utils.h>
@@ -133,18 +129,9 @@ BOOST_AUTO_TEST_CASE( IsFootprintLibWritableHandlesFailedLoad )
  * plugin's IO_ERROR and return SAVE_SKIPPED, so the editor reported success and lost the
  * user's edits.  SaveFootprint() must now let the IO_ERROR propagate.
  */
-BOOST_AUTO_TEST_CASE( SaveFootprintReadOnlyFilePropagatesError )
+BOOST_AUTO_TEST_CASE( SaveFootprintReadOnlyFilePropagatesError,
+                      *boost::unit_test::precondition( KI_TEST::WriteBitsBind ) )
 {
-#ifdef __unix__
-    // The superuser ignores mode bits, so a read-only file stays writable and this path
-    // cannot be exercised.
-    if( ::geteuid() == 0 )
-    {
-        BOOST_TEST_MESSAGE( "Skipping read-only footprint save test when running as root." );
-        return;
-    }
-#endif
-
     // FootprintSave validates the whole containing directory as a library, so it needs a
     // private directory no unrelated .kicad_mod can pollute.
     KI_TEST::SCOPED_TEMP_DIR    tmpLib( "kicad_qa_adapter_save_readonly" );
@@ -589,7 +576,7 @@ BOOST_AUTO_TEST_CASE( SaveKeepsUserFieldUuids )
     std::filesystem::copy_file( source.GetFullPath().ToStdString(), libPath / "R_0402_1005Metric.kicad_mod" );
 
     IO_RELEASER<PCB_IO> plugin( PCB_IO_MGR::FindPlugin( PCB_IO_MGR::KICAD_SEXP ) );
-    const wxString      lib = wxString::FromUTF8( libPath.string() );
+    const wxString      lib = KI_TEST::ToWxPath( libPath );
 
     std::unique_ptr<FOOTPRINT> footprint( plugin->FootprintLoad( lib, wxS( "R_0402_1005Metric" ), true ) );
     BOOST_REQUIRE( footprint );
