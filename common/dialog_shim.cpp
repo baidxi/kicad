@@ -606,20 +606,23 @@ bool DIALOG_SHIM::Show( bool show )
             else
             {
                 // GTK may not know the decorations of a process's first window yet, so a frame size
-                // restored there lands as the client size and the dialog grows on every open
+                // restored there lands as the client size; the savedClientSize branch restores the
+                // client area directly to avoid that.  Do NOT take max( current, restored ) here:
+                // the natural Fit() size can exceed the saved size (sizer minima grow with
+                // content), and adopting the larger value makes the saved geometry ratchet
+                // wider on every open.  The SetMinSize( GetBestSize() ) call below keeps the
+                // dialog from shrinking below its sizer minimum.
                 if( savedClientSize.x > 0 && savedClientSize.y > 0 )
                 {
                     Move( savedDialogRect.GetPosition() );
 
                     wxSize restoredClient = FromDIP( savedClientSize );
-                    SetClientSize( std::max( wxDialog::GetClientSize().x, restoredClient.x ),
-                                   std::max( wxDialog::GetClientSize().y, restoredClient.y ) );
+                    SetClientSize( restoredClient );
                 }
                 else
                 {
                     SetSize( savedDialogRect.GetPosition().x, savedDialogRect.GetPosition().y,
-                             std::max( wxDialog::GetSize().x, restoredSize.x ),
-                             std::max( wxDialog::GetSize().y, restoredSize.y ), 0 );
+                             restoredSize.x, restoredSize.y, 0 );
                 }
 
                 // Reset minimum size so the user can resize the dialog smaller than
