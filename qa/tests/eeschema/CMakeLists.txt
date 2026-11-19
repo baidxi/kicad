@@ -225,6 +225,7 @@ set( QA_EESCHEMA_SRCS
     test_lib_part.cpp
     test_issue23743_sync_derived_fields.cpp
     test_ee_grid_helper.cpp
+    test_ee_snap_pipeline.cpp
     test_netlist_exporter_kicad.cpp
     test_issue24330_netlist_pin_truncation.cpp
     test_ee_item.cpp
@@ -271,6 +272,7 @@ set( QA_EESCHEMA_SRCS
     test_sch_ellipse_roundtrip.cpp
     test_project_name_instances.cpp
     test_legacy_load.cpp
+    test_outdated_symbols.cpp
     test_symbol_library_adapter.cpp
     test_symbol_library_manager.cpp
     test_symbol_editor_tabs.cpp

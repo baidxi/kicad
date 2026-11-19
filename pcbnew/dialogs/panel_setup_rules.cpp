@@ -53,6 +53,10 @@ PANEL_SETUP_RULES::PANEL_SETUP_RULES( wxWindow* aParentWindow, PCB_EDIT_FRAME* a
         m_scintillaTricks( nullptr ),
         m_helpWindow( nullptr )
 {
+    // The editor keeps its own undo, and a refresh from the rule pages must not become a dialog undo step
+    if( DIALOG_SHIM* dlg = dynamic_cast<DIALOG_SHIM*>( wxGetTopLevelParent( aParentWindow ) ) )
+        dlg->ExcludeFromControlUndoRedo( m_textEditor );
+
     m_scintillaTricks = new SCINTILLA_TRICKS( m_textEditor, wxT( "()" ), false,
             // onAcceptFn
             [this]( wxKeyEvent& aEvent )
@@ -124,6 +128,20 @@ bool PANEL_SETUP_RULES::IsModified() const
         return false;
 
     return m_originalText != m_textEditor->GetText();
+}
+
+
+const DRC_RULE_DOCUMENT& PANEL_SETUP_RULES::GetSearchDocument() const
+{
+    if( !IsModified() )
+        return *m_document;
+
+    // Parse a separate snapshot so search does not apply the raw editor's draft.
+    if( !m_searchSnapshot )
+        m_searchSnapshot = std::make_unique<DRC_RULE_DOCUMENT>( m_frame->GetBoard() );
+
+    m_searchSnapshot->SetText( m_textEditor->GetText() );
+    return *m_searchSnapshot;
 }
 
 

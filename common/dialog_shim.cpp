@@ -29,6 +29,7 @@
 #include <kiway.h>
 #include <pgm_base.h>
 #include <project/project_local_settings.h>
+#include <scoped_set_reset.h>
 #include <property_holder.h>
 #include <settings/settings_manager.h>
 #include <tool/tool_manager.h>
@@ -96,6 +97,12 @@ static std::string getDialogKeyFromTitle( const wxString& aTitle )
     }
 
     return title;
+}
+
+
+std::string DIALOG_SHIM::GetPersistenceKey() const
+{
+    return m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
 }
 
 
@@ -258,6 +265,9 @@ DIALOG_SHIM::~DIALOG_SHIM()
             {
                 for( wxWindow* child : children )
                 {
+                    if( m_currentValues.contains( child ) )
+                        child->Unbind( wxEVT_DESTROY, &DIALOG_SHIM::onTrackedControlDestroyed, this );
+
                     if( isCompoundDateTimePicker( child ) )
                         continue;
 
@@ -513,7 +523,7 @@ bool DIALOG_SHIM::Show( bool show )
         // the first committed frame already carries the final geometry.
         wxRect      savedDialogRect;
         wxSize      savedClientSize;
-        std::string key = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
+        std::string key = GetPersistenceKey();
 
         if( COMMON_SETTINGS* settings = Pgm().GetCommonSettings() )
         {
@@ -690,7 +700,7 @@ void DIALOG_SHIM::resetSize()
 {
     if( COMMON_SETTINGS* settings = Pgm().GetCommonSettings() )
     {
-        std::string key = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
+        std::string key = GetPersistenceKey();
 
         auto dlgIt = settings->CsInternals().m_dialogControlValues.find( key );
 
@@ -797,7 +807,8 @@ void DIALOG_SHIM::SaveControlState( const std::optional<wxPoint>& aPosition )
     if( !settings )
         return;
 
-    std::string dialogKey = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
+    std::string dialogKey = GetPersistenceKey();
+
     std::map<std::string, nlohmann::json>& dlgMap = settings->CsInternals().m_dialogControlValues[ dialogKey ];
 
     // A hidden GTK dialog reports its frame origin, which static gravity would restore off by the decorations
@@ -983,7 +994,7 @@ void DIALOG_SHIM::LoadControlState()
     if( !settings )
         return;
 
-    std::string dialogKey = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
+    std::string dialogKey = GetPersistenceKey();
     auto        dlgIt = settings->CsInternals().m_dialogControlValues.find( dialogKey );
 
     if( dlgIt == settings->CsInternals().m_dialogControlValues.end() )
@@ -1245,7 +1256,7 @@ void DIALOG_SHIM::OptOut( wxWindow* aWindow )
 
         if( settings )
         {
-            std::string dialogKey = m_hash_key.empty() ? getDialogKeyFromTitle( GetTitle() ) : m_hash_key;
+            std::string dialogKey = GetPersistenceKey();
             auto        dlgIt = settings->CsInternals().m_dialogControlValues.find( dialogKey );
 
             if( dlgIt != settings->CsInternals().m_dialogControlValues.end() )
@@ -1366,7 +1377,7 @@ void DIALOG_SHIM::registerUndoRedoHandlers( wxWindowList& children )
 {
     for( wxWindow* child : children )
     {
-        if( m_noControlUndoRedo.count( child ) )
+        if( m_noControlUndoRedo.count( child ) || m_currentValues.contains( child ) )
             continue;
 
         if( isCompoundDateTimePicker( child ) )
@@ -1444,6 +1455,9 @@ void DIALOG_SHIM::registerUndoRedoHandlers( wxWindowList& children )
         {
             registerUndoRedoHandlers( child->GetChildren() );
         }
+
+        if( m_currentValues.contains( child ) )
+            child->Bind( wxEVT_DESTROY, &DIALOG_SHIM::onTrackedControlDestroyed, this );
     }
 }
 
@@ -1482,7 +1496,7 @@ void DIALOG_SHIM::flushPendingControlChanges()
             // If an event causes a multi-control change, the user will
             // still have to hit undo multiple times to get back to the
             // original state.`
-            m_undoStack.push_back( { ctrl, before, after } );
+            m_undoStack.push_back( { ctrl, before, after, ++m_lastUndoStepId } );
             m_redoStack.clear();
             m_currentValues[ctrl] = after;
         }
@@ -1551,6 +1565,29 @@ void DIALOG_SHIM::onDataViewListChanged( wxDataViewEvent& aEvent )
 
     aEvent.Skip();
 }
+
+
+void DIALOG_SHIM::forgetControlHistory( wxWindow* aCtrl )
+{
+    auto targets = [aCtrl]( const UNDO_STEP& aStep )
+    {
+        return aStep.ctrl == aCtrl;
+    };
+
+    m_controlsWithPendingChanges.erase( aCtrl );
+    std::erase_if( m_undoStack, targets );
+    std::erase_if( m_redoStack, targets );
+}
+
+
+void DIALOG_SHIM::onTrackedControlDestroyed( wxWindowDestroyEvent& aEvent )
+{
+    // A page can rebuild its controls, and a new one may reuse the address
+    m_currentValues.erase( aEvent.GetWindow() );
+    forgetControlHistory( aEvent.GetWindow() );
+    aEvent.Skip();
+}
+
 
 wxVariant DIALOG_SHIM::getControlValue( wxWindow* aCtrl )
 {
@@ -1773,6 +1810,12 @@ void DIALOG_SHIM::doUndo()
     if( m_undoStack.empty() )
         return;
 
+    // Showing the control can change pages, which can record a step or clear the history
+    unsigned id = m_undoStack.back().id;
+
+    if( !showHistoryControl( m_undoStack.back().ctrl ) || m_undoStack.empty() || m_undoStack.back().id != id )
+        return;
+
     m_handlingUndoRedo = true;
     UNDO_STEP step = m_undoStack.back();
     m_undoStack.pop_back();
@@ -1788,6 +1831,11 @@ void DIALOG_SHIM::doRedo()
     flushPendingControlChanges();
 
     if( m_redoStack.empty() )
+        return;
+
+    unsigned id = m_redoStack.back().id;
+
+    if( !showHistoryControl( m_redoStack.back().ctrl ) || m_redoStack.empty() || m_redoStack.back().id != id )
         return;
 
     m_handlingUndoRedo = true;

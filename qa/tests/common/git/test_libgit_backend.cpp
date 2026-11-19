@@ -45,6 +45,7 @@
 
 #include <git2.h>
 
+#include <local_history.h>
 #include <project.h>
 #include <project/project_local_settings.h>
 #include <settings/settings_manager.h>
@@ -73,6 +74,7 @@ static const char* TEST_AUTHOR_EMAIL = "test@kicad.example";
 static const char* CAMPAIGN_PRO = "ctrl-board.kicad_pro";
 static const char* CAMPAIGN_SCH = "pic_sockets.kicad_sch";
 static const char* CAMPAIGN_ROOT_SCH = "ctrl-board.kicad_sch";
+static const wxString CTRL_BOARD_PREFIX = wxS( "ctrl-board/" );
 
 // A pathspec that matches its twin unless paths are matched literally
 static const char* PATTERN_SCH = "pic_sockets[1].kicad_sch";
@@ -256,6 +258,25 @@ struct GIT_BACKEND_FIXTURE : KI_TEST::GIT_TEST_FIXTURE
                                        "\"text_variables\": { \"STAGE\": \"local\" }" );
         KI_TEST::WriteGitFile( m_repoPath, CAMPAIGN_PRO, edited );
         return edited;
+    }
+
+
+    /// Commit the campaign's ctrl-board files in their own project folder and return its path
+    wxString commitCtrlBoard( git_repository* aRepo )
+    {
+        for( const char* name : { CAMPAIGN_PRO, CAMPAIGN_ROOT_SCH, CAMPAIGN_SCH } )
+            KI_TEST::WriteGitFile( m_repoPath, CTRL_BOARD_PREFIX + wxString::FromUTF8( name ), campaignFile( name ) );
+
+        KI_TEST::CommitAllGitFiles( aRepo, wxS( "Import the ctrl-board project" ) );
+        return m_repoPath + wxS( "/" ) + CTRL_BOARD_PREFIX;
+    }
+
+
+    static std::vector<FILE_CHECKLIST_ENTRY> changeEntries( git_repository* aRepo, const wxString& aProjectPath )
+    {
+        KIGIT_COMMON                 common( aRepo, aProjectPath );
+        std::unique_lock<std::mutex> lock = common.LockAction();
+        return BuildGitChangeEntries( common, aProjectPath, false );
     }
 
 
@@ -3306,6 +3327,151 @@ BOOST_AUTO_TEST_CASE( BuildGitChangeEntries_KeepsTrackedAndStagedTransientFiles 
     BOOST_REQUIRE_EQUAL( symlink( projectPath.utf8_str(), alias.utf8_str() ), 0 );
     checkEntries( alias );
 #endif
+}
+
+
+// Git reports a nested repository as one directory entry, never as the files inside it
+BOOST_AUTO_TEST_CASE( BuildGitChangeEntries_HidesLocalHistoryRepository )
+{
+    BOOST_REQUIRE( ready() );
+    KIGIT::GitRepositoryPtr repo( openRepo() );
+    BOOST_REQUIRE( repo );
+    useEmptyGlobalIgnore( repo.get() );
+
+    const wxString projectPath = commitCtrlBoard( repo.get() );
+    LOCAL_HISTORY  history;
+
+    const wxString projectFile = CTRL_BOARD_PREFIX + CAMPAIGN_PRO;
+    KI_TEST::WriteGitFile( repoPath(), projectFile,
+                           replaced( campaignFile( CAMPAIGN_PRO ), "\"text_variables\": {}",
+                                     "\"text_variables\": { \"STAGE\": \"local\" }" ) );
+
+    auto checkHidden = [&]( const char* aState )
+    {
+        wxArrayString paths;
+
+        for( const FILE_CHECKLIST_ENTRY& entry : changeEntries( repo.get(), projectPath ) )
+            paths.Add( entry.path );
+
+        BOOST_CHECK_MESSAGE( paths.size() == 1 && paths[0] == projectFile,
+                             aState << " local history listing is " << wxJoin( paths, ',' ) );
+    };
+
+    BOOST_REQUIRE( history.Init( projectPath ) );
+    BOOST_REQUIRE( wxDirExists( projectPath + wxS( ".history/.git" ) ) );
+    checkHidden( "Unborn" );
+
+    BOOST_REQUIRE( history.CommitFullProjectSnapshot( projectPath, wxS( "Snapshot" ) ) );
+    checkHidden( "Snapshotted" );
+}
+
+
+BOOST_AUTO_TEST_CASE( CommitStopsTrackingCommittedLocalHistory )
+{
+    BOOST_REQUIRE( ready() );
+    KIGIT::GitRepositoryPtr repo( openRepo() );
+    BOOST_REQUIRE( repo );
+    useEmptyGlobalIgnore( repo.get() );
+
+    const wxString projectPath = commitCtrlBoard( repo.get() );
+    const wxString historyPath = CTRL_BOARD_PREFIX + wxS( ".history" );
+    LOCAL_HISTORY  history;
+
+    BOOST_REQUIRE( history.CommitFullProjectSnapshot( projectPath, wxS( "Snapshot" ) ) );
+    KI_TEST::CommitGitFile( repo.get(), historyPath, wxS( "Commit local history as a gitlink" ) );
+
+    std::vector<FILE_CHECKLIST_ENTRY> entries = changeEntries( repo.get(), projectPath );
+    BOOST_REQUIRE_EQUAL( entries.size(), 1u );
+    BOOST_CHECK_EQUAL( entries[0].path, historyPath );
+    BOOST_CHECK_EQUAL( entries[0].status, wxS( "Stop Tracking" ) );
+    BOOST_CHECK( entries[0].checked );
+
+    GIT_COMMIT_HANDLER handler( repo.get() );
+    BOOST_REQUIRE( handler.PerformCommit( { historyPath }, wxS( "Stop tracking local history" ), TEST_AUTHOR_NAME,
+                                          TEST_AUTHOR_EMAIL )
+                   == CommitResult::Success );
+
+    git_index* rawIndex = nullptr;
+    BOOST_REQUIRE_EQUAL( git_repository_index( &rawIndex, repo.get() ), GIT_OK );
+    KIGIT::GitIndexPtr index( rawIndex );
+    BOOST_CHECK( git_index_get_bypath( index.get(), historyPath.utf8_str(), 0 ) == nullptr );
+    BOOST_CHECK( wxDirExists( projectPath + wxS( ".history/.git" ) ) );
+    BOOST_CHECK( changeEntries( repo.get(), projectPath ).empty() );
+}
+
+
+// A registered submodule is project content, even when its name matches a transient pattern
+BOOST_AUTO_TEST_CASE( RealSubmoduleIsNeverStopTracked )
+{
+    BOOST_REQUIRE( ready() );
+    KIGIT::GitRepositoryPtr repo( openRepo() );
+    BOOST_REQUIRE( repo );
+    useEmptyGlobalIgnore( repo.get() );
+
+    const wxString projectPath = commitCtrlBoard( repo.get() );
+    const std::vector<wxString>          subPaths = { CTRL_BOARD_PREFIX + wxS( "lib/sub" ),
+                                                      CTRL_BOARD_PREFIX + wxS( "lib/parts-backups" ) };
+    std::vector<KIGIT::GitRepositoryPtr> subs;
+    std::string                          modules;
+
+    for( const wxString& subPath : subPaths )
+    {
+        const wxString subRoot = repoPath() + wxS( "/" ) + subPath;
+        subs.push_back( KI_TEST::InitGitRepository( subRoot, "master", TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL ) );
+        KI_TEST::WriteGitFile( subRoot, CAMPAIGN_SCH, campaignFile( CAMPAIGN_SCH ) );
+        KI_TEST::CommitGitFile( subs.back().get(), CAMPAIGN_SCH, wxS( "Add the shared sheet" ) );
+
+        const std::string path = subPath.utf8_string();
+        modules += "[submodule \"" + path + "\"]\n\tpath = " + path + "\n\turl = ../" + path + ".git\n";
+    }
+
+    KI_TEST::WriteGitFile( repoPath(), wxS( ".gitmodules" ), modules );
+
+    {
+        git_index* rawIndex = nullptr;
+        BOOST_REQUIRE_EQUAL( git_repository_index( &rawIndex, repo.get() ), GIT_OK );
+        KIGIT::GitIndexPtr index( rawIndex );
+        BOOST_REQUIRE_EQUAL( git_index_add_bypath( index.get(), ".gitmodules" ), GIT_OK );
+
+        for( const wxString& subPath : subPaths )
+            BOOST_REQUIRE_EQUAL( git_index_add_bypath( index.get(), subPath.utf8_str() ), GIT_OK );
+
+        BOOST_REQUIRE_EQUAL( git_index_write( index.get() ), GIT_OK );
+    }
+
+    KI_TEST::CommitGitIndex( repo.get(), wxS( "Add the submodules" ) );
+
+    // A new submodule commit makes the parent commit record a new gitlink, not leave the old one alone
+    std::vector<git_oid> subHeads;
+
+    for( size_t ii = 0; ii < subPaths.size(); ++ii )
+    {
+        KI_TEST::WriteGitFile( repoPath() + wxS( "/" ) + subPaths[ii], CAMPAIGN_SCH, sheetRevision( "4" ) );
+        subHeads.push_back( KI_TEST::CommitGitFile( subs[ii].get(), CAMPAIGN_SCH, wxS( "Bump the sheet" ) ) );
+    }
+
+    std::vector<FILE_CHECKLIST_ENTRY> entries = changeEntries( repo.get(), projectPath );
+    BOOST_REQUIRE_EQUAL( entries.size(), subPaths.size() );
+
+    for( const FILE_CHECKLIST_ENTRY& entry : entries )
+        BOOST_CHECK_MESSAGE( entry.status == wxS( "Modified" ), entry.path << " reads " << entry.status );
+
+    GIT_COMMIT_HANDLER handler( repo.get() );
+    BOOST_REQUIRE(
+            handler.PerformCommit( subPaths, wxS( "Commit the submodules" ), TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL )
+            == CommitResult::Success );
+
+    git_index* rawIndex = nullptr;
+    BOOST_REQUIRE_EQUAL( git_repository_index( &rawIndex, repo.get() ), GIT_OK );
+    KIGIT::GitIndexPtr index( rawIndex );
+
+    for( size_t ii = 0; ii < subPaths.size(); ++ii )
+    {
+        const git_index_entry* entry = git_index_get_bypath( index.get(), subPaths[ii].utf8_str(), 0 );
+        BOOST_REQUIRE_MESSAGE( entry, subPaths[ii] << " was dropped from the index" );
+        BOOST_CHECK_EQUAL( entry->mode, GIT_FILEMODE_COMMIT );
+        BOOST_CHECK( git_oid_equal( &entry->id, &subHeads[ii] ) );
+    }
 }
 
 

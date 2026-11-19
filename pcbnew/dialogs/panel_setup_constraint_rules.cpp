@@ -22,6 +22,7 @@
 #include <map>
 
 #include <drc/drc_constraint_types.h>
+#include <drc/rule_editor/drc_rule_document.h>
 
 #include <board.h>
 #include <board_design_settings.h>
@@ -199,6 +200,8 @@ void PANEL_SETUP_CONSTRAINT_RULES::buildSection()
                 new CONSTRAINT_RULES_LIST( parent, m_frame, m_document, *m_section.ruleType, m_section.title );
         list->SetTitleWindow( heading );
 
+        PAGED_DIALOG::ExcludeFromSearchIndex( heading );
+
         if( !m_section.defaults.empty() )
         {
             std::vector<std::pair<wxString, std::function<wxString()>>> defaults;
@@ -287,6 +290,29 @@ bool PANEL_SETUP_CONSTRAINT_RULES::applyDefaults()
     if( m_defaults.empty() )
         return true;
 
+    wxString message;
+
+    if( wxTextCtrl* field = firstInvalidDefault( &message ) )
+    {
+        if( PAGED_DIALOG* dialog = PAGED_DIALOG::GetDialog( this ) )
+            dialog->SetError( message, this, field );
+
+        return false;
+    }
+
+    writeEditedDefaults();
+    return true;
+}
+
+
+bool PANEL_SETUP_CONSTRAINT_RULES::StageEditedDefaults()
+{
+    return !m_defaults.empty() && !firstInvalidDefault( nullptr ) && writeEditedDefaults();
+}
+
+
+wxTextCtrl* PANEL_SETUP_CONSTRAINT_RULES::firstInvalidDefault( wxString* aMessage ) const
+{
     BOARD_DESIGN_SETTINGS candidate( *m_settings );
 
     writeDefaults( candidate );
@@ -300,34 +326,43 @@ bool PANEL_SETUP_CONSTRAINT_RULES::applyDefaults()
             if( field.settingName != error.setting_name )
                 continue;
 
-            if( PAGED_DIALOG* dialog = PAGED_DIALOG::GetDialog( this ) )
-                dialog->SetError( error.error_message, this, field.ctrl );
+            if( aMessage )
+                *aMessage = error.error_message;
 
-            return false;
+            return field.ctrl;
         }
     }
+
+    return nullptr;
+}
+
+
+bool PANEL_SETUP_CONSTRAINT_RULES::writeEditedDefaults()
+{
+    bool written = false;
 
     // The same value may be set on another page too, so a field the user did not touch here
     // must not write back over an edit made there
     for( DEFAULT_FIELD& field : m_defaults )
     {
-        int value = field.binder->GetValue();
+        int value = field.binder->GetIntValue();
 
         if( value != field.loaded )
         {
             m_settings->*( field.member ) = value;
             field.loaded = value;
+            written = true;
         }
     }
 
-    return true;
+    return written;
 }
 
 
 void PANEL_SETUP_CONSTRAINT_RULES::writeDefaults( BOARD_DESIGN_SETTINGS& aSettings ) const
 {
     for( const DEFAULT_FIELD& field : m_defaults )
-        aSettings.*( field.member ) = field.binder->GetValue();
+        aSettings.*( field.member ) = field.binder->GetIntValue();
 }
 
 
@@ -416,6 +451,12 @@ void PANEL_SETUP_CONSTRAINT_RULES::RefreshFromDocument()
 {
     if( m_list )
         m_list->RefreshRules();
+}
+
+
+wxString PANEL_SETUP_CONSTRAINT_RULES::GetSearchActionLabel() const
+{
+    return m_list ? m_list->GetSearchActionLabel() : wxString();
 }
 
 
@@ -541,6 +582,53 @@ std::map<int, std::vector<wxString>> groupByValue( const std::function<std::opti
 }
 
 } // namespace
+
+
+void PANEL_SETUP_CONSTRAINT_RULES::AppendSearchTerms( const CONSTRAINT_SECTION& aSection, PCB_EDIT_FRAME* aFrame,
+                                                      const BOARD_DESIGN_SETTINGS& aSettings,
+                                                      const DRC_RULE_DOCUMENT&     aDocument,
+                                                      const std::vector<int>&      aRuleIndices,
+                                                      std::vector<wxString>&       aTerms )
+{
+    for( const CONSTRAINT_DEFAULT_FIELD& field : aSection.defaults )
+    {
+        int value = aSettings.*( field.member );
+
+        if( field.value == CONSTRAINT_VALUE::COUNT )
+            aTerms.push_back( wxString::Format( wxS( "%d" ), value ) );
+        else
+            aTerms.push_back( aFrame->StringFromValue( value, true ) );
+    }
+
+    if( aSection.netclassValue )
+    {
+        const NET_SETTINGS& netSettings = *aFrame->Prj().GetProjectFile().NetSettings();
+
+        // The same wording the list shows for a net class row
+        for( const auto& [value, names] : groupByValue( aSection.netclassValue, netSettings ) )
+        {
+            for( const wxString& name : names )
+                aTerms.push_back( wxString::Format( _( "Net class '%s'" ), name ) );
+
+            aTerms.push_back( aFrame->StringFromValue( value, true ) );
+        }
+    }
+
+    if( aDocument.HasUnparsedText() )
+        return;
+
+    for( int index : aRuleIndices )
+    {
+        const DRC_RE_LOADED_PANEL_ENTRY& entry = aDocument.Entries()[index];
+        const wxString comment = entry.constraintData ? entry.constraintData->GetComment() : wxString();
+
+        for( const wxString& term : { entry.ruleName, entry.condition, entry.layerSource, comment } )
+        {
+            if( !term.IsEmpty() )
+                aTerms.push_back( term );
+        }
+    }
+}
 
 
 std::map<int, std::vector<wxString>> PANEL_SETUP_CONSTRAINT_RULES::NetclassValuesFor( const wxString&     aSetting,

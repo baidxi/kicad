@@ -60,7 +60,6 @@
 #include "dialog_board_setup.h"
 
 #include <advanced_config.h>
-#include <dialog_board_setup.h>
 #include <footprint.h>
 
 
@@ -82,6 +81,7 @@ DIALOG_BOARD_SETUP::DIALOG_BOARD_SETUP( PCB_EDIT_FRAME* aFrame, wxWindow* aParen
         m_boardFinishPage( 0 ),
         m_defaultsPage( 0 ),
         m_formattingPage( 0 ),
+        m_textVarsPage( 0 ),
         m_customRulesPage( 0 ),
         m_tracksAndViasPage( 0 ),
         m_viaStacksPage( 0 ),
@@ -157,6 +157,7 @@ DIALOG_BOARD_SETUP::DIALOG_BOARD_SETUP( PCB_EDIT_FRAME* aFrame, wxWindow* aParen
                 return new PANEL_SETUP_FORMATTING( aParent, m_frame );
             }, _( "Formatting" ) );
 
+    m_textVarsPage = m_treebook->GetPageCount();
     m_treebook->AddLazySubPage(
             [this]( wxWindow* aParent ) -> wxWindow*
             {
@@ -204,6 +205,7 @@ DIALOG_BOARD_SETUP::DIALOG_BOARD_SETUP( PCB_EDIT_FRAME* aFrame, wxWindow* aParen
 
         for( const CONSTRAINT_SECTION& section : PANEL_SETUP_CONSTRAINT_RULES::SectionsFor( family ) )
         {
+            m_ruleSearchSections.emplace( m_treebook->GetPageCount(), section );
             m_treebook->InsertLazySubPage(
                     familyPage,
                     [this, section]( wxWindow* aParent ) -> wxWindow*
@@ -324,6 +326,22 @@ DIALOG_BOARD_SETUP::DIALOG_BOARD_SETUP( PCB_EDIT_FRAME* aFrame, wxWindow* aParen
             _( "Embedded Files" ) );
 
     m_initComplete = true;
+
+    std::set<size_t> reusablePages;
+
+    for( const auto& [page, section] : m_ruleSearchSections )
+        reusablePages.insert( page );
+
+    reusablePages.insert( m_textVarsPage );
+    reusablePages.insert( m_severitiesPage );
+
+    // The rule pages hide their editor while the custom rules do not parse, and their fields name
+    // the user's units, so the wording a page offers depends on both as well as on the project
+    ReuseSearchLabels( wxS( "Board Setup" ),
+                       wxString::Format( wxS( "%s:%d:%d" ), Prj().GetProjectFullName(),
+                                         m_ruleDocument->HasUnparsedText(),
+                                         static_cast<int>( m_frame->GetUserUnits() ) ),
+                       reusablePages );
 
     for( size_t i = 0; i < m_treebook->GetPageCount(); ++i )
         m_treebook->ExpandNode( i );
@@ -584,6 +602,109 @@ void DIALOG_BOARD_SETUP::refreshStagedPages( const wxString& aGroup )
 }
 
 
+const DRC_RULE_DOCUMENT& DIALOG_BOARD_SETUP::searchDocument() const
+{
+    auto* textPage = static_cast<PANEL_SETUP_RULES*>( m_treebook->GetResolvedPage( m_customRulesPage ) );
+
+    return textPage ? textPage->GetSearchDocument() : *m_ruleDocument;
+}
+
+
+void DIALOG_BOARD_SETUP::BeginSearchPass()
+{
+    m_searchRuleIndices.reset();
+
+    int       selected = m_treebook->GetSelection();
+    wxWindow* page = selected == wxNOT_FOUND ? nullptr : m_treebook->GetResolvedPage( selected );
+
+    // Leaving the open page stages its defaults, and the pages sharing them search the staged values
+    if( auto* rulesPage = dynamic_cast<PANEL_SETUP_CONSTRAINT_RULES*>( page ) )
+        rulesPage->StageEditedDefaults();
+    else if( auto* constraintsPage = dynamic_cast<PANEL_SETUP_CONSTRAINTS*>( page ) )
+        constraintsPage->StageEditedDefaults();
+    else if( auto* maskPage = dynamic_cast<PANEL_SETUP_MASK_AND_PASTE*>( page ) )
+        maskPage->StageEditedDefaults();
+}
+
+
+void DIALOG_BOARD_SETUP::AppendSearchTerms( size_t aPage, std::vector<wxString>& aTerms ) const
+{
+    wxWindow* page = m_treebook->GetResolvedPage( aPage );
+
+    if( auto ruleSection = m_ruleSearchSections.find( aPage ); ruleSection != m_ruleSearchSections.end() )
+    {
+        static const std::vector<int> noRules;
+
+        CONSTRAINT_SECTION       section = ruleSection->second;
+        const DRC_RULE_DOCUMENT& document = searchDocument();
+        const std::vector<int>*  rules = &noRules;
+        bool                     selected = static_cast<int>( aPage ) == m_treebook->GetSelection();
+
+        // Leaving a page stages its defaults, so only the open page's own fields are current
+        if( page && selected )
+            section.defaults.clear();
+
+        // Every rule page is asked in turn, so sort the rules onto pages once per query
+        if( !m_searchRuleIndices )
+            m_searchRuleIndices = document.IndicesByType();
+
+        if( section.ruleType )
+        {
+            if( auto it = m_searchRuleIndices->find( *section.ruleType ); it != m_searchRuleIndices->end() )
+                rules = &it->second;
+        }
+
+        PANEL_SETUP_CONSTRAINT_RULES::AppendSearchTerms( section, m_frame, *m_stagedSettings, document, *rules,
+                                                         aTerms );
+
+        if( auto* rulesPage = dynamic_cast<PANEL_SETUP_CONSTRAINT_RULES*>( page ) )
+        {
+            aTerms.push_back( rulesPage->GetSearchActionLabel() );
+
+            // Forms on pages not shown may still hold values from before the raw text was edited
+            AppendControlSearchTerms( rulesPage, aTerms, selected );
+        }
+        else if( !m_frame->GetBoard()->GetDesignRulesPath().IsEmpty() && !document.HasUnparsedText() )
+        {
+            aTerms.push_back( _( "Add Rule" ) );
+        }
+
+        return;
+    }
+
+    // A page reusing the labels of an earlier opening is answered from the project
+    if( !page )
+    {
+        if( aPage == m_textVarsPage )
+            AppendTextVarSearchTerms( aTerms );
+
+        return;
+    }
+
+    bool                                       selected = static_cast<int>( aPage ) == m_treebook->GetSelection();
+    std::vector<std::pair<wxString, wxString>> stale;
+
+    if( PANEL_SETUP_RULES* textPage = dynamic_cast<PANEL_SETUP_RULES*>( page ) )
+    {
+        aTerms.push_back( textPage->GetSearchDocument().GetText() );
+        return;
+    }
+
+    // A page not shown still holds what it last read, and searches the staged values it will read
+    if( auto* constraintsPage = dynamic_cast<PANEL_SETUP_CONSTRAINTS*>( page ); constraintsPage && !selected )
+        stale = constraintsPage->StaleSearchValues();
+    else if( auto* maskPage = dynamic_cast<PANEL_SETUP_MASK_AND_PASTE*>( page ); maskPage && !selected )
+        stale = maskPage->StaleSearchValues();
+
+    const size_t first = aTerms.size();
+
+    PAGED_DIALOG::AppendSearchTerms( aPage, aTerms );
+
+    for( const auto& [shown, current] : stale )
+        ReplaceSearchTerm( aTerms, first, shown, current );
+}
+
+
 void DIALOG_BOARD_SETUP::refreshRulePage( size_t aPage )
 {
     wxWindow* resolved = m_treebook->GetResolvedPage( aPage );
@@ -592,10 +713,6 @@ void DIALOG_BOARD_SETUP::refreshRulePage( size_t aPage )
         rulesPage->RefreshFromDocument();
     else if( auto* textPage = dynamic_cast<PANEL_SETUP_RULES*>( resolved ) )
         textPage->RefreshFromDocument();
-    else if( auto* constraintsPage = dynamic_cast<PANEL_SETUP_CONSTRAINTS*>( resolved ) )
-        constraintsPage->RefreshDefaults();
-    else if( auto* maskPage = dynamic_cast<PANEL_SETUP_MASK_AND_PASTE*>( resolved ) )
-        maskPage->RefreshDefaults();
 }
 
 

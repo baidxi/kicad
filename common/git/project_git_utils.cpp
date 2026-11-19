@@ -506,7 +506,7 @@ namespace
 } // namespace
 
 
-bool PROJECT_GIT_UTILS::IsTransientGitFile( const wxFileName& aFile )
+bool PROJECT_GIT_UTILS::IsTransientGitFile( const wxFileName& aFile, bool aIsDirectory )
 {
     static const PATHSPEC_PTR filePatterns = transientPathspec( false );
     static const PATHSPEC_PTR directoryPatterns = transientPathspec( true );
@@ -520,7 +520,55 @@ bool PROJECT_GIT_UTILS::IsTransientGitFile( const wxFileName& aFile )
             return true;
     }
 
-    return false;
+    return aIsDirectory && directoryPatterns
+           && git_pathspec_matches_path( directoryPatterns.get(), 0, aFile.GetFullName().utf8_str() );
+}
+
+
+bool PROJECT_GIT_UTILS::IsHiddenTransient( const wxString& aRelativePath, const wxString& aProjectPrefix,
+                                           unsigned int aGitStatus, bool aIsDirectory )
+{
+    if( !( aGitStatus & GIT_STATUS_WT_NEW ) || ( aGitStatus & GIT_STATUS_INDEX_NEW ) )
+        return false;
+
+    // Use the session prefix so a project opened through a symlink has the same paths
+    const wxString pathPrefix = aRelativePath.Left( aProjectPrefix.length() );
+
+#ifdef __WINDOWS__
+    bool inProject = pathPrefix.CmpNoCase( aProjectPrefix ) == 0;
+#else
+    bool inProject = pathPrefix == aProjectPrefix;
+#endif
+
+    return inProject && IsTransientGitFile( wxFileName( aRelativePath.Mid( aProjectPrefix.length() ) ), aIsDirectory );
+}
+
+
+bool PROJECT_GIT_UTILS::IsTransientGitlink( git_repository* aRepo, const wxString& aRelativePath )
+{
+    if( !IsTransientGitFile( wxFileName( aRelativePath.AfterLast( '/' ) ), true ) )
+        return false;
+
+    // Lookup finds a gitlink only in the index or HEAD, and gives GIT_EEXISTS for an unregistered nested
+    // repository. Any other failure keeps tracking it
+    git_submodule* submodule = nullptr;
+    int            rc = git_submodule_lookup( &submodule, aRepo, aRelativePath.utf8_str() );
+
+    if( rc == GIT_EEXISTS || rc == GIT_ENOTFOUND )
+    {
+        git_error_clear();
+        return true;
+    }
+
+    if( rc != GIT_OK )
+        return false;
+
+    unsigned int location = 0;
+    bool         configured =
+            git_submodule_location( &location, submodule ) != GIT_OK || ( location & GIT_SUBMODULE_STATUS_IN_CONFIG );
+
+    git_submodule_free( submodule );
+    return !configured;
 }
 
 

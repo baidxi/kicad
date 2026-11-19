@@ -20,8 +20,12 @@
 
 #pragma once
 
+#include <map>
 #include <memory>
+#include <optional>
+#include <vector>
 #include <widgets/paged_dialog.h>
+#include <dialogs/panel_setup_constraint_rules.h>
 #include "panel_setup_formatting.h"
 
 class BOARD;
@@ -57,6 +61,12 @@ protected:
     void onCancelButton( wxCommandEvent& aEvent );
     void onCloseWindow( wxCloseEvent& aEvent );
 
+    void AppendSearchTerms( size_t aPage, std::vector<wxString>& aTerms ) const override;
+    void BeginSearchPass() override;
+
+    /// The rules the search reads, which is the text editor's draft while it is being typed
+    const DRC_RULE_DOCUMENT& searchDocument() const;
+
     void refreshRulePage( size_t aPage );
 
     /// Reads the staged settings back into the open pages of one Import Settings group
@@ -82,6 +92,7 @@ private:
     size_t m_boardFinishPage;
     size_t m_defaultsPage;
     size_t m_formattingPage;
+    size_t m_textVarsPage;
     size_t m_drillChartPage;
     size_t m_customRulesPage;
     size_t m_tracksAndViasPage;
@@ -101,4 +112,8 @@ private:
     /// The constraint, mask and rule pages edit one value from several pages, so they share this
     /// copy, which an import also writes and which reaches the board only on OK
     std::unique_ptr<BOARD_DESIGN_SETTINGS> m_stagedSettings;
+    std::map<size_t, CONSTRAINT_SECTION>   m_ruleSearchSections;
+
+    /// The rules of each rule page, sorted once per search query
+    mutable std::optional<std::map<DRC_RULE_EDITOR_CONSTRAINT_NAME, std::vector<int>>> m_searchRuleIndices;
 };
