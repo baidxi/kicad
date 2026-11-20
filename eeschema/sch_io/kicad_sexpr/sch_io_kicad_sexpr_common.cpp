@@ -347,8 +347,16 @@ void formatPoly( OUTPUTFORMATTER* aFormatter, EDA_SHAPE* aPolyLine, bool aIsPriv
     }
     else
     {
-        for( const VECTOR2I& pt : aPolyLine->GetPolyShape().Outline( 0 ).CPoints() )
+        const SHAPE_LINE_CHAIN& outline = aPolyLine->GetPolyShape().Outline( 0 );
+
+        for( const VECTOR2I& pt : outline.CPoints() )
             aFormatter->Print( "(xy %s)", formatIU( pt, aInvertY ).c_str() );
+
+        // Closed shapes rely on a repeated first point at the end of the point list to be
+        // rendered as closed, as the file format does not carry a closed flag.  Without it,
+        // reloading the shape drops the closing edge (and re-saving preserves the loss).
+        if( outline.IsClosed() && outline.PointCount() > 1 && outline.CPoint( -1 ) != outline.CPoint( 0 ) )
+            aFormatter->Print( "(xy %s)", formatIU( outline.CPoint( 0 ), aInvertY ).c_str() );
     }
 
     aFormatter->Print( ")" );  // Closes pts token
