@@ -24,6 +24,7 @@
 #include <dialogs/git/git_transfer.h>
 #include <git/git_backend.h>
 
+#include <wx/app.h>
 #include <wx/regex.h>
 #include <wx/richmsgdlg.h>
 #include <wx/stdpaths.h>
