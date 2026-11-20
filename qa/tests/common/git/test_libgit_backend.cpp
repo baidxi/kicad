@@ -276,7 +276,7 @@ struct GIT_BACKEND_FIXTURE : KI_TEST::GIT_TEST_FIXTURE
     static std::vector<FILE_CHECKLIST_ENTRY> changeEntries( git_repository* aRepo, const wxString& aProjectPath )
     {
         KIGIT_COMMON                 common( aRepo, aProjectPath );
-        std::unique_lock<std::mutex> lock = common.LockAction();
+        KIGIT::ACTION_LOCK lock = common.LockAction();
         return BuildGitChangeEntries( common, aProjectPath, false );
     }
 
@@ -1349,7 +1349,7 @@ BOOST_AUTO_TEST_CASE( PerformPull_ExplainsWhenActionLockHeld )
     KIGIT_COMMON     common( repo );
     GIT_PULL_HANDLER handler( &common );
 
-    std::unique_lock<std::mutex> held = common.LockAction();
+    KIGIT::ACTION_LOCK held = common.LockAction();
 
     PullResult result = std::async( std::launch::async,
                                     [&handler]()
@@ -2501,7 +2501,7 @@ BOOST_AUTO_TEST_CASE( BusyOperationDoesNotConsumeAnotherCancellation )
         tokenA->store( true );
 
         // A is holding the action lock, so B cannot start.
-        std::unique_lock<std::mutex> heldByA = common.LockAction();
+        KIGIT::ACTION_LOCK heldByA = common.LockAction();
 
         GIT_PUSH_HANDLER           pushB( &common );
         KIGIT_COMMON::CANCEL_TOKEN tokenB = pushB.CancelToken();
@@ -2701,6 +2701,35 @@ BOOST_AUTO_TEST_CASE( Amend_MessageOnlyRewritesHeadKeepsTree )
     git_commit_free( commitAfter );
     git_reference_free( headRefAfter );
     git_repository_free( repo );
+}
+
+
+// A branch lock held for a moment must not fail an amend that is allowed to wait, as it does not fail a commit
+BOOST_AUTO_TEST_CASE( Amend_RetriesWhileBranchLockHeld )
+{
+    BOOST_TEST_REQUIRE( ready() );
+
+    KIGIT::GitRepositoryPtr repo( openRepo() );
+    BOOST_TEST_REQUIRE( repo );
+
+    wxString refLock = repoPath() + wxS( "/.git/refs/heads/master.lock" );
+    KI_TEST::WriteGitFile( repoPath(), wxT( ".git/refs/heads/master.lock" ), "locked\n" );
+
+    std::thread releaser(
+            [&refLock]()
+            {
+                std::this_thread::sleep_for( std::chrono::milliseconds( 300 ) );
+                wxRemoveFile( refLock );
+            } );
+
+    GIT_COMMIT_HANDLER handler( repo.get() );
+    handler.SetLockRetry( std::chrono::milliseconds( 5000 ) );
+
+    CommitResult result = handler.PerformAmend( {}, wxT( "Amended late" ), TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL );
+    releaser.join();
+    wxRemoveFile( refLock );
+
+    BOOST_CHECK_EQUAL( static_cast<int>( result ), static_cast<int>( CommitResult::Success ) );
 }
 
 
@@ -3178,7 +3207,7 @@ BOOST_AUTO_TEST_CASE( ProjectGitCommon_ReleaseDefersFreeWhileActionMutexHeld )
     std::thread worker(
             [&]()
             {
-                std::unique_lock<std::mutex> lock = common->LockAction();
+                KIGIT::ACTION_LOCK lock = common->LockAction();
                 lockHeld.set_value();
                 allowUnlock.get_future().wait();
             } );
@@ -3309,7 +3338,7 @@ BOOST_AUTO_TEST_CASE( BuildGitChangeEntries_KeepsTrackedAndStagedTransientFiles 
     auto checkEntries = [&repo, &expected]( const wxString& aProjectPath )
     {
         KIGIT_COMMON                 common( repo.get(), aProjectPath );
-        std::unique_lock<std::mutex> lock = common.LockAction();
+        KIGIT::ACTION_LOCK lock = common.LockAction();
         std::set<wxString>           paths;
 
         for( const FILE_CHECKLIST_ENTRY& entry : BuildGitChangeEntries( common, aProjectPath, false ) )

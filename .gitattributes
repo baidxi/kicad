@@ -56,7 +56,6 @@ thirdparty/libwmf/**    -format.clang-format-kicad -whitespace
 thirdparty/json_schema_validator/**    -format.clang-format-kicad -whitespace
 
 # Scripts
-*.sh    text eol=lf
 *.bat   text eol=crlf
 
 # Workflows: their shell heredocs use backslash line continuations, which
@@ -67,3 +66,6 @@ thirdparty/json_schema_validator/**    -format.clang-format-kicad -whitespace
 
 # Turn off auto-crlf, these files are needed inplace
 *.csv       -text
+
+# Tests compare fixtures byte for byte, so a Windows checkout must not add CR
+qa/data/**  -text
