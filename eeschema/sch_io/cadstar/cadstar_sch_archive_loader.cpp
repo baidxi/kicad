@@ -29,6 +29,7 @@
 #include <bus_alias.h>
 #include <core/mirror.h>
 #include <core/kicad_algo.h>
+#include <set>
 #include <eda_text.h>
 #include <macros.h>
 #include <progress_reporter.h>
@@ -158,11 +159,16 @@ CADSTAR_SCH_ARCHIVE_LOADER::loadLibPart( const CADSTAR_PART_ENTRY& aPart )
         wxASSERT( m_symDefTerminalsMap.count( symbolID ) ); //loadSymDef should have populated this
 
 
-        // Update the pin numbers to match those defined in the Cadstar part
+        // Look up every terminal's pins before renumbering, as a new number can match a later terminal
+        std::vector<std::pair<TERMINAL_ID, std::vector<SCH_PIN*>>> terminalPins;
+
         for( auto& [storedPinNum, termID] : m_symDefTerminalsMap[symbolID] )
+            terminalPins.emplace_back( termID, kiSymDef->GetPinsByNumber( storedPinNum ) );
+
+        // Update the pin numbers to match those defined in the Cadstar part
+        for( auto& [termID, pins] : terminalPins )
         {
             wxCHECK( termID > 0 && sym.m_Pins.size() >= size_t( termID ), nullptr );
-            std::vector<SCH_PIN*> pins = kiSymDef->GetPinsByNumber( storedPinNum );
             size_t                termIdx = size_t( termID ) - 1;
 
             // For now leave numerical pin number. Otherwise, when loading the
@@ -1171,7 +1177,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
         NET_ID                              NetID;
         NET_SCH::CONNECTION_SCH             Conn;
         SHAPE_LINE_CHAIN                    Chain;
-        std::map<NETELEMENT_ID, SCH_LABEL*> Labels;
+        std::map<NETELEMENT_ID, SCH_LABEL_BASE*> Labels;
     };
 
     std::vector<PENDING_CONNECTION> pending;
@@ -1181,12 +1187,50 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
         const int                           netIndex = netIds.at( netPair.first );
         NET_SCH                             net     = netPair.second;
         wxString                            netName = net.Name;
-        std::map<NETELEMENT_ID, SCH_LABEL*> netlabels;
+        std::map<NETELEMENT_ID, SCH_LABEL_BASE*> netlabels;
 
         if( netName.IsEmpty() )
             netName = wxString::Format( "$%ld", net.SignalNum );
 
         netName = HandleTextOverbar( netName );
+
+        // A CADSTAR signal name is design-wide, so a label on a named net spanning sheets must be global
+        std::set<LAYER_ID> netSheets;
+
+        for( const auto& [id, term] : net.Terminals )
+        {
+            if( Schematic.Symbols.count( term.SymbolID ) )
+                netSheets.insert( Schematic.Symbols.at( term.SymbolID ).LayerID );
+        }
+
+        for( const auto& [id, dangler] : net.Danglers )
+            netSheets.insert( dangler.LayerID );
+
+        for( const auto& [id, junc] : net.Junctions )
+            netSheets.insert( junc.LayerID );
+
+        for( const auto& [id, busTerm] : net.BusTerminals )
+            netSheets.insert( Schematic.Buses.at( busTerm.BusID ).LayerID );
+
+        for( const NET_SCH::CONNECTION_SCH& conn : net.Connections )
+            netSheets.insert( conn.LayerID );
+
+        netSheets.erase( wxT( "NO_SHEET" ) );
+
+        const bool globalNetLabels = !net.Name.IsEmpty() && netSheets.size() > 1;
+
+        auto newNetLabel =
+                [&]() -> SCH_LABEL_BASE*
+                {
+                    if( globalNetLabels )
+                    {
+                        SCH_GLOBALLABEL* label = new SCH_GLOBALLABEL;
+                        label->SetShape( LABEL_FLAG_SHAPE::L_UNSPECIFIED );
+                        return label;
+                    }
+
+                    return new SCH_LABEL();
+                };
 
         for( std::pair<NETELEMENT_ID, NET_SCH::SYM_TERM> terminalPair : net.Terminals )
         {
@@ -1227,7 +1271,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
                      && netTerm.HasNetLabel )
             {
                 // This is a named net that connects to a schematic symbol pin - we need to put a label
-                SCH_LABEL* label = new SCH_LABEL();
+                SCH_LABEL_BASE* label = newNetLabel();
                 label->SetText( netName );
 
                 POINT pinLocation = getLocationOfNetElement( net, netTerm.ID );
@@ -1288,7 +1332,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
             // If the original design does not have a label, just make it very small
             // to keep connectivity but make the design look visually similar to
             // the original.
-            SCH_LABEL* label = new SCH_LABEL();
+            SCH_LABEL_BASE* label = newNetLabel();
             label->SetText( netName );
             label->SetPosition( getKiCadPoint( busTerm.SecondPoint ) );
             label->SetVisible( true );
@@ -1312,7 +1356,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
         {
             NET_SCH::DANGLER dangler = danglerPair.second;
 
-            SCH_LABEL* label = new SCH_LABEL();
+            SCH_LABEL_BASE* label = newNetLabel();
             label->SetPosition( getKiCadPoint( dangler.Position ) );
             label->SetVisible( true );
 
@@ -1453,7 +1497,7 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadNets()
             {
                 // In CADSTAR the label can be placed anywhere, but in KiCad it has to be placed
                 // in the same location as the junction for it to be connected to it.
-                SCH_LABEL* label = new SCH_LABEL();
+                SCH_LABEL_BASE* label = newNetLabel();
                 label->SetText( netName );
                 label->SetPosition( getKiCadPoint( junc.Location ) );
                 label->SetVisible( true );
@@ -1959,13 +2003,18 @@ void CADSTAR_SCH_ARCHIVE_LOADER::loadSymbolGateAndPartFields( const SYMDEF_ID& a
     std::unique_ptr<LIB_SYMBOL> kiSymDef( loadSymdef( aSymdefID )->Duplicate() );
     wxCHECK( kiSymDef, /*void*/ );
 
+    // Look up every terminal's pins before renumbering, as a new number can match a later terminal
+    std::vector<std::pair<TERMINAL_ID, std::vector<SCH_PIN*>>> terminalPins;
+
+    for( auto&& [storedPinNum, termID] : m_symDefTerminalsMap[aSymdefID] )
+        terminalPins.emplace_back( termID, kiSymDef->GetPinsByNumber( storedPinNum ) );
+
     // Update the pin numbers to match those defined in the Cadstar part
     TERMINAL_TO_PINNUM_MAP pinNumMap;
 
-    for( auto&& [storedPinNum, termID] : m_symDefTerminalsMap[aSymdefID] )
+    for( auto&& [termID, pins] : terminalPins )
     {
         PART::DEFINITION::PIN     csPin = getPartDefinitionPin( aCadstarPart, aGateID, termID );
-        std::vector<SCH_PIN*>     pins = kiSymDef->GetPinsByNumber( storedPinNum );
 
         wxString pinName = HandleTextOverbar( csPin.Label );
         wxString pinNum = HandleTextOverbar( csPin.Name );

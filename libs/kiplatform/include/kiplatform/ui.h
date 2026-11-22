@@ -418,6 +418,16 @@ namespace KIPLATFORM
          * nothing presents to it while it goes away. No-op on other platforms.
          */
         void ReleaseExternalRenderingSurface( wxWindow* aWindow );
+
+        /**
+         * Make wx rebind \a aWindow to its native window every time the toolkit recreates it.
+         *
+         * Before wxWidgets 3.3.3, wxGTK only does this for a window created inside an unrealized
+         * parent.  A window created inside a realized one, such as a wxNotebook page added after
+         * the dialog is shown, loses its native window when it is reparented, and an EGL canvas
+         * keeps presenting to the destroyed one.  Wayland and other platforms need nothing.
+         */
+        void RebindOnRealize( wxWindow* aWindow );
     }
 }
 

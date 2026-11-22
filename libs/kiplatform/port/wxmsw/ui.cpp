@@ -339,3 +339,9 @@ void KIPLATFORM::UI::ReleaseExternalRenderingSurface( wxWindow* aWindow )
 {
     // The GPU API owns Win32 surfaces natively
 }
+
+
+void KIPLATFORM::UI::RebindOnRealize( wxWindow* aWindow )
+{
+    // Win32 windows keep their HWND when reparented
+}

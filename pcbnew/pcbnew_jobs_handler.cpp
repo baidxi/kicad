@@ -27,6 +27,7 @@
 #include <wx/filedlg.h>
 #include <wx/zipstrm.h>
 #include <wx/filename.h>
+#include <wx/scopeguard.h>
 #include <wx/tokenzr.h>
 #include <wx/wfstream.h>
 
@@ -515,13 +516,16 @@ PCBNEW_JOBS_HANDLER::PCBNEW_JOBS_HANDLER( KIWAY* aKiway ) :
                   return true;
               } );
     Register( "drc", std::bind( &PCBNEW_JOBS_HANDLER::JobExportDrc, this, std::placeholders::_1 ),
-              []( JOB* job, wxWindow* aParent ) -> bool
+              [aKiway]( JOB* job, wxWindow* aParent ) -> bool
               {
                   JOB_PCB_DRC* drcJob = dynamic_cast<JOB_PCB_DRC*>( job );
 
-                  wxCHECK( drcJob, false );
+                  PCB_EDIT_FRAME* editFrame =
+                          dynamic_cast<PCB_EDIT_FRAME*>( aKiway->Player( FRAME_PCB_EDITOR, false ) );
 
-                  DIALOG_DRC_JOB_CONFIG dlg( aParent, drcJob );
+                  wxCHECK( drcJob && editFrame, false );
+
+                  DIALOG_DRC_JOB_CONFIG dlg( aParent, drcJob, editFrame );
                   return dlg.ShowModal() == wxID_OK;
               } );
     Register( "ipc2581", std::bind( &PCBNEW_JOBS_HANDLER::JobExportIpc2581, this, std::placeholders::_1 ),
@@ -2962,6 +2966,18 @@ int PCBNEW_JOBS_HANDLER::JobExportDrc( JOB* aJob )
     if( !brd )
         return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
 
+    if( !drcJob->m_variant.IsEmpty() && drcJob->m_variant.CmpNoCase( GetDefaultVariantName() ) != 0
+        && !brd->HasVariant( drcJob->m_variant ) )
+    {
+        m_reporter->Report( wxString::Format( _( "The board has no variant named '%s'.\n" ), drcJob->m_variant ),
+                            RPT_SEVERITY_ERROR );
+        return CLI::EXIT_CODES::ERR_ARGS;
+    }
+
+    // The board is cached across jobs, so put its variant back
+    wxON_BLOCK_EXIT_OBJ1( *brd, BOARD::SetCurrentVariant, brd->GetCurrentVariant() );
+    brd->SetCurrentVariant( drcJob->m_variant );
+
     // Running DRC requires libraries be loaded, so make sure they have been
     FOOTPRINT_LIBRARY_ADAPTER* adapter = PROJECT_PCB::FootprintLibAdapter( brd->GetProject() );
     adapter->AsyncLoad();
@@ -3041,6 +3057,10 @@ int PCBNEW_JOBS_HANDLER::JobExportDrc( JOB* aJob )
         else
         {
             wxFileName schematicPath( drcJob->m_filename );
+
+            if( drcJob->m_filename.IsEmpty() )
+                schematicPath.Assign( brd->GetProject()->GetProjectFullName() );
+
             schematicPath.MakeAbsolute();
             schematicPath.SetExt( FILEEXT::KiCadSchematicFileExtension );
 
@@ -3057,8 +3077,12 @@ int PCBNEW_JOBS_HANDLER::JobExportDrc( JOB* aJob )
                 KIFACE_NETLIST_SCHEMATIC_SERVICE::Type netlister =
                         GetKifaceService<KIFACE_NETLIST_SCHEMATIC_SERVICE>( m_kiway->KiFACE( KIWAY::FACE_SCH ) );
 
-                if( netlister )
-                    ( *netlister )( schematicPath.GetFullPath(), netlist_str, m_kiway );
+                if( !netlister || !( *netlister )( schematicPath.GetFullPath(), netlist_str, m_kiway ) )
+                {
+                    m_reporter->Report( _( "Failed to fetch schematic netlist for parity tests.\n" ),
+                                        RPT_SEVERITY_ERROR );
+                    checkParity = false;
+                }
             }
         }
 

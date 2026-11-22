@@ -386,3 +386,9 @@ void KIPLATFORM::UI::ReleaseExternalRenderingSurface( wxWindow* aWindow )
 {
     // macOS composites Metal layers natively
 }
+
+
+void KIPLATFORM::UI::RebindOnRealize( wxWindow* aWindow )
+{
+    // An NSView keeps its identity when reparented
+}

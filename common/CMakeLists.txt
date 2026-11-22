@@ -132,6 +132,7 @@ set( KICOMMON_SRCS
     git/git_compare_handler.cpp
     git/kigit_driver_registry.cpp
     git/kigit_merge_blob_utils.cpp
+    git/kigit_platform_install.cpp
     git/git_init_handler.cpp
     git/project_git_hash.cpp
     git/git_remove_vcs_handler.cpp
@@ -989,6 +990,7 @@ set( COMMON_SRCS
     ${COMMON_TRANSLINE_CALCULATION_SRCS}
     track_width_calculations.cpp
     pth_hole_size.cpp
+    r_divider_solver.cpp
     base_screen.cpp
     bin_mod.cpp
     bitmap_base.cpp

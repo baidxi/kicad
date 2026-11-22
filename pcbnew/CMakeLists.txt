@@ -221,6 +221,8 @@ set( PCBNEW_DIALOGS
     dialogs/panel_pcbnew_color_settings.cpp
     dialogs/panel_pcbnew_display_origin.cpp
     dialogs/panel_pcbnew_display_origin_base.cpp
+    dialogs/panel_project_defaults.cpp
+    dialogs/panel_project_defaults_base.cpp
     dialogs/panel_rule_area_properties_keepout_base.cpp
     dialogs/panel_rule_area_properties_placement_base.cpp
     dialogs/panel_assign_component_classes.cpp
@@ -497,6 +499,7 @@ set( PCBNEW_CLASS_SRCS
     toolbars_footprint_wizard.cpp
     toolbars_pcb_editor.cpp
     tracks_cleaner.cpp
+    undo_group_state.cpp
     undo_redo.cpp
     zone_filler.cpp
     zone_settings_bag.cpp
