@@ -328,9 +328,16 @@ OPENGL_GAL::OPENGL_GAL( const KIGFX::VC_SETTINGS& aVcSettings, GAL_DISPLAY_OPTIO
         m_isContextValid( false ),
         m_lockClientCookie( 0 )
 {
+    // Can be null during shutdown, when the app singletons have already been
+    // torn down but a paint event still reaches a live canvas.
+    GL_CONTEXT_MANAGER* glContextMgr = Pgm().GetGLContextManager();
+
+    if( !glContextMgr )
+        throw std::runtime_error( "The GL context manager is unavailable" );
+
     if( m_glMainContext == nullptr )
     {
-        m_glMainContext = Pgm().GetGLContextManager()->CreateCtx( this );
+        m_glMainContext = glContextMgr->CreateCtx( this );
 
         if( !m_glMainContext )
             throw std::runtime_error( "Could not create the main OpenGL context" );
@@ -339,7 +346,7 @@ OPENGL_GAL::OPENGL_GAL( const KIGFX::VC_SETTINGS& aVcSettings, GAL_DISPLAY_OPTIO
     }
     else
     {
-        m_glPrivContext = Pgm().GetGLContextManager()->CreateCtx( this, m_glMainContext );
+        m_glPrivContext = glContextMgr->CreateCtx( this, m_glMainContext );
 
         if( !m_glPrivContext )
             throw std::runtime_error( "Could not create a private OpenGL context" );
@@ -1000,8 +1007,10 @@ void OPENGL_GAL::orphanContextGroup()
     }
 
     // A live owner destroys the old main context itself; an ownerless one would otherwise leak
-    if( !mainOwned && m_glMainContext )
-        Pgm().GetGLContextManager()->DestroyCtx( m_glMainContext );
+    GL_CONTEXT_MANAGER* mgr = Pgm().GetGLContextManager();
+
+    if( !mainOwned && m_glMainContext && mgr )
+        mgr->DestroyCtx( m_glMainContext );
 
     // The dead group still owns these; the next canvas created starts a new group
     m_glMainContext = nullptr;

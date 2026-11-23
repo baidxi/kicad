@@ -180,6 +180,13 @@ void PCB_VIA_STITCH::SetTemplateItem( const wxString& aName, std::unique_ptr<BOA
 
     m_viaTemplate.reset( static_cast<PCB_VIA*>( aItem.release() ) );
     m_viaTemplate->SetParent( this );
+
+    // The item may come from an off-board working copy whose netinfo points at an
+    // orphaned or stale NETINFO_ITEM; rebind it to this board's net before it can be
+    // serialized (a corrupted netname length there crashes SaveToHistory with bad_alloc).
+    if( m_netCode > 0 )
+        m_viaTemplate->SetNetCode( m_netCode, /*aNoAssert*/ true );
+
     m_viaTemplate->SetIsFree( true );
 }
 
@@ -1387,6 +1394,14 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         const int lastTileX  = (int) std::floor( ( bbox.GetRight()  - offsetX ) / (double) tileSize );
         const int lastTileY  = (int) std::floor( ( bbox.GetBottom() - offsetY ) / (double) tileSize );
 
+        // A degraded bbox (e.g. boolean junk in far coordinates) can span billions of
+        // tiles; refuse to enumerate more than a sane number of placements.
+        const long long tileSpanX = std::max( 0, lastTileX - firstTileX + 1 );
+        const long long tileSpanY = std::max( 0, lastTileY - firstTileY + 1 );
+
+        if( tileSpanX * tileSpanY * (long long) tile.size() > MAX_PLACEMENT_CELLS )
+            return cells;
+
         for( int ty = firstTileY; ty <= lastTileY; ++ty )
         {
             for( int tx = firstTileX; tx <= lastTileX; ++tx )
@@ -1414,6 +1429,13 @@ std::set<VECTOR2I> PCB_VIA_STITCH::buildPlacementCells( BOARD* aBoard ) const
         int      startRow = (int) std::floor( double( bbox.GetY() - m_originOffset.y ) / pitch );
         int      startCol = (int) std::floor( double( bbox.GetX() - m_originOffset.x ) / pitch );
         VECTOR2I origin( startCol * pitch + m_originOffset.x, startRow * pitch + m_originOffset.y );
+
+        // Same degraded-bbox guard as the Poisson path above.
+        const long long gridRows = std::max( 0LL, ( (long long) bbox.GetBottom() - origin.y ) / pitch + 1 );
+        const long long gridCols = std::max( 0LL, ( (long long) bbox.GetRight() - origin.x ) / pitch + 1 );
+
+        if( gridRows * gridCols > MAX_PLACEMENT_CELLS )
+            return cells;
 
         for( int row = startRow, y = origin.y; y <= bbox.GetBottom(); y += pitch, ++row )
         {

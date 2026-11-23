@@ -266,6 +266,13 @@ public:
     static constexpr uint32_t POISSON_TILE_SEED = 0x542c21fc;
 
     /**
+      * Hard cap on candidate via positions enumerated by buildPlacementCells.  A degraded
+      * placement bbox (e.g. boolean junk in far coordinates) would otherwise make the
+      * grid/Poisson enumeration spin for effectively forever and exhaust memory.
+      */
+    static constexpr long long MAX_PLACEMENT_CELLS = 200000;
+
+    /**
       * Helper method to cache the poisson tile we pattern.
       */
     static const std::vector<VECTOR2D>& bakedPoissonTile();

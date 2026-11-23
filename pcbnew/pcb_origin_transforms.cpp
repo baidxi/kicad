@@ -135,17 +135,37 @@ int PCB_ORIGIN_TRANSFORMS::getUserYOrigin() const
 
 bool PCB_ORIGIN_TRANSFORMS::invertXAxis() const
 {
+    // The app settings can be missing, e.g. after the kiface has been shut down
+    // while a properties panel is still alive; fall back to the default (off).
     if( m_pcbBaseFrame.GetFrameType() == FRAME_PCB_EDITOR )
-        return m_pcbBaseFrame.GetPcbNewSettings()->m_Display.m_DisplayInvertXAxis;
+    {
+        if( PCBNEW_SETTINGS* cfg = m_pcbBaseFrame.GetPcbNewSettings() )
+            return cfg->m_Display.m_DisplayInvertXAxis;
+    }
     else
-        return m_pcbBaseFrame.GetFootprintEditorSettings()->m_DisplayInvertXAxis;
+    {
+        if( FOOTPRINT_EDITOR_SETTINGS* cfg = m_pcbBaseFrame.GetFootprintEditorSettings() )
+            return cfg->m_DisplayInvertXAxis;
+    }
+
+    return false;
 }
 
 
 bool PCB_ORIGIN_TRANSFORMS::invertYAxis() const
 {
+    // The app settings can be missing, e.g. after the kiface has been shut down
+    // while a properties panel is still alive; fall back to the default (off).
     if( m_pcbBaseFrame.GetFrameType() == FRAME_PCB_EDITOR )
-        return m_pcbBaseFrame.GetPcbNewSettings()->m_Display.m_DisplayInvertYAxis;
+    {
+        if( PCBNEW_SETTINGS* cfg = m_pcbBaseFrame.GetPcbNewSettings() )
+            return cfg->m_Display.m_DisplayInvertYAxis;
+    }
     else
-        return m_pcbBaseFrame.GetFootprintEditorSettings()->m_DisplayInvertYAxis;
+    {
+        if( FOOTPRINT_EDITOR_SETTINGS* cfg = m_pcbBaseFrame.GetFootprintEditorSettings() )
+            return cfg->m_DisplayInvertYAxis;
+    }
+
+    return false;
 }

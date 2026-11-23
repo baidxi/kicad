@@ -508,7 +508,14 @@ const VECTOR2I PCB_BASE_FRAME::GetUserOrigin() const
 {
     VECTOR2I origin( 0, 0 );
 
-    switch( GetPcbNewSettings()->m_Display.m_DisplayOrigin )
+    // Can be null during shutdown, when the kiface settings have been released
+    // but a properties panel is still rendering; fall back to the page origin.
+    const PCBNEW_SETTINGS* settings = GetPcbNewSettings();
+
+    if( !settings )
+        return origin;
+
+    switch( settings->m_Display.m_DisplayOrigin )
     {
     case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_PAGE:                           break;
     case PCB_DISPLAY_ORIGIN::PCB_ORIGIN_AUX:  origin = GetAuxOrigin();  break;
