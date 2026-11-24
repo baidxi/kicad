@@ -243,7 +243,7 @@ const TITLE_BLOCK& SCH_BASE_FRAME::GetTitleBlock() const
 
 void SCH_BASE_FRAME::SetTitleBlock( const TITLE_BLOCK& aTitleBlock )
 {
-    wxASSERT( GetScreen() );
+    wxCHECK2( GetScreen(), return );
     GetScreen()->SetTitleBlock( aTitleBlock );
 }
 

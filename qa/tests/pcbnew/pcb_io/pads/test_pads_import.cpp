@@ -234,7 +234,7 @@ BOOST_AUTO_TEST_CASE( ClaySight_MK1_ElementCounts )
 
     BOOST_CHECK_EQUAL( totalPads, 140 );
 
-    // Tracks: routed signal segments from 32 *SIGNAL* sections
+    // Tracks: unique routed signal segments from 32 *SIGNAL* sections
     int traceCount = 0;
     int viaCount = 0;
 
@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE( ClaySight_MK1_ElementCounts )
             viaCount++;
     }
 
-    BOOST_CHECK_EQUAL( traceCount, 247 );
+    BOOST_CHECK_EQUAL( traceCount, 184 );
 
     // No vias on this 2-layer board (empty *VIA* section)
     BOOST_CHECK_EQUAL( viaCount, 0 );
@@ -458,8 +458,8 @@ BOOST_AUTO_TEST_CASE( ClaySight_MK2_ElementCounts )
             viaCount++;
     }
 
-    // 138 track segments from 2 *SIGNAL* route sections only
-    BOOST_CHECK_EQUAL( traceCount, 138 );
+    // 72 unique track segments from 2 *SIGNAL* route sections only
+    BOOST_CHECK_EQUAL( traceCount, 72 );
     BOOST_CHECK_EQUAL( viaCount, 0 );
 
     // 2 nets from *SIGNAL* routes: N$12982 and N$12975
@@ -2187,6 +2187,33 @@ BOOST_AUTO_TEST_CASE( Issue25616_BoardDesignRules )
     BOARD defaults;
     BOOST_CHECK_EQUAL( bds.m_ViasMinSize, defaults.GetDesignSettings().m_ViasMinSize );
     BOOST_CHECK_EQUAL( bds.m_MinThroughDrill, defaults.GetDesignSettings().m_MinThroughDrill );
+}
+
+
+// Pulsonix abbreviates the route signal header to *SIG* and restates shared trunks per pin pair
+BOOST_AUTO_TEST_CASE( Issue25511_PulsonixSigHeaderRoutes )
+{
+    PCB_IO_PADS plugin;
+
+    wxString filename = KI_TEST::GetPcbnewTestDataDir() + "plugins/pads/issue25511_pulsonix.asc";
+
+    std::unique_ptr<BOARD> board = plugin.LoadBoard( filename, nullptr, nullptr );
+
+    BOOST_REQUIRE( board != nullptr );
+
+    int tracks = 0;
+    int vias = 0;
+
+    for( PCB_TRACK* track : board->Tracks() )
+    {
+        if( track->Type() == PCB_VIA_T )
+            vias++;
+        else
+            tracks++;
+    }
+
+    BOOST_CHECK_EQUAL( tracks, 726 );
+    BOOST_CHECK_EQUAL( vias, 121 );
 }
 
 
