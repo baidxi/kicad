@@ -2115,6 +2115,13 @@ void EDA_BASE_FRAME::ChangeUserUnits( EDA_UNITS aUnits )
 }
 
 
+void EDA_BASE_FRAME::Raise()
+{
+    if( !KIPLATFORM::UI::ActivateWithoutPresenting( this ) )
+        wxFrame::Raise();
+}
+
+
 void EDA_BASE_FRAME::OnMaximize( wxMaximizeEvent& aEvent )
 {
     // When we maximize the window, we want to save the old information

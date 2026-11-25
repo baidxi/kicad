@@ -851,32 +851,44 @@ void PCB_IO_PADS::loadFootprints()
                         if( layer_def.sizeA <= 0 )
                             continue;
 
-                        // RT/ST are thermal relief spoke patterns for plane layers.
-                        // RA/SA are anti-pad (clearance) shapes for plane layers.
-                        // KiCad computes thermal reliefs from zone settings, so skip
-                        // these to avoid overwriting the actual pad shape.  However,
-                        // the presence of RT/ST indicates this pad should have thermal
-                        // relief rather than a solid connection to copper pours.
+                        // RT/ST are thermal relief spoke patterns for plane layers.  RA/SA are anti-pad
+                        // (clearance) shapes for plane layers.  KiCad computes thermal reliefs from zone settings,
+                        // so skip these to avoid overwriting the actual pad shape.  However, the presence of RT/ST
+                        // indicates this pad should have thermal relief rather than a solid connection to copper
+                        // pours.
                         if( PADS_IO::IsThermalReliefPadRow( layer_def ) )
                         {
-                            pad->SetLocalZoneConnection( ZONE_CONNECTION::THERMAL );
+                            // Note that neither the Kicad GUI nor the PADS importer currently supports these being
+                            // different on different layers.
 
-                            if( layer_def.thermal_spoke_width > 0 )
-                                pad->SetLocalThermalSpokeWidthOverride( decalScaler( layer_def.thermal_spoke_width ) );
+                            pad->Padstack().ForEachUniqueLayer(
+                                    [&]( PCB_LAYER_ID layer )
+                                    {
+                                        pad->Padstack().ZoneConnection( layer ) = ZONE_CONNECTION::THERMAL;
 
-                            if( layer_def.thermal_outer_diameter > layer_def.sizeA )
-                            {
-                                double gap = ( layer_def.thermal_outer_diameter - layer_def.sizeA ) / 2.0;
-                                int    scaledGap = decalScaler( gap );
+                                        if( layer_def.thermal_spoke_width > 0 )
+                                        {
+                                            int scaledWidth = decalScaler( layer_def.thermal_spoke_width );
+                                            pad->Padstack().ThermalSpokeWidth( layer ) = scaledWidth;
+                                        }
 
-                                // An override of 0 reads as "inherit the zone gap", so only
-                                // apply it when the relief gap survives rounding to nm.
-                                if( scaledGap > 0 )
-                                    pad->SetLocalThermalGapOverride( scaledGap );
-                            }
+                                        if( layer_def.thermal_outer_diameter > layer_def.sizeA )
+                                        {
+                                            double gap = ( layer_def.thermal_outer_diameter - layer_def.sizeA ) / 2.0;
+                                            int    scaledGap = decalScaler( gap );
 
-                            if( layer_def.thermal_spoke_orientation != 0.0 )
-                                pad->SetThermalSpokeAngleDegrees( layer_def.thermal_spoke_orientation );
+                                            // An override of 0 reads as "inherit the zone gap", so only
+                                            // apply it when the relief gap survives rounding to nm.
+                                            if( scaledGap > 0 )
+                                                pad->Padstack().ThermalGap( layer ) = scaledGap;
+                                        }
+
+                                        if( layer_def.thermal_spoke_orientation != 0.0 )
+                                        {
+                                            EDA_ANGLE orientation( layer_def.thermal_spoke_orientation, DEGREES_T );
+                                            pad->Padstack().ThermalSpokeAngle( layer ) = orientation;
+                                        }
+                                    } );
 
                             continue;
                         }
@@ -1270,6 +1282,31 @@ void PCB_IO_PADS::loadReuseBlockGroups()
 }
 
 
+// A test point via with copper on both outer layers is an ordinary via, not an in-circuit pad
+static bool isPlainViaTestPoint( const PADS_IO::TEST_POINT& aTestPoint, const PADS_IO::PARSER& aParser )
+{
+    auto it = aParser.GetViaDefs().find( aTestPoint.symbol_name );
+
+    if( aTestPoint.type != "VIA" || it == aParser.GetViaDefs().end() )
+        return false;
+
+    int  layerCount = aParser.GetParameters().layer_count;
+    bool hasTop = false;
+    bool hasBottom = false;
+
+    for( const PADS_IO::PAD_STACK_LAYER& row : it->second.stack )
+    {
+        if( row.sizeA <= 0.0 || !PADS_IO::IsCopperPadRow( row ) )
+            continue;
+
+        hasTop |= row.layer == PADS_LAYER_MAPPER::LAYER_PAD_STACK_TOP || row.layer == 1;
+        hasBottom |= row.layer == PADS_LAYER_MAPPER::LAYER_PAD_STACK_BOTTOM || row.layer == layerCount;
+    }
+
+    return hasTop && hasBottom;
+}
+
+
 void PCB_IO_PADS::loadTestPoints()
 {
     const std::vector<PADS_IO::TEST_POINT>&        test_points = m_parser->GetTestPoints();
@@ -1277,6 +1314,9 @@ void PCB_IO_PADS::loadTestPoints()
 
     for( const PADS_IO::TEST_POINT& tp : test_points )
     {
+        if( isPlainViaTestPoint( tp, *m_parser ) )
+            continue;
+
         FOOTPRINT* footprint = new FOOTPRINT( m_loadBoard );
 
         wxString refDes = wxString::Format( wxT( "TP%d" ), m_testPointIndex++ );
@@ -1394,7 +1434,7 @@ void PCB_IO_PADS::loadTracksAndVias()
 
     for( const PADS_IO::TEST_POINT& tp : m_parser->GetTestPoints() )
     {
-        if( tp.type == "VIA" )
+        if( tp.type == "VIA" && !isPlainViaTestPoint( tp, *m_parser ) )
             testPointPositions.emplace( scaleCoord( tp.x, true ), scaleCoord( tp.y, false ) );
     }
 
