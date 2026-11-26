@@ -1062,4 +1062,510 @@ BOOST_AUTO_TEST_CASE( RevertKeepsWrittenSymbol )
 }
 
 
+static bool saveAs( LIB_BUFFER& aBuffer, const wxString& aPath, bool aReplacesOwnFile = false )
+{
+    IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+    return aBuffer.SaveAs( aPath, &*plugin, aReplacesOwnFile );
+}
+
+
+// Save As must leave the buffer owing its own file a pending rename
+BOOST_AUTO_TEST_CASE( SaveCopyKeepsPendingRename )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "R" ), wxS( "C" ) }, dir );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "R" ), wxS( "C" ) } );
+    renameBuffer( libBuffer, *libBuffer.GetBuffer( wxS( "C" ) ), wxS( "C_Renamed" ) );
+
+    BOOST_CHECK( saveAs( libBuffer, wxFileName( dir, wxS( "copy.kicad_sym" ) ).GetFullPath() ) );
+
+    saveLibrary( libBuffer, path );
+    BOOST_CHECK( !inLibrary( path, wxS( "C" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// A Save As that replaces the table entry must hand its new file a later rename
+BOOST_AUTO_TEST_CASE( ReplacingSaveAsTakesLaterRename )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ), wxS( "R" ) }, dir );
+    wxString copyPath = wxFileName( dir, wxS( "copy.kicad_sym" ) ).GetFullPath();
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ), wxS( "R" ) } );
+
+    SYMBOL_BUFFER& buf = *libBuffer.GetBuffer( wxS( "C" ) );
+    renameBuffer( libBuffer, buf, wxS( "C_Exported" ) );
+    BOOST_REQUIRE( saveAs( libBuffer, copyPath, true ) );
+
+    renameBuffer( libBuffer, buf, wxS( "C_Later" ) );
+    saveLibrary( libBuffer, copyPath );
+
+    BOOST_CHECK( inLibrary( copyPath, wxS( "C_Later" ) ) );
+    BOOST_CHECK( !inLibrary( copyPath, wxS( "C_Exported" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// An unpacked export must keep another library's file named as a renamed symbol was
+BOOST_AUTO_TEST_CASE( SaveCopyToFolderKeepsOtherSymbolFiles )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "D" ) }, dir );
+    wxString folder = wxFileName( dir, wxS( "export" ) ).GetFullPath();
+    BOOST_REQUIRE( wxFileName::Mkdir( folder ) );
+
+    LIB_BUFFER otherBuffer( wxS( "other" ) );
+    bufferSymbols( otherBuffer, path, { wxS( "D" ) } );
+    BOOST_REQUIRE( saveAs( otherBuffer, folder ) );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "D" ) } );
+    renameBuffer( libBuffer, *libBuffer.GetBuffer( wxS( "D" ) ), wxS( "D_New" ) );
+    BOOST_REQUIRE( saveAs( libBuffer, folder ) );
+
+    BOOST_CHECK( inLibrary( folder, wxS( "D" ) ) );
+    BOOST_CHECK( inLibrary( folder, wxS( "D_New" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// An export over an earlier one must leave only the symbols the library now has
+BOOST_AUTO_TEST_CASE( SaveCopyOverExportKeepsOnlyCurrentSymbols )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "R" ), wxS( "C" ) }, dir );
+    wxString copyPath = wxFileName( dir, wxS( "copy.kicad_sym" ) ).GetFullPath();
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "R" ), wxS( "C" ) } );
+    BOOST_REQUIRE( saveAs( libBuffer, copyPath ) );
+
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "R" ) ) ) );
+    BOOST_REQUIRE( saveAs( libBuffer, copyPath ) );
+
+    BOOST_CHECK( inLibrary( copyPath, wxS( "C" ) ) );
+    BOOST_CHECK( !inLibrary( copyPath, wxS( "R" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Symbols whose file names differ only in case must both survive an unpacked save
+BOOST_AUTO_TEST_CASE( FolderSaveKeepsSymbolsDifferingInCase )
+{
+    wxString dir;
+    makeTempLibrary( {}, dir );
+    wxString folder = wxFileName( dir, wxS( "export" ) ).GetFullPath();
+    BOOST_REQUIRE( wxFileName::Mkdir( folder ) );
+
+    {
+        IO_RELEASER<SCH_IO>         plugin( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+        std::map<std::string, UTF8> properties{ { SCH_IO_KICAD_SEXPR::PropBuffering, "" } };
+
+        for( const wxString& name : { wxS( "part" ), wxS( "Part" ) } )
+            plugin->SaveSymbol( folder, std::make_unique<LIB_SYMBOL>( name ), &properties );
+
+        plugin->SaveLibrary( folder );
+    }
+
+    BOOST_CHECK( inLibrary( folder, wxS( "part" ) ) );
+    BOOST_CHECK( inLibrary( folder, wxS( "Part" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// A case-only rename in an unpacked library must leave only the new name
+BOOST_AUTO_TEST_CASE( FolderSaveTakesCaseOnlyRename )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "part" ) }, dir );
+    wxString folder = wxFileName( dir, wxS( "export" ) ).GetFullPath();
+    BOOST_REQUIRE( wxFileName::Mkdir( folder ) );
+
+    LIB_BUFFER source( wxS( "lib" ) );
+    bufferSymbols( source, path, { wxS( "part" ) } );
+    BOOST_REQUIRE( saveAs( source, folder ) );
+
+    LIB_BUFFER libBuffer( wxS( "export" ) );
+    bufferSymbols( libBuffer, folder, { wxS( "part" ) } );
+    renameBuffer( libBuffer, *libBuffer.GetBuffer( wxS( "part" ) ), wxS( "Part" ) );
+    saveLibrary( libBuffer, folder );
+
+    BOOST_CHECK( inLibrary( folder, wxS( "Part" ) ) );
+    BOOST_CHECK( !inLibrary( folder, wxS( "part" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Save As must keep a grandchild's parent when the buffer holds a child before its root
+BOOST_AUTO_TEST_CASE( SaveCopyKeepsGrandchildParent )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ), wxS( "D" ), wxS( "P" ) }, dir );
+    wxString copyPath = wxFileName( dir, wxS( "copy.kicad_sym" ) ).GetFullPath();
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ), wxS( "D" ), wxS( "P" ) } );
+    libBuffer.GetSymbol( wxS( "C" ) )->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.GetSymbol( wxS( "D" ) )->SetParent( libBuffer.GetSymbol( wxS( "C" ) ) );
+
+    BOOST_REQUIRE( saveAs( libBuffer, copyPath ) );
+
+    IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+    LIB_SYMBOL*         c = plugin->LoadSymbol( copyPath, wxS( "C" ) );
+    LIB_SYMBOL*         d = plugin->LoadSymbol( copyPath, wxS( "D" ) );
+    BOOST_REQUIRE( c && d );
+    BOOST_CHECK( d->GetParent().lock().get() == c );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Buffering a library must buffer each symbol once, even when a grandchild comes before its parent
+BOOST_AUTO_TEST_CASE( BufferOriginalsTakesParentsFirst )
+{
+    LIB_SYMBOL root( wxS( "R" ) );
+    LIB_SYMBOL middle( wxS( "M" ) );
+    LIB_SYMBOL leaf( wxS( "L" ) );
+    middle.SetParent( &root );
+    leaf.SetParent( &middle );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    libBuffer.BufferOriginals( { &leaf, &middle, &root } );
+
+    BOOST_CHECK_EQUAL( libBuffer.GetBuffers().size(), 3 );
+    BOOST_CHECK( libBuffer.GetSymbol( wxS( "M" ) )->GetParent().lock().get() == libBuffer.GetSymbol( wxS( "R" ) ) );
+}
+
+
+// Replacing a derived symbol in the plugin cache must keep the symbols derived from it
+BOOST_AUTO_TEST_CASE( ReplacingParentKeepsGrandchild )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ), wxS( "M" ), wxS( "R" ) }, dir );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ), wxS( "M" ), wxS( "R" ) } );
+    libBuffer.GetSymbol( wxS( "M" ) )->SetParent( libBuffer.GetSymbol( wxS( "R" ) ) );
+    libBuffer.GetSymbol( wxS( "C" ) )->SetParent( libBuffer.GetSymbol( wxS( "M" ) ) );
+    saveLibrary( libBuffer, path );
+
+    IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+    plugin->SaveSymbol( path, std::make_unique<LIB_SYMBOL>( *libBuffer.GetSymbol( wxS( "M" ) ) ) );
+
+    IO_RELEASER<SCH_IO> reader( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+    LIB_SYMBOL*         c = reader->LoadSymbol( path, wxS( "C" ) );
+    LIB_SYMBOL*         m = reader->LoadSymbol( path, wxS( "M" ) );
+    BOOST_REQUIRE( c && m );
+    BOOST_CHECK( c->GetParent().lock().get() == m );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Reverting a symbol saved under a parent the file does not hold yet must keep it derived
+BOOST_AUTO_TEST_CASE( RevertKeepsNewParentOfSavedChild )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ) }, dir );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ) } );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "Q" ) ), std::make_unique<SCH_SCREEN>(), true );
+
+    SYMBOL_BUFFER& child = *libBuffer.GetBuffer( wxS( "C" ) );
+    child.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    saveLibrary( libBuffer, path );
+
+    libBuffer.RevertBuffer( child, false );
+    BOOST_CHECK( child.GetSymbol().IsDerived() );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Reverting a symbol must bring back its deleted saved parent, and a save must keep it in the file
+BOOST_AUTO_TEST_CASE( RevertRestoresDeletedParent )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ), wxS( "P" ), wxS( "Q" ) }, dir );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ), wxS( "P" ), wxS( "Q" ) } );
+
+    SYMBOL_BUFFER& child = *libBuffer.GetBuffer( wxS( "C" ) );
+    child.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    saveLibrary( libBuffer, path );
+
+    // A replacement P, deleted too, leaves a second deletion of that name
+    child.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "P" ) ) ) );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "P" ) ), std::make_unique<SCH_SCREEN>(), true );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "P" ) ) ) );
+
+    libBuffer.RevertBuffer( child, false );
+
+    {
+        IO_RELEASER<SCH_IO> plugin( SCH_IO_MGR::FindPlugin( SCH_IO_MGR::SCH_KICAD ) );
+        BOOST_REQUIRE( libBuffer.SaveModifiedBuffers( path, &*plugin ) );
+        BOOST_CHECK( libBuffer.RemoveDeletedSymbols( path, &*plugin ) );
+        plugin->SaveLibrary( path );
+    }
+
+    libBuffer.ClearAddedAndDeletedBufferLists();
+
+    LIB_SYMBOL* parent = libBuffer.GetSymbol( wxS( "P" ) );
+    BOOST_CHECK( parent && child.GetSymbol().GetParent().lock().get() == parent );
+    BOOST_CHECK( inLibrary( path, wxS( "P" ) ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// A revert must not restore a deleted parent under a name the reverted symbol takes back
+BOOST_AUTO_TEST_CASE( RevertRefusesParentNameTakenBack )
+{
+    wxString dir;
+    wxString path = makeTempLibrary( { wxS( "C" ), wxS( "P" ), wxS( "Q" ) }, dir );
+
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    bufferSymbols( libBuffer, path, { wxS( "C" ), wxS( "P" ), wxS( "Q" ) } );
+
+    SYMBOL_BUFFER& child = *libBuffer.GetBuffer( wxS( "C" ) );
+    child.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    saveLibrary( libBuffer, path );
+
+    renameBuffer( libBuffer, child, wxS( "D" ) );
+    child.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    renameBuffer( libBuffer, *libBuffer.GetBuffer( wxS( "P" ) ), wxS( "C" ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "C" ) ) ) );
+
+    BOOST_CHECK( !libBuffer.CanRevertBuffer( child, false ) );
+    BOOST_CHECK_EQUAL( libBuffer.RevertBuffer( child, false ), wxS( "D" ) );
+
+    wxFileName::Rmdir( dir, wxPATH_RMDIR_RECURSIVE );
+}
+
+
+// Dropping a never-saved symbol must keep it while a revert can restore a symbol derived from it
+BOOST_AUTO_TEST_CASE( DropKeepsParentOfRevertableChild )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    SYMBOL_BUFFER& childBuf = *libBuffer.GetBuffer( wxS( "C" ) );
+    childBuf.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+
+    BOOST_CHECK( !libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P" ) ), true ).IsEmpty() );
+    libBuffer.RevertBuffer( childBuf, false );
+
+    LIB_SYMBOL* parent = libBuffer.GetSymbol( wxS( "P" ) );
+    BOOST_CHECK( parent && childBuf.GetSymbol().GetParent().lock().get() == parent );
+}
+
+
+// Dropping a never-saved symbol must not keep it for a deleted symbol that no revert brings back
+BOOST_AUTO_TEST_CASE( DropReleasesParentOfDeletedChild )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "P" ) ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "C" ) ) ) );
+
+    BOOST_CHECK( libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P" ) ), true ).IsEmpty() );
+    BOOST_CHECK( !libBuffer.GetBuffer( wxS( "P" ) ) );
+}
+
+
+// A revert must not restore a deleted parent beside a new symbol whose name differs only in case
+BOOST_AUTO_TEST_CASE( RevertRefusesParentNameDifferingInCase )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "Parent" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "Parent" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    SYMBOL_BUFFER& childBuf = *libBuffer.GetBuffer( wxS( "C" ) );
+    childBuf.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "Parent" ) ) ) );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "parent" ) ), std::make_unique<SCH_SCREEN>(), true );
+
+    BOOST_CHECK( !libBuffer.CanRevertBuffer( childBuf, false ) );
+}
+
+
+// A revert that keeps a symbol's name must not depend on other buffers of that name
+BOOST_AUTO_TEST_CASE( RevertIgnoresDuplicateOfKeptName )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( int i = 0; i < 2; ++i )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "M" ) ), std::make_unique<SCH_SCREEN>() );
+
+    BOOST_CHECK( libBuffer.CanRevertBuffer( *libBuffer.GetBuffer( wxS( "M" ) ), false ) );
+}
+
+
+// A revert must not take back a name another symbol took since
+BOOST_AUTO_TEST_CASE( RevertRefusesNameTakenSince )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    libBuffer.GetSymbol( wxS( "C" ) )->SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    renameBuffer( libBuffer, *libBuffer.GetBuffer( wxS( "P" ) ), wxS( "P2" ) );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "P" ) ), std::make_unique<SCH_SCREEN>(), true );
+
+    BOOST_CHECK_EQUAL( libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P2" ) ), true ), wxS( "P2" ) );
+}
+
+
+// Dropping a never-saved symbol must keep it while a deleted ancestor a revert restores can revert to it
+BOOST_AUTO_TEST_CASE( DropKeepsSavedParentOfDeletedAncestor )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto middle = std::make_unique<LIB_SYMBOL>( wxS( "M" ) );
+    middle->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( middle ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "M" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    for( const wxString& name : { wxS( "M" ), wxS( "C" ) } )
+        libBuffer.GetSymbol( name )->SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "M" ) ) ) );
+    BOOST_CHECK( !libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P" ) ), true ).IsEmpty() );
+}
+
+
+// Dropping a never-saved symbol must keep it when it closes the cycle that refuses a revert
+BOOST_AUTO_TEST_CASE( DropKeepsSymbolInCyclicRevertPath )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "M" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>() );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "M" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>() );
+    libBuffer.GetSymbol( wxS( "C" ) )->SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+
+    auto added = std::make_unique<LIB_SYMBOL>( wxS( "P" ) );
+    added->SetParent( libBuffer.GetSymbol( wxS( "C" ) ) );
+    libBuffer.CreateBuffer( std::move( added ), std::make_unique<SCH_SCREEN>(), true );
+
+    libBuffer.GetSymbol( wxS( "M" ) )->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "M" ) ) ) );
+
+    BOOST_CHECK( !libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P" ) ), true ).IsEmpty() );
+}
+
+
+// Dropping a never-saved symbol must ignore its own saved ancestors
+BOOST_AUTO_TEST_CASE( DropIgnoresOwnSavedAncestors )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    libBuffer.GetSymbol( wxS( "C" ) )->SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    libBuffer.GetSymbol( wxS( "P" ) )->SetParent( libBuffer.GetSymbol( wxS( "C" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "P" ) ) ) );
+
+    BOOST_CHECK( libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "C" ) ), true ).IsEmpty() );
+}
+
+
+// A revert that drops a never-saved symbol must not need its saved parent
+BOOST_AUTO_TEST_CASE( DropIgnoresTakenParentName )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    SYMBOL_BUFFER& childBuf = *libBuffer.GetBuffer( wxS( "C" ) );
+    childBuf.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "P" ) ) ) );
+    libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( wxS( "P" ) ), std::make_unique<SCH_SCREEN>(), true );
+
+    BOOST_CHECK( libBuffer.CanRevertBuffer( childBuf, true ) );
+    BOOST_CHECK( !libBuffer.CanRevertBuffer( childBuf, false ) );
+}
+
+
+// Dropping a never-saved symbol must keep it while a deleted symbol a revert brings back derives from it
+BOOST_AUTO_TEST_CASE( DropKeepsParentOfDeletedAncestor )
+{
+    LIB_BUFFER libBuffer( wxS( "lib" ) );
+
+    for( const wxString& name : { wxS( "P" ), wxS( "Q" ), wxS( "R" ) } )
+        libBuffer.CreateBuffer( std::make_unique<LIB_SYMBOL>( name ), std::make_unique<SCH_SCREEN>(), true );
+
+    // C was created under M, then M moved to P and C to Q before M was deleted
+    auto middle = std::make_unique<LIB_SYMBOL>( wxS( "M" ) );
+    middle->SetParent( libBuffer.GetSymbol( wxS( "R" ) ) );
+    libBuffer.CreateBuffer( std::move( middle ), std::make_unique<SCH_SCREEN>(), true );
+
+    auto child = std::make_unique<LIB_SYMBOL>( wxS( "C" ) );
+    child->SetParent( libBuffer.GetSymbol( wxS( "M" ) ) );
+    libBuffer.CreateBuffer( std::move( child ), std::make_unique<SCH_SCREEN>(), true );
+
+    SYMBOL_BUFFER& childBuf = *libBuffer.GetBuffer( wxS( "C" ) );
+    childBuf.GetSymbol().SetParent( libBuffer.GetSymbol( wxS( "Q" ) ) );
+    libBuffer.GetSymbol( wxS( "M" ) )->SetParent( libBuffer.GetSymbol( wxS( "P" ) ) );
+    BOOST_REQUIRE( libBuffer.DeleteBuffer( *libBuffer.GetBuffer( wxS( "M" ) ) ) );
+
+    libBuffer.RevertBuffer( *libBuffer.GetBuffer( wxS( "P" ) ), true );
+    libBuffer.RevertBuffer( childBuf, false );
+
+    LIB_SYMBOL* restored = libBuffer.GetSymbol( wxS( "M" ) );
+    BOOST_CHECK( restored && restored->IsDerived() );
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -5284,8 +5284,90 @@ SCH_RULE_AREA* SCH_IO_KICAD_SEXPR_PARSER::parseSchRuleArea()
             parseCustomProperty( ruleArea.get() );
             break;
 
+        case T_instances:
+            for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+            {
+                if( token != T_LEFT )
+                    Expecting( T_LEFT );
+
+                if( NextTok() != T_project )
+                    Expecting( "project" );
+
+                NeedSYMBOL();
+                wxString projectName = FromUTF8();
+
+                for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                {
+                    if( token != T_LEFT )
+                        Expecting( T_LEFT );
+
+                    if( NextTok() != T_path )
+                        Expecting( "path" );
+
+                    SCH_RULE_AREA_INSTANCE instance;
+                    instance.m_ProjectName = projectName;
+                    NeedSYMBOL();
+                    instance.m_Path = KIID_PATH( FromUTF8() );
+
+                    for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                    {
+                        if( token != T_LEFT )
+                            Expecting( T_LEFT );
+
+                        if( NextTok() != T_variant )
+                            Expecting( "variant" );
+
+                        // Variants store only differentials and the base flags precede the instances
+                        SCH_RULE_AREA_VARIANT variant;
+                        variant.InitializeAttributes( *ruleArea );
+
+                        for( token = NextTok(); token != T_RIGHT; token = NextTok() )
+                        {
+                            if( token != T_LEFT )
+                                Expecting( T_LEFT );
+
+                            token = NextTok();
+
+                            switch( token )
+                            {
+                            case T_name:
+                                NeedSYMBOL();
+                                variant.m_Name = FromUTF8();
+                                NeedRIGHT();
+                                break;
+
+                            case T_dnp:
+                                variant.m_DNP = parseBool();
+                                NeedRIGHT();
+                                break;
+
+                            case T_exclude_from_sim:
+                                variant.m_ExcludedFromSim = parseBool();
+                                NeedRIGHT();
+                                break;
+
+                            case T_in_bom:
+                                variant.m_ExcludedFromBOM = !parseBool();
+                                NeedRIGHT();
+                                break;
+
+                            default:
+                                Expecting( "name, dnp, exclude_from_sim, or in_bom" );
+                            }
+                        }
+
+                        if( !variant.m_Name.IsEmpty() )
+                            instance.m_Variants[variant.m_Name] = variant;
+                    }
+
+                    ruleArea->AddInstance( instance );
+                }
+            }
+
+            break;
+
         default:
-            Expecting( "polyline, exclude_from_sim, on_board, in_bom, dnp, locked, or custom_property" );
+            Expecting( "polyline, exclude_from_sim, on_board, in_bom, dnp, locked, custom_property, or instances" );
         }
     }
 

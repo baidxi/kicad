@@ -1457,6 +1457,10 @@ void SYMBOL_EDIT_FRAME::Revert( LIB_ID& aTarget, bool aConfirm )
     if( aConfirm && !ConfirmRevertDialog( this, msg ) )
         return;
 
+    // A refused revert must not close the tabs and their undo history first
+    if( !symbolName.IsEmpty() && !m_libMgr->CanRevertSymbol( aTarget, true ) )
+        return;
+
     // Other tabs may hold unsaved edits, so close only the reverted ones
     int          unit = m_unit;
     const LIB_ID active = closeLibraryTabs( libName, symbolName );
@@ -1716,7 +1720,8 @@ bool SYMBOL_EDIT_FRAME::saveLibrary( const wxString& aLibrary, SAVE_LIBRARY_AS a
         }
     }
 
-    if( !m_libMgr->SaveLibrary( aLibrary, fn.GetFullPath(), fileType ) )
+    if( !m_libMgr->SaveLibrary( aLibrary, fn.GetFullPath(), fileType,
+                                type == SYMBOL_SAVEAS_TYPE::REPLACE_TABLE_ENTRY ) )
     {
         msg.Printf( _( "Failed to save changes to symbol library file '%s'." ),
                     fn.GetFullPath() );

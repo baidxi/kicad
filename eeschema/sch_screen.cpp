@@ -50,6 +50,7 @@
 #include <sch_junction.h>
 #include <sch_line.h>
 #include <sch_marker.h>
+#include <sch_rule_area.h>
 #include <sch_sheet.h>
 #include <sch_sheet_pin.h>
 #include <sch_text.h>
@@ -2054,6 +2055,17 @@ std::set<wxString> SCH_SCREEN::GetVariantNames() const
         }
     }
 
+    for( const SCH_ITEM* item : Items().OfType( SCH_RULE_AREA_T ) )
+    {
+        const SCH_RULE_AREA* ruleArea = static_cast<const SCH_RULE_AREA*>( item );
+
+        for( const SCH_RULE_AREA_INSTANCE& instance : ruleArea->GetInstances() )
+        {
+            for( const auto& [name, variant] : instance.m_Variants )
+                variantNames.emplace( name );
+        }
+    }
+
     return variantNames;
 }
 
@@ -2099,6 +2111,19 @@ void SCH_SCREEN::DeleteVariant( const wxString& aVariantName, SCH_COMMIT* aCommi
 
                 sheet->DeleteVariant( instance.m_Path, aVariantName );
             }
+        }
+    }
+
+    for( SCH_ITEM* item : Items().OfType( SCH_RULE_AREA_T ) )
+    {
+        SCH_RULE_AREA* ruleArea = static_cast<SCH_RULE_AREA*>( item );
+
+        if( ruleArea->HasVariant( aVariantName ) )
+        {
+            if( aCommit )
+                aCommit->Modify( item, this );
+
+            ruleArea->DeleteVariant( aVariantName );
         }
     }
 }
@@ -2148,6 +2173,19 @@ void SCH_SCREEN::RenameVariant( const wxString& aOldName, const wxString& aNewNa
             }
         }
     }
+
+    for( SCH_ITEM* item : Items().OfType( SCH_RULE_AREA_T ) )
+    {
+        SCH_RULE_AREA* ruleArea = static_cast<SCH_RULE_AREA*>( item );
+
+        if( ruleArea->HasVariant( aOldName ) )
+        {
+            if( aCommit )
+                aCommit->Modify( item, this );
+
+            ruleArea->RenameVariant( aOldName, aNewName );
+        }
+    }
 }
 
 
@@ -2193,6 +2231,19 @@ void SCH_SCREEN::CopyVariant( const wxString& aSourceVariant, const wxString& aN
 
                 sheet->CopyVariant( instance.m_Path, aSourceVariant, aNewVariant );
             }
+        }
+    }
+
+    for( SCH_ITEM* item : Items().OfType( SCH_RULE_AREA_T ) )
+    {
+        SCH_RULE_AREA* ruleArea = static_cast<SCH_RULE_AREA*>( item );
+
+        if( ruleArea->HasVariant( aSourceVariant ) )
+        {
+            if( aCommit )
+                aCommit->Modify( item, this );
+
+            ruleArea->CopyVariant( aSourceVariant, aNewVariant );
         }
     }
 }

@@ -271,7 +271,11 @@ struct FILE_HEADER
 {
     struct LAYER_MAP_ENTRY
     {
+        // Meaning unknown. Small value.
         uint32_t m_A;
+
+        // Key of the 0x2A LAYER_LIST block holding the subclass names for this
+        // class.
         uint32_t m_LayerList0x2A;
     };
 
@@ -389,12 +393,21 @@ struct FILE_HEADER
     uint32_t m_UnitsDivisor;
 
     /**
-     * The layer maps is a list of groups of two numbers.
+     * All versions of Allegro PCB files observed so far have 28 layer map entries,
+     * indexed by Allegro layer CLASS.
      *
-     * All files so far seem to have 25 entries, but unsure if that
-     * is a universal value. But there's no obvious nearby value of '25'.
+     * But this appears to be embedded in a region with space for up to 64 entries,
+     * so this could be either reserved or normally-unused space. So if we find
+     * layer maps with values in this region is could be possible.
      */
-    std::array<LAYER_MAP_ENTRY, 25> m_LayerMap;
+    static constexpr size_t LAYER_MAP_ENTRY_COUNT = 28;
+
+    /**
+     * The layer map is a list of entry counts for each Allegro layer class.
+     *
+     * Entries with a zero in either field are considered empty.
+     */
+    std::array<LAYER_MAP_ENTRY, LAYER_MAP_ENTRY_COUNT> m_LayerMap;
 
     uint32_t GetStringsCount() const
     {
@@ -966,25 +979,37 @@ struct BLK_0x0F_FUNCTION_SLOT
 
     uint32_t m_Key;
 
-    uint32_t m_SlotName;
+    uint32_t m_SlotNameStrId;
 
+    /// Always zero so far.
     COND_GE<FMT_VER::V_174, uint32_t> m_Unknown1;
 
-    std::array<char, 32> m_CompDeviceType;
+    /// Component device type as a fixed-length string (V190 and below)
+    COND_LT<FMT_VER::V_190, std::array<char, 32>> m_CompDeviceType;
+    /// Pointer to the component device type string (V190 and above)
+    COND_GE<FMT_VER::V_190, uint32_t> m_CompDeviceTypeStrId;
 
-    COND_GE<FMT_VER::V_190, uint32_t> m_CompDeviceTypePtr;
+    // Next slot in this component's chain, or the owning 0x06 when last
+    uint32_t m_Next;
 
-    COND_GE<FMT_VER::V_172, uint32_t> m_Next;
+    // Direct back-reference to the owning 0x06 (V172+)
+    COND_GE<FMT_VER::V_172, uint32_t> m_ParentComponentPtr;
 
-    uint32_t m_Ptr0x06;
-    uint32_t m_Ptr0x11;
+    /// Pointer to the head of the pin name list (0x11) for this slot
+    /// For example an ORGATE may have "O", "I1", "I0" as its pin names.
+    uint32_t m_PinNamePtr;
 
+    /// Always zero so far.
     uint32_t m_Unknown2;
 
-    std::string GetCompDeviceTypeStr() const
+    /// Get the component device type as a string (in V190 and below)
+    std::optional<std::string> GetCompDeviceTypeStr() const
     {
+        if( !m_CompDeviceType.has_value() )
+            return std::nullopt;
+
         // The string is stored as a fixed-length array, but is null-terminated
-        return std::string( m_CompDeviceType.data(), strnlen( m_CompDeviceType.data(), m_CompDeviceType.size() ) );
+        return std::string( m_CompDeviceType->data(), strnlen( m_CompDeviceType->data(), m_CompDeviceType->size() ) );
     }
 };
 
@@ -1000,14 +1025,22 @@ struct BLK_0x10_FUNCTION_INST
 
     uint32_t m_Key;
 
-    COND_GE<FMT_VER::V_172, uint32_t> m_Unknown1;
+    /// Next function instance of the same component, or the owning 0x07 at the end
+    COND_GE<FMT_VER::V_172, uint32_t> m_Next;
 
+    /// Pointer to the component instance (0x07) this function instance belongs to
     uint32_t m_ComponentInstPtr;
 
-    COND_GE<FMT_VER::V_174, uint32_t> m_Unknown2;
+    /// Always zero so far.
+    COND_GE<FMT_VER::V_174, uint32_t> m_Unknown1;
 
-    uint32_t m_PtrX12;
-    uint32_t m_Unknown3;
+    /// Pointer to the first pin instance (0x12) for this function instance
+    /// Zero in versions above V172
+    uint32_t m_FirstPinInstance16x;
+    /// Pointer to the first pin instance (0x12) for this function instance
+    /// Zero in versions below V172
+    uint32_t m_FirstPinInstance;
+
     uint32_t m_FunctionName;
     uint32_t m_Slots; // 0x0F?
     uint32_t m_Fields;     // Presumably a pointer to a string
@@ -1038,22 +1071,30 @@ struct BLK_0x11_PIN_NAME
 
 
 /**
- * Cross-reference between objects. Exact semantics not fully understood; appears in
- * component and function instance chains.
+ * Three-way cross-reference between a placed pad, a function instance, and a pin name.
+ *
+ * 0x10 FUNCTION_INST object have a list of 0x12 PIN_INSTANCE objects.
  */
-struct BLK_0x12_XREF
+struct BLK_0x12_PIN_INST
 {
     static constexpr uint8_t BLOCK_TYPE_CODE = 0x12;
 
     uint8_t  m_Type;
     uint16_t m_R;
     uint32_t m_Key;
-    uint32_t m_Ptr1;
-    uint32_t m_Ptr2;
-    uint32_t m_Ptr3;
+    /// Pointer to the next 0x12 PIN_INST object or back to the parent
+    /// 0x10 FUNCTION_INST object
+    uint32_t m_Next;
+    /// Pointer to 0x11 PIN_NAME object
+    uint32_t m_PtrPinName;
+    /// Pointer to the 0x32 PLACED_PAD object
+    uint32_t m_PtrPad;
+    /// Always zero so far.
     uint32_t m_Unknown1;
 
+    /// Always zero so far.
     COND_GE<FMT_VER::V_165, uint32_t> m_Unknown2;
+    /// Always zero so far.
     COND_GE<FMT_VER::V_174, uint32_t> m_Unknown3;
 };
 
@@ -1726,13 +1767,24 @@ struct BLK_0x26_MATCH_GROUP
  * material stackup, color palette, and constraint manager state. NOT a heap pointer table.
  *
  * Pre-V172 uses runtime heap pointer format. V172+ uses compact indices that match
- * geometric block keys. The block extends to an offset defined in the header (m_0x27_End).
- * Not imported directly since it is a display/navigation structure, not design data.
+ * geometric block keys. The block extends to an offset defined in the header (m_0x27_End),
+ * or to the end of the file when that offset is zero. Not imported directly since it is a
+ * display/navigation structure, not design data.
  */
 struct BLK_0x27_CSTRMGR_XREF
 {
     static constexpr uint8_t BLOCK_TYPE_CODE = 0x27;
 
+    /**
+     * Non-zero values from the table, in file order.
+     *
+     * Values in this table appear to be references to other blocks, specifically of "non-container"
+     * types like SEGMENT, ARC, 0x31 strings, 0x32 placed pads, 0x23 ratlines etc.
+     *
+     * Depending on what these values are and how they are used (if useful at all), we may
+     * need to store them in a map, vector of vectors, or some other structure to represent
+     * the relationships.
+     */
     std::vector<uint32_t> m_Refs;
 };
 
@@ -2168,12 +2220,26 @@ struct BLK_0x32_PLACED_PAD
     uint32_t m_ParentFp;
     uint32_t m_Track;
     uint32_t m_PadPtr;
-    uint32_t m_Ptr6;
+
+    /**
+     * 0x12 pin instance binding this pad to a function instance and pin name, 0 if unnamed.
+     *
+     * The field is always present, but non-zero only before V_172.
+     */
+    uint32_t m_PinInstance;
+
     uint32_t m_Ratline;
     uint32_t m_PtrPinNumber;
     uint32_t m_NextInCompInst;
 
-    COND_GE<FMT_VER::V_172, uint32_t> m_Unknown2;
+    /**
+     * The 0x07 component instance that owns this pad, duplicating the parent 0x2D's
+     * m_InstRef.
+     *
+     * Zero for pads owned by an 0x2B library definition instead of
+     * a placed instance.
+     */
+    COND_GE<FMT_VER::V_172, uint32_t> m_ComponentInst;
 
     uint32_t m_NameText;
     uint32_t m_Ptr11;

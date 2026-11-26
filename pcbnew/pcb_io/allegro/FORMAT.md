@@ -14,7 +14,7 @@ Offset 0x0000: File Header (~4KB)
   - Board units (1 byte: 0x01=Imperial, 0x02=Metric)
   - Units divisor (4 bytes)
   - String count (explicit field pre-V180, embedded in Unknown2 for V180)
-  - Layer map (256 entries)
+  - Layer map (28 entries of 8 bytes, indexed by layer class)
 
 Offset 0x1200: String Table
   - Repeated: [4-byte ID] [null-terminated string]
@@ -77,14 +77,9 @@ placed instance are board-absolute with final layers already applied.
 ## Linked Lists
 
 Most block types form singly-linked lists via a `m_Next` field containing
-the key of the next block. The header list descriptors. Each descriptor is
-a tail word followed by a head word. Walking a linked list starts from the
-head key, looks up each block by key, and follows `m_Next` until 0 or the tail key.
-
-The tail is a per-list terminator: within a file the tails form one
-consecutive run of values, and each list ends when a block's `m_Next`
-equals its own tail. The run starts at 0x65 in most files, and at 0x01
-or 0x1001 in some later ones.
+the key of the next block. The header contains 22 linked list descriptors
+with head and tail keys. Walking a linked list starts from the head key,
+looks up each block by key, and follows `m_Next` until 0 or the tail key.
 
 The `m_Key` field serves as a global block identifier. All blocks are
 indexed by key in a flat hash map (`m_ObjectKeyMap`).
@@ -527,10 +522,13 @@ stackup order (0 = top, N-1 = bottom).
 
 ### Custom Layer Lists
 
-The header layer map contains a 0x2A LAYER_LIST pointer for each
-class. Multiple classes can share the same list. The subclass byte
-indexes into this list for low-valued subclass codes. Each entry
-provides a layer name string.
+The header layer map holds a 0x2A LAYER_LIST key for each class.
+Multiple classes can share the same list. The subclass byte indexes
+into this list for low-valued subclass codes. Each entry provides a
+layer name string.
+
+The map is indexed by class number and has 28 entries, covering
+class 0x00 up to class 0x1b. This appears to be a constant value.
 
 ## Footprints (0x2B / 0x2D)
 
@@ -847,9 +845,21 @@ name (`m_NameStrKey`) and dimension value. Not currently imported.
 
 ## Block 0x27 (Constraint Manager Cross-Reference Table)
 
-The 0x27 block extends to an offset defined in the header (`m_0x27_End`).
-Size scales with board complexity (10KB for simple boards to 4MB for
-VCU118).
+The 0x27 block extends to an offset defined in the header (`m_0x27_End`),
+or to the end of the file if the offset is zero.
+
+There is apparently no explicit length field for this block: the
+length must be inferred from offset or the end of the file.
+
+The block contains keys of "non-container" objects, such as segments, arcs,
+placed pads, vias, ratlines, etc. Container types like tracks, text
+wrappers, 0x14, 0x03, nets, footprints, etc. are not found in this block.
+
+The keys appear to be stored in "chunks" separated by zero values. It
+is not known what these blocks represent.
+
+It is not known how these chunks are organized or exactly how these
+keys are used.
 
 ### Binary Layout
 

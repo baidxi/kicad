@@ -283,6 +283,7 @@ static const TOOL_ACTION ACT_CustomTrackWidth( TOOL_ACTION_ARGS()
         .Tooltip( _( "Shows a dialog for changing the track width and via size." ) )
         .Icon( BITMAPS::width_track ) );
 
+// E belongs to the global Properties action outside spread mode. Init() gates it.
 static const TOOL_ACTION ACT_SpreadTracksSetDistance( TOOL_ACTION_ARGS()
         .Name( "pcbnew.InteractiveRouter.SpreadTracksSetDistance" )
         .Scope( AS_CONTEXT )
@@ -762,6 +763,14 @@ bool ROUTER_TOOL::Init()
     mgr->SetConditions( ACT_SwitchCornerMode90,       CHECK( cornerMode90Cond ) );
     mgr->SetConditions( ACT_SwitchCornerModeArc45,    CHECK( cornerModeArc45Cond ) );
     mgr->SetConditions( ACT_SwitchCornerModeArc90,    CHECK( cornerModeArc90Cond ) );
+
+    // Claim the spreading keys in spread mode only, or E never reaches PCB_ACTIONS::properties
+    // and the track and via size dialog stops opening while routing.
+    const ACTION_CONDITIONS spreading = ACTION_CONDITIONS().HotkeyEnable( spreadingTracksCond );
+
+    mgr->SetConditions( ACT_SpreadTracksSetDistance, spreading );
+    mgr->SetConditions( ACT_IncreaseSpreadingDistance, spreading );
+    mgr->SetConditions( ACT_DecreaseSpreadingDistance, spreading );
 
     auto diffPairCond =
         [this]( const SELECTION& )
@@ -2540,8 +2549,6 @@ int ROUTER_TOOL::SpreadTracks( const TOOL_EVENT& aEvent )
 
     bool pickingStartPoint = true;
 
-    setSelectableItemMask( PNS::ITEM::ARC_T | PNS::ITEM::SEGMENT_T );
-
     // Snapping uses ViewGetLOD(), which uses the layerVisibilityCache.  Catch any visibility
     // changes while routing.
     m_toolMgr->GetView()->SyncLayerVisibilityCache();
@@ -2573,6 +2580,9 @@ int ROUTER_TOOL::SpreadTracks( const TOOL_EVENT& aEvent )
     }
 
     frame->ShowInfoBarMsg( _( "Pick a track you want to spread other tracks around." ) );
+
+    // Only tracks are pickable while spreading.
+    setSelectableItemMask( PNS::ITEM::ARC_T | PNS::ITEM::SEGMENT_T );
 
     // Main loop: keep receiving events
     while( TOOL_EVENT* evt = Wait() )
@@ -2684,6 +2694,7 @@ int ROUTER_TOOL::SpreadTracks( const TOOL_EVENT& aEvent )
 
     m_startItem = nullptr;
 
+    setSelectableItemMask( PNS::ITEM::ANY_T );
     controls->ForceCursorPosition( false );
     highlightNets( false );
 
@@ -3124,7 +3135,7 @@ static DRAG_KIND dragKindOf( const PCB_SELECTION& aSelection )
 }
 
 
-bool ROUTER_TOOL::CanInlineDrag( int aDragMode )
+bool ROUTER_TOOL::CanInlineDrag()
 {
     m_toolMgr->RunAction<CLIENT_SELECTION_FILTER>( ACTIONS::selectionCursor, NeighboringSegmentFilter );
     const PCB_SELECTION& selection = m_toolMgr->GetTool<PCB_SELECTION_TOOL>()->GetSelection();
@@ -3139,10 +3150,8 @@ bool ROUTER_TOOL::CanInlineDrag( int aDragMode )
     case DRAG_KIND::TRACKS_KIND:
         return true;
 
-    // Neither footprints nor a block drag free angle
     case DRAG_KIND::FOOTPRINTS_KIND:
-    case DRAG_KIND::BLOCK:
-        return !( aDragMode & PNS::DM_FREE_ANGLE );
+    case DRAG_KIND::BLOCK: return true;
 
     default:
         return false;
@@ -3257,16 +3266,18 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
     reattachBoardIfSwapped();
     m_router->SyncWorld();
 
-    // A footprint with no copper the router can see cannot be dragged, and showing it in the
-    // preview would promise a move the commit will not make
-    for( auto it = footprints.begin(); it != footprints.end(); )
+    // The router moves a footprint through its pads, so one with none it can see is carried here
+    std::vector<FOOTPRINT*> carriedFootprints;
+
+    for( FOOTPRINT* footprint : footprints )
     {
         bool hasSolid = false;
 
-        for( PAD* pad : ( *it )->Pads() )
+        for( PAD* pad : footprint->Pads() )
             hasSolid |= !m_router->GetWorld()->FindItemsByParent( pad ).empty();
 
-        it = hasSolid ? std::next( it ) : footprints.erase( it );
+        if( !hasSolid )
+            carriedFootprints.push_back( footprint );
     }
 
     // Snapping uses ViewGetLOD(), which uses the layerVisibilityCache.  Make sure it's up-to-date.
@@ -3274,8 +3285,9 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
 
     if( !footprints.empty() )
     {
-        // A block drag has its own algorithm, and the leader logic below assumes a lone footprint
-        if( footprints.size() == 1 && !blockDrag )
+        // A block drag has its own algorithm, and the leader logic below assumes a lone
+        // footprint the router can move
+        if( footprints.size() == 1 && !blockDrag && carriedFootprints.empty() )
             singleFootprintDrag = true;
 
         if( showCourtyardConflicts )
@@ -3462,6 +3474,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
         restoreSelection( selection );
         controls()->ForceCursorPosition( false );
         highlightNets( false );
+
         return 0;
     }
 
@@ -3506,6 +3519,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
 
     bool hasMouseMoved = false;
     bool hasMultidragCancelled = false;
+    bool committed = false;
 
     while( TOOL_EVENT* evt = Wait() )
     {
@@ -3630,7 +3644,7 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
             bool forceCommit = evt->Modifier( MD_CTRL );
 
             updateEndItem( *evt );
-            m_router->FixRoute( m_endSnapPoint, m_endItem, forceFinish, forceCommit );
+            committed = m_router->FixRoute( m_endSnapPoint, m_endItem, forceFinish, forceCommit );
             leaderSegments = m_router->GetLastCommittedLeaderSegments();
 
             break;
@@ -3705,6 +3719,20 @@ int ROUTER_TOOL::InlineDrag( const TOOL_EVENT& aEvent )
     if( m_router->RoutingInProgress() )
         m_router->StopRouting();
 
+    if( committed && !carriedFootprints.empty() && m_endSnapPoint != p )
+    {
+        BOARD_COMMIT commit( frame() );
+        VECTOR2I     offset = m_endSnapPoint - p;
+
+        for( FOOTPRINT* footprint : carriedFootprints )
+        {
+            commit.Modify( footprint );
+            footprint->Move( offset );
+        }
+
+        // Appending keeps the whole drag in one undo step
+        commit.Push( _( "Drag" ), APPEND_UNDO );
+    }
 
     if( itemsToDrag.Size() && hasMultidragCancelled )
     {

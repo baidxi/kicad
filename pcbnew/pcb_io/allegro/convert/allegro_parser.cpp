@@ -97,6 +97,11 @@ static T ReadField( FILE_STREAM& aStream )
     {
         field = aStream.ReadU8();
     }
+    else if constexpr( std::is_same_v<T, char> )
+    {
+        // char is a distinct type from uint8_t, and is used for raw byte strings
+        field = static_cast<char>( aStream.ReadU8() );
+    }
     else if constexpr( std::is_same_v<T, uint16_t> )
     {
         field = aStream.ReadU16();
@@ -115,8 +120,12 @@ static T ReadField( FILE_STREAM& aStream )
     }
     else if constexpr( requires { std::tuple_size<T>::value; } )
     {
+        using element_type = std::tuple_element_t<0, T>;
+
         for( size_t i = 0; i < std::tuple_size_v<T>; ++i )
-            field[i] = aStream.ReadU32();
+        {
+            field[i] = ReadField<element_type>( aStream );
+        }
     }
     else
     {
@@ -847,20 +856,19 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x0F( FILE_STREAM& stream, FMT_VER
 
     data.m_Key = stream.ReadU32();
     block->SetKey( data.m_Key );
-    data.m_SlotName = stream.ReadU32();
+    data.m_SlotNameStrId = stream.ReadU32();
 
     ReadCond( stream, aVer, data.m_Unknown1 );
 
-    if( aVer < FMT_VER::V_190 )
-        stream.ReadBytes( data.m_CompDeviceType.data(), data.m_CompDeviceType.size() );
+    ReadCond( stream, aVer, data.m_CompDeviceType );
+    ReadCond( stream, aVer, data.m_CompDeviceTypeStrId );
 
-    ReadCond( stream, aVer, data.m_CompDeviceTypePtr );
+    data.m_Next = stream.ReadU32();
+    block->SetNext( data.m_Next );
 
-    ReadCond( stream, aVer, data.m_Next );
-    block->SetNext( data.m_Next.value_or( 0 ) );
+    ReadCond( stream, aVer, data.m_ParentComponentPtr );
 
-    data.m_Ptr0x06 = stream.ReadU32();
-    data.m_Ptr0x11 = stream.ReadU32();
+    data.m_PinNamePtr = stream.ReadU32();
     data.m_Unknown2 = stream.ReadU32();
 
     return block;
@@ -878,11 +886,15 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x10( FILE_STREAM& stream, FMT_VER
     data.m_Key = stream.ReadU32();
     block->SetKey( data.m_Key );
 
-    ReadCond( stream, aVer, data.m_Unknown1 );
+    ReadCond( stream, aVer, data.m_Next );
+    block->SetNext( data.m_Next.value_or( 0 ) );
+
     data.m_ComponentInstPtr = stream.ReadU32();
-    ReadCond( stream, aVer, data.m_Unknown2 );
-    data.m_PtrX12 = stream.ReadU32();
-    data.m_Unknown3 = stream.ReadU32();
+    ReadCond( stream, aVer, data.m_Unknown1 );
+
+    data.m_FirstPinInstance16x = stream.ReadU32();
+    data.m_FirstPinInstance = stream.ReadU32();
+
     data.m_FunctionName = stream.ReadU32();
     data.m_Slots = stream.ReadU32();
     data.m_Fields = stream.ReadU32();
@@ -915,7 +927,7 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x11( FILE_STREAM& aStream, FMT_VE
 
 static std::unique_ptr<BLOCK_BASE> ParseBlock_0x12( FILE_STREAM& aStream, FMT_VER aVer )
 {
-    auto block = std::make_unique<BLOCK<BLK_0x12_XREF>>( aStream.Position() );
+    auto block = std::make_unique<BLOCK<BLK_0x12_PIN_INST>>( aStream.Position() );
 
     auto& data = block->GetData();
 
@@ -923,9 +935,10 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x12( FILE_STREAM& aStream, FMT_VE
     data.m_R = aStream.ReadU16();
     data.m_Key = aStream.ReadU32();
     block->SetKey( data.m_Key );
-    data.m_Ptr1 = aStream.ReadU32();
-    data.m_Ptr2 = aStream.ReadU32();
-    data.m_Ptr3 = aStream.ReadU32();
+    data.m_Next = aStream.ReadU32();
+    block->SetNext( data.m_Next );
+    data.m_PtrPinName = aStream.ReadU32();
+    data.m_PtrPad = aStream.ReadU32();
     data.m_Unknown1 = aStream.ReadU32();
 
     ReadCond( aStream, aVer, data.m_Unknown2 );
@@ -1486,13 +1499,35 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x26( FILE_STREAM& aStream, FMT_VE
 }
 
 
+/**
+ * Parse the 0x27 constraint-manager cross-reference block.
+ *
+ * @param aEndOff one past the last byte of the block, or zero when the file records no end
+ *                for it. In that case the block occupies the rest of the file.
+ */
 static std::unique_ptr<BLOCK_BASE> ParseBlock_0x27( FILE_STREAM& aStream, FMT_VER aVer, size_t aEndOff )
 {
     auto block = std::make_unique<BLOCK<BLK_0x27_CSTRMGR_XREF>>( aStream.Position() );
 
     auto& data = block->GetData();
 
-    const size_t totalBytes = aEndOff - 1 - aStream.Position();
+    size_t totalBytes = 0;
+
+    if( aEndOff == 0 )
+    {
+        // We take the rest of the file as the block content.
+        totalBytes = aStream.Size() - aStream.Position();
+    }
+    else
+    {
+        if( aEndOff - 1 > aStream.Size() )
+        {
+            THROW_IO_ERRORF( wxT( "Block 0x27 end offset %#010zx is past the end of the file at %#010zx" ),
+                             aEndOff, aStream.Size() );
+        }
+
+        totalBytes = aEndOff - 1 - aStream.Position();
+    }
 
     // The blob starts with 3 bytes of padding, then uint32 LE values
     constexpr size_t kPadding = 3;
@@ -1509,10 +1544,16 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x27( FILE_STREAM& aStream, FMT_VE
     const size_t numValues = payloadBytes / 4;
     const size_t remainder = payloadBytes % 4;
 
-    data.m_Refs.resize( numValues );
-
+    // A zero word (apparently) separates sections of the table.
+    // Until we work out the exact structure, we simply collect all non-zero references
+    // in order.
     for( size_t i = 0; i < numValues; i++ )
-        data.m_Refs[i] = aStream.ReadU32();
+    {
+        const uint32_t ref = aStream.ReadU32();
+
+        if( ref != 0 )
+            data.m_Refs.push_back( ref );
+    }
 
     if( remainder > 0 )
         aStream.Skip( remainder );
@@ -1936,12 +1977,12 @@ static std::unique_ptr<BLOCK_BASE> ParseBlock_0x32_PLACED_PAD( FILE_STREAM& aStr
     data.m_ParentFp = aStream.ReadU32();
     data.m_Track = aStream.ReadU32();
     data.m_PadPtr = aStream.ReadU32();
-    data.m_Ptr6 = aStream.ReadU32();
+    data.m_PinInstance = aStream.ReadU32();
     data.m_Ratline = aStream.ReadU32();
     data.m_PtrPinNumber = aStream.ReadU32();
     data.m_NextInCompInst = aStream.ReadU32();
 
-    ReadCond( aStream, aVer, data.m_Unknown2 );
+    ReadCond( aStream, aVer, data.m_ComponentInst );
 
     data.m_NameText = aStream.ReadU32();
     data.m_Ptr11 = aStream.ReadU32();
@@ -2610,13 +2651,18 @@ std::unique_ptr<BLOCK_BASE> ALLEGRO::BLOCK_PARSER::ParseBlock( bool& aEndOfObjec
     }
     case 0x27:
     {
-        if( m_x27_end <= m_stream.Position() )
+        if( m_x27_end != 0 && m_x27_end <= m_stream.Position() )
         {
             THROW_IO_ERRORF( wxT( "Current offset %#010zx is at or past the expected end of block 0x27 at %#010zx" ),
                              m_stream.Position(), m_x27_end );
         }
 
         block = ParseBlock_0x27( m_stream, m_ver, m_x27_end );
+
+        // With no end offset, we're done at the end of the file.
+        if( m_x27_end == 0 )
+            aEndOfObjectsMarker = true;
+
         break;
     }
     case 0x28:

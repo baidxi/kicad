@@ -288,6 +288,8 @@ bool REMOTE_SYMBOL_IMPORT_JOB::Import( const REMOTE_PROVIDER_METADATA& aProvider
             ApplyFootprintLinks( *loadedSymbol, footprintLinks );
         }
 
+        // Note: use wxPATH_MKDIR_FULL to create all intermediate directories and also to suppress any
+        // "directory already exists" failures.
         if( !symbolDir.Mkdir( wxS_DIR_DEFAULT, wxPATH_MKDIR_FULL ) )
         {
             aError = wxString::Format( _( "Unable to create directory '%s'." ), symbolDir.GetPath() );
@@ -363,7 +365,7 @@ bool REMOTE_SYMBOL_IMPORT_JOB::Import( const REMOTE_PROVIDER_METADATA& aProvider
             return false;
     }
 
-    return true;
+    return didImportSymbol;
 }
 
 

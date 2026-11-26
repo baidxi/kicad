@@ -100,6 +100,9 @@ public:
     /// Return the working copy of a #LIB_SYMBOL root object with specified alias.
     LIB_SYMBOL* GetSymbol( const wxString& aAlias ) const;
 
+    /// Buffer copies of a library's symbols, linking each derived copy to its buffered parent
+    void BufferOriginals( std::vector<LIB_SYMBOL*> aOriginals );
+
     /// Create a new buffer to store a symbol. #LIB_BUFFER takes ownership of \a aCopy.
     bool CreateBuffer( std::unique_ptr<LIB_SYMBOL> aCopy, std::unique_ptr<SCH_SCREEN> aScreen, bool aNew = false );
 
@@ -119,14 +122,22 @@ public:
     void RevertAddedBuffers();
 
     /**
-     * Restore \a aSymbolBuf to its last saved state and clear its modified flag.
+     * Restore \a aSymbolBuf to its last saved state and clear its modified flag. Saved ancestors that are pending
+     * deletion are restored with it.
      *
      * @param aDropNeverSaved removes a symbol that was never written to the library file instead,
-     *                        unless other symbols derive from it.  The caller must hold its own
-     *                        reference to \a aSymbolBuf.
-     * @return the restored symbol name, or empty if the symbol was removed.
+     *                        unless other symbols derive from it or a revert could restore one that
+     *                        does.  The caller must hold its own reference to \a aSymbolBuf.
+     * @return the restored symbol name, the current name if #CanRevertBuffer refuses and nothing was reverted, or
+     *         empty if the symbol was removed.
      */
     wxString RevertBuffer( SYMBOL_BUFFER& aSymbolBuf, bool aDropNeverSaved );
+
+    /// False if a revert would derive \a aSymbolBuf from itself or restore it or an ancestor beside a symbol of its name
+    bool CanRevertBuffer( const SYMBOL_BUFFER& aSymbolBuf, bool aDropNeverSaved ) const;
+
+    /// Delete the deleted buffers' symbols from aFileName, except names a live buffer now holds
+    bool RemoveDeletedSymbols( const wxString& aFileName, SCH_IO* aPlugin ) const;
 
     /// Return the deleted symbol buffers that need to be removed from the library file.
     const std::deque<std::shared_ptr<SYMBOL_BUFFER>>& GetDeletedBuffers() const { return m_deleted; }
@@ -143,6 +154,14 @@ public:
      * changed the file.
      */
     bool SaveModifiedBuffers( const wxString& aFileName, SCH_IO* aPlugin );
+
+    /**
+     * Save every symbol to aFileName, a file other than the library's own, and write it.
+     *
+     * @param aReplacesOwnFile is true when aFileName becomes the library's own file. The buffers then take what was
+     *                         saved as their originals. Otherwise they still owe their own file any pending renames.
+     */
+    bool SaveAs( const wxString& aFileName, SCH_IO* aPlugin, bool aReplacesOwnFile );
 
     /// Save stored modifications using a plugin. aBuffer decides whether the changes
     /// should be cached or stored directly to the disk (for #SCH_IO_KICAD_LEGACY).
@@ -192,6 +211,12 @@ private:
      * @return the count of #SYMBOL_BUFFER objects removed from the library.
      */
     int removeChildSymbols( const SYMBOL_BUFFER& aSymbolBuf );
+
+    bool canDropBuffer( const SYMBOL_BUFFER& aSymbolBuf ) const;
+
+    /// Collect the ancestors of \a aSymbolBuf's original that are pending deletion, or return false if one cannot return
+    bool findDeletedAncestors( const SYMBOL_BUFFER&                         aSymbolBuf,
+                               std::vector<std::shared_ptr<SYMBOL_BUFFER>>& aDeleted ) const;
 
 private:
     std::deque<std::shared_ptr<SYMBOL_BUFFER>> m_symbols;
@@ -365,11 +390,13 @@ public:
      * @param aLibrary is the library name.
      * @param aFileName is the target file name.
      * @param aFileType is the plugin type used to save the library.
+     * @param aReplacesOwnFile is true when aFileName, if not the library's own file, is about to replace it.
      *
      * @return True on success, false otherwise.
      */
     bool SaveLibrary( const wxString& aLibrary, const wxString& aFileName,
-                      SCH_IO_MGR::SCH_FILE_T aFileType = SCH_IO_MGR::SCH_FILE_T::SCH_LEGACY );
+                      SCH_IO_MGR::SCH_FILE_T aFileType = SCH_IO_MGR::SCH_FILE_T::SCH_LEGACY,
+                      bool aReplacesOwnFile = false );
 
     /**
      * Revert unsaved changes for a symbol and clear its modified flag.
@@ -380,6 +407,9 @@ public:
      * of a rename), with an empty item name if the symbol was removed
      */
     LIB_ID RevertSymbol( const LIB_ID& aIdToRevert, bool aDropNeverSaved = false );
+
+    /// Check #LIB_BUFFER::CanRevertBuffer for a symbol, and warn when it refuses
+    bool CanRevertSymbol( const LIB_ID& aId, bool aDropNeverSaved = false ) const;
 
     /**
      * Revert unsaved changes for a symbol library.
